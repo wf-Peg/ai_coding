@@ -60,7 +60,15 @@ node_modules/
 
 # Build output
 dist/
+dist-electron/
 build/
+
+# Electron
+out/
+release/
+
+# Embedded JRE (too large for git, use prepare-jre.bat to download)
+jre/
 
 # OS files
 .DS_Store

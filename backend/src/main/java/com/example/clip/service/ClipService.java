@@ -7,14 +7,12 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class ClipService {
 
     private final FileStorageService storageService;
     private final AiService aiService;
-    private final AtomicLong idGenerator = new AtomicLong(1);
 
     @Autowired
     public ClipService(FileStorageService storageService, AiService aiService) {
@@ -24,7 +22,7 @@ public class ClipService {
 
     public ClipContent saveClip(String content, String type, String source, String category) {
         ClipContent clipContent = new ClipContent(content, type, source, category);
-        clipContent.setId(idGenerator.getAndIncrement());
+        // ID 由 FileStorageService 统一分配，此处不再手动设置
         
         // 直接调用AI生成内容，而不是异步处理
         try {
