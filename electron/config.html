@@ -5,267 +5,91 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>剪藏 - 设置</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-      background: #f5f7fa;
-      color: #333;
-      padding: 0;
-      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: #f5f7fa; color: #333; overflow: hidden;
     }
-
     .header {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 24px 32px;
+      color: white; padding: 24px 32px;
     }
-
-    .header h1 {
-      font-size: 22px;
-      font-weight: 600;
-      margin-bottom: 4px;
-    }
-
-    .header p {
-      font-size: 13px;
-      opacity: 0.85;
-    }
-
-    .container {
-      padding: 24px 32px;
-      max-height: calc(100vh - 100px);
-      overflow-y: auto;
-    }
-
-    .section {
-      margin-bottom: 24px;
-    }
-
+    .header h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+    .header p { font-size: 13px; opacity: 0.85; }
+    .container { padding: 24px 32px; max-height: calc(100vh - 100px); overflow-y: auto; }
+    .section { margin-bottom: 24px; }
     .section-title {
-      font-size: 14px;
-      font-weight: 600;
-      color: #555;
-      margin-bottom: 12px;
-      padding-bottom: 8px;
+      font-size: 14px; font-weight: 600; color: #555;
+      margin-bottom: 12px; padding-bottom: 8px;
       border-bottom: 1px solid #e8ecf1;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      display: flex; align-items: center; gap: 8px;
     }
-
-    .section-title .icon {
-      font-size: 16px;
-    }
-
-    .form-group {
-      margin-bottom: 16px;
-    }
-
+    .form-group { margin-bottom: 16px; }
     .form-group label {
-      display: block;
-      font-size: 13px;
-      color: #666;
-      margin-bottom: 6px;
-      font-weight: 500;
+      display: block; font-size: 13px; color: #666;
+      margin-bottom: 6px; font-weight: 500;
     }
-
-    .form-group label .hint {
-      font-weight: 400;
-      color: #999;
-      font-size: 12px;
-    }
-
+    .form-group label .hint { font-weight: 400; color: #999; font-size: 12px; }
     .form-group input[type="text"],
     .form-group input[type="number"],
     .form-group input[type="password"] {
-      width: 100%;
-      padding: 10px 14px;
-      border: 1px solid #d9dce1;
-      border-radius: 8px;
-      font-size: 14px;
-      outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
-      background: white;
+      width: 100%; padding: 10px 14px;
+      border: 1px solid #d9dce1; border-radius: 8px;
+      font-size: 14px; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s; background: white;
     }
-
     .form-group input:focus {
       border-color: #667eea;
       box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
     }
-
-    .path-group {
-      display: flex;
-      gap: 8px;
-    }
-
-    .path-group input {
-      flex: 1;
-    }
-
+    .path-group { display: flex; gap: 8px; }
+    .path-group input { flex: 1; }
     .btn-browse {
-      padding: 10px 16px;
-      background: #f0f2f5;
-      border: 1px solid #d9dce1;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 13px;
-      color: #555;
-      white-space: nowrap;
-      transition: background 0.2s;
+      padding: 10px 16px; background: #f0f2f5;
+      border: 1px solid #d9dce1; border-radius: 8px;
+      cursor: pointer; font-size: 13px; color: #555;
+      white-space: nowrap; transition: background 0.2s;
     }
-
-    .btn-browse:hover {
-      background: #e4e7ec;
-    }
-
-    .api-key-wrapper {
-      position: relative;
-    }
-
-    .api-key-wrapper input {
-      padding-right: 42px;
-    }
-
+    .btn-browse:hover { background: #e4e7ec; }
+    .api-key-wrapper { position: relative; }
+    .api-key-wrapper input { padding-right: 42px; }
     .toggle-visibility {
-      position: absolute;
-      right: 10px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-size: 16px;
-      color: #999;
-      padding: 4px;
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; cursor: pointer;
+      font-size: 16px; color: #999; padding: 4px;
     }
-
-    .toggle-visibility:hover {
-      color: #666;
-    }
-
+    .toggle-visibility:hover { color: #666; }
     .actions {
-      display: flex;
-      gap: 12px;
-      justify-content: flex-end;
-      padding-top: 16px;
-      border-top: 1px solid #e8ecf1;
+      display: flex; gap: 12px; justify-content: flex-end;
+      padding-top: 16px; border-top: 1px solid #e8ecf1;
     }
-
     .btn {
-      padding: 10px 28px;
-      border: none;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s;
+      padding: 10px 28px; border: none; border-radius: 8px;
+      font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s;
     }
-
     .btn-primary {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;
     }
-
-    .btn-primary:hover {
-      opacity: 0.9;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-    }
-
-    .btn-primary:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-      transform: none;
-      box-shadow: none;
-    }
-
-    .btn-secondary {
-      background: white;
-      color: #666;
-      border: 1px solid #d9dce1;
-    }
-
-    .btn-secondary:hover {
-      background: #f5f7fa;
-    }
-
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
     .status-bar {
-      margin-top: 12px;
-      padding: 10px 14px;
-      border-radius: 8px;
-      font-size: 13px;
-      display: none;
+      margin-top: 12px; padding: 10px 14px; border-radius: 8px;
+      font-size: 13px; display: none;
     }
-
-    .status-bar.success {
-      display: block;
-      background: #f0fdf4;
-      color: #16a34a;
-      border: 1px solid #bbf7d0;
-    }
-
-    .status-bar.error {
-      display: block;
-      background: #fef2f2;
-      color: #dc2626;
-      border: 1px solid #fecaca;
-    }
-
-    .status-bar.loading {
-      display: block;
-      background: #eff6ff;
-      color: #2563eb;
-      border: 1px solid #bfdbfe;
-    }
-
+    .status-bar.success { display: block; background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+    .status-bar.error { display: block; background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+    .status-bar.loading { display: block; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
     .first-run-notice {
-      background: #fffbeb;
-      border: 1px solid #fde68a;
-      border-radius: 8px;
-      padding: 14px 16px;
-      margin-bottom: 20px;
-      font-size: 13px;
-      color: #92400e;
-      line-height: 1.6;
+      background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+      padding: 14px 16px; margin-bottom: 20px;
+      font-size: 13px; color: #92400e; line-height: 1.6;
     }
-
-    .first-run-notice strong {
-      display: block;
-      margin-bottom: 4px;
-      font-size: 14px;
-    }
-
-    .port-row {
-      display: flex;
-      gap: 16px;
-    }
-
-    .port-row .form-group {
-      flex: 1;
-    }
-
-    /* 滚动条样式 */
-    .container::-webkit-scrollbar {
-      width: 6px;
-    }
-
-    .container::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .container::-webkit-scrollbar-thumb {
-      background: #d1d5db;
-      border-radius: 3px;
-    }
-
-    .container::-webkit-scrollbar-thumb:hover {
-      background: #9ca3af;
-    }
+    .first-run-notice strong { display: block; margin-bottom: 4px; font-size: 14px; }
+    .port-row { display: flex; gap: 16px; }
+    .port-row .form-group { flex: 1; }
+    .container::-webkit-scrollbar { width: 6px; }
+    .container::-webkit-scrollbar-track { background: transparent; }
+    .container::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
   </style>
 </head>
 <body>
@@ -273,80 +97,90 @@
     <h1 id="headerTitle">⚙️ 剪藏 - 设置</h1>
     <p id="headerDesc">配置应用参数</p>
   </div>
-
   <div class="container">
     <div id="firstRunNotice" class="first-run-notice" style="display:none;">
-      <strong>👋 欢迎使用剪藏！</strong>
-      首次使用需要完成以下配置。请确保已安装 Java 17+ 环境，并准备好阿里云 DashScope API Key。
-      <a href="https://dashscope.console.aliyun.com/apiKey" target="_blank" style="color: #667eea;">点击获取 API Key →</a>
+      <strong>欢迎使用剪藏！</strong>
+      首次使用需要完成以下配置。请确保已准备好阿里云 DashScope API Key。
+      <a href="https://dashscope.console.aliyun.com/apiKey" target="_blank" style="color: #667eea;">点击获取 API Key</a>
     </div>
-
-    <!-- API 配置 -->
     <div class="section">
       <div class="section-title"><span class="icon">🔑</span> API 配置</div>
       <div class="form-group">
-        <label>DashScope API Key <span class="hint">（必填，从阿里云控制台获取）</span></label>
+        <label>DashScope API Key <span class="hint">（必填）</span></label>
         <div class="api-key-wrapper">
           <input type="password" id="apiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" />
-          <button class="toggle-visibility" id="toggleApiKey" title="显示/隐藏">👁</button>
+          <button class="toggle-visibility" id="toggleApiKey" type="button">👁</button>
         </div>
       </div>
     </div>
-
-    <!-- 端口配置 -->
     <div class="section">
       <div class="section-title"><span class="icon">🔌</span> 端口配置</div>
       <div class="port-row">
         <div class="form-group">
-          <label>后端端口 <span class="hint">（Spring Boot 服务）</span></label>
-          <input type="number" id="backendPort" min="1024" max="65535" />
+          <label>后端端口</label>
+          <input type="number" id="backendPort" value="8080" min="1024" max="65535" />
         </div>
         <div class="form-group">
-          <label>前端端口 <span class="hint">（内置静态服务器）</span></label>
-          <input type="number" id="frontendPort" min="1024" max="65535" />
+          <label>前端端口</label>
+          <input type="number" id="frontendPort" value="3000" min="1024" max="65535" />
         </div>
       </div>
     </div>
-
-    <!-- 存储配置 -->
     <div class="section">
       <div class="section-title"><span class="icon">📁</span> 存储目录</div>
       <div class="form-group">
         <label>剪藏文件存储目录</label>
         <div class="path-group">
           <input type="text" id="storagePath" placeholder="选择剪藏文件存放目录" />
-          <button class="btn-browse" id="browseStorage">浏览...</button>
+          <button class="btn-browse" id="browseStorage" type="button">浏览...</button>
         </div>
       </div>
       <div class="form-group">
         <label>总结文件存储目录</label>
         <div class="path-group">
           <input type="text" id="organizedPath" placeholder="选择总结文件存放目录" />
-          <button class="btn-browse" id="browseOrganized">浏览...</button>
+          <button class="btn-browse" id="browseOrganized" type="button">浏览...</button>
         </div>
       </div>
     </div>
-
-    <!-- 操作按钮 -->
     <div class="actions">
-      <button class="btn btn-secondary" id="btnCancel" style="display:none;">取消</button>
-      <button class="btn btn-primary" id="btnSave">保存并启动</button>
+      <button class="btn btn-primary" id="btnSave" type="button">保存并启动</button>
     </div>
-
     <div class="status-bar" id="statusBar"></div>
   </div>
-
   <script>
-    const { electronAPI } = window;
+    // Wait for preload to inject electronAPI
+    function waitForAPI(callback) {
+      if (window.electronAPI) {
+        callback(window.electronAPI);
+      } else {
+        // Retry every 50ms, max 5 seconds
+        let attempts = 0;
+        const timer = setInterval(() => {
+          attempts++;
+          if (window.electronAPI) {
+            clearInterval(timer);
+            callback(window.electronAPI);
+          } else if (attempts > 100) {
+            clearInterval(timer);
+            showStatus('electronAPI not available - preload error', 'error');
+          }
+        }, 50);
+      }
+    }
 
     let isFirstRun = false;
-    let currentConfig = {};
 
-    // 初始化
-    async function init() {
-      // 监听配置加载
-      electronAPI.onLoadConfig((config) => {
-        currentConfig = config;
+    function showStatus(message, type) {
+      const bar = document.getElementById('statusBar');
+      bar.textContent = message;
+      bar.style.display = 'block';
+      bar.className = 'status-bar ' + type;
+    }
+
+    waitForAPI(function(api) {
+      // Listen for config load
+      api.onLoadConfig(function(config) {
         document.getElementById('apiKey').value = config.apiKey || '';
         document.getElementById('backendPort').value = config.backendPort || 8080;
         document.getElementById('frontendPort').value = config.frontendPort || 3000;
@@ -354,121 +188,93 @@
         document.getElementById('organizedPath').value = config.organizedPath || '';
       });
 
-      // 监听首次运行
-      electronAPI.onFirstRun(() => {
+      // Listen for first run
+      api.onFirstRun(function() {
         isFirstRun = true;
         document.getElementById('firstRunNotice').style.display = 'block';
-        document.getElementById('headerTitle').textContent = '🚀 剪藏 - 初始设置';
+        document.getElementById('headerTitle').textContent = '剪藏 - 初始设置';
         document.getElementById('headerDesc').textContent = '首次使用，请完成配置后启动';
-        document.getElementById('btnSave').textContent = '保存并启动';
-        document.getElementById('btnCancel').style.display = 'none';
       });
-    }
 
-    // 显示状态
-    function showStatus(message, type) {
-      const bar = document.getElementById('statusBar');
-      bar.textContent = message;
-      bar.className = 'status-bar ' + type;
-    }
-
-    function hideStatus() {
-      const bar = document.getElementById('statusBar');
-      bar.className = 'status-bar';
-      bar.style.display = 'none';
-    }
-
-    // API Key 显示/隐藏
-    document.getElementById('toggleApiKey').addEventListener('click', () => {
-      const input = document.getElementById('apiKey');
-      const btn = document.getElementById('toggleApiKey');
-      if (input.type === 'password') {
-        input.type = 'text';
-        btn.textContent = '🙈';
-      } else {
-        input.type = 'password';
-        btn.textContent = '👁';
-      }
-    });
-
-    // 浏览目录
-    document.getElementById('browseStorage').addEventListener('click', async () => {
-      const dir = await electronAPI.selectDirectory();
-      if (dir) document.getElementById('storagePath').value = dir;
-    });
-
-    document.getElementById('browseOrganized').addEventListener('click', async () => {
-      const dir = await electronAPI.selectDirectory();
-      if (dir) document.getElementById('organizedPath').value = dir;
-    });
-
-    // 保存配置
-    document.getElementById('btnSave').addEventListener('click', async () => {
-      const apiKey = document.getElementById('apiKey').value.trim();
-      const backendPort = parseInt(document.getElementById('backendPort').value) || 8080;
-      const frontendPort = parseInt(document.getElementById('frontendPort').value) || 3000;
-      const storagePath = document.getElementById('storagePath').value.trim();
-      const organizedPath = document.getElementById('organizedPath').value.trim();
-
-      // 验证
-      if (!apiKey) {
-        showStatus('请填写 DashScope API Key', 'error');
-        document.getElementById('apiKey').focus();
-        return;
-      }
-
-      if (!storagePath) {
-        showStatus('请选择剪藏文件存储目录', 'error');
-        return;
-      }
-
-      if (!organizedPath) {
-        showStatus('请选择总结文件存储目录', 'error');
-        return;
-      }
-
-      if (backendPort === frontendPort) {
-        showStatus('前端和后端端口不能相同', 'error');
-        return;
-      }
-
-      const newConfig = {
-        apiKey,
-        backendPort,
-        frontendPort,
-        storagePath,
-        organizedPath,
-        configured: true
-      };
-
-      const btn = document.getElementById('btnSave');
-      btn.disabled = true;
-      showStatus('正在保存配置...', 'loading');
-
-      if (isFirstRun) {
-        // 首次运行，通知主进程启动
-        electronAPI.configDone(newConfig);
-      } else {
-        // 非首次运行，保存并重启后端
-        const result = await electronAPI.saveConfig(newConfig);
-        if (result.success) {
-          showStatus(result.message, 'success');
-          setTimeout(() => {
-            btn.disabled = false;
-          }, 2000);
+      // Toggle API key visibility
+      document.getElementById('toggleApiKey').addEventListener('click', function() {
+        var input = document.getElementById('apiKey');
+        var btn = document.getElementById('toggleApiKey');
+        if (input.type === 'password') {
+          input.type = 'text';
+          btn.textContent = '🙈';
         } else {
-          showStatus(result.message, 'error');
-          btn.disabled = false;
+          input.type = 'password';
+          btn.textContent = '👁';
         }
-      }
-    });
+      });
 
-    // 取消
-    document.getElementById('btnCancel').addEventListener('click', () => {
-      window.close();
-    });
+      // Browse storage directory
+      document.getElementById('browseStorage').addEventListener('click', async function() {
+        try {
+          var dir = await api.selectDirectory();
+          if (dir) document.getElementById('storagePath').value = dir;
+        } catch (e) {
+          showStatus('选择目录失败: ' + e.message, 'error');
+        }
+      });
 
-    init();
+      // Browse organized directory
+      document.getElementById('browseOrganized').addEventListener('click', async function() {
+        try {
+          var dir = await api.selectDirectory();
+          if (dir) document.getElementById('organizedPath').value = dir;
+        } catch (e) {
+          showStatus('选择目录失败: ' + e.message, 'error');
+        }
+      });
+
+      // Save and start
+      document.getElementById('btnSave').addEventListener('click', async function() {
+        var apiKey = document.getElementById('apiKey').value.trim();
+        var backendPort = parseInt(document.getElementById('backendPort').value) || 8080;
+        var frontendPort = parseInt(document.getElementById('frontendPort').value) || 3000;
+        var storagePath = document.getElementById('storagePath').value.trim();
+        var organizedPath = document.getElementById('organizedPath').value.trim();
+
+        if (!apiKey) { showStatus('请填写 DashScope API Key', 'error'); return; }
+        if (!storagePath) { showStatus('请选择剪藏文件存储目录', 'error'); return; }
+        if (!organizedPath) { showStatus('请选择总结文件存储目录', 'error'); return; }
+        if (backendPort === frontendPort) { showStatus('前端和后端端口不能相同', 'error'); return; }
+
+        var newConfig = {
+          apiKey: apiKey, backendPort: backendPort, frontendPort: frontendPort,
+          storagePath: storagePath, organizedPath: organizedPath, configured: true
+        };
+
+        var btn = document.getElementById('btnSave');
+        btn.disabled = true;
+        showStatus('正在保存配置并启动服务，请稍候...', 'loading');
+
+        if (isFirstRun) {
+          api.configDone(newConfig);
+        } else {
+          try {
+            showStatus('正在保存配置并重启服务...', 'loading');
+            var result = await api.restartBackend(newConfig);
+            if (result.success) {
+              showStatus('配置已保存，服务已重启生效', 'success');
+              setTimeout(function() {
+                btn.disabled = false;
+                // Close config window after success
+                window.close();
+              }, 1500);
+            } else {
+              showStatus('重启失败: ' + result.message + '（配置已保存，请重启应用）', 'error');
+              btn.disabled = false;
+            }
+          } catch (e) {
+            showStatus('操作失败: ' + e.message, 'error');
+            btn.disabled = false;
+          }
+        }
+      });
+    });
   </script>
 </body>
 </html>

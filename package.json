@@ -21,14 +21,17 @@
       "output": "dist-electron"
     },
     "files": [
-      "electron/**/*",
-      "frontend/index.html",
-      "frontend/public/**/*"
+      "electron/**/*"
     ],
     "extraResources": [
       {
         "from": "backend/target/clip-demo-0.0.1-SNAPSHOT.jar",
         "to": "backend/clip-demo-0.0.1-SNAPSHOT.jar"
+      },
+      {
+        "from": "frontend",
+        "to": "frontend",
+        "filter": ["index.html", "public/**/*"]
       },
       {
         "from": "jre",
@@ -46,10 +49,14 @@
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Clip"
+      "shortcutName": "Clip",
+      "packElevateHelper": false,
+      "differentialPackage": false,
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "mac": {
       "target": [
