@@ -180,10 +180,10 @@ public class FileStorageService {
                 clip.setId(idGenerator.getAndIncrement());
             }
 
-            // 修复 bug: category 为空时使用 "work" 作为默认值（而非 "default"）
+            // category 为空时存到 default 目录
             String category = clip.getCategory();
             if (category == null || category.isEmpty()) {
-                category = "work";
+                category = "default";
                 clip.setCategory(category);
             }
 
