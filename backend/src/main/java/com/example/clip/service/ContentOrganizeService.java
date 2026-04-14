@@ -163,9 +163,38 @@ public class ContentOrganizeService {
         }
     }
 
+    /**
+     * 将 category value 映射为目录路径（与 FileStorageService 一致）
+     * 例如: "work-company" → "work/公司事务"
+     *       "work" → "work"
+     *       null/空 → "default"
+     */
+    private String getCategoryDir(String category) {
+        String cat = (category != null && !category.isEmpty()) ? category : "default";
+
+        for (Map<String, Object> topCat : AiService.CATEGORY_TREE) {
+            String topValue = topCat.get("value").toString();
+
+            if (topValue.equals(cat)) {
+                return topValue;
+            }
+
+            List<Map<String, Object>> children = (List<Map<String, Object>>) topCat.get("children");
+            if (children != null) {
+                for (Map<String, Object> child : children) {
+                    if (child.get("value").toString().equals(cat)) {
+                        return topValue + "/" + child.get("label").toString();
+                    }
+                }
+            }
+        }
+
+        return cat;
+    }
+
     private void saveOrganizedContent(String category, String fileName, String content) throws IOException {
-        String mappedCategory = getCategoryName(category);
-        Path categoryPath = organizedStoragePath.resolve(mappedCategory);
+        String categoryDir = getCategoryDir(category);
+        Path categoryPath = organizedStoragePath.resolve(categoryDir);
         if (!Files.exists(categoryPath)) {
             Files.createDirectories(categoryPath);
         }
@@ -185,7 +214,7 @@ public class ContentOrganizeService {
     }
 
     /**
-     * 将 category value 映射为中文名称
+     * 将 category value 映射为中文名称（用于显示标题和 AI prompt）
      * 例如: "work-company" → "工作项目 > 公司事务"
      *       "work" → "工作项目"
      */
