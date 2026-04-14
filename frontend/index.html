@@ -168,30 +168,53 @@
         }
         
         .toggle-container {
-            margin-top: 10px;
-            margin-bottom: 10px;
-            padding-right: 4%;
-            position: relative;
-            text-align: right;
-        }
-        
-        .toggle-btn {
-            width: auto;
-            height: auto;
-            border: 1px solid var(--border);
-            background: var(--surface);
-            border-radius: var(--radius);
-            cursor: pointer;
-            transition: var(--transition);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 6px 12px;
-            font-size: 0.8rem;
-            font-weight: 500;
-            color: var(--text);
-            white-space: nowrap;
-        }
+    margin-top: 16px;
+    margin-bottom: 16px;
+    padding-right: 4%;
+    position: relative;
+    text-align: right;
+    gap: 12px;
+}
+
+.toggle-btn {
+    width: auto;
+    height: auto;
+    border: none;
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    border-radius: 12px;
+    cursor: pointer;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 24px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #ffffff;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+    letter-spacing: 0.02em;
+}
+
+.toggle-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.35);
+}
+
+.toggle-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+}
+
+.toggle-btn.active {
+    background: linear-gradient(135deg, var(--accent), #34d399);
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+}
+
+.toggle-btn.active:hover {
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
+}
         
         @media (max-width: 768px) {
             .toggle-container {
@@ -448,6 +471,13 @@
             transition: var(--transition);
             border: 1px solid var(--border);
         }
+
+        .clip-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
         
         .clip-item:hover {
             transform: translateY(-2px);
@@ -500,6 +530,21 @@
         
         .meta-item::before {
             display: none;
+        }
+
+        /* Category badge in clip list */
+        .category-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(96, 165, 250, 0.08));
+            color: var(--primary);
+            padding: 4px 12px;
+            border-radius: 16px;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            font-size: 0.82rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
         }
         
         .expand-btn {
@@ -876,7 +921,7 @@
             cursor: not-allowed;
             background: rgba(30, 41, 59, 0.3);
         }
-        
+
         .ai-tags-checkbox {
             display: inline-flex;
             align-items: center;
@@ -888,13 +933,13 @@
             border: 1px solid var(--border);
             transition: var(--transition);
         }
-        
+
         .ai-tags-checkbox:hover {
             background: var(--surface);
             border-color: var(--primary);
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         }
-        
+
         .ai-tags-checkbox input[type="checkbox"] {
             width: 20px;
             height: 20px;
@@ -902,11 +947,11 @@
             cursor: pointer;
             transition: var(--transition);
         }
-        
+
         .ai-tags-checkbox input[type="checkbox"]:hover {
             transform: scale(1.1);
         }
-        
+
         .ai-tags-checkbox label {
             margin: 0;
             cursor: pointer;
@@ -916,9 +961,63 @@
             white-space: nowrap;
             transition: var(--transition);
         }
-        
+
         .ai-tags-checkbox:hover label {
             color: var(--primary);
+        }
+
+        /* Tree-style category select */
+        #category {
+            padding: 10px 14px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text);
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        #category:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+            outline: none;
+        }
+
+        #category option[value=""] {
+            color: var(--text-secondary);
+        }
+
+        #category optgroup {
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        #category option {
+            padding: 6px 12px;
+        }
+
+        /* Search category select - same style as add-clip category */
+        #search-category {
+            padding: 10px 14px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text);
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: var(--transition);
+            width: 100%;
+        }
+
+        #search-category:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+            outline: none;
+        }
+
+        #search-category option[value=""] {
+            color: var(--text-secondary);
         }
         
         .markdown-content h1,
@@ -1183,9 +1282,9 @@
                 <button class="toggle-btn" id="organize-btn" onclick="organizeContent()">
                     <span class="toggle-text">📚 整理今日内容</span>
                 </button>
-                <button class="toggle-btn" id="toggle-btn" onclick="toggleMode()" style="margin-left: 10px;">
-                    <span class="toggle-text" id="toggle-text">切换到信息检索</span>
-                </button>
+                <button class="toggle-btn" id="toggle-btn" onclick="toggleMode()">
+        <span class="toggle-text" id="toggle-text">切换到信息检索</span>
+    </button>
             </div>
         </header>
         
@@ -1232,14 +1331,7 @@
                     <div class="form-group">
                         <label for="category">分类</label>
                         <select id="category">
-                            <option value="default">默认</option>
-                            <option value="tech">技术</option>
-                            <option value="life">生活</option>
-                            <option value="work">工作</option>
-                            <option value="study">学习</option>
-                            <option value="health">健康</option>
-                            <option value="finance">财经</option>
-                            <option value="entertainment">娱乐</option>
+                            <option value="">请选择分类</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -1271,7 +1363,9 @@
                     </div>
                     <div class="form-group">
                         <label for="search-category">分类筛选</label>
-                        <input type="text" id="search-category" placeholder="留空表示搜索所有分类">
+                        <select id="search-category">
+                            <option value="">全部分类</option>
+                        </select>
                     </div>
                     <div class="form-actions">
                         <button type="button" class="btn-secondary" onclick="clearSearch()">清空</button>
@@ -1306,6 +1400,7 @@
         
         document.addEventListener('DOMContentLoaded', () => {
             fetchClips();
+            loadCategories();
             
             const tagInput = document.getElementById('tag-input');
             tagInput.addEventListener('keydown', (e) => {
@@ -1325,7 +1420,7 @@
                 const content = document.getElementById('content').value;
                 const type = document.getElementById('type').value;
                 const source = document.getElementById('source').value;
-                const category = document.getElementById('category').value;
+                const category = document.getElementById('category').value || 'work';
                 const useAiTags = document.getElementById('ai-generate-tags').checked;
                 const submitBtn = e.target.querySelector('button[type="submit"]');
                 
@@ -1407,11 +1502,78 @@
                 }
             });
         });
-        
+
+        // Category value-to-label mapping
+        const CATEGORY_LABELS = {
+            'work': '工作项目', 'work-company': '工作项目 > 公司事务', 'work-side': '工作项目 > 个人副业',
+            'study': '学习成长', 'study-course': '学习成长 > 课程学习', 'study-book': '学习成长 > 读书笔记',
+            'life': '生活健康', 'life-daily': '生活健康 > 日常记录', 'life-health': '生活健康 > 健康运动',
+            'hobby': '兴趣探索', 'hobby-tech': '兴趣探索 > 技术探索', 'hobby-idea': '兴趣探索 > 创意灵感',
+            'finance': '财务规划', 'finance-invest': '财务规划 > 投资理财', 'finance-spend': '财务规划 > 消费记录',
+            'social': '人脉社交', 'social-contact': '人脉社交 > 人脉管理', 'social-event': '人脉社交 > 社交活动',
+            'default': '默认', 'tech': '技术', 'entertainment': '娱乐', 'health': '健康'
+        };
+
+        function getCategoryLabel(value) {
+            if (!value) return '未分类';
+            return CATEGORY_LABELS[value] || value;
+        }
+
+        // Load category tree from backend
+        async function loadCategories() {
+            try {
+                const response = await axios.get(`${API_BASE_URL}/categories`);
+                const categories = response.data;
+
+                // Fill add-clip category select
+                const select = document.getElementById('category');
+                select.innerHTML = '<option value="">请选择分类</option>';
+
+                // Fill search category select
+                const searchSelect = document.getElementById('search-category');
+                searchSelect.innerHTML = '<option value="">全部分类</option>';
+
+                categories.forEach(cat => {
+                    if (cat.children && cat.children.length > 0) {
+                        // Add-clip: optgroup with children
+                        const group = document.createElement('optgroup');
+                        group.label = cat.label;
+                        cat.children.forEach(child => {
+                            const option = document.createElement('option');
+                            option.value = child.value;
+                            option.textContent = '  ' + child.label;
+                            group.appendChild(option);
+                        });
+                        select.appendChild(group);
+
+                        // Search: flat list with "大类 > 子类" format
+                        cat.children.forEach(child => {
+                            const opt = document.createElement('option');
+                            opt.value = child.value;
+                            opt.textContent = cat.label + ' > ' + child.label;
+                            searchSelect.appendChild(opt);
+                        });
+                    } else {
+                        const option = document.createElement('option');
+                        option.value = cat.value;
+                        option.textContent = cat.label;
+                        select.appendChild(option);
+
+                        const searchOpt = document.createElement('option');
+                        searchOpt.value = cat.value;
+                        searchOpt.textContent = cat.label;
+                        searchSelect.appendChild(searchOpt);
+                    }
+                });
+            } catch (error) {
+                console.error('Failed to load categories:', error);
+            }
+        }
+
         function toggleTagInput() {
             const useAiTags = document.getElementById('ai-generate-tags').checked;
             const tagInput = document.getElementById('tag-input');
-            
+
             if (useAiTags) {
                 tagInput.disabled = true;
                 tagInput.placeholder = 'AI将自动生成标签';
@@ -1422,7 +1584,7 @@
                 tagInput.placeholder = '输入标签后按回车 (最多10个)';
             }
         }
-        
+
         function addTag(tag) {
             if (!tag || !tag.trim()) return;
             if (currentTags.includes(tag.trim())) return;
@@ -1454,7 +1616,7 @@
             document.getElementById('content').value = '';
             document.getElementById('type').value = 'text';
             document.getElementById('source').value = 'manual';
-            document.getElementById('category').value = 'default';
+            document.getElementById('category').value = '';
             document.getElementById('ai-generate-tags').checked = false;
             toggleTagInput();
             currentTags = [];
@@ -1705,18 +1867,20 @@
             const analysisContent = clip.analysis || '';
             
             clipItem.innerHTML = `
-                <div class="clip-actions">
-                    ${!isSearch ? `<button class="delete-btn" data-id="${clip.id}">删除</button>` : ''}
-                    <button class="expand-btn" onclick="toggleDetail(this)">
-                        <span class="icon">▼</span>
-                        <span class="text">展开</span>
-                    </button>
+                <div class="clip-header">
+                    <span class="category-badge">📁 ${getCategoryLabel(clip.category)}</span>
+                    <div class="clip-actions">
+                        ${!isSearch ? `<button class="delete-btn" data-id="${clip.id}">删除</button>` : ''}
+                        <button class="expand-btn" onclick="toggleDetail(this)">
+                            <span class="icon">▼</span>
+                            <span class="text">展开</span>
+                        </button>
+                    </div>
                 </div>
                 <div class="clip-summary">${escapeHtml(displaySummary)}</div>
                 <div class="clip-meta">
                     <span class="meta-item">类型: ${clip.type}</span>
                     <span class="meta-item">来源: ${clip.source}</span>
-                    <span class="meta-item">分类: ${clip.category || 'default'}</span>
                     <span class="meta-item">创建时间: ${createdAt}</span>
                 </div>
                 ${tagsHtml}

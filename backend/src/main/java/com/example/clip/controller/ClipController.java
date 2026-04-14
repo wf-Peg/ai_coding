@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/clip")
@@ -33,12 +34,10 @@ public class ClipController {
     public ResponseEntity<?> addClip(@RequestBody ClipRequest request) {
         ClipContent clip = clipService.saveClip(request.getContent(), request.getType(), request.getSource(), request.getCategory());
         if (request.getUseAiTags() != null && request.getUseAiTags()) {
-            // 使用AI生成标签
             List<String> tags = aiService.generateTags(request.getContent());
             clip.setTags(tags);
             clipService.saveClip(clip);
         } else if (request.getTags() != null && !request.getTags().isEmpty()) {
-            // 使用用户输入的标签
             clip.setTags(request.getTags());
             clipService.saveClip(clip);
         }
@@ -55,6 +54,17 @@ public class ClipController {
     public ResponseEntity<List<String>> generateTags(@RequestBody TagRequest request) {
         List<String> tags = aiService.generateTags(request.getContent());
         return ResponseEntity.ok(tags);
+    }
+
+    @PostMapping("/smart-organize")
+    public ResponseEntity<Map<String, Object>> smartOrganize(@RequestBody TagRequest request) {
+        Map<String, Object> result = aiService.smartOrganize(request.getContent());
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/categories")
+    public ResponseEntity<List<Map<String, Object>>> getCategories() {
+        return ResponseEntity.ok(AiService.CATEGORY_TREE);
     }
 
     @GetMapping("/category/{category}")

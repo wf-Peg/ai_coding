@@ -164,13 +164,14 @@ public class ContentOrganizeService {
     }
 
     private void saveOrganizedContent(String category, String fileName, String content) throws IOException {
-        Path categoryPath = organizedStoragePath.resolve(category);
+        String mappedCategory = getCategoryName(category);
+        Path categoryPath = organizedStoragePath.resolve(mappedCategory);
         if (!Files.exists(categoryPath)) {
             Files.createDirectories(categoryPath);
         }
-        
+
         Path filePath = categoryPath.resolve(fileName);
-        
+
         if (Files.exists(filePath)) {
             long timestamp = System.currentTimeMillis();
             String baseName = fileName.substring(0, fileName.lastIndexOf('.'));
@@ -179,22 +180,37 @@ public class ContentOrganizeService {
             Path backupPath = categoryPath.resolve(backupFileName);
             Files.move(filePath, backupPath);
         }
-        
+
         Files.write(filePath, content.getBytes("UTF-8"));
     }
 
+    /**
+     * 将 category value 映射为中文名称
+     * 例如: "work-company" → "工作项目 > 公司事务"
+     *       "work" → "工作项目"
+     */
     private String getCategoryName(String category) {
-        Map<String, String> categoryNames = new HashMap<>();
-        categoryNames.put("default", "默认分类");
-        categoryNames.put("tech", "技术");
-        categoryNames.put("life", "生活");
-        categoryNames.put("work", "工作");
-        categoryNames.put("study", "学习");
-        categoryNames.put("health", "健康");
-        categoryNames.put("finance", "财经");
-        categoryNames.put("entertainment", "娱乐");
-        
-        return categoryNames.getOrDefault(category, category);
+        if (category == null || category.isEmpty()) return "默认分类";
+
+        for (Map<String, Object> cat : AiService.CATEGORY_TREE) {
+            String topValue = cat.get("value").toString();
+            String topLabel = cat.get("label").toString();
+
+            if (topValue.equals(category)) {
+                return topLabel;
+            }
+
+            List<Map<String, Object>> children = (List<Map<String, Object>>) cat.get("children");
+            if (children != null) {
+                for (Map<String, Object> child : children) {
+                    if (child.get("value").toString().equals(category)) {
+                        return topLabel + " > " + child.get("label").toString();
+                    }
+                }
+            }
+        }
+
+        return category;
     }
 
     public String getLastOrganizeStatus() {

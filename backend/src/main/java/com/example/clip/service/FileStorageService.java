@@ -1,5 +1,6 @@
 package com.example.clip.service;
 
+import com.example.clip.core.AiService;
 import com.example.clip.model.ClipContent;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -7,7 +8,6 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -17,6 +17,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Service
@@ -40,6 +41,10 @@ public class FileStorageService {
         try {
             if (!Files.exists(storagePath)) {
                 Files.createDirectories(storagePath);
+            }
+            // 为每个一级分类创建目录
+            for (Map<String, Object> cat : AiService.CATEGORY_TREE) {
+                Files.createDirectories(storagePath.resolve(cat.get("value").toString()));
             }
             Files.createDirectories(storagePath.resolve("default"));
         } catch (IOException e) {
@@ -68,17 +73,55 @@ public class FileStorageService {
         }
     }
 
+    // ==================== Category → 目录路径映射 ====================
+
     /**
-     * 获取分类目录下当天的日期文件路径: {category}/yyMMdd.json
+     * 将 category value 映射为文件系统目录路径
+     * 例如: "work-company" → "work/公司事务"
+     *       "work" → "work"
+     *       null/空 → "default"
      */
-    private Path getDateFilePath(String category) {
-        String dateStr = LocalDate.now().format(DATE_FORMATTER);
+    private Path getCategoryPath(String category) {
         String cat = (category != null && !category.isEmpty()) ? category : "default";
-        return storagePath.resolve(cat).resolve(dateStr + ".json");
+
+        // 查找一级分类目录名
+        for (Map<String, Object> topCat : AiService.CATEGORY_TREE) {
+            String topValue = topCat.get("value").toString();
+
+            if (topValue.equals(cat)) {
+                // 一级分类: 直接用 value 作为目录名
+                return storagePath.resolve(topValue);
+            }
+
+            // 检查二级分类
+            List<Map<String, Object>> children = (List<Map<String, Object>>) topCat.get("children");
+            if (children != null) {
+                for (Map<String, Object> child : children) {
+                    if (child.get("value").toString().equals(cat)) {
+                        // 二级分类: 一级目录/二级中文名
+                        return storagePath.resolve(topValue).resolve(child.get("label").toString());
+                    }
+                }
+            }
+        }
+
+        // 兼容旧数据: 直接用 category value 作为目录名
+        return storagePath.resolve(cat);
     }
 
     /**
-     * 获取所有 json 文件
+     * 获取分类目录下当天的日期文件路径
+     * 例如: clip-storage/work/公司事务/260414.json
+     */
+    private Path getDateFilePath(String category) {
+        String dateStr = LocalDate.now().format(DATE_FORMATTER);
+        return getCategoryPath(category).resolve(dateStr + ".json");
+    }
+
+    // ==================== 文件读写 ====================
+
+    /**
+     * 获取所有 json 文件（递归遍历）
      */
     private List<Path> getAllJsonFiles() throws IOException {
         List<Path> files = new ArrayList<>();
@@ -126,20 +169,26 @@ public class FileStorageService {
         }
     }
 
+    // ==================== CRUD ====================
+
     /**
      * 保存剪藏：追加到对应分类的当天日期文件中
      */
     public ClipContent saveClip(ClipContent clip) {
         try {
-            // 如果没有ID，分配一个
             if (clip.getId() == null) {
                 clip.setId(idGenerator.getAndIncrement());
             }
 
-            String category = clip.getCategory() != null ? clip.getCategory() : "default";
+            // 修复 bug: category 为空时使用 "work" 作为默认值（而非 "default"）
+            String category = clip.getCategory();
+            if (category == null || category.isEmpty()) {
+                category = "work";
+                clip.setCategory(category);
+            }
+
             Path filePath = getDateFilePath(category);
 
-            // 读取当天文件中已有的数据
             List<ClipContent> clips = readClipArrayFromFile(filePath);
 
             // 检查是否已存在相同ID（更新场景）
@@ -152,12 +201,10 @@ public class FileStorageService {
                 }
             }
 
-            // 不存在则追加
             if (!updated) {
                 clips.add(clip);
             }
 
-            // 写回文件
             writeClipArrayToFile(filePath, clips);
             return clip;
         } catch (Exception e) {
@@ -219,14 +266,13 @@ public class FileStorageService {
                     if (clip.getId() != null && clip.getId().equals(id)) {
                         iterator.remove();
                         found = true;
-                        break; // ID唯一，找到即可
+                        break;
                     }
                 }
 
                 if (found) {
-                    // 写回文件（保留其余数据）
                     writeClipArrayToFile(path, clips);
-                    break; // 只需处理找到的文件
+                    break;
                 }
             }
         } catch (IOException e) {
@@ -236,16 +282,18 @@ public class FileStorageService {
 
     /**
      * 按分类获取剪藏
+     * 支持一级和二级分类查询
      */
     public List<ClipContent> getClipsByCategory(String category) {
         List<ClipContent> clips = new ArrayList<>();
         try {
-            String cat = (category != null && !category.isEmpty()) ? category : "default";
-            Path categoryPath = storagePath.resolve(cat);
+            Path categoryPath = getCategoryPath(category);
             if (!Files.exists(categoryPath)) {
                 return clips;
             }
-            Files.walk(categoryPath, 1)
+
+            int maxDepth = categoryPath.getNameCount() - storagePath.getNameCount() + 1;
+            Files.walk(categoryPath, maxDepth)
                     .filter(Files::isRegularFile)
                     .filter(path -> path.toString().endsWith(".json"))
                     .forEach(path -> {
