@@ -922,6 +922,92 @@
             background: rgba(30, 41, 59, 0.3);
         }
 
+        .file-upload-area {
+            margin-top: 8px;
+        }
+
+        .file-upload-dropzone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 32px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+            background: var(--background);
+        }
+
+        .file-upload-dropzone:hover,
+        .file-upload-dropzone.dragover {
+            border-color: var(--primary);
+            background: var(--primary-bg);
+        }
+
+        .file-upload-icon {
+            font-size: 2rem;
+            margin-bottom: 8px;
+        }
+
+        .file-upload-text {
+            font-size: 0.95rem;
+            color: var(--text);
+            margin-bottom: 4px;
+        }
+
+        .file-upload-hint {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            background: var(--primary-bg);
+            border-radius: var(--radius-sm);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            margin-top: 8px;
+            font-size: 0.875rem;
+            color: var(--text);
+        }
+
+        .file-info #file-name {
+            flex: 1;
+            font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .file-info #file-size {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        .file-remove-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: var(--transition);
+        }
+
+        .file-remove-btn:hover {
+            color: var(--error);
+            background: var(--error-bg);
+        }
+
+        .store-only-summary {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+            display: block;
+        }
+
         .ai-tags-checkbox {
             display: inline-flex;
             align-items: center;
@@ -1308,14 +1394,27 @@
                     <div class="form-group">
                         <label for="content">内容</label>
                         <textarea id="content" placeholder="请输入要剪藏的内容"></textarea>
+                        <div id="file-upload-area" class="file-upload-area" style="display:none;">
+                            <div class="file-upload-dropzone" id="file-dropzone">
+                                <div class="file-upload-icon">📄</div>
+                                <p class="file-upload-text">拖拽文件到此处，或点击选择文件</p>
+                                <p class="file-upload-hint">支持 PDF、DOCX、TXT 格式</p>
+                                <input type="file" id="file-input" accept=".pdf,.docx,.txt,.md,.csv" style="display:none;">
+                            </div>
+                            <div id="file-info" class="file-info" style="display:none;">
+                                <span id="file-name"></span>
+                                <span id="file-size"></span>
+                                <button type="button" class="file-remove-btn" onclick="removeFile()">✕</button>
+                            </div>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="type">类型</label>
                         <select id="type">
-                            <option value="text">文本</option>
-                            <option value="image">图片</option>
-                            <option value="file">文件</option>
-                            <option value="link">链接</option>
+                            <option value="ai-text">AI文本整理</option>
+                            <option value="store-only">只存储内容</option>
+                            <option value="link-ai">链接AI解析整理</option>
+                            <option value="doc-ai">文档AI解析整理</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -1333,9 +1432,9 @@
                             <option value="">请选择分类</option>
                         </select>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" id="tags-group">
                         <label for="tags">标签</label>
-                        <div class="ai-tags-checkbox">
+                        <div class="ai-tags-checkbox" id="ai-tags-wrapper">
                             <input type="checkbox" id="ai-generate-tags" onchange="toggleTagInput()">
                             <label for="ai-generate-tags">AI生成标签</label>
                         </div>
@@ -1396,6 +1495,122 @@
         const API_BASE_URL = 'http://127.0.0.1:8080/api/clip';
         let currentTags = [];
         const MAX_TAGS = 10;
+
+        // File upload state
+        let uploadedFileBase64 = null;
+        let uploadedFileName = null;
+
+        // Type label mapping
+        const TYPE_LABELS = {
+            'ai-text': 'AI文本整理',
+            'store-only': '纯文本存储',
+            'link-ai': '链接解析',
+            'doc-ai': '文档解析',
+            'text': '文本', 'image': '图片', 'file': '文件', 'link': '链接'
+        };
+
+        function getTypeLabel(type) {
+            return TYPE_LABELS[type] || type || '未知';
+        }
+
+        // Type switch handler
+        document.getElementById('type').addEventListener('change', function() {
+            const type = this.value;
+            const contentArea = document.getElementById('content');
+            const fileUploadArea = document.getElementById('file-upload-area');
+            const tagsGroup = document.getElementById('tags-group');
+            const contentLabel = contentArea.closest('.form-group').querySelector('label');
+
+            if (type === 'link-ai') {
+                contentArea.style.display = '';
+                contentArea.placeholder = '请输入链接URL（如 https://example.com/article）';
+                contentLabel.textContent = '链接';
+                fileUploadArea.style.display = 'none';
+                tagsGroup.style.display = '';
+            } else if (type === 'doc-ai') {
+                contentArea.style.display = 'none';
+                fileUploadArea.style.display = '';
+                contentLabel.textContent = '文档';
+                tagsGroup.style.display = '';
+            } else if (type === 'store-only') {
+                contentArea.style.display = '';
+                contentArea.placeholder = '请输入要存储的内容';
+                contentLabel.textContent = '内容';
+                fileUploadArea.style.display = 'none';
+                tagsGroup.style.display = 'none';
+            } else {
+                contentArea.style.display = '';
+                contentArea.placeholder = '请输入要剪藏的内容';
+                contentLabel.textContent = '内容';
+                fileUploadArea.style.display = 'none';
+                tagsGroup.style.display = '';
+            }
+        });
+
+        // File upload handlers
+        const dropzone = document.getElementById('file-dropzone');
+        const fileInput = document.getElementById('file-input');
+
+        dropzone.addEventListener('click', () => fileInput.click());
+
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('dragover');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                handleFile(fileInput.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+            const allowedExts = ['.pdf', '.docx', '.txt', '.md', '.csv'];
+            const ext = '.' + file.name.split('.').pop().toLowerCase();
+
+            if (!allowedExts.includes(ext)) {
+                alert('不支持的文件格式，请上传 PDF、DOCX 或 TXT 文件');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                uploadedFileBase64 = e.target.result.split(',')[1];
+                uploadedFileName = file.name;
+                document.getElementById('file-name').textContent = file.name;
+                document.getElementById('file-size').textContent = formatFileSize(file.size);
+                document.getElementById('file-info').style.display = 'flex';
+                dropzone.style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function removeFile() {
+            uploadedFileBase64 = null;
+            uploadedFileName = null;
+            fileInput.value = '';
+            document.getElementById('file-info').style.display = 'none';
+            dropzone.style.display = '';
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
         
         document.addEventListener('DOMContentLoaded', () => {
             fetchClips();
@@ -1415,17 +1630,37 @@
             
             document.getElementById('clip-form').addEventListener('submit', async (e) => {
                 e.preventDefault();
-                
-                const content = document.getElementById('content').value;
+
                 const type = document.getElementById('type').value;
                 const source = document.getElementById('source').value;
                 const category = document.getElementById('category').value;
                 const useAiTags = document.getElementById('ai-generate-tags').checked;
                 const submitBtn = e.target.querySelector('button[type="submit"]');
-                
-                if (!content) {
-                    alert('请输入内容');
-                    return;
+
+                // Build request body based on type
+                let content = document.getElementById('content').value;
+                let requestBody = {
+                    type,
+                    source,
+                    category,
+                    tags: useAiTags ? null : currentTags,
+                    useAiTags: type === 'store-only' ? false : useAiTags
+                };
+
+                if (type === 'doc-ai') {
+                    if (!uploadedFileBase64) {
+                        alert('请上传文件');
+                        return;
+                    }
+                    requestBody.content = uploadedFileName;
+                    requestBody.fileData = uploadedFileBase64;
+                    requestBody.fileName = uploadedFileName;
+                } else {
+                    if (!content) {
+                        alert(type === 'link-ai' ? '请输入链接URL' : '请输入内容');
+                        return;
+                    }
+                    requestBody.content = content;
                 }
                 
                 // 禁用提交按钮并显示加载状态
@@ -1437,22 +1672,23 @@
                 
                 // 显示处理中提示
                 const successMessage = document.getElementById('success-message');
-                successMessage.textContent = '🎯 AI正在分析内容，请稍候...';
+                if (type === 'store-only') {
+                    successMessage.textContent = '💾 正在保存内容...';
+                } else if (type === 'link-ai') {
+                    successMessage.textContent = '🌐 正在爬取链接并分析，请稍候...';
+                } else if (type === 'doc-ai') {
+                    successMessage.textContent = '📄 正在解析文档并分析，请稍候...';
+                } else {
+                    successMessage.textContent = '🎯 AI正在分析内容，请稍候...';
+                }
                 successMessage.style.display = 'block';
                 successMessage.style.background = 'rgba(245, 158, 11, 0.1)';
                 successMessage.style.color = 'var(--warning)';
                 successMessage.style.borderColor = 'var(--warning)';
                 successMessage.style.animation = 'pulse 1.5s ease-in-out infinite';
-                
+
                 try {
-                    const response = await axios.post(`${API_BASE_URL}/add`, {
-                        content,
-                        type,
-                        source,
-                        category,
-                        tags: useAiTags ? null : currentTags,
-                        useAiTags: useAiTags
-                    });
+                    const response = await axios.post(`${API_BASE_URL}/add`, requestBody);
                     
                     if (response.data.status === 'success') {
                         successMessage.textContent = '✅ 剪藏添加成功！';
@@ -1613,13 +1849,15 @@
         
         function clearForm() {
             document.getElementById('content').value = '';
-            document.getElementById('type').value = 'text';
+            document.getElementById('type').value = 'ai-text';
             document.getElementById('source').value = 'manual';
             document.getElementById('category').value = '';
             document.getElementById('ai-generate-tags').checked = false;
             toggleTagInput();
             currentTags = [];
             renderTags();
+            removeFile();
+            document.getElementById('type').dispatchEvent(new Event('change'));
         }
         
         function startVoiceInput() {
@@ -1862,23 +2100,26 @@
             }
             
             const displaySummary = clip.summary || '暂无摘要';
+            const isStoreOnly = clip.type === 'store-only';
+            const summaryClass = isStoreOnly ? 'store-only-summary' : '';
             const originalContent = clip.content || '';
             const analysisContent = clip.analysis || '';
-            
+
             clipItem.innerHTML = `
                 <div class="clip-header">
                     <span class="category-badge">📁 ${getCategoryLabel(clip.category)}</span>
                     <div class="clip-actions">
                         ${!isSearch ? `<button class="delete-btn" data-id="${clip.id}">删除</button>` : ''}
+                        ${!isStoreOnly ? `<button class="expand-btn" onclick="generateDivergentSummary(${clip.id})" title="发散总结">💡</button>` : ''}
                         <button class="expand-btn" onclick="toggleDetail(this)">
                             <span class="icon">▼</span>
                             <span class="text">展开</span>
                         </button>
                     </div>
                 </div>
-                <div class="clip-summary">${escapeHtml(displaySummary)}</div>
+                <div class="clip-summary ${summaryClass}" title="${escapeHtml(displaySummary)}">${escapeHtml(displaySummary)}</div>
                 <div class="clip-meta">
-                    <span class="meta-item">类型: ${clip.type}</span>
+                    <span class="meta-item">类型: ${getTypeLabel(clip.type)}</span>
                     <span class="meta-item">来源: ${clip.source}</span>
                     <span class="meta-item">创建时间: ${createdAt}</span>
                 </div>

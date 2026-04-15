@@ -1,0 +1,115 @@
+package com.example.clip.service;
+
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.xwpf.usermodel.XWPFParagraph;
+import org.springframework.stereotype.Service;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+
+@Service
+public class DocumentParseService {
+
+    /**
+     * 解析文档文件，提取纯文本
+     * @param fileBytes 文件字节数组
+     * @param fileName 文件名（用于判断文件类型）
+     * @return 提取的纯文本内容
+     */
+    public String parseDocument(byte[] fileBytes, String fileName) {
+        if (fileName == null || fileName.isEmpty()) {
+            return "[文档解析失败] 文件名为空";
+        }
+
+        String lowerName = fileName.toLowerCase();
+
+        try {
+            if (lowerName.endsWith(".pdf")) {
+                return parsePdf(fileBytes);
+            } else if (lowerName.endsWith(".docx")) {
+                return parseDocx(fileBytes);
+            } else if (lowerName.endsWith(".txt") || lowerName.endsWith(".md") || lowerName.endsWith(".csv")) {
+                return parseTxt(fileBytes);
+            } else {
+                return "[文档解析失败] 不支持的文件格式: " + fileName + "。支持 PDF、DOCX、TXT 格式。";
+            }
+        } catch (Exception e) {
+            System.err.println("[DocParse] Parse failed for " + fileName + ": " + e.getMessage());
+            return "[文档解析失败] " + e.getMessage();
+        }
+    }
+
+    /**
+     * 解析 PDF 文件
+     */
+    private String parsePdf(byte[] fileBytes) throws IOException {
+        try (PDDocument document = Loader.loadPDF(fileBytes)) {
+            PDFTextStripper stripper = new PDFTextStripper();
+            stripper.setSortByPosition(true);
+            String text = stripper.getText(document);
+
+            // Clean up
+            text = text.replaceAll("\\s+", " ").trim();
+
+            // Truncate if too long
+            if (text.length() > 50000) {
+                text = text.substring(0, 50000) + "\n\n[内容过长，已截断]";
+            }
+
+            return text;
+        }
+    }
+
+    /**
+     * 解析 DOCX 文件
+     */
+    private String parseDocx(byte[] fileBytes) throws IOException {
+        try (XWPFDocument document = new XWPFDocument(new ByteArrayInputStream(fileBytes))) {
+            StringBuilder sb = new StringBuilder();
+
+            for (XWPFParagraph paragraph : document.getParagraphs()) {
+                String text = paragraph.getText().trim();
+                if (!text.isEmpty()) {
+                    sb.append(text).append("\n");
+                }
+            }
+
+            // Also extract text from tables
+            document.getTables().forEach(table -> {
+                table.getRows().forEach(row -> {
+                    row.getTableCells().forEach(cell -> {
+                        String text = cell.getText().trim();
+                        if (!text.isEmpty()) {
+                            sb.append(text).append("\t");
+                        }
+                    });
+                    sb.append("\n");
+                });
+            });
+
+            String text = sb.toString().replaceAll("\\s+", " ").trim();
+
+            if (text.length() > 50000) {
+                text = text.substring(0, 50000) + "\n\n[内容过长，已截断]";
+            }
+
+            return text;
+        }
+    }
+
+    /**
+     * 解析纯文本文件
+     */
+    private String parseTxt(byte[] fileBytes) throws IOException {
+        String text = new String(fileBytes, "UTF-8").trim();
+
+        if (text.length() > 50000) {
+            text = text.substring(0, 50000) + "\n\n[内容过长，已截断]";
+        }
+
+        return text;
+    }
+}

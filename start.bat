@@ -1,0 +1,76 @@
+@echo off
+title Clip - Start Services
+
+echo ========================================
+echo   Clip - Starting Frontend & Backend
+echo ========================================
+echo.
+
+:: Check Java
+where java >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [ERROR] Java not found. Please install JDK first.
+    pause
+    exit /b 1
+)
+
+:: Check if backend is already running
+curl -s http://127.0.0.1:8080/api/clip/list >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [INFO] Backend already running on port 8080
+    goto :start_frontend
+)
+
+:: Start backend
+echo [1/2] Starting backend...
+cd /d "%~dp0backend"
+
+if not exist "target\clip-demo-0.0.1-SNAPSHOT.jar" (
+    echo [ERROR] JAR not found. Run: mvn clean package -DskipTests
+    pause
+    exit /b 1
+)
+
+start "Clip-Backend" /min cmd /c "java -jar target\clip-demo-0.0.1-SNAPSHOT.jar 2>&1 > ..\backend.log"
+
+echo       Waiting for backend...
+set retries=0
+:wait_backend
+curl -s http://127.0.0.1:8080/api/clip/list >nul 2>&1
+if %errorlevel% equ 0 (
+    echo       Backend started!
+    goto :start_frontend
+)
+set /a retries+=1
+if %retries% geq 30 (
+    echo [ERROR] Backend startup timeout. Check backend.log
+    pause
+    exit /b 1
+)
+timeout /t 2 /nobreak >nul
+goto :wait_backend
+
+:start_frontend
+curl -s http://127.0.0.1:3000 >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [INFO] Frontend already running on port 3000
+    goto :done
+)
+
+echo [2/2] Starting frontend...
+cd /d "%~dp0"
+start "Clip-Frontend" /min cmd /c "npx serve frontend -l 3000"
+timeout /t 3 /nobreak >nul
+echo       Frontend started!
+
+:done
+echo.
+echo ========================================
+echo   All services started!
+echo   Frontend: http://127.0.0.1:3000
+echo   Backend:  http://127.0.0.1:8080
+echo ========================================
+echo.
+echo Press any key to open browser...
+pause >nul
+start http://127.0.0.1:3000

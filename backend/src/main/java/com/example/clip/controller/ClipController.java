@@ -32,16 +32,21 @@ public class ClipController {
 
     @PostMapping("/add")
     public ResponseEntity<?> addClip(@RequestBody ClipRequest request) {
-        System.out.println("[API] /add called, useAiTags=" + request.getUseAiTags() + ", tags=" + request.getTags());
-        ClipContent clip = clipService.saveClip(request.getContent(), request.getType(), request.getSource(), request.getCategory());
-        if (request.getUseAiTags() != null && request.getUseAiTags()) {
-            List<String> tags = aiService.generateTags(request.getContent());
-            System.out.println("[API] AI generated tags: " + tags);
-            clip.setTags(tags);
-            clipService.saveClip(clip);
-        } else if (request.getTags() != null && !request.getTags().isEmpty()) {
-            clip.setTags(request.getTags());
-            clipService.saveClip(clip);
+        System.out.println("[API] /add called, type=" + request.getType() + ", useAiTags=" + request.getUseAiTags());
+        ClipContent clip = clipService.saveClip(request.getContent(), request.getType(),
+                request.getSource(), request.getCategory(),
+                request.getFileData(), request.getFileName());
+        // Only generate tags for AI-processed types
+        if (!"store-only".equals(request.getType())) {
+            if (request.getUseAiTags() != null && request.getUseAiTags()) {
+                List<String> tags = aiService.generateTags(clip.getContent());
+                System.out.println("[API] AI generated tags: " + tags);
+                clip.setTags(tags);
+                clipService.saveClip(clip);
+            } else if (request.getTags() != null && !request.getTags().isEmpty()) {
+                clip.setTags(request.getTags());
+                clipService.saveClip(clip);
+            }
         }
         return ResponseEntity.ok(new ClipResponse(clip.getId(), "success"));
     }
@@ -132,6 +137,8 @@ public class ClipController {
         private String category;
         private List<String> tags;
         private Boolean useAiTags;
+        private String fileData;
+        private String fileName;
 
         // Getters and Setters
         public String getContent() {
@@ -181,6 +188,12 @@ public class ClipController {
         public void setUseAiTags(Boolean useAiTags) {
             this.useAiTags = useAiTags;
         }
+
+        public String getFileData() { return fileData; }
+        public void setFileData(String fileData) { this.fileData = fileData; }
+
+        public String getFileName() { return fileName; }
+        public void setFileName(String fileName) { this.fileName = fileName; }
     }
 
     public static class TagRequest {
