@@ -109,6 +109,8 @@ public class AiService {
                     .limit(10)
                     .collect(Collectors.toList());
         } catch (Exception e) {
+            System.err.println("[AI] generateTags failed: " + e.getMessage());
+            e.printStackTrace();
             return List.of();
         }
     }
@@ -378,10 +380,10 @@ public class AiService {
             Message systemMessage = Message.builder()
                     .role(Role.SYSTEM.getValue())
                     .content("# Role\n" +
-                            "你是一位拥有20年经验的资深[" + category + "]行业专家及知识管理顾问。你擅长从碎片化的文档中提取核心逻辑，构建高信噪比的知识库，并能结合金融视角进行深度复盘。\n" +
+                            "你是一位拥有20年经验的**{{" + category + "}}**行业专家及知识管理顾问。你擅长从碎片化的文档中提取核心逻辑，构建高信噪比的知识库，并能结合专业视角进行深度复盘。\n" +
                             "\n" +
                             "# Goal\n" +
-                            "接收用户提供的原始文档列表（包含原文、摘要、AI分析、标签等），按照“关联性整合”与“层级化分类”的原则，输出一份结构严谨、逻辑清晰的【行业知识库日报】。\n" +
+                            "接收用户提供的原始文档列表（包含原文、摘要、AI分析、标签等）以及指定的专家角色，按照“关联性整合”与“层级化分类”的原则，输出一份结构严谨、逻辑清晰的【行业知识库日报】。\n" +
                             "\n" +
                             "# Workflow\n" +
                             "1.  **关联性分析**：\n" +
@@ -390,33 +392,35 @@ public class AiService {
                             "\n" +
                             "2.  **内容整合与重构**：\n" +
                             "    - **关联组处理**：\n" +
-                            "        - 标题：提炼一个涵盖所有相关内容的概括性二级标题（##）。\n" +
-                            "        - 原文：将所有相关原文按序号放入同一个代码块中（```text ... ```），保持原始风貌。\n" +
+                            "        - 标题：提炼一个涵盖所有相关内容的标题。\n" +
+                            "        - 原文：将所有相关原文按序号放入独立的代码块中（```text ... ```），保持原始风貌。\n" +
                             "        - 分析：对原有的AI分析进行“融合重写”，去除重复信息，梳理逻辑层级，形成一条高密度的综合分析。\n" +
                             "        - 标签：合并所有相关标签。\n" +
                             "    - **独立项处理**：\n" +
-                            "        - 标题：使用原文的总结摘要作为二级标题（##）。\n" +
+                            "        - 标题：使用原文的总结摘要。\n" +
                             "        - 原文：放入代码块中。\n" +
                             "        - 分析：保留原始AI分析结果，仅做格式微调。\n" +
                             "\n" +
                             "3.  **全局复盘**：\n" +
-                            "    - 站在金融/投资专家的视角，对上述整理的所有内容进行跨学科、跨领域的系统性总结。\n" +
-                            "    - 寻找不同知识点之间的隐性联系（如：心理学与博弈论、宏观与微观）。\n" +
-                            "    - 输出高浓度的“今日复盘”，提供反思思路。\n" +
+                            "    - 站在行业专家的视角，对上述整理的所有内容进行跨学科、跨领域的系统性总结。\n" +
+                            "    - 寻找不同知识点之间的隐性联系（如：心理学与博弈论、宏观与微观，或该专业领域的特定关联）。\n" +
+                            "    - 输出高浓度的“今日复盘”，作为标题展示。\n" +
                             "\n" +
                             "# Output Format Rules\n" +
                             "- **严格禁止**使用角色扮演式的开场白（如“好的，我是专家...”），直接输出日报内容。\n" +
-                            "- **标题层级**：\n" +
-                            "    - 第一行：`### {日期}日报`\n" +
-                            "    - 内容标题：`## {标题内容}`\n" +
+                            "- **标题层级规范**：\n" +
+                            "    - **一级标题**：`# {日期}日报` （全文仅一个）\n" +
+                            "    - **二级标题**：`{内容板块标题}` 或 `今日复盘`\n" +
+                            "    - **三级标题**：`原文` 、 `分析`\n" +
                             "- **原文展示**：必须使用 `text` 代码块包裹原文，禁止直接以引用或段落形式展示。\n" +
                             "- **分析展示**：使用 Markdown 列表和加粗，确保可读性。\n" +
-                            "- **元数据**：在标题下方使用引用格式展示分类与标签 `> 分类/标签：...`。\n" +
+                            "- **元数据**：在二级标题下方使用引用格式展示分类与标签 `> 分类/标签：...`。\n" +
+                            "- **Markdown格式清洗**：确保所有标题符号（#）前后没有多余的空格或重复符号，确保标题层级清晰，没有重叠或混乱。\n" +
                             "\n" +
                             "# Constraints\n" +
-                            "- 保持客观、理性的金融专家语调。\n" +
+                            "- 保持客观、理性的语调。\n" +
                             "- 确保“分析”部分具有高信息密度，拒绝废话。\n" +
-                            "- 清洗格式错误（如多余的冒号、错误的换行）。")
+                            "- 清洗格式错误（如多余的冒号、错误的换行、标题符号重叠）。")
                     .build();
 
             Message userMessage = Message.builder()
@@ -437,6 +441,45 @@ public class AiService {
             return "内容整理失败: " + e.getMessage();
         } catch (Exception e) {
             return "内容整理过程中发生错误: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 生成搜索同义词
+     * @param query 搜索关键词
+     * @return 不超过3个同义词列表
+     */
+    public List<String> generateSynonyms(String query) {
+        try {
+            Message systemMessage = Message.builder()
+                    .role(Role.SYSTEM.getValue())
+                    .content("你是一个搜索助手。用户输入一个搜索关键词，请给出不超过3个与该词语义相关的同义词或近义词。只输出同义词，用逗号分隔，不要输出任何其他内容。如果没有合适的同义词，直接输出原词。")
+                    .build();
+
+            Message userMessage = Message.builder()
+                    .role(Role.USER.getValue())
+                    .content(query)
+                    .build();
+
+            GenerationParam param = GenerationParam.builder()
+                    .apiKey(dashScopeConfig.getApiKey())
+                    .model(dashScopeConfig.getModel())
+                    .messages(Arrays.asList(systemMessage, userMessage))
+                    .resultFormat(GenerationParam.ResultFormat.MESSAGE)
+                    .build();
+
+            GenerationResult result = generation.call(param);
+            String content = result.getOutput().getChoices().get(0).getMessage().getContent();
+
+            // 解析返回的同义词，按逗号分隔
+            return Arrays.stream(content.split("[,，、\\n]"))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .limit(3)
+                    .collect(java.util.stream.Collectors.toList());
+        } catch (Exception e) {
+            System.err.println("[AI] generateSynonyms failed: " + e.getMessage());
+            return List.of();
         }
     }
 }
