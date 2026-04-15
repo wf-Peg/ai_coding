@@ -14,7 +14,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/clip")
-@CrossOrigin(origins = "http://localhost:3000")
+@CrossOrigin(origins = {"http://127.0.0.1:3000", "http://localhost:3000"})
 public class ClipController {
 
     private final ClipService clipService;
@@ -32,9 +32,11 @@ public class ClipController {
 
     @PostMapping("/add")
     public ResponseEntity<?> addClip(@RequestBody ClipRequest request) {
+        System.out.println("[API] /add called, useAiTags=" + request.getUseAiTags() + ", tags=" + request.getTags());
         ClipContent clip = clipService.saveClip(request.getContent(), request.getType(), request.getSource(), request.getCategory());
         if (request.getUseAiTags() != null && request.getUseAiTags()) {
             List<String> tags = aiService.generateTags(request.getContent());
+            System.out.println("[API] AI generated tags: " + tags);
             clip.setTags(tags);
             clipService.saveClip(clip);
         } else if (request.getTags() != null && !request.getTags().isEmpty()) {
