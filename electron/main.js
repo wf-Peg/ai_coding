@@ -27,7 +27,12 @@ const DEFAULT_CONFIG = {
   apiKey: '',
   storagePath: path.join(APP_DIR, 'clip-storage'),
   organizedPath: path.join(APP_DIR, 'clip-organized'),
-  configured: false
+  configured: false,
+  mailEnabled: false,
+  mailHost: '',
+  mailPort: 465,
+  mailUsername: '',
+  mailPassword: ''
 };
 
 function ensureConfigDir() {
@@ -114,7 +119,7 @@ function getFrontendDir() {
 }
 
 function generateApplicationYml(config) {
-  return yaml.dump({
+  const ymlConfig = {
     spring: {
       application: { name: 'clip-demo' },
       ai: {
@@ -129,7 +134,24 @@ function generateApplicationYml(config) {
       storage: { path: config.storagePath },
       'organized-storage': { path: config.organizedPath }
     }
-  }, { lineWidth: -1, quotingType: '"' });
+  };
+
+  // Add mail config if enabled
+  if (config.mailEnabled && config.mailHost) {
+    ymlConfig.spring.mail = {
+      host: config.mailHost,
+      port: config.mailPort || 465,
+      username: config.mailUsername,
+      password: config.mailPassword,
+      properties: {
+        'mail.smtp.ssl.enable': true,
+        'mail.smtp.auth': true,
+        'mail.smtp.socketFactory.class': 'javax.net.ssl.SSLSocketFactory'
+      }
+    };
+  }
+
+  return yaml.dump(ymlConfig, { lineWidth: -1, quotingType: '"' });
 }
 
 // ==================== Kill Port Process ====================
@@ -233,14 +255,14 @@ function startBackend(config) {
       });
     }, 2000);
 
-    // Timeout: 60 seconds
+    // Timeout: 120 seconds (wait for Windows firewall dialog)
     setTimeout(() => {
       if (!resolved) {
         clearInterval(pollInterval);
         resolved = true;
-        reject(new Error('Backend startup timeout (60s). Check backend.log for details.'));
+        reject(new Error('Backend startup timeout (120s). If Windows firewall dialog appeared, please allow access and restart the app.'));
       }
-    }, 60000);
+    }, 120000);
 
     backendProcess.on('close', (code) => {
       console.log(`Backend exited with code: ${code}`);
@@ -294,8 +316,15 @@ function checkPort(port) {
   return new Promise((resolve) => {
     const req = http.request({
       hostname: '127.0.0.1', port: port,
-      path: '/api/clip/list', method: 'GET', timeout: 2000
-    }, () => { resolve(true); });
+      path: '/api/clip/list', method: 'GET', timeout: 3000
+    }, (res) => {
+      // Only resolve true if we get a valid HTTP response (not blocked by firewall)
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        resolve(res.statusCode === 200);
+      });
+    });
     req.on('error', () => resolve(false));
     req.on('timeout', () => { req.destroy(); resolve(false); });
     req.end();

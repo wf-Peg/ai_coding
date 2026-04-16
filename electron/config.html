@@ -180,6 +180,31 @@
         </div>
       </div>
     </div>
+    <div class="section">
+      <div class="section-title"><span class="icon">📧</span> 邮件通知 <span class="hint">（可选）</span></div>
+      <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="mailEnabled" style="width:auto;" />
+        <label for="mailEnabled" style="margin:0;cursor:pointer;">启用整理完成后发送邮件</label>
+      </div>
+      <div id="mailFields" style="display:none;">
+        <div class="form-group">
+          <label>SMTP 服务器</label>
+          <input type="text" id="mailHost" placeholder="smtp.qq.com" />
+        </div>
+        <div class="form-group">
+          <label>SMTP 端口</label>
+          <input type="number" id="mailPort" value="465" min="1" max="65535" />
+        </div>
+        <div class="form-group">
+          <label>发件邮箱</label>
+          <input type="text" id="mailUsername" placeholder="your@qq.com" />
+        </div>
+        <div class="form-group">
+          <label>授权码 <span class="hint">（非邮箱密码，需在邮箱设置中获取）</span></label>
+          <input type="password" id="mailPassword" placeholder="SMTP授权码" />
+        </div>
+      </div>
+    </div>
     <div class="actions">
       <div class="actions-left">
         <button class="btn btn-danger" id="btnQuit" type="button">退出应用</button>
@@ -243,6 +268,13 @@
         document.getElementById('frontendPort').value = config.frontendPort || 3000;
         document.getElementById('storagePath').value = config.storagePath || '';
         document.getElementById('organizedPath').value = config.organizedPath || '';
+        // Mail config
+        document.getElementById('mailEnabled').checked = config.mailEnabled || false;
+        document.getElementById('mailHost').value = config.mailHost || '';
+        document.getElementById('mailPort').value = config.mailPort || 465;
+        document.getElementById('mailUsername').value = config.mailUsername || '';
+        document.getElementById('mailPassword').value = config.mailPassword || '';
+        document.getElementById('mailFields').style.display = config.mailEnabled ? 'block' : 'none';
       });
 
       // Listen for first run
@@ -278,6 +310,11 @@
           input.type = 'password';
           btn.textContent = '👁';
         }
+      });
+
+      // Toggle mail fields visibility
+      document.getElementById('mailEnabled').addEventListener('change', function() {
+        document.getElementById('mailFields').style.display = this.checked ? 'block' : 'none';
       });
 
       // Browse storage directory
@@ -320,7 +357,12 @@
 
         var newConfig = {
           apiKey: apiKey, backendPort: backendPort, frontendPort: frontendPort,
-          storagePath: storagePath, organizedPath: organizedPath, configured: true
+          storagePath: storagePath, organizedPath: organizedPath, configured: true,
+          mailEnabled: document.getElementById('mailEnabled').checked,
+          mailHost: document.getElementById('mailHost').value.trim(),
+          mailPort: parseInt(document.getElementById('mailPort').value) || 465,
+          mailUsername: document.getElementById('mailUsername').value.trim(),
+          mailPassword: document.getElementById('mailPassword').value.trim()
         };
 
         var btn = document.getElementById('btnSave');
