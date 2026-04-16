@@ -174,7 +174,22 @@ public class ClipService {
      * @return 保存后的剪藏内容
      */
     public ClipContent saveClip(String content, String type, String source, String category) {
-        return saveClip(content, type, source, category, null, null);
+        return saveClip(content, type, source, category, null, null, null);
+    }
+    
+    /**
+     * 保存剪藏内容（兼容重载方法）
+     * @param content 剪藏内容
+     * @param type 剪藏类型
+     * @param source 剪藏来源
+     * @param category 剪藏分类
+     * @param fileData 文件数据（Base64编码）
+     * @param fileName 文件名
+     * @return 保存后的剪藏内容
+     */
+    public ClipContent saveClip(String content, String type, String source, String category,
+                                String fileData, String fileName) {
+        return saveClip(content, type, source, category, fileData, fileName, null);
     }
 
     /**
