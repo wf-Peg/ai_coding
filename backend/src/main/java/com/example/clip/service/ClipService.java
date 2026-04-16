@@ -39,8 +39,10 @@ public class ClipService {
 
             case "link-ai":
                 // Crawl link content, then AI process
+                String originalUrl = content;
                 String crawledText = linkParseService.parseUrl(content);
-                clipContent.setContent(crawledText);
+                // Store: URL + crawled original text
+                clipContent.setContent("来源链接: " + originalUrl + "\n\n" + crawledText);
                 processWithAi(clipContent);
                 break;
 
