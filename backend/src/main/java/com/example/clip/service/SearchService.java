@@ -2,6 +2,8 @@ package com.example.clip.service;
 
 import com.example.clip.core.AiService;
 import com.example.clip.model.ClipContent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -10,6 +12,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class SearchService {
+
+    private static final Logger log = LoggerFactory.getLogger(SearchService.class);
 
     private final FileStorageService storageService;
     private final AiService aiService;
@@ -79,10 +83,10 @@ public class SearchService {
      * 3. 合并去重后返回
      */
     private List<ClipContent> searchWithSynonyms(String query, List<ClipContent> clips, int topK) {
-        System.out.println("[Search] No grep match for: " + query + ", requesting AI synonyms...");
+        log.info("[Search] No grep match for: {}, requesting AI synonyms...", query);
 
         List<String> synonyms = aiService.generateSynonyms(query);
-        System.out.println("[Search] AI synonyms: " + synonyms);
+        log.info("[Search] AI synonyms: {}", synonyms);
 
         if (synonyms.isEmpty()) {
             return List.of();
@@ -107,7 +111,7 @@ public class SearchService {
                 results.add(clip);
             }
 
-            System.out.println("[Search] Synonym '" + synonym + "' found " + synonymResults.size() + " results");
+            log.info("[Search] Synonym '{}' found {} results", synonym, synonymResults.size());
         }
 
         // 限制返回数量

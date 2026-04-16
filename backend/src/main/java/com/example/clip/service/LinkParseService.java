@@ -2,6 +2,8 @@ package com.example.clip.service;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Service;
@@ -20,6 +22,8 @@ import java.util.regex.Pattern;
 
 @Service
 public class LinkParseService {
+
+    private static final Logger log = LoggerFactory.getLogger(LinkParseService.class);
 
     private final WebClient webClient;
     HttpClient httpClient = HttpClient.create().followRedirect(true);
@@ -43,14 +47,14 @@ public class LinkParseService {
 
         // 2. If failed (timeout, empty, or blocked), try proxy
         if (html == null || html.isEmpty() || html.contains("系统找不到该页") || html.contains("403 Forbidden") || html.contains("Access Denied")) {
-            System.out.println("[LinkParse] Direct failed, trying proxy...");
+            log.info("[LinkParse] Direct failed, trying proxy...");
             html = tryRequest(url, true);
         }
 
         // 3. If still failed, try with www prefix
         if ((html == null || html.isEmpty()) && !url.contains("://www.")) {
             String wwwUrl = url.replace("://", "://www.");
-            System.out.println("[LinkParse] Trying www prefix: " + wwwUrl);
+            log.info("[LinkParse] Trying www prefix: {}", wwwUrl);
             html = tryRequest(wwwUrl, false);
             if (html == null || html.isEmpty()) {
                 html = tryRequest(wwwUrl, true);
@@ -60,7 +64,7 @@ public class LinkParseService {
         // 4. If still failed, try https
         if ((html == null || html.isEmpty()) && url.startsWith("http://")) {
             String httpsUrl = url.replace("http://", "https://");
-            System.out.println("[LinkParse] Trying HTTPS: " + httpsUrl);
+            log.info("[LinkParse] Trying HTTPS: {}", httpsUrl);
             html = tryRequest(httpsUrl, false);
             if (html == null || html.isEmpty()) {
                 html = tryRequest(httpsUrl, true);
@@ -158,13 +162,13 @@ public class LinkParseService {
                     .timeout(Duration.ofSeconds(15))
                     .map(bytes -> detectAndDecode(bytes, url))
                     .onErrorResume(e -> {
-                        System.err.println("[LinkParse] Request error: " + e.getMessage());
+                        log.error("[LinkParse] Request error: {}", e.getMessage());
                         return Mono.empty();
                     })
                     .block();
 
         } catch (Exception e) {
-            System.err.println("[LinkParse] Unknown error: " + e.getMessage());
+            log.error("[LinkParse] Unknown error: {}", e.getMessage());
             return null;
         }
     }

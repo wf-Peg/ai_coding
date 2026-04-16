@@ -5,6 +5,8 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayInputStream;
@@ -12,6 +14,8 @@ import java.io.IOException;
 
 @Service
 public class DocumentParseService {
+
+    private static final Logger logger = LoggerFactory.getLogger(DocumentParseService.class);
 
     /**
      * 解析文档文件，提取纯文本
@@ -37,7 +41,7 @@ public class DocumentParseService {
                 return "[文档解析失败] 不支持的文件格式: " + fileName + "。支持 PDF、DOCX、TXT 格式。";
             }
         } catch (Exception e) {
-            System.err.println("[DocParse] Parse failed for " + fileName + ": " + e.getMessage());
+            logger.error("[DocParse] Parse failed for {}: {}", fileName, e.getMessage(), e);
             return "[文档解析失败] " + e.getMessage();
         }
     }

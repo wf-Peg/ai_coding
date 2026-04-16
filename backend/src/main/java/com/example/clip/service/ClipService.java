@@ -2,6 +2,8 @@ package com.example.clip.service;
 
 import com.example.clip.core.AiService;
 import com.example.clip.model.ClipContent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -17,6 +19,7 @@ import java.util.Map;
 @Service
 public class ClipService {
 
+    private static final Logger logger = LoggerFactory.getLogger(ClipService.class);
     private final FileStorageService storageService;  // 文件存储服务
     private final AiService aiService;  // AI服务
     private final LinkParseService linkParseService;  // 链接解析服务
@@ -76,7 +79,7 @@ public class ClipService {
                     clipContent.setContent(parsedText);
                     processWithAi(clipContent);
                 } catch (Exception e) {
-                    System.err.println("[ClipService] Document parse failed: " + e.getMessage());
+                    logger.error("[ClipService] Document parse failed: {}", e.getMessage(), e);
                     clipContent.setSummary("[文档解析失败] " + e.getMessage());
                     clipContent.setAnalysis("");
                 }

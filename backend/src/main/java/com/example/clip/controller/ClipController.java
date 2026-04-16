@@ -5,6 +5,8 @@ import com.example.clip.model.ClipContent;
 import com.example.clip.service.ClipService;
 import com.example.clip.service.ContentOrganizeService;
 import com.example.clip.service.SearchService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +22,8 @@ import java.util.Map;
 @RequestMapping("/api/clip")
 @CrossOrigin(origins = {"http://127.0.0.1:3000", "http://localhost:3000"})  // 允许前端跨域请求
 public class ClipController {
+
+    private static final Logger log = LoggerFactory.getLogger(ClipController.class);
 
     private final ClipService clipService;  // 剪藏服务
     private final SearchService searchService;  // 搜索服务
@@ -48,7 +52,7 @@ public class ClipController {
      */
     @PostMapping("/add")
     public ResponseEntity<?> addClip(@RequestBody ClipRequest request) {
-        System.out.println("[API] /add called, type=" + request.getType() + ", useAiTags=" + request.getUseAiTags());
+        log.info("[API] /add called, type={}, useAiTags={}", request.getType(), request.getUseAiTags());
         // 保存剪藏内容，处理文件数据
         ClipContent clip = clipService.saveClip(request.getContent(), request.getType(),
                 request.getSource(), request.getCategory(),

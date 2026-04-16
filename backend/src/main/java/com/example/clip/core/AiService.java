@@ -7,6 +7,8 @@ import com.alibaba.dashscope.common.Message;
 import com.alibaba.dashscope.common.Role;
 import com.alibaba.dashscope.exception.InputRequiredException;
 import com.alibaba.dashscope.exception.NoApiKeyException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -20,6 +22,7 @@ import java.util.stream.Collectors;
 @Service
 public class AiService {
 
+    private static final Logger logger = LoggerFactory.getLogger(AiService.class);
     private final Generation generation;
     private final DashScopeConfig dashScopeConfig;
 
@@ -64,8 +67,7 @@ public class AiService {
 
             return parseProcessResult(responseStr);
         } catch (Exception e) {
-            System.err.println("[AI] processClipContent failed: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("[AI] processClipContent failed: {}", e.getMessage(), e);
             Map<String, Object> fallback = new LinkedHashMap<>();
             fallback.put("summary", "处理失败: " + e.getMessage());
             fallback.put("analysis", "");
@@ -136,7 +138,7 @@ public class AiService {
             }
         } catch (Exception e) {
             // 解析失败，返回错误信息
-            System.err.println("[AI] parseProcessResult failed: " + e.getMessage());
+            logger.error("[AI] parseProcessResult failed: {}", e.getMessage(), e);
             result.put("summary", "解析失败");
             result.put("analysis", "");
             result.put("tags", List.of());
@@ -274,8 +276,7 @@ public class AiService {
                     .limit(10)
                     .collect(Collectors.toList());
         } catch (Exception e) {
-            System.err.println("[AI] generateTags failed: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("[AI] generateTags failed: {}", e.getMessage(), e);
             return List.of();
         }
     }
@@ -643,7 +644,7 @@ public class AiService {
                     .limit(3)
                     .collect(java.util.stream.Collectors.toList());
         } catch (Exception e) {
-            System.err.println("[AI] generateSynonyms failed: " + e.getMessage());
+            logger.error("[AI] generateSynonyms failed: {}", e.getMessage(), e);
             return List.of();
         }
     }
