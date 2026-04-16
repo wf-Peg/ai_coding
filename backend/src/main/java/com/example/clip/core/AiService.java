@@ -75,52 +75,67 @@ public class AiService {
     }
 
     /**
-     * Parse the JSON response from processClipContent
+     * 解析processClipContent的JSON响应
+     * @param json JSON字符串
+     * @return 解析结果映射
      */
     private Map<String, Object> parseProcessResult(String json) {
         Map<String, Object> result = new LinkedHashMap<>();
         try {
+            // 去除首尾空白字符
             json = json.trim();
+            // 去除可能的Markdown代码块包裹
             if (json.startsWith("```")) {
                 json = json.replaceAll("^```json?\\s*", "").replaceAll("\\s*```$", "");
             }
+            // 再次去除首尾空白字符
             json = json.trim();
 
-            // Extract summary
+            // 提取摘要
             String summary = extractJsonStringValue(json, "summary");
             result.put("summary", summary != null ? summary : "摘要生成失败");
 
-            // Extract analysis
+            // 提取分析
             String analysis = extractJsonStringValue(json, "analysis");
             result.put("analysis", analysis != null ? analysis : "分析生成失败");
 
-            // Extract tags
+            // 提取标签
             int tagsIdx = json.indexOf("\"tags\"");
             if (tagsIdx >= 0) {
+                // 找到标签数组的开始和结束位置
                 int arrStart = json.indexOf("[", tagsIdx);
                 int arrEnd = json.indexOf("]", arrStart);
                 if (arrStart >= 0 && arrEnd > arrStart) {
+                    // 提取标签数组字符串
                     String arrStr = json.substring(arrStart + 1, arrEnd);
                     List<String> tags = new ArrayList<>();
+                    // 按双引号分割，提取标签
                     String[] parts = arrStr.split("\"");
                     for (int i = 0; i < parts.length; i++) {
                         String part = parts[i].trim();
+                        // 过滤空字符串和逗号
                         if (!part.isEmpty() && !part.equals(",") && !part.equals(", ")) {
+                            // 去除可能的逗号
                             part = part.replaceAll("^,|,$", "").trim();
+                            // 只取奇数索引的部分（标签内容）
                             if (!part.isEmpty() && i % 2 == 1) {
                                 tags.add(part);
                             }
                         }
                     }
+                    // 限制标签数量不超过10个
                     if (tags.size() > 10) tags = tags.subList(0, 10);
                     result.put("tags", tags);
                 } else {
+                    // 标签数组格式错误，返回空列表
                     result.put("tags", List.of());
                 }
             } else {
+                // 未找到标签字段，返回空列表
                 result.put("tags", List.of());
             }
         } catch (Exception e) {
+            // 解析失败，返回错误信息
             System.err.println("[AI] parseProcessResult failed: " + e.getMessage());
             result.put("summary", "解析失败");
             result.put("analysis", "");
@@ -130,35 +145,47 @@ public class AiService {
     }
 
     /**
-     * Extract a string value from a JSON key, handling nested quotes and escaped characters
+     * 从JSON键中提取字符串值，处理嵌套引号和转义字符
+     * @param json JSON字符串
+     * @param key 键名
+     * @return 提取的字符串值
      */
     private String extractJsonStringValue(String json, String key) {
         try {
+            // 查找键的位置
             int keyIdx = json.indexOf("\"" + key + "\"");
             if (keyIdx < 0) return null;
+            // 查找冒号的位置
             int colonIdx = json.indexOf(":", keyIdx);
             if (colonIdx < 0) return null;
+            // 查找开始引号的位置
             int startQuote = json.indexOf("\"", colonIdx + 1);
             if (startQuote < 0) return null;
-            // Find the closing quote (handle escaped quotes)
+            
+            // 查找结束引号（处理转义引号）
             int i = startQuote + 1;
             StringBuilder sb = new StringBuilder();
             while (i < json.length()) {
                 char c = json.charAt(i);
+                // 处理转义字符
                 if (c == '\\' && i + 1 < json.length()) {
                     char next = json.charAt(i + 1);
                     if (next == '"' || next == 'n' || next == 't' || next == '\\') {
+                        // 处理不同的转义字符
                         sb.append(next == 'n' ? '\n' : next == 't' ? '\t' : next);
                         i += 2;
                         continue;
                     }
                 }
+                // 遇到结束引号，停止解析
                 if (c == '"') break;
+                // 追加普通字符
                 sb.append(c);
                 i++;
             }
             return sb.toString();
         } catch (Exception e) {
+            // 解析失败，返回null
             return null;
         }
     }

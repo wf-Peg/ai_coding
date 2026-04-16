@@ -6,14 +6,26 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
+/**
+ * Embedding配置类
+ * 配置嵌入模型客户端
+ */
 @Configuration
 public class EmbeddingConfig {
 
+    /**
+     * 嵌入模型提供者
+     */
     @Value("${spring.ai.embedding.provider:openai}")
     private String embeddingProvider;
 
     // 暂时注释掉EmbeddingClient的Bean定义，让应用能够启动
     // 实际使用时需要配置正确的embedding客户端
+    /*
+    /**
+     * 创建主要的EmbeddingClient实例
+     * @return EmbeddingClient实例
+     */
     /*
     @Primary
     @Bean
@@ -34,7 +46,10 @@ public class EmbeddingConfig {
         }
     }
 
-    // 为未来的阿里巴巴embedding模型提供单独的Bean
+    /**
+     * 为阿里巴巴embedding模型提供单独的Bean
+     * @return EmbeddingClient实例
+     */
     @Bean
     public EmbeddingClient alibabaEmbeddingClient() {
         // 未来实现阿里巴巴embedding模型的集成

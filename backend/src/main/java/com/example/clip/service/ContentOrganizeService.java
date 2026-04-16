@@ -18,18 +18,47 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 内容整理服务类
+ * 负责整理剪藏内容，按分类组织并生成报告
+ */
 @Service
 public class ContentOrganizeService {
 
     private static final Logger log = LoggerFactory.getLogger(ContentOrganizeService.class);
 
+    /**
+     * 文件存储服务
+     */
     private final FileStorageService storageService;
+    /**
+     * AI服务
+     */
     private final AiService aiService;
+    /**
+     * 邮件服务
+     */
     private final EmailService emailService;
+    /**
+     * 整理存储路径
+     */
     private final Path organizedStoragePath;
+    /**
+     * 上次整理状态
+     */
     private String lastOrganizeStatus;
+    /**
+     * 上次整理消息
+     */
     private String lastOrganizeMessage;
 
+    /**
+     * 构造函数
+     * @param storageService 文件存储服务
+     * @param aiService AI服务
+     * @param emailService 邮件服务
+     * @param organizedStoragePath 整理存储路径
+     */
     @Autowired
     public ContentOrganizeService(
             FileStorageService storageService,
@@ -45,6 +74,9 @@ public class ContentOrganizeService {
         this.lastOrganizeMessage = "";
     }
 
+    /**
+     * 初始化整理存储目录
+     */
     private void initOrganizedStorage() {
         try {
             if (!Files.exists(organizedStoragePath)) {
@@ -55,6 +87,11 @@ public class ContentOrganizeService {
         }
     }
 
+    /**
+     * 整理内容
+     * 按分类组织今日剪藏内容，生成整理报告
+     * @return 整理结果
+     */
     public Map<String, Object> organizeContent() {
         Map<String, Object> result = new HashMap<>();
         lastOrganizeStatus = "processing";
@@ -64,6 +101,7 @@ public class ContentOrganizeService {
             List<ClipContent> allClips = storageService.getAllClips();
             LocalDate today = LocalDate.now();
             
+            // 筛选今日剪藏内容
             List<ClipContent> todayClips = allClips.stream()
                     .filter(clip -> {
                         if (clip.getCreatedAt() == null) return false;
@@ -81,11 +119,13 @@ public class ContentOrganizeService {
                 return result;
             }
 
+            // 按分类分组剪藏内容
             Map<String, List<ClipContent>> clipsByCategory = groupClipsByCategory(todayClips);
             String dateSuffix = today.format(DateTimeFormatter.ofPattern("yyMMdd"));
 
             int organizedCount = 0;
 
+            // 处理每个分类的内容
             for (Map.Entry<String, List<ClipContent>> entry : clipsByCategory.entrySet()) {
                 String category = entry.getKey();
                 List<ClipContent> categoryClips = entry.getValue();
@@ -98,6 +138,7 @@ public class ContentOrganizeService {
                 }
             }
 
+            // 整理完成
             lastOrganizeStatus = "completed";
             lastOrganizeMessage = "内容整理完成，共整理 " + organizedCount + " 个分类";
             result.put("status", "success");
@@ -106,7 +147,7 @@ public class ContentOrganizeService {
             result.put("organizedCount", organizedCount);
             result.put("storagePath", organizedStoragePath.toAbsolutePath().toString());
 
-            // Send email notification if configured
+            // 发送邮件通知（如果配置）
             sendOrganizeEmail(today, organizedCount, clipsByCategory);
 
         } catch (Exception e) {
@@ -120,6 +161,11 @@ public class ContentOrganizeService {
         return result;
     }
 
+    /**
+     * 按分类分组剪藏内容
+     * @param clips 剪藏内容列表
+     * @return 按分类分组的剪藏内容
+     */
     private Map<String, List<ClipContent>> groupClipsByCategory(List<ClipContent> clips) {
         Map<String, List<ClipContent>> result = new HashMap<>();
         
@@ -131,6 +177,13 @@ public class ContentOrganizeService {
         return result;
     }
 
+    /**
+     * 组织分类内容
+     * 为每个分类生成整理内容
+     * @param category 分类
+     * @param clips 剪藏内容列表
+     * @return 组织后的内容
+     */
     private String organizeCategoryContent(String category, List<ClipContent> clips) {
         StringBuilder contentBuilder = new StringBuilder();
         contentBuilder.append("# ").append(getCategoryName(category)).append("\n\n");
@@ -164,6 +217,13 @@ public class ContentOrganizeService {
         return aiOrganizeContent(category, rawContent);
     }
 
+    /**
+     * 使用AI组织内容
+     * 调用AI服务对内容进行智能整理
+     * @param category 分类
+     * @param content 原始内容
+     * @return AI整理后的内容
+     */
     private String aiOrganizeContent(String category, String content) {
         try {
             return aiService.organizeContentForKnowledgeBase(getCategoryName(category), content);
@@ -202,6 +262,14 @@ public class ContentOrganizeService {
         return cat;
     }
 
+    /**
+     * 保存整理后的内容
+     * 将整理后的内容保存到文件系统
+     * @param category 分类
+     * @param fileName 文件名
+     * @param content 整理后的内容
+     * @throws IOException IO异常
+     */
     private void saveOrganizedContent(String category, String fileName, String content) throws IOException {
         String categoryDir = getCategoryDir(category);
         Path categoryPath = organizedStoragePath.resolve(categoryDir);
@@ -211,6 +279,7 @@ public class ContentOrganizeService {
 
         Path filePath = categoryPath.resolve(fileName);
 
+        // 如果文件已存在，创建备份
         if (Files.exists(filePath)) {
             long timestamp = System.currentTimeMillis();
             String baseName = fileName.substring(0, fileName.lastIndexOf('.'));
@@ -220,6 +289,7 @@ public class ContentOrganizeService {
             Files.move(filePath, backupPath);
         }
 
+        // 写入内容
         Files.write(filePath, content.getBytes("UTF-8"));
     }
 
@@ -252,20 +322,35 @@ public class ContentOrganizeService {
         return category;
     }
 
+    /**
+     * 获取上次整理状态
+     * @return 上次整理状态
+     */
     public String getLastOrganizeStatus() {
         return lastOrganizeStatus;
     }
 
+    /**
+     * 获取上次整理消息
+     * @return 上次整理消息
+     */
     public String getLastOrganizeMessage() {
         return lastOrganizeMessage;
     }
 
+    /**
+     * 获取整理存储路径
+     * @return 整理存储路径
+     */
     public String getOrganizedStoragePath() {
         return organizedStoragePath.toAbsolutePath().toString();
     }
 
     /**
-     * Send organize result email notification
+     * 发送整理结果邮件通知
+     * @param date 整理日期
+     * @param organizedCount 整理的分类数量
+     * @param clipsByCategory 按分类分组的剪藏内容
      */
     private void sendOrganizeEmail(LocalDate date, int organizedCount, Map<String, List<ClipContent>> clipsByCategory) {
         try {

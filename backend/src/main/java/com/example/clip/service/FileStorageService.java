@@ -76,12 +76,15 @@ public class FileStorageService {
     // ==================== Category → 目录路径映射 ====================
 
     /**
-     * 将 category value 映射为文件系统目录路径
+     * 将category value映射为文件系统目录路径
      * 例如: "work-company" → "work/公司事务"
      *       "work" → "work"
      *       null/空 → "default"
+     * @param category 分类值
+     * @return 目录路径
      */
     private Path getCategoryPath(String category) {
+        // 处理空分类，默认为"default"
         String cat = (category != null && !category.isEmpty()) ? category : "default";
 
         // 查找一级分类目录名
@@ -89,7 +92,7 @@ public class FileStorageService {
             String topValue = topCat.get("value").toString();
 
             if (topValue.equals(cat)) {
-                // 一级分类: 直接用 value 作为目录名
+                // 一级分类: 直接用value作为目录名
                 return storagePath.resolve(topValue);
             }
 
@@ -105,7 +108,7 @@ public class FileStorageService {
             }
         }
 
-        // 兼容旧数据: 直接用 category value 作为目录名
+        // 兼容旧数据: 直接用category value作为目录名
         return storagePath.resolve(cat);
     }
 
