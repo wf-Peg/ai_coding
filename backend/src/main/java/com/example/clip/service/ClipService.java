@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ClipService {
@@ -72,14 +73,20 @@ public class ClipService {
     }
 
     /**
-     * AI processing: generate summary and analysis
+     * AI processing: generate summary, analysis, and tags in one call.
+     * Tags are set directly on clipContent.
      */
+    @SuppressWarnings("unchecked")
     private void processWithAi(ClipContent clipContent) {
         try {
-            String summary = aiService.generateSummary(clipContent.getContent());
-            String analysis = aiService.analyzeContent(clipContent.getContent());
-            clipContent.setSummary(summary);
-            clipContent.setAnalysis(analysis);
+            Map<String, Object> aiResult = aiService.processClipContent(clipContent.getContent());
+            clipContent.setSummary((String) aiResult.getOrDefault("summary", "摘要生成失败"));
+            clipContent.setAnalysis((String) aiResult.getOrDefault("analysis", ""));
+            List<String> tags = (List<String>) aiResult.getOrDefault("tags", List.of());
+            // Set AI-generated tags on clip if not already set
+            if (clipContent.getTags() == null || clipContent.getTags().isEmpty()) {
+                clipContent.setTags(tags);
+            }
         } catch (Exception e) {
             e.printStackTrace();
             clipContent.setSummary("摘要生成失败");

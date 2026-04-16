@@ -25,6 +25,140 @@ public class AiService {
         this.dashScopeConfig = dashScopeConfig;
     }
 
+    /**
+     * One-shot processing: generate summary, analysis, and tags in a single API call.
+     * Returns a map with keys: summary, analysis, tags
+     */
+    public Map<String, Object> processClipContent(String content) {
+        String systemPrompt = "你是一个专业的内容分析助手。请对以下内容完成三项任务，严格按JSON格式返回：\n\n"
+                + "1. 摘要(summary)：不超过100字的简短摘要\n"
+                + "2. 分析(analysis)：使用markdown格式，提取关键信息进行深度分析，不要生成摘要\n"
+                + "3. 标签(tags)：3-8个关键词标签\n\n"
+                + "请严格按以下JSON格式返回，不要有任何其他文字：\n"
+                + "{\"summary\":\"摘要内容\",\"analysis\":\"分析内容(markdown格式)\",\"tags\":[\"标签1\",\"标签2\",\"标签3\"]}";
+
+        try {
+            Message systemMessage = Message.builder()
+                    .role(Role.SYSTEM.getValue())
+                    .content(systemPrompt)
+                    .build();
+
+            Message userMessage = Message.builder()
+                    .role(Role.USER.getValue())
+                    .content(content)
+                    .build();
+
+            GenerationParam param = GenerationParam.builder()
+                    .apiKey(dashScopeConfig.getApiKey())
+                    .model(dashScopeConfig.getModel())
+                    .messages(Arrays.asList(systemMessage, userMessage))
+                    .resultFormat(GenerationParam.ResultFormat.MESSAGE)
+                    .build();
+
+            GenerationResult result = generation.call(param);
+            String responseStr = result.getOutput().getChoices().get(0).getMessage().getContent();
+
+            return parseProcessResult(responseStr);
+        } catch (Exception e) {
+            System.err.println("[AI] processClipContent failed: " + e.getMessage());
+            e.printStackTrace();
+            Map<String, Object> fallback = new LinkedHashMap<>();
+            fallback.put("summary", "处理失败: " + e.getMessage());
+            fallback.put("analysis", "");
+            fallback.put("tags", List.of());
+            return fallback;
+        }
+    }
+
+    /**
+     * Parse the JSON response from processClipContent
+     */
+    private Map<String, Object> parseProcessResult(String json) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        try {
+            json = json.trim();
+            if (json.startsWith("```")) {
+                json = json.replaceAll("^```json?\\s*", "").replaceAll("\\s*```$", "");
+            }
+            json = json.trim();
+
+            // Extract summary
+            String summary = extractJsonStringValue(json, "summary");
+            result.put("summary", summary != null ? summary : "摘要生成失败");
+
+            // Extract analysis
+            String analysis = extractJsonStringValue(json, "analysis");
+            result.put("analysis", analysis != null ? analysis : "分析生成失败");
+
+            // Extract tags
+            int tagsIdx = json.indexOf("\"tags\"");
+            if (tagsIdx >= 0) {
+                int arrStart = json.indexOf("[", tagsIdx);
+                int arrEnd = json.indexOf("]", arrStart);
+                if (arrStart >= 0 && arrEnd > arrStart) {
+                    String arrStr = json.substring(arrStart + 1, arrEnd);
+                    List<String> tags = new ArrayList<>();
+                    String[] parts = arrStr.split("\"");
+                    for (int i = 0; i < parts.length; i++) {
+                        String part = parts[i].trim();
+                        if (!part.isEmpty() && !part.equals(",") && !part.equals(", ")) {
+                            part = part.replaceAll("^,|,$", "").trim();
+                            if (!part.isEmpty() && i % 2 == 1) {
+                                tags.add(part);
+                            }
+                        }
+                    }
+                    if (tags.size() > 10) tags = tags.subList(0, 10);
+                    result.put("tags", tags);
+                } else {
+                    result.put("tags", List.of());
+                }
+            } else {
+                result.put("tags", List.of());
+            }
+        } catch (Exception e) {
+            System.err.println("[AI] parseProcessResult failed: " + e.getMessage());
+            result.put("summary", "解析失败");
+            result.put("analysis", "");
+            result.put("tags", List.of());
+        }
+        return result;
+    }
+
+    /**
+     * Extract a string value from a JSON key, handling nested quotes and escaped characters
+     */
+    private String extractJsonStringValue(String json, String key) {
+        try {
+            int keyIdx = json.indexOf("\"" + key + "\"");
+            if (keyIdx < 0) return null;
+            int colonIdx = json.indexOf(":", keyIdx);
+            if (colonIdx < 0) return null;
+            int startQuote = json.indexOf("\"", colonIdx + 1);
+            if (startQuote < 0) return null;
+            // Find the closing quote (handle escaped quotes)
+            int i = startQuote + 1;
+            StringBuilder sb = new StringBuilder();
+            while (i < json.length()) {
+                char c = json.charAt(i);
+                if (c == '\\' && i + 1 < json.length()) {
+                    char next = json.charAt(i + 1);
+                    if (next == '"' || next == 'n' || next == 't' || next == '\\') {
+                        sb.append(next == 'n' ? '\n' : next == 't' ? '\t' : next);
+                        i += 2;
+                        continue;
+                    }
+                }
+                if (c == '"') break;
+                sb.append(c);
+                i++;
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     public String analyzeContent(String content) {
         try {
             Message systemMessage = Message.builder()
