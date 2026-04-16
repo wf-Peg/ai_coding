@@ -214,9 +214,9 @@ public class ContentOrganizeService {
             if (clip.getTags() != null && !clip.getTags().isEmpty()) {
                 contentBuilder.append("### 标签\n\n");
                 for (String tag : clip.getTags()) {
-                    contentBuilder.append("- ").append(tag).append("\n");
+                    contentBuilder.append("tag:#").append(tag).append("  ");
                 }
-                contentBuilder.append("\n");
+                contentBuilder.append("\n\n");
             }
             
             contentBuilder.append("---\n\n");

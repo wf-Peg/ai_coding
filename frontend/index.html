@@ -1367,6 +1367,9 @@
                 <button class="toggle-btn" id="organize-btn" onclick="organizeContent()">
                     <span class="toggle-text">📚 整理今日内容</span>
                 </button>
+                <button class="toggle-btn" id="weekly-report-btn" onclick="generateWeeklyReport()">
+                    <span class="toggle-text">📊 生成周报总结</span>
+                </button>
                 <button class="toggle-btn" id="toggle-btn" onclick="toggleMode()">
         <span class="toggle-text" id="toggle-text">切换到信息检索</span>
     </button>
@@ -2535,6 +2538,64 @@
         }
 
         let currentStoragePath = '';
+        let currentWeeklyReportPath = '';
+        let weeklyReportStatus = 'idle';
+        let weeklyReportMessage = '';
+        let weeklyReportCheckInterval = null;
+
+        async function generateWeeklyReport() {
+            const weeklyReportBtn = document.getElementById('weekly-report-btn');
+            const originalText = weeklyReportBtn.innerHTML;
+            weeklyReportBtn.disabled = true;
+            weeklyReportBtn.innerHTML = '<span class="toggle-text">⏳ 生成中...</span>';
+            weeklyReportBtn.style.opacity = '0.7';
+
+            try {
+                const response = await axios.post('http://127.0.0.1:8080/api/weekly-report/generate');
+                const result = response.data;
+                
+                if (result.status === 'success' || result.status === 'completed') {
+                    currentWeeklyReportPath = result.storagePath;
+                    showWeeklyReportNotification(result.message);
+                } else {
+                    alert(result.message || '周报生成失败，请稍后重试');
+                }
+            } catch (error) {
+                console.error('周报生成失败:', error);
+                alert('周报生成失败，请稍后重试');
+            } finally {
+                weeklyReportBtn.disabled = false;
+                weeklyReportBtn.innerHTML = originalText;
+                weeklyReportBtn.style.opacity = '1';
+            }
+        }
+
+        async function checkWeeklyReportStatus() {
+            try {
+                const response = await axios.get('http://127.0.0.1:8080/api/weekly-report/status');
+                const status = response.data;
+                weeklyReportStatus = status.status;
+                weeklyReportMessage = status.message;
+                
+                if (status.storagePath) {
+                    currentWeeklyReportPath = status.storagePath;
+                }
+                
+                return status;
+            } catch (error) {
+                console.error('检查周报状态失败:', error);
+                return null;
+            }
+        }
+
+        function showWeeklyReportNotification(message) {
+            const notificationBar = document.getElementById('notification-bar');
+            const notificationMessage = document.getElementById('notification-message');
+            
+            notificationMessage.textContent = message;
+            notificationBar.style.display = 'block';
+            notificationBar.style.animation = 'slideIn 0.3s ease-out';
+        }
 
         async function organizeContent() {
             const organizeBtn = document.getElementById('organize-btn');
@@ -2581,10 +2642,11 @@
         }
 
         function openStorageFolder() {
-            if (currentStoragePath) {
+            const path = currentWeeklyReportPath || currentStoragePath;
+            if (path) {
                 try {
                     if (navigator.clipboard) {
-                        navigator.clipboard.writeText(currentStoragePath);
+                        navigator.clipboard.writeText(path);
                         
                         // 检测系统类型
                         const userAgent = navigator.userAgent;
@@ -2600,13 +2662,13 @@
                             systemMessage = '请在文件管理器中打开以下路径';
                         }
                         
-                        alert('存储路径已复制到剪贴板\n\n' + systemMessage + ':\n' + currentStoragePath);
+                        alert('存储路径已复制到剪贴板\n\n' + systemMessage + ':\n' + path);
                     } else {
-                        alert('存储路径：\n' + currentStoragePath);
+                        alert('存储路径：\n' + path);
                     }
                 } catch (error) {
                     console.error('打开存储目录失败:', error);
-                    alert('存储路径：\n' + currentStoragePath);
+                    alert('存储路径：\n' + path);
                 }
             }
         }
