@@ -128,7 +128,7 @@ public class ClipController {
      * @return 响应实体，包含该分类下的剪藏内容列表
      */
     @GetMapping("/category/{category}")
-    public ResponseEntity<List<ClipContent>> getClipsByCategory(@PathVariable String category) {
+    public ResponseEntity<List<ClipContent>> getClipsByCategory(@PathVariable(name = "category") String category) {
         List<ClipContent> clips = clipService.getClipsByCategory(category);
         return ResponseEntity.ok(clips);
     }
@@ -150,7 +150,7 @@ public class ClipController {
      * @return 响应实体，包含删除状态
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteClip(@PathVariable Long id) {
+    public ResponseEntity<?> deleteClip(@PathVariable(name = "id") Long id) {
         clipService.deleteClip(id);
         return ResponseEntity.ok(new ClipResponse(null, "success"));
     }
@@ -187,7 +187,7 @@ public class ClipController {
      * @return 响应实体，包含发散性总结内容
      */
     @GetMapping("/divergent-summary/{id}")
-    public ResponseEntity<String> getDivergentSummary(@PathVariable Long id) {
+    public ResponseEntity<String> getDivergentSummary(@PathVariable(name = "id") Long id) {
         ClipContent clip = clipService.getClipById(id);
         if (clip == null) {
             return ResponseEntity.notFound().build();

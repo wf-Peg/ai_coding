@@ -55,7 +55,7 @@ public class ClipService {
      * @return 保存后的剪藏内容
      */
     public ClipContent saveClip(String content, String type, String source, String category,
-                                 String fileData, String fileName, List<ClipController.ImageData> imageDataList) {
+                                 String fileData, String fileName, List<ClipController.ClipRequest.ImageData> imageDataList) {
         ClipContent clipContent = new ClipContent(content, type, source, category);
 
         // 处理图片
@@ -65,7 +65,7 @@ public class ClipService {
                 String noteFileName = generateNoteFileName(category);
                 
                 // 处理每张图片
-                for (ClipController.ImageData imageData : imageDataList) {
+                for (ClipController.ClipRequest.ImageData imageData : imageDataList) {
                     if (imageData.getBase64Data() != null && !imageData.getBase64Data().isEmpty()) {
                         // 解码Base64图片数据
                         byte[] imageBytes = Base64.getDecoder().decode(imageData.getBase64Data());
@@ -174,7 +174,22 @@ public class ClipService {
      * @return 保存后的剪藏内容
      */
     public ClipContent saveClip(String content, String type, String source, String category) {
-        return saveClip(content, type, source, category, null, null);
+        return saveClip(content, type, source, category, null, null, null);
+    }
+    
+    /**
+     * 保存剪藏内容（兼容重载方法）
+     * @param content 剪藏内容
+     * @param type 剪藏类型
+     * @param source 剪藏来源
+     * @param category 剪藏分类
+     * @param fileData 文件数据（Base64编码）
+     * @param fileName 文件名
+     * @return 保存后的剪藏内容
+     */
+    public ClipContent saveClip(String content, String type, String source, String category,
+                                String fileData, String fileName) {
+        return saveClip(content, type, source, category, fileData, fileName, null);
     }
 
     /**
