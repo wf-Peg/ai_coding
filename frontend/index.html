@@ -1549,13 +1549,15 @@
                 const base64 = reader.result;
                 const timestamp = new Date().getTime();
                 const extension = file.name ? file.name.split('.').pop().toLowerCase() : 'png';
-                const fileName = `file-${timestamp}-${index}.${extension}`;
+                // 使用实际的图片数量作为序号
+                const imageIndex = uploadedImages.length + 1;
+                const fileName = `file-${timestamp}-${imageIndex}.${extension}`;
 
                 // Add to uploaded images array
                 uploadedImages.push({ base64, fileName });
 
-                // Generate Markdown reference
-                const markdownRef = `![图片](assets/${fileName})`;
+                // Generate Markdown reference with './' prefix
+                const markdownRef = `![图片](./assets/${fileName})`;
                 
                 // Update content, insert Markdown reference at cursor position
                 const textarea = document.getElementById('content');
