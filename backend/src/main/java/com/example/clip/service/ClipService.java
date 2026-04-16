@@ -1,7 +1,9 @@
 package com.example.clip.service;
 
+import com.example.clip.controller.ClipController;
 import com.example.clip.core.AiService;
 import com.example.clip.model.ClipContent;
+import com.example.clip.utils.ImageUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,17 +44,64 @@ public class ClipService {
     }
 
     /**
-     * 保存剪藏内容
+     * 保存剪藏内容（支持图片上传）
      * @param content 剪藏内容
      * @param type 剪藏类型
      * @param source 剪藏来源
      * @param category 剪藏分类
      * @param fileData 文件数据（Base64编码）
      * @param fileName 文件名
+     * @param imageDataList 图片数据列表
      * @return 保存后的剪藏内容
      */
     public ClipContent saveClip(String content, String type, String source, String category,
-                                 String fileData, String fileName) {
+                                 String fileData, String fileName, List<ClipController.ImageData> imageDataList) {
+        ClipContent clipContent = new ClipContent(content, type, source, category);
+
+        // 处理图片
+        if (imageDataList != null && !imageDataList.isEmpty()) {
+            try {
+                // 生成笔记文件名（用于图片存储）
+                String noteFileName = generateNoteFileName(category);
+                
+                // 处理每张图片
+                for (ClipController.ImageData imageData : imageDataList) {
+                    if (imageData.getBase64Data() != null && !imageData.getBase64Data().isEmpty()) {
+                        // 解码Base64图片数据
+                        byte[] imageBytes = Base64.getDecoder().decode(imageData.getBase64Data());
+                        
+                        // 验证图片文件类型
+                        if (!ImageUtils.isValidImageFile(imageData.getFileName())) {
+                            logger.warn("Invalid image file type: {}", imageData.getFileName());
+                            continue;
+                        }
+                        
+                        // 验证图片大小（限制10MB）
+                        if (!ImageUtils.isWithinSizeLimit(imageBytes, 10 * 1024 * 1024)) {
+                            logger.warn("Image too large: {}", imageData.getFileName());
+                            continue;
+                        }
+                        
+                        // 存储图片并获取相对路径
+                        String imagePath = ImageUtils.storeImage(imageBytes, imageData.getFileName(), category, noteFileName);
+                        
+                        // 将图片路径添加到clipContent
+                        clipContent.getImagePaths().add(imagePath);
+                        
+                        // 在原文中添加图片引用
+                        if (clipContent.getContent() == null) {
+                            clipContent.setContent("");
+                        }
+                        clipContent.setContent(clipContent.getContent() + "\n![图片]()\n");
+                    }
+                }
+            } catch (Exception e) {
+                logger.error("Failed to process images: {}", e.getMessage(), e);
+                // 图片处理失败不影响文本内容的保存
+            }
+        }
+
+        switch (type != null ? type : "ai-text") {
         ClipContent clipContent = new ClipContent(content, type, source, category);
 
         switch (type != null ? type : "ai-text") {

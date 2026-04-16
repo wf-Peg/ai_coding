@@ -28,6 +28,8 @@ public class ClipContent {
 
     private String analysis;  // 内容分析
 
+    private List<String> imagePaths = new ArrayList<>();  // 图片相对路径列表
+
     /**
      * 无参构造函数
      * 自动设置创建时间为当前时间
@@ -122,5 +124,13 @@ public class ClipContent {
 
     public void setAnalysis(String analysis) {
         this.analysis = analysis;
+    }
+
+    public List<String> getImagePaths() {
+        return imagePaths;
+    }
+
+    public void setImagePaths(List<String> imagePaths) {
+        this.imagePaths = imagePaths;
     }
 }
