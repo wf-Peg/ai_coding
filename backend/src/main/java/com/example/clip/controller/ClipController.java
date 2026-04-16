@@ -53,10 +53,11 @@ public class ClipController {
     @PostMapping("/add")
     public ResponseEntity<?> addClip(@RequestBody ClipRequest request) {
         log.info("[API] /add called, type={}, useAiTags={}", request.getType(), request.getUseAiTags());
-        // 保存剪藏内容，处理文件数据
+        // 保存剪藏内容，处理文件数据和图片数据
         ClipContent clip = clipService.saveClip(request.getContent(), request.getType(),
                 request.getSource(), request.getCategory(),
-                request.getFileData(), request.getFileName());
+                request.getFileData(), request.getFileName(),
+                request.getImageDataList());
 
         // 处理标签：如果用户提供了手动标签，覆盖AI生成的标签
         if (!"store-only".equals(request.getType())) {
@@ -234,6 +235,7 @@ public class ClipController {
         private Boolean useAiTags;  // 是否使用AI生成标签
         private String fileData;  // 文件数据（Base64编码）
         private String fileName;  // 文件名
+        private List<ImageData> imageDataList;  // 图片数据列表
 
         // Getters and Setters
         public String getContent() {
@@ -289,6 +291,24 @@ public class ClipController {
 
         public String getFileName() { return fileName; }
         public void setFileName(String fileName) { this.fileName = fileName; }
+
+        public List<ImageData> getImageDataList() { return imageDataList; }
+        public void setImageDataList(List<ImageData> imageDataList) { this.imageDataList = imageDataList; }
+
+        /**
+         * 图片数据类
+         * 用于接收前端上传的图片数据
+         */
+        public static class ImageData {
+            private String base64Data;  // Base64编码的图片数据
+            private String fileName;  // 图片文件名
+
+            public String getBase64Data() { return base64Data; }
+            public void setBase64Data(String base64Data) { this.base64Data = base64Data; }
+
+            public String getFileName() { return fileName; }
+            public void setFileName(String fileName) { this.fileName = fileName; }
+        }
     }
 
     /**
