@@ -55,7 +55,7 @@ public class ClipService {
      * @return 保存后的剪藏内容
      */
     public ClipContent saveClip(String content, String type, String source, String category,
-                                 String fileData, String fileName, List<ClipController.ImageData> imageDataList) {
+                                 String fileData, String fileName, List<ClipController.ClipRequest.ImageData> imageDataList) {
         ClipContent clipContent = new ClipContent(content, type, source, category);
 
         // 处理图片
@@ -65,7 +65,7 @@ public class ClipService {
                 String noteFileName = generateNoteFileName(category);
                 
                 // 处理每张图片
-                for (ClipController.ImageData imageData : imageDataList) {
+                for (ClipController.ClipRequest.ImageData imageData : imageDataList) {
                     if (imageData.getBase64Data() != null && !imageData.getBase64Data().isEmpty()) {
                         // 解码Base64图片数据
                         byte[] imageBytes = Base64.getDecoder().decode(imageData.getBase64Data());
