@@ -13,6 +13,10 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * AI服务类
+ * 提供AI相关功能，包括内容分析、标签生成、智能整理等
+ */
 @Service
 public class AiService {
 

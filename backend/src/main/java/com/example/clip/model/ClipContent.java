@@ -4,30 +4,45 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 剪藏内容模型类
+ * 存储剪藏的内容、类型、来源、分类、标签等信息
+ */
 public class ClipContent {
 
-    private Long id;
+    private Long id;  // 剪藏ID
 
-    private String content;
+    private String content;  // 剪藏内容
 
-    private String type; // text, image, file, etc.
+    private String type;  // 剪藏类型：text, image, file, etc.
 
-    private String source; // system, browser, manual
+    private String source;  // 剪藏来源：system, browser, manual
 
-    private String category; // 分类，用于垂直领域
+    private String category;  // 分类，用于垂直领域
 
-    private List<String> tags = new ArrayList<>(); // 标签列表
+    private List<String> tags = new ArrayList<>();  // 标签列表
 
-    private LocalDateTime createdAt;
+    private LocalDateTime createdAt;  // 创建时间
 
-    private String summary;
+    private String summary;  // 内容摘要
 
-    private String analysis;
+    private String analysis;  // 内容分析
 
+    /**
+     * 无参构造函数
+     * 自动设置创建时间为当前时间
+     */
     public ClipContent() {
         this.createdAt = LocalDateTime.now();
     }
 
+    /**
+     * 构造函数
+     * @param content 剪藏内容
+     * @param type 剪藏类型
+     * @param source 剪藏来源
+     * @param category 剪藏分类
+     */
     public ClipContent(String content, String type, String source, String category) {
         this.content = content;
         this.type = type;
