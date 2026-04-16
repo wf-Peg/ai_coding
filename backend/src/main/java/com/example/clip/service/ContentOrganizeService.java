@@ -198,6 +198,15 @@ public class ContentOrganizeService {
                 contentBuilder.append("### 原文\n\n").append(clip.getContent()).append("\n\n");
             }
             
+            // 添加图片路径信息
+            if (clip.getImagePaths() != null && !clip.getImagePaths().isEmpty()) {
+                contentBuilder.append("### 图片\n\n");
+                for (String imagePath : clip.getImagePaths()) {
+                    contentBuilder.append("![图片]()\n");
+                }
+                contentBuilder.append("\n");
+            }
+            
             if (clip.getAnalysis() != null) {
                 contentBuilder.append("### AI分析\n\n").append(clip.getAnalysis()).append("\n\n");
             }

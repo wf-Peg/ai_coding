@@ -102,9 +102,6 @@ public class ClipService {
         }
 
         switch (type != null ? type : "ai-text") {
-        ClipContent clipContent = new ClipContent(content, type, source, category);
-
-        switch (type != null ? type : "ai-text") {
             case "store-only":
                 // 仅存储内容，不进行AI处理
                 clipContent.setSummary(content != null ? content : "");
@@ -221,6 +218,21 @@ public class ClipService {
      */
     public List<ClipContent> getClipsByCategory(String category) {
         return storageService.getClipsByCategory(category);
+    }
+
+    /**
+     * 生成笔记文件名
+     * 格式：{category}_{yyMMdd}
+     * @param category 分类
+     * @return 笔记文件名
+     */
+    private String generateNoteFileName(String category) {
+        String cat = (category != null && !category.isEmpty()) ? category : "default";
+        // 移除分类中的斜杠和其他特殊字符
+        cat = cat.replaceAll("/", "-");
+        // 获取当前日期
+        String dateSuffix = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyMMdd"));
+        return cat + "_" + dateSuffix;
     }
 
     /**

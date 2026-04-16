@@ -26,7 +26,6 @@ public class EmbeddingConfig {
      * 创建主要的EmbeddingClient实例
      * @return EmbeddingClient实例
      */
-    /*
     @Primary
     @Bean
     public EmbeddingClient embeddingClient() {

@@ -53,10 +53,11 @@ public class ClipController {
     @PostMapping("/add")
     public ResponseEntity<?> addClip(@RequestBody ClipRequest request) {
         log.info("[API] /add called, type={}, useAiTags={}", request.getType(), request.getUseAiTags());
-        // 保存剪藏内容，处理文件数据
+        // 保存剪藏内容，处理文件数据和图片数据
         ClipContent clip = clipService.saveClip(request.getContent(), request.getType(),
                 request.getSource(), request.getCategory(),
-                request.getFileData(), request.getFileName());
+                request.getFileData(), request.getFileName(),
+                request.getImageDataList());
 
         // 处理标签：如果用户提供了手动标签，覆盖AI生成的标签
         if (!"store-only".equals(request.getType())) {
