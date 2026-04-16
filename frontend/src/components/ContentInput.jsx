@@ -23,7 +23,8 @@ function ContentInput({ value, onChange, onImageAdd }) {
     reader.onloadend = () => {
       const base64 = reader.result;
       const timestamp = new Date().getTime();
-      const extension = file.name.split('.').pop().toLowerCase();
+      // 确保文件扩展名正确处理
+      const extension = file.name ? file.name.split('.').pop().toLowerCase() : 'png';
       const fileName = `file-${timestamp}-1.${extension}`;
 
       // 生成Markdown引用
