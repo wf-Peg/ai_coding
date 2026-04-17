@@ -767,4 +767,13 @@ public class AiService {
         }
         return result;
     }
+
+    /**
+     * 获取分类名称
+     * @param category 分类标识
+     * @return 分类名称
+     */
+    private String getCategoryName(String category) {
+        return category != null ? category : "未分类";
+    }
 }
