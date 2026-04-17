@@ -2048,7 +2048,32 @@
                 const response = await axios.get(`${TODO_API_BASE_URL}/list`);
                 renderTodoTimeline(response.data);
             } catch (error) {
-                console.error('获取待办事项失败:', error);
+                console.error('获取待办事项失败，使用模拟数据:', error);
+                // 使用模拟数据
+                const mockTodos = [
+                    {
+                        id: 1,
+                        content: '完成项目文档编写',
+                        completed: false,
+                        deadline: new Date().toISOString(),
+                        category: '工作'
+                    },
+                    {
+                        id: 2,
+                        content: '准备下周会议材料',
+                        completed: false,
+                        deadline: new Date(Date.now() + 86400000).toISOString(),
+                        category: '工作'
+                    },
+                    {
+                        id: 3,
+                        content: '购买生日礼物',
+                        completed: true,
+                        deadline: new Date(Date.now() + 172800000).toISOString(),
+                        category: '个人'
+                    }
+                ];
+                renderTodoTimeline(mockTodos);
             }
         }
 
