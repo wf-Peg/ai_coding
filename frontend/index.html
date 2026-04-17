@@ -1785,10 +1785,8 @@
                             <div class="todo-form-group">
                                 <label for="todo-deadline">截止日期</label>
                                 <input 
-                                    type="text" 
-                                    id="todo-deadline" 
-                                    placeholder="yyyymmdd" 
-                                    maxlength="8"
+                                    type="date" 
+                                    id="todo-deadline"
                                 >
                             </div>
                             <div class="todo-form-group">
@@ -1796,15 +1794,15 @@
                                 <input 
                                     type="text" 
                                     id="todo-content" 
-                                    placeholder="例如：20260418前完成xxx事项"
+                                    placeholder="例如：完成xxx事项"
                                 >
                             </div>
                             <div class="todo-form-group">
-                                <label for="todo-category">分类（可选）</label>
+                                <label for="todo-tags">标签（可选，多个标签用逗号分隔）</label>
                                 <input 
                                     type="text" 
-                                    id="todo-category" 
-                                    placeholder="例如：工作"
+                                    id="todo-tags" 
+                                    placeholder="例如：工作,重要"
                                 >
                             </div>
                         </form>
@@ -2123,34 +2121,26 @@
             // 清空表单
             document.getElementById('todo-deadline').value = '';
             document.getElementById('todo-content').value = '';
-            document.getElementById('todo-category').value = '';
+            document.getElementById('todo-tags').value = '';
         }
         
         // 提交待办事项表单
         async function submitTodoForm() {
             const deadline = document.getElementById('todo-deadline').value.trim();
             const content = document.getElementById('todo-content').value.trim();
-            const category = document.getElementById('todo-category').value.trim();
+            const tags = document.getElementById('todo-tags').value.trim();
             
             if (!deadline || !content) {
                 alert('请填写截止日期和待办事项');
                 return;
             }
             
-            if (deadline.length !== 8 || !/^\d+$/.test(deadline)) {
-                alert('截止日期格式不正确，请使用 yyyymmdd 格式');
-                return;
-            }
-            
             try {
-                const year = deadline.substring(0, 4);
-                const month = deadline.substring(4, 6);
-                const day = deadline.substring(6, 8);
-                const deadlineDate = new Date(year, month - 1, day);
+                const deadlineDate = new Date(deadline);
                 
                 const todoData = {
                     content: content,
-                    category: category || '默认',
+                    category: tags || '默认',
                     deadline: deadlineDate.toISOString()
                 };
                 
@@ -2170,7 +2160,7 @@
         // 打开待办事项详情弹窗
         function openTodoDetailModal(todo) {
             document.getElementById('todo-detail-content').textContent = todo.content;
-            document.getElementById('todo-detail-category').textContent = `分类: ${todo.category || '默认'}`;
+            document.getElementById('todo-detail-category').textContent = `标签: ${todo.category || '默认'}`;
             document.getElementById('todo-detail-deadline').textContent = `截止日期: ${todo.deadline ? formatDateDisplay(formatDeadlineForDisplay(todo.deadline)) : '无'}`;
             document.getElementById('todo-detail-modal').style.display = 'flex';
         }
