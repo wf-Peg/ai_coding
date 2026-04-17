@@ -580,7 +580,7 @@ public class AiService {
                             "    - **三级标题**：`原文` 、 `分析`\n" +
                             "- **原文展示**：必须使用 `text` 代码块包裹原文，禁止直接以引用或段落形式展示。\n" +
                             "- **分析展示**：使用 Markdown 列表和加粗，确保可读性。\n" +
-                            "- **元数据**：在二级标题下方使用引用格式展示分类与标签 `> 分类/标签：...`。\n" +
+                            "- **元数据**：在二级标题下方使用引用格式展示分类与标签，标签使用 tag:#标签名 格式，多个标签之间用空格分隔 `> 分类/标签：...`。\n" +
                             "- **Markdown格式清洗**：确保所有标题符号（#）前后没有多余的空格或重复符号，确保标题层级清晰，没有重叠或混乱。\n" +
                             "\n" +
                             "# Constraints\n" +
@@ -647,5 +647,133 @@ public class AiService {
             logger.error("[AI] generateSynonyms failed: {}", e.getMessage(), e);
             return List.of();
         }
+    }
+
+    /**
+     * 拆分内容为独立知识点，并添加双链引用
+     * @param content 原始内容
+     * @param category 分类
+     * @return 包含主报告和知识点列表的Map
+     */
+    public Map<String, Object> extractKnowledgePoints(String content, String category) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        try {
+            String systemPrompt = "# Role\n" +
+                    "你是一位专业的知识管理专家，擅长将复杂内容拆分为独立的知识点，并使用Obsidian双链语法建立知识点之间的关联。\n" +
+                    "\n" +
+                    "# Goal\n" +
+                    "接收用户提供的原始内容，将其拆分为独立的知识点，每个知识点存储为一个单独的文件，同时在主报告中使用Obsidian双链语法[[知识点名称]]引用这些知识点。\n" +
+                    "\n" +
+                    "# Workflow\n" +
+                    "1. **内容分析**：\n" +
+                    "   - 仔细阅读原始内容，识别核心知识点\n" +
+                    "   - 每个知识点应该是一个相对独立、完整的概念或信息单元\n" +
+                    "\n" +
+                    "2. **知识点命名**：\n" +
+                    "   - 为每个知识点创建一个清晰、简洁的文件名（使用中文，避免特殊字符）\n" +
+                    "   - 文件名应该能够准确反映知识点的核心内容\n" +
+                    "\n" +
+                    "3. **双链引用**：\n" +
+                    "   - 在主报告中使用[[知识点文件名]]的格式引用每个知识点\n" +
+                    "   - 确保引用自然融入主报告的上下文\n" +
+                    "\n" +
+                    "4. **知识点内容**：\n" +
+                    "   - 每个知识点文件包含完整的相关内容\n" +
+                    "   - 可以包含标签、相关链接等元信息\n" +
+                    "   - 如果知识点之间有关联，也可以在知识点文件中互相引用\n" +
+                    "\n" +
+                    "# Output Format Rules\n" +
+                    "请严格按以下JSON格式返回，不要有任何其他文字：\n" +
+                    "{\n" +
+                    "  \"mainReport\": \"主报告内容，使用[[知识点文件名]]格式引用知识点\",\n" +
+                    "  \"knowledgePoints\": [\n" +
+                    "    {\n" +
+                    "      \"fileName\": \"知识点文件名（不含.md扩展名）\",\n" +
+                    "      \"title\": \"知识点标题\",\n" +
+                    "      \"content\": \"知识点完整内容，使用Markdown格式\"\n" +
+                    "    }\n" +
+                    "  ]\n" +
+                    "}\n" +
+                    "\n" +
+                    "# Constraints\n" +
+                    "- 知识点数量控制在3-10个之间\n" +
+                    "- 每个知识点内容应该充实，有实际价值\n" +
+                    "- 主报告应该结构清晰，引用自然\n" +
+                    "- 文件名只使用中文、数字和下划线，不要特殊字符";
+
+            Message systemMessage = Message.builder()
+                    .role(Role.SYSTEM.getValue())
+                    .content(systemPrompt)
+                    .build();
+
+            Message userMessage = Message.builder()
+                    .role(Role.USER.getValue())
+                    .content("分类：" + getCategoryName(category) + "\n\n内容：\n" + content)
+                    .build();
+
+            GenerationParam param = GenerationParam.builder()
+                    .apiKey(dashScopeConfig.getApiKey())
+                    .model(dashScopeConfig.getModel())
+                    .messages(Arrays.asList(systemMessage, userMessage))
+                    .resultFormat(GenerationParam.ResultFormat.MESSAGE)
+                    .build();
+
+            GenerationResult generationResult = generation.call(param);
+            String responseStr = generationResult.getOutput().getChoices().get(0).getMessage().getContent();
+
+            // 解析响应
+            responseStr = responseStr.trim();
+            if (responseStr.startsWith("```")) {
+                responseStr = responseStr.replaceAll("^```json?\\s*", "").replaceAll("\\s*```$", "");
+            }
+            responseStr = responseStr.trim();
+
+            // 解析主报告
+            String mainReport = extractJsonStringValue(responseStr, "mainReport");
+            result.put("mainReport", mainReport != null ? mainReport : content);
+
+            // 解析知识点列表
+            List<Map<String, String>> knowledgePoints = new ArrayList<>();
+            int kpIdx = responseStr.indexOf("\"knowledgePoints\"");
+            if (kpIdx >= 0) {
+                int arrStart = responseStr.indexOf("[", kpIdx);
+                int arrEnd = responseStr.lastIndexOf("]");
+                if (arrStart >= 0 && arrEnd > arrStart) {
+                    String arrStr = responseStr.substring(arrStart + 1, arrEnd);
+                    // 简单解析每个知识点对象
+                    String[] objStrs = arrStr.split("\\},\\s*\\{");
+                    for (String objStr : objStrs) {
+                        objStr = objStr.trim();
+                        if (!objStr.startsWith("{")) objStr = "{" + objStr;
+                        if (!objStr.endsWith("}")) objStr = objStr + "}";
+                        
+                        Map<String, String> kp = new LinkedHashMap<>();
+                        kp.put("fileName", extractJsonStringValue(objStr, "fileName"));
+                        kp.put("title", extractJsonStringValue(objStr, "title"));
+                        kp.put("content", extractJsonStringValue(objStr, "content"));
+                        
+                        if (kp.get("fileName") != null && kp.get("content") != null) {
+                            knowledgePoints.add(kp);
+                        }
+                    }
+                }
+            }
+            result.put("knowledgePoints", knowledgePoints);
+
+        } catch (Exception e) {
+            logger.error("[AI] extractKnowledgePoints failed: {}", e.getMessage(), e);
+            result.put("mainReport", content);
+            result.put("knowledgePoints", List.of());
+        }
+        return result;
+    }
+
+    /**
+     * 获取分类名称
+     * @param category 分类标识
+     * @return 分类名称
+     */
+    private String getCategoryName(String category) {
+        return category != null ? category : "未分类";
     }
 }

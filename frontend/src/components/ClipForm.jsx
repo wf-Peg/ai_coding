@@ -81,6 +81,14 @@ function ClipForm() {
           />
         </div>
 
+        {/* 图片上传 */}
+        <div className="form-group">
+          <label>图片上传</label>
+          <ImageUploader 
+            onImageAdd={handleImageAdd}
+          />
+        </div>
+
         {/* 图片预览 */}
         {images.length > 0 && (
           <div className="image-previews">
