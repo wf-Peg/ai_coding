@@ -2846,21 +2846,30 @@
         async function fetchClips() {
             try {
                 const response = await axios.get(`${API_BASE_URL}/list`);
-                const clips = response.data;
+                let clips = response.data;
+
+                // 过滤掉待办事项数据（前端过滤，后端存储不变）
+                const filteredClips = clips.filter(clip => {
+                    // 根据特征判断是否为待办事项数据
+                    // 待办事项通常有特定的类型或内容特征
+                    return !clip.type || clip.type !== 'todo' && !clip.content?.includes('前完成') && !clip.content?.includes('待办');
+                });
+
                 console.log('===== 调试信息 =====');
                 console.log('获取到的剪藏数量:', clips.length);
-                if (clips.length > 0) {
-                    console.log('第一个剪藏分析内容:', clips[0].analysis);
-                    console.log('第一个剪藏分析内容类型:', typeof clips[0].analysis);
+                console.log('过滤后的剪藏数量:', filteredClips.length);
+                if (filteredClips.length > 0) {
+                    console.log('第一个剪藏分析内容:', filteredClips[0].analysis);
+                    console.log('第一个剪藏分析内容类型:', typeof filteredClips[0].analysis);
                 }
                 
                 const clipItemsContainer = document.getElementById('clip-items');
                 const clipCountElement = document.getElementById('clip-count');
                 
-                clipCountElement.textContent = clips.length;
+                clipCountElement.textContent = filteredClips.length;
                 clipItemsContainer.innerHTML = '';
                 
-                if (clips.length === 0) {
+                if (filteredClips.length === 0) {
                     clipItemsContainer.innerHTML = `
                         <div class="empty-state">
                             <h3>暂无剪藏内容</h3>
@@ -2870,9 +2879,9 @@
                     return;
                 }
                 
-                clips.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                filteredClips.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
                 
-                clips.forEach(clip => {
+                filteredClips.forEach(clip => {
                     const clipItem = createClipItem(clip, false);
                     clipItemsContainer.appendChild(clipItem);
                 });
