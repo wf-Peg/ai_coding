@@ -472,8 +472,30 @@
         .timeline-item-content {
             display: flex;
             align-items: center;
-            gap: 8px;
             width: 100%;
+        }
+
+        .todo-checkbox-wrapper {
+            flex: 0 0 10%;
+            display: flex;
+            align-items: center;
+        }
+
+        .todo-text-wrapper {
+            flex: 0 0 75%;
+            overflow: hidden;
+        }
+
+        .todo-detail-wrapper {
+            flex: 0 0 15%;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+        }
+
+        .todo-category-wrapper {
+            width: 100%;
+            margin-top: 4px;
         }
 
         .timeline-item-actions {
@@ -1818,7 +1840,7 @@
         <div class="main-wrapper">
         <aside class="left-sidebar">
             <div class="todo-timeline-section">
-                <h2 class="todo-timeline-title">📋 待办事项时间线</h2>
+                <h2 class="todo-timeline-title">📋 待办事项</h2>
                 
                 <div class="todo-timeline-container" id="todo-timeline-container">
                     <div class="empty-todo-state" id="empty-todo-state">
@@ -1937,7 +1959,7 @@
                                 📷 上传图片
                             </button>
                             <input type="file" id="image-input" accept="image/*" multiple style="display: none;" onchange="handleImageFiles(this.files)">
-                            <div class="upload-tips" style="margin-top: 8px; font-size: 0.85rem; color: var(--text-secondary); text-align: right;">
+                            <div class="upload-tips" style="margin-top: 8px; font-size: 0.85rem; color: var(--text-secondary); text-align: left;">
                                 <span>支持批量上传图片</span>
                             </div>
                         </div>
@@ -1985,7 +2007,7 @@
                     </div>
                     <div class="form-group" id="tags-group">
                         <label for="tags">标签</label>
-                        <div class="ai-tags-checkbox" id="ai-tags-wrapper">
+                        <div class="ai-tags-checkbox" id="ai-tags-wrapper" style="box-shadow: none;">
                             <input type="checkbox" id="ai-generate-tags" onchange="toggleTagInput()">
                             <label for="ai-generate-tags">AI生成标签</label>
                         </div>
@@ -2155,25 +2177,33 @@
                     html += `
                         <div class="timeline-item ${todo.completed ? 'completed' : ''}">
                             <div class="timeline-item-content">
-                                <input
-                                    type="checkbox"
-                                    class="todo-checkbox"
-                                    ${todo.completed ? 'checked' : ''}
-                                    onchange="toggleTodoComplete(${JSON.stringify(todo).replace(/"/g, '&quot;')})"
-                                />
-                                <span class="todo-content-text">${escapeHtml(todo.content)}</span>
-                                ${todo.category ? `
-                                    <span class="todo-category-tag">${escapeHtml(todo.category)}</span>
-                                ` : ''}
+                                <div class="todo-checkbox-wrapper">
+                                    <input
+                                        type="checkbox"
+                                        class="todo-checkbox"
+                                        ${todo.completed ? 'checked' : ''}
+                                        onchange="toggleTodoComplete(${JSON.stringify(todo).replace(/"/g, '&quot;')})"
+                                    />
+                                </div>
+                                <div class="todo-text-wrapper">
+                                    <span class="todo-content-text">${escapeHtml(todo.content)}</span>
+                                </div>
+                                <div class="todo-detail-wrapper">
+                                    <button
+                                        type="button"
+                                        class="todo-detail-btn"
+                                        onclick="openTodoDetailModal(${JSON.stringify(todo).replace(/"/g, '&quot;')})"
+                                    >
+                                        ...
+                                    </button>
+                                </div>
                             </div>
+                            ${todo.category ? `
+                                <div class="todo-category-wrapper">
+                                    <span class="todo-category-tag">${escapeHtml(todo.category)}</span>
+                                </div>
+                            ` : ''}
                             <div class="timeline-item-actions">
-                                <button
-                                    type="button"
-                                    class="todo-detail-btn"
-                                    onclick="openTodoDetailModal(${JSON.stringify(todo).replace(/"/g, '&quot;')})"
-                                >
-                                    ...
-                                </button>
                                 <button
                                     type="button"
                                     class="todo-delete-btn"
@@ -2194,7 +2224,7 @@
             
             // 添加总条数显示
             html += `
-                <div class="todo-total-count" style="text-align: right; padding: 10px 0; font-size: 0.7rem; color: var(--text-secondary);">
+                <div class="todo-total-count" style="text-align: right; padding: 10px 5px; font-size: 0.7rem; color: var(--text-secondary);">
                     共${todos.length}条数据
                 </div>
             `;
