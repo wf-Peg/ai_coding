@@ -397,7 +397,8 @@
             justify-content: center;
             z-index: 10;
             min-width: unset;
-            margin: 16px auto;
+            margin: 16px 0 16px auto;
+            margin-right: 10px;
         }
 
         .empty-todo-state {
@@ -463,8 +464,23 @@
             border-left: 3px solid var(--primary);
             transition: var(--transition);
             display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+        }
+
+        .timeline-item-content {
+            display: flex;
             align-items: center;
             gap: 8px;
+            width: 100%;
+        }
+
+        .timeline-item-actions {
+            display: flex;
+            justify-content: flex-end;
+            width: 100%;
+            gap: 6px;
         }
 
         .timeline-item:hover {
@@ -563,7 +579,7 @@
             background: rgba(239, 68, 68, 0.8);
             color: white;
             border: none;
-            padding: 2px 4px;
+            padding: 2px 8px;
             border-radius: 8px;
             font-size: 0.6rem;
             cursor: pointer;
@@ -1921,7 +1937,7 @@
                                 📷 上传图片
                             </button>
                             <input type="file" id="image-input" accept="image/*" multiple style="display: none;" onchange="handleImageFiles(this.files)">
-                            <div class="upload-tips" style="margin-top: 8px; font-size: 0.85rem; color: var(--text-secondary); text-align: center;">
+                            <div class="upload-tips" style="margin-top: 8px; font-size: 0.85rem; color: var(--text-secondary); text-align: right;">
                                 <span>支持批量上传图片</span>
                             </div>
                         </div>
@@ -2138,17 +2154,19 @@
                 dateTodos.forEach(todo => {
                     html += `
                         <div class="timeline-item ${todo.completed ? 'completed' : ''}">
-                            <input
-                                type="checkbox"
-                                class="todo-checkbox"
-                                ${todo.completed ? 'checked' : ''}
-                                onchange="toggleTodoComplete(${JSON.stringify(todo).replace(/"/g, '&quot;')})"
-                            />
-                            <span class="todo-content-text">${escapeHtml(todo.content)}</span>
-                            ${todo.category ? `
-                                <span class="todo-category-tag">${escapeHtml(todo.category)}</span>
-                            ` : ''}
-                            <div class="todo-actions">
+                            <div class="timeline-item-content">
+                                <input
+                                    type="checkbox"
+                                    class="todo-checkbox"
+                                    ${todo.completed ? 'checked' : ''}
+                                    onchange="toggleTodoComplete(${JSON.stringify(todo).replace(/"/g, '&quot;')})"
+                                />
+                                <span class="todo-content-text">${escapeHtml(todo.content)}</span>
+                                ${todo.category ? `
+                                    <span class="todo-category-tag">${escapeHtml(todo.category)}</span>
+                                ` : ''}
+                            </div>
+                            <div class="timeline-item-actions">
                                 <button
                                     type="button"
                                     class="todo-detail-btn"
@@ -2173,6 +2191,13 @@
                     </div>
                 `;
             });
+            
+            // 添加总条数显示
+            html += `
+                <div class="todo-total-count" style="text-align: right; padding: 10px 0; font-size: 0.7rem; color: var(--text-secondary);">
+                    共${todos.length}条数据
+                </div>
+            `;
             
             todoListContainer.innerHTML = html;
         }
@@ -2813,7 +2838,7 @@
             if (currentMode === 'add-clip') {
                 currentMode = 'search';
                 toggleBtn.classList.add('active');
-                toggleText.textContent = '切换到添加剪藏';
+                toggleText.textContent = '📋 切换到添加剪藏';
                 addClipSection.style.display = 'none';
                 searchSection.style.display = 'block';
                 searchResultsPage.style.display = 'none';
@@ -2821,7 +2846,7 @@
             } else {
                 currentMode = 'add-clip';
                 toggleBtn.classList.remove('active');
-                toggleText.textContent = '切换到信息检索';
+                toggleText.textContent = '🔍 切换到信息检索';
                 addClipSection.style.display = 'block';
                 searchSection.style.display = 'none';
                 searchResultsPage.style.display = 'none';
