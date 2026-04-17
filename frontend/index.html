@@ -297,9 +297,11 @@
         }
 
         .todo-timeline-container {
-            max-height: 500px;
+            max-height: 400px;
             overflow-y: auto;
             overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
         }
         
         .timeline-item {
@@ -540,15 +542,16 @@
             background: transparent;
             border: none;
             color: var(--text-secondary);
-            font-size: 0.65rem;
+            font-size: 0.6rem;
             font-weight: bold;
             cursor: pointer;
-            padding: 2px 6px;
-            border-radius: 3px;
+            padding: 2px 4px;
+            border-radius: 8px;
             transition: var(--transition);
             flex-shrink: 0;
             min-width: unset;
             line-height: 1;
+            width: auto;
         }
 
         .todo-detail-btn:hover {
@@ -557,21 +560,22 @@
         }
 
         .todo-delete-btn {
-            background: var(--error);
+            background: rgba(239, 68, 68, 0.8);
             color: white;
             border: none;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 0.65rem;
+            padding: 2px 4px;
+            border-radius: 8px;
+            font-size: 0.6rem;
             cursor: pointer;
             transition: var(--transition);
             flex-shrink: 0;
             min-width: unset;
             line-height: 1;
+            width: auto;
         }
 
         .todo-delete-btn:hover {
-            background: #dc2626;
+            background: rgba(220, 38, 38, 0.9);
         }
 
         @media (max-width: 1024px) {
@@ -1883,7 +1887,7 @@
                         <span class="toggle-text">📊 生成周报总结</span>
                     </button>
                     <button class="toggle-btn" id="toggle-btn" onclick="toggleMode()">
-            <span class="toggle-text" id="toggle-text">切换到信息检索</span>
+            <span class="toggle-text" id="toggle-text">🔍 切换到信息检索</span>
         </button>
                 </div>
             </header>
@@ -1913,7 +1917,7 @@
                             <span>💡 提示：可直接粘贴图片到输入框</span>
                         </div>
                         <div id="image-upload-area" class="file-upload-area" style="margin-top: 12px;">
-                            <button type="button" class="upload-btn" style="background-color: #f0f0f0; border: 1px dashed #ddd; border-radius: 4px; padding: 1rem; width: 100%; cursor: pointer; transition: all 0.3s ease; font-size: 1rem;" onclick="document.getElementById('image-input').click()">
+                            <button type="button" class="upload-btn" style="background-color: #f0f0f0; border: 1px dashed #ddd; border-radius: 4px; padding: 8px 16px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem; display: inline-block; width: auto;" onclick="document.getElementById('image-input').click()">
                                 📷 上传图片
                             </button>
                             <input type="file" id="image-input" accept="image/*" multiple style="display: none;" onchange="handleImageFiles(this.files)">
