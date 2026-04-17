@@ -30,6 +30,12 @@
             --success: #10b981;
             --warning: #f59e0b;
             --error: #ef4444;
+            --priority-high: #ef4444;
+            --priority-medium: #f59e0b;
+            --priority-low: #3b82f6;
+            --priority-high-light: #fef2f2;
+            --priority-medium-light: #fffbeb;
+            --priority-low-light: #eff6ff;
             --radius: 8px;
             --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             --shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
@@ -560,6 +566,43 @@
             font-weight: 500;
             border: 1px solid rgba(59, 130, 246, 0.2);
             flex-shrink: 0;
+        }
+
+        .todo-priority-tag {
+            display: inline-block;
+            font-size: 0.6rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            line-height: 1.7;
+        }
+
+        .todo-priority-tag.high {
+            background: var(--priority-high-light);
+            color: var(--priority-high);
+        }
+
+        .todo-priority-tag.medium {
+            background: var(--priority-medium-light);
+            color: var(--priority-medium);
+        }
+
+        .todo-priority-tag.low {
+            background: var(--priority-low-light);
+            color: var(--priority-low);
+        }
+
+        .timeline-item.priority-high {
+            border-left-color: var(--priority-high);
+        }
+
+        .timeline-item.priority-medium {
+            border-left-color: var(--priority-medium);
+        }
+
+        .timeline-item.priority-low {
+            border-left-color: var(--priority-low);
         }
 
         .todo-actions {
@@ -1865,6 +1908,14 @@
                     <div class="modal-body">
                         <form id="todo-form">
                             <div class="todo-form-group">
+                                <label for="todo-content">待办事项</label>
+                                <input 
+                                    type="text" 
+                                    id="todo-content" 
+                                    placeholder="例如：完成xxx事项"
+                                >
+                            </div>
+                            <div class="todo-form-group">
                                 <label for="todo-deadline">截止日期</label>
                                 <input 
                                     type="date" 
@@ -1872,12 +1923,12 @@
                                 >
                             </div>
                             <div class="todo-form-group">
-                                <label for="todo-content">待办事项</label>
-                                <input 
-                                    type="text" 
-                                    id="todo-content" 
-                                    placeholder="例如：完成xxx事项"
-                                >
+                                <label for="todo-priority">优先级</label>
+                                <select id="todo-priority">
+                                    <option value="medium">🟡 中优先级</option>
+                                    <option value="high">🔴 高优先级</option>
+                                    <option value="low">🔵 低优先级</option>
+                                </select>
                             </div>
                             <div class="todo-form-group">
                                 <label for="todo-tags">标签（可选，多个标签用逗号分隔）</label>
@@ -2086,21 +2137,24 @@
                         content: '完成项目文档编写',
                         completed: false,
                         deadline: new Date().toISOString(),
-                        category: '工作'
+                        category: '工作',
+                        priority: 'high'
                     },
                     {
                         id: 2,
                         content: '准备下周会议材料',
                         completed: false,
                         deadline: new Date(Date.now() + 86400000).toISOString(),
-                        category: '工作'
+                        category: '工作',
+                        priority: 'medium'
                     },
                     {
                         id: 3,
                         content: '购买生日礼物',
                         completed: true,
                         deadline: new Date(Date.now() + 172800000).toISOString(),
-                        category: '个人'
+                        category: '个人',
+                        priority: 'low'
                     }
                 ];
                 renderTodoTimeline(mockTodos);
@@ -2172,8 +2226,9 @@
                 `;
                 
                 dateTodos.forEach(todo => {
+                    const priorityLabel = { high: '高', medium: '中', low: '低' };
                     html += `
-                        <div class="timeline-item ${todo.completed ? 'completed' : ''}">
+                        <div class="timeline-item ${todo.completed ? 'completed' : ''} priority-${todo.priority || 'medium'}">
                             <div class="timeline-item-content">
                                 <div class="todo-checkbox-wrapper">
                                     <input
@@ -2187,11 +2242,12 @@
                                     <span class="todo-content-text">${escapeHtml(todo.content)}</span>
                                 </div>
                             </div>
-                            ${todo.category ? `
-                                <div class="todo-category-wrapper">
-                                    <span class="todo-category-tag">${escapeHtml(todo.category)}</span>
-                                </div>
-                            ` : ''}
+                            <div class="todo-category-wrapper">
+                                <span class="todo-priority-tag ${todo.priority || 'medium'}">${priorityLabel[todo.priority] || '中'}</span>
+                                ${todo.category ? `
+                                    <span class="todo-category-tag" style="margin-left: 6px;">${escapeHtml(todo.category)}</span>
+                                ` : ''}
+                            </div>
                             <div class="timeline-item-actions">
                                 <button
                                     type="button"
@@ -2239,6 +2295,7 @@
             // 清空表单
             document.getElementById('todo-deadline').value = '';
             document.getElementById('todo-content').value = '';
+            document.getElementById('todo-priority').value = 'medium';
             document.getElementById('todo-tags').value = '';
         }
         
@@ -2246,6 +2303,7 @@
         async function submitTodoForm() {
             const deadline = document.getElementById('todo-deadline').value.trim();
             const content = document.getElementById('todo-content').value.trim();
+            const priority = document.getElementById('todo-priority').value;
             const tags = document.getElementById('todo-tags').value.trim();
             
             if (!deadline || !content) {
@@ -2259,6 +2317,7 @@
                 const todoData = {
                     content: content,
                     category: tags || '默认',
+                    priority: priority,
                     deadline: deadlineDate.toISOString()
                 };
                 
@@ -2277,8 +2336,9 @@
         
         // 打开待办事项详情弹窗
         function openTodoDetailModal(todo) {
+            const priorityLabel = { high: '高', medium: '中', low: '低' };
             document.getElementById('todo-detail-content').textContent = todo.content;
-            document.getElementById('todo-detail-category').textContent = `标签: ${todo.category || '默认'}`;
+            document.getElementById('todo-detail-category').textContent = `标签: ${todo.category || '默认'} | 优先级: ${priorityLabel[todo.priority] || '中'}`;
             document.getElementById('todo-detail-deadline').textContent = `截止日期: ${todo.deadline ? formatDateDisplay(formatDeadlineForDisplay(todo.deadline)) : '无'}`;
             document.getElementById('todo-detail-modal').style.display = 'flex';
         }
