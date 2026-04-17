@@ -482,15 +482,8 @@
         }
 
         .todo-text-wrapper {
-            flex: 0 0 75%;
+            flex: 0 0 90%;
             overflow: hidden;
-        }
-
-        .todo-detail-wrapper {
-            flex: 0 0 15%;
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
         }
 
         .todo-category-wrapper {
@@ -2015,7 +2008,7 @@
                     </div>
                     <div class="form-group" id="tags-group">
                         <label for="tags">标签</label>
-                        <div class="ai-tags-checkbox" id="ai-tags-wrapper" style="box-shadow: none;">
+                        <div class="ai-tags-checkbox" id="ai-tags-wrapper" style="box-shadow: none; background: white;">
                             <input type="checkbox" id="ai-generate-tags" onchange="toggleTagInput()">
                             <label for="ai-generate-tags">AI生成标签</label>
                         </div>
@@ -2193,15 +2186,6 @@
                                 <div class="todo-text-wrapper">
                                     <span class="todo-content-text">${escapeHtml(todo.content)}</span>
                                 </div>
-                                <div class="todo-detail-wrapper">
-                                    <button
-                                        type="button"
-                                        class="todo-detail-btn"
-                                        onclick="openTodoDetailModal(${JSON.stringify(todo).replace(/"/g, '&quot;')})"
-                                    >
-                                        ...
-                                    </button>
-                                </div>
                             </div>
                             ${todo.category ? `
                                 <div class="todo-category-wrapper">
@@ -2209,6 +2193,13 @@
                                 </div>
                             ` : ''}
                             <div class="timeline-item-actions">
+                                <button
+                                    type="button"
+                                    class="todo-detail-btn"
+                                    onclick="openTodoDetailModal(${JSON.stringify(todo).replace(/"/g, '&quot;')})"
+                                >
+                                    详情
+                                </button>
                                 <button
                                     type="button"
                                     class="todo-delete-btn"
