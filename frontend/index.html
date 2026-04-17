@@ -172,21 +172,30 @@
 
         .todo-timeline-section {
             background: var(--surface);
-            border-radius: var(--radius);
-            padding: 24px;
-            box-shadow: var(--shadow);
+            border-radius: 20px;
+            padding: 32px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
             position: sticky;
             top: 20px;
         }
 
         .todo-timeline-title {
-            font-size: 1.3rem;
-            font-weight: 600;
+            font-size: 2.2rem;
+            font-weight: 700;
             color: var(--primary);
-            margin-bottom: 20px;
+            margin-bottom: 32px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 16px;
+            position: relative;
+        }
+        
+        .todo-timeline-title::before {
+            content: '';
+            width: 8px;
+            height: 60px;
+            background: linear-gradient(to bottom, #3b82f6, #f59e0b);
+            border-radius: 4px;
         }
 
         .todo-form-container {
@@ -198,30 +207,28 @@
 
         .add-todo-btn {
             position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 50px;
-            height: 50px;
+            bottom: 24px;
+            right: 24px;
+            width: 100px;
+            height: 100px;
             border-radius: 50%;
-            background: var(--primary);
+            background: linear-gradient(135deg, #60a5fa, #3b82f6);
             color: white;
             border: none;
-            font-size: 24px;
+            font-size: 3rem;
             font-weight: bold;
             cursor: pointer;
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+            box-shadow: 0 8px 32px rgba(59, 130, 246, 0.4);
             transition: all 0.3s ease;
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 10;
-            min-width: 50px;
         }
 
         .add-todo-btn:hover {
-            background: var(--primary-light);
-            transform: scale(1.1);
-            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+            transform: scale(1.05);
+            box-shadow: 0 12px 40px rgba(59, 130, 246, 0.5);
         }
 
         .add-todo-btn:active {
@@ -297,62 +304,77 @@
         
         .timeline-item {
             position: relative;
-            margin-bottom: 16px;
-            background: var(--background);
-            padding: 12px 16px;
-            border-radius: var(--radius);
-            border-left: 3px solid var(--primary);
+            margin-bottom: 20px;
+            background: #f8fafc;
+            padding: 24px 20px;
+            border-radius: 20px;
+            border-left: 6px solid transparent;
+            border-image: linear-gradient(to bottom, #3b82f6, #60a5fa) 1;
             transition: var(--transition);
             overflow: hidden;
+            display: flex;
+            align-items: center;
+            gap: 16px;
         }
         
         .todo-content-text {
             flex: 1;
-            font-size: 0.95rem;
-            color: var(--text);
-            line-height: 1.5;
+            font-size: 1.5rem;
+            color: #1f2937;
+            line-height: 1.6;
             word-break: break-word;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            font-weight: 500;
         }
         
         .todo-detail-btn {
             background: transparent;
             border: none;
-            color: var(--text-secondary);
-            font-size: 0.9rem;
+            color: #1f2937;
+            font-size: 1.5rem;
+            font-weight: bold;
             cursor: pointer;
-            padding: 4px 8px;
-            border-radius: 4px;
+            padding: 8px 12px;
+            border-radius: 8px;
             transition: var(--transition);
             position: absolute;
-            bottom: 8px;
-            right: 8px;
-            width: 24px;
-            height: 24px;
+            bottom: 16px;
+            right: 120px;
+            width: 40px;
+            height: 40px;
             display: flex;
             align-items: center;
             justify-content: center;
         }
         
         .todo-detail-btn:hover {
-            background: var(--surface-hover);
-            color: var(--primary);
+            background: #e5e7eb;
         }
         
         .todo-delete-btn {
-            background: var(--error);
+            background: #ef4444;
             color: white;
             border: none;
-            padding: 4px 12px;
-            border-radius: 4px;
-            font-size: 0.8rem;
+            padding: 16px 24px;
+            border-radius: 0 16px 16px 0;
+            font-size: 1.2rem;
+            font-weight: bold;
             cursor: pointer;
             transition: var(--transition);
             position: absolute;
-            bottom: 8px;
-            left: 16px;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .todo-delete-btn:hover {
+            background: #dc2626;
         }
         
         .add-todo-btn {
@@ -394,24 +416,25 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 12px;
-            padding: 8px 12px;
-            background: var(--background-dark);
-            border-radius: var(--radius);
+            margin-bottom: 20px;
+            padding: 16px 24px;
+            background: #f3f4f6;
+            border-radius: 20px;
         }
 
         .timeline-date-label {
-            font-weight: 600;
-            color: var(--text);
-            font-size: 0.95rem;
+            font-weight: 700;
+            color: #1f2937;
+            font-size: 1.8rem;
         }
 
         .timeline-todo-count {
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-            background: var(--surface);
-            padding: 4px 10px;
-            border-radius: 12px;
+            font-size: 1.4rem;
+            color: #1f2937;
+            background: white;
+            padding: 8px 20px;
+            border-radius: 24px;
+            font-weight: 500;
         }
 
         .timeline-items-wrapper {
@@ -475,12 +498,12 @@
         }
 
         .todo-checkbox {
-            width: 18px;
-            height: 18px;
+            width: 32px;
+            height: 32px;
             cursor: pointer;
             accent-color: var(--primary);
             flex-shrink: 0;
-            margin-top: 2px;
+            margin-top: 0;
         }
 
         .todo-content-text {
@@ -528,11 +551,12 @@
 
         .todo-category-tag {
             display: inline-block;
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-            background: var(--surface);
-            padding: 4px 10px;
-            border-radius: 12px;
+            font-size: 1.1rem;
+            color: #1f2937;
+            background: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-weight: 500;
         }
 
         @media (max-width: 1024px) {
@@ -2070,18 +2094,15 @@
                 dateTodos.forEach(todo => {
                     html += `
                         <div class="timeline-item ${todo.completed ? 'completed' : ''}">
-                            <div class="timeline-dot"></div>
-                            <div class="timeline-item-header">
-                                <input
-                                    type="checkbox"
-                                    class="todo-checkbox"
-                                    ${todo.completed ? 'checked' : ''}
-                                    onchange="toggleTodoComplete(${JSON.stringify(todo).replace(/"/g, '&quot;')})"
-                                />
-                                <span class="todo-content-text">${escapeHtml(todo.content)}</span>
-                            </div>
+                            <input
+                                type="checkbox"
+                                class="todo-checkbox"
+                                ${todo.completed ? 'checked' : ''}
+                                onchange="toggleTodoComplete(${JSON.stringify(todo).replace(/"/g, '&quot;')})"
+                            />
+                            <span class="todo-content-text">${escapeHtml(todo.content)}</span>
                             ${todo.category ? `
-                                <span class="todo-category-tag" style="position: absolute; top: 8px; right: 32px;">${escapeHtml(todo.category)}</span>
+                                <span class="todo-category-tag">${escapeHtml(todo.category)}</span>
                             ` : ''}
                             <button
                                 type="button"
