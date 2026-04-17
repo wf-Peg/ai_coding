@@ -2457,6 +2457,9 @@
                         // 滚动到剪藏列表
                         document.getElementById('clip-list').scrollIntoView({ behavior: 'smooth' });
                         
+                        // 开始刷新检查
+                        setTimeout(startRefreshCheck, 1000);
+                        
                         setTimeout(() => {
                             successMessage.style.display = 'none';
                         }, 3000);
@@ -3289,10 +3292,7 @@
             }
         }
         
-        // 监听添加剪藏成功事件，开始刷新检查
-        document.getElementById('clip-form').addEventListener('submit', function() {
-            setTimeout(startRefreshCheck, 1000);
-        });
+        // 监听添加剪藏成功事件，开始刷新检查（避免重复监听，在主监听器中调用）
         
         async function generateDivergentSummary(clipId) {
             const divergentSection = document.getElementById(`divergent-summary-${clipId}`);
