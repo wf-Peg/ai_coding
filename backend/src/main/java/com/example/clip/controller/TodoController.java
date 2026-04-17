@@ -1,102 +1,108 @@
 package com.example.clip.controller;
 
-import com.example.clip.model.TodoItem;
-import com.example.clip.service.TodoItemService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.clip.model.TodoContent;
+import com.example.clip.service.TodoService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * 待办事项控制器类
+ */
 @RestController
 @RequestMapping("/api/todo")
-@CrossOrigin(origins = {"http://127.0.0.1:3000", "http://localhost:3000", "http://127.0.0.1:5173", "http://localhost:5173", "http://127.0.0.1:3001", "http://localhost:3001"})
 public class TodoController {
 
-    private static final Logger log = LoggerFactory.getLogger(TodoController.class);
-    private final TodoItemService todoItemService;
+    private final TodoService todoService;
 
-    @Autowired
-    public TodoController(TodoItemService todoItemService) {
-        this.todoItemService = todoItemService;
+    /**
+     * 构造函数
+     * @param todoService 待办事项服务
+     */
+    public TodoController(TodoService todoService) {
+        this.todoService = todoService;
     }
 
-    @PostMapping("/add")
-    public ResponseEntity<?> addTodo(@RequestBody TodoItem todo) {
-        log.info("[API] /todo/add called, content={}", todo.getContent());
-        TodoItem savedTodo = todoItemService.saveTodo(todo);
-        return ResponseEntity.ok(new TodoResponse(savedTodo.getId(), "success"));
-    }
-
-    @PutMapping("/update")
-    public ResponseEntity<?> updateTodo(@RequestBody TodoItem todo) {
-        log.info("[API] /todo/update called, id={}", todo.getId());
-        TodoItem existingTodo = todoItemService.getTodoById(todo.getId());
-        if (existingTodo == null) {
-            return ResponseEntity.notFound().build();
-        }
-        TodoItem updatedTodo = todoItemService.saveTodo(todo);
-        return ResponseEntity.ok(new TodoResponse(updatedTodo.getId(), "success"));
-    }
-
+    /**
+     * 获取所有待办事项
+     * @return 待办事项列表
+     */
     @GetMapping("/list")
-    public ResponseEntity<List<TodoItem>> getTodoList() {
-        List<TodoItem> todos = todoItemService.getAllTodos();
+    public ResponseEntity<List<TodoContent>> getTodoList() {
+        List<TodoContent> todos = todoService.getAllTodos();
         return ResponseEntity.ok(todos);
     }
 
-    @GetMapping("/date/{dateStr}")
-    public ResponseEntity<List<TodoItem>> getTodosByDate(@PathVariable(name = "dateStr") String dateStr) {
-        List<TodoItem> todos = todoItemService.getTodosByDate(dateStr);
-        return ResponseEntity.ok(todos);
-    }
-
-    @GetMapping("/category/{category}")
-    public ResponseEntity<List<TodoItem>> getTodosByCategory(@PathVariable(name = "category") String category) {
-        List<TodoItem> todos = todoItemService.getTodosByCategory(category);
-        return ResponseEntity.ok(todos);
-    }
-
+    /**
+     * 根据ID获取待办事项
+     * @param id 待办事项ID
+     * @return 待办事项
+     */
     @GetMapping("/{id}")
-    public ResponseEntity<TodoItem> getTodoById(@PathVariable(name = "id") Long id) {
-        TodoItem todo = todoItemService.getTodoById(id);
-        if (todo == null) {
+    public ResponseEntity<TodoContent> getTodoById(@PathVariable Long id) {
+        TodoContent todo = todoService.getTodoById(id);
+        if (todo != null) {
+            return ResponseEntity.ok(todo);
+        } else {
             return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.ok(todo);
     }
 
+    /**
+     * 添加待办事项
+     * @param todo 待办事项
+     * @return 保存后的待办事项
+     */
+    @PostMapping("/add")
+    public ResponseEntity<TodoContent> addTodo(@RequestBody TodoContent todo) {
+        TodoContent savedTodo = todoService.saveTodo(todo);
+        if (savedTodo != null) {
+            return ResponseEntity.ok(savedTodo);
+        } else {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * 更新待办事项
+     * @param todo 待办事项
+     * @return 更新后的待办事项
+     */
+    @PutMapping("/update")
+    public ResponseEntity<TodoContent> updateTodo(@RequestBody TodoContent todo) {
+        TodoContent updatedTodo = todoService.updateTodo(todo);
+        if (updatedTodo != null) {
+            return ResponseEntity.ok(updatedTodo);
+        } else {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * 删除待办事项
+     * @param id 待办事项ID
+     * @return 响应
+     */
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteTodo(@PathVariable(name = "id") Long id) {
-        todoItemService.deleteTodo(id);
-        return ResponseEntity.ok(new TodoResponse(null, "success"));
+    public ResponseEntity<?> deleteTodo(@PathVariable Long id) {
+        todoService.deleteTodo(id);
+        return ResponseEntity.ok().build();
     }
 
-    public static class TodoResponse {
-        private Long id;
-        private String status;
-
-        public TodoResponse(Long id, String status) {
-            this.id = id;
-            this.status = status;
-        }
-
-        public Long getId() {
-            return id;
-        }
-
-        public void setId(Long id) {
-            this.id = id;
-        }
-
-        public String getStatus() {
-            return status;
-        }
-
-        public void setStatus(String status) {
-            this.status = status;
+    /**
+     * 更新待办事项状态
+     * @param id 待办事项ID
+     * @param completed 完成状态
+     * @return 更新后的待办事项
+     */
+    @PutMapping("/{id}/status")
+    public ResponseEntity<TodoContent> updateTodoStatus(@PathVariable Long id, @RequestParam boolean completed) {
+        TodoContent updatedTodo = todoService.updateTodoStatus(id, completed);
+        if (updatedTodo != null) {
+            return ResponseEntity.ok(updatedTodo);
+        } else {
+            return ResponseEntity.notFound().build();
         }
     }
 }
