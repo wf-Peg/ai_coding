@@ -560,14 +560,34 @@ body {
   color: #9ca3af;
 }
 
-.todo-category {
-  display: inline-block;
+.todo-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-top: 0.5rem;
+}
+
+.todo-category {
   font-size: 0.75rem;
   color: #6b7280;
   background-color: #e5e7eb;
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
+}
+
+.delete-btn {
+  background-color: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.delete-btn:hover {
+  background-color: #dc2626;
 }
 
 .empty-state {

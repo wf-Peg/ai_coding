@@ -216,17 +216,19 @@ function TodoTimeline() {
                         className="todo-checkbox"
                       />
                       <span className="todo-text">{todo.content}</span>
+                    </div>
+                    <div className="todo-footer">
+                      {todo.category && (
+                        <span className="todo-category">{todo.category}</span>
+                      )}
                       <button
                         type="button"
                         className="delete-btn"
                         onClick={() => handleDeleteTodo(todo.id)}
                       >
-                        ×
+                        删除
                       </button>
                     </div>
-                    {todo.category && (
-                      <span className="todo-category">{todo.category}</span>
-                    )}
                   </div>
                 </div>
               ))}
