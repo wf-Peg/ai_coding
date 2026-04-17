@@ -297,7 +297,7 @@
         }
 
         .todo-timeline-container {
-            max-height: 400px;
+            max-height: 600px;
             overflow-y: auto;
             overflow-x: hidden;
             display: flex;
@@ -601,16 +601,17 @@
             background: rgba(239, 68, 68, 0.8);
             color: white;
             border: none;
-            padding: 4px 8px;
-            border-radius: 8px;
-            font-size: 0.6rem;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.7rem;
             cursor: pointer;
             transition: var(--transition);
             flex-shrink: 0;
             min-width: unset;
-            line-height: 1.2;
+            line-height: 1;
             width: auto;
             height: auto;
+            box-shadow: none;
         }
 
         .todo-delete-btn:hover {
@@ -2168,7 +2169,7 @@
                                 ${dateKey === '无日期' ? '无日期' : formatDateDisplay(dateKey)}
                             </span>
                             <span class="timeline-todo-count">
-                                (${dateTodos.length}项)
+                                ${dateTodos.length}
                             </span>
                         </div>
                         <div class="timeline-items-wrapper">
