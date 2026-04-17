@@ -397,8 +397,8 @@
             justify-content: center;
             z-index: 10;
             min-width: unset;
-            margin: 21px 0 16px auto;
-            margin-right: 10px;
+            margin: 26px 0 16px auto;
+            margin-right: 20px;
         }
 
         .empty-todo-state {
@@ -629,6 +629,12 @@
             
             .todo-timeline-section {
                 position: static;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .left-sidebar {
+                display: none;
             }
         }
         
@@ -2167,9 +2173,6 @@
                         <div class="timeline-date-header">
                             <span class="timeline-date-label">
                                 ${dateKey === '无日期' ? '无日期' : formatDateDisplay(dateKey)}
-                            </span>
-                            <span class="timeline-todo-count">
-                                ${dateTodos.length}
                             </span>
                         </div>
                         <div class="timeline-items-wrapper">
