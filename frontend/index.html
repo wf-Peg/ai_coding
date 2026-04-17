@@ -193,6 +193,43 @@
             margin-bottom: 24px;
             padding-bottom: 20px;
             border-bottom: 1px solid var(--border);
+            display: none;
+        }
+
+        .add-todo-btn {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            border: none;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            min-width: 50px;
+        }
+
+        .add-todo-btn:hover {
+            background: var(--primary-light);
+            transform: scale(1.1);
+            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+        }
+
+        .add-todo-btn:active {
+            transform: scale(0.95);
+        }
+
+        .add-btn-icon {
+            line-height: 1;
         }
 
         .todo-form-group {
@@ -255,6 +292,88 @@
         .todo-timeline-container {
             max-height: 500px;
             overflow-y: auto;
+            overflow-x: hidden;
+        }
+        
+        .timeline-item {
+            position: relative;
+            margin-bottom: 16px;
+            background: var(--background);
+            padding: 12px 16px;
+            border-radius: var(--radius);
+            border-left: 3px solid var(--primary);
+            transition: var(--transition);
+            overflow: hidden;
+        }
+        
+        .todo-content-text {
+            flex: 1;
+            font-size: 0.95rem;
+            color: var(--text);
+            line-height: 1.5;
+            word-break: break-word;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .todo-detail-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: var(--transition);
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .todo-detail-btn:hover {
+            background: var(--surface-hover);
+            color: var(--primary);
+        }
+        
+        .todo-delete-btn {
+            background: var(--error);
+            color: white;
+            border: none;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: var(--transition);
+            position: absolute;
+            bottom: 8px;
+            left: 16px;
+        }
+        
+        .add-todo-btn {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            border: none;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
         }
 
         .empty-todo-state {
@@ -1642,45 +1761,75 @@
             <div class="todo-timeline-section">
                 <h2 class="todo-timeline-title">📋 待办事项时间线</h2>
                 
-                <div class="todo-form-container">
-                    <form id="todo-form">
-                        <div class="todo-form-group">
-                            <label for="todo-deadline">截止日期</label>
-                            <input 
-                                type="text" 
-                                id="todo-deadline" 
-                                placeholder="yyyymmdd" 
-                                maxlength="8"
-                            >
-                        </div>
-                        <div class="todo-form-group">
-                            <label for="todo-content">待办事项</label>
-                            <input 
-                                type="text" 
-                                id="todo-content" 
-                                placeholder="例如：20260418前完成xxx事项"
-                            >
-                        </div>
-                        <div class="todo-form-group">
-                            <label for="todo-category">分类（可选）</label>
-                            <input 
-                                type="text" 
-                                id="todo-category" 
-                                placeholder="例如：工作"
-                            >
-                        </div>
-                        <button type="submit" class="todo-submit-btn">
-                            ➕ 添加待办
-                        </button>
-                    </form>
-                </div>
-                
                 <div class="todo-timeline-container" id="todo-timeline-container">
                     <div class="empty-todo-state" id="empty-todo-state">
                         <p>暂无待办事项</p>
                         <p style="font-size: 0.85rem; margin-top: 4px;">开始添加你的第一个待办吧！</p>
                     </div>
                     <div id="todo-timeline-list"></div>
+                </div>
+                
+                <button class="add-todo-btn" onclick="openTodoModal()">
+                    <span class="add-btn-icon">+</span>
+                </button>
+            </div>
+            
+            <!-- 添加待办事项弹窗 -->
+            <div id="todo-modal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>添加待办事项</h3>
+                    </div>
+                    <div class="modal-body">
+                        <form id="todo-form">
+                            <div class="todo-form-group">
+                                <label for="todo-deadline">截止日期</label>
+                                <input 
+                                    type="text" 
+                                    id="todo-deadline" 
+                                    placeholder="yyyymmdd" 
+                                    maxlength="8"
+                                >
+                            </div>
+                            <div class="todo-form-group">
+                                <label for="todo-content">待办事项</label>
+                                <input 
+                                    type="text" 
+                                    id="todo-content" 
+                                    placeholder="例如：20260418前完成xxx事项"
+                                >
+                            </div>
+                            <div class="todo-form-group">
+                                <label for="todo-category">分类（可选）</label>
+                                <input 
+                                    type="text" 
+                                    id="todo-category" 
+                                    placeholder="例如：工作"
+                                >
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn-secondary" onclick="closeTodoModal()">取消</button>
+                        <button class="btn-primary" onclick="submitTodoForm()">添加</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 待办事项详情弹窗 -->
+            <div id="todo-detail-modal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>待办事项详情</h3>
+                    </div>
+                    <div class="modal-body">
+                        <p id="todo-detail-content"></p>
+                        <p id="todo-detail-category" style="margin-top: 12px; color: var(--text-secondary);"></p>
+                        <p id="todo-detail-deadline" style="margin-top: 8px; color: var(--text-secondary);"></p>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn-primary" onclick="closeTodoDetailModal()">关闭</button>
+                    </div>
                 </div>
             </div>
         </aside>
@@ -1933,18 +2082,23 @@
                                 />
                                 <span class="todo-content-text">${escapeHtml(todo.content)}</span>
                             </div>
-                            <div class="todo-footer">
-                                ${todo.category ? `
-                                    <span class="todo-category-tag">${escapeHtml(todo.category)}</span>
-                                ` : '<span></span>'}
-                                <button
-                                    type="button"
-                                    class="todo-delete-btn"
-                                    onclick="deleteTodo(${todo.id})"
-                                >
-                                    删除
-                                </button>
-                            </div>
+                            ${todo.category ? `
+                                <span class="todo-category-tag" style="position: absolute; top: 8px; right: 32px;">${escapeHtml(todo.category)}</span>
+                            ` : ''}
+                            <button
+                                type="button"
+                                class="todo-detail-btn"
+                                onclick="openTodoDetailModal(${JSON.stringify(todo).replace(/"/g, '&quot;')})"
+                            >
+                                ...
+                            </button>
+                            <button
+                                type="button"
+                                class="todo-delete-btn"
+                                onclick="deleteTodo(${todo.id})"
+                            >
+                                删除
+                            </button>
                         </div>
                     `;
                 });
@@ -1956,6 +2110,74 @@
             });
             
             todoListContainer.innerHTML = html;
+        }
+        
+        // 打开待办事项添加弹窗
+        function openTodoModal() {
+            document.getElementById('todo-modal').style.display = 'flex';
+        }
+        
+        // 关闭待办事项添加弹窗
+        function closeTodoModal() {
+            document.getElementById('todo-modal').style.display = 'none';
+            // 清空表单
+            document.getElementById('todo-deadline').value = '';
+            document.getElementById('todo-content').value = '';
+            document.getElementById('todo-category').value = '';
+        }
+        
+        // 提交待办事项表单
+        async function submitTodoForm() {
+            const deadline = document.getElementById('todo-deadline').value.trim();
+            const content = document.getElementById('todo-content').value.trim();
+            const category = document.getElementById('todo-category').value.trim();
+            
+            if (!deadline || !content) {
+                alert('请填写截止日期和待办事项');
+                return;
+            }
+            
+            if (deadline.length !== 8 || !/^\d+$/.test(deadline)) {
+                alert('截止日期格式不正确，请使用 yyyymmdd 格式');
+                return;
+            }
+            
+            try {
+                const year = deadline.substring(0, 4);
+                const month = deadline.substring(4, 6);
+                const day = deadline.substring(6, 8);
+                const deadlineDate = new Date(year, month - 1, day);
+                
+                const todoData = {
+                    content: content,
+                    category: category || '默认',
+                    deadline: deadlineDate.toISOString()
+                };
+                
+                await axios.post(`${TODO_API_BASE_URL}/add`, todoData);
+                
+                // 关闭弹窗并清空表单
+                closeTodoModal();
+                
+                // 刷新列表
+                fetchTodos();
+            } catch (error) {
+                console.error('添加待办事项失败:', error);
+                alert('添加待办事项失败: ' + (error.response?.data?.message || error.message));
+            }
+        }
+        
+        // 打开待办事项详情弹窗
+        function openTodoDetailModal(todo) {
+            document.getElementById('todo-detail-content').textContent = todo.content;
+            document.getElementById('todo-detail-category').textContent = `分类: ${todo.category || '默认'}`;
+            document.getElementById('todo-detail-deadline').textContent = `截止日期: ${todo.deadline ? formatDateDisplay(formatDeadlineForDisplay(todo.deadline)) : '无'}`;
+            document.getElementById('todo-detail-modal').style.display = 'flex';
+        }
+        
+        // 关闭待办事项详情弹窗
+        function closeTodoDetailModal() {
+            document.getElementById('todo-detail-modal').style.display = 'none';
         }
 
         async function toggleTodoComplete(todo) {
@@ -1989,50 +2211,7 @@
             fetchClips();
             loadCategories();
             
-            // 待办表单提交
-            document.getElementById('todo-form').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                
-                const deadline = document.getElementById('todo-deadline').value.trim();
-                const content = document.getElementById('todo-content').value.trim();
-                const category = document.getElementById('todo-category').value.trim();
-                
-                if (!deadline || !content) {
-                    alert('请填写截止日期和待办事项');
-                    return;
-                }
-                
-                if (deadline.length !== 8 || !/^\d+$/.test(deadline)) {
-                    alert('截止日期格式不正确，请使用 yyyymmdd 格式');
-                    return;
-                }
-                
-                try {
-                    const year = deadline.substring(0, 4);
-                    const month = deadline.substring(4, 6);
-                    const day = deadline.substring(6, 8);
-                    const deadlineDate = new Date(year, month - 1, day);
-                    
-                    const todoData = {
-                        content: content,
-                        category: category || '默认',
-                        deadline: deadlineDate.toISOString()
-                    };
-                    
-                    await axios.post(`${TODO_API_BASE_URL}/add`, todoData);
-                    
-                    // 清空表单
-                    document.getElementById('todo-deadline').value = '';
-                    document.getElementById('todo-content').value = '';
-                    document.getElementById('todo-category').value = '';
-                    
-                    // 刷新列表
-                    fetchTodos();
-                } catch (error) {
-                    console.error('添加待办事项失败:', error);
-                    alert('添加待办事项失败: ' + (error.response?.data?.message || error.message));
-                }
-            });
+
             
             const tagInput = document.getElementById('tag-input');
             tagInput.addEventListener('keydown', (e) => {
