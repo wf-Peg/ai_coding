@@ -319,6 +319,9 @@
             border-radius: var(--radius);
             border-left: 3px solid var(--primary);
             transition: var(--transition);
+            display: flex;
+            flex-direction: column;
+            min-height: 60px;
         }
 
         .timeline-item:hover {
@@ -353,7 +356,8 @@
             display: flex;
             align-items: flex-start;
             gap: 10px;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
+            flex: 1;
         }
 
         .todo-checkbox {
@@ -365,12 +369,22 @@
             margin-top: 2px;
         }
 
+        .todo-content-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 40px;
+        }
+
         .todo-content-text {
             flex: 1;
             font-size: 0.95rem;
             color: var(--text);
             line-height: 1.5;
-            word-break: break-word;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 4px;
         }
 
         .timeline-item.completed .todo-content-text {
@@ -378,12 +392,39 @@
             color: var(--text-secondary);
         }
 
+        .todo-item-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+            margin-top: 4px;
+        }
+
+        .todo-detail-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: var(--transition);
+            line-height: 1;
+            margin-left: auto;
+        }
+
+        .todo-detail-btn:hover {
+            color: var(--primary);
+            background: rgba(59, 130, 246, 0.1);
+        }
+
         .todo-delete-btn {
             background: none;
             border: none;
             color: var(--text-secondary);
             cursor: pointer;
-            font-size: 1.2rem;
+            font-size: 1rem;
             padding: 2px 6px;
             border-radius: 4px;
             transition: var(--transition);
@@ -400,7 +441,7 @@
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
-            margin-top: 8px;
+            margin-top: 4px;
         }
 
         .todo-category-tag {
@@ -417,8 +458,8 @@
             position: absolute;
             bottom: 20px;
             right: 20px;
-            width: 56px;
-            height: 56px;
+            width: 50px;
+            height: 50px;
             border-radius: 50%;
             background: var(--primary);
             color: white;
@@ -446,32 +487,6 @@
 
         .add-btn-icon {
             line-height: 1;
-        }
-
-        /* 待办项操作按钮 */
-        .todo-item-actions {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            flex-shrink: 0;
-        }
-
-        .todo-detail-btn {
-            background: none;
-            border: none;
-            color: var(--text-secondary);
-            cursor: pointer;
-            font-size: 1.2rem;
-            font-weight: bold;
-            padding: 2px 6px;
-            border-radius: 4px;
-            transition: var(--transition);
-            line-height: 1;
-        }
-
-        .todo-detail-btn:hover {
-            color: var(--primary);
-            background: rgba(59, 130, 246, 0.1);
         }
 
         /* 详情模态框样式 */
@@ -776,7 +791,6 @@
         
         button {
             flex: 1;
-            min-width: 140px;
             padding: 12px 20px;
             border: none;
             border-radius: var(--radius);
@@ -1767,7 +1781,6 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h3>添加待办事项</h3>
-                    <button class="modal-close" onclick="closeTodoModal()">×</button>
                 </div>
                 <div class="modal-body">
                     <form id="todo-modal-form">
@@ -1810,7 +1823,6 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h3>待办事项详情</h3>
-                    <button class="modal-close" onclick="closeTodoDetailModal()">×</button>
                 </div>
                 <div class="modal-body">
                     <div id="todo-detail-content">
@@ -2108,24 +2120,26 @@
                                     ${todo.completed ? 'checked' : ''}
                                     onchange="toggleTodoComplete(${JSON.stringify(todo).replace(/"/g, '&quot;')})"
                                 />
-                                <span class="todo-content-text">${escapeHtml(todo.content)}</span>
-                                <div class="todo-item-actions">
-                                    <button
-                                        type="button"
-                                        class="todo-detail-btn"
-                                        onclick="openTodoDetailModal(${JSON.stringify(todo).replace(/"/g, '&quot;')})"
-                                        title="查看详情"
-                                    >
-                                        ...
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="todo-delete-btn"
-                                        onclick="deleteTodo(${todo.id})"
-                                        title="删除"
-                                    >
-                                        ×
-                                    </button>
+                                <div class="todo-content-container">
+                                    <span class="todo-content-text">${escapeHtml(todo.content)}</span>
+                                    <div class="todo-item-actions">
+                                        <button
+                                            type="button"
+                                            class="todo-detail-btn"
+                                            onclick="openTodoDetailModal(${JSON.stringify(todo).replace(/"/g, '&quot;')})"
+                                            title="查看详情"
+                                        >
+                                            ...
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="todo-delete-btn"
+                                            onclick="deleteTodo(${todo.id})"
+                                            title="删除"
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                             ${todo.category ? `
