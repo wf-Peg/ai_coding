@@ -2,9 +2,12 @@ package com.example.clip.service;
 
 import com.example.clip.core.AiService;
 import com.example.clip.model.ClipContent;
+import com.example.clip.model.TodoContent;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -23,6 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @Service
 public class FileStorageService {
 
+    private static final Logger log = LoggerFactory.getLogger(FileStorageService.class);
     private final ObjectMapper objectMapper;
     private final Path storagePath;
     private final AtomicLong idGenerator = new AtomicLong(1);
@@ -47,6 +51,8 @@ public class FileStorageService {
                 Files.createDirectories(storagePath.resolve(cat.get("value").toString()));
             }
             Files.createDirectories(storagePath.resolve("default"));
+            // 创建待办事项目录
+            Files.createDirectories(storagePath.resolve("todolist"));
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -308,4 +314,176 @@ public class FileStorageService {
         }
         return clips;
     }
+
+    // ==================== 待办事项相关方法 ====================
+
+    /**
+     * 获取待办事项的日期文件路径
+     */
+    private Path getTodoDateFilePath() {
+        String dateStr = LocalDate.now().format(DATE_FORMATTER);
+        return storagePath.resolve("todolist").resolve(dateStr + ".json");
+    }
+
+    /**
+     * 从文件中读取待办事项列表
+     */
+    private List<TodoContent> readTodoArrayFromFile(Path path) {
+        try {
+            if (!Files.exists(path)) {
+                return new ArrayList<>();
+            }
+            String content = Files.readString(path);
+            if (content == null || content.trim().isEmpty()) {
+                return new ArrayList<>();
+            }
+            return objectMapper.readValue(content, new TypeReference<List<TodoContent>>() {});
+        } catch (IOException e) {
+            e.printStackTrace();
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * 将待办事项列表写入文件
+     */
+    private void writeTodoArrayToFile(Path path, List<TodoContent> todos) {
+        try {
+            Path parent = path.getParent();
+            if (!Files.exists(parent)) {
+                Files.createDirectories(parent);
+            }
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), todos);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 保存待办事项
+     */
+    public TodoContent saveTodo(TodoContent todo) {
+        log.info("[FileStorageService] saveTodo called with todo: title={}, priority={}, deadline={}, completed={}, category={}", 
+            todo.getTitle(), todo.getPriority(), todo.getDeadline(), todo.isCompleted(), todo.getCategory());
+        try {
+            if (todo.getId() == null) {
+                todo.setId(idGenerator.getAndIncrement());
+                log.info("[FileStorageService] Generated new id: {}", todo.getId());
+            }
+
+            Path filePath = getTodoDateFilePath();
+            log.info("[FileStorageService] Using file path: {}", filePath);
+            List<TodoContent> todos = readTodoArrayFromFile(filePath);
+            log.info("[FileStorageService] Read {} existing todos from file", todos.size());
+
+            // 检查是否已存在相同ID（更新场景）
+            boolean updated = false;
+            for (int i = 0; i < todos.size(); i++) {
+                if (todos.get(i).getId() != null && todos.get(i).getId().equals(todo.getId())) {
+                    todos.set(i, todo);
+                    updated = true;
+                    log.info("[FileStorageService] Updated existing todo with id: {}", todo.getId());
+                    break;
+                }
+            }
+
+            if (!updated) {
+                todos.add(todo);
+                log.info("[FileStorageService] Added new todo to list");
+            }
+
+            writeTodoArrayToFile(filePath, todos);
+            log.info("[FileStorageService] Successfully wrote todos to file");
+            return todo;
+        } catch (Exception e) {
+            log.error("[FileStorageService] Exception while saving todo", e);
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * 获取所有待办事项
+     */
+    public List<TodoContent> getAllTodos() {
+        List<TodoContent> allTodos = new ArrayList<>();
+        try {
+            Path todoPath = storagePath.resolve("todolist");
+            if (!Files.exists(todoPath)) {
+                return allTodos;
+            }
+
+            Files.walk(todoPath)
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".json"))
+                    .forEach(path -> {
+                        List<TodoContent> todos = readTodoArrayFromFile(path);
+                        allTodos.addAll(todos);
+                    });
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return allTodos;
+    }
+
+    /**
+     * 根据ID获取待办事项
+     */
+    public TodoContent getTodoById(Long id) {
+        try {
+            Path todoPath = storagePath.resolve("todolist");
+            if (!Files.exists(todoPath)) {
+                return null;
+            }
+
+            for (Path path : Files.walk(todoPath).filter(Files::isRegularFile).filter(path -> path.toString().endsWith(".json")).toList()) {
+                List<TodoContent> todos = readTodoArrayFromFile(path);
+                for (TodoContent todo : todos) {
+                    if (todo.getId() != null && todo.getId().equals(id)) {
+                        return todo;
+                    }
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    /**
+     * 删除待办事项
+     */
+    public void deleteTodo(Long id) {
+        try {
+            Path todoPath = storagePath.resolve("todolist");
+            if (!Files.exists(todoPath)) {
+                return;
+            }
+
+            Files.walk(todoPath)
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".json"))
+                    .forEach(path -> {
+                        List<TodoContent> todos = readTodoArrayFromFile(path);
+                        boolean found = false;
+
+                        Iterator<TodoContent> iterator = todos.iterator();
+                        while (iterator.hasNext()) {
+                            TodoContent todo = iterator.next();
+                            if (todo.getId() != null && todo.getId().equals(id)) {
+                                iterator.remove();
+                                found = true;
+                                break;
+                            }
+                        }
+
+                        if (found) {
+                            writeTodoArrayToFile(path, todos);
+                        }
+                    });
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 }
+

@@ -20,7 +20,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/clip")
-@CrossOrigin(origins = {"http://127.0.0.1:3000", "http://localhost:3000"})  // 允许前端跨域请求
+@CrossOrigin(origins = {"http://127.0.0.1:3000", "http://localhost:3000", "http://127.0.0.1:5500", "http://localhost:5500", "null"})  // 允许前端跨域请求
 public class ClipController {
 
     private static final Logger log = LoggerFactory.getLogger(ClipController.class);
