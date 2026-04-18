@@ -1,6 +1,8 @@
 package com.example.clip.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 /**
  * 待办事项模型类
@@ -17,7 +19,8 @@ public class TodoContent {
 
     private boolean completed;  // 完成状态
 
-    private LocalDateTime createdAt;  // 创建时间
+    @JsonIgnore
+    private LocalDateTime createdAt;  // 创建时间（内部使用）
 
     private String category;  // 分类
 
@@ -87,12 +90,34 @@ public class TodoContent {
         this.completed = completed;
     }
 
+    @JsonIgnore
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    /**
+     * 获取创建时间的时间戳（毫秒）
+     * 用于前端显示
+     * @return 时间戳
+     */
+    public long getCreatedAtTimestamp() {
+        return createdAt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+    }
+
+    /**
+     * 设置创建时间的时间戳（毫秒）
+     * 用于从JSON反序列化
+     * @param timestamp 时间戳
+     */
+    public void setCreatedAtTimestamp(long timestamp) {
+        this.createdAt = LocalDateTime.ofInstant(
+            java.time.Instant.ofEpochMilli(timestamp),
+            ZoneId.systemDefault()
+        );
     }
 
     public String getCategory() {

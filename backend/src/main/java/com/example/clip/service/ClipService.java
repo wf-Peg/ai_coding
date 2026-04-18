@@ -92,7 +92,7 @@ public class ClipService {
                         if (clipContent.getContent() == null) {
                             clipContent.setContent("");
                         }
-                        clipContent.setContent(clipContent.getContent() + "\n![图片]()\n");
+                        clipContent.setContent(clipContent.getContent() + "\n![图片](" + imagePath + ")\n");
                     }
                 }
             } catch (Exception e) {

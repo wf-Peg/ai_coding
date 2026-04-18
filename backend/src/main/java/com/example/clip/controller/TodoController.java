@@ -2,6 +2,8 @@ package com.example.clip.controller;
 
 import com.example.clip.model.TodoContent;
 import com.example.clip.service.TodoService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,9 +14,10 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/todo")
-@CrossOrigin(origins = {"http://127.0.0.1:3000", "http://localhost:3000"})  // 允许前端跨域请求
+@CrossOrigin(origins = {"http://127.0.0.1:3000", "http://localhost:3000", "http://127.0.0.1:5500", "http://localhost:5500", "null"})  // 允许前端跨域请求
 public class TodoController {
 
+    private static final Logger log = LoggerFactory.getLogger(TodoController.class);
     private final TodoService todoService;
 
     /**
@@ -57,10 +60,19 @@ public class TodoController {
      */
     @PostMapping("/add")
     public ResponseEntity<TodoContent> addTodo(@RequestBody TodoContent todo) {
-        TodoContent savedTodo = todoService.saveTodo(todo);
-        if (savedTodo != null) {
-            return ResponseEntity.ok(savedTodo);
-        } else {
+        log.info("[API] /add called with todo: title={}, priority={}, deadline={}, completed={}, category={}", 
+            todo.getTitle(), todo.getPriority(), todo.getDeadline(), todo.isCompleted(), todo.getCategory());
+        try {
+            TodoContent savedTodo = todoService.saveTodo(todo);
+            if (savedTodo != null) {
+                log.info("[API] Todo saved successfully: id={}", savedTodo.getId());
+                return ResponseEntity.ok(savedTodo);
+            } else {
+                log.error("[API] Failed to save todo, savedTodo is null");
+                return ResponseEntity.badRequest().build();
+            }
+        } catch (Exception e) {
+            log.error("[API] Exception while saving todo", e);
             return ResponseEntity.badRequest().build();
         }
     }

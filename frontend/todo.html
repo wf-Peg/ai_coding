@@ -943,7 +943,12 @@
   async function fetchTodos() {
     try {
       const response = await axios.get(`${TODO_API_BASE_URL}/list`);
-      todos = response.data;
+      todos = response.data.map(todo => {
+        if (!todo.createdAt) {
+          todo.createdAt = todo.createdAtTimestamp || Date.now();
+        }
+        return todo;
+      });
       renderTimeline();
       updateStats();
     } catch (error) {
@@ -1147,12 +1152,9 @@
     try {
       const response = await axios.post(`${TODO_API_BASE_URL}/add`, todo);
       const savedTodo = response.data;
-      // 确保返回的todo有createdAt时间戳（如果没有，添加一个）
+      // 使用后端返回的createdAtTimestamp
       if (!savedTodo.createdAt) {
-        savedTodo.createdAt = Date.now();
-      } else if (typeof savedTodo.createdAt === 'string') {
-        // 如果是ISO字符串，转换为时间戳
-        savedTodo.createdAt = new Date(savedTodo.createdAt).getTime();
+        savedTodo.createdAt = savedTodo.createdAtTimestamp || Date.now();
       }
       todos.unshift(savedTodo);
       closeModal();

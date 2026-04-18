@@ -6,6 +6,8 @@ import com.example.clip.model.TodoContent;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -24,6 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @Service
 public class FileStorageService {
 
+    private static final Logger log = LoggerFactory.getLogger(FileStorageService.class);
     private final ObjectMapper objectMapper;
     private final Path storagePath;
     private final AtomicLong idGenerator = new AtomicLong(1);
@@ -360,13 +363,18 @@ public class FileStorageService {
      * 保存待办事项
      */
     public TodoContent saveTodo(TodoContent todo) {
+        log.info("[FileStorageService] saveTodo called with todo: title={}, priority={}, deadline={}, completed={}, category={}", 
+            todo.getTitle(), todo.getPriority(), todo.getDeadline(), todo.isCompleted(), todo.getCategory());
         try {
             if (todo.getId() == null) {
                 todo.setId(idGenerator.getAndIncrement());
+                log.info("[FileStorageService] Generated new id: {}", todo.getId());
             }
 
             Path filePath = getTodoDateFilePath();
+            log.info("[FileStorageService] Using file path: {}", filePath);
             List<TodoContent> todos = readTodoArrayFromFile(filePath);
+            log.info("[FileStorageService] Read {} existing todos from file", todos.size());
 
             // 检查是否已存在相同ID（更新场景）
             boolean updated = false;
@@ -374,17 +382,21 @@ public class FileStorageService {
                 if (todos.get(i).getId() != null && todos.get(i).getId().equals(todo.getId())) {
                     todos.set(i, todo);
                     updated = true;
+                    log.info("[FileStorageService] Updated existing todo with id: {}", todo.getId());
                     break;
                 }
             }
 
             if (!updated) {
                 todos.add(todo);
+                log.info("[FileStorageService] Added new todo to list");
             }
 
             writeTodoArrayToFile(filePath, todos);
+            log.info("[FileStorageService] Successfully wrote todos to file");
             return todo;
         } catch (Exception e) {
+            log.error("[FileStorageService] Exception while saving todo", e);
             e.printStackTrace();
             return null;
         }
