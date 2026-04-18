@@ -1137,18 +1137,24 @@
       return;
     }
     const todo = {
-      id: genId(),
       title,
       priority: inputPriority.value,
       deadline: inputDate.value || '',
       completed: false,
-      createdAt: Date.now(),
       category: '默认'
     };
 
     try {
-      await axios.post(`${TODO_API_BASE_URL}/add`, todo);
-      todos.unshift(todo);
+      const response = await axios.post(`${TODO_API_BASE_URL}/add`, todo);
+      const savedTodo = response.data;
+      // 确保返回的todo有createdAt时间戳（如果没有，添加一个）
+      if (!savedTodo.createdAt) {
+        savedTodo.createdAt = Date.now();
+      } else if (typeof savedTodo.createdAt === 'string') {
+        // 如果是ISO字符串，转换为时间戳
+        savedTodo.createdAt = new Date(savedTodo.createdAt).getTime();
+      }
+      todos.unshift(savedTodo);
       closeModal();
       renderTimeline();
       updateStats();
@@ -1164,7 +1170,16 @@
     if (!todo) return;
     todo.completed = !todo.completed;
     try {
-      await axios.put(`${TODO_API_BASE_URL}/update`, todo);
+      // 创建一个副本，避免发送不必要的字段
+      const updateTodo = {
+        id: todo.id,
+        title: todo.title,
+        priority: todo.priority,
+        deadline: todo.deadline,
+        completed: todo.completed,
+        category: todo.category
+      };
+      await axios.put(`${TODO_API_BASE_URL}/update`, updateTodo);
       renderTimeline();
       updateStats();
       showToast(todo.completed ? '已标记完成' : '已恢复待办', todo.completed ? '🎉' : '↩️');
@@ -1205,7 +1220,16 @@
     todo.priority = document.getElementById('editPriority-' + id).value;
     todo.deadline = document.getElementById('editDate-' + id).value;
     try {
-      await axios.put(`${TODO_API_BASE_URL}/update`, todo);
+      // 创建一个副本，避免发送不必要的字段
+      const updateTodo = {
+        id: todo.id,
+        title: todo.title,
+        priority: todo.priority,
+        deadline: todo.deadline,
+        completed: todo.completed,
+        category: todo.category
+      };
+      await axios.put(`${TODO_API_BASE_URL}/update`, updateTodo);
       renderTimeline();
       updateStats();
       showToast('已保存修改', '✏️');
