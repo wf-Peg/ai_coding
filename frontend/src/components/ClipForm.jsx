@@ -20,8 +20,15 @@ function ClipForm() {
 
   const handleImageRemove = (index) => {
     const newImages = [...images];
-    newImages.splice(index, 1);
+    const removedImage = newImages.splice(index, 1)[0];
     setImages(newImages);
+    
+    // 从content中删除对应的Markdown引用
+    if (removedImage) {
+      const markdownRef = `![图片](assets/${removedImage.fileName})`;
+      const newContent = content.replace(markdownRef, '');
+      setContent(newContent);
+    }
   };
 
   const handleSubmit = async (e) => {

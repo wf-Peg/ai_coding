@@ -76,7 +76,7 @@ public class ImageUtils {
 
     /**
      * 生成存储路径
-     * 格式：./clip-organized/{category}/assets/{noteFileName}
+     * 格式：./clip-organized/{category}/assets
      * @param category 分类
      * @param noteFileName 笔记文件名
      * @return 存储路径
@@ -85,20 +85,20 @@ public class ImageUtils {
         // 获取分类目录
         String categoryDir = getCategoryDir(category);
         
-        // 构建完整路径
-        return Paths.get(BASE_STORAGE_PATH, categoryDir, "assets", noteFileName);
+        // 构建完整路径：./clip-organized/{category}/assets
+        return Paths.get(BASE_STORAGE_PATH, categoryDir, "assets");
     }
 
     /**
      * 生成相对路径
-     * 格式：assets/{noteFileName}/file-YYYYMMDDHHmmssSSS.ext
+     * 格式：assets/file-YYYYMMDDHHmmssSSS.ext
      * @param category 分类
      * @param noteFileName 笔记文件名
      * @param fileName 文件名
      * @return 相对路径
      */
     private static String generateRelativePath(String category, String noteFileName, String fileName) {
-        return "assets/" + noteFileName + "/" + fileName;
+        return "assets/" + fileName;
     }
 
     /**
