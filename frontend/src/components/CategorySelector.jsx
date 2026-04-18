@@ -41,7 +41,7 @@ function CategorySelector({ value, onChange }) {
         onChange={(e) => onChange(e.target.value)}
         className="category-select"
       >
-        <option value="">请选择分类</option>
+        <option value="">默认AI匹配分类</option>
         {categories.map((category) => (
           <optgroup key={category.value} label={category.label}>
             {category.children && category.children.map((subCategory) => (

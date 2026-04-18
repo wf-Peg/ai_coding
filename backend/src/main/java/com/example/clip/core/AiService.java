@@ -65,8 +65,8 @@ public class AiService {
             systemPrompt.append("4. 分类(category)：从下面的预设分类中选择最匹配的一个分类（优先选二级分类）\n\n")
                     .append("预设分类：\n").append(getCategoryDescription()).append("\n")
                     .append("注意：\n")
-                    .append("- category 必须是上面预设分类中的 value 值\n")
-                    .append("- 优先选择二级分类，没有合适的再选择一级分类\n\n");
+                    .append("- category 必须是上面预设分类中的 value 值对应的英文单词\n")
+                    .append("- 只能选择二级分类\n\n");
         }
         
         systemPrompt.append("请严格按以下JSON格式返回，不要有任何其他文字：\n");
@@ -80,7 +80,7 @@ public class AiService {
         try {
             Message systemMessage = Message.builder()
                     .role(Role.SYSTEM.getValue())
-                    .content(systemPrompt)
+                    .content(systemPrompt.toString())
                     .build();
 
             Message userMessage = Message.builder()
@@ -448,7 +448,7 @@ public class AiService {
         try {
             Message systemMessage = Message.builder()
                     .role(Role.SYSTEM.getValue())
-                    .content(systemPrompt)
+                    .content(systemPrompt.toString())
                     .build();
 
             Message userMessage = Message.builder()
@@ -505,18 +505,7 @@ public class AiService {
         }
     }
 
-    private boolean isValidCategory(String category) {
-        for (Map<String, Object> cat : CATEGORY_TREE) {
-            if (cat.get("value").equals(category)) return true;
-            List<Map<String, Object>> children = (List<Map<String, Object>>) cat.get("children");
-            if (children != null) {
-                for (Map<String, Object> child : children) {
-                    if (child.get("value").equals(category)) return true;
-                }
-            }
-        }
-        return false;
-    }
+
 
     private Map<String, Object> parseSimpleJson(String json) {
         Map<String, Object> result = new LinkedHashMap<>();
@@ -794,7 +783,7 @@ public class AiService {
 
             Message systemMessage = Message.builder()
                     .role(Role.SYSTEM.getValue())
-                    .content(systemPrompt)
+                    .content(systemPrompt.toString())
                     .build();
 
             Message userMessage = Message.builder()

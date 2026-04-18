@@ -2,6 +2,7 @@ package com.example.clip.service;
 
 import com.example.clip.core.AiService;
 import com.example.clip.model.ClipContent;
+import com.example.clip.service.EmailService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +25,7 @@ public class WeeklyReportService {
 
     private final FileStorageService storageService;
     private final AiService aiService;
+    private final EmailService emailService;
     private final Path weeklyReportPath;
     private String lastReportStatus;
     private String lastReportMessage;
@@ -32,9 +34,11 @@ public class WeeklyReportService {
     public WeeklyReportService(
             FileStorageService storageService,
             AiService aiService,
-            @Value("${clip.weekly-report.path:./weeklyReport}") String weeklyReportPath) {
+            EmailService emailService,
+            @Value("${clip.clip-weekly-report.path:./weeklyReport}") String weeklyReportPath) {
         this.storageService = storageService;
         this.aiService = aiService;
+        this.emailService = emailService;
         this.weeklyReportPath = Paths.get(weeklyReportPath);
         initWeeklyReportStorage();
         this.lastReportStatus = "idle";
@@ -125,6 +129,9 @@ public class WeeklyReportService {
             result.put("reportCount", reportCount);
             result.put("generatedFiles", generatedFiles);
             result.put("storagePath", weeklyReportPath.toAbsolutePath().toString());
+
+            // 发送邮件通知（如果配置）
+            sendWeeklyReportEmail(today, reportCount, clipsByCategory);
 
         } catch (Exception e) {
             lastReportStatus = "error";
@@ -276,5 +283,56 @@ public class WeeklyReportService {
 
     public String getWeeklyReportPath() {
         return weeklyReportPath.toAbsolutePath().toString();
+    }
+
+    /**
+     * 发送周报邮件通知
+     * @param date 周报日期
+     * @param reportCount 生成的报告数量
+     * @param clipsByCategory 按分类分组的剪藏内容
+     */
+    private void sendWeeklyReportEmail(LocalDate date, int reportCount, Map<String, List<ClipContent>> clipsByCategory) {
+        try {
+            if (!emailService.isEmailConfigured()) {
+                return;
+            }
+
+            String weekSuffix = getWeekSuffix(date);
+            String subject = "剪藏周报 - " + weekSuffix;
+
+            StringBuilder html = new StringBuilder();
+            html.append("<div style=\"font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;\">");
+            html.append("<h2 style=\"color: #3b82f6;\">剪藏周报</h2>");
+            html.append("<p style=\"color: #6b7280;\">").append(weekSuffix).append("</p>");
+            html.append("<hr style=\"border: none; border-top: 1px solid #e5e7eb;\">");
+            html.append("<p>共生成 <strong>").append(reportCount).append("</strong> 个分类报告，");
+            html.append("总计 <strong>").append(clipsByCategory.values().stream().mapToInt(List::size).sum()).append("</strong> 条内容。</p>");
+
+            for (Map.Entry<String, List<ClipContent>> entry : clipsByCategory.entrySet()) {
+                String categoryName = getCategoryName(entry.getKey());
+                List<ClipContent> clips = entry.getValue();
+                html.append("<div style=\"margin: 16px 0; padding: 12px; background: #f9fafb; border-radius: 8px;\">");
+                html.append("<h3 style=\"color: #1f2937; margin: 0 0 8px;\">").append(categoryName).append("</h3>");
+                html.append("<p style=\"color: #6b7280; margin: 0;\">").append(clips.size()).append(" 条内容</p>");
+                for (ClipContent clip : clips) {
+                    String summary = clip.getSummary() != null ? clip.getSummary() : "无摘要";
+                    if (summary.length() > 80) summary = summary.substring(0, 80) + "...";
+                    html.append("<p style=\"margin: 4px 0; color: #374151; font-size: 14px;\">• " + summary + "</p>");
+                }
+                html.append("</div>");
+            }
+
+            html.append("<hr style=\"border: none; border-top: 1px solid #e5e7eb;\">");
+            html.append("<p style=\"color: #9ca3af; font-size: 12px;\">存储路径: " + weeklyReportPath.toAbsolutePath() + "</p>");
+            html.append("</div>");
+
+            emailService.sendOrganizeResult(
+                    emailService.getMailFrom(),
+                    subject,
+                    html.toString()
+            );
+        } catch (Exception e) {
+            log.error("[WeeklyReport] Failed to send email: {}", e.getMessage());
+        }
     }
 }

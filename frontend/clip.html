@@ -1537,16 +1537,12 @@
                     </div>
                     <div class="form-group">
                         <label for="source">来源</label>
-                        <select id="source">
-                            <option value="manual">手动输入</option>
-                            <option value="browser">浏览器</option>
-                            <option value="system">系统文件</option>
-                        </select>
+                        <input type="text" id="source" placeholder="请输入来源地址，如：www.sspai.com" />
                     </div>
                     <div class="form-group">
                         <label for="category">分类</label>
                         <select id="category">
-                            <option value="">AI自动分类</option>
+                            <option value="">默认AI匹配分类</option>
                         </select>
                     </div>
                     <div class="form-group" id="tags-group">
@@ -1996,7 +1992,7 @@
 
                 // Fill add-clip category select
                 const select = document.getElementById('category');
-                select.innerHTML = '<option value="">请选择分类</option>';
+                select.innerHTML = '<option value="">AI匹配分类</option>';
 
                 // Fill search category select
                 const searchSelect = document.getElementById('search-category');
@@ -2084,7 +2080,7 @@
         function clearForm() {
             document.getElementById('content').value = '';
             document.getElementById('type').value = 'ai-text';
-            document.getElementById('source').value = 'manual';
+            document.getElementById('source').value = '';
             document.getElementById('category').value = '';
             document.getElementById('ai-generate-tags').checked = false;
             toggleTagInput();
