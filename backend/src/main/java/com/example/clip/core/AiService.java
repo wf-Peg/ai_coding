@@ -37,12 +37,45 @@ public class AiService {
      * Returns a map with keys: summary, analysis, tags
      */
     public Map<String, Object> processClipContent(String content) {
-        String systemPrompt = "你是一个专业的内容分析助手。请对以下内容完成三项任务，严格按JSON格式返回：\n\n"
-                + "1. 摘要(summary)：不超过100字的简短摘要\n"
-                + "2. 分析(analysis)：使用markdown格式，提取关键信息进行深度分析，不要生成摘要\n"
-                + "3. 标签(tags)：3-8个关键词标签\n\n"
-                + "请严格按以下JSON格式返回，不要有任何其他文字：\n"
-                + "{\"summary\":\"摘要内容\",\"analysis\":\"分析内容(markdown格式)\",\"tags\":[\"标签1\",\"标签2\",\"标签3\"]}";
+        return processClipContent(content, true);
+    }
+
+    /**
+     * One-shot processing: generate summary, analysis, tags, and optionally category
+     * @param content 内容
+     * @param includeCategory 是否包含分类
+     * @return 处理结果
+     */
+    public Map<String, Object> processClipContent(String content, boolean includeCategory) {
+        StringBuilder systemPrompt = new StringBuilder();
+        systemPrompt.append("你是一个专业的内容分析助手。请对以下内容完成");
+        
+        if (includeCategory) {
+            systemPrompt.append("四项任务");
+        } else {
+            systemPrompt.append("三项任务");
+        }
+        
+        systemPrompt.append("，严格按JSON格式返回：\n\n")
+                .append("1. 摘要(summary)：不超过100字的简短摘要\n")
+                .append("2. 分析(analysis)：使用markdown格式，提取关键信息进行深度分析，不要生成摘要\n")
+                .append("3. 标签(tags)：3-8个关键词标签\n\n");
+        
+        if (includeCategory) {
+            systemPrompt.append("4. 分类(category)：从下面的预设分类中选择最匹配的一个分类（优先选二级分类）\n\n")
+                    .append("预设分类：\n").append(getCategoryDescription()).append("\n")
+                    .append("注意：\n")
+                    .append("- category 必须是上面预设分类中的 value 值\n")
+                    .append("- 优先选择二级分类，没有合适的再选择一级分类\n\n");
+        }
+        
+        systemPrompt.append("请严格按以下JSON格式返回，不要有任何其他文字：\n");
+        
+        if (includeCategory) {
+            systemPrompt.append("{\"summary\":\"摘要内容\",\"analysis\":\"分析内容(markdown格式)\",\"tags\":[\"标签1\",\"标签2\",\"标签3\"],\"category\":\"分类value值\"}");
+        } else {
+            systemPrompt.append("{\"summary\":\"摘要内容\",\"analysis\":\"分析内容(markdown格式)\",\"tags\":[\"标签1\",\"标签2\",\"标签3\"]}");
+        }
 
         try {
             Message systemMessage = Message.builder()
@@ -72,8 +105,51 @@ public class AiService {
             fallback.put("summary", "处理失败: " + e.getMessage());
             fallback.put("analysis", "");
             fallback.put("tags", List.of());
+            fallback.put("category", "default");
             return fallback;
         }
+    }
+
+    /**
+     * 获取分类描述
+     * @return 分类描述字符串
+     */
+    private String getCategoryDescription() {
+        StringBuilder categoryDesc = new StringBuilder();
+        for (Map<String, Object> cat : CATEGORY_TREE) {
+            categoryDesc.append("- " + cat.get("label") + "(" + cat.get("value") + ")");
+            List<Map<String, Object>> children = (List<Map<String, Object>>) cat.get("children");
+            if (children != null && !children.isEmpty()) {
+                categoryDesc.append(": ");
+                categoryDesc.append(children.stream()
+                    .map(c -> c.get("label") + "(" + c.get("value") + ")")
+                    .collect(java.util.stream.Collectors.joining(", ")));
+            }
+            categoryDesc.append("\n");
+        }
+        return categoryDesc.toString();
+    }
+
+    /**
+     * 验证分类是否有效
+     * @param category 分类值
+     * @return 是否有效
+     */
+    private boolean isValidCategory(String category) {
+        for (Map<String, Object> cat : CATEGORY_TREE) {
+            if (cat.get("value").equals(category)) {
+                return true;
+            }
+            List<Map<String, Object>> children = (List<Map<String, Object>>) cat.get("children");
+            if (children != null) {
+                for (Map<String, Object> child : children) {
+                    if (child.get("value").equals(category)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -136,12 +212,26 @@ public class AiService {
                 // 未找到标签字段，返回空列表
                 result.put("tags", List.of());
             }
+
+            // 提取分类
+            String category = extractJsonStringValue(json, "category");
+            if (category != null) {
+                // 验证分类是否有效
+                if (isValidCategory(category)) {
+                    result.put("category", category);
+                } else {
+                    result.put("category", "default");
+                }
+            } else {
+                result.put("category", "default");
+            }
         } catch (Exception e) {
             // 解析失败，返回错误信息
             logger.error("[AI] parseProcessResult failed: {}", e.getMessage(), e);
             result.put("summary", "解析失败");
             result.put("analysis", "");
             result.put("tags", List.of());
+            result.put("category", "default");
         }
         return result;
     }
@@ -559,12 +649,12 @@ public class AiService {
                             "2.  **内容整合与重构**：\n" +
                             "    - **关联组处理**：\n" +
                             "        - 标题：提炼一个涵盖所有相关内容的标题。\n" +
-                            "        - 原文：将所有相关原文按序号放入独立的代码块中（```text ... ```），保持原始风貌。\n" +
+                            "        - 原文：将所有相关原文按序号排序组合，保持原始风貌。\n" +
                             "        - 分析：对原有的AI分析进行“融合重写”，去除重复信息，梳理逻辑层级，形成一条高密度的综合分析。\n" +
                             "        - 标签：合并所有相关标签。\n" +
                             "    - **独立项处理**：\n" +
                             "        - 标题：使用原文的总结摘要。\n" +
-                            "        - 原文：放入代码块中。\n" +
+                            "        - 原文：纯文本展示。\n" +
                             "        - 分析：保留原始AI分析结果，仅做格式微调。\n" +
                             "\n" +
                             "3.  **全局复盘**：\n" +
@@ -578,13 +668,14 @@ public class AiService {
                             "    - **一级标题**：`# {日期}日报` （全文仅一个）\n" +
                             "    - **二级标题**：`{内容板块标题}` 或 `今日复盘`\n" +
                             "    - **三级标题**：`原文` 、 `分析`\n" +
-                            "- **原文展示**：必须使用 `text` 代码块包裹原文，禁止直接以引用或段落形式展示。\n" +
+                            "- **原文展示**：正常文本的原文。\n" +
                             "- **分析展示**：使用 Markdown 列表和加粗，确保可读性。\n" +
-                            "- **元数据**：在二级标题下方使用引用格式展示分类与标签，标签使用 tag:#标签名 格式，多个标签之间用空格分隔 `> 分类/标签：...`。\n" +
+                            "- **元数据**：在二级标题下方使用引用格式展示分类与标签，标签使用 tag:#标签名 格式，第一个`标签名`前面要多一个空格如` 标签名`，多个标签之间用空格分隔 `> 分类/标签： ...`。\n" +
                             "- **Markdown格式清洗**：确保所有标题符号（#）前后没有多余的空格或重复符号，确保标题层级清晰，没有重叠或混乱。\n" +
                             "\n" +
                             "# Constraints\n" +
                             "- 保持客观、理性的语调。\n" +
+                            "- 不需要整理解析处理图片字段的信息。\n" +
                             "- 确保“分析”部分具有高信息密度，拒绝废话。\n" +
                             "- 清洗格式错误（如多余的冒号、错误的换行、标题符号重叠）。")
                     .build();

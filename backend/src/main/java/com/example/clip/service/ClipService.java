@@ -63,9 +63,11 @@ public class ClipService {
             try {
                 // 生成笔记文件名（用于图片存储）
                 String noteFileName = generateNoteFileName(category);
+                String cat = (category != null && !category.isEmpty()) ? category : "default";
                 
                 // 处理每张图片
-                for (ClipController.ClipRequest.ImageData imageData : imageDataList) {
+                for (int i = 0; i < imageDataList.size(); i++) {
+                    ClipController.ClipRequest.ImageData imageData = imageDataList.get(i);
                     if (imageData.getBase64Data() != null && !imageData.getBase64Data().isEmpty()) {
                         // 解码Base64图片数据
                         byte[] imageBytes = Base64.getDecoder().decode(imageData.getBase64Data());
@@ -88,7 +90,7 @@ public class ClipService {
                         // 将图片路径添加到clipContent
                         clipContent.getImagePaths().add(imagePath);
                         
-                        // 在原文中添加图片引用
+                        // 在内容中添加图片引用
                         if (clipContent.getContent() == null) {
                             clipContent.setContent("");
                         }
@@ -114,7 +116,9 @@ public class ClipService {
                 String crawledText = linkParseService.parseUrl(content);
                 // 存储：URL + 爬取的原始文本
                 clipContent.setContent("来源链接: " + originalUrl + "\n\n" + crawledText);
-                processWithAi(clipContent);
+                // 如果没有分类，则使用AI分类
+                boolean useAiCategoryLink = (clipContent.getCategory() == null || clipContent.getCategory().isEmpty());
+                processWithAi(clipContent, useAiCategoryLink);
                 break;
 
             case "doc-ai":
@@ -123,7 +127,9 @@ public class ClipService {
                     byte[] fileBytes = Base64.getDecoder().decode(fileData);
                     String parsedText = documentParseService.parseDocument(fileBytes, fileName);
                     clipContent.setContent(parsedText);
-                    processWithAi(clipContent);
+                    // 如果没有分类，则使用AI分类
+                    boolean useAiCategoryDoc = (clipContent.getCategory() == null || clipContent.getCategory().isEmpty());
+                    processWithAi(clipContent, useAiCategoryDoc);
                 } catch (Exception e) {
                     logger.error("[ClipService] Document parse failed: {}", e.getMessage(), e);
                     clipContent.setSummary("[文档解析失败] " + e.getMessage());
@@ -134,7 +140,9 @@ public class ClipService {
             case "ai-text":
             default:
                 // 原始逻辑：AI文本处理
-                processWithAi(clipContent);
+                // 如果没有分类，则使用AI分类
+                boolean useAiCategory = (clipContent.getCategory() == null || clipContent.getCategory().isEmpty());
+                processWithAi(clipContent, useAiCategory);
                 break;
         }
 
@@ -146,17 +154,23 @@ public class ClipService {
      * AI处理：一次性生成摘要、分析和标签
      * 标签直接设置到clipContent对象上
      * @param clipContent 剪藏内容对象
+     * @param useAiCategory 是否使用AI分类
      */
     @SuppressWarnings("unchecked")
-    private void processWithAi(ClipContent clipContent) {
+    private void processWithAi(ClipContent clipContent, boolean useAiCategory) {
         try {
-            Map<String, Object> aiResult = aiService.processClipContent(clipContent.getContent());
+            Map<String, Object> aiResult = aiService.processClipContent(clipContent.getContent(), useAiCategory);
             clipContent.setSummary((String) aiResult.getOrDefault("summary", "摘要生成失败"));
             clipContent.setAnalysis((String) aiResult.getOrDefault("analysis", ""));
             List<String> tags = (List<String>) aiResult.getOrDefault("tags", List.of());
             // 如果clipContent没有设置标签，则设置AI生成的标签
             if (clipContent.getTags() == null || clipContent.getTags().isEmpty()) {
                 clipContent.setTags(tags);
+            }
+            // 如果使用AI分类且clipContent没有设置分类，则设置AI生成的分类
+            if (useAiCategory && (clipContent.getCategory() == null || clipContent.getCategory().isEmpty())) {
+                String category = (String) aiResult.getOrDefault("category", "default");
+                clipContent.setCategory(category);
             }
         } catch (Exception e) {
             e.printStackTrace();

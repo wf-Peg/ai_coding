@@ -24,7 +24,23 @@ public class ImageUtils {
     /**
      * 基础存储路径
      */
-    private static final String BASE_STORAGE_PATH = "./clip-organized";
+    private static String BASE_STORAGE_PATH = "./clip-organized";
+
+    /**
+     * 设置基础存储路径
+     * @param path 基础存储路径
+     */
+    public static void setBaseStoragePath(String path) {
+        BASE_STORAGE_PATH = path;
+    }
+
+    /**
+     * 获取基础存储路径
+     * @return 基础存储路径
+     */
+    public static String getBaseStoragePath() {
+        return BASE_STORAGE_PATH;
+    }
 
     /**
      * 存储图片文件
@@ -91,14 +107,15 @@ public class ImageUtils {
 
     /**
      * 生成相对路径
-     * 格式：assets/file-YYYYMMDDHHmmssSSS.ext
+     * 格式：/api/clip/image/{category}/{fileName}
      * @param category 分类
      * @param noteFileName 笔记文件名
      * @param fileName 文件名
      * @return 相对路径
      */
     private static String generateRelativePath(String category, String noteFileName, String fileName) {
-        return "assets/" + fileName;
+        String cat = (category != null && !category.isEmpty()) ? category : "default";
+        return "/api/clip/image/" + cat + "/" + fileName;
     }
 
     /**
@@ -109,7 +126,7 @@ public class ImageUtils {
      * @param category 分类值
      * @return 目录路径
      */
-    private static String getCategoryDir(String category) {
+    public static String getCategoryDir(String category) {
         String cat = (category != null && !category.isEmpty()) ? category : "default";
 
         for (Map<String, Object> topCat : AiService.CATEGORY_TREE) {

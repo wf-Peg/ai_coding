@@ -1290,6 +1290,84 @@
                 transform: scale(1);
             }
         }
+
+        /* 加载动画样式 */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            backdrop-filter: blur(3px);
+        }
+        
+        .loading-container {
+            background: var(--surface);
+            padding: 32px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-hover);
+            text-align: center;
+            max-width: 400px;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--border);
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+        
+        .loading-text {
+            font-size: 1rem;
+            color: var(--text);
+            margin-bottom: 8px;
+        }
+        
+        .loading-subtext {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        
+        /* 按钮加载状态 */
+        .btn-loading {
+            opacity: 0.7;
+            cursor: not-allowed;
+            position: relative;
+        }
+        
+        .btn-loading::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: 12px;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            transform: translateY(-50%);
+        }
+        
+        @keyframes slideOut {
+            from {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateX(100%);
+            }
+        }
         
         @media (max-width: 768px) {
             .container {
@@ -1368,6 +1446,15 @@
                     <button class="btn-secondary" onclick="closeConfirmModal()">取消</button>
                     <button class="btn-primary" id="confirm-btn">确认</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- 加载状态覆盖层 -->
+        <div id="loading-overlay" class="loading-overlay" style="display: none;">
+            <div class="loading-container">
+                <div class="loading-spinner"></div>
+                <div class="loading-text" id="loading-text">处理中...</div>
+                <div class="loading-subtext" id="loading-subtext">请稍候...</div>
             </div>
         </div>
 
@@ -1459,7 +1546,7 @@
                     <div class="form-group">
                         <label for="category">分类</label>
                         <select id="category">
-                            <option value="">请选择分类</option>
+                            <option value="">AI自动分类</option>
                         </select>
                     </div>
                     <div class="form-group" id="tags-group">
@@ -1707,16 +1794,6 @@
 
                 // Add to uploaded images array
                 uploadedImages.push({ base64, fileName });
-
-                // Generate Markdown reference with './' prefix
-                const markdownRef = `![图片](./assets/${fileName})`;
-                
-                // Update content, insert Markdown reference at cursor position
-                const textarea = document.getElementById('content');
-                const start = textarea.selectionStart;
-                const end = textarea.selectionEnd;
-                const newContent = textarea.value.substring(0, start) + markdownRef + textarea.value.substring(end);
-                textarea.value = newContent;
                 
                 // Update image previews
                 updateImagePreviews();
@@ -2239,67 +2316,101 @@
                 `;
             }
             
-            let analysisHtml = '';
-            if (clip.analysis) {
-                try {
-                    const analysis = typeof clip.analysis === 'string' ? JSON.parse(clip.analysis) : clip.analysis;
-                    if (analysis.summary) {
-                        analysisHtml = `
-                            <div class="content-section">
-                                <h4>AI 总结</h4>
-                                <div class="ai-content">${analysis.summary}</div>
-                            </div>
-                        `;
-                    }
-                } catch (error) {
-                    console.error('解析分析内容失败:', error);
-                    // 如果解析失败，直接显示原始内容
-                    if (typeof clip.analysis === 'string') {
-                        analysisHtml = `
-                            <div class="content-section">
-                                <h4>AI 分析</h4>
-                                <div class="ai-content">${clip.analysis}</div>
-                            </div>
-                        `;
-                    }
-                }
-            }
-            
-            let contentHtml = '';
-            if (clip.content) {
-                contentHtml = `
-                    <div class="content-section">
-                        <h4>原始内容</h4>
-                        <div class="content-text"><pre>${clip.content}</pre></div>
-                    </div>
-                `;
-            }
+            const displaySummary = clip.summary || '暂无摘要';
+            const isStoreOnly = clip.type === 'store-only';
+            const summaryClass = isStoreOnly ? 'store-only-summary' : '';
+            const originalContent = clip.content || '';
+            const analysisContent = clip.analysis || '';
             
             clipItem.innerHTML = `
-                <div class="clip-actions">
-                    ${!isSearch ? `<button class="delete-btn" data-id="${clip.id}">删除</button>` : ''}
-                    <button class="expand-btn" onclick="toggleDetail(this)">
-                        展开详情 <span class="icon">▼</span>
-                    </button>
-                </div>
                 <div class="clip-header">
-                    <div>
-                        <span class="category-badge">${getCategoryLabel(clip.category)}</span>
-                    </div>
-                    <div class="clip-meta">
-                        <span class="meta-item">${getTypeLabel(clip.type)}</span>
-                        <span class="meta-item">${createdAt}</span>
+                    <span class="category-badge">📁 ${getCategoryLabel(clip.category)}</span>
+                    <div class="clip-actions">
+                        ${!isSearch ? `<button class="delete-btn" data-id="${clip.id}">删除</button>` : ''}
+                        ${!isStoreOnly ? `<button class="expand-btn" onclick="generateDivergentSummary(${clip.id})" title="发散总结">💡</button>` : ''}
+                        <button class="expand-btn" onclick="toggleDetail(this)">
+                            <span class="icon">▼</span>
+                            <span class="text">展开</span>
+                        </button>
                     </div>
                 </div>
-                <div class="clip-summary">
-                    ${clip.summary || (clip.analysis ? 'AI 分析内容已生成' : '无摘要')}
+                <div class="clip-summary ${summaryClass}" title="${escapeHtml(displaySummary)}">${escapeHtml(displaySummary)}</div>
+                <div class="clip-meta">
+                    <span class="meta-item">类型: ${getTypeLabel(clip.type)}</span>
+                    <span class="meta-item">来源: ${clip.source}</span>
+                    <span class="meta-item">创建时间: ${createdAt}</span>
                 </div>
                 ${tagsHtml}
                 <div class="clip-detail">
-                    ${analysisHtml}
-                    ${contentHtml}
+                    <div class="content-section">
+                        <h4>原文</h4>
+                        <div class="content-text truncated">${escapeHtml(originalContent)}</div>
+                        <button class="copy-btn" onclick="copyToClipboard('${escapeJs(originalContent)}')">
+                            📋 复制原文
+                        </button>
+                    </div>
+                    ${analysisContent ? `
+                    <div class="content-section">
+                        <h4>AI分析</h4>
+                        <div class="markdown-content" id="analysis-content-${clip.id}"></div>
+                        <button class="btn-secondary" style="margin-top: 12px;" onclick="generateDivergentSummary(${clip.id})">
+                            🔄 发散性总结
+                        </button>
+                    </div>
+                    <div class="content-section" id="divergent-summary-${clip.id}" style="display: none;">
+                        <h4>发散性总结</h4>
+                        <div class="divergent-content markdown-content" id="divergent-content-${clip.id}">
+                            <p>生成中...</p>
+                        </div>
+                        <button class="copy-btn" onclick="copyToClipboard(document.getElementById('divergent-content-${clip.id}').textContent)">
+                            📋 复制总结
+                        </button>
+                    </div>
+                    ` : `
+                    <div class="content-section">
+                        <h4>AI分析</h4>
+                        <div class="markdown-content" style="text-align: center; padding: 20px;">
+                            <p style="color: var(--text-secondary);">内容处理中...</p>
+                            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 10px;">AI正在分析内容，请稍候</p>
+                        </div>
+                    </div>
+                    `}
                 </div>
             `;
+            
+            if (analysisContent) {
+                console.log('===== 剪藏ID:', clip.id, '的分析内容调试 =====');
+                console.log('原始分析内容:', analysisContent);
+                console.log('原始内容长度:', analysisContent.length);
+                
+                const analysisContentDiv = clipItem.querySelector(`#analysis-content-${clip.id}`);
+                if (analysisContentDiv) {
+                    try {
+                        let cleanContent = analysisContent;
+                        
+                        if (cleanContent.startsWith('```markdown')) {
+                            cleanContent = cleanContent.substring('```markdown'.length);
+                        }
+                        if (cleanContent.startsWith('```')) {
+                            cleanContent = cleanContent.substring(3);
+                        }
+                        if (cleanContent.endsWith('```')) {
+                            cleanContent = cleanContent.substring(0, cleanContent.length - 3);
+                        }
+                        cleanContent = cleanContent.trim();
+                        
+                        console.log('清理后的内容:', cleanContent);
+                        
+                        const renderedHtml = marked.parse(cleanContent);
+                        console.log('marked渲染后的HTML:', renderedHtml);
+                        analysisContentDiv.innerHTML = renderedHtml;
+                        console.log('DOM元素的innerHTML:', analysisContentDiv.innerHTML);
+                    } catch (e) {
+                        console.error('Markdown渲染失败:', e);
+                        analysisContentDiv.textContent = analysisContent;
+                    }
+                }
+            }
             
             return clipItem;
         }
@@ -2308,20 +2419,95 @@
             const clipItem = btn.closest('.clip-item');
             const detail = clipItem.querySelector('.clip-detail');
             const icon = btn.querySelector('.icon');
+            const text = btn.querySelector('.text');
+            
+            detail.classList.toggle('expanded');
+            btn.classList.toggle('expanded');
             
             if (detail.classList.contains('expanded')) {
-                detail.classList.remove('expanded');
-                btn.classList.remove('expanded');
-                icon.textContent = '▼';
-                btn.textContent = '展开详情 ';
-                btn.appendChild(icon);
+                text.textContent = '收起';
             } else {
-                detail.classList.add('expanded');
-                btn.classList.add('expanded');
-                icon.textContent = '▲';
-                btn.textContent = '收起详情 ';
-                btn.appendChild(icon);
+                text.textContent = '展开';
             }
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function escapeJs(text) {
+            if (!text) return '';
+            return text.replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+        }
+        
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('已复制到剪贴板！');
+            }).catch(err => {
+                console.error('复制失败:', err);
+                alert('复制失败，请手动复制');
+            });
+        }
+        
+        async function generateDivergentSummary(clipId) {
+            const divergentSection = document.getElementById(`divergent-summary-${clipId}`);
+            const divergentContent = document.getElementById(`divergent-content-${clipId}`);
+            
+            divergentSection.style.display = 'block';
+            divergentContent.innerHTML = '<p>生成中...</p>';
+            
+            try {
+                const response = await axios.get(`${API_BASE_URL}/divergent-summary/${clipId}`);
+                const summary = response.data;
+                
+                const markdownHtml = marked.parse(summary);
+                typeWriterEffect(divergentContent, markdownHtml);
+            } catch (error) {
+                console.error('生成发散性总结失败:', error);
+                divergentContent.innerHTML = '<p style="color: var(--secondary);">生成失败，请稍后重试</p>';
+            }
+        }
+        
+        function typeWriterEffect(element, html) {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            const fullText = tempDiv.textContent || tempDiv.innerText;
+            
+            element.innerHTML = '<p>生成中...</p>';
+            
+            let index = 0;
+            element.innerHTML = '';
+            
+            element.innerHTML = html;
+            element.style.opacity = '0';
+            
+            setTimeout(() => {
+                element.style.transition = 'opacity 1s ease-out';
+                element.style.opacity = '1';
+            }, 100);
+            
+            element.style.animation = 'none';
+            
+            const textOnly = fullText;
+            let charIndex = 0;
+            element.innerHTML = '';
+            
+            function typeChar() {
+                if (charIndex < textOnly.length) {
+                    element.textContent = textOnly.substring(0, charIndex + 1);
+                    charIndex++;
+                    setTimeout(typeChar, 20);
+                } else {
+                    setTimeout(() => {
+                        element.innerHTML = html;
+                    }, 300);
+                }
+            }
+            
+            typeChar();
         }
         
         function toggleTags(btn, tagsStr) {
@@ -2371,26 +2557,64 @@
         }
         
         async function organizeContent() {
+            const organizeBtn = document.getElementById('organize-btn');
+            const originalText = organizeBtn.textContent;
+            
             try {
+                // 显示加载状态
+                showLoading('正在整理内容...', '正在处理剪藏内容，请稍候...');
+                
+                // 禁用按钮
+                organizeBtn.disabled = true;
+                organizeBtn.classList.add('btn-loading');
+                
                 const response = await axios.post(`${API_BASE_URL}/organize`);
+                
                 if (response.data.status === 'success') {
                     showNotification('内容整理完成！', true);
                 }
             } catch (error) {
                 console.error('整理内容失败:', error);
-                alert('整理失败，请稍后重试');
+                showError('整理失败', error.response?.data?.message || '请稍后重试');
+            } finally {
+                // 隐藏加载状态
+                hideLoading();
+                
+                // 恢复按钮状态
+                organizeBtn.disabled = false;
+                organizeBtn.classList.remove('btn-loading');
+                organizeBtn.textContent = originalText;
             }
         }
         
         async function generateWeeklyReport() {
+            const reportBtn = document.getElementById('weekly-report-btn');
+            const originalText = reportBtn.textContent;
+            
             try {
+                // 显示加载状态
+                showLoading('正在生成周报...', '正在分析本周内容，请稍候...');
+                
+                // 禁用按钮
+                reportBtn.disabled = true;
+                reportBtn.classList.add('btn-loading');
+                
                 const response = await axios.post(`${API_BASE_URL}/weekly-report`);
+                
                 if (response.data.status === 'success') {
                     showNotification('周报生成完成！', true);
                 }
             } catch (error) {
                 console.error('生成周报失败:', error);
-                alert('生成失败，请稍后重试');
+                showError('生成失败', error.response?.data?.message || '请稍后重试');
+            } finally {
+                // 隐藏加载状态
+                hideLoading();
+                
+                // 恢复按钮状态
+                reportBtn.disabled = false;
+                reportBtn.classList.remove('btn-loading');
+                reportBtn.textContent = originalText;
             }
         }
         
@@ -2409,8 +2633,85 @@
         }
         
         function openStorageFolder() {
-            // 这里可以调用后端API打开存储目录
-            console.log('打开存储目录');
+            // 调用后端API打开存储目录
+            axios.post('http://127.0.0.1:8080/api/clip/open-storage-folder')
+                .then(response => {
+                    if (response.data.status === 'success') {
+                        alert('已尝试打开存储目录，如未打开请手动访问: ' + response.data.storagePath);
+                    } else {
+                        alert(response.data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('打开存储目录失败:', error);
+                    alert('打开存储目录失败，请稍后重试');
+                });
+        }
+
+        // 加载状态管理函数
+        function showLoading(text = '处理中...', subtext = '请稍候...') {
+            const overlay = document.getElementById('loading-overlay');
+            const loadingText = document.getElementById('loading-text');
+            const loadingSubtext = document.getElementById('loading-subtext');
+            
+            loadingText.textContent = text;
+            loadingSubtext.textContent = subtext;
+            overlay.style.display = 'flex';
+        }
+
+        function hideLoading() {
+            const overlay = document.getElementById('loading-overlay');
+            overlay.style.display = 'none';
+        }
+
+        // 错误提示函数
+        function showError(title, message) {
+            // 创建错误提示
+            const errorDiv = document.createElement('div');
+            errorDiv.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: rgba(239, 68, 68, 0.95);
+                color: white;
+                padding: 16px 24px;
+                border-radius: var(--radius);
+                box-shadow: var(--shadow-hover);
+                z-index: 3000;
+                animation: slideIn 0.3s ease-out;
+                max-width: 400px;
+            `;
+            
+            errorDiv.innerHTML = `
+                <div style="display: flex; align-items: flex-start; gap: 12px;">
+                    <div style="font-size: 1.5rem; flex-shrink: 0;">⚠️</div>
+                    <div style="flex: 1;">
+                        <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 600;">${title}</h4>
+                        <p style="margin: 0; font-size: 0.95rem; opacity: 0.9;">${message}</p>
+                        <button onclick="this.parentElement.parentElement.remove()" style="
+                            margin-top: 12px;
+                            background: rgba(255, 255, 255, 0.2);
+                            border: none;
+                            color: white;
+                            padding: 6px 12px;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-size: 0.85rem;
+                            transition: background 0.3s ease;
+                        ">关闭</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(errorDiv);
+            
+            // 3秒后自动消失
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.style.animation = 'slideOut 0.3s ease-in';
+                    setTimeout(() => errorDiv.remove(), 300);
+                }
+            }, 5000);
         }
         
         function startRefreshCheck() {
