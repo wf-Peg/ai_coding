@@ -12,6 +12,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/todo")
+@CrossOrigin(origins = {"http://127.0.0.1:3000", "http://localhost:3000"})  // 允许前端跨域请求
 public class TodoController {
 
     private final TodoService todoService;
