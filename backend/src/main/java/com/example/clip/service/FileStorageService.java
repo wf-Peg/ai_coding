@@ -140,6 +140,7 @@ public class FileStorageService {
         Files.walk(storagePath)
                 .filter(Files::isRegularFile)
                 .filter(path -> path.toString().endsWith(".json"))
+                .filter(path -> !path.toString().contains("todolist")) // 过滤掉待办事项目录
                 .forEach(files::add);
         return files;
     }

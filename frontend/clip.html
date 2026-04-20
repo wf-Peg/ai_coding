@@ -2159,7 +2159,15 @@
                 const filteredClips = clips.filter(clip => {
                     // 根据特征判断是否为待办事项数据
                     // 待办事项通常有特定的类型或内容特征
-                    return !clip.type || clip.type !== 'todo' && !clip.content?.includes('前完成') && !clip.content?.includes('待办');
+                    return !clip.type || 
+                           clip.type !== 'todo' && 
+                           !clip.content?.includes('前完成') && 
+                           !clip.content?.includes('待办') &&
+                           !clip.content?.includes('TodoContent') &&
+                           !clip.title &&
+                           !clip.priority &&
+                           !clip.deadline &&
+                           !clip.completed;
                 });
 
                 console.log('===== 调试信息 =====');
