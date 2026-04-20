@@ -47,5 +47,7 @@ clip:
     path: ./clip-storage  # 剪藏文件存放目录
   # 整理存储配置
   organized-storage:
-    path: ./clip-organized  # 总结文件存放目录
+    path: ./clip-organized  # 日报总结文件存放目录
+  clip-weekly-report:
+    path: ./weeklyReport   # 周报文件存放目录
 
