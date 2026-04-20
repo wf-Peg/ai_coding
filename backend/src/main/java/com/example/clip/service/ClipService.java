@@ -3,7 +3,7 @@ package com.example.clip.service;
 import com.example.clip.controller.ClipController;
 import com.example.clip.core.AiService;
 import com.example.clip.model.ClipContent;
-import com.example.clip.utils.ImageUtils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -70,29 +70,11 @@ public class ClipService {
                         // 解码Base64图片数据
                         byte[] imageBytes = Base64.getDecoder().decode(imageData.getBase64Data());
                         
-                        // 验证图片文件类型
-                        if (!ImageUtils.isValidImageFile(imageData.getFileName())) {
-                            logger.warn("Invalid image file type: {}", imageData.getFileName());
-                            continue;
-                        }
-                        
-                        // 验证图片大小（限制10MB）
-                        if (!ImageUtils.isWithinSizeLimit(imageBytes, 10 * 1024 * 1024)) {
-                            logger.warn("Image too large: {}", imageData.getFileName());
-                            continue;
-                        }
-                        
-                        // 存储图片并获取相对路径
-                        String imagePath = ImageUtils.storeImage(imageBytes, imageData.getFileName(), category, noteFileName);
-                        
-                        // 将图片路径添加到clipContent
-                        clipContent.getImagePaths().add(imagePath);
-                        
-                        // 在原文中添加图片引用
+                        // 直接添加图片数据到内容中
                         if (clipContent.getContent() == null) {
                             clipContent.setContent("");
                         }
-                        clipContent.setContent(clipContent.getContent() + "\n![图片](" + imagePath + ")\n");
+                        clipContent.setContent(clipContent.getContent() + "\n![图片](data:image/png;base64," + imageData.getBase64Data() + ")\n");
                     }
                 }
             } catch (Exception e) {
