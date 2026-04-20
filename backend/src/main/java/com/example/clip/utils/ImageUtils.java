@@ -1,135 +1,32 @@
 package com.example.clip.utils;
 
-import com.example.clip.core.AiService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 
 /**
- * 图片处理工具类
- * 负责图片的存储和路径生成
+ * 图片工具类
+ * 处理图片的存储、验证等操作
  */
 public class ImageUtils {
 
     private static final Logger logger = LoggerFactory.getLogger(ImageUtils.class);
+    private static String baseStoragePath = "./clip-storage";
 
     /**
-     * 基础存储路径
+     * 设置基础存储路径
+     * @param path 基础存储路径
      */
-    private static final String BASE_STORAGE_PATH = "./clip-organized";
-
-    /**
-     * 存储图片文件
-     * @param imageData Base64编码的图片数据
-     * @param originalFileName 原始文件名
-     * @param category 分类
-     * @param noteFileName 笔记文件名
-     * @return 图片的相对路径
-     * @throws IOException IO异常
-     */
-    public static String storeImage(byte[] imageData, String originalFileName, String category, String noteFileName) throws IOException {
-        // 生成唯一的文件名
-        String fileName = generateFileName(originalFileName);
-        
-        // 生成存储路径
-        Path storagePath = generateStoragePath(category, noteFileName);
-        
-        // 创建目录结构
-        if (!Files.exists(storagePath)) {
-            Files.createDirectories(storagePath);
-        }
-        
-        // 保存图片文件
-        Path imagePath = storagePath.resolve(fileName);
-        Files.write(imagePath, imageData);
-        
-        // 生成相对路径
-        return generateRelativePath(category, noteFileName, fileName);
-    }
-
-    /**
-     * 生成唯一的文件名
-     * 格式：file-YYYYMMDDHHmmssSSS.ext
-     * @param originalFileName 原始文件名
-     * @return 生成的文件名
-     */
-    private static String generateFileName(String originalFileName) {
-        // 提取文件扩展名
-        String extension = "png";
-        if (originalFileName != null && originalFileName.contains(".")) {
-            extension = originalFileName.substring(originalFileName.lastIndexOf(".") + 1).toLowerCase();
-        }
-        
-        // 生成时间戳
-        String timestamp = new SimpleDateFormat("yyyyMMddHHmmssSSS").format(new Date());
-        
-        return "file-" + timestamp + "." + extension;
-    }
-
-    /**
-     * 生成存储路径
-     * 格式：./clip-organized/{category}/assets
-     * @param category 分类
-     * @param noteFileName 笔记文件名
-     * @return 存储路径
-     */
-    private static Path generateStoragePath(String category, String noteFileName) {
-        // 获取分类目录
-        String categoryDir = getCategoryDir(category);
-        
-        // 构建完整路径：./clip-organized/{category}/assets
-        return Paths.get(BASE_STORAGE_PATH, categoryDir, "assets");
-    }
-
-    /**
-     * 生成相对路径
-     * 格式：assets/file-YYYYMMDDHHmmssSSS.ext
-     * @param category 分类
-     * @param noteFileName 笔记文件名
-     * @param fileName 文件名
-     * @return 相对路径
-     */
-    private static String generateRelativePath(String category, String noteFileName, String fileName) {
-        return "assets/" + fileName;
-    }
-
-    /**
-     * 将category value映射为目录路径
-     * 例如: "work-company" → "work/公司事务"
-     *       "work" → "work"
-     *       null/空 → "default"
-     * @param category 分类值
-     * @return 目录路径
-     */
-    private static String getCategoryDir(String category) {
-        String cat = (category != null && !category.isEmpty()) ? category : "default";
-
-        for (Map<String, Object> topCat : AiService.CATEGORY_TREE) {
-            String topValue = topCat.get("value").toString();
-
-            if (topValue.equals(cat)) {
-                return topValue;
-            }
-
-            List<Map<String, Object>> children = (List<Map<String, Object>>) topCat.get("children");
-            if (children != null) {
-                for (Map<String, Object> child : children) {
-                    if (child.get("value").toString().equals(cat)) {
-                        return topValue + "/" + child.get("label").toString();
-                    }
-                }
-            }
-        }
-
-        return cat;
+    public static void setBaseStoragePath(String path) {
+        baseStoragePath = path;
     }
 
     /**
@@ -141,20 +38,81 @@ public class ImageUtils {
         if (fileName == null) {
             return false;
         }
-        
-        String extension = fileName.toLowerCase();
-        return extension.endsWith(".jpg") || extension.endsWith(".jpeg") || 
-               extension.endsWith(".png") || extension.endsWith(".gif") || 
-               extension.endsWith(".webp");
+        String[] validExtensions = {"jpg", "jpeg", "png", "gif", "webp", "bmp"};
+        String extension = fileName.toLowerCase().substring(fileName.lastIndexOf('.') + 1);
+        for (String validExt : validExtensions) {
+            if (validExt.equals(extension)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
      * 验证图片大小
-     * @param imageData 图片数据
+     * @param imageBytes 图片字节数组
      * @param maxSize 最大大小（字节）
      * @return 是否在大小限制内
      */
-    public static boolean isWithinSizeLimit(byte[] imageData, long maxSize) {
-        return imageData.length <= maxSize;
+    public static boolean isWithinSizeLimit(byte[] imageBytes, int maxSize) {
+        return imageBytes.length <= maxSize;
+    }
+
+    /**
+     * 存储图片
+     * @param imageBytes 图片字节数组
+     * @param fileName 文件名
+     * @param category 分类
+     * @param noteFileName 笔记文件名
+     * @return 图片相对路径
+     */
+    public static String storeImage(byte[] imageBytes, String fileName, String category, String noteFileName) {
+        try {
+            // 创建图片存储目录
+            String dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+            Path imageDir = Paths.get(baseStoragePath, "images", category, dateStr);
+            Files.createDirectories(imageDir);
+
+            // 生成图片文件名
+            String timestamp = String.valueOf(System.currentTimeMillis());
+            String extension = fileName.substring(fileName.lastIndexOf('.'));
+            String imageFileName = noteFileName + "_" + timestamp + extension;
+
+            // 存储图片
+            Path imagePath = imageDir.resolve(imageFileName);
+            try (FileOutputStream fos = new FileOutputStream(imagePath.toFile())) {
+                fos.write(imageBytes);
+            }
+
+            // 返回相对路径
+            return "./images/" + category + "/" + dateStr + "/" + imageFileName;
+        } catch (IOException e) {
+            logger.error("Failed to store image: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to store image", e);
+        }
+    }
+
+    /**
+     * 获取图片存储路径
+     * @param relativePath 相对路径
+     * @return 绝对路径
+     */
+    public static String getImagePath(String relativePath) {
+        return Paths.get(baseStoragePath, relativePath.replace("./", "")).toString();
+    }
+
+    /**
+     * 删除图片
+     * @param relativePath 相对路径
+     * @return 是否删除成功
+     */
+    public static boolean deleteImage(String relativePath) {
+        try {
+            Path imagePath = Paths.get(baseStoragePath, relativePath.replace("./", ""));
+            return Files.deleteIfExists(imagePath);
+        } catch (IOException e) {
+            logger.error("Failed to delete image: {}", e.getMessage(), e);
+            return false;
+        }
     }
 }
