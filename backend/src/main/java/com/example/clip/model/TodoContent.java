@@ -95,6 +95,7 @@ public class TodoContent {
         return createdAt;
     }
 
+    @JsonIgnore
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
     }
