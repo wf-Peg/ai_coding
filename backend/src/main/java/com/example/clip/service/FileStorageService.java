@@ -52,7 +52,7 @@ public class FileStorageService {
             }
             Files.createDirectories(storagePath.resolve("default"));
             // 创建待办事项目录
-            Files.createDirectories(storagePath.resolve("todolist"));
+            Files.createDirectories(storagePath.resolve("todoList"));
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -140,7 +140,7 @@ public class FileStorageService {
         Files.walk(storagePath)
                 .filter(Files::isRegularFile)
                 .filter(path -> path.toString().endsWith(".json"))
-                .filter(path -> !path.toString().contains("todolist")) // 过滤掉待办事项目录
+                .filter(path -> !path.toString().contains("todoList")) // 过滤掉待办事项目录
                 .forEach(files::add);
         return files;
     }
@@ -323,7 +323,7 @@ public class FileStorageService {
      */
     private Path getTodoDateFilePath() {
         String dateStr = LocalDate.now().format(DATE_FORMATTER);
-        return storagePath.resolve("todolist").resolve(dateStr + ".json");
+        return storagePath.resolve("todoList").resolve(dateStr + ".json");
     }
 
     /**
@@ -409,7 +409,7 @@ public class FileStorageService {
     public List<TodoContent> getAllTodos() {
         List<TodoContent> allTodos = new ArrayList<>();
         try {
-            Path todoPath = storagePath.resolve("todolist");
+            Path todoPath = storagePath.resolve("todoList");
             if (!Files.exists(todoPath)) {
                 return allTodos;
             }
@@ -432,7 +432,7 @@ public class FileStorageService {
      */
     public TodoContent getTodoById(Long id) {
         try {
-            Path todoPath = storagePath.resolve("todolist");
+            Path todoPath = storagePath.resolve("todoList");
             if (!Files.exists(todoPath)) {
                 return null;
             }
@@ -456,7 +456,7 @@ public class FileStorageService {
      */
     public void deleteTodo(Long id) {
         try {
-            Path todoPath = storagePath.resolve("todolist");
+            Path todoPath = storagePath.resolve("todoList");
             if (!Files.exists(todoPath)) {
                 return;
             }
