@@ -5,12 +5,22 @@ import com.example.clip.model.ClipContent;
 import com.example.clip.service.ClipService;
 import com.example.clip.service.ContentOrganizeService;
 import com.example.clip.service.SearchService;
+import com.example.clip.service.WeeklyReportService;
+import com.example.clip.utils.ImageUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 
@@ -29,6 +39,7 @@ public class ClipController {
     private final SearchService searchService;  // 搜索服务
     private final AiService aiService;  // AI服务
     private final ContentOrganizeService contentOrganizeService;  // 内容整理服务
+    private final WeeklyReportService weeklyReportService;  // 周报服务
 
     /**
      * 构造函数
@@ -36,13 +47,15 @@ public class ClipController {
      * @param searchService 搜索服务
      * @param aiService AI服务
      * @param contentOrganizeService 内容整理服务
+     * @param weeklyReportService 周报服务
      */
     @Autowired
-    public ClipController(ClipService clipService, SearchService searchService, AiService aiService, ContentOrganizeService contentOrganizeService) {
+    public ClipController(ClipService clipService, SearchService searchService, AiService aiService, ContentOrganizeService contentOrganizeService, WeeklyReportService weeklyReportService) {
         this.clipService = clipService;
         this.searchService = searchService;
         this.aiService = aiService;
         this.contentOrganizeService = contentOrganizeService;
+        this.weeklyReportService = weeklyReportService;
     }
 
     /**
@@ -192,7 +205,7 @@ public class ClipController {
         if (clip == null) {
             return ResponseEntity.notFound().build();
         }
-        
+
         String summary = aiService.generateDivergentSummary(clip.getContent(), clip.getCategory(), clip.getTags());
         return ResponseEntity.ok(summary);
     }
@@ -219,6 +232,72 @@ public class ClipController {
         status.put("message", contentOrganizeService.getLastOrganizeMessage());
         status.put("storagePath", contentOrganizeService.getOrganizedStoragePath());
         return ResponseEntity.ok(status);
+    }
+
+    /**
+     * 打开存储目录
+     * 在服务器端打开存储目录
+     * @return 操作结果
+     */
+    @PostMapping("/open-storage-folder")
+    public ResponseEntity<Map<String, Object>> openStorageFolder() {
+        try {
+            String storagePath = contentOrganizeService.getOrganizedStoragePath();
+            Path folderPath = Paths.get(storagePath);
+
+            if (!Files.exists(folderPath)) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "status", "error",
+                        "message", "存储目录不存在"
+                ));
+            }
+
+            // 根据操作系统打开文件夹
+            String os = System.getProperty("os.name").toLowerCase();
+            ProcessBuilder processBuilder;
+
+            if (os.contains("win")) {
+                processBuilder = new ProcessBuilder("explorer.exe", storagePath);
+            } else if (os.contains("mac")) {
+                processBuilder = new ProcessBuilder("open", storagePath);
+            } else {
+                // Linux
+                processBuilder = new ProcessBuilder("xdg-open", storagePath);
+            }
+
+            processBuilder.start();
+
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "message", "已尝试打开存储目录",
+                    "storagePath", storagePath
+            ));
+        } catch (Exception e) {
+            log.error("Failed to open storage folder: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "打开存储目录失败: " + e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * 周报功能路由
+     * 调用周报服务生成周报
+     */
+    @PostMapping("/weekly-report")
+    public ResponseEntity<Map<String, Object>> generateWeeklyReport() {
+        try {
+            log.info("[API] /weekly-report called (clip controller)");
+            Map<String, Object> result = weeklyReportService.generateWeeklyReport();
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("Failed to generate weekly report: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", e.getMessage()
+            ));
+        }
     }
 
     // Request and Response classes

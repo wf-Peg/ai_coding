@@ -41,13 +41,13 @@
             --shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
             --transition: all 0.3s ease;
         }
-        
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: 'Noto Sans SC', sans-serif;
             background: var(--background);
@@ -56,17 +56,17 @@
             min-height: 100vh;
             overflow-x: hidden;
         }
-        
+
         @keyframes neonFlicker {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.8; }
         }
-        
+
         @keyframes scanline {
             0% { transform: translateY(-100%); }
             100% { transform: translateY(100vh); }
         }
-        
+
         /* 现代简洁风格的弹窗 */
         .modal {
             position: fixed;
@@ -80,7 +80,7 @@
             justify-content: center;
             z-index: 1000;
         }
-        
+
         .modal-content {
             background: var(--surface);
             border-radius: var(--radius);
@@ -89,7 +89,7 @@
             box-shadow: var(--shadow-hover);
             animation: slideIn 0.3s ease-out;
         }
-        
+
         .modal-header {
             padding: 20px 24px;
             border-bottom: 1px solid var(--border);
@@ -97,14 +97,14 @@
             justify-content: space-between;
             align-items: center;
         }
-        
+
         .modal-header h3 {
             font-size: 1.2rem;
             font-weight: 600;
             color: var(--text);
             margin: 0;
         }
-        
+
         .modal-close {
             background: transparent;
             border: none;
@@ -119,23 +119,23 @@
             align-items: center;
             justify-content: center;
         }
-        
+
         .modal-close:hover {
             color: var(--text);
             transform: scale(1.1);
         }
-        
+
         .modal-body {
             padding: 24px;
         }
-        
+
         .modal-body p {
             font-size: 1rem;
             line-height: 1.6;
             color: var(--text);
             margin: 0;
         }
-        
+
         .modal-footer {
             padding: 20px 24px;
             border-top: 1px solid var(--border);
@@ -143,12 +143,12 @@
             gap: 12px;
             justify-content: flex-end;
         }
-        
+
         .modal-footer button {
             flex: 1;
             min-width: 120px;
         }
-        
+
         .main-content-area {
             max-width: 1000px;
             margin: 0 auto;
@@ -169,109 +169,109 @@
             animation: fadeInDown 0.8s ease-out;
             position: relative;
         }
-        
+
         header h1 {
             text-align: center;
         }
-        
+
         header .subtitle {
             text-align: center;
             margin-bottom: 10px;
         }
-        
+
         .toggle-container {
-    margin-top: 16px;
-    margin-bottom: 16px;
-    padding-right: 4%;
-    position: relative;
-    text-align: right;
-    gap: 12px;
-}
+            margin-top: 16px;
+            margin-bottom: 16px;
+            padding-right: 4%;
+            position: relative;
+            text-align: right;
+            gap: 12px;
+        }
 
-.toggle-btn {
-    width: auto;
-    height: auto;
-    border: none;
-    background: linear-gradient(135deg, var(--primary), var(--primary-light));
-    border-radius: 12px;
-    cursor: pointer;
-    transition: var(--transition);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 12px 24px;
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: #ffffff;
-    white-space: nowrap;
-    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
-    letter-spacing: 0.02em;
-}
+        .toggle-btn {
+            width: auto;
+            height: auto;
+            border: none;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            border-radius: 12px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 24px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #ffffff;
+            white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+            letter-spacing: 0.02em;
+        }
 
-.toggle-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.35);
-}
+        .toggle-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.35);
+        }
 
-.toggle-btn:active {
-    transform: translateY(0);
-    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
-}
+        .toggle-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+        }
 
-.toggle-btn.active {
-    background: linear-gradient(135deg, var(--accent), #34d399);
-    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
-}
+        .toggle-btn.active {
+            background: linear-gradient(135deg, var(--accent), #34d399);
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+        }
 
-.toggle-btn.active:hover {
-    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
-}
-        
+        .toggle-btn.active:hover {
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
+        }
+
         @media (max-width: 768px) {
             .toggle-container {
                 padding-right: 2%;
             }
-            
+
             .toggle-btn {
                 padding: 5px 10px;
                 font-size: 0.75rem;
             }
         }
-        
+
         @media (max-width: 480px) {
             .toggle-container {
                 padding-right: 1%;
             }
-            
+
             .toggle-btn {
                 padding: 4px 8px;
                 font-size: 0.7rem;
             }
         }
-        
+
         .toggle-btn:hover {
             border-color: var(--primary);
             background: var(--surface-hover);
             color: var(--primary);
         }
-        
+
         .toggle-btn.active {
             border-color: var(--primary);
             background: var(--primary);
             color: white;
         }
-        
+
         .toggle-text {
             transition: var(--transition);
         }
-        
+
         .tags-display {
             display: flex;
             flex-direction: column;
             gap: 8px;
         }
-        
+
         .tags-collapsed,
         .tags-all {
             display: flex;
@@ -279,25 +279,25 @@
             gap: 8px;
             align-items: center;
         }
-        
+
         .tag-display-item {
             display: inline-block;
         }
-        
+
         .tag-expand-btn:hover {
             background: var(--border);
             color: var(--text);
         }
-        
 
-        
+
+
         h1 {
             font-size: 2.5rem;
             font-weight: 700;
             color: var(--primary);
             margin-bottom: 16px;
         }
-        
+
         .subtitle {
             font-size: 1.1rem;
             color: var(--text-secondary);
@@ -306,7 +306,7 @@
             font-weight: 400;
             line-height: 1.5;
         }
-        
+
         .clip-form {
             background: var(--surface);
             padding: 32px;
@@ -315,18 +315,18 @@
             margin-bottom: 40px;
             animation: fadeInUp 0.8s ease-out 0.2s both;
         }
-        
+
         .clip-form h2 {
             font-size: 1.5rem;
             font-weight: 600;
             color: var(--primary);
             margin-bottom: 24px;
         }
-        
+
         .form-group {
             margin-bottom: 24px;
         }
-        
+
         label {
             display: block;
             margin-bottom: 10px;
@@ -335,7 +335,7 @@
             font-size: 0.95rem;
             transition: var(--transition);
         }
-        
+
         input[type="text"],
         textarea,
         select {
@@ -349,24 +349,24 @@
             font-family: inherit;
             transition: var(--transition);
         }
-        
+
         input[type="text"]:focus,
         textarea:focus,
         select:focus {
             outline: none;
             border-color: var(--miyazaki-green);
-            box-shadow: 
-                0 0 0 2px rgba(74, 124, 89, 0.2),
-                0 4px 8px rgba(74, 124, 89, 0.1);
+            box-shadow:
+                    0 0 0 2px rgba(74, 124, 89, 0.2),
+                    0 4px 8px rgba(74, 124, 89, 0.1);
             background: var(--surface-hover);
         }
-        
+
         textarea {
             resize: vertical;
             min-height: 140px;
             line-height: 1.6;
         }
-        
+
         select {
             cursor: pointer;
             appearance: none;
@@ -375,14 +375,14 @@
             background-position: right 20px center;
             background-size: 16px;
         }
-        
+
         .form-actions {
             display: flex;
             gap: 16px;
             margin-top: 32px;
             flex-wrap: wrap;
         }
-        
+
         button {
             flex: 1;
             min-width: 140px;
@@ -398,49 +398,49 @@
             justify-content: center;
             gap: 8px;
         }
-        
+
         .btn-primary {
             background: var(--primary);
             color: white;
         }
-        
+
         .btn-primary:hover {
             background: var(--primary-light);
             transform: translateY(-2px);
             box-shadow: var(--shadow-hover);
         }
-        
+
         .btn-primary:active {
             transform: translateY(0);
         }
-        
+
         .btn-secondary {
             background: var(--surface);
             color: var(--text);
             border: 1px solid var(--border);
         }
-        
+
         .btn-secondary:hover {
             background: var(--surface-hover);
             transform: translateY(-2px);
             box-shadow: var(--shadow-hover);
         }
-        
+
         .btn-secondary:active {
             transform: translateY(0);
         }
-        
+
         .clip-list {
             animation: fadeInUp 0.8s ease-out 0.4s both;
         }
-        
+
         .list-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 28px;
         }
-        
+
         h2 {
             font-family: 'Noto Serif SC', serif;
             font-size: 1.8rem;
@@ -450,7 +450,7 @@
             align-items: center;
             gap: 12px;
         }
-        
+
         h2::before {
             content: '';
             width: 4px;
@@ -458,7 +458,7 @@
             background: linear-gradient(to bottom, var(--primary), var(--secondary));
             border-radius: 2px;
         }
-        
+
         .clip-count {
             background: linear-gradient(135deg, var(--primary), var(--accent));
             color: white;
@@ -468,13 +468,13 @@
             font-weight: 600;
             box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
         }
-        
+
         .clip-items {
             display: flex;
             flex-direction: column;
             gap: 24px;
         }
-        
+
         .clip-item {
             background: var(--surface);
             padding: 24px;
@@ -490,13 +490,13 @@
             justify-content: space-between;
             margin-bottom: 12px;
         }
-        
+
         .clip-item:hover {
             transform: translateY(-2px);
             box-shadow: var(--shadow-hover);
             border-color: var(--primary);
         }
-        
+
         .clip-actions {
             position: relative;
             top: 0;
@@ -509,7 +509,7 @@
             max-width: 25%;
             margin-left: auto;
         }
-        
+
         .clip-summary {
             font-size: 1rem;
             line-height: 1.7;
@@ -518,7 +518,7 @@
             font-weight: 500;
             padding-right: 0;
         }
-        
+
         .clip-meta {
             display: flex;
             flex-wrap: wrap;
@@ -529,7 +529,7 @@
             padding-bottom: 16px;
             border-bottom: 1px solid var(--border);
         }
-        
+
         .meta-item {
             display: flex;
             align-items: center;
@@ -539,7 +539,7 @@
             border-radius: 16px;
             border: 1px solid var(--border);
         }
-        
+
         .meta-item::before {
             display: none;
         }
@@ -558,7 +558,7 @@
             font-weight: 600;
             letter-spacing: 0.02em;
         }
-        
+
         .expand-btn {
             background: var(--surface);
             color: var(--text);
@@ -575,31 +575,31 @@
             white-space: nowrap;
             flex: 0 1 auto;
         }
-        
+
         .expand-btn:hover {
             background: var(--surface-hover);
             border-color: var(--primary);
             transform: translateY(-1px);
         }
-        
+
         .expand-btn .icon {
             transition: transform var(--transition);
         }
-        
+
         .expand-btn.expanded .icon {
             transform: rotate(180deg);
         }
-        
+
         .clip-detail {
             margin-top: 20px;
             display: none;
             animation: slideDown 0.3s ease-out;
         }
-        
+
         .clip-detail.expanded {
             display: block;
         }
-        
+
         .content-section {
             margin-bottom: 24px;
             padding: 20px;
@@ -608,7 +608,7 @@
             border: 1px solid var(--border);
             box-shadow: var(--shadow);
         }
-        
+
         .content-section h4 {
             margin: 0 0 12px 0;
             font-size: 0.9rem;
@@ -618,7 +618,7 @@
             align-items: center;
             gap: 8px;
         }
-        
+
         .content-section h4::before {
             content: '';
             width: 3px;
@@ -626,26 +626,26 @@
             background: var(--primary);
             border-radius: 1px;
         }
-        
+
         .content-text {
             font-size: 1rem;
             line-height: 1.6;
             color: var(--text-secondary);
         }
-        
+
         .ai-content {
             font-size: 1rem;
             line-height: 1.6;
             color: var(--text);
         }
-        
+
         /* 确保markdown内容样式优先级更高 - 使用!important */
         .markdown-content {
             font-size: 1rem !important;
             line-height: 1.6 !important;
             color: var(--text) !important;
         }
-        
+
         .markdown-content h1,
         .markdown-content h2,
         .markdown-content h3,
@@ -654,63 +654,63 @@
             color: var(--primary) !important;
             font-family: 'Noto Serif SC', serif !important;
         }
-        
+
         .markdown-content h1 {
             font-size: 1.8rem !important;
             font-weight: 700 !important;
         }
-        
+
         .markdown-content h2 {
             font-size: 1.5rem !important;
             font-weight: 600 !important;
         }
-        
+
         .markdown-content h3 {
             font-size: 1.3rem !important;
             font-weight: 600 !important;
         }
-        
+
         .markdown-content h4 {
             font-size: 1.1rem !important;
             font-weight: 600 !important;
         }
-        
+
         .markdown-content p {
             margin: 10px 0 !important;
             line-height: 1.7 !important;
         }
-        
+
         .markdown-content ul,
         .markdown-content ol {
             margin: 12px 0 !important;
             padding-left: 28px !important;
             list-style-position: outside !important;
         }
-        
+
         .markdown-content ul {
             list-style-type: disc !important;
         }
-        
+
         .markdown-content ol {
             list-style-type: decimal !important;
         }
-        
+
         .markdown-content li {
             margin: 6px 0 !important;
             line-height: 1.6 !important;
         }
-        
+
         .markdown-content strong,
         .markdown-content b {
             font-weight: 600 !important;
             color: var(--primary) !important;
         }
-        
+
         .markdown-content em,
         .markdown-content i {
             font-style: italic !important;
         }
-        
+
         .markdown-content code {
             background-color: rgba(99, 102, 241, 0.2) !important;
             padding: 3px 8px !important;
@@ -719,7 +719,7 @@
             font-size: 0.9em !important;
             color: var(--primary-light) !important;
         }
-        
+
         .markdown-content pre {
             background-color: var(--surface) !important;
             padding: 20px !important;
@@ -728,13 +728,13 @@
             margin: 16px 0 !important;
             border: 1px solid var(--border) !important;
         }
-        
+
         .markdown-content pre code {
             background-color: transparent !important;
             padding: 0 !important;
             color: var(--text-secondary) !important;
         }
-        
+
         .markdown-content blockquote {
             border-left: 4px solid var(--primary) !important;
             padding-left: 20px !important;
@@ -746,12 +746,12 @@
             padding-bottom: 12px !important;
             border-radius: 0 var(--radius) var(--radius) 0 !important;
         }
-        
+
         .markdown-content strong {
             color: var(--primary);
             font-weight: 600;
         }
-        
+
         .markdown-content a {
             color: var(--primary);
             text-decoration: none;
@@ -759,19 +759,19 @@
             transition: var(--transition);
             padding-bottom: 2px;
         }
-        
+
         .markdown-content a:hover {
             color: var(--secondary);
             border-bottom-color: var(--secondary);
         }
-        
+
         .content-text.truncated {
             display: -webkit-box;
             -webkit-line-clamp: 3;
             -webkit-box-orient: vertical;
             overflow: hidden;
         }
-        
+
         .copy-btn {
             background: var(--surface);
             color: var(--text);
@@ -787,13 +787,13 @@
             align-items: center;
             gap: 6px;
         }
-        
+
         .copy-btn:hover {
             background: var(--surface-hover);
             border-color: var(--primary);
             transform: translateY(-1px);
         }
-        
+
         .delete-btn {
             background: var(--surface);
             color: var(--error);
@@ -807,13 +807,13 @@
             white-space: nowrap;
             flex: 0 1 auto;
         }
-        
+
         .delete-btn:hover {
             background: rgba(239, 68, 68, 0.1);
             border-color: var(--error);
             transform: translateY(-1px);
         }
-        
+
         .success-message {
             background: rgba(16, 185, 129, 0.1);
             color: var(--success);
@@ -828,13 +828,13 @@
             align-items: center;
             gap: 12px;
         }
-        
+
         .success-message::before {
             content: '✓';
             font-weight: bold;
             font-size: 1.2rem;
         }
-        
+
         .empty-state {
             text-align: center;
             padding: 80px 20px;
@@ -844,7 +844,7 @@
             border-radius: var(--radius);
             border: 2px dashed var(--border);
         }
-        
+
         .empty-state h3 {
             font-family: 'Noto Serif SC', serif;
             font-size: 1.8rem;
@@ -852,14 +852,14 @@
             color: var(--text);
             font-weight: 600;
         }
-        
+
         .empty-state p {
             font-size: 1.1rem;
             max-width: 400px;
             margin: 0 auto;
             line-height: 1.6;
         }
-        
+
         .tags-container {
             display: flex;
             flex-wrap: wrap;
@@ -867,14 +867,14 @@
             min-height: 50px;
             align-items: flex-start;
         }
-        
+
         .tags-list {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
             flex: 1;
         }
-        
+
         .tag {
             display: inline-flex;
             align-items: center;
@@ -887,12 +887,12 @@
             font-weight: 600;
             transition: var(--transition);
         }
-        
+
         .tag:hover {
             background: var(--primary-light);
             transform: translateY(-1px);
         }
-        
+
         .tag-remove {
             cursor: pointer;
             font-weight: bold;
@@ -900,12 +900,12 @@
             line-height: 1;
             transition: var(--transition);
         }
-        
+
         .tag-remove:hover {
             color: var(--secondary);
             transform: rotate(90deg);
         }
-        
+
         .tag-input {
             flex: 1;
             min-width: 180px;
@@ -920,14 +920,14 @@
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
         }
-        
+
         .tag-input:focus {
             outline: none;
             border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
             background: rgba(30, 41, 59, 0.8);
         }
-        
+
         .tag-input:disabled {
             opacity: 0.5;
             cursor: not-allowed;
@@ -1117,7 +1117,7 @@
         #search-category option[value=""] {
             color: var(--text-secondary);
         }
-        
+
         .markdown-content h1,
         .markdown-content h2,
         .markdown-content h3,
@@ -1126,43 +1126,43 @@
             color: var(--primary);
             font-family: 'Noto Serif SC', serif;
         }
-        
+
         .markdown-content h1 {
             font-size: 1.8rem;
             font-weight: 700;
         }
-        
+
         .markdown-content h2 {
             font-size: 1.5rem;
             font-weight: 600;
         }
-        
+
         .markdown-content h3 {
             font-size: 1.3rem;
             font-weight: 600;
         }
-        
+
         .markdown-content h4 {
             font-size: 1.1rem;
             font-weight: 600;
         }
-        
+
         .markdown-content p {
             margin: 10px 0;
             line-height: 1.7;
         }
-        
+
         .markdown-content ul,
         .markdown-content ol {
             margin: 12px 0;
             padding-left: 28px;
         }
-        
+
         .markdown-content li {
             margin: 6px 0;
             line-height: 1.6;
         }
-        
+
         .markdown-content code {
             background-color: rgba(99, 102, 241, 0.2);
             padding: 3px 8px;
@@ -1171,7 +1171,7 @@
             font-size: 0.9em;
             color: var(--primary-light);
         }
-        
+
         .markdown-content pre {
             background-color: var(--surface);
             padding: 20px;
@@ -1180,13 +1180,13 @@
             margin: 16px 0;
             border: 1px solid var(--border);
         }
-        
+
         .markdown-content pre code {
             background-color: transparent;
             padding: 0;
             color: var(--text-secondary);
         }
-        
+
         .markdown-content blockquote {
             border-left: 4px solid var(--primary);
             padding-left: 20px;
@@ -1198,12 +1198,12 @@
             padding-bottom: 12px;
             border-radius: 0 var(--radius) var(--radius) 0;
         }
-        
+
         .markdown-content strong {
             color: var(--primary);
             font-weight: 600;
         }
-        
+
         .markdown-content a {
             color: var(--primary);
             text-decoration: none;
@@ -1211,12 +1211,12 @@
             transition: var(--transition);
             padding-bottom: 2px;
         }
-        
+
         .markdown-content a:hover {
             color: var(--secondary);
             border-bottom-color: var(--secondary);
         }
-        
+
         @keyframes fadeInDown {
             from {
                 opacity: 0;
@@ -1227,7 +1227,7 @@
                 transform: translateY(0);
             }
         }
-        
+
         @keyframes fadeInUp {
             from {
                 opacity: 0;
@@ -1238,7 +1238,7 @@
                 transform: translateY(0);
             }
         }
-        
+
         @keyframes slideIn {
             from {
                 opacity: 0;
@@ -1249,7 +1249,7 @@
                 transform: translateX(0);
             }
         }
-        
+
         @keyframes slideDown {
             from {
                 opacity: 0;
@@ -1260,13 +1260,13 @@
                 transform: translateY(0);
             }
         }
-        
+
         @keyframes spin {
             to {
                 transform: rotate(360deg);
             }
         }
-        
+
         @keyframes fadeIn {
             from {
                 opacity: 0;
@@ -1275,7 +1275,7 @@
                 opacity: 1;
             }
         }
-        
+
         @keyframes pulse {
             0% {
                 opacity: 1;
@@ -1290,64 +1290,142 @@
                 transform: scale(1);
             }
         }
-        
+
+        /* 加载动画样式 */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            backdrop-filter: blur(3px);
+        }
+
+        .loading-container {
+            background: var(--surface);
+            padding: 32px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-hover);
+            text-align: center;
+            max-width: 400px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--border);
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        .loading-text {
+            font-size: 1rem;
+            color: var(--text);
+            margin-bottom: 8px;
+        }
+
+        .loading-subtext {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        /* 按钮加载状态 */
+        .btn-loading {
+            opacity: 0.7;
+            cursor: not-allowed;
+            position: relative;
+        }
+
+        .btn-loading::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: 12px;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            transform: translateY(-50%);
+        }
+
+        @keyframes slideOut {
+            from {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateX(100%);
+            }
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 30px 20px;
             }
-            
+
             h1 {
                 font-size: 2.8rem;
             }
-            
+
             .clip-form {
                 padding: 24px;
             }
-            
+
             .form-actions {
                 flex-direction: column;
             }
-            
+
             .clip-item {
                 padding: 24px;
             }
-            
+
             .clip-meta {
                 gap: 12px;
             }
-            
+
             .meta-item {
                 font-size: 0.8rem;
                 padding: 3px 10px;
             }
-            
+
             .clip-actions {
                 flex-direction: column;
             }
         }
-        
+
         @media (max-width: 480px) {
             .container {
                 padding: 20px 16px;
             }
-            
+
             h1 {
                 font-size: 2.2rem;
             }
-            
+
             .clip-form {
                 padding: 20px;
             }
-            
+
             .clip-item {
                 padding: 20px;
             }
-            
+
             .tags-container {
                 flex-direction: column;
                 align-items: stretch;
             }
-            
+
             .tag-input {
                 min-width: auto;
             }
@@ -1355,384 +1433,379 @@
     </style>
 </head>
 <body>
-    <!-- 赛博朋克风格的确认弹窗 -->
-        <div id="confirm-modal" class="modal" style="display: none;">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>确认操作</h3>
-                </div>
-                <div class="modal-body">
-                    <p id="confirm-message">确定要删除这个剪藏吗？</p>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn-secondary" onclick="closeConfirmModal()">取消</button>
-                    <button class="btn-primary" id="confirm-btn">确认</button>
-                </div>
-            </div>
+<!-- 赛博朋克风格的确认弹窗 -->
+<div id="confirm-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>确认操作</h3>
         </div>
+        <div class="modal-body">
+            <p id="confirm-message">确定要删除这个剪藏吗？</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" onclick="closeConfirmModal()">取消</button>
+            <button class="btn-primary" id="confirm-btn">确认</button>
+        </div>
+    </div>
+</div>
 
-        <div class="main-content-area">
-            <header>
-                <h1>剪藏</h1>
-                <p class="subtitle">捕捉灵感，智能整理，构建你的个人知识库</p>
-                <div class="toggle-container">
-                    <button class="toggle-btn" id="organize-btn" onclick="organizeContent()">
-                        <span class="toggle-text">📚 整理今日内容</span>
-                    </button>
-                    <button class="toggle-btn" id="weekly-report-btn" onclick="generateWeeklyReport()">
-                        <span class="toggle-text">📊 生成周报总结</span>
-                    </button>
-                    <button class="toggle-btn" id="toggle-btn" onclick="toggleMode()">
-            <span class="toggle-text" id="toggle-text">🔍 切换到信息检索</span>
-        </button>
-                </div>
-            </header>
-        
-        <div id="notification-bar" style="position: fixed; top: 0; left: 0; right: 0; background: linear-gradient(135deg, var(--primary), var(--accent)); color: white; padding: 16px 24px; z-index: 2000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
-            <div style="display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto;">
-                <span id="notification-message" style="font-weight: 600;">内容整理完成！</span>
-                <div style="display: flex; gap: 12px;">
-                    <button id="open-folder-btn" onclick="openStorageFolder()" style="background: white; color: var(--primary); border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.3s ease;">
-                        📂 打开存储目录
-                    </button>
-                    <button onclick="closeNotification()" style="background: transparent; color: white; border: 2px solid white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 600;">
-                        关闭
-                    </button>
-                </div>
-            </div>
+<!-- 加载状态覆盖层 -->
+<div id="loading-overlay" class="loading-overlay" style="display: none;">
+    <div class="loading-container">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loading-text">处理中...</div>
+        <div class="loading-subtext" id="loading-subtext">请稍候...</div>
+    </div>
+</div>
+
+<div class="main-content-area">
+    <header>
+        <h1>剪藏</h1>
+        <p class="subtitle">捕捉灵感，智能整理，构建你的个人知识库</p>
+        <div class="toggle-container">
+            <button class="toggle-btn" id="organize-btn" onclick="organizeContent()">
+                <span class="toggle-text">📚 整理今日内容</span>
+            </button>
+            <button class="toggle-btn" id="weekly-report-btn" onclick="generateWeeklyReport()">
+                <span class="toggle-text">📊 生成周报总结</span>
+            </button>
+            <button class="toggle-btn" id="toggle-btn" onclick="toggleMode()">
+                <span class="toggle-text" id="toggle-text">🔍 切换到信息检索</span>
+            </button>
         </div>
-        
-        <div id="add-clip-section">
-            <div class="clip-form">
-                <div id="success-message" class="success-message" style="display: none;"></div>
-                <form id="clip-form">
-                    <div class="form-group">
-                        <label for="content">内容</label>
-                        <textarea id="content" placeholder="请输入要剪藏的内容，支持粘贴图片..."></textarea>
-                        <div class="input-tips" style="margin-top: 8px; font-size: 0.85rem; color: var(--text-secondary);">
-                            <span>💡 提示：可直接粘贴图片到输入框</span>
-                        </div>
-                        <div id="image-upload-area" class="file-upload-area" style="margin-top: 12px;">
-                            <button type="button" class="upload-btn" style="background-color: #f0f0f0; border: 1px dashed #ddd; border-radius: 4px; padding: 8px 16px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem; display: inline-block; width: auto;" onclick="document.getElementById('image-input').click()">
-                                📷 上传图片
-                            </button>
-                            <input type="file" id="image-input" accept="image/*" multiple style="display: none;" onchange="handleImageFiles(this.files)">
-                            <div class="upload-tips" style="margin-top: 8px; font-size: 0.85rem; color: var(--text-secondary); text-align: left;">
-                                <span>支持批量上传图片</span>
-                            </div>
-                        </div>
-                        <div id="image-previews" class="image-previews" style="margin-top: 16px; display: none;">
-                            <h3 style="margin-bottom: 12px; color: var(--text); font-size: 1rem; font-weight: 600;">图片预览</h3>
-                            <div class="preview-grid" id="preview-grid" style="display: flex; flex-wrap: wrap; gap: 12px;"></div>
-                        </div>
-                        <div id="file-upload-area" class="file-upload-area" style="display:none;">
-                            <div class="file-upload-dropzone" id="file-dropzone">
-                                <div class="file-upload-icon">📄</div>
-                                <p class="file-upload-text">拖拽文件到此处，或点击选择文件</p>
-                                <p class="file-upload-hint">支持 PDF、DOCX、TXT 格式</p>
-                                <input type="file" id="file-input" accept=".pdf,.docx,.txt,.md,.csv" style="display:none;">
-                            </div>
-                            <div id="file-info" class="file-info" style="display:none;">
-                                <span id="file-name"></span>
-                                <span id="file-size"></span>
-                                <button type="button" class="file-remove-btn" onclick="removeFile()">✕</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="type">类型</label>
-                        <select id="type">
-                            <option value="ai-text">AI文本整理</option>
-                            <option value="store-only">只存储内容</option>
-                            <option value="link-ai">链接AI解析整理</option>
-                            <option value="doc-ai">文档AI解析整理</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="source">来源</label>
-                        <select id="source">
-                            <option value="manual">手动输入</option>
-                            <option value="browser">浏览器</option>
-                            <option value="system">系统文件</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="category">分类</label>
-                        <select id="category">
-                            <option value="">请选择分类</option>
-                        </select>
-                    </div>
-                    <div class="form-group" id="tags-group">
-                        <label>标签</label>
-                        <div class="ai-tags-checkbox">
-                            <input type="checkbox" id="ai-generate-tags" onchange="toggleTagInput()">
-                            <label for="ai-generate-tags">由AI自动生成标签</label>
-                        </div>
-                        <div class="tags-container">
-                            <div class="tags-list" id="tags-list"></div>
-                            <input type="text" id="tag-input" placeholder="输入标签后按回车 (最多10个)" style="flex: 1; min-width: 180px; padding: 10px 16px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--text); font-size: 0.95rem; font-family: inherit; transition: var(--transition);">
-                        </div>
-                    </div>
-                    <div class="form-actions">
-                        <button type="button" class="btn-secondary" onclick="clearForm()">清空</button>
-                        <button type="button" class="btn-secondary" onclick="startVoiceInput()">🎤 语音输入</button>
-                        <button type="submit" class="btn-primary">添加剪藏</button>
-                    </div>
-                </form>
+    </header>
+
+    <div id="notification-bar" style="position: fixed; top: 0; left: 0; right: 0; background: linear-gradient(135deg, var(--primary), var(--accent)); color: white; padding: 16px 24px; z-index: 2000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+        <div style="display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto;">
+            <span id="notification-message" style="font-weight: 600;">内容整理完成！</span>
+            <div style="display: flex; gap: 12px;">
+                <button id="open-folder-btn" onclick="openStorageFolder()" style="background: white; color: var(--primary); border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.3s ease;">
+                    📂 打开存储目录
+                </button>
+                <button onclick="closeNotification()" style="background: transparent; color: white; border: 2px solid white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    关闭
+                </button>
             </div>
-        </div>
-        
-        <div id="search-section" style="display: none;">
-            <div class="clip-form">
-                <h2>信息检索</h2>
-                <form id="search-form">
-                    <div class="form-group">
-                        <label for="search-query">搜索关键词</label>
-                        <input type="text" id="search-query" placeholder="输入搜索关键词...">
-                    </div>
-                    <div class="form-group">
-                        <label for="search-category">分类</label>
-                        <select id="search-category">
-                            <option value="">全部分类</option>
-                        </select>
-                    </div>
-                    <div class="form-actions">
-                        <button type="button" class="btn-secondary" onclick="clearSearch()">清空</button>
-                        <button type="submit" class="btn-primary">搜索</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-        
-        <div id="clip-list">
-            <div class="list-header">
-                <h2>剪藏列表</h2>
-                <span id="clip-count" class="clip-count">0</span>
-            </div>
-            <div id="clip-items" class="clip-items"></div>
-        </div>
-        
-        <div id="search-results-page" style="display: none;">
-            <div class="list-header">
-                <h2>搜索结果</h2>
-                <button class="btn-secondary" onclick="backToList()">返回列表</button>
-            </div>
-            <div id="search-results" class="clip-items"></div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <script>
-        const API_BASE_URL = 'http://127.0.0.1:8080/api/clip';
-        let currentTags = [];
-        const MAX_TAGS = 10;
+    <div id="add-clip-section">
+        <div class="clip-form">
+            <div id="success-message" class="success-message" style="display: none;"></div>
+            <form id="clip-form">
+                <div class="form-group">
+                    <label for="content">内容</label>
+                    <textarea id="content" placeholder="请输入要剪藏的内容，支持粘贴图片..."></textarea>
+                    <div class="input-tips" style="margin-top: 8px; font-size: 0.85rem; color: var(--text-secondary);">
+                        <span>💡 提示：可直接粘贴图片到输入框</span>
+                    </div>
+                    <div id="image-upload-area" class="file-upload-area" style="margin-top: 12px;">
+                        <button type="button" class="upload-btn" style="background-color: #f0f0f0; border: 1px dashed #ddd; border-radius: 4px; padding: 8px 16px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem; display: inline-block; width: auto;" onclick="document.getElementById('image-input').click()">
+                            📷 上传图片
+                        </button>
+                        <input type="file" id="image-input" accept="image/*" multiple style="display: none;" onchange="handleImageFiles(this.files)">
+                        <div class="upload-tips" style="margin-top: 8px; font-size: 0.85rem; color: var(--text-secondary); text-align: left;">
+                            <span>支持批量上传图片</span>
+                        </div>
+                    </div>
+                    <div id="image-previews" class="image-previews" style="margin-top: 16px; display: none;">
+                        <h3 style="margin-bottom: 12px; color: var(--text); font-size: 1rem; font-weight: 600;">图片预览</h3>
+                        <div class="preview-grid" id="preview-grid" style="display: flex; flex-wrap: wrap; gap: 12px;"></div>
+                    </div>
+                    <div id="file-upload-area" class="file-upload-area" style="display:none;">
+                        <div class="file-upload-dropzone" id="file-dropzone">
+                            <div class="file-upload-icon">📄</div>
+                            <p class="file-upload-text">拖拽文件到此处，或点击选择文件</p>
+                            <p class="file-upload-hint">支持 PDF、DOCX、TXT 格式</p>
+                            <input type="file" id="file-input" accept=".pdf,.docx,.txt,.md,.csv" style="display:none;">
+                        </div>
+                        <div id="file-info" class="file-info" style="display:none;">
+                            <span id="file-name"></span>
+                            <span id="file-size"></span>
+                            <button type="button" class="file-remove-btn" onclick="removeFile()">✕</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="type">类型</label>
+                    <select id="type">
+                        <option value="ai-text">AI文本整理</option>
+                        <option value="store-only">只存储内容</option>
+                        <option value="link-ai">链接AI解析整理</option>
+                        <option value="doc-ai">文档AI解析整理</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="source">来源</label>
+                    <input type="text" id="source" placeholder="请输入来源地址，如：www.sspai.com" />
+                </div>
+                <div class="form-group">
+                    <label for="category">分类</label>
+                    <select id="category">
+                        <option value="">默认AI匹配分类</option>
+                    </select>
+                </div>
+                <div class="form-group" id="tags-group">
+                    <label>标签</label>
+                    <div class="ai-tags-checkbox">
+                        <input type="checkbox" id="ai-generate-tags" onchange="toggleTagInput()">
+                        <label for="ai-generate-tags">由AI自动生成标签</label>
+                    </div>
+                    <div class="tags-container">
+                        <div class="tags-list" id="tags-list"></div>
+                        <input type="text" id="tag-input" placeholder="输入标签后按回车 (最多10个)" style="flex: 1; min-width: 180px; padding: 10px 16px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--text); font-size: 0.95rem; font-family: inherit; transition: var(--transition);">
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="clearForm()">清空</button>
+                    <button type="button" class="btn-secondary" onclick="startVoiceInput()">🎤 语音输入</button>
+                    <button type="submit" class="btn-primary">添加剪藏</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-        document.addEventListener('DOMContentLoaded', () => {
-            fetchClips();
-            loadCategories();
-            
-            const tagInput = document.getElementById('tag-input');
-            tagInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addTag(tagInput.value);
-                    tagInput.value = '';
-                }
-            });
-            
-            // 为确认按钮添加点击事件
-            document.getElementById('confirm-btn').addEventListener('click', confirmAction);
-            
-            document.getElementById('clip-form').addEventListener('submit', async (e) => {
+    <div id="search-section" style="display: none;">
+        <div class="clip-form">
+            <h2>信息检索</h2>
+            <form id="search-form">
+                <div class="form-group">
+                    <label for="search-query">搜索关键词</label>
+                    <input type="text" id="search-query" placeholder="输入搜索关键词...">
+                </div>
+                <div class="form-group">
+                    <label for="search-category">分类</label>
+                    <select id="search-category">
+                        <option value="">全部分类</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="clearSearch()">清空</button>
+                    <button type="submit" class="btn-primary">搜索</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="clip-list">
+        <div class="list-header">
+            <h2>剪藏列表</h2>
+            <span id="clip-count" class="clip-count">0</span>
+        </div>
+        <div id="clip-items" class="clip-items"></div>
+    </div>
+
+    <div id="search-results-page" style="display: none;">
+        <div class="list-header">
+            <h2>搜索结果</h2>
+            <button class="btn-secondary" onclick="backToList()">返回列表</button>
+        </div>
+        <div id="search-results" class="clip-items"></div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script>
+    const API_BASE_URL = 'http://127.0.0.1:8080/api/clip';
+    let currentTags = [];
+    const MAX_TAGS = 10;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        fetchClips();
+        loadCategories();
+
+        const tagInput = document.getElementById('tag-input');
+        tagInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
                 e.preventDefault();
+                addTag(tagInput.value);
+                tagInput.value = '';
+            }
+        });
 
-                const type = document.getElementById('type').value;
-                const source = document.getElementById('source').value;
-                const category = document.getElementById('category').value;
-                const useAiTags = document.getElementById('ai-generate-tags').checked;
-                const submitBtn = e.target.querySelector('button[type="submit"]');
+        // 为确认按钮添加点击事件
+        document.getElementById('confirm-btn').addEventListener('click', confirmAction);
 
-                // Build request body based on type
-                let content = document.getElementById('content').value;
-                let requestBody = {
-                    type,
-                    source,
-                    category,
-                    tags: useAiTags ? null : currentTags,
-                    useAiTags: type === 'store-only' ? false : useAiTags
-                };
+        document.getElementById('clip-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
 
-                if (type === 'doc-ai') {
-                    if (!uploadedFileBase64) {
-                        alert('请上传文件');
-                        return;
-                    }
-                    requestBody.content = uploadedFileName;
-                    requestBody.fileData = uploadedFileBase64;
-                    requestBody.fileName = uploadedFileName;
-                } else {
-                    if (!content) {
-                        alert(type === 'link-ai' ? '请输入链接URL' : '请输入内容');
-                        return;
-                    }
-                    requestBody.content = content;
+            const type = document.getElementById('type').value;
+            const source = document.getElementById('source').value;
+            const category = document.getElementById('category').value;
+            const useAiTags = document.getElementById('ai-generate-tags').checked;
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+
+            // Build request body based on type
+            let content = document.getElementById('content').value;
+            let requestBody = {
+                type,
+                source,
+                category,
+                tags: useAiTags ? null : currentTags,
+                useAiTags: type === 'store-only' ? false : useAiTags
+            };
+
+            if (type === 'doc-ai') {
+                if (!uploadedFileBase64) {
+                    alert('请上传文件');
+                    return;
                 }
-
-                // Add image data if any
-                if (uploadedImages.length > 0) {
-                    requestBody.imageDataList = uploadedImages.map(img => ({
-                        base64Data: img.base64.split(',')[1], // Extract base64 data without prefix
-                        fileName: img.fileName
-                    }));
+                requestBody.content = uploadedFileName;
+                requestBody.fileData = uploadedFileBase64;
+                requestBody.fileName = uploadedFileName;
+            } else {
+                if (!content) {
+                    alert(type === 'link-ai' ? '请输入链接URL' : '请输入内容');
+                    return;
                 }
-                
-                // 禁用提交按钮并显示加载状态
-                const originalText = submitBtn.textContent;
-                submitBtn.disabled = true;
-                submitBtn.textContent = '⏳ 处理中...';
-                submitBtn.style.opacity = '0.7';
-                submitBtn.style.cursor = 'not-allowed';
-                
-                // 显示处理中提示
-                const successMessage = document.getElementById('success-message');
-                if (type === 'store-only') {
-                    successMessage.textContent = '💾 正在保存内容...';
-                } else if (type === 'link-ai') {
-                    successMessage.textContent = '🌐 正在爬取链接并分析，请稍候...';
-                } else if (type === 'doc-ai') {
-                    successMessage.textContent = '📄 正在解析文档并分析，请稍候...';
-                } else {
-                    successMessage.textContent = '🎯 AI正在分析内容，请稍候...';
-                }
-                successMessage.style.display = 'block';
-                successMessage.style.background = 'rgba(245, 158, 11, 0.1)';
-                successMessage.style.color = 'var(--warning)';
-                successMessage.style.borderColor = 'var(--warning)';
-                successMessage.style.animation = 'pulse 1.5s ease-in-out infinite';
+                requestBody.content = content;
+            }
 
-                try {
-                    const response = await axios.post(`${API_BASE_URL}/add`, requestBody);
-                    
-                    if (response.data.status === 'success') {
-                        successMessage.textContent = '✅ 剪藏添加成功！';
-                        successMessage.style.background = 'rgba(16, 185, 129, 0.1)';
-                        successMessage.style.color = 'var(--success)';
-                        successMessage.style.borderColor = 'var(--success)';
-                        successMessage.style.animation = 'slideIn 0.5s ease-out';
-                        
-                        submitBtn.disabled = false;
-                        submitBtn.textContent = originalText;
-                        submitBtn.style.opacity = '1';
-                        submitBtn.style.cursor = 'pointer';
-                        
-                        clearForm();
-                        
-                        // 刷新剪藏列表并确保显示剪藏列表页面
-                        await fetchClips();
-                        
-                        // 确保显示剪藏列表，隐藏搜索结果页面
-                        document.getElementById('search-results-page').style.display = 'none';
-                        document.getElementById('clip-list').style.display = 'block';
-                        
-                        // 滚动到剪藏列表
-                        document.getElementById('clip-list').scrollIntoView({ behavior: 'smooth' });
+            // Add image data if any
+            if (uploadedImages.length > 0) {
+                requestBody.imageDataList = uploadedImages.map(img => ({
+                    base64Data: img.base64.split(',')[1], // Extract base64 data without prefix
+                    fileName: img.fileName
+                }));
+            }
 
-                        // 开始刷新检查
-                        setTimeout(startRefreshCheck, 1000);
-                        
-                        setTimeout(() => {
-                            successMessage.style.display = 'none';
-                        }, 3000);
-                    }
-                } catch (error) {
-                    console.error('添加剪藏失败:', error);
-                    successMessage.textContent = '❌ 添加剪藏失败，请稍后重试';
-                    successMessage.style.background = 'rgba(239, 68, 68, 0.1)';
-                    successMessage.style.color = 'var(--error)';
-                    successMessage.style.borderColor = 'var(--error)';
-                    successMessage.style.animation = 'pulse 1.5s ease-in-out infinite';
-                    
+            // 禁用提交按钮并显示加载状态
+            const originalText = submitBtn.textContent;
+            submitBtn.disabled = true;
+            submitBtn.textContent = '⏳ 处理中...';
+            submitBtn.style.opacity = '0.7';
+            submitBtn.style.cursor = 'not-allowed';
+
+            // 显示处理中提示
+            const successMessage = document.getElementById('success-message');
+            if (type === 'store-only') {
+                successMessage.textContent = '💾 正在保存内容...';
+            } else if (type === 'link-ai') {
+                successMessage.textContent = '🌐 正在爬取链接并分析，请稍候...';
+            } else if (type === 'doc-ai') {
+                successMessage.textContent = '📄 正在解析文档并分析，请稍候...';
+            } else {
+                successMessage.textContent = '🎯 AI正在分析内容，请稍候...';
+            }
+            successMessage.style.display = 'block';
+            successMessage.style.background = 'rgba(245, 158, 11, 0.1)';
+            successMessage.style.color = 'var(--warning)';
+            successMessage.style.borderColor = 'var(--warning)';
+            successMessage.style.animation = 'pulse 1.5s ease-in-out infinite';
+
+            try {
+                const response = await axios.post(`${API_BASE_URL}/add`, requestBody);
+
+                if (response.data.status === 'success') {
+                    successMessage.textContent = '✅ 剪藏添加成功！';
+                    successMessage.style.background = 'rgba(16, 185, 129, 0.1)';
+                    successMessage.style.color = 'var(--success)';
+                    successMessage.style.borderColor = 'var(--success)';
+                    successMessage.style.animation = 'slideIn 0.5s ease-out';
+
                     submitBtn.disabled = false;
                     submitBtn.textContent = originalText;
                     submitBtn.style.opacity = '1';
                     submitBtn.style.cursor = 'pointer';
-                    
+
+                    clearForm();
+
+                    // 刷新剪藏列表并确保显示剪藏列表页面
+                    await fetchClips();
+
+                    // 确保显示剪藏列表，隐藏搜索结果页面
+                    document.getElementById('search-results-page').style.display = 'none';
+                    document.getElementById('clip-list').style.display = 'block';
+
+                    // 滚动到剪藏列表
+                    document.getElementById('clip-list').scrollIntoView({ behavior: 'smooth' });
+
+                    // 开始刷新检查
+                    setTimeout(startRefreshCheck, 1000);
+
                     setTimeout(() => {
                         successMessage.style.display = 'none';
                     }, 3000);
                 }
+            } catch (error) {
+                console.error('添加剪藏失败:', error);
+                successMessage.textContent = '❌ 添加剪藏失败，请稍后重试';
+                successMessage.style.background = 'rgba(239, 68, 68, 0.1)';
+                successMessage.style.color = 'var(--error)';
+                successMessage.style.borderColor = 'var(--error)';
+                successMessage.style.animation = 'pulse 1.5s ease-in-out infinite';
+
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+                submitBtn.style.opacity = '1';
+                submitBtn.style.cursor = 'pointer';
+
+                setTimeout(() => {
+                    successMessage.style.display = 'none';
+                }, 3000);
+            }
+        });
+    });
+
+    // File upload state
+    let uploadedFileBase64 = null;
+    let uploadedFileName = null;
+
+    // Image upload state
+    let uploadedImages = [];
+
+    // Add paste event listener for image pasting
+    document.getElementById('content').addEventListener('paste', function(e) {
+        const items = e.clipboardData.items;
+
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                e.preventDefault();
+                const file = items[i].getAsFile();
+                handleImageFile(file, 1);
+                break;
+            }
+        }
+    });
+
+    function handleImageFiles(files) {
+        if (files.length > 0) {
+            Array.from(files).forEach((file, index) => {
+                handleImageFile(file, index + 1);
             });
-        });
-
-        // File upload state
-        let uploadedFileBase64 = null;
-        let uploadedFileName = null;
-
-        // Image upload state
-        let uploadedImages = [];
-
-        // Add paste event listener for image pasting
-        document.getElementById('content').addEventListener('paste', function(e) {
-            const items = e.clipboardData.items;
-            
-            for (let i = 0; i < items.length; i++) {
-                if (items[i].type.indexOf('image') !== -1) {
-                    e.preventDefault();
-                    const file = items[i].getAsFile();
-                    handleImageFile(file, 1);
-                    break;
-                }
-            }
-        });
-
-        function handleImageFiles(files) {
-            if (files.length > 0) {
-                Array.from(files).forEach((file, index) => {
-                    handleImageFile(file, index + 1);
-                });
-            }
         }
+    }
 
-        function handleImageFile(file, index) {
-            if (!file) return;
+    function handleImageFile(file, index) {
+        if (!file) return;
 
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const base64 = reader.result;
-                const timestamp = new Date().getTime();
-                const extension = file.name ? file.name.split('.').pop().toLowerCase() : 'png';
-                // 使用实际的图片数量作为序号
-                const imageIndex = uploadedImages.length + 1;
-                const fileName = `file-${timestamp}-${imageIndex}.${extension}`;
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const base64 = reader.result;
+            const timestamp = new Date().getTime();
+            const extension = file.name ? file.name.split('.').pop().toLowerCase() : 'png';
+            // 使用实际的图片数量作为序号
+            const imageIndex = uploadedImages.length + 1;
+            const fileName = `file-${timestamp}-${imageIndex}.${extension}`;
 
-                // Add to uploaded images array
-                uploadedImages.push({ base64, fileName });
+            // Add to uploaded images array
+            uploadedImages.push({ base64, fileName });
 
-                // Generate Markdown reference with './' prefix
-                const markdownRef = `![图片](./assets/${fileName})`;
-                
-                // Update content, insert Markdown reference at cursor position
-                const textarea = document.getElementById('content');
-                const start = textarea.selectionStart;
-                const end = textarea.selectionEnd;
-                const newContent = textarea.value.substring(0, start) + markdownRef + textarea.value.substring(end);
-                textarea.value = newContent;
-                
-                // Update image previews
-                updateImagePreviews();
-            };
-            reader.readAsDataURL(file);
-        }
+            // Update image previews
+            updateImagePreviews();
+        };
+        reader.readAsDataURL(file);
+    }
 
-        function updateImagePreviews() {
-            const previewGrid = document.getElementById('preview-grid');
-            const imagePreviews = document.getElementById('image-previews');
-            
-            if (uploadedImages.length > 0) {
-                previewGrid.innerHTML = '';
-                uploadedImages.forEach((img, index) => {
-                    const previewItem = document.createElement('div');
-                    previewItem.style.cssText = `
+    function updateImagePreviews() {
+        const previewGrid = document.getElementById('preview-grid');
+        const imagePreviews = document.getElementById('image-previews');
+
+        if (uploadedImages.length > 0) {
+            previewGrid.innerHTML = '';
+            uploadedImages.forEach((img, index) => {
+                const previewItem = document.createElement('div');
+                previewItem.style.cssText = `
                         position: relative;
                         width: 120px;
                         height: 120px;
@@ -1740,8 +1813,8 @@
                         border-radius: 4px;
                         overflow: hidden;
                     `;
-                    
-                    previewItem.innerHTML = `
+
+                previewItem.innerHTML = `
                         <img src="${img.base64}" alt="预览 ${index + 1}" style="width: 100%; height: 100%; object-fit: cover;">
                         <button type="button" onclick="removeImage(${index})" style="
                             position: absolute;
@@ -1761,482 +1834,474 @@
                             transition: background-color 0.3s ease;
                         ">×</button>
                     `;
-                    
-                    previewGrid.appendChild(previewItem);
-                });
-                
-                imagePreviews.style.display = 'block';
-            } else {
-                imagePreviews.style.display = 'none';
-            }
+
+                previewGrid.appendChild(previewItem);
+            });
+
+            imagePreviews.style.display = 'block';
+        } else {
+            imagePreviews.style.display = 'none';
+        }
+    }
+
+    function removeImage(index) {
+        uploadedImages.splice(index, 1);
+        updateImagePreviews();
+    }
+
+    function clearImages() {
+        uploadedImages = [];
+        updateImagePreviews();
+    }
+
+    // Type label mapping
+    const TYPE_LABELS = {
+        'ai-text': 'AI文本整理',
+        'store-only': '纯文本存储',
+        'link-ai': '链接解析',
+        'doc-ai': '文档解析',
+        'text': '文本', 'image': '图片', 'file': '文件', 'link': '链接'
+    };
+
+    function getTypeLabel(type) {
+        return TYPE_LABELS[type] || type || '未知';
+    }
+
+    // Type switch handler
+    document.getElementById('type').addEventListener('change', function() {
+        const type = this.value;
+        const contentArea = document.getElementById('content');
+        const fileUploadArea = document.getElementById('file-upload-area');
+        const tagsGroup = document.getElementById('tags-group');
+        const contentLabel = contentArea.closest('.form-group').querySelector('label');
+
+        if (type === 'link-ai') {
+            contentArea.style.display = '';
+            contentArea.placeholder = '请输入链接URL（如 https://example.com/article）';
+            contentLabel.textContent = '链接';
+            fileUploadArea.style.display = 'none';
+            tagsGroup.style.display = '';
+        } else if (type === 'doc-ai') {
+            contentArea.style.display = 'none';
+            fileUploadArea.style.display = '';
+            contentLabel.textContent = '文档';
+            tagsGroup.style.display = '';
+        } else if (type === 'store-only') {
+            contentArea.style.display = '';
+            contentArea.placeholder = '请输入要存储的内容';
+            contentLabel.textContent = '内容';
+            fileUploadArea.style.display = 'none';
+            tagsGroup.style.display = 'none';
+        } else {
+            contentArea.style.display = '';
+            contentArea.placeholder = '请输入要剪藏的内容';
+            contentLabel.textContent = '内容';
+            fileUploadArea.style.display = 'none';
+            tagsGroup.style.display = '';
+        }
+    });
+
+    // File upload handlers
+    const dropzone = document.getElementById('file-dropzone');
+    const fileInput = document.getElementById('file-input');
+
+    dropzone.addEventListener('click', () => fileInput.click());
+
+    dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropzone.classList.add('dragover');
+    });
+
+    dropzone.addEventListener('dragleave', () => {
+        dropzone.classList.remove('dragover');
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+            handleFile(e.dataTransfer.files[0]);
+        }
+    });
+
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+            handleFile(fileInput.files[0]);
+        }
+    });
+
+    function handleFile(file) {
+        const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+        const allowedExts = ['.pdf', '.docx', '.txt', '.md', '.csv'];
+        const ext = '.' + file.name.split('.').pop().toLowerCase();
+
+        if (!allowedExts.includes(ext)) {
+            alert('不支持的文件格式，请上传 PDF、DOCX 或 TXT 文件');
+            return;
         }
 
-        function removeImage(index) {
-            uploadedImages.splice(index, 1);
-            updateImagePreviews();
-        }
-
-        function clearImages() {
-            uploadedImages = [];
-            updateImagePreviews();
-        }
-
-        // Type label mapping
-        const TYPE_LABELS = {
-            'ai-text': 'AI文本整理',
-            'store-only': '纯文本存储',
-            'link-ai': '链接解析',
-            'doc-ai': '文档解析',
-            'text': '文本', 'image': '图片', 'file': '文件', 'link': '链接'
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            uploadedFileBase64 = e.target.result.split(',')[1];
+            uploadedFileName = file.name;
+            document.getElementById('file-name').textContent = file.name;
+            document.getElementById('file-size').textContent = formatFileSize(file.size);
+            document.getElementById('file-info').style.display = 'flex';
+            dropzone.style.display = 'none';
         };
+        reader.readAsDataURL(file);
+    }
 
-        function getTypeLabel(type) {
-            return TYPE_LABELS[type] || type || '未知';
-        }
+    function removeFile() {
+        uploadedFileBase64 = null;
+        uploadedFileName = null;
+        fileInput.value = '';
+        document.getElementById('file-info').style.display = 'none';
+        dropzone.style.display = '';
+    }
 
-        // Type switch handler
-        document.getElementById('type').addEventListener('change', function() {
-            const type = this.value;
-            const contentArea = document.getElementById('content');
-            const fileUploadArea = document.getElementById('file-upload-area');
-            const tagsGroup = document.getElementById('tags-group');
-            const contentLabel = contentArea.closest('.form-group').querySelector('label');
-
-            if (type === 'link-ai') {
-                contentArea.style.display = '';
-                contentArea.placeholder = '请输入链接URL（如 https://example.com/article）';
-                contentLabel.textContent = '链接';
-                fileUploadArea.style.display = 'none';
-                tagsGroup.style.display = '';
-            } else if (type === 'doc-ai') {
-                contentArea.style.display = 'none';
-                fileUploadArea.style.display = '';
-                contentLabel.textContent = '文档';
-                tagsGroup.style.display = '';
-            } else if (type === 'store-only') {
-                contentArea.style.display = '';
-                contentArea.placeholder = '请输入要存储的内容';
-                contentLabel.textContent = '内容';
-                fileUploadArea.style.display = 'none';
-                tagsGroup.style.display = 'none';
-            } else {
-                contentArea.style.display = '';
-                contentArea.placeholder = '请输入要剪藏的内容';
-                contentLabel.textContent = '内容';
-                fileUploadArea.style.display = 'none';
-                tagsGroup.style.display = '';
-            }
-        });
-
-        // File upload handlers
-        const dropzone = document.getElementById('file-dropzone');
-        const fileInput = document.getElementById('file-input');
-
-        dropzone.addEventListener('click', () => fileInput.click());
-
-        dropzone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropzone.classList.add('dragover');
-        });
-
-        dropzone.addEventListener('dragleave', () => {
-            dropzone.classList.remove('dragover');
-        });
-
-        dropzone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropzone.classList.remove('dragover');
-            if (e.dataTransfer.files.length > 0) {
-                handleFile(e.dataTransfer.files[0]);
-            }
-        });
-
-        fileInput.addEventListener('change', () => {
-            if (fileInput.files.length > 0) {
-                handleFile(fileInput.files[0]);
-            }
-        });
-
-        function handleFile(file) {
-            const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
-            const allowedExts = ['.pdf', '.docx', '.txt', '.md', '.csv'];
-            const ext = '.' + file.name.split('.').pop().toLowerCase();
-
-            if (!allowedExts.includes(ext)) {
-                alert('不支持的文件格式，请上传 PDF、DOCX 或 TXT 文件');
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                uploadedFileBase64 = e.target.result.split(',')[1];
-                uploadedFileName = file.name;
-                document.getElementById('file-name').textContent = file.name;
-                document.getElementById('file-size').textContent = formatFileSize(file.size);
-                document.getElementById('file-info').style.display = 'flex';
-                dropzone.style.display = 'none';
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function removeFile() {
-            uploadedFileBase64 = null;
-            uploadedFileName = null;
-            fileInput.value = '';
-            document.getElementById('file-info').style.display = 'none';
-            dropzone.style.display = '';
-        }
-
-        function formatFileSize(bytes) {
-            if (bytes < 1024) return bytes + ' B';
-            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-        }
-        
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
 
 
-        // Category value-to-label mapping
-        const CATEGORY_LABELS = {
-            'work': '工作项目', 'work-company': '工作项目 > 公司事务', 'work-side': '工作项目 > 个人副业',
-            'study': '学习成长', 'study-course': '学习成长 > 课程学习', 'study-book': '学习成长 > 读书笔记',
-            'life': '生活健康', 'life-daily': '生活健康 > 日常记录', 'life-health': '生活健康 > 健康运动',
-            'hobby': '兴趣探索', 'hobby-tech': '兴趣探索 > 技术探索', 'hobby-idea': '兴趣探索 > 创意灵感',
-            'finance': '财务规划', 'finance-invest': '财务规划 > 投资理财', 'finance-spend': '财务规划 > 消费记录',
-            'social': '人脉社交', 'social-contact': '人脉社交 > 人脉管理', 'social-event': '人脉社交 > 社交活动',
-            'default': '默认', 'tech': '技术', 'entertainment': '娱乐', 'health': '健康'
-        };
 
-        function getCategoryLabel(value) {
-            if (!value) return '未分类';
-            return CATEGORY_LABELS[value] || value;
-        }
+    // Category value-to-label mapping
+    const CATEGORY_LABELS = {
+        'work': '工作项目', 'work-company': '工作项目 > 公司事务', 'work-side': '工作项目 > 个人副业',
+        'study': '学习成长', 'study-course': '学习成长 > 课程学习', 'study-book': '学习成长 > 读书笔记',
+        'life': '生活健康', 'life-daily': '生活健康 > 日常记录', 'life-health': '生活健康 > 健康运动',
+        'hobby': '兴趣探索', 'hobby-tech': '兴趣探索 > 技术探索', 'hobby-idea': '兴趣探索 > 创意灵感',
+        'finance': '财务规划', 'finance-invest': '财务规划 > 投资理财', 'finance-spend': '财务规划 > 消费记录',
+        'social': '人脉社交', 'social-contact': '人脉社交 > 人脉管理', 'social-event': '人脉社交 > 社交活动',
+        'default': '默认', 'tech': '技术', 'entertainment': '娱乐', 'health': '健康'
+    };
 
-        // Load category tree from backend
-        async function loadCategories() {
-            try {
-                const response = await axios.get(`${API_BASE_URL}/categories`);
-                const categories = response.data;
+    function getCategoryLabel(value) {
+        if (!value) return '未分类';
+        return CATEGORY_LABELS[value] || value;
+    }
 
-                // Fill add-clip category select
-                const select = document.getElementById('category');
-                select.innerHTML = '<option value="">请选择分类</option>';
+    // Load category tree from backend
+    async function loadCategories() {
+        try {
+            const response = await axios.get(`${API_BASE_URL}/categories`);
+            const categories = response.data;
 
-                // Fill search category select
-                const searchSelect = document.getElementById('search-category');
-                searchSelect.innerHTML = '<option value="">全部分类</option>';
+            // Fill add-clip category select
+            const select = document.getElementById('category');
+            select.innerHTML = '<option value="">AI匹配分类</option>';
 
-                categories.forEach(cat => {
-                    if (cat.children && cat.children.length > 0) {
-                        // Add-clip: optgroup with children
-                        const group = document.createElement('optgroup');
-                        group.label = cat.label;
-                        cat.children.forEach(child => {
-                            const option = document.createElement('option');
-                            option.value = child.value;
-                            option.textContent = '  ' + child.label;
-                            group.appendChild(option);
-                        });
-                        select.appendChild(group);
+            // Fill search category select
+            const searchSelect = document.getElementById('search-category');
+            searchSelect.innerHTML = '<option value="">全部分类</option>';
 
-                        // Search: flat list with "大类 > 子类" format
-                        cat.children.forEach(child => {
-                            const opt = document.createElement('option');
-                            opt.value = child.value;
-                            opt.textContent = cat.label + ' > ' + child.label;
-                            searchSelect.appendChild(opt);
-                        });
-                    } else {
+            categories.forEach(cat => {
+                if (cat.children && cat.children.length > 0) {
+                    // Add-clip: optgroup with children
+                    const group = document.createElement('optgroup');
+                    group.label = cat.label;
+                    cat.children.forEach(child => {
                         const option = document.createElement('option');
-                        option.value = cat.value;
-                        option.textContent = cat.label;
-                        select.appendChild(option);
+                        option.value = child.value;
+                        option.textContent = '  ' + child.label;
+                        group.appendChild(option);
+                    });
+                    select.appendChild(group);
 
-                        const searchOpt = document.createElement('option');
-                        searchOpt.value = cat.value;
-                        searchOpt.textContent = cat.label;
-                        searchSelect.appendChild(searchOpt);
-                    }
-                });
-            } catch (error) {
-                console.error('Failed to load categories:', error);
-            }
+                    // Search: flat list with "大类 > 子类" format
+                    cat.children.forEach(child => {
+                        const opt = document.createElement('option');
+                        opt.value = child.value;
+                        opt.textContent = cat.label + ' > ' + child.label;
+                        searchSelect.appendChild(opt);
+                    });
+                } else {
+                    const option = document.createElement('option');
+                    option.value = cat.value;
+                    option.textContent = cat.label;
+                    select.appendChild(option);
+
+                    const searchOpt = document.createElement('option');
+                    searchOpt.value = cat.value;
+                    searchOpt.textContent = cat.label;
+                    searchSelect.appendChild(searchOpt);
+                }
+            });
+        } catch (error) {
+            console.error('Failed to load categories:', error);
         }
+    }
 
-        function toggleTagInput() {
-            const useAiTags = document.getElementById('ai-generate-tags').checked;
-            const tagInput = document.getElementById('tag-input');
+    function toggleTagInput() {
+        const useAiTags = document.getElementById('ai-generate-tags').checked;
+        const tagInput = document.getElementById('tag-input');
 
-            if (useAiTags) {
-                tagInput.disabled = true;
-                tagInput.placeholder = 'AI将自动生成标签';
-                currentTags = [];
-                renderTags();
-            } else {
-                tagInput.disabled = false;
-                tagInput.placeholder = '输入标签后按回车 (最多10个)';
-            }
-        }
-
-        function addTag(tag) {
-            if (!tag || !tag.trim()) return;
-            if (currentTags.includes(tag.trim())) return;
-            if (currentTags.length >= MAX_TAGS) {
-                alert(`最多只能添加 ${MAX_TAGS} 个标签`);
-                return;
-            }
-            
-            currentTags.push(tag.trim());
+        if (useAiTags) {
+            tagInput.disabled = true;
+            tagInput.placeholder = 'AI将自动生成标签';
+            currentTags = [];
             renderTags();
+        } else {
+            tagInput.disabled = false;
+            tagInput.placeholder = '输入标签后按回车 (最多10个)';
         }
-        
-        function removeTag(tag) {
-            currentTags = currentTags.filter(t => t !== tag);
-            renderTags();
+    }
+
+    function addTag(tag) {
+        if (!tag || !tag.trim()) return;
+        if (currentTags.includes(tag.trim())) return;
+        if (currentTags.length >= MAX_TAGS) {
+            alert(`最多只能添加 ${MAX_TAGS} 个标签`);
+            return;
         }
-        
-        function renderTags() {
-            const tagsList = document.getElementById('tags-list');
-            tagsList.innerHTML = currentTags.map(tag => `
+
+        currentTags.push(tag.trim());
+        renderTags();
+    }
+
+    function removeTag(tag) {
+        currentTags = currentTags.filter(t => t !== tag);
+        renderTags();
+    }
+
+    function renderTags() {
+        const tagsList = document.getElementById('tags-list');
+        tagsList.innerHTML = currentTags.map(tag => `
                 <div class="tag">
                     <span>${tag}</span>
                     <span class="tag-remove" onclick="removeTag('${tag}')">&times;</span>
                 </div>
             `).join('');
+    }
+
+    function clearForm() {
+        document.getElementById('content').value = '';
+        document.getElementById('type').value = 'ai-text';
+        document.getElementById('source').value = '';
+        document.getElementById('category').value = '';
+        document.getElementById('ai-generate-tags').checked = false;
+        toggleTagInput();
+        currentTags = [];
+        renderTags();
+        removeFile();
+        clearImages();
+        document.getElementById('type').dispatchEvent(new Event('change'));
+    }
+
+    function startVoiceInput() {
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const recognition = new SpeechRecognition();
+
+            recognition.lang = 'zh-CN';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+
+            recognition.onstart = function() {
+                alert('语音识别已启动，请开始说话...');
+            };
+
+            recognition.onresult = function(event) {
+                const transcript = event.results[0][0].transcript;
+                document.getElementById('content').value = transcript;
+            };
+
+            recognition.onerror = function(event) {
+                console.error('语音识别错误:', event.error);
+                alert('语音识别失败，请重试');
+            };
+
+            recognition.onend = function() {
+                console.log('语音识别已结束');
+            };
+
+            recognition.start();
+        } else {
+            alert('您的浏览器不支持语音识别功能');
         }
-        
-        function clearForm() {
-            document.getElementById('content').value = '';
-            document.getElementById('type').value = 'ai-text';
-            document.getElementById('source').value = 'manual';
-            document.getElementById('category').value = '';
-            document.getElementById('ai-generate-tags').checked = false;
-            toggleTagInput();
-            currentTags = [];
-            renderTags();
-            removeFile();
-            clearImages();
-            document.getElementById('type').dispatchEvent(new Event('change'));
+    }
+
+    function clearSearch() {
+        document.getElementById('search-query').value = '';
+        document.getElementById('search-category').value = '';
+    }
+
+    function backToList() {
+        document.getElementById('search-results-page').style.display = 'none';
+        document.getElementById('clip-list').style.display = 'block';
+    }
+
+    let currentMode = 'add-clip';
+
+    function toggleMode() {
+        const toggleBtn = document.getElementById('toggle-btn');
+        const toggleText = document.getElementById('toggle-text');
+        const addClipSection = document.getElementById('add-clip-section');
+        const searchSection = document.getElementById('search-section');
+        const searchResultsPage = document.getElementById('search-results-page');
+        const clipList = document.getElementById('clip-list');
+
+        if (currentMode === 'add-clip') {
+            currentMode = 'search';
+            toggleBtn.classList.add('active');
+            toggleText.textContent = '📋 切换到添加剪藏';
+            addClipSection.style.display = 'none';
+            searchSection.style.display = 'block';
+            searchResultsPage.style.display = 'none';
+            clipList.style.display = 'block';
+        } else {
+            currentMode = 'add-clip';
+            toggleBtn.classList.remove('active');
+            toggleText.textContent = '🔍 切换到信息检索';
+            addClipSection.style.display = 'block';
+            searchSection.style.display = 'none';
+            searchResultsPage.style.display = 'none';
+            clipList.style.display = 'block';
         }
-        
-        function startVoiceInput() {
-            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                const recognition = new SpeechRecognition();
-                
-                recognition.lang = 'zh-CN';
-                recognition.continuous = false;
-                recognition.interimResults = false;
-                
-                recognition.onstart = function() {
-                    alert('语音识别已启动，请开始说话...');
-                };
-                
-                recognition.onresult = function(event) {
-                    const transcript = event.results[0][0].transcript;
-                    document.getElementById('content').value = transcript;
-                };
-                
-                recognition.onerror = function(event) {
-                    console.error('语音识别错误:', event.error);
-                    alert('语音识别失败，请重试');
-                };
-                
-                recognition.onend = function() {
-                    console.log('语音识别已结束');
-                };
-                
-                recognition.start();
+    }
+
+    document.getElementById('search-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const query = document.getElementById('search-query').value;
+        const category = document.getElementById('search-category').value;
+
+        if (!query) {
+            alert('请输入搜索关键词');
+            return;
+        }
+
+        try {
+            let response;
+            if (category) {
+                response = await axios.get(`${API_BASE_URL}/search/category`, {
+                    params: {
+                        query,
+                        category,
+                        topK: 10
+                    }
+                });
             } else {
-                alert('您的浏览器不支持语音识别功能');
+                response = await axios.get(`${API_BASE_URL}/search`, {
+                    params: {
+                        query,
+                        topK: 10
+                    }
+                });
             }
+
+            const results = response.data;
+            displaySearchResults(results);
+        } catch (error) {
+            console.error('搜索失败:', error);
+            alert('搜索失败，请稍后重试');
         }
-        
-        function clearSearch() {
-            document.getElementById('search-query').value = '';
-            document.getElementById('search-category').value = '';
-        }
-        
-        function backToList() {
-            document.getElementById('search-results-page').style.display = 'none';
-            document.getElementById('clip-list').style.display = 'block';
-        }
-        
-        let currentMode = 'add-clip';
-        
-        function toggleMode() {
-            const toggleBtn = document.getElementById('toggle-btn');
-            const toggleText = document.getElementById('toggle-text');
-            const addClipSection = document.getElementById('add-clip-section');
-            const searchSection = document.getElementById('search-section');
-            const searchResultsPage = document.getElementById('search-results-page');
-            const clipList = document.getElementById('clip-list');
-            
-            if (currentMode === 'add-clip') {
-                currentMode = 'search';
-                toggleBtn.classList.add('active');
-                toggleText.textContent = '📋 切换到添加剪藏';
-                addClipSection.style.display = 'none';
-                searchSection.style.display = 'block';
-                searchResultsPage.style.display = 'none';
-                clipList.style.display = 'block';
-            } else {
-                currentMode = 'add-clip';
-                toggleBtn.classList.remove('active');
-                toggleText.textContent = '🔍 切换到信息检索';
-                addClipSection.style.display = 'block';
-                searchSection.style.display = 'none';
-                searchResultsPage.style.display = 'none';
-                clipList.style.display = 'block';
-            }
-        }
-        
-        document.getElementById('search-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const query = document.getElementById('search-query').value;
-            const category = document.getElementById('search-category').value;
-            
-            if (!query) {
-                alert('请输入搜索关键词');
-                return;
-            }
-            
-            try {
-                let response;
-                if (category) {
-                    response = await axios.get(`${API_BASE_URL}/search/category`, {
-                        params: {
-                            query,
-                            category,
-                            topK: 10
-                        }
-                    });
-                } else {
-                    response = await axios.get(`${API_BASE_URL}/search`, {
-                        params: {
-                            query,
-                            topK: 10
-                        }
-                    });
-                }
-                
-                const results = response.data;
-                displaySearchResults(results);
-            } catch (error) {
-                console.error('搜索失败:', error);
-                alert('搜索失败，请稍后重试');
-            }
-        });
-        
-        function displaySearchResults(results) {
-            const searchResultsContainer = document.getElementById('search-results');
-            searchResultsContainer.innerHTML = '';
-            
-            if (results.length === 0) {
-                searchResultsContainer.innerHTML = `
+    });
+
+    function displaySearchResults(results) {
+        const searchResultsContainer = document.getElementById('search-results');
+        searchResultsContainer.innerHTML = '';
+
+        if (results.length === 0) {
+            searchResultsContainer.innerHTML = `
                     <div class="empty-state">
                         <h3>没有找到相关内容</h3>
                         <p>请尝试其他搜索关键词</p>
                     </div>
                 `;
-            } else {
-                results.forEach(clip => {
-                    const clipItem = createClipItem(clip, true);
-                    searchResultsContainer.appendChild(clipItem);
-                });
-            }
-            
-            document.getElementById('search-results-page').style.display = 'block';
-            document.getElementById('clip-list').style.display = 'none';
+        } else {
+            results.forEach(clip => {
+                const clipItem = createClipItem(clip, true);
+                searchResultsContainer.appendChild(clipItem);
+            });
         }
-        
-        async function fetchClips() {
-            try {
-                const response = await axios.get(`${API_BASE_URL}/list`);
-                let clips = response.data;
 
-                // 过滤掉待办事项数据（前端过滤，后端存储不变）
-                const filteredClips = clips.filter(clip => {
-                    // 根据特征判断是否为待办事项数据
-                    // 待办事项通常有特定的类型或内容特征
-                    return !clip.type || 
-                           clip.type !== 'todo' && 
-                           !clip.content?.includes('前完成') && 
-                           !clip.content?.includes('待办') &&
-                           !clip.content?.includes('TodoContent') &&
-                           !clip.title &&
-                           !clip.priority &&
-                           !clip.deadline &&
-                           !clip.completed;
-                });
+        document.getElementById('search-results-page').style.display = 'block';
+        document.getElementById('clip-list').style.display = 'none';
+    }
 
-                console.log('===== 调试信息 =====');
-                console.log('获取到的剪藏数量:', clips.length);
-                console.log('过滤后的剪藏数量:', filteredClips.length);
-                if (filteredClips.length > 0) {
-                    console.log('第一个剪藏分析内容:', filteredClips[0].analysis);
-                    console.log('第一个剪藏分析内容类型:', typeof filteredClips[0].analysis);
-                }
-                
-                const clipItemsContainer = document.getElementById('clip-items');
-                const clipCountElement = document.getElementById('clip-count');
-                
-                clipCountElement.textContent = filteredClips.length;
-                clipItemsContainer.innerHTML = '';
-                
-                if (filteredClips.length === 0) {
-                    clipItemsContainer.innerHTML = `
+    async function fetchClips() {
+        try {
+            const response = await axios.get(`${API_BASE_URL}/list`);
+            let clips = response.data;
+
+            // 过滤掉待办事项数据（前端过滤，后端存储不变）
+            const filteredClips = clips.filter(clip => {
+                // 根据特征判断是否为待办事项数据
+                // 待办事项通常有特定的类型或内容特征
+                return !clip.type || clip.type !== 'todo' && !clip.content?.includes('前完成') && !clip.content?.includes('待办');
+            });
+
+            console.log('===== 调试信息 =====');
+            console.log('获取到的剪藏数量:', clips.length);
+            console.log('过滤后的剪藏数量:', filteredClips.length);
+            if (filteredClips.length > 0) {
+                console.log('第一个剪藏分析内容:', filteredClips[0].analysis);
+                console.log('第一个剪藏分析内容类型:', typeof filteredClips[0].analysis);
+            }
+
+            const clipItemsContainer = document.getElementById('clip-items');
+            const clipCountElement = document.getElementById('clip-count');
+
+            clipCountElement.textContent = filteredClips.length;
+            clipItemsContainer.innerHTML = '';
+
+            if (filteredClips.length === 0) {
+                clipItemsContainer.innerHTML = `
                         <div class="empty-state">
                             <h3>暂无剪藏内容</h3>
                             <p>开始添加你的第一个剪藏吧！</p>
                         </div>
                     `;
-                    return;
-                }
-                
-                filteredClips.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-                
-                filteredClips.forEach(clip => {
-                    const clipItem = createClipItem(clip, false);
-                    clipItemsContainer.appendChild(clipItem);
+                return;
+            }
+
+            filteredClips.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+            filteredClips.forEach(clip => {
+                const clipItem = createClipItem(clip, false);
+                clipItemsContainer.appendChild(clipItem);
+            });
+
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const clipId = e.target.dataset.id;
+                    showConfirmModal(clipId, '确定要删除这个剪藏吗？');
                 });
-                
-                document.querySelectorAll('.delete-btn').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const clipId = e.target.dataset.id;
-                        showConfirmModal(clipId, '确定要删除这个剪藏吗？');
-                    });
-                });
-            } catch (error) {
-                console.error('获取剪藏列表失败:', error);
-                document.getElementById('clip-items').innerHTML = `
+            });
+        } catch (error) {
+            console.error('获取剪藏列表失败:', error);
+            document.getElementById('clip-items').innerHTML = `
                     <div class="empty-state">
                         <h3>获取剪藏列表失败</h3>
                         <p>请检查后端服务是否正常运行</p>
                     </div>
                 `;
-            }
         }
-        
-        function createClipItem(clip, isSearch) {
-            const clipItem = document.createElement('div');
-            clipItem.className = 'clip-item';
-            
-            const createdAt = new Date(clip.createdAt).toLocaleString('zh-CN', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-            
-            let tagsHtml = '';
-            if (clip.tags && clip.tags.length > 0) {
-                const displayTags = clip.tags.slice(0, 3);
-                const remainingTags = clip.tags.slice(3);
-                const allTags = clip.tags;
-                
-                tagsHtml = `
+    }
+
+    function createClipItem(clip, isSearch) {
+        const clipItem = document.createElement('div');
+        clipItem.className = 'clip-item';
+
+        const createdAt = new Date(clip.createdAt).toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+        let tagsHtml = '';
+        if (clip.tags && clip.tags.length > 0) {
+            const displayTags = clip.tags.slice(0, 3);
+            const remainingTags = clip.tags.slice(3);
+            const allTags = clip.tags;
+
+            tagsHtml = `
                     <div class="tags-display" style="margin-top: 12px;">
                         <div class="tags-collapsed">
                             ${displayTags.map(tag => `<span class="tag-display-item"><span class="tag"><span>${tag}</span></span></span>`).join('')}
@@ -2245,188 +2310,412 @@
                         ${remainingTags.length > 0 ? `<div class="tags-all" style="display: none;">${allTags.map(tag => `<span class="tag-display-item"><span class="tag"><span>${tag}</span></span></span>`).join('')}</div>` : ''}
                     </div>
                 `;
-            }
-            
-            let analysisHtml = '';
-            if (clip.analysis) {
-                try {
-                    const analysis = typeof clip.analysis === 'string' ? JSON.parse(clip.analysis) : clip.analysis;
-                    if (analysis.summary) {
-                        analysisHtml = `
-                            <div class="content-section">
-                                <h4>AI 总结</h4>
-                                <div class="ai-content">${analysis.summary}</div>
-                            </div>
-                        `;
-                    }
-                } catch (error) {
-                    console.error('解析分析内容失败:', error);
-                    // 如果解析失败，直接显示原始内容
-                    if (typeof clip.analysis === 'string') {
-                        analysisHtml = `
-                            <div class="content-section">
-                                <h4>AI 分析</h4>
-                                <div class="ai-content">${clip.analysis}</div>
-                            </div>
-                        `;
-                    }
-                }
-            }
-            
-            let contentHtml = '';
-            if (clip.content) {
-                contentHtml = `
-                    <div class="content-section">
-                        <h4>原始内容</h4>
-                        <div class="content-text"><pre>${clip.content}</pre></div>
-                    </div>
-                `;
-            }
-            
-            clipItem.innerHTML = `
-                <div class="clip-actions">
-                    ${!isSearch ? `<button class="delete-btn" data-id="${clip.id}">删除</button>` : ''}
-                    <button class="expand-btn" onclick="toggleDetail(this)">
-                        展开详情 <span class="icon">▼</span>
-                    </button>
-                </div>
+        }
+
+        const displaySummary = clip.summary || '暂无摘要';
+        const isStoreOnly = clip.type === 'store-only';
+        const summaryClass = isStoreOnly ? 'store-only-summary' : '';
+        const originalContent = clip.content || '';
+        const analysisContent = clip.analysis || '';
+
+        clipItem.innerHTML = `
                 <div class="clip-header">
-                    <div>
-                        <span class="category-badge">${getCategoryLabel(clip.category)}</span>
-                    </div>
-                    <div class="clip-meta">
-                        <span class="meta-item">${getTypeLabel(clip.type)}</span>
-                        <span class="meta-item">${createdAt}</span>
+                    <span class="category-badge">📁 ${getCategoryLabel(clip.category)}</span>
+                    <div class="clip-actions">
+                        ${!isSearch ? `<button class="delete-btn" data-id="${clip.id}">删除</button>` : ''}
+                        ${!isStoreOnly ? `<button class="expand-btn" onclick="generateDivergentSummary(${clip.id})" title="发散总结">💡</button>` : ''}
+                        <button class="expand-btn" onclick="toggleDetail(this)">
+                            <span class="icon">▼</span>
+                            <span class="text">展开</span>
+                        </button>
                     </div>
                 </div>
-                <div class="clip-summary">
-                    ${clip.summary || (clip.analysis ? 'AI 分析内容已生成' : '无摘要')}
+                <div class="clip-summary ${summaryClass}" title="${escapeHtml(displaySummary)}">${escapeHtml(displaySummary)}</div>
+                <div class="clip-meta">
+                    <span class="meta-item">类型: ${getTypeLabel(clip.type)}</span>
+                    <span class="meta-item">来源: ${clip.source}</span>
+                    <span class="meta-item">创建时间: ${createdAt}</span>
                 </div>
                 ${tagsHtml}
                 <div class="clip-detail">
-                    ${analysisHtml}
-                    ${contentHtml}
+                    <div class="content-section">
+                        <h4>原文</h4>
+                        <div class="content-text truncated">${escapeHtml(originalContent)}</div>
+                        <button class="copy-btn" onclick="copyToClipboard('${escapeJs(originalContent)}')">
+                            📋 复制原文
+                        </button>
+                    </div>
+                    ${analysisContent ? `
+                    <div class="content-section">
+                        <h4>AI分析</h4>
+                        <div class="markdown-content" id="analysis-content-${clip.id}"></div>
+                        <button class="btn-secondary" style="margin-top: 12px;" onclick="generateDivergentSummary(${clip.id})">
+                            🔄 发散性总结
+                        </button>
+                    </div>
+                    <div class="content-section" id="divergent-summary-${clip.id}" style="display: none;">
+                        <h4>发散性总结</h4>
+                        <div class="divergent-content markdown-content" id="divergent-content-${clip.id}">
+                            <p>生成中...</p>
+                        </div>
+                        <button class="copy-btn" onclick="copyToClipboard(document.getElementById('divergent-content-${clip.id}').textContent)">
+                            📋 复制总结
+                        </button>
+                    </div>
+                    ` : `
+                    <div class="content-section">
+                        <h4>AI分析</h4>
+                        <div class="markdown-content" style="text-align: center; padding: 20px;">
+                            <p style="color: var(--text-secondary);">内容处理中...</p>
+                            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 10px;">AI正在分析内容，请稍候</p>
+                        </div>
+                    </div>
+                    `}
                 </div>
             `;
-            
-            return clipItem;
+
+        if (analysisContent) {
+            console.log('===== 剪藏ID:', clip.id, '的分析内容调试 =====');
+            console.log('原始分析内容:', analysisContent);
+            console.log('原始内容长度:', analysisContent.length);
+
+            const analysisContentDiv = clipItem.querySelector(`#analysis-content-${clip.id}`);
+            if (analysisContentDiv) {
+                try {
+                    let cleanContent = analysisContent;
+
+                    if (cleanContent.startsWith('```markdown')) {
+                        cleanContent = cleanContent.substring('```markdown'.length);
+                    }
+                    if (cleanContent.startsWith('```')) {
+                        cleanContent = cleanContent.substring(3);
+                    }
+                    if (cleanContent.endsWith('```')) {
+                        cleanContent = cleanContent.substring(0, cleanContent.length - 3);
+                    }
+                    cleanContent = cleanContent.trim();
+
+                    console.log('清理后的内容:', cleanContent);
+
+                    const renderedHtml = marked.parse(cleanContent);
+                    console.log('marked渲染后的HTML:', renderedHtml);
+                    analysisContentDiv.innerHTML = renderedHtml;
+                    console.log('DOM元素的innerHTML:', analysisContentDiv.innerHTML);
+                } catch (e) {
+                    console.error('Markdown渲染失败:', e);
+                    analysisContentDiv.textContent = analysisContent;
+                }
+            }
         }
-        
-        function toggleDetail(btn) {
-            const clipItem = btn.closest('.clip-item');
-            const detail = clipItem.querySelector('.clip-detail');
-            const icon = btn.querySelector('.icon');
-            
-            if (detail.classList.contains('expanded')) {
-                detail.classList.remove('expanded');
-                btn.classList.remove('expanded');
-                icon.textContent = '▼';
-                btn.textContent = '展开详情 ';
-                btn.appendChild(icon);
+
+        return clipItem;
+    }
+
+    function toggleDetail(btn) {
+        const clipItem = btn.closest('.clip-item');
+        const detail = clipItem.querySelector('.clip-detail');
+        const icon = btn.querySelector('.icon');
+        const text = btn.querySelector('.text');
+
+        detail.classList.toggle('expanded');
+        btn.classList.toggle('expanded');
+
+        if (detail.classList.contains('expanded')) {
+            text.textContent = '收起';
+        } else {
+            text.textContent = '展开';
+        }
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function escapeJs(text) {
+        if (!text) return '';
+        return text.replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+    }
+
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            alert('已复制到剪贴板！');
+        }).catch(err => {
+            console.error('复制失败:', err);
+            alert('复制失败，请手动复制');
+        });
+    }
+
+    async function generateDivergentSummary(clipId) {
+        const divergentSection = document.getElementById(`divergent-summary-${clipId}`);
+        const divergentContent = document.getElementById(`divergent-content-${clipId}`);
+
+        divergentSection.style.display = 'block';
+        divergentContent.innerHTML = '<p>生成中...</p>';
+
+        try {
+            const response = await axios.get(`${API_BASE_URL}/divergent-summary/${clipId}`);
+            const summary = response.data;
+
+            const markdownHtml = marked.parse(summary);
+            typeWriterEffect(divergentContent, markdownHtml);
+        } catch (error) {
+            console.error('生成发散性总结失败:', error);
+            divergentContent.innerHTML = '<p style="color: var(--secondary);">生成失败，请稍后重试</p>';
+        }
+    }
+
+    function typeWriterEffect(element, html) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        const fullText = tempDiv.textContent || tempDiv.innerText;
+
+        element.innerHTML = '<p>生成中...</p>';
+
+        let index = 0;
+        element.innerHTML = '';
+
+        element.innerHTML = html;
+        element.style.opacity = '0';
+
+        setTimeout(() => {
+            element.style.transition = 'opacity 1s ease-out';
+            element.style.opacity = '1';
+        }, 100);
+
+        element.style.animation = 'none';
+
+        const textOnly = fullText;
+        let charIndex = 0;
+        element.innerHTML = '';
+
+        function typeChar() {
+            if (charIndex < textOnly.length) {
+                element.textContent = textOnly.substring(0, charIndex + 1);
+                charIndex++;
+                setTimeout(typeChar, 20);
             } else {
-                detail.classList.add('expanded');
-                btn.classList.add('expanded');
-                icon.textContent = '▲';
-                btn.textContent = '收起详情 ';
-                btn.appendChild(icon);
+                setTimeout(() => {
+                    element.innerHTML = html;
+                }, 300);
             }
         }
-        
-        function toggleTags(btn, tagsStr) {
-            const tagsDisplay = btn.closest('.tags-display');
-            const tagsCollapsed = tagsDisplay.querySelector('.tags-collapsed');
-            const tagsAll = tagsDisplay.querySelector('.tags-all');
-            
-            if (tagsAll.style.display === 'flex') {
-                tagsAll.style.display = 'none';
-                tagsCollapsed.style.display = 'flex';
-            } else {
-                tagsCollapsed.style.display = 'none';
-                tagsAll.style.display = 'flex';
-            }
+
+        typeChar();
+    }
+
+    function toggleTags(btn, tagsStr) {
+        const tagsDisplay = btn.closest('.tags-display');
+        const tagsCollapsed = tagsDisplay.querySelector('.tags-collapsed');
+        const tagsAll = tagsDisplay.querySelector('.tags-all');
+
+        if (tagsAll.style.display === 'flex') {
+            tagsAll.style.display = 'none';
+            tagsCollapsed.style.display = 'flex';
+        } else {
+            tagsCollapsed.style.display = 'none';
+            tagsAll.style.display = 'flex';
         }
-        
-        let confirmActionCallback = null;
-        
-        function showConfirmModal(id, message) {
-            document.getElementById('confirm-message').textContent = message;
-            document.getElementById('confirm-modal').style.display = 'flex';
-            confirmActionCallback = () => deleteClip(id);
+    }
+
+    let confirmActionCallback = null;
+
+    function showConfirmModal(id, message) {
+        document.getElementById('confirm-message').textContent = message;
+        document.getElementById('confirm-modal').style.display = 'flex';
+        confirmActionCallback = () => deleteClip(id);
+    }
+
+    function closeConfirmModal() {
+        document.getElementById('confirm-modal').style.display = 'none';
+        confirmActionCallback = null;
+    }
+
+    function confirmAction() {
+        if (confirmActionCallback) {
+            confirmActionCallback();
         }
-        
-        function closeConfirmModal() {
-            document.getElementById('confirm-modal').style.display = 'none';
-            confirmActionCallback = null;
-        }
-        
-        function confirmAction() {
-            if (confirmActionCallback) {
-                confirmActionCallback();
-            }
-            closeConfirmModal();
-        }
-        
-        async function deleteClip(id) {
-            try {
-                const response = await axios.delete(`${API_BASE_URL}/${id}`);
-                if (response.data.status === 'success') {
-                    fetchClips();
-                }
-            } catch (error) {
-                console.error('删除剪藏失败:', error);
-                alert('删除失败，请稍后重试');
-            }
-        }
-        
-        async function organizeContent() {
-            try {
-                const response = await axios.post(`${API_BASE_URL}/organize`);
-                if (response.data.status === 'success') {
-                    showNotification('内容整理完成！', true);
-                }
-            } catch (error) {
-                console.error('整理内容失败:', error);
-                alert('整理失败，请稍后重试');
-            }
-        }
-        
-        async function generateWeeklyReport() {
-            try {
-                const response = await axios.post(`${API_BASE_URL}/weekly-report`);
-                if (response.data.status === 'success') {
-                    showNotification('周报生成完成！', true);
-                }
-            } catch (error) {
-                console.error('生成周报失败:', error);
-                alert('生成失败，请稍后重试');
-            }
-        }
-        
-        function showNotification(message, showOpenButton = false) {
-            const notificationBar = document.getElementById('notification-bar');
-            const notificationMessage = document.getElementById('notification-message');
-            const openFolderBtn = document.getElementById('open-folder-btn');
-            
-            notificationMessage.textContent = message;
-            openFolderBtn.style.display = showOpenButton ? 'block' : 'none';
-            notificationBar.style.display = 'block';
-        }
-        
-        function closeNotification() {
-            document.getElementById('notification-bar').style.display = 'none';
-        }
-        
-        function openStorageFolder() {
-            // 这里可以调用后端API打开存储目录
-            console.log('打开存储目录');
-        }
-        
-        function startRefreshCheck() {
-            // 定期检查是否有新内容
-            setTimeout(() => {
+        closeConfirmModal();
+    }
+
+    async function deleteClip(id) {
+        try {
+            const response = await axios.delete(`${API_BASE_URL}/${id}`);
+            if (response.data.status === 'success') {
                 fetchClips();
-            }, 5000);
+            }
+        } catch (error) {
+            console.error('删除剪藏失败:', error);
+            alert('删除失败，请稍后重试');
         }
-    </script>
+    }
+
+    async function organizeContent() {
+        const organizeBtn = document.getElementById('organize-btn');
+        const originalText = organizeBtn.textContent;
+
+        try {
+            // 显示加载状态
+            showLoading('正在整理内容...', '正在处理剪藏内容，请稍候...');
+
+            // 禁用按钮
+            organizeBtn.disabled = true;
+            organizeBtn.classList.add('btn-loading');
+
+            const response = await axios.post(`${API_BASE_URL}/organize`);
+
+            if (response.data.status === 'success') {
+                showNotification('内容整理完成！', true);
+            }
+        } catch (error) {
+            console.error('整理内容失败:', error);
+            showError('整理失败', error.response?.data?.message || '请稍后重试');
+        } finally {
+            // 隐藏加载状态
+            hideLoading();
+
+            // 恢复按钮状态
+            organizeBtn.disabled = false;
+            organizeBtn.classList.remove('btn-loading');
+            organizeBtn.textContent = originalText;
+        }
+    }
+
+    async function generateWeeklyReport() {
+        const reportBtn = document.getElementById('weekly-report-btn');
+        const originalText = reportBtn.textContent;
+
+        try {
+            // 显示加载状态
+            showLoading('正在生成周报...', '正在分析本周内容，请稍候...');
+
+            // 禁用按钮
+            reportBtn.disabled = true;
+            reportBtn.classList.add('btn-loading');
+
+            const response = await axios.post(`${API_BASE_URL}/weekly-report`);
+
+            if (response.data.status === 'success') {
+                showNotification('周报生成完成！', true);
+            }
+        } catch (error) {
+            console.error('生成周报失败:', error);
+            showError('生成失败', error.response?.data?.message || '请稍后重试');
+        } finally {
+            // 隐藏加载状态
+            hideLoading();
+
+            // 恢复按钮状态
+            reportBtn.disabled = false;
+            reportBtn.classList.remove('btn-loading');
+            reportBtn.textContent = originalText;
+        }
+    }
+
+    function showNotification(message, showOpenButton = false) {
+        const notificationBar = document.getElementById('notification-bar');
+        const notificationMessage = document.getElementById('notification-message');
+        const openFolderBtn = document.getElementById('open-folder-btn');
+
+        notificationMessage.textContent = message;
+        openFolderBtn.style.display = showOpenButton ? 'block' : 'none';
+        notificationBar.style.display = 'block';
+    }
+
+    function closeNotification() {
+        document.getElementById('notification-bar').style.display = 'none';
+    }
+
+    function openStorageFolder() {
+        // 调用后端API打开存储目录
+        axios.post('http://127.0.0.1:8080/api/clip/open-storage-folder')
+            .then(response => {
+                if (response.data.status === 'success') {
+                    alert('已尝试打开存储目录，如未打开请手动访问: ' + response.data.storagePath);
+                } else {
+                    alert(response.data.message);
+                }
+            })
+            .catch(error => {
+                console.error('打开存储目录失败:', error);
+                alert('打开存储目录失败，请稍后重试');
+            });
+    }
+
+    // 加载状态管理函数
+    function showLoading(text = '处理中...', subtext = '请稍候...') {
+        const overlay = document.getElementById('loading-overlay');
+        const loadingText = document.getElementById('loading-text');
+        const loadingSubtext = document.getElementById('loading-subtext');
+
+        loadingText.textContent = text;
+        loadingSubtext.textContent = subtext;
+        overlay.style.display = 'flex';
+    }
+
+    function hideLoading() {
+        const overlay = document.getElementById('loading-overlay');
+        overlay.style.display = 'none';
+    }
+
+    // 错误提示函数
+    function showError(title, message) {
+        // 创建错误提示
+        const errorDiv = document.createElement('div');
+        errorDiv.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: rgba(239, 68, 68, 0.95);
+                color: white;
+                padding: 16px 24px;
+                border-radius: var(--radius);
+                box-shadow: var(--shadow-hover);
+                z-index: 3000;
+                animation: slideIn 0.3s ease-out;
+                max-width: 400px;
+            `;
+
+        errorDiv.innerHTML = `
+                <div style="display: flex; align-items: flex-start; gap: 12px;">
+                    <div style="font-size: 1.5rem; flex-shrink: 0;">⚠️</div>
+                    <div style="flex: 1;">
+                        <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 600;">${title}</h4>
+                        <p style="margin: 0; font-size: 0.95rem; opacity: 0.9;">${message}</p>
+                        <button onclick="this.parentElement.parentElement.remove()" style="
+                            margin-top: 12px;
+                            background: rgba(255, 255, 255, 0.2);
+                            border: none;
+                            color: white;
+                            padding: 6px 12px;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-size: 0.85rem;
+                            transition: background 0.3s ease;
+                        ">关闭</button>
+                    </div>
+                </div>
+            `;
+
+        document.body.appendChild(errorDiv);
+
+        // 3秒后自动消失
+        setTimeout(() => {
+            if (errorDiv.parentNode) {
+                errorDiv.style.animation = 'slideOut 0.3s ease-in';
+                setTimeout(() => errorDiv.remove(), 300);
+            }
+        }, 5000);
+    }
+
+    function startRefreshCheck() {
+        // 定期检查是否有新内容
+        setTimeout(() => {
+            fetchClips();
+        }, 5000);
+    }
+</script>
 </body>
 </html>=

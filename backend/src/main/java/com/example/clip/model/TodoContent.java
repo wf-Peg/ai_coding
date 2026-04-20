@@ -95,6 +95,7 @@ public class TodoContent {
         return createdAt;
     }
 
+    @JsonIgnore
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
     }
@@ -115,8 +116,8 @@ public class TodoContent {
      */
     public void setCreatedAtTimestamp(long timestamp) {
         this.createdAt = LocalDateTime.ofInstant(
-            java.time.Instant.ofEpochMilli(timestamp),
-            ZoneId.systemDefault()
+                java.time.Instant.ofEpochMilli(timestamp),
+                ZoneId.systemDefault()
         );
     }
 
