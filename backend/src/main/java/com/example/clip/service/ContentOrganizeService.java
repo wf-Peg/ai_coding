@@ -198,20 +198,12 @@ public class ContentOrganizeService {
                 // 替换图片路径，将 /api/clip/image/default 替换为 ./assets
                 String content = clip.getContent();
                 // 替换图片路径
-                content = content.replaceAll("/api/clip/image/[a-zA-Z0-9_-]+/([^\"]+)", "./assets/$1");
+                content = content.replaceAll(
+                        "\\(/api/clip/image/[^/]+/([^\\)]+)\\)",
+                        "(./assets/$1)"
+                );
                 contentBuilder.append("### 原文\n\n").append(content).append("\n\n");
             }
-            
-//             //添加图片路径信息
-//            if (clip.getImagePaths() != null && !clip.getImagePaths().isEmpty()) {
-//                contentBuilder.append("### 图片\n\n");
-//                for (String imagePath : clip.getImagePaths()) {
-//                    // 替换图片路径，将 /api/clip/image/default 替换为 ./assets
-//                    String fixedImagePath = imagePath.replaceAll("/api/clip/image/[a-zA-Z0-9_-]+/([^\"]+)", "./assets/$1");
-//                    contentBuilder.append("![图片](").append(fixedImagePath).append(")\n");
-//                }
-//                contentBuilder.append("\n");
-//            }
             
             if (clip.getAnalysis() != null) {
                 contentBuilder.append("### AI分析\n\n").append(clip.getAnalysis()).append("\n\n");
