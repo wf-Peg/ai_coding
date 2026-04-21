@@ -1,23 +1,19 @@
 package com.example.clip.controller;
 
 import com.example.clip.core.AiService;
+import com.example.clip.dto.ClipRequest;
+import com.example.clip.dto.ClipResponse;
+import com.example.clip.dto.TagRequest;
 import com.example.clip.model.ClipContent;
 import com.example.clip.service.ClipService;
 import com.example.clip.service.ContentOrganizeService;
 import com.example.clip.service.SearchService;
 import com.example.clip.service.WeeklyReportService;
-import com.example.clip.utils.ImageUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.core.io.Resource;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -49,7 +45,6 @@ public class ClipController {
      * @param contentOrganizeService 内容整理服务
      * @param weeklyReportService 周报服务
      */
-    @Autowired
     public ClipController(ClipService clipService, SearchService searchService, AiService aiService, ContentOrganizeService contentOrganizeService, WeeklyReportService weeklyReportService) {
         this.clipService = clipService;
         this.searchService = searchService;
@@ -297,171 +292,6 @@ public class ClipController {
                     "status", "error",
                     "message", e.getMessage()
             ));
-        }
-    }
-
-    // Request and Response classes
-    /**
-     * 剪藏请求类
-     * 用于接收前端发送的剪藏内容请求
-     */
-    public static class ClipRequest {
-        private String content;  // 剪藏内容
-        private String type;  // 剪藏类型
-        private String source;  // 剪藏来源
-        private String category;  // 剪藏分类
-        private List<String> tags;  // 剪藏标签
-        private Boolean useAiTags;  // 是否使用AI生成标签
-        private String fileData;  // 文件数据（Base64编码）
-        private String fileName;  // 文件名
-        private List<ImageData> imageDataList;  // 图片数据列表
-
-        // Getters and Setters
-        public String getContent() {
-            return content;
-        }
-
-        public void setContent(String content) {
-            this.content = content;
-        }
-
-        public String getType() {
-            return type;
-        }
-
-        public void setType(String type) {
-            this.type = type;
-        }
-
-        public String getSource() {
-            return source;
-        }
-
-        public void setSource(String source) {
-            this.source = source;
-        }
-
-        public String getCategory() {
-            return category;
-        }
-
-        public void setCategory(String category) {
-            this.category = category;
-        }
-
-        public List<String> getTags() {
-            return tags;
-        }
-
-        public void setTags(List<String> tags) {
-            this.tags = tags;
-        }
-
-        public Boolean getUseAiTags() {
-            return useAiTags;
-        }
-
-        public void setUseAiTags(Boolean useAiTags) {
-            this.useAiTags = useAiTags;
-        }
-
-        public String getFileData() { return fileData; }
-        public void setFileData(String fileData) { this.fileData = fileData; }
-
-        public String getFileName() { return fileName; }
-        public void setFileName(String fileName) { this.fileName = fileName; }
-
-        public List<ImageData> getImageDataList() { return imageDataList; }
-        public void setImageDataList(List<ImageData> imageDataList) { this.imageDataList = imageDataList; }
-
-        /**
-         * 图片数据类
-         * 用于接收前端上传的图片数据
-         */
-        public static class ImageData {
-            private String base64Data;  // Base64编码的图片数据
-            private String fileName;  // 图片文件名
-
-            public String getBase64Data() { return base64Data; }
-            public void setBase64Data(String base64Data) { this.base64Data = base64Data; }
-
-            public String getFileName() { return fileName; }
-            public void setFileName(String fileName) { this.fileName = fileName; }
-        }
-    }
-
-    /**
-     * 标签请求类
-     * 用于接收前端发送的标签生成请求
-     */
-    public static class TagRequest {
-        private String content;  // 内容
-
-        /**
-         * 获取内容
-         * @return 内容
-         */
-        public String getContent() {
-            return content;
-        }
-
-        /**
-         * 设置内容
-         * @param content 内容
-         */
-        public void setContent(String content) {
-            this.content = content;
-        }
-    }
-
-    /**
-     * 剪藏响应类
-     * 用于返回剪藏操作的响应结果
-     */
-    public static class ClipResponse {
-        private Long id;  // 剪藏ID
-        private String status;  // 操作状态
-
-        /**
-         * 构造函数
-         * @param id 剪藏ID
-         * @param status 操作状态
-         */
-        public ClipResponse(Long id, String status) {
-            this.id = id;
-            this.status = status;
-        }
-
-        /**
-         * 获取剪藏ID
-         * @return 剪藏ID
-         */
-        public Long getId() {
-            return id;
-        }
-
-        /**
-         * 设置剪藏ID
-         * @param id 剪藏ID
-         */
-        public void setId(Long id) {
-            this.id = id;
-        }
-
-        /**
-         * 获取操作状态
-         * @return 操作状态
-         */
-        public String getStatus() {
-            return status;
-        }
-
-        /**
-         * 设置操作状态
-         * @param status 操作状态
-         */
-        public void setStatus(String status) {
-            this.status = status;
         }
     }
 }

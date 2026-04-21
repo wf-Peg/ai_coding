@@ -1,13 +1,11 @@
 package com.example.clip.service;
 
-import com.example.clip.controller.ClipController;
 import com.example.clip.core.AiService;
+import com.example.clip.dto.ClipRequest;
 import com.example.clip.model.ClipContent;
 import com.example.clip.utils.ImageUtils;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -27,9 +25,8 @@ public class ClipService {
     private final AiService aiService;  // AI服务
     private final LinkParseService linkParseService;  // 链接解析服务
     private final DocumentParseService documentParseService;  // 文档解析服务
+    private final ImageUtils imageUtils;
 
-    @Autowired
-    private ImageUtils imageUtils;
     /**
      * 构造函数
      *
@@ -38,13 +35,14 @@ public class ClipService {
      * @param linkParseService     链接解析服务
      * @param documentParseService 文档解析服务
      */
-    @Autowired
     public ClipService(FileStorageService storageService, AiService aiService,
-                       LinkParseService linkParseService, DocumentParseService documentParseService) {
+                       LinkParseService linkParseService, DocumentParseService documentParseService,
+                       ImageUtils imageUtils) {
         this.storageService = storageService;
         this.aiService = aiService;
         this.linkParseService = linkParseService;
         this.documentParseService = documentParseService;
+        this.imageUtils = imageUtils;
     }
 
     /**
@@ -60,7 +58,7 @@ public class ClipService {
      * @return 保存后的剪藏内容
      */
     public ClipContent saveClip(String content, String type, String source, String category,
-                                String fileData, String fileName, List<ClipController.ClipRequest.ImageData> imageDataList) {
+                                String fileData, String fileName, List<ClipRequest.ImageData> imageDataList) {
         ClipContent clipContent = new ClipContent(content, type, source, category);
 
         // 处理图片
@@ -72,7 +70,7 @@ public class ClipService {
 
                 // 处理每张图片
                 for (int i = 0; i < imageDataList.size(); i++) {
-                    ClipController.ClipRequest.ImageData imageData = imageDataList.get(i);
+                    ClipRequest.ImageData imageData = imageDataList.get(i);
                     if (imageData.getBase64Data() != null && !imageData.getBase64Data().isEmpty()) {
                         // 解码Base64图片数据
                         byte[] imageBytes = Base64.getDecoder().decode(imageData.getBase64Data());
