@@ -1047,8 +1047,22 @@
     }
     const priorityOrder = { high: 0, medium: 1, low: 2 };
     list.sort((a, b) => {
+      // 首先按完成状态排序（未完成的在前）
       if (a.completed !== b.completed) return a.completed ? 1 : -1;
+      
+      // 然后按截止日期升序排序（有截止日期的在前，截止日期早的在前）
+      if (a.deadline && b.deadline) {
+        return a.deadline.localeCompare(b.deadline);
+      } else if (a.deadline) {
+        return -1; // 有截止日期的排在前面
+      } else if (b.deadline) {
+        return 1; // 没有截止日期的排在后面
+      }
+      
+      // 然后按优先级排序（高优先级在前）
       if (priorityOrder[a.priority] !== priorityOrder[b.priority]) return priorityOrder[a.priority] - priorityOrder[b.priority];
+      
+      // 最后按创建时间排序（最新的在前）
       return b.createdAt - a.createdAt;
     });
     return list;
