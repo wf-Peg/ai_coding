@@ -40,6 +40,10 @@ public class ContentOrganizeService {
      */
     private final EmailService emailService;
     /**
+     * Git服务
+     */
+    private final GitService gitService;
+    /**
      * 整理存储路径
      */
     private final Path organizedStoragePath;
@@ -57,6 +61,7 @@ public class ContentOrganizeService {
      * @param storageService 文件存储服务
      * @param aiService AI服务
      * @param emailService 邮件服务
+     * @param gitService Git服务
      * @param organizedStoragePath 整理存储路径
      */
     @Autowired
@@ -64,10 +69,12 @@ public class ContentOrganizeService {
             FileStorageService storageService,
             AiService aiService,
             EmailService emailService,
+            GitService gitService,
             @Value("${clip.organized-storage.path:./clip-organized}") String organizedStoragePath) {
         this.storageService = storageService;
         this.aiService = aiService;
         this.emailService = emailService;
+        this.gitService = gitService;
         this.organizedStoragePath = Paths.get(organizedStoragePath);
         initOrganizedStorage();
         this.lastOrganizeStatus = "idle";
@@ -156,6 +163,17 @@ public class ContentOrganizeService {
             result.put("status", "error");
             result.put("message", lastOrganizeMessage);
             e.printStackTrace();
+        } finally {
+            // 无论主流程是否成功，都执行git操作
+            try {
+                Path gitDirectory = storageService.getStorageParentPath();
+                if (gitDirectory != null) {
+                    gitService.executeGitOperations(gitDirectory);
+                }
+            } catch (Exception e) {
+                // 只打日志，不影响主流程
+                log.error("Git operation failed in finally block: {}", e.getMessage());
+            }
         }
 
         return result;

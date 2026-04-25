@@ -2,155 +2,81 @@ package com.example.clip.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
-import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.concurrent.CompletableFuture;
+import java.nio.file.Path;
 
+/**
+ * Git服务类
+ * 负责执行git操作，如pull、commit、push等
+ */
 @Service
 public class GitService {
 
-    private static final Logger logger = LoggerFactory.getLogger(GitService.class);
+    private static final Logger log = LoggerFactory.getLogger(GitService.class);
 
-    @Value("${git.repo.path:${user.dir}}")
-    private String repoPath;
+    /**
+     * 执行git操作
+     * @param directory 要执行git操作的目录
+     */
+    public void executeGitOperations(Path directory) {
+        if (directory == null || !directory.toFile().exists()) {
+            log.error("Git operation failed: directory does not exist: {}", directory);
+            return;
+        }
 
-    private String lastPushStatus = "idle";
-    private String lastPushMessage = "";
-    private String lastPullStatus = "idle";
-    private String lastPullMessage = "";
+        try {
+            log.info("Executing git operations in directory: {}", directory);
 
-    public CompletableFuture<String> pushAsync() {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                lastPushStatus = "running";
-                lastPushMessage = "正在执行 git push...";
-                
-                File repoDir = new File(repoPath);
-                if (!repoDir.exists() || !new File(repoDir, ".git").exists()) {
-                    throw new RuntimeException("未找到Git仓库: " + repoPath);
-                }
+            // 执行git pull
+            executeGitCommand(directory, "git", "pull");
 
-                ProcessBuilder addBuilder = new ProcessBuilder("git", "add", ".");
-                addBuilder.directory(repoDir);
-                Process addProcess = addBuilder.start();
-                addProcess.waitFor();
+            // 执行git add
+            executeGitCommand(directory, "git", "add", ".");
 
-                ProcessBuilder commitBuilder = new ProcessBuilder("git", "commit", "-m", "Update from clip tool");
-                commitBuilder.directory(repoDir);
-                Process commitProcess = commitBuilder.start();
-                commitProcess.waitFor();
+            // 执行git commit
+            executeGitCommand(directory, "git", "commit", "-m", "Auto commit: content organize or weekly report");
 
-                ProcessBuilder pushBuilder = new ProcessBuilder("git", "push");
-                pushBuilder.directory(repoDir);
-                Process pushProcess = pushBuilder.start();
-                
-                StringBuilder output = new StringBuilder();
-                BufferedReader reader = new BufferedReader(new InputStreamReader(pushProcess.getInputStream()));
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    output.append(line).append("\n");
-                }
-                
-                BufferedReader errorReader = new BufferedReader(new InputStreamReader(pushProcess.getErrorStream()));
-                while ((line = errorReader.readLine()) != null) {
-                    output.append(line).append("\n");
-                }
-                
-                int exitCode = pushProcess.waitFor();
-                
-                if (exitCode == 0) {
-                    lastPushStatus = "success";
-                    lastPushMessage = "Git push 成功";
-                    return "Git push 成功: " + output.toString();
-                } else {
-                    lastPushStatus = "error";
-                    lastPushMessage = "Git push 失败: " + output.toString();
-                    return lastPushMessage;
-                }
-            } catch (Exception e) {
-                logger.error("Git push failed", e);
-                lastPushStatus = "error";
-                lastPushMessage = "Git push 异常: " + e.getMessage();
-                return lastPushMessage;
+            // 执行git push
+            executeGitCommand(directory, "git", "push");
+
+            log.info("Git operations completed successfully");
+        } catch (Exception e) {
+            // 只打日志，不影响主流程
+            log.error("Git operation failed: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 执行git命令
+     * @param directory 执行目录
+     * @param command 命令及参数
+     * @throws IOException IO异常
+     * @throws InterruptedException 中断异常
+     */
+    private void executeGitCommand(Path directory, String... command) throws IOException, InterruptedException {
+        ProcessBuilder processBuilder = new ProcessBuilder(command);
+        processBuilder.directory(directory.toFile());
+        processBuilder.redirectErrorStream(true);
+
+        Process process = processBuilder.start();
+        int exitCode = process.waitFor();
+
+        // 读取输出
+        try (InputStream inputStream = process.getInputStream();
+             BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                log.info("Git command output: {}", line);
             }
-        });
-    }
+        }
 
-    public CompletableFuture<String> pullAsync() {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                lastPullStatus = "running";
-                lastPullMessage = "正在执行 git pull...";
-                
-                File repoDir = new File(repoPath);
-                if (!repoDir.exists() || !new File(repoDir, ".git").exists()) {
-                    throw new RuntimeException("未找到Git仓库: " + repoPath);
-                }
-
-                ProcessBuilder pullBuilder = new ProcessBuilder("git", "pull");
-                pullBuilder.directory(repoDir);
-                Process pullProcess = pullBuilder.start();
-                
-                StringBuilder output = new StringBuilder();
-                BufferedReader reader = new BufferedReader(new InputStreamReader(pullProcess.getInputStream()));
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    output.append(line).append("\n");
-                }
-                
-                BufferedReader errorReader = new BufferedReader(new InputStreamReader(pullProcess.getErrorStream()));
-                while ((line = errorReader.readLine()) != null) {
-                    output.append(line).append("\n");
-                }
-                
-                int exitCode = pullProcess.waitFor();
-                
-                if (exitCode == 0) {
-                    lastPullStatus = "success";
-                    lastPullMessage = "Git pull 成功";
-                    return "Git pull 成功: " + output.toString();
-                } else {
-                    lastPullStatus = "error";
-                    lastPullMessage = "Git pull 失败: " + output.toString();
-                    return lastPullMessage;
-                }
-            } catch (Exception e) {
-                logger.error("Git pull failed", e);
-                lastPullStatus = "error";
-                lastPullMessage = "Git pull 异常: " + e.getMessage();
-                return lastPullMessage;
-            }
-        });
-    }
-
-    public String getPushStatus() {
-        return lastPushStatus;
-    }
-
-    public String getPushMessage() {
-        return lastPushMessage;
-    }
-
-    public String getPullStatus() {
-        return lastPullStatus;
-    }
-
-    public String getPullMessage() {
-        return lastPullMessage;
-    }
-
-    public void resetPushStatus() {
-        lastPushStatus = "idle";
-        lastPushMessage = "";
-    }
-
-    public void resetPullStatus() {
-        lastPullStatus = "idle";
-        lastPullMessage = "";
+        if (exitCode != 0) {
+            log.warn("Git command failed with exit code: {}", exitCode);
+        }
     }
 }

@@ -2345,7 +2345,7 @@
                             📋 复制原文
                         </button>
                     </div>
-                    ${analysisContent ? `
+                    ${!isStoreOnly ? (analysisContent ? `
                     <div class="content-section">
                         <h4>AI分析</h4>
                         <div class="markdown-content" id="analysis-content-${clip.id}"></div>
@@ -2370,7 +2370,7 @@
                             <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 10px;">AI正在分析内容，请稍候</p>
                         </div>
                     </div>
-                    `}
+                    `) : ''}
                 </div>
             `;
 
