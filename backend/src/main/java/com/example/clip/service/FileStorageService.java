@@ -370,6 +370,10 @@ public class FileStorageService {
             if (todo.getId() == null) {
                 todo.setId(idGenerator.getAndIncrement());
                 log.info("[FileStorageService] Generated new id: {}", todo.getId());
+            } else {
+                // 更新场景：先从所有文件中删除原始待办事项
+                deleteTodoFromAllFiles(todo.getId());
+                log.info("[FileStorageService] Deleted original todo from all files");
             }
 
             Path filePath = getTodoDateFilePath();
@@ -377,21 +381,9 @@ public class FileStorageService {
             List<TodoContent> todos = readTodoArrayFromFile(filePath);
             log.info("[FileStorageService] Read {} existing todos from file", todos.size());
 
-            // 检查是否已存在相同ID（更新场景）
-            boolean updated = false;
-            for (int i = 0; i < todos.size(); i++) {
-                if (todos.get(i).getId() != null && todos.get(i).getId().equals(todo.getId())) {
-                    todos.set(i, todo);
-                    updated = true;
-                    log.info("[FileStorageService] Updated existing todo with id: {}", todo.getId());
-                    break;
-                }
-            }
-
-            if (!updated) {
-                todos.add(todo);
-                log.info("[FileStorageService] Added new todo to list");
-            }
+            // 添加更新后的待办事项
+            todos.add(todo);
+            log.info("[FileStorageService] Added todo to list");
 
             writeTodoArrayToFile(filePath, todos);
             log.info("[FileStorageService] Successfully wrote todos to file");
@@ -400,6 +392,42 @@ public class FileStorageService {
             log.error("[FileStorageService] Exception while saving todo", e);
             e.printStackTrace();
             return null;
+        }
+    }
+
+    /**
+     * 从所有待办事项文件中删除指定ID的待办事项
+     */
+    private void deleteTodoFromAllFiles(Long id) {
+        try {
+            Path todoPath = storagePath.resolve("todoList");
+            if (!Files.exists(todoPath)) {
+                return;
+            }
+
+            Files.walk(todoPath)
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".json"))
+                    .forEach(path -> {
+                        List<TodoContent> todos = readTodoArrayFromFile(path);
+                        boolean found = false;
+
+                        Iterator<TodoContent> iterator = todos.iterator();
+                        while (iterator.hasNext()) {
+                            TodoContent todo = iterator.next();
+                            if (todo.getId() != null && todo.getId().equals(id)) {
+                                iterator.remove();
+                                found = true;
+                                break;
+                            }
+                        }
+
+                        if (found) {
+                            writeTodoArrayToFile(path, todos);
+                        }
+                    });
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
