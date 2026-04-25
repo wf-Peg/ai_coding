@@ -46,6 +46,8 @@
 | 内容整理模块 | 邮件通知   | 可配置邮件通知，将每日剪藏日报发送到指定邮箱                  |
 | 周报生成模块 | 周报生成   | 生成每周剪藏周报，按分类组织内容，生成知识库格式报告             |
 | 周报生成模块 | 邮件通知   | 可配置邮件通知，将周报发送到指定邮箱                      |
+| Git同步模块 | Git配置   | 可配置远程仓库地址、用户名、密码、分支信息                 |
+| Git同步模块 | 同步仓库   | 执行Git同步操作，包括pull、commit、push到远程仓库        |
 | 系统配置模块 | 存储路径配置 | 可配置剪藏存储、整理存储和周报存储的路径                   |
 | 系统配置模块 | 邮箱配置   | 可配置邮件服务器和收件人信息，用于发送日报和周报               |
 
@@ -132,13 +134,14 @@ flowchart TD
 
 ### 4.1 系统架构
 
-- **前端**：React + Vite，使用TypeScript确保类型安全
+- **前端**：HTML5 + CSS3 + JavaScript，使用Marked.js渲染Markdown
 - **后端**：Spring Boot 3.2.0，Java 17
 - **AI服务**：阿里巴巴DashScope SDK，使用Qwen系列模型
 - **存储**：本地文件系统，JSON格式存储剪藏内容
 - **邮件服务**：Spring Boot Mail，支持SMTP配置
 - **周报服务**：WeeklyReportService，生成每周剪藏周报
 - **内容整理服务**：ContentOrganizeService，生成每日剪藏日报
+- **Git同步服务**：GitService，支持配置远程仓库和自动同步
 
 ### 4.2 核心技术栈
 
@@ -146,15 +149,16 @@ flowchart TD
 | ------------- | ------ | ---------- |
 | Spring Boot   | 3.2.0  | 后端框架       |
 | Java          | 17     | 后端开发语言     |
-| React         | 18+    | 前端框架       |
-| Vite          | 5+     | 前端构建工具     |
-| TypeScript    | 5+     | 前端类型系统     |
+| HTML5         | 5      | 前端结构       |
+| CSS3          | 3      | 前端样式       |
+| JavaScript    | ES6+   | 前端逻辑       |
+| Marked.js     | 12+    | Markdown渲染   |
 | DashScope SDK | 2.16.0 | AI服务集成     |
 | Spring AI     | 0.8.1  | AI框架集成     |
 | Jsoup         | 1.17.2 | HTML解析     |
 | Apache PDFBox | 3.0.5  | PDF解析      |
 | Apache POI    | 5.2.5  | Office文档解析 |
-| Electron      | 20+    | 桌面应用包装     |
+| JGit/Git CLI | -      | Git操作      |
 
 ### 4.3 目录结构
 
@@ -162,18 +166,18 @@ flowchart TD
 ├── backend/            # 后端代码
 │   ├── src/            # 源代码
 │   │   ├── main/java/com/example/clip/  # 主包
-│   │   │   ├── controller/  # 控制器
-│   │   │   ├── core/        # 核心服务
-│   │   │   ├── model/       # 数据模型
-│   │   │   ├── service/     # 业务服务
+│   │   │   ├── config/       # 配置类
+│   │   │   ├── controller/   # 控制器
+│   │   │   ├── core/         # 核心服务
+│   │   │   ├── model/        # 数据模型
+│   │   │   ├── service/      # 业务服务
 │   │   │   └── ClipDemoApplication.java  # 应用入口
-│   │   └── resources/       # 资源文件
-│   └── pom.xml             # Maven配置
+│   │   └── resources/        # 资源文件
+│   └── pom.xml              # Maven配置
 ├── frontend/           # 前端代码
-│   ├── src/            # 源代码
-│   ├── public/         # 静态资源
-│   └── package.json    # 前端依赖
-├── electron/           # Electron代码
+│   ├── index.html       # 主页面
+│   ├── clip.html       # 剪藏页面
+│   └── todo.html       # 待办页面
 └── PRD.md              # 产品需求文档
 ```
 
