@@ -1,0 +1,194 @@
+:root {
+  --bg: #f7f7f5;
+  --bg-elevated: #ffffff;
+  --card: #ffffff;
+  --card-hover: #fbfbfa;
+  --border: #e8e8e6;
+  --border-light: #dcdcd8;
+  --fg: #2f3437;
+  --fg-secondary: #6b6f76;
+  --fg-muted: #8a8f98;
+  --primary: #2383e2;
+  --primary-dark: #1f76c9;
+  --primary-light: #e9f3ff;
+  --primary-glow: rgba(35, 131, 226, 0.12);
+  --accent: #f1f1ef;
+  --accent-light: #f6f6f4;
+  --danger: #e03e3e;
+  --danger-light: #fdeeee;
+  --success: #1f9d66;
+  --success-light: #eaf8f2;
+  --priority-high: #e03e3e;
+  --priority-medium: #b8860b;
+  --priority-low: #2383e2;
+  --timeline-line: #d8d8d4;
+  --timeline-dot: #c7c7c2;
+  --radius-sm: 10px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 0 rgba(15, 23, 42, 0.03), 0 8px 20px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 1px 0 rgba(15, 23, 42, 0.04), 0 12px 24px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 1px 0 rgba(15, 23, 42, 0.04), 0 14px 28px rgba(15, 23, 42, 0.1);
+  --font-body: 'IBM Plex Sans', 'Noto Sans SC', sans-serif;
+  --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.app-container {
+  max-width: 760px;
+  padding: 18px 18px 76px;
+}
+
+.top-bar {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  animation: none;
+}
+
+.top-bar-icon {
+  background: #2f3437;
+}
+
+.top-bar h1 {
+  color: #1f2328;
+}
+
+.filter-bar {
+  margin-bottom: 14px;
+}
+
+.filter-btn {
+  border-radius: 8px;
+  padding: 6px 12px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  color: var(--fg-secondary);
+}
+
+.filter-btn:hover {
+  border-color: var(--border-light);
+  background: #f3f3f1;
+  color: var(--fg);
+}
+
+.filter-btn.active {
+  background: #2f3437;
+  border-color: #2f3437;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.timeline::before {
+  background: linear-gradient(to bottom, #d8d8d4 0%, #d8d8d4 100%);
+}
+
+.todo-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: none;
+  background: var(--card);
+}
+
+.todo-card:hover {
+  border-color: #d8d8d4;
+  box-shadow: none;
+  transform: none;
+}
+
+.timeline-item.completed .todo-card {
+  background: #f7f7f5;
+}
+
+.todo-tag {
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.tag-high,
+.tag-medium,
+.tag-low {
+  background: #f1f1ef;
+  color: #5f646c;
+}
+
+.action-btn:hover {
+  background: #f1f1ef;
+}
+
+.modal-card,
+.confirm-dialog {
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+}
+
+.modal-close {
+  border: 1px solid var(--border);
+  background: #ffffff;
+}
+
+.modal-close:hover {
+  background: #f3f3f1;
+}
+
+.modal-input,
+.modal-options select,
+.modal-options input[type="date"],
+.edit-form input,
+.edit-form select {
+  border: 1px solid #d9d9d6;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.modal-input:focus,
+.modal-options select:focus,
+.modal-options input[type="date"]:focus,
+.edit-form input:focus,
+.edit-form select:focus {
+  box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.15);
+  border-color: var(--primary);
+}
+
+.modal-submit,
+.btn-save {
+  background: #2f3437;
+  border-color: #2f3437;
+}
+
+.modal-submit:hover,
+.btn-save:hover {
+  background: #1f2328;
+  box-shadow: none;
+}
+
+.btn-cancel,
+.btn-confirm-cancel {
+  background: #f7f7f5;
+  border-color: #dcdcd8;
+  color: var(--fg-secondary);
+}
+
+.btn-cancel:hover,
+.btn-confirm-cancel:hover {
+  background: #efefed;
+  color: var(--fg);
+}
+
+.fab {
+  background: #2f3437;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(31, 35, 40, 0.22);
+}
+
+.fab:hover {
+  background: #1f2328;
+  box-shadow: 0 10px 24px rgba(31, 35, 40, 0.3);
+}

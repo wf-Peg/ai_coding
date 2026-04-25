@@ -1,0 +1,1369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>待办事项</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--bg);
+            color: var(--fg);
+            min-height: 100vh;
+            overflow-x: hidden;
+            line-height: 1.4;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .app-container {
+            position: relative;
+            z-index: 1;
+            max-width: 640px;
+            margin: 0 auto;
+            padding: 12px 16px 70px;
+        }
+
+        /* ── Compact header + stats row ── */
+        .top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            animation: fadeSlideDown 0.5s ease-out;
+        }
+        .top-bar-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .top-bar-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-sm);
+            background: linear-gradient(135deg, var(--primary), #5B9BF7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .top-bar-icon svg {
+            width: 18px;
+            height: 18px;
+            stroke: #fff;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .top-bar h1 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            color: var(--fg);
+            white-space: nowrap;
+        }
+
+        .stats-inline {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .top-bar-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .stat-chip {
+            font-size: 0.68rem;
+            color: var(--fg-muted);
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            white-space: nowrap;
+        }
+        .stat-chip .num {
+            font-weight: 700;
+            font-size: 0.78rem;
+        }
+        .stat-chip .num.total { color: var(--fg); }
+        .stat-chip .num.done { color: var(--success); }
+        .stat-chip .num.pending { color: var(--primary); }
+        .stat-dot {
+            width: 3px; height: 3px;
+            border-radius: 50%;
+            background: var(--border-light);
+        }
+
+        /* ── Filter tabs ── */
+        .filter-bar {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 12px;
+            animation: fadeSlideDown 0.5s ease-out 0.05s both;
+        }
+        .filter-btn {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            padding: 4px 14px;
+            color: var(--fg-secondary);
+            font-family: var(--font-body);
+            font-size: 0.72rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+        .filter-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: var(--primary-light);
+        }
+        .filter-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #fff;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(66,133,244,0.25);
+        }
+
+        /* ── Timeline ── */
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+            max-height: calc(100vh - 150px);
+            overflow-y: auto;
+        }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 9px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(to bottom, var(--primary) 0%, var(--timeline-line) 10%, var(--timeline-line) 90%, transparent 100%);
+            border-radius: 2px;
+        }
+
+        .timeline-empty {
+            text-align: center;
+            padding: 40px 16px;
+            animation: fadeIn 0.4s ease-out;
+        }
+        .timeline-empty .empty-icon {
+            font-size: 2.4rem;
+            margin-bottom: 10px;
+            opacity: 0.4;
+        }
+        .timeline-empty p {
+            color: var(--fg-secondary);
+            font-size: 0.88rem;
+            font-weight: 500;
+        }
+        .timeline-empty p.hint {
+            font-size: 0.76rem;
+            margin-top: 4px;
+            color: var(--fg-muted);
+            font-weight: 400;
+        }
+
+        /* ── Timeline item ── */
+        .timeline-item {
+            position: relative;
+            margin-bottom: 8px;
+            animation: fadeSlideUp 0.35s ease-out both;
+        }
+        .timeline-item:nth-child(1) { animation-delay: 0s; }
+        .timeline-item:nth-child(2) { animation-delay: 0.03s; }
+        .timeline-item:nth-child(3) { animation-delay: 0.06s; }
+        .timeline-item:nth-child(4) { animation-delay: 0.09s; }
+        .timeline-item:nth-child(5) { animation-delay: 0.12s; }
+
+        /* Timeline dot */
+        .timeline-dot {
+            position: absolute;
+            left: -26px;
+            top: 14px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--timeline-dot);
+            border: 2px solid var(--bg);
+            transition: var(--transition);
+            z-index: 2;
+        }
+        .timeline-item:hover .timeline-dot {
+            transform: scale(1.3);
+        }
+        .timeline-item.priority-high .timeline-dot {
+            background: var(--priority-high);
+            box-shadow: 0 0 0 3px rgba(234,67,53,0.12);
+        }
+        .timeline-item.priority-medium .timeline-dot {
+            background: var(--priority-medium);
+            box-shadow: 0 0 0 3px rgba(244,180,0,0.12);
+        }
+        .timeline-item.priority-low .timeline-dot {
+            background: var(--priority-low);
+            box-shadow: 0 0 0 3px rgba(66,133,244,0.12);
+        }
+        .timeline-item.completed .timeline-dot {
+            background: var(--success);
+            box-shadow: 0 0 0 3px rgba(52,168,83,0.12);
+        }
+
+        /* Todo card */
+        .todo-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+        .todo-card::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 3px;
+            border-radius: 3px 0 0 3px;
+            transition: var(--transition);
+        }
+        .timeline-item.priority-high .todo-card::before { background: var(--priority-high); }
+        .timeline-item.priority-medium .todo-card::before { background: var(--priority-medium); }
+        .timeline-item.priority-low .todo-card::before { background: var(--priority-low); }
+
+        .todo-card:hover {
+            border-color: var(--border-light);
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+        .timeline-item.completed .todo-card {
+            opacity: 0.5;
+            background: var(--bg);
+        }
+        .timeline-item.completed .todo-card:hover {
+            opacity: 0.7;
+        }
+
+        .todo-top-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Checkbox */
+        .todo-checkbox {
+            position: relative;
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+        .todo-checkbox input {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+            z-index: 2;
+        }
+        .todo-checkbox .checkmark {
+            position: absolute;
+            inset: 0;
+            border: 2px solid var(--border-light);
+            border-radius: 4px;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+        }
+        .todo-checkbox .checkmark svg {
+            width: 10px;
+            height: 10px;
+            stroke: #fff;
+            stroke-width: 3;
+            fill: none;
+            opacity: 0;
+            transform: scale(0.5);
+            transition: var(--transition);
+        }
+        .todo-checkbox input:checked + .checkmark {
+            background: var(--success);
+            border-color: var(--success);
+        }
+        .todo-checkbox input:checked + .checkmark svg {
+            opacity: 1;
+            transform: scale(1);
+        }
+        .todo-checkbox:hover .checkmark {
+            border-color: var(--primary);
+        }
+
+        .todo-content {
+            flex: 1;
+            min-width: 0;
+        }
+        .todo-title {
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: var(--fg);
+            transition: var(--transition);
+            word-break: break-word;
+            line-height: 1.35;
+        }
+        .timeline-item.completed .todo-title {
+            text-decoration: line-through;
+            color: var(--fg-muted);
+        }
+
+        /* Meta row */
+        .todo-meta {
+            display: flex;
+            gap: 6px;
+            margin-top: 4px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .todo-tag {
+            font-size: 0.58rem;
+            padding: 1px 7px;
+            border-radius: 100px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            line-height: 1.7;
+        }
+        .tag-high { background: var(--danger-light); color: var(--priority-high); }
+        .tag-medium { background: var(--accent-light); color: #B8860B; }
+        .tag-low { background: var(--primary-light); color: var(--priority-low); }
+
+        .todo-date {
+            font-size: 0.65rem;
+            color: var(--fg-muted);
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+        .todo-date svg {
+            width: 11px;
+            height: 11px;
+            stroke: var(--fg-muted);
+            fill: none;
+            stroke-width: 2;
+        }
+        .todo-date.overdue {
+            color: var(--danger);
+        }
+        .todo-date.overdue svg {
+            stroke: var(--danger);
+        }
+
+        /* Actions */
+        .todo-actions {
+            display: flex;
+            gap: 2px;
+            flex-shrink: 0;
+            opacity: 0;
+            transition: var(--transition);
+        }
+        .todo-card:hover .todo-actions {
+            opacity: 1;
+        }
+        .action-btn {
+            width: 26px;
+            height: 26px;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--fg-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
+        }
+        .action-btn svg {
+            width: 13px;
+            height: 13px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+        }
+        .action-btn:hover {
+            background: var(--primary-light);
+            color: var(--primary);
+        }
+        .action-btn.delete:hover {
+            background: var(--danger-light);
+            color: var(--danger);
+        }
+
+        /* ── Edit mode ── */
+        .edit-form {
+            display: none;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid var(--border);
+            gap: 6px;
+        }
+        .edit-form.active {
+            display: flex;
+            flex-wrap: wrap;
+            animation: fadeIn 0.2s ease-out;
+        }
+        .edit-form input[type="text"] {
+            flex: 1;
+            min-width: 140px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 6px 10px;
+            color: var(--fg);
+            font-family: var(--font-body);
+            font-size: 0.78rem;
+            outline: none;
+            transition: var(--transition);
+        }
+        .edit-form input[type="text"]:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px var(--primary-glow);
+        }
+        .edit-form select,
+        .edit-form input[type="date"] {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 6px 8px;
+            color: var(--fg);
+            font-family: var(--font-body);
+            font-size: 0.72rem;
+            outline: none;
+        }
+        .edit-form select:focus,
+        .edit-form input[type="date"]:focus {
+            border-color: var(--primary);
+        }
+        .edit-form select option { background: var(--card); }
+        .edit-actions {
+            display: flex;
+            gap: 4px;
+            margin-left: auto;
+        }
+        .btn-save, .btn-cancel {
+            border: none;
+            border-radius: 6px;
+            padding: 6px 14px;
+            font-family: var(--font-body);
+            font-size: 0.72rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .btn-save {
+            background: var(--primary);
+            color: #fff;
+        }
+        .btn-save:hover { background: var(--primary-dark); box-shadow: 0 2px 8px rgba(66,133,244,0.25); }
+        .btn-cancel {
+            background: var(--bg);
+            color: var(--fg-secondary);
+            border: 1px solid var(--border);
+        }
+        .btn-cancel:hover {
+            color: var(--fg);
+            border-color: var(--border-light);
+        }
+
+        /* ── Floating add button (Material FAB) ── */
+        .fab {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 52px;
+            height: 52px;
+            border-radius: 16px;
+            background: var(--accent);
+            color: var(--fg);
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(244,180,0,0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
+            z-index: 100;
+        }
+        .fab svg {
+            width: 22px;
+            height: 22px;
+            stroke: currentColor;
+            stroke-width: 2.5;
+            fill: none;
+            transition: var(--transition);
+        }
+        .fab:hover {
+            transform: scale(1.06);
+            box-shadow: 0 6px 20px rgba(244,180,0,0.45);
+            background: #DB9F00;
+        }
+        .fab:active { transform: scale(0.96); }
+
+        /* ── Add modal ── */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.32);
+            z-index: 500;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.active {
+            display: flex;
+            animation: fadeIn 0.2s ease-out;
+        }
+        .modal-card {
+            background: var(--card);
+            border: none;
+            border-radius: var(--radius-lg);
+            padding: 22px 24px;
+            width: 90%;
+            max-width: 380px;
+            box-shadow: var(--shadow-lg);
+            animation: scaleIn 0.25s ease-out;
+        }
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        .modal-header h2 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--fg);
+        }
+        .modal-close {
+            width: 30px;
+            height: 30px;
+            border: none;
+            border-radius: 50%;
+            background: var(--bg);
+            color: var(--fg-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
+        }
+        .modal-close svg {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+        }
+        .modal-close:hover {
+            background: var(--danger-light);
+            color: var(--danger);
+        }
+
+        .modal-input {
+            width: 100%;
+            background: var(--bg);
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+            color: var(--fg);
+            font-family: var(--font-body);
+            font-size: 0.88rem;
+            outline: none;
+            transition: var(--transition);
+            margin-bottom: 10px;
+        }
+        .modal-input::placeholder { color: var(--fg-muted); }
+        .modal-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+            background: #fff;
+        }
+
+        .modal-options {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .modal-options select,
+        .modal-options input[type="date"] {
+            background: var(--bg);
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 8px 10px;
+            color: var(--fg);
+            font-family: var(--font-body);
+            font-size: 0.78rem;
+            outline: none;
+            transition: var(--transition);
+            cursor: pointer;
+            flex: 1;
+            min-width: 0;
+        }
+        .modal-options select:focus,
+        .modal-options input[type="date"]:focus {
+            border-color: var(--primary);
+        }
+        .modal-options select option {
+            background: var(--card);
+            color: var(--fg);
+        }
+
+        .modal-submit {
+            width: 100%;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-sm);
+            padding: 10px;
+            font-family: var(--font-body);
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            letter-spacing: 0.01em;
+        }
+        .modal-submit:hover {
+            background: var(--primary-dark);
+            box-shadow: 0 4px 14px rgba(66,133,244,0.3);
+        }
+        .modal-submit:active { transform: scale(0.98); }
+
+        /* ── Toast ── */
+        .toast-container {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .toast {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 8px 14px;
+            font-size: 0.78rem;
+            color: var(--fg);
+            box-shadow: var(--shadow-lg);
+            animation: toastIn 0.3s ease-out;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .toast.leaving {
+            animation: toastOut 0.25s ease-in forwards;
+        }
+        .toast-icon {
+            font-size: 0.9rem;
+        }
+
+        /* ── Delete confirm overlay ── */
+        .confirm-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.32);
+            z-index: 999;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.2s ease-out;
+        }
+        .confirm-overlay.active {
+            display: flex;
+        }
+        .confirm-dialog {
+            background: var(--card);
+            border: none;
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            max-width: 340px;
+            width: 90%;
+            text-align: center;
+            box-shadow: var(--shadow-lg);
+            animation: scaleIn 0.25s ease-out;
+        }
+        .confirm-dialog h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: var(--fg);
+        }
+        .confirm-dialog p {
+            font-size: 0.82rem;
+            color: var(--fg-secondary);
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+        .confirm-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        .btn-confirm-delete {
+            background: var(--danger);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-sm);
+            padding: 9px 22px;
+            font-family: var(--font-body);
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .btn-confirm-delete:hover {
+            background: #D33426;
+            box-shadow: 0 4px 12px rgba(234,67,53,0.3);
+        }
+        .btn-confirm-cancel {
+            background: var(--bg);
+            color: var(--fg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 9px 22px;
+            font-family: var(--font-body);
+            font-size: 0.82rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .btn-confirm-cancel:hover {
+            border-color: var(--border-light);
+            color: var(--fg);
+        }
+
+        /* ── Animations ── */
+        @keyframes fadeSlideDown {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeSlideUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.92); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(30px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes toastOut {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(30px); }
+        }
+        @keyframes itemRemove {
+            to { opacity: 0; transform: translateX(-20px) scale(0.95); height: 0; margin: 0; padding: 0; overflow: hidden; }
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 480px) {
+            .app-container { padding: 8px 10px 64px; }
+            .todo-actions { opacity: 1; }
+            .edit-form.active { flex-direction: column; }
+            .edit-actions { margin-left: 0; }
+            .filter-bar { flex-wrap: wrap; }
+            .modal-card { padding: 18px; }
+            .fab { bottom: 16px; right: 16px; width: 48px; height: 48px; border-radius: 14px; }
+            .top-bar-right { gap: 6px; }
+            .stats-inline { gap: 6px; }
+        }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
+
+        /* ── Date input styling ── */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+            opacity: 0.5;
+        }
+    </style>
+    <link id="themeRegular" rel="stylesheet" href="./styles/theme-regular.css">
+    <link id="themeNotion" rel="stylesheet" href="./styles/theme-notion.css" disabled>
+</head>
+<body>
+
+<div class="app-container">
+  <!-- Compact top bar -->
+  <div class="top-bar">
+    <div class="top-bar-left">
+      <div class="top-bar-icon">
+        <svg viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+      </div>
+      <h1>待办事项</h1>
+    </div>
+    <div class="top-bar-right">
+      <div class="stats-inline">
+        <span class="stat-chip"><span class="num total" id="statTotal">0</span> 全部</span>
+        <span class="stat-dot"></span>
+        <span class="stat-chip"><span class="num done" id="statDone">0</span> 完成</span>
+        <span class="stat-dot"></span>
+        <span class="stat-chip"><span class="num pending" id="statPending">0</span> 进行中</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filter-bar">
+    <button class="filter-btn active" data-filter="all">全部</button>
+    <button class="filter-btn" data-filter="pending">进行中</button>
+    <button class="filter-btn" data-filter="completed">已完成</button>
+    <button class="filter-btn" data-filter="high">🔴 高优先</button>
+  </div>
+
+  <!-- Timeline -->
+  <div class="timeline" id="timeline"></div>
+</div>
+
+<!-- Floating add button -->
+<button class="fab" id="fabAdd" title="新建待办">
+  <svg viewBox="0 0 24 24" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+</button>
+
+<!-- Add modal -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h2>新建待办</h2>
+      <button class="modal-close" id="modalClose">
+        <svg viewBox="0 0 24 24" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <input type="text" class="modal-input" id="inputTitle" placeholder="输入待办事项..." maxlength="120" />
+    <div class="modal-options">
+      <select id="inputPriority">
+        <option value="medium">🟡 中优先级</option>
+        <option value="high">🔴 高优先级</option>
+        <option value="low">🔵 低优先级</option>
+      </select>
+      <input type="date" id="inputDate" />
+    </div>
+    <button class="modal-submit" id="btnAdd">添加待办</button>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Delete confirm -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-dialog">
+    <h3>确认删除</h3>
+    <p>此操作不可撤销，确定要删除这条待办吗？</p>
+    <div class="confirm-buttons">
+      <button class="btn-confirm-cancel" id="btnConfirmCancel">取消</button>
+      <button class="btn-confirm-delete" id="btnConfirmDelete">删除</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  // ── State ──
+  let todos = [];
+  let currentFilter = 'all';
+  let deleteTargetId = null;
+
+  // ── DOM refs ──
+  const inputTitle = document.getElementById('inputTitle');
+  const inputPriority = document.getElementById('inputPriority');
+  const inputDate = document.getElementById('inputDate');
+  const btnAdd = document.getElementById('btnAdd');
+  const fabAdd = document.getElementById('fabAdd');
+  const addModal = document.getElementById('addModal');
+  const modalClose = document.getElementById('modalClose');
+  const timeline = document.getElementById('timeline');
+  const toastContainer = document.getElementById('toastContainer');
+  const confirmOverlay = document.getElementById('confirmOverlay');
+  const btnConfirmDelete = document.getElementById('btnConfirmDelete');
+  const btnConfirmCancel = document.getElementById('btnConfirmCancel');
+  const statTotal = document.getElementById('statTotal');
+  const statDone = document.getElementById('statDone');
+  const statPending = document.getElementById('statPending');
+  const filterBtns = document.querySelectorAll('.filter-btn');
+  const themeRegular = document.getElementById('themeRegular');
+  const themeNotion = document.getElementById('themeNotion');
+
+  // ── API ──
+  const TODO_API_BASE_URL = 'http://127.0.0.1:8080/api/todo';
+  const THEME_STORAGE_KEY = 'app_theme_v1';
+  const THEMES = [
+    { id: 'regular', name: '常规风格', link: themeRegular },
+    { id: 'notion', name: 'Notion风格', link: themeNotion }
+  ];
+  const themeById = THEMES.reduce((acc, theme) => {
+    acc[theme.id] = theme;
+    return acc;
+  }, {});
+  let currentTheme = THEMES[0].id;
+
+  function getNextThemeId(themeId) {
+    const index = THEMES.findIndex(theme => theme.id === themeId);
+    const safeIndex = index >= 0 ? index : 0;
+    return THEMES[(safeIndex + 1) % THEMES.length].id;
+  }
+
+  function updateThemeToggleLabel() {
+    // Toggle入口已迁移到clip页面，此页仅做主题跟随。
+  }
+
+  function applyTheme(themeId, persist = true) {
+    const resolvedThemeId = themeById[themeId] ? themeId : THEMES[0].id;
+    currentTheme = resolvedThemeId;
+
+    THEMES.forEach(theme => {
+      theme.link.disabled = theme.id !== currentTheme;
+    });
+
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    if (persist) {
+      localStorage.setItem(THEME_STORAGE_KEY, currentTheme);
+    }
+    updateThemeToggleLabel();
+  }
+
+  // ── Data ──
+  async function fetchTodos() {
+    try {
+      const response = await axios.get(`${TODO_API_BASE_URL}/list`);
+      todos = response.data.map(todo => {
+        if (!todo.createdAt) {
+          todo.createdAt = todo.createdAtTimestamp || Date.now();
+        }
+        return todo;
+      });
+      renderTimeline();
+      updateStats();
+    } catch (error) {
+      console.error('获取待办事项失败，使用模拟数据:', error);
+      // 使用模拟数据
+      const now = Date.now();
+      todos = [
+        { id: now - 50000, title: '完成项目方案设计', priority: 'high', deadline: todayStr(), completed: false, createdAt: now - 50000, category: '工作' },
+        { id: now - 30000, title: '阅读《设计心理学》第三章', priority: 'medium', deadline: futureDateStr(2), completed: false, createdAt: now - 30000, category: '学习' },
+        { id: now - 10000, title: '整理本周会议纪要', priority: 'low', deadline: todayStr(), completed: true, createdAt: now - 10000, category: '工作' },
+      ];
+      renderTimeline();
+      updateStats();
+    }
+  }
+
+  // ── Helpers ──
+  function todayStr() {
+    return new Date().toISOString().split('T')[0];
+  }
+  function futureDateStr(days) {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
+  }
+  function genId() {
+    return Date.now() + Math.floor(Math.random() * 1000);
+  }
+  function formatRelativeTime(ts) {
+    const diff = Date.now() - ts;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return '刚刚';
+    if (mins < 60) return mins + '分钟前';
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + '小时前';
+    const days = Math.floor(hrs / 24);
+    if (days < 30) return days + '天前';
+    return new Date(ts).toLocaleDateString('zh-CN');
+  }
+  function formatDate(str) {
+    if (!str) return '';
+    const d = new Date(str + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const diff = Math.floor((d - today) / 86400000);
+    if (diff === 0) return '今天';
+    if (diff === 1) return '明天';
+    if (diff === -1) return '昨天';
+    return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+  }
+  function isOverdue(dateStr) {
+    if (!dateStr) return false;
+    return dateStr < todayStr();
+  }
+
+  // ── Modal ──
+  function openModal() {
+    inputDate.value = todayStr();
+    inputPriority.value = 'medium';
+    addModal.classList.add('active');
+    setTimeout(() => inputTitle.focus(), 100);
+  }
+  function closeModal() {
+    addModal.classList.remove('active');
+    inputTitle.value = '';
+  }
+
+  // ── Toast ──
+  function showToast(message, icon = '✓') {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.innerHTML = `<span class="toast-icon">${icon}</span><span>${message}</span>`;
+    toastContainer.appendChild(el);
+    setTimeout(() => {
+      el.classList.add('leaving');
+      setTimeout(() => el.remove(), 250);
+    }, 2000);
+  }
+
+  // ── Stats ──
+  function updateStats() {
+    const total = todos.length;
+    const done = todos.filter(t => t.completed).length;
+    statTotal.textContent = total;
+    statDone.textContent = done;
+    statPending.textContent = total - done;
+  }
+
+  // ── Render ──
+  function getFilteredTodos() {
+    let list = [...todos];
+    switch(currentFilter) {
+      case 'pending': list = list.filter(t => !t.completed); break;
+      case 'completed': list = list.filter(t => t.completed); break;
+      case 'high': list = list.filter(t => t.priority === 'high' && !t.completed); break;
+    }
+    const priorityOrder = { high: 0, medium: 1, low: 2 };
+    list.sort((a, b) => {
+      // 首先按完成状态排序（未完成的在前）
+      if (a.completed !== b.completed) return a.completed ? 1 : -1;
+      
+      // 然后按截止日期升序排序（有截止日期的在前，截止日期早的在前）
+      if (a.deadline && b.deadline) {
+        return a.deadline.localeCompare(b.deadline);
+      } else if (a.deadline) {
+        return -1; // 有截止日期的排在前面
+      } else if (b.deadline) {
+        return 1; // 没有截止日期的排在后面
+      }
+      
+      // 然后按优先级排序（高优先级在前）
+      if (priorityOrder[a.priority] !== priorityOrder[b.priority]) return priorityOrder[a.priority] - priorityOrder[b.priority];
+      
+      // 最后按创建时间排序（最新的在前）
+      return b.createdAt - a.createdAt;
+    });
+    return list;
+  }
+
+  function renderTimeline() {
+    const filtered = getFilteredTodos();
+    if (filtered.length === 0) {
+      timeline.innerHTML = `
+        <div class="timeline-empty">
+          <div class="empty-icon">📭</div>
+          <p>${currentFilter === 'all' ? '暂无待办事项' : '该分类下暂无内容'}</p>
+          <p class="hint">${currentFilter === 'all' ? '点击右下角 + 添加你的第一条待办' : '试试切换其他分类'}</p>
+        </div>`;
+      return;
+    }
+
+    timeline.innerHTML = filtered.map(todo => {
+      const priorityLabels = { high: '高', medium: '中', low: '低' };
+      const tagClass = { high: 'tag-high', medium: 'tag-medium', low: 'tag-low' };
+      const overdue = !todo.completed && isOverdue(todo.deadline);
+      const dateDisplay = todo.deadline ? formatDate(todo.deadline) : '';
+
+      return `
+        <div class="timeline-item priority-${todo.priority} ${todo.completed ? 'completed' : ''}" data-id="${todo.id}">
+          <div class="timeline-dot"></div>
+          <div class="todo-card">
+            <div class="todo-top-row">
+              <label class="todo-checkbox">
+                <input type="checkbox" ${todo.completed ? 'checked' : ''} onchange="app.toggleComplete(${todo.id})">
+                <div class="checkmark">
+                  <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+              </label>
+              <div class="todo-content">
+                <div class="todo-title">${escapeHtml(todo.title)}</div>
+                <div class="todo-meta">
+                  <span class="todo-tag ${tagClass[todo.priority]}">${priorityLabels[todo.priority]}</span>
+                  ${todo.category ? `<span class="todo-tag tag-low" style="margin-left: 6px;">${escapeHtml(todo.category)}</span>` : ''}
+                  ${dateDisplay ? `<span class="todo-date ${overdue ? 'overdue' : ''}">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    ${dateDisplay}${overdue ? ' 已过期' : ''}
+                  </span>` : ''}
+                  <span style="font-size:0.6rem;color:var(--fg-muted);opacity:0.5;margin-left:auto">${formatRelativeTime(todo.createdAt)}</span>
+                </div>
+              </div>
+              <div class="todo-actions">
+                <button class="action-btn" title="编辑" onclick="app.startEdit(${todo.id})">
+                  <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button class="action-btn delete" title="删除" onclick="app.confirmDelete(${todo.id})">
+                  <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="edit-form" id="edit-${todo.id}">
+              <input type="text" id="editTitle-${todo.id}" value="${escapeAttr(todo.title)}" maxlength="120" />
+              <select id="editPriority-${todo.id}">
+                <option value="high" ${todo.priority === 'high' ? 'selected' : ''}>🔴 高优先级</option>
+                <option value="medium" ${todo.priority === 'medium' ? 'selected' : ''}>🟡 中优先级</option>
+                <option value="low" ${todo.priority === 'low' ? 'selected' : ''}>🔵 低优先级</option>
+              </select>
+              <input type="date" id="editDate-${todo.id}" value="${todo.deadline || ''}" />
+              <div class="edit-actions">
+                <button class="btn-cancel" onclick="app.cancelEdit(${todo.id})">取消</button>
+                <button class="btn-save" onclick="app.saveEdit(${todo.id})">保存</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+  function escapeAttr(str) {
+    return str.replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // ── Actions ──
+  async function addTodo() {
+    const title = inputTitle.value.trim();
+    if (!title) {
+      inputTitle.focus();
+      inputTitle.style.borderColor = 'var(--danger)';
+      setTimeout(() => inputTitle.style.borderColor = '', 1500);
+      showToast('请输入待办内容', '⚠️');
+      return;
+    }
+    const todo = {
+      title,
+      priority: inputPriority.value,
+      deadline: inputDate.value || '',
+      completed: false,
+      category: '默认'
+    };
+
+    try {
+      const response = await axios.post(`${TODO_API_BASE_URL}/add`, todo);
+      const savedTodo = response.data;
+      // 使用后端返回的createdAtTimestamp
+      if (!savedTodo.createdAt) {
+        savedTodo.createdAt = savedTodo.createdAtTimestamp || Date.now();
+      }
+      todos.unshift(savedTodo);
+      closeModal();
+      renderTimeline();
+      updateStats();
+      showToast('待办已添加', '✨');
+    } catch (error) {
+      console.error('添加待办失败:', error);
+      showToast('添加失败，请重试', '⚠️');
+    }
+  }
+
+  async function toggleComplete(id) {
+    const todo = todos.find(t => t.id === id);
+    if (!todo) return;
+    todo.completed = !todo.completed;
+    try {
+      // 创建一个副本，避免发送不必要的字段
+      const updateTodo = {
+        id: todo.id,
+        title: todo.title,
+        priority: todo.priority,
+        deadline: todo.deadline,
+        completed: todo.completed,
+        category: todo.category
+      };
+      await axios.put(`${TODO_API_BASE_URL}/update`, updateTodo);
+      renderTimeline();
+      updateStats();
+      showToast(todo.completed ? '已标记完成' : '已恢复待办', todo.completed ? '🎉' : '↩️');
+    } catch (error) {
+      console.error('更新待办失败:', error);
+      todo.completed = !todo.completed; // 回滚
+      showToast('更新失败，请重试', '⚠️');
+    }
+  }
+
+  function startEdit(id) {
+    document.querySelectorAll('.edit-form.active').forEach(f => f.classList.remove('active'));
+    const form = document.getElementById('edit-' + id);
+    if (form) {
+      form.classList.add('active');
+      const titleInput = document.getElementById('editTitle-' + id);
+      if (titleInput) {
+        titleInput.focus();
+        titleInput.setSelectionRange(titleInput.value.length, titleInput.value.length);
+      }
+    }
+  }
+
+  function cancelEdit(id) {
+    const form = document.getElementById('edit-' + id);
+    if (form) form.classList.remove('active');
+  }
+
+  async function saveEdit(id) {
+    const todo = todos.find(t => t.id === id);
+    if (!todo) return;
+    const newTitle = document.getElementById('editTitle-' + id).value.trim();
+    if (!newTitle) {
+      showToast('内容不能为空', '⚠️');
+      return;
+    }
+    todo.title = newTitle;
+    todo.priority = document.getElementById('editPriority-' + id).value;
+    todo.deadline = document.getElementById('editDate-' + id).value;
+    try {
+      // 创建一个副本，避免发送不必要的字段
+      const updateTodo = {
+        id: todo.id,
+        title: todo.title,
+        priority: todo.priority,
+        deadline: todo.deadline,
+        completed: todo.completed,
+        category: todo.category
+      };
+      await axios.put(`${TODO_API_BASE_URL}/update`, updateTodo);
+      renderTimeline();
+      updateStats();
+      showToast('已保存修改', '✏️');
+    } catch (error) {
+      console.error('保存失败:', error);
+      showToast('保存失败，请重试', '⚠️');
+    }
+  }
+
+  function confirmDelete(id) {
+    deleteTargetId = id;
+    confirmOverlay.classList.add('active');
+  }
+
+  async function executeDelete() {
+    if (deleteTargetId === null) return;
+    const el = document.querySelector(`.timeline-item[data-id="${deleteTargetId}"]`);
+    if (el) {
+      el.style.animation = 'itemRemove 0.3s ease-in forwards';
+      setTimeout(async () => {
+        try {
+          await axios.delete(`${TODO_API_BASE_URL}/${deleteTargetId}`);
+          todos = todos.filter(t => t.id !== deleteTargetId);
+          renderTimeline();
+          updateStats();
+          deleteTargetId = null;
+          showToast('已删除待办', '🗑️');
+        } catch (error) {
+          console.error('删除失败:', error);
+          showToast('删除失败，请重试', '⚠️');
+        }
+      }, 300);
+    } else {
+      try {
+        await axios.delete(`${TODO_API_BASE_URL}/${deleteTargetId}`);
+        todos = todos.filter(t => t.id !== deleteTargetId);
+        renderTimeline();
+        updateStats();
+        deleteTargetId = null;
+        showToast('已删除待办', '🗑️');
+      } catch (error) {
+        console.error('删除失败:', error);
+        showToast('删除失败，请重试', '⚠️');
+      }
+    }
+    confirmOverlay.classList.remove('active');
+  }
+
+  function cancelDelete() {
+    deleteTargetId = null;
+    confirmOverlay.classList.remove('active');
+  }
+
+  // ── Filter ──
+  function setFilter(filter) {
+    currentFilter = filter;
+    filterBtns.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.filter === filter);
+    });
+    renderTimeline();
+  }
+
+  // ── Event listeners ──
+  fabAdd.addEventListener('click', openModal);
+  modalClose.addEventListener('click', closeModal);
+  addModal.addEventListener('click', e => {
+    if (e.target === addModal) closeModal();
+  });
+  btnAdd.addEventListener('click', addTodo);
+  inputTitle.addEventListener('keydown', e => {
+    if (e.key === 'Enter') addTodo();
+  });
+  btnConfirmDelete.addEventListener('click', executeDelete);
+  btnConfirmCancel.addEventListener('click', cancelDelete);
+  confirmOverlay.addEventListener('click', e => {
+    if (e.target === confirmOverlay) cancelDelete();
+  });
+  filterBtns.forEach(btn => {
+    btn.addEventListener('click', () => setFilter(btn.dataset.filter));
+  });
+  window.addEventListener('storage', event => {
+    if (event.key === THEME_STORAGE_KEY) {
+      applyTheme(event.newValue, false);
+    }
+  });
+
+  // Close on Escape
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (addModal.classList.contains('active')) { closeModal(); return; }
+      document.querySelectorAll('.edit-form.active').forEach(f => f.classList.remove('active'));
+      if (confirmOverlay.classList.contains('active')) cancelDelete();
+    }
+  });
+
+  // ── Expose to global for inline handlers ──
+  window.app = { toggleComplete, startEdit, cancelEdit, saveEdit, confirmDelete };
+
+  // ── Init ──
+  applyTheme(localStorage.getItem(THEME_STORAGE_KEY));
+  fetchTodos();
+
+})();
+</script>
+
+</body>
+</html>
