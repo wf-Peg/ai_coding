@@ -38,6 +38,12 @@ public class GitService {
         try {
             log.info("Executing git operations in directory: {}", directory);
 
+            // 检查远程仓库配置
+            if (!checkRemoteConfig(directory)) {
+                log.warn("Remote repository not configured, skipping git push");
+                // 仍然执行其他操作
+            }
+
             // 执行git pull
             executeGitCommand(directory, "git", "pull");
 
@@ -54,6 +60,39 @@ public class GitService {
         } catch (Exception e) {
             // 只打日志，不影响主流程
             log.error("Git operation failed: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查远程仓库配置
+     * @param directory 要检查的目录
+     * @return 是否配置了远程仓库
+     */
+    private boolean checkRemoteConfig(Path directory) {
+        try {
+            ProcessBuilder processBuilder = new ProcessBuilder("git", "remote", "-v");
+            processBuilder.directory(directory.toFile());
+            processBuilder.redirectErrorStream(true);
+
+            Process process = processBuilder.start();
+            int exitCode = process.waitFor();
+
+            // 读取输出
+            try (InputStream inputStream = process.getInputStream();
+                 BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+                String line;
+                boolean hasRemote = false;
+                while ((line = reader.readLine()) != null) {
+                    if (line.contains("origin") && (line.contains("push") || line.contains("fetch"))) {
+                        hasRemote = true;
+                        break;
+                    }
+                }
+                return hasRemote;
+            }
+        } catch (Exception e) {
+            log.error("Error checking remote config: {}", e.getMessage());
+            return false;
         }
     }
 
