@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.PostConstruct;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,6 +13,7 @@ import java.io.InputStreamReader;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Git服务类
@@ -27,17 +29,34 @@ public class GitService {
     private String pullMessage = "";
     private GitConfig gitConfig;
 
+    private final GitConfigStorageService configStorageService;
+    private final ReentrantLock gitLock = new ReentrantLock();
+
+    public GitService(GitConfigStorageService configStorageService) {
+        this.configStorageService = configStorageService;
+    }
+
+    @PostConstruct
+    public void init() {
+        // 初始化时加载配置
+        this.gitConfig = configStorageService.loadConfig();
+        if (gitConfig != null) {
+            log.info("Git config loaded on startup");
+        }
+    }
+
     /**
      * 执行git操作
      * @param directory 要执行git操作的目录
      */
     public void executeGitOperations(Path directory) {
-        if (directory == null || !directory.toFile().exists()) {
-            log.error("Git operation failed: directory does not exist: {}", directory);
-            return;
-        }
-
+        gitLock.lock();
         try {
+            if (directory == null || !directory.toFile().exists()) {
+                log.error("Git operation failed: directory does not exist: {}", directory);
+                return;
+            }
+
             log.info("Executing git operations in directory: {}", directory);
 
             // 检查并配置远程仓库
@@ -47,22 +66,72 @@ public class GitService {
                 log.warn("Git config not complete, skipping remote configuration");
             }
 
-            // 执行git pull
-            executeGitCommand(directory, "git", "pull");
+            // 先执行git fetch
+            executeGitCommandSafe(directory, "git", "fetch", "origin");
+
+            // 执行git pull（指定remote和branch）
+            if (gitConfig != null && gitConfig.isComplete()) {
+                executeGitCommandSafe(directory, "git", "pull", "origin", gitConfig.getBranch());
+            } else {
+                executeGitCommandSafe(directory, "git", "pull");
+            }
 
             // 执行git add
-            executeGitCommand(directory, "git", "add", ".");
+            executeGitCommandSafe(directory, "git", "add", ".");
 
-            // 执行git commit
-            executeGitCommand(directory, "git", "commit", "-m", "Auto commit: content organize or weekly report");
-
-            // 执行git push
-            executeGitCommand(directory, "git", "push");
+            // 执行git commit（检查是否有更改）
+            boolean hasChanges = hasStagedChanges(directory);
+            if (hasChanges) {
+                executeGitCommandSafe(directory, "git", "commit", "-m", "Auto commit: content organize or weekly report");
+                
+                // 只有成功commit后才push
+                if (gitConfig != null && gitConfig.isComplete()) {
+                    executeGitCommandSafe(directory, "git", "push", "--set-upstream", "origin", gitConfig.getBranch());
+                } else {
+                    executeGitCommandSafe(directory, "git", "push");
+                }
+            } else {
+                log.info("No staged changes, skipping commit and push");
+            }
 
             log.info("Git operations completed successfully");
         } catch (Exception e) {
             // 只打日志，不影响主流程
             log.error("Git operation failed: {}", e.getMessage());
+        } finally {
+            gitLock.unlock();
+        }
+    }
+
+    /**
+     * 检查是否有暂存的更改
+     */
+    private boolean hasStagedChanges(Path directory) {
+        try {
+            ProcessBuilder processBuilder = new ProcessBuilder("git", "diff", "--cached", "--quiet");
+            processBuilder.directory(directory.toFile());
+            processBuilder.redirectErrorStream(true);
+
+            Process process = processBuilder.start();
+            int exitCode = process.waitFor();
+
+            // 退出码为0表示没有更改，非0表示有更改
+            return exitCode != 0;
+        } catch (Exception e) {
+            log.warn("Error checking staged changes: {}", e.getMessage());
+            // 默认为有更改，避免跳过需要提交的内容
+            return true;
+        }
+    }
+
+    /**
+     * 安全执行git命令，出错只打印日志
+     */
+    private void executeGitCommandSafe(Path directory, String... command) {
+        try {
+            executeGitCommand(directory, command);
+        } catch (Exception e) {
+            log.warn("Git command failed: {} - {}", String.join(" ", command), e.getMessage());
         }
     }
 
@@ -72,18 +141,69 @@ public class GitService {
      */
     private void configureRemoteRepository(Path directory) {
         try {
+            // 设置git用户配置
+            if (gitConfig.getUsername() != null && !gitConfig.getUsername().isEmpty()) {
+                executeGitCommandSafe(directory, "git", "config", "user.name", gitConfig.getUsername());
+                if (gitConfig.getUsername().contains("@")) {
+                    executeGitCommandSafe(directory, "git", "config", "user.email", gitConfig.getUsername());
+                }
+            }
+
             // 检查远程仓库是否已配置
             if (!checkRemoteConfig(directory)) {
                 // 添加远程仓库
                 executeGitCommand(directory, "git", "remote", "add", "origin", gitConfig.getRemoteUrl());
                 log.info("Added remote repository: {}", gitConfig.getRemoteUrl());
+            } else {
+                // 检查url是否一致，不一致则更新
+                String currentUrl = getRemoteUrl(directory);
+                if (!gitConfig.getRemoteUrl().equals(currentUrl)) {
+                    log.info("Updating remote URL from {} to {}", currentUrl, gitConfig.getRemoteUrl());
+                    executeGitCommand(directory, "git", "remote", "set-url", "origin", gitConfig.getRemoteUrl());
+                }
             }
 
+            // 先fetch确保远程分支存在
+            executeGitCommandSafe(directory, "git", "fetch", "origin");
+
             // 设置分支跟踪
-            executeGitCommand(directory, "git", "branch", "--set-upstream-to=origin/" + gitConfig.getBranch(), gitConfig.getBranch());
-            log.info("Set upstream branch to origin/{}", gitConfig.getBranch());
+            try {
+                executeGitCommand(directory, "git", "branch", "--set-upstream-to=origin/" + gitConfig.getBranch(), gitConfig.getBranch());
+                log.info("Set upstream branch to origin/{}", gitConfig.getBranch());
+            } catch (Exception e) {
+                log.warn("Failed to set upstream branch: {}", e.getMessage());
+                log.info("Branch will be set upstream on first push");
+            }
         } catch (Exception e) {
             log.error("Error configuring remote repository: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 获取当前remote url
+     */
+    private String getRemoteUrl(Path directory) {
+        try {
+            ProcessBuilder processBuilder = new ProcessBuilder("git", "remote", "get-url", "origin");
+            processBuilder.directory(directory.toFile());
+            processBuilder.redirectErrorStream(true);
+
+            Process process = processBuilder.start();
+            int exitCode = process.waitFor();
+
+            // 读取输出
+            try (InputStream inputStream = process.getInputStream();
+                 BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+                String line;
+                StringBuilder url = new StringBuilder();
+                while ((line = reader.readLine()) != null) {
+                    url.append(line.trim());
+                }
+                return url.toString();
+            }
+        } catch (Exception e) {
+            log.error("Error getting remote URL: {}", e.getMessage());
+            return "";
         }
     }
 
@@ -134,6 +254,9 @@ public class GitService {
      */
     public void setGitConfig(GitConfig gitConfig) {
         this.gitConfig = gitConfig;
+        // 持久化保存配置
+        configStorageService.saveConfig(gitConfig);
+        log.info("Git config updated and saved");
     }
 
     /**
@@ -146,13 +269,20 @@ public class GitService {
             return "Git configuration is not complete";
         }
 
+        gitLock.lock();
         try {
-            // 检查远程仓库是否可达
-            executeGitCommand(directory, "git", "remote", "-v");
+            // 配置远程仓库
+            configureRemoteRepository(directory);
+            
+            // 测试fetch
+            executeGitCommand(directory, "git", "fetch", "origin");
+            
             return "Git connection test successful";
         } catch (Exception e) {
             log.error("Git connection test failed: {}", e.getMessage());
             return "Git connection test failed: " + e.getMessage();
+        } finally {
+            gitLock.unlock();
         }
     }
 
@@ -167,7 +297,11 @@ public class GitService {
                 pushMessage = "正在执行git push操作...";
                 
                 Path directory = Paths.get(".").toAbsolutePath();
-                executeGitCommand(directory, "git", "push");
+                if (gitConfig != null && gitConfig.isComplete()) {
+                    executeGitCommand(directory, "git", "push", "--set-upstream", "origin", gitConfig.getBranch());
+                } else {
+                    executeGitCommand(directory, "git", "push");
+                }
                 
                 pushStatus = "completed";
                 pushMessage = "Git push操作成功";
@@ -192,7 +326,11 @@ public class GitService {
                 pullMessage = "正在执行git pull操作...";
                 
                 Path directory = Paths.get(".").toAbsolutePath();
-                executeGitCommand(directory, "git", "pull");
+                if (gitConfig != null && gitConfig.isComplete()) {
+                    executeGitCommand(directory, "git", "pull", "origin", gitConfig.getBranch());
+                } else {
+                    executeGitCommand(directory, "git", "pull");
+                }
                 
                 pullStatus = "completed";
                 pullMessage = "Git pull操作成功";
@@ -280,6 +418,7 @@ public class GitService {
 
         if (exitCode != 0) {
             log.warn("Git command failed with exit code: {}", exitCode);
+            throw new IOException("Git command failed with exit code: " + exitCode);
         }
     }
 }
