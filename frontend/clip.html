@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>剪藏</title>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Rajdhani:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
     <script>
         marked.setOptions({
@@ -15,8 +15,9 @@
     <style>
         :root {
             /* 现代简洁风格色彩 */
-            --primary: #3b82f6;
-            --primary-light: #60a5fa;
+            --primary: #3f8cff;
+            --primary-light: #73b2ff;
+            --primary-dark: #2f72d8;
             --secondary: #f59e0b;
             --accent: #10b981;
             --background: #f9fafb;
@@ -32,7 +33,7 @@
             --error: #ef4444;
             --priority-high: #ef4444;
             --priority-medium: #f59e0b;
-            --priority-low: #3b82f6;
+            --priority-low: #3f8cff;
             --priority-high-light: #fef2f2;
             --priority-medium-light: #fffbeb;
             --priority-low-light: #eff6ff;
@@ -118,6 +119,8 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            flex: 0 0 30px;
+            min-width: 30px;
         }
 
         .modal-close:hover {
@@ -184,15 +187,104 @@
             margin-bottom: 16px;
             padding-right: 4%;
             position: relative;
-            text-align: right;
+            text-align: left;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
             gap: 12px;
+        }
+
+        #toggle-btn {
+            margin-left: auto;
+        }
+
+        .clip-theme-toggle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 5;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text-secondary);
+            border-radius: 12px;
+            width: 48px;
+            height: 48px;
+            min-width: 48px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: var(--shadow);
+        }
+
+        .clip-theme-toggle svg {
+            width: 24px;
+            height: 24px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .clip-theme-toggle:hover {
+            color: var(--text);
+            background: var(--surface-hover);
+            border-color: var(--primary);
+            transform: translateY(-1px);
+        }
+
+        .action-split-group {
+            display: inline-flex;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: none;
+            border: 1px solid var(--border);
+        }
+
+        .action-split-group .icon-btn {
+            border: none;
+            background: var(--background);
+            color: var(--text-secondary);
+            padding: 0 14px;
+            min-width: auto;
+            flex: 0 0 auto;
+            line-height: 1;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .action-split-group .icon-btn:hover {
+            background: var(--background-dark);
+            color: var(--text);
+        }
+
+        .action-split-group .main-btn {
+            border-radius: 0;
+            box-shadow: none;
+            margin: 0;
+            min-width: auto;
+            flex: 0 0 auto;
+            background: var(--surface);
+            color: var(--text);
+            border: none;
+        }
+
+        .action-split-group .main-btn:hover {
+            background: var(--surface-hover);
+            color: var(--text);
+            transform: none;
+            box-shadow: none;
         }
 
         .toggle-btn {
             width: auto;
             height: auto;
-            border: none;
-            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            border: 1px solid var(--border);
+            background: var(--surface);
             border-radius: 12px;
             cursor: pointer;
             transition: var(--transition);
@@ -200,32 +292,39 @@
             align-items: center;
             justify-content: center;
             gap: 8px;
-            padding: 12px 24px;
+            padding: 10px 14px;
             font-size: 0.95rem;
-            font-weight: 600;
-            color: #ffffff;
+            font-weight: 500;
+            color: var(--text);
             white-space: nowrap;
-            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
-            letter-spacing: 0.02em;
+            box-shadow: none;
+            letter-spacing: 0;
         }
 
         .toggle-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.35);
+            transform: none;
+            background: var(--surface-hover);
+            border-color: var(--border);
+            color: var(--text);
+            box-shadow: none;
         }
 
         .toggle-btn:active {
             transform: translateY(0);
-            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+            box-shadow: none;
         }
 
         .toggle-btn.active {
-            background: linear-gradient(135deg, var(--accent), #34d399);
-            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+            border-color: var(--text);
+            background: var(--text);
+            color: #ffffff;
+            box-shadow: none;
         }
 
         .toggle-btn.active:hover {
-            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
+            background: var(--text);
+            color: #ffffff;
+            box-shadow: none;
         }
 
         @media (max-width: 768px) {
@@ -233,9 +332,31 @@
                 padding-right: 2%;
             }
 
+            #toggle-btn {
+                margin-left: 0;
+            }
+
             .toggle-btn {
                 padding: 5px 10px;
                 font-size: 0.75rem;
+            }
+
+            .action-split-group .icon-btn {
+                padding: 0 10px;
+                font-size: 0.78rem;
+            }
+
+            .clip-theme-toggle {
+                width: 40px;
+                height: 40px;
+                min-width: 40px;
+                top: 8px;
+                right: 8px;
+            }
+
+            .clip-theme-toggle svg {
+                width: 20px;
+                height: 20px;
             }
         }
 
@@ -244,26 +365,149 @@
                 padding-right: 1%;
             }
 
+            #toggle-btn {
+                margin-left: 0;
+            }
+
             .toggle-btn {
                 padding: 4px 8px;
                 font-size: 0.7rem;
             }
+
+            .action-split-group .icon-btn {
+                padding: 0 8px;
+                font-size: 0.72rem;
+            }
+
+            .clip-theme-toggle {
+                width: 36px;
+                height: 36px;
+                min-width: 36px;
+                top: 8px;
+                right: 8px;
+            }
+
+            .clip-theme-toggle svg {
+                width: 18px;
+                height: 18px;
+            }
         }
 
         .toggle-btn:hover {
-            border-color: var(--primary);
+            border-color: var(--border);
             background: var(--surface-hover);
-            color: var(--primary);
+            color: var(--text);
         }
 
         .toggle-btn.active {
-            border-color: var(--primary);
-            background: var(--primary);
+            border-color: var(--text);
+            background: var(--text);
             color: white;
+        }
+
+        /* Regular theme toolbar refinement: keep the vibrant style language */
+        html[data-theme="regular"] .action-split-group {
+            gap: 6px;
+            border: none;
+            box-shadow: none;
+            overflow: visible;
+        }
+
+        html[data-theme="regular"] .action-split-group .icon-btn {
+            background: rgba(255, 255, 255, 0.82);
+            color: #4b5563;
+            border: 1px solid rgba(255, 255, 255, 0.92);
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+            backdrop-filter: blur(3px);
+            -webkit-backdrop-filter: blur(3px);
+        }
+
+        html[data-theme="regular"] .action-split-group .icon-btn:hover {
+            background: rgba(255, 255, 255, 0.94);
+            color: #1f2937;
+            border-color: rgba(255, 255, 255, 1);
+        }
+
+        html[data-theme="regular"] .action-split-group .main-btn {
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+            color: #ffffff;
+            border: 1px solid rgba(63, 140, 255, 0.42);
+            border-radius: 12px;
+            font-weight: 600;
+            box-shadow: 0 6px 16px rgba(63, 140, 255, 0.24);
+        }
+
+        html[data-theme="regular"] .action-split-group .main-btn:hover {
+            background: linear-gradient(135deg, #275fc0, var(--primary-dark));
+            color: #ffffff;
+            border-color: rgba(47, 114, 216, 0.5);
+        }
+
+        html[data-theme="regular"] #toggle-btn {
+            border: 1px solid rgba(63, 140, 255, 0.42);
+            background: rgba(63, 140, 255, 0.14);
+            color: #1f2937;
+            box-shadow: 0 4px 12px rgba(63, 140, 255, 0.18);
+        }
+
+        html[data-theme="regular"] #toggle-btn:hover {
+            background: rgba(63, 140, 255, 0.22);
+            border-color: rgba(63, 140, 255, 0.54);
+            color: #1f2937;
+        }
+
+        html[data-theme="regular"] .upload-btn {
+            background-color: #ef4444 !important;
+            border: none !important;
+            border-radius: 10px !important;
+            color: #ffffff !important;
+        }
+
+        html[data-theme="regular"] .upload-btn:hover {
+            background-color: #dc2626 !important;
+            border: none !important;
+            color: #ffffff !important;
         }
 
         .toggle-text {
             transition: var(--transition);
+        }
+
+        .modal-label {
+            display: block;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+
+        .modal-textarea,
+        .modal-input {
+            width: 100%;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 0.92rem;
+            color: var(--text);
+            background: var(--surface);
+        }
+
+        .modal-textarea {
+            min-height: 280px;
+            resize: vertical;
+            line-height: 1.5;
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+
+        .path-block {
+            margin-top: 12px;
+            padding: 10px 12px;
+            border: 1px dashed var(--border);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            word-break: break-all;
+            font-size: 0.86rem;
+            background: var(--background-dark);
         }
 
         .tags-display {
@@ -540,6 +784,13 @@
             border: 1px solid var(--border);
         }
 
+        .meta-item.meta-type {
+            background: #f1f1ef;
+            border-color: #e1e1de;
+            color: #555b61;
+            font-weight: 500;
+        }
+
         .meta-item::before {
             display: none;
         }
@@ -549,11 +800,11 @@
             display: inline-flex;
             align-items: center;
             gap: 4px;
-            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(96, 165, 250, 0.08));
+            background: linear-gradient(135deg, rgba(63, 140, 255, 0.15), rgba(115, 178, 255, 0.12));
             color: var(--primary);
             padding: 4px 12px;
             border-radius: 16px;
-            border: 1px solid rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(63, 140, 255, 0.3);
             font-size: 0.82rem;
             font-weight: 600;
             letter-spacing: 0.02em;
@@ -1375,11 +1626,11 @@
             }
 
             h1 {
-                font-size: 2.8rem;
+                font-size: 1.6rem;
             }
 
             .clip-form {
-                padding: 24px;
+                padding: 18px;
             }
 
             .form-actions {
@@ -1410,11 +1661,11 @@
             }
 
             h1 {
-                font-size: 2.2rem;
+                font-size: 1.4rem;
             }
 
             .clip-form {
-                padding: 20px;
+                padding: 16px;
             }
 
             .clip-item {
@@ -1431,6 +1682,7 @@
             }
         }
     </style>
+    <link id="clipThemeNotion" rel="stylesheet" href="./styles/clip-theme-notion.css" disabled>
 </head>
 <body>
 <!-- 赛博朋克风格的确认弹窗 -->
@@ -1449,6 +1701,41 @@
     </div>
 </div>
 
+<div id="prompt-config-modal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 760px;">
+        <div class="modal-header">
+            <h3 id="prompt-config-title">Prompt 配置</h3>
+            <button class="modal-close" type="button" onclick="closePromptConfigModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <label class="modal-label" for="prompt-config-textarea" id="prompt-config-desc">编辑系统提示词</label>
+            <textarea id="prompt-config-textarea" class="modal-textarea"></textarea>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" type="button" onclick="resetPromptConfig()">恢复默认</button>
+            <button class="btn-secondary" type="button" onclick="closePromptConfigModal()">取消</button>
+            <button class="btn-primary" type="button" onclick="savePromptConfig()">保存</button>
+        </div>
+    </div>
+</div>
+
+<div id="feedback-modal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 520px;">
+        <div class="modal-header">
+            <h3 id="feedback-title">提示</h3>
+            <button class="modal-close" type="button" onclick="closeFeedbackModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p id="feedback-message"></p>
+            <div id="feedback-path-block" class="path-block" style="display: none;"></div>
+        </div>
+        <div class="modal-footer">
+            <button id="copy-path-btn" class="btn-secondary" style="display: none;" type="button" onclick="copyFeedbackPath()">复制路径</button>
+            <button class="btn-primary" type="button" onclick="closeFeedbackModal()">我知道了</button>
+        </div>
+    </div>
+</div>
+
 <!-- 加载状态覆盖层 -->
 <div id="loading-overlay" class="loading-overlay" style="display: none;">
     <div class="loading-container">
@@ -1460,25 +1747,34 @@
 
 <div class="main-content-area">
     <header>
+        <button class="clip-theme-toggle" id="themeToggle" type="button" title="切换风格" aria-label="切换风格">
+            <svg viewBox="0 0 24 24"><path d="M3 7h8"/><path d="M13 7h8"/><circle cx="11" cy="7" r="2"/><path d="M3 17h8"/><path d="M13 17h8"/><circle cx="13" cy="17" r="2"/></svg>
+        </button>
         <h1>剪藏</h1>
         <p class="subtitle">捕捉灵感，智能整理，构建你的个人知识库</p>
-        <div class="toggle-container" style="justify-content: flex-start;">
-                    <button class="toggle-btn" id="git-config-btn" onclick="openGitConfigModal()">
-                        <span class="toggle-text">⚙️ Git配置</span>
-                    </button>
-                    <button class="toggle-btn" id="sync-btn" onclick="syncGit()">
-                        <span class="toggle-text">🔄 同步仓库</span>
-                    </button>
-                    <button class="toggle-btn" id="organize-btn" onclick="organizeContent()">
-                        <span class="toggle-text">📚 整理今日内容</span>
-                    </button>
-                    <button class="toggle-btn" id="weekly-report-btn" onclick="generateWeeklyReport()">
-                        <span class="toggle-text">📊 生成周报总结</span>
-                    </button>
-                    <button class="toggle-btn" id="toggle-btn" onclick="toggleMode()">
-            <span class="toggle-text" id="toggle-text">🔍 切换到信息检索</span>
-        </button>
-                </div>
+        <div class="toggle-container">
+            <div class="action-split-group">
+                <button class="icon-btn" type="button" title="Git配置" onclick="openGitConfigModal()">⚙️</button>
+                <button class="toggle-btn main-btn" id="sync-btn" onclick="syncGit()">
+                    <span class="toggle-text">🔄 同步仓库</span>
+                </button>
+            </div>
+            <div class="action-split-group">
+                <button class="icon-btn" type="button" title="配置整理Prompt" onclick="openPromptConfigModal('daily')">⚙️</button>
+                <button class="toggle-btn main-btn" id="organize-btn" onclick="organizeContent()">
+                    <span class="toggle-text">📚 整理今日内容</span>
+                </button>
+            </div>
+            <div class="action-split-group">
+                <button class="icon-btn" type="button" title="配置周报Prompt" onclick="openPromptConfigModal('weekly')">⚙️</button>
+                <button class="toggle-btn main-btn" id="weekly-report-btn" onclick="generateWeeklyReport()">
+                    <span class="toggle-text">📊 生成周报总结</span>
+                </button>
+            </div>
+            <button class="toggle-btn" id="toggle-btn" onclick="toggleMode()">
+                <span class="toggle-text" id="toggle-text">🔍 切换到信息检索</span>
+            </button>
+        </div>
     </header>
 
     <div id="notification-bar" style="position: fixed; top: 0; left: 0; right: 0; background: linear-gradient(135deg, var(--primary), var(--accent)); color: white; padding: 16px 24px; z-index: 2000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
@@ -1613,13 +1909,57 @@
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script>
     const API_BASE_URL = 'http://127.0.0.1:8080/api/clip';
+    const GIT_API_BASE_URL = 'http://127.0.0.1:8080/api/git';
     let currentTags = [];
     const MAX_TAGS = 10;
+    const THEME_STORAGE_KEY = 'app_theme_v1';
+    let currentPromptType = 'daily';
+    let promptConfigCache = null;
+    let feedbackPathValue = '';
+    let currentTheme = 'regular';
+
+    function getNextThemeId(themeId) {
+        return themeId === 'notion' ? 'regular' : 'notion';
+    }
+
+    function updateThemeToggleLabel() {
+        const toggle = document.getElementById('themeToggle');
+        if (!toggle) return;
+        const nextThemeName = getNextThemeId(currentTheme) === 'notion' ? 'Notion风格' : '常规风格';
+        toggle.title = `切换到${nextThemeName}`;
+        toggle.setAttribute('aria-label', `切换到${nextThemeName}`);
+    }
+
+    function applyTheme(themeId, persist = true) {
+        currentTheme = themeId === 'notion' ? 'notion' : 'regular';
+        const notionThemeLink = document.getElementById('clipThemeNotion');
+        if (notionThemeLink) {
+            notionThemeLink.disabled = currentTheme !== 'notion';
+        }
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        if (persist) {
+            localStorage.setItem(THEME_STORAGE_KEY, currentTheme);
+        }
+        updateThemeToggleLabel();
+    }
 
     document.addEventListener('DOMContentLoaded', () => {
+        applyTheme(localStorage.getItem(THEME_STORAGE_KEY));
         fetchClips();
         loadCategories();
         handleTypeChange();
+
+        const themeToggle = document.getElementById('themeToggle');
+        if (themeToggle) {
+            themeToggle.addEventListener('click', () => {
+                applyTheme(getNextThemeId(currentTheme));
+            });
+        }
+        window.addEventListener('storage', event => {
+            if (event.key === THEME_STORAGE_KEY) {
+                applyTheme(event.newValue, false);
+            }
+        });
 
         const tagInput = document.getElementById('tag-input');
         tagInput.addEventListener('keydown', (e) => {
@@ -2339,7 +2679,7 @@
                 </div>
                 <div class="clip-summary ${summaryClass}" title="${escapeHtml(displaySummary)}">${escapeHtml(displaySummary)}</div>
                 <div class="clip-meta">
-                    <span class="meta-item">类型: ${getTypeLabel(clip.type)}</span>
+                    <span class="meta-item meta-type">类型: ${getTypeLabel(clip.type)}</span>
                     <span class="meta-item">来源: ${clip.source}</span>
                     <span class="meta-item">创建时间: ${createdAt}</span>
                 </div>
@@ -2540,6 +2880,91 @@
         confirmActionCallback = null;
     }
 
+    async function loadPromptConfig() {
+        if (promptConfigCache) {
+            return promptConfigCache;
+        }
+        const response = await axios.get(`${API_BASE_URL}/prompt-config`);
+        promptConfigCache = response.data || {};
+        return promptConfigCache;
+    }
+
+    async function openPromptConfigModal(type) {
+        currentPromptType = type;
+        const title = document.getElementById('prompt-config-title');
+        const desc = document.getElementById('prompt-config-desc');
+        const textarea = document.getElementById('prompt-config-textarea');
+
+        if (type === 'daily') {
+            title.textContent = '整理今日内容 Prompt 配置';
+            desc.textContent = '编辑整理今日内容时使用的系统提示词';
+        } else {
+            title.textContent = '周报总结 Prompt 配置';
+            desc.textContent = '编辑生成周报总结时使用的系统提示词';
+        }
+
+        try {
+            const config = await loadPromptConfig();
+            textarea.value = type === 'daily'
+                ? (config.dailyOrganizeSystemPrompt || '')
+                : (config.weeklyReportSystemPrompt || '');
+            document.getElementById('prompt-config-modal').style.display = 'flex';
+        } catch (error) {
+            console.error('加载Prompt配置失败:', error);
+            showError('加载失败', 'Prompt配置加载失败，请稍后重试');
+        }
+    }
+
+    function closePromptConfigModal() {
+        document.getElementById('prompt-config-modal').style.display = 'none';
+    }
+
+    async function savePromptConfig() {
+        const textarea = document.getElementById('prompt-config-textarea');
+        const value = textarea.value.trim();
+        if (!value) {
+            showError('保存失败', 'Prompt 不能为空');
+            return;
+        }
+
+        try {
+            const config = await loadPromptConfig();
+            const payload = {
+                dailyOrganizeSystemPrompt: config.dailyOrganizeSystemPrompt || '',
+                weeklyReportSystemPrompt: config.weeklyReportSystemPrompt || ''
+            };
+            if (currentPromptType === 'daily') {
+                payload.dailyOrganizeSystemPrompt = value;
+            } else {
+                payload.weeklyReportSystemPrompt = value;
+            }
+
+            const response = await axios.post(`${API_BASE_URL}/prompt-config`, payload);
+            promptConfigCache = response.data;
+            showNotification('Prompt 配置保存成功');
+            closePromptConfigModal();
+        } catch (error) {
+            console.error('保存Prompt配置失败:', error);
+            showError('保存失败', error.response?.data?.message || '请稍后重试');
+        }
+    }
+
+    async function resetPromptConfig() {
+        try {
+            const response = await axios.post(`${API_BASE_URL}/prompt-config/reset`);
+            promptConfigCache = response.data;
+
+            const textarea = document.getElementById('prompt-config-textarea');
+            textarea.value = currentPromptType === 'daily'
+                ? (promptConfigCache.dailyOrganizeSystemPrompt || '')
+                : (promptConfigCache.weeklyReportSystemPrompt || '');
+            showNotification('Prompt 已恢复默认配置');
+        } catch (error) {
+            console.error('重置Prompt配置失败:', error);
+            showError('重置失败', error.response?.data?.message || '请稍后重试');
+        }
+    }
+
     function confirmAction() {
         if (confirmActionCallback) {
             confirmActionCallback();
@@ -2627,7 +3052,7 @@
         const openFolderBtn = document.getElementById('open-folder-btn');
 
         notificationMessage.textContent = message;
-        openFolderBtn.style.display = showOpenButton ? 'block' : 'none';
+        openFolderBtn.style.display = showOpenButton === true ? 'block' : 'none';
         notificationBar.style.display = 'block';
     }
 
@@ -2637,18 +3062,53 @@
 
     function openStorageFolder() {
         // 调用后端API打开存储目录
-        axios.post('http://127.0.0.1:8080/api/clip/open-storage-folder')
+        axios.post(`${API_BASE_URL}/open-storage-folder`)
             .then(response => {
                 if (response.data.status === 'success') {
-                    alert('已尝试打开存储目录，如未打开请手动访问: ' + response.data.storagePath);
+                    showFeedbackModal('打开目录', response.data.message, response.data.storagePath || '');
                 } else {
-                    alert(response.data.message);
+                    showFeedbackModal('打开目录失败', response.data.message || '打开存储目录失败');
                 }
             })
             .catch(error => {
                 console.error('打开存储目录失败:', error);
-                alert('打开存储目录失败，请稍后重试');
+                showFeedbackModal('打开目录失败', error.response?.data?.message || '打开存储目录失败，请稍后重试');
             });
+    }
+
+    function showFeedbackModal(title, message, path = '') {
+        const titleNode = document.getElementById('feedback-title');
+        const messageNode = document.getElementById('feedback-message');
+        const pathBlock = document.getElementById('feedback-path-block');
+        const copyBtn = document.getElementById('copy-path-btn');
+
+        titleNode.textContent = title;
+        messageNode.textContent = message;
+
+        feedbackPathValue = path || '';
+        if (feedbackPathValue) {
+            pathBlock.textContent = feedbackPathValue;
+            pathBlock.style.display = 'block';
+            copyBtn.style.display = 'inline-block';
+        } else {
+            pathBlock.style.display = 'none';
+            copyBtn.style.display = 'none';
+        }
+
+        document.getElementById('feedback-modal').style.display = 'flex';
+    }
+
+    function closeFeedbackModal() {
+        document.getElementById('feedback-modal').style.display = 'none';
+    }
+
+    function copyFeedbackPath() {
+        if (!feedbackPathValue) {
+            return;
+        }
+        navigator.clipboard.writeText(feedbackPathValue)
+            .then(() => showNotification('路径已复制'))
+            .catch(() => showError('复制失败', '请手动复制路径'));
     }
 
     // 加载状态管理函数
@@ -2743,7 +3203,7 @@
         syncBtn.disabled = true;
         syncBtn.innerHTML = '<span class="toggle-text">🔄 同步中...</span>';
 
-        axios.post('http://127.0.0.1:8080/api/git/sync')
+        axios.post(`${GIT_API_BASE_URL}/sync`)
             .then(response => {
                 syncBtn.innerHTML = '<span class="toggle-text">🔄 同步仓库</span>';
                 syncBtn.disabled = false;
@@ -2767,7 +3227,7 @@
     // Git配置相关函数
     function openGitConfigModal() {
         // 显示配置弹窗
-        document.getElementById('git-config-modal').style.display = 'block';
+        document.getElementById('git-config-modal').style.display = 'flex';
         // 加载当前配置
         loadGitConfig();
     }
@@ -2779,7 +3239,7 @@
 
     function loadGitConfig() {
         // 加载当前Git配置
-        axios.get('http://127.0.0.1:8080/api/git/config')
+        axios.get(`${GIT_API_BASE_URL}/config`)
             .then(response => {
                 const config = response.data;
                 if (config) {
@@ -2803,7 +3263,7 @@
             branch: document.getElementById('branch').value
         };
 
-        axios.post('http://127.0.0.1:8080/api/git/config', config)
+        axios.post(`${GIT_API_BASE_URL}/config`, config)
             .then(response => {
                 showNotification('Git配置保存成功', 'success');
                 closeGitConfigModal();
@@ -2827,10 +3287,10 @@
             branch: document.getElementById('branch').value
         };
 
-        axios.post('http://127.0.0.1:8080/api/git/config', config)
+        axios.post(`${GIT_API_BASE_URL}/config`, config)
             .then(() => {
                 // 配置保存成功后，执行连接测试
-                return axios.post('http://127.0.0.1:8080/api/git/test-connection');
+                return axios.post(`${GIT_API_BASE_URL}/test-connection`);
             })
             .then(response => {
                 showNotification(response.data, 'success');
@@ -2846,36 +3306,38 @@
 </script>
 
 <!-- Git配置弹窗 -->
-<div id="git-config-modal" class="modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
-    <div class="modal-content" style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h2 style="margin: 0; color: #333;">Git配置</h2>
-            <span onclick="closeGitConfigModal()" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+<div id="git-config-modal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 560px;">
+        <div class="modal-header">
+            <h3>Git配置</h3>
+            <button class="modal-close" type="button" onclick="closeGitConfigModal()">&times;</button>
         </div>
-        <form onsubmit="event.preventDefault(); saveGitConfig();">
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; margin-bottom: 5px; font-weight: bold;">远程仓库URL</label>
-                <input type="text" id="remoteUrl" placeholder="https://github.com/username/repo.git" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-            </div>
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; margin-bottom: 5px; font-weight: bold;">Git用户名</label>
-                <input type="text" id="username" placeholder="username" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-            </div>
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; margin-bottom: 5px; font-weight: bold;">Git密码</label>
-                <input type="password" id="password" placeholder="password" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-            </div>
-            <div style="margin-bottom: 20px;">
-                <label style="display: block; margin-bottom: 5px; font-weight: bold;">分支名称</label>
-                <input type="text" id="branch" placeholder="master" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-            </div>
-            <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button type="button" onclick="testGitConnection()" id="test-connection-btn" style="padding: 10px 20px; background-color: #f3f4f6; color: #333; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">测试连接</button>
-                <button type="button" onclick="closeGitConfigModal()" style="padding: 10px 20px; background-color: #f3f4f6; color: #333; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">取消</button>
-                <button type="submit" style="padding: 10px 20px; background-color: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">保存配置</button>
-            </div>
-        </form>
+        <div class="modal-body">
+            <form onsubmit="event.preventDefault(); saveGitConfig();">
+                <div style="margin-bottom: 15px;">
+                    <label class="modal-label">远程仓库URL</label>
+                    <input type="text" id="remoteUrl" class="modal-input" placeholder="https://github.com/username/repo.git">
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label class="modal-label">Git用户名</label>
+                    <input type="text" id="username" class="modal-input" placeholder="username">
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label class="modal-label">Git密码</label>
+                    <input type="password" id="password" class="modal-input" placeholder="password">
+                </div>
+                <div style="margin-bottom: 4px;">
+                    <label class="modal-label">分支名称</label>
+                    <input type="text" id="branch" class="modal-input" placeholder="main">
+                </div>
+                <div class="modal-footer" style="padding: 20px 0 0 0; border-top: none;">
+                    <button class="btn-secondary" type="button" onclick="testGitConnection()" id="test-connection-btn">测试连接</button>
+                    <button class="btn-secondary" type="button" onclick="closeGitConfigModal()">取消</button>
+                    <button class="btn-primary" type="submit">保存配置</button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 </body>
-</html>=
+</html>
