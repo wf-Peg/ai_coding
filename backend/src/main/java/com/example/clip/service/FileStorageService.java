@@ -486,5 +486,21 @@ public class FileStorageService {
             e.printStackTrace();
         }
     }
+
+    /**
+     * 获取存储路径的父级目录
+     * @return 存储路径的父级目录
+     */
+    public Path getStorageParentPath() {
+        return storagePath.getParent();
+    }
+
+    /**
+     * 获取存储路径
+     * @return 存储路径
+     */
+    public Path getStoragePath() {
+        return storagePath;
+    }
 }
 

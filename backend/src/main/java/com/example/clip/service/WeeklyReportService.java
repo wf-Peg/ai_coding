@@ -26,6 +26,7 @@ public class WeeklyReportService {
     private final FileStorageService storageService;
     private final AiService aiService;
     private final EmailService emailService;
+    private final GitService gitService;
     private final Path weeklyReportPath;
     private String lastReportStatus;
     private String lastReportMessage;
@@ -35,10 +36,12 @@ public class WeeklyReportService {
             FileStorageService storageService,
             AiService aiService,
             EmailService emailService,
+            GitService gitService,
             @Value("${clip.clip-weekly-report.path:./weeklyReport}") String weeklyReportPath) {
         this.storageService = storageService;
         this.aiService = aiService;
         this.emailService = emailService;
+        this.gitService = gitService;
         this.weeklyReportPath = Paths.get(weeklyReportPath);
         initWeeklyReportStorage();
         this.lastReportStatus = "idle";
@@ -139,6 +142,17 @@ public class WeeklyReportService {
             result.put("status", "error");
             result.put("message", lastReportMessage);
             e.printStackTrace();
+        } finally {
+            // 无论主流程是否成功，都执行git操作
+            try {
+                Path gitDirectory = storageService.getStorageParentPath();
+                if (gitDirectory != null) {
+                    gitService.executeGitOperations(gitDirectory);
+                }
+            } catch (Exception e) {
+                // 只打日志，不影响主流程
+                log.error("Git operation failed in finally block: {}", e.getMessage());
+            }
         }
 
         return result;
