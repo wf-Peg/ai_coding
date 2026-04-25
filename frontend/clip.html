@@ -2786,7 +2786,7 @@
                     document.getElementById('remoteUrl').value = config.remoteUrl || '';
                     document.getElementById('username').value = config.username || '';
                     document.getElementById('password').value = config.password || '';
-                    document.getElementById('branch').value = config.branch || '';
+                    document.getElementById('branch').value = config.branch || 'main'; // 默认分支为main
                 }
             })
             .catch(error => {
