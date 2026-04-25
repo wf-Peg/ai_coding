@@ -21,9 +21,10 @@ public class DocumentParseService {
      * 解析文档文件，提取纯文本
      * @param fileBytes 文件字节数组
      * @param fileName 文件名（用于判断文件类型）
+     * @param sourceFilePath 源文件存储路径
      * @return 提取的纯文本内容
      */
-    public String parseDocument(byte[] fileBytes, String fileName) {
+    public String parseDocument(byte[] fileBytes, String fileName, String sourceFilePath) {
         if (fileName == null || fileName.isEmpty()) {
             return "[文档解析失败] 文件名为空";
         }
@@ -31,19 +32,34 @@ public class DocumentParseService {
         String lowerName = fileName.toLowerCase();
 
         try {
+            String parsedText;
             if (lowerName.endsWith(".pdf")) {
-                return parsePdf(fileBytes);
+                parsedText = parsePdf(fileBytes);
             } else if (lowerName.endsWith(".docx")) {
-                return parseDocx(fileBytes);
+                parsedText = parseDocx(fileBytes);
             } else if (lowerName.endsWith(".txt") || lowerName.endsWith(".md") || lowerName.endsWith(".csv")) {
-                return parseTxt(fileBytes);
+                parsedText = parseTxt(fileBytes);
             } else {
                 return "[文档解析失败] 不支持的文件格式: " + fileName + "。支持 PDF、DOCX、TXT 格式。";
             }
+            
+            // 添加源文件路径说明
+            String sourceFileInfo = "源文件路径: " + sourceFilePath + "\n\n";
+            return sourceFileInfo + parsedText;
         } catch (Exception e) {
             logger.error("[DocParse] Parse failed for {}: {}", fileName, e.getMessage(), e);
             return "[文档解析失败] " + e.getMessage();
         }
+    }
+    
+    /**
+     * 解析文档文件，提取纯文本（兼容旧方法）
+     * @param fileBytes 文件字节数组
+     * @param fileName 文件名（用于判断文件类型）
+     * @return 提取的纯文本内容
+     */
+    public String parseDocument(byte[] fileBytes, String fileName) {
+        return parseDocument(fileBytes, fileName, "");
     }
 
     /**
