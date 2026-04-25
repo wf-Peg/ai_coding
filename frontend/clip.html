@@ -1462,17 +1462,20 @@
     <header>
         <h1>剪藏</h1>
         <p class="subtitle">捕捉灵感，智能整理，构建你的个人知识库</p>
-        <div class="toggle-container">
-            <button class="toggle-btn" id="organize-btn" onclick="organizeContent()">
-                <span class="toggle-text">📚 整理今日内容</span>
-            </button>
-            <button class="toggle-btn" id="weekly-report-btn" onclick="generateWeeklyReport()">
-                <span class="toggle-text">📊 生成周报总结</span>
-            </button>
-            <button class="toggle-btn" id="toggle-btn" onclick="toggleMode()">
-                <span class="toggle-text" id="toggle-text">🔍 切换到信息检索</span>
-            </button>
-        </div>
+        <div class="toggle-container" style="justify-content: flex-start;">
+                    <button class="toggle-btn" id="sync-btn" onclick="syncGit()">
+                        <span class="toggle-text">🔄 同步仓库</span>
+                    </button>
+                    <button class="toggle-btn" id="organize-btn" onclick="organizeContent()">
+                        <span class="toggle-text">📚 整理今日内容</span>
+                    </button>
+                    <button class="toggle-btn" id="weekly-report-btn" onclick="generateWeeklyReport()">
+                        <span class="toggle-text">📊 生成周报总结</span>
+                    </button>
+                    <button class="toggle-btn" id="toggle-btn" onclick="toggleMode()">
+            <span class="toggle-text" id="toggle-text">🔍 切换到信息检索</span>
+        </button>
+                </div>
     </header>
 
     <div id="notification-bar" style="position: fixed; top: 0; left: 0; right: 0; background: linear-gradient(135deg, var(--primary), var(--accent)); color: white; padding: 16px 24px; z-index: 2000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
@@ -2729,6 +2732,26 @@
         } else {
             fileUploadArea.style.display = 'none';
         }
+    }
+
+    function syncGit() {
+        const syncBtn = document.getElementById('sync-btn');
+        
+        syncBtn.disabled = true;
+        syncBtn.innerHTML = '<span class="toggle-text">🔄 同步中...</span>';
+
+        axios.post('http://127.0.0.1:8080/api/git/sync')
+            .then(response => {
+                syncBtn.innerHTML = '<span class="toggle-text">🔄 同步仓库</span>';
+                syncBtn.disabled = false;
+                showNotification('同步成功', 'success');
+            })
+            .catch(error => {
+                syncBtn.innerHTML = '<span class="toggle-text">🔄 同步仓库</span>';
+                syncBtn.disabled = false;
+                showNotification('同步失败', 'error');
+                console.error('Git sync failed:', error);
+            });
     }
 
     function startRefreshCheck() {
