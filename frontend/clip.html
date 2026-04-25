@@ -2819,7 +2819,19 @@
         testBtn.disabled = true;
         testBtn.textContent = '测试中...';
 
-        axios.post('http://127.0.0.1:8080/api/git/test-connection')
+        // 先保存配置
+        const config = {
+            remoteUrl: document.getElementById('remoteUrl').value,
+            username: document.getElementById('username').value,
+            password: document.getElementById('password').value,
+            branch: document.getElementById('branch').value
+        };
+
+        axios.post('http://127.0.0.1:8080/api/git/config', config)
+            .then(() => {
+                // 配置保存成功后，执行连接测试
+                return axios.post('http://127.0.0.1:8080/api/git/test-connection');
+            })
             .then(response => {
                 showNotification(response.data, 'success');
             })
