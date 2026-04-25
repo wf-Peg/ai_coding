@@ -1,12 +1,14 @@
 package com.example.clip.controller;
 
 import com.example.clip.core.AiService;
+import com.example.clip.config.PromptConfig;
 import com.example.clip.dto.ClipRequest;
 import com.example.clip.dto.ClipResponse;
 import com.example.clip.dto.TagRequest;
 import com.example.clip.model.ClipContent;
 import com.example.clip.service.ClipService;
 import com.example.clip.service.ContentOrganizeService;
+import com.example.clip.service.PromptConfigService;
 import com.example.clip.service.SearchService;
 import com.example.clip.service.WeeklyReportService;
 import org.slf4j.Logger;
@@ -36,6 +38,7 @@ public class ClipController {
     private final AiService aiService;  // AI服务
     private final ContentOrganizeService contentOrganizeService;  // 内容整理服务
     private final WeeklyReportService weeklyReportService;  // 周报服务
+    private final PromptConfigService promptConfigService;
 
     /**
      * 构造函数
@@ -45,12 +48,13 @@ public class ClipController {
      * @param contentOrganizeService 内容整理服务
      * @param weeklyReportService 周报服务
      */
-    public ClipController(ClipService clipService, SearchService searchService, AiService aiService, ContentOrganizeService contentOrganizeService, WeeklyReportService weeklyReportService) {
+    public ClipController(ClipService clipService, SearchService searchService, AiService aiService, ContentOrganizeService contentOrganizeService, WeeklyReportService weeklyReportService, PromptConfigService promptConfigService) {
         this.clipService = clipService;
         this.searchService = searchService;
         this.aiService = aiService;
         this.contentOrganizeService = contentOrganizeService;
         this.weeklyReportService = weeklyReportService;
+        this.promptConfigService = promptConfigService;
     }
 
     /**
@@ -293,5 +297,37 @@ public class ClipController {
                     "message", e.getMessage()
             ));
         }
+    }
+
+    /**
+     * 获取Prompt配置
+     */
+    @GetMapping("/prompt-config")
+    public ResponseEntity<PromptConfig> getPromptConfig() {
+        return ResponseEntity.ok(promptConfigService.getPromptConfig());
+    }
+
+    /**
+     * 保存Prompt配置
+     */
+    @PostMapping("/prompt-config")
+    public ResponseEntity<?> savePromptConfig(@RequestBody PromptConfig config) {
+        try {
+            PromptConfig savedConfig = promptConfigService.savePromptConfig(config);
+            return ResponseEntity.ok(savedConfig);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * 重置Prompt配置为默认值
+     */
+    @PostMapping("/prompt-config/reset")
+    public ResponseEntity<PromptConfig> resetPromptConfig() {
+        return ResponseEntity.ok(promptConfigService.resetToDefault());
     }
 }

@@ -5,6 +5,7 @@ import com.example.clip.core.AiService;
 import com.example.clip.model.ClipContent;
 import com.example.clip.service.ClipService;
 import com.example.clip.service.ContentOrganizeService;
+import com.example.clip.service.PromptConfigService;
 import com.example.clip.service.SearchService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +39,9 @@ public class ClipControllerTest {
 
     @MockBean
     private ContentOrganizeService contentOrganizeService;
+
+    @MockBean
+    private PromptConfigService promptConfigService;
 
     /**
      * 测试获取分类列表
