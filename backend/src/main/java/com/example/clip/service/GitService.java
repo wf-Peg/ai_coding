@@ -1,11 +1,11 @@
 package com.example.clip.service;
 
 import com.example.clip.config.GitConfig;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.PostConstruct;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -47,6 +47,7 @@ public class GitService {
 
     /**
      * 执行git操作
+     *
      * @param directory 要执行git操作的目录
      */
     public void executeGitOperations(Path directory) {
@@ -137,6 +138,7 @@ public class GitService {
 
     /**
      * 配置远程仓库
+     *
      * @param directory 要配置的目录
      */
     private void configureRemoteRepository(Path directory) {
@@ -209,6 +211,7 @@ public class GitService {
 
     /**
      * 检查远程仓库配置
+     *
      * @param directory 要检查的目录
      * @return 是否配置了远程仓库
      */
@@ -242,6 +245,7 @@ public class GitService {
 
     /**
      * 获取Git配置
+     *
      * @return Git配置
      */
     public GitConfig getGitConfig() {
@@ -250,6 +254,7 @@ public class GitService {
 
     /**
      * 设置Git配置
+     *
      * @param gitConfig Git配置
      */
     public void setGitConfig(GitConfig gitConfig) {
@@ -261,6 +266,7 @@ public class GitService {
 
     /**
      * 测试Git连接
+     *
      * @param directory 测试目录
      * @return 测试结果
      */
@@ -273,10 +279,10 @@ public class GitService {
         try {
             // 配置远程仓库
             configureRemoteRepository(directory);
-            
+
             // 测试fetch
             executeGitCommand(directory, "git", "fetch", "origin");
-            
+
             return "Git connection test successful";
         } catch (Exception e) {
             log.error("Git connection test failed: {}", e.getMessage());
@@ -288,6 +294,7 @@ public class GitService {
 
     /**
      * 异步执行git push操作
+     *
      * @return CompletableFuture<String> 操作结果
      */
     public CompletableFuture<String> pushAsync() {
@@ -295,14 +302,14 @@ public class GitService {
             try {
                 pushStatus = "processing";
                 pushMessage = "正在执行git push操作...";
-                
+
                 Path directory = Paths.get(".").toAbsolutePath();
                 if (gitConfig != null && gitConfig.isComplete()) {
                     executeGitCommand(directory, "git", "push", "--set-upstream", "origin", gitConfig.getBranch());
                 } else {
                     executeGitCommand(directory, "git", "push");
                 }
-                
+
                 pushStatus = "completed";
                 pushMessage = "Git push操作成功";
                 return "success";
@@ -317,6 +324,7 @@ public class GitService {
 
     /**
      * 异步执行git pull操作
+     *
      * @return CompletableFuture<String> 操作结果
      */
     public CompletableFuture<String> pullAsync() {
@@ -324,14 +332,14 @@ public class GitService {
             try {
                 pullStatus = "processing";
                 pullMessage = "正在执行git pull操作...";
-                
+
                 Path directory = Paths.get(".").toAbsolutePath();
                 if (gitConfig != null && gitConfig.isComplete()) {
                     executeGitCommand(directory, "git", "pull", "origin", gitConfig.getBranch());
                 } else {
                     executeGitCommand(directory, "git", "pull");
                 }
-                
+
                 pullStatus = "completed";
                 pullMessage = "Git pull操作成功";
                 return "success";
@@ -362,6 +370,7 @@ public class GitService {
 
     /**
      * 获取push状态
+     *
      * @return push状态
      */
     public String getPushStatus() {
@@ -370,6 +379,7 @@ public class GitService {
 
     /**
      * 获取push消息
+     *
      * @return push消息
      */
     public String getPushMessage() {
@@ -378,6 +388,7 @@ public class GitService {
 
     /**
      * 获取pull状态
+     *
      * @return pull状态
      */
     public String getPullStatus() {
@@ -386,6 +397,7 @@ public class GitService {
 
     /**
      * 获取pull消息
+     *
      * @return pull消息
      */
     public String getPullMessage() {
@@ -394,9 +406,10 @@ public class GitService {
 
     /**
      * 执行git命令
+     *
      * @param directory 执行目录
-     * @param command 命令及参数
-     * @throws IOException IO异常
+     * @param command   命令及参数
+     * @throws IOException          IO异常
      * @throws InterruptedException 中断异常
      */
     private void executeGitCommand(Path directory, String... command) throws IOException, InterruptedException {
