@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>碎碎记</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'%3E%3C/circle%3E%3Cline x1='12' y1='8' x2='12' y2='12'%3E%3C/line%3E%3Cline x1='12' y1='16' x2='12.01' y2='16'%3E%3C/line%3E%3C/svg%3E" type="image/svg+xml" />
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <style>
         /* 布局样式 */
         body {
@@ -15,10 +16,58 @@
             font-family: Arial, sans-serif;
         }
 
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background-color: #3b82f6;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 1000;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .sync-btn {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .sync-btn:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .sync-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .status-indicator {
+            margin-left: 10px;
+            font-size: 0.8rem;
+        }
+
         .container {
             display: grid;
             grid-template-columns: 1fr 2fr;
             height: 100vh;
+            margin-top: 60px;
         }
 
         .todo-section {
@@ -47,16 +96,68 @@
                 border-bottom: 1px solid #e0e0e0;
             }
         }
+
+        /* 同步状态样式 */
+        .status-success {
+            color: #10b981;
+        }
+
+        .status-error {
+            color: #ef4444;
+        }
+
+        .status-processing {
+            color: #f59e0b;
+        }
     </style>
 </head>
 <body>
-<div class="container">
-    <div class="todo-section">
-        <iframe src="todo.html"></iframe>
+    <div class="header">
+        <h1>碎碎记</h1>
+        <div style="display: flex; align-items: center;">
+            <button class="sync-btn" id="syncBtn" onclick="syncGit()">
+                🔄 同步仓库
+            </button>
+            <span class="status-indicator" id="syncStatus"></span>
+        </div>
     </div>
-    <div class="clip-section">
-        <iframe src="clip.html"></iframe>
+    <div class="container">
+        <div class="todo-section">
+            <iframe src="todo.html"></iframe>
+        </div>
+        <div class="clip-section">
+            <iframe src="clip.html"></iframe>
+        </div>
     </div>
-</div>
+
+    <script>
+        function syncGit() {
+            const syncBtn = document.getElementById('syncBtn');
+            const syncStatus = document.getElementById('syncStatus');
+
+            syncBtn.disabled = true;
+            syncStatus.textContent = '同步中...';
+            syncStatus.className = 'status-indicator status-processing';
+
+            axios.post('http://127.0.0.1:8080/api/git/sync')
+                .then(response => {
+                    syncStatus.textContent = '同步成功';
+                    syncStatus.className = 'status-indicator status-success';
+                    setTimeout(() => {
+                        syncStatus.textContent = '';
+                        syncBtn.disabled = false;
+                    }, 2000);
+                })
+                .catch(error => {
+                    syncStatus.textContent = '同步失败';
+                    syncStatus.className = 'status-indicator status-error';
+                    setTimeout(() => {
+                        syncStatus.textContent = '';
+                        syncBtn.disabled = false;
+                    }, 2000);
+                    console.error('Git sync failed:', error);
+                });
+        }
+    </script>
 </body>
 </html>
