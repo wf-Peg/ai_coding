@@ -1,5 +1,6 @@
 package com.example.clip.service;
 
+import com.example.clip.config.GitConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ public class GitService {
     private String pushMessage = "";
     private String pullStatus = "idle";
     private String pullMessage = "";
+    private GitConfig gitConfig;
 
     /**
      * 执行git操作
@@ -38,10 +40,11 @@ public class GitService {
         try {
             log.info("Executing git operations in directory: {}", directory);
 
-            // 检查远程仓库配置
-            if (!checkRemoteConfig(directory)) {
-                log.warn("Remote repository not configured, skipping git push");
-                // 仍然执行其他操作
+            // 检查并配置远程仓库
+            if (gitConfig != null && gitConfig.isComplete()) {
+                configureRemoteRepository(directory);
+            } else {
+                log.warn("Git config not complete, skipping remote configuration");
             }
 
             // 执行git pull
@@ -60,6 +63,27 @@ public class GitService {
         } catch (Exception e) {
             // 只打日志，不影响主流程
             log.error("Git operation failed: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 配置远程仓库
+     * @param directory 要配置的目录
+     */
+    private void configureRemoteRepository(Path directory) {
+        try {
+            // 检查远程仓库是否已配置
+            if (!checkRemoteConfig(directory)) {
+                // 添加远程仓库
+                executeGitCommand(directory, "git", "remote", "add", "origin", gitConfig.getRemoteUrl());
+                log.info("Added remote repository: {}", gitConfig.getRemoteUrl());
+            }
+
+            // 设置分支跟踪
+            executeGitCommand(directory, "git", "branch", "--set-upstream-to=origin/" + gitConfig.getBranch(), gitConfig.getBranch());
+            log.info("Set upstream branch to origin/{}", gitConfig.getBranch());
+        } catch (Exception e) {
+            log.error("Error configuring remote repository: {}", e.getMessage());
         }
     }
 
@@ -93,6 +117,42 @@ public class GitService {
         } catch (Exception e) {
             log.error("Error checking remote config: {}", e.getMessage());
             return false;
+        }
+    }
+
+    /**
+     * 获取Git配置
+     * @return Git配置
+     */
+    public GitConfig getGitConfig() {
+        return gitConfig;
+    }
+
+    /**
+     * 设置Git配置
+     * @param gitConfig Git配置
+     */
+    public void setGitConfig(GitConfig gitConfig) {
+        this.gitConfig = gitConfig;
+    }
+
+    /**
+     * 测试Git连接
+     * @param directory 测试目录
+     * @return 测试结果
+     */
+    public String testGitConnection(Path directory) {
+        if (gitConfig == null || !gitConfig.isComplete()) {
+            return "Git configuration is not complete";
+        }
+
+        try {
+            // 检查远程仓库是否可达
+            executeGitCommand(directory, "git", "remote", "-v");
+            return "Git connection test successful";
+        } catch (Exception e) {
+            log.error("Git connection test failed: {}", e.getMessage());
+            return "Git connection test failed: " + e.getMessage();
         }
     }
 

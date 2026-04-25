@@ -1463,6 +1463,9 @@
         <h1>剪藏</h1>
         <p class="subtitle">捕捉灵感，智能整理，构建你的个人知识库</p>
         <div class="toggle-container" style="justify-content: flex-start;">
+                    <button class="toggle-btn" id="git-config-btn" onclick="openGitConfigModal()">
+                        <span class="toggle-text">⚙️ Git配置</span>
+                    </button>
                     <button class="toggle-btn" id="sync-btn" onclick="syncGit()">
                         <span class="toggle-text">🔄 同步仓库</span>
                     </button>
@@ -2760,6 +2763,107 @@
             fetchClips();
         }, 5000);
     }
+
+    // Git配置相关函数
+    function openGitConfigModal() {
+        // 显示配置弹窗
+        document.getElementById('git-config-modal').style.display = 'block';
+        // 加载当前配置
+        loadGitConfig();
+    }
+
+    function closeGitConfigModal() {
+        // 隐藏配置弹窗
+        document.getElementById('git-config-modal').style.display = 'none';
+    }
+
+    function loadGitConfig() {
+        // 加载当前Git配置
+        axios.get('http://127.0.0.1:8080/api/git/config')
+            .then(response => {
+                const config = response.data;
+                if (config) {
+                    document.getElementById('remoteUrl').value = config.remoteUrl || '';
+                    document.getElementById('username').value = config.username || '';
+                    document.getElementById('password').value = config.password || '';
+                    document.getElementById('branch').value = config.branch || '';
+                }
+            })
+            .catch(error => {
+                console.error('Failed to load git config:', error);
+            });
+    }
+
+    function saveGitConfig() {
+        // 保存Git配置
+        const config = {
+            remoteUrl: document.getElementById('remoteUrl').value,
+            username: document.getElementById('username').value,
+            password: document.getElementById('password').value,
+            branch: document.getElementById('branch').value
+        };
+
+        axios.post('http://127.0.0.1:8080/api/git/config', config)
+            .then(response => {
+                showNotification('Git配置保存成功', 'success');
+                closeGitConfigModal();
+            })
+            .catch(error => {
+                showNotification('Git配置保存失败: ' + error.response.data, 'error');
+            });
+    }
+
+    function testGitConnection() {
+        // 测试Git连接
+        const testBtn = document.getElementById('test-connection-btn');
+        testBtn.disabled = true;
+        testBtn.textContent = '测试中...';
+
+        axios.post('http://127.0.0.1:8080/api/git/test-connection')
+            .then(response => {
+                showNotification(response.data, 'success');
+            })
+            .catch(error => {
+                showNotification('连接测试失败: ' + error.response.data, 'error');
+            })
+            .finally(() => {
+                testBtn.disabled = false;
+                testBtn.textContent = '测试连接';
+            });
+    }
 </script>
+
+<!-- Git配置弹窗 -->
+<div id="git-config-modal" class="modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+    <div class="modal-content" style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0; color: #333;">Git配置</h2>
+            <span onclick="closeGitConfigModal()" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+        </div>
+        <form onsubmit="event.preventDefault(); saveGitConfig();">
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">远程仓库URL</label>
+                <input type="text" id="remoteUrl" placeholder="https://github.com/username/repo.git" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">Git用户名</label>
+                <input type="text" id="username" placeholder="username" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">Git密码</label>
+                <input type="password" id="password" placeholder="password" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">分支名称</label>
+                <input type="text" id="branch" placeholder="master" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button type="button" onclick="testGitConnection()" id="test-connection-btn" style="padding: 10px 20px; background-color: #f3f4f6; color: #333; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">测试连接</button>
+                <button type="button" onclick="closeGitConfigModal()" style="padding: 10px 20px; background-color: #f3f4f6; color: #333; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">取消</button>
+                <button type="submit" style="padding: 10px 20px; background-color: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">保存配置</button>
+            </div>
+        </form>
+    </div>
+</div>
 </body>
 </html>=
