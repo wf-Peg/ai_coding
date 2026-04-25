@@ -61,8 +61,8 @@ public class ClipService {
                                 String fileData, String fileName, List<ClipRequest.ImageData> imageDataList) {
         ClipContent clipContent = new ClipContent(content, type, source, category);
 
-        // 处理图片
-        if (imageDataList != null && !imageDataList.isEmpty()) {
+        // 处理图片 - 只有ai-text和store-only类型才处理图片上传
+        if (("ai-text".equals(type) || "store-only".equals(type)) && imageDataList != null && !imageDataList.isEmpty()) {
             try {
                 // 生成笔记文件名（用于图片存储）
                 String noteFileName = generateNoteFileName(category);
@@ -127,8 +127,19 @@ public class ClipService {
                 // 解析文档，然后进行AI处理
                 try {
                     byte[] fileBytes = Base64.getDecoder().decode(fileData);
-                    String parsedText = documentParseService.parseDocument(fileBytes, fileName);
+                    
+                    // 存储源文件（按照图片存储逻辑）
+                    String noteFileName = generateNoteFileName(category);
+                    String cat = (category != null && !category.isEmpty()) ? category : "default";
+                    String sourceFilePath = imageUtils.storeImage(fileBytes, fileName, cat, noteFileName);
+                    
+                    // 将源文件路径添加到clipContent
+                    clipContent.getImagePaths().add(sourceFilePath);
+                    
+                    // 解析文档
+                    String parsedText = documentParseService.parseDocument(fileBytes, fileName, sourceFilePath);
                     clipContent.setContent(parsedText);
+                    
                     // 如果没有分类，则使用AI分类
                     boolean useAiCategoryDoc = (clipContent.getCategory() == null || clipContent.getCategory().isEmpty());
                     processWithAi(clipContent, useAiCategoryDoc);
