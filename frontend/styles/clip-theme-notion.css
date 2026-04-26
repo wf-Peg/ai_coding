@@ -203,6 +203,36 @@ select:focus {
     box-shadow: none;
 }
 
+.ai-tags-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: #fbfbfa;
+    border: 1px solid #e1e1de;
+    border-radius: 8px;
+    transition: all 0.18s ease;
+}
+
+.ai-tags-checkbox:hover {
+    background: #ffffff;
+    border-color: #dcdcd8;
+}
+
+.ai-tags-checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: #2f3437;
+}
+
+.ai-tags-checkbox label {
+    margin: 0;
+    font-weight: 500;
+    color: var(--text);
+    cursor: pointer;
+}
+
 .content-section {
     background: #fafaf9;
     box-shadow: none;
@@ -279,4 +309,3 @@ select:focus {
     color: #2f3437 !important;
     border: 1px solid #d7d7d4 !important;
 }
-

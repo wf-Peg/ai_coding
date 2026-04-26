@@ -1,5 +1,6 @@
 // 选项页面脚本
 const DEFAULT_CONFIG = {
+  uiTheme: 'notion',
   apiUrl: 'http://localhost:8080/api/clip/add',
   apiTimeout: 30,
   apiRetryCount: 2,
@@ -31,6 +32,7 @@ const DEFAULT_CONFIG = {
 
 document.addEventListener('DOMContentLoaded', async () => {
   const form = document.getElementById('optionsForm');
+  const uiThemeSelect = document.getElementById('uiTheme');
   const apiUrlInput = document.getElementById('apiUrl');
   const apiTimeoutInput = document.getElementById('apiTimeout');
   const apiRetryCountInput = document.getElementById('apiRetryCount');
@@ -60,13 +62,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   form.addEventListener('submit', handleSave);
   testBtn.addEventListener('click', handleTestConnection);
   resetBtn.addEventListener('click', handleReset);
+  uiThemeSelect.addEventListener('change', () => applyTheme(uiThemeSelect.value));
 
   // 加载配置
   async function loadConfig() {
     try {
       const result = await chrome.storage.local.get(Object.keys(DEFAULT_CONFIG));
       const config = { ...DEFAULT_CONFIG, ...result };
+      applyTheme(config.uiTheme);
       
+      uiThemeSelect.value = config.uiTheme;
       apiUrlInput.value = config.apiUrl;
       apiTimeoutInput.value = config.apiTimeout;
       apiRetryCountInput.value = config.apiRetryCount;
@@ -93,6 +98,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 填充默认值
   function fillFormWithDefaults() {
+    applyTheme(DEFAULT_CONFIG.uiTheme);
+    uiThemeSelect.value = DEFAULT_CONFIG.uiTheme;
     apiUrlInput.value = DEFAULT_CONFIG.apiUrl;
     apiTimeoutInput.value = DEFAULT_CONFIG.apiTimeout;
     apiRetryCountInput.value = DEFAULT_CONFIG.apiRetryCount;
@@ -123,6 +130,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     
     const config = {
+      uiTheme: uiThemeSelect.value,
       apiUrl: apiUrlInput.value.trim() || DEFAULT_CONFIG.apiUrl,
       apiTimeout: parseInt(apiTimeoutInput.value) || DEFAULT_CONFIG.apiTimeout,
       apiRetryCount: parseInt(apiRetryCountInput.value) || DEFAULT_CONFIG.apiRetryCount,
@@ -196,6 +204,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (confirm('确定要重置所有设置为默认值吗？')) {
       fillFormWithDefaults();
     }
+  }
+
+  function applyTheme(themeId) {
+    const resolvedTheme = themeId === 'regular' ? 'regular' : 'notion';
+    document.documentElement.setAttribute('data-theme', resolvedTheme);
   }
 
   // 显示测试状态

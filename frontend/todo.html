@@ -806,8 +806,8 @@
             opacity: 0.5;
         }
     </style>
-    <link id="themeRegular" rel="stylesheet" href="./styles/theme-regular.css">
-    <link id="themeNotion" rel="stylesheet" href="./styles/theme-notion.css" disabled>
+    <link id="themeRegular" rel="stylesheet" href="./styles/theme-regular.css" disabled>
+    <link id="themeNotion" rel="stylesheet" href="./styles/theme-notion.css">
 </head>
 <body>
 
@@ -918,6 +918,7 @@
   // ── API ──
   const TODO_API_BASE_URL = 'http://127.0.0.1:8080/api/todo';
   const THEME_STORAGE_KEY = 'app_theme_v1';
+  const DEFAULT_THEME = 'notion';
   const THEMES = [
     { id: 'regular', name: '常规风格', link: themeRegular },
     { id: 'notion', name: 'Notion风格', link: themeNotion }
@@ -926,7 +927,7 @@
     acc[theme.id] = theme;
     return acc;
   }, {});
-  let currentTheme = THEMES[0].id;
+  let currentTheme = DEFAULT_THEME;
 
   function getNextThemeId(themeId) {
     const index = THEMES.findIndex(theme => theme.id === themeId);
@@ -939,7 +940,7 @@
   }
 
   function applyTheme(themeId, persist = true) {
-    const resolvedThemeId = themeById[themeId] ? themeId : THEMES[0].id;
+    const resolvedThemeId = themeById[themeId] ? themeId : DEFAULT_THEME;
     currentTheme = resolvedThemeId;
 
     THEMES.forEach(theme => {
@@ -1359,7 +1360,7 @@
   window.app = { toggleComplete, startEdit, cancelEdit, saveEdit, confirmDelete };
 
   // ── Init ──
-  applyTheme(localStorage.getItem(THEME_STORAGE_KEY));
+  applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME);
   fetchTodos();
 
 })();

@@ -1,0 +1,49 @@
+html[data-theme="regular"] {
+  --primary: #3b82f6;
+  --primary-light: #60a5fa;
+  --secondary: #f59e0b;
+  --accent: #10b981;
+  --background: #f9fafb;
+  --background-dark: #f3f4f6;
+  --surface: #ffffff;
+  --surface-hover: #f3f4f6;
+  --text: #1f2937;
+  --text-secondary: #6b7280;
+  --border: #e5e7eb;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --radius: 8px;
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --header-bg: linear-gradient(135deg, var(--primary), var(--primary-light));
+  --header-text: #ffffff;
+  --focus-ring: rgba(59, 130, 246, 0.1);
+}
+
+html[data-theme="notion"] {
+  --primary: #2383e2;
+  --primary-light: #1f76c9;
+  --secondary: #6b6f76;
+  --accent: #2f3437;
+  --background: #f7f7f5;
+  --background-dark: #f1f1ef;
+  --surface: #ffffff;
+  --surface-hover: #f7f7f5;
+  --text: #2f3437;
+  --text-secondary: #6b6f76;
+  --border: #e8e8e6;
+  --success: #1f9d66;
+  --warning: #b8860b;
+  --error: #e03e3e;
+  --radius: 10px;
+  --shadow: 0 1px 0 rgba(15, 23, 42, 0.03), 0 8px 20px rgba(15, 23, 42, 0.04);
+  --shadow-hover: 0 1px 0 rgba(15, 23, 42, 0.04), 0 12px 24px rgba(15, 23, 42, 0.08);
+  --header-bg: #ffffff;
+  --header-text: #2f3437;
+  --focus-ring: rgba(35, 131, 226, 0.15);
+}
+
+html {
+  background: var(--background);
+}

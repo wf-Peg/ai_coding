@@ -11,7 +11,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/weekly-report")
-@CrossOrigin(origins = {"http://127.0.0.1:3000", "http://localhost:3000"})
+@CrossOrigin(origins = "*")  // 允许所有跨域请求，包括浏览器扩展
 public class WeeklyReportController {
 
     private static final Logger log = LoggerFactory.getLogger(WeeklyReportController.class);

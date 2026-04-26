@@ -1,5 +1,7 @@
 // 弹出窗口脚本
 document.addEventListener('DOMContentLoaded', async () => {
+  applyTheme((await chrome.storage.local.get('uiTheme')).uiTheme);
+
   const form = document.getElementById('clipForm');
   const contentInput = document.getElementById('content');
   const sourceInput = document.getElementById('source');
@@ -232,5 +234,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  function applyTheme(themeId) {
+    const resolvedTheme = themeId === 'regular' ? 'regular' : 'notion';
+    document.documentElement.setAttribute('data-theme', resolvedTheme);
   }
 });
