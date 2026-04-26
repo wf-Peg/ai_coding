@@ -1682,7 +1682,7 @@
             }
         }
     </style>
-    <link id="clipThemeNotion" rel="stylesheet" href="./styles/clip-theme-notion.css" disabled>
+    <link id="clipThemeNotion" rel="stylesheet" href="./styles/clip-theme-notion.css">
 </head>
 <body>
 <!-- 赛博朋克风格的确认弹窗 -->
@@ -1913,10 +1913,11 @@
     let currentTags = [];
     const MAX_TAGS = 10;
     const THEME_STORAGE_KEY = 'app_theme_v1';
+    const DEFAULT_THEME = 'notion';
     let currentPromptType = 'daily';
     let promptConfigCache = null;
     let feedbackPathValue = '';
-    let currentTheme = 'regular';
+    let currentTheme = DEFAULT_THEME;
 
     function getNextThemeId(themeId) {
         return themeId === 'notion' ? 'regular' : 'notion';
@@ -1931,7 +1932,7 @@
     }
 
     function applyTheme(themeId, persist = true) {
-        currentTheme = themeId === 'notion' ? 'notion' : 'regular';
+        currentTheme = themeId === 'regular' ? 'regular' : DEFAULT_THEME;
         const notionThemeLink = document.getElementById('clipThemeNotion');
         if (notionThemeLink) {
             notionThemeLink.disabled = currentTheme !== 'notion';
@@ -1944,7 +1945,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-        applyTheme(localStorage.getItem(THEME_STORAGE_KEY));
+        applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME);
         fetchClips();
         loadCategories();
         handleTypeChange();

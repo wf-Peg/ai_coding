@@ -14,7 +14,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/todo")
-@CrossOrigin(origins = {"http://127.0.0.1:3000", "http://localhost:3000", "http://127.0.0.1:5500", "http://localhost:5500", "null"})  // 允许前端跨域请求
+@CrossOrigin(origins = "*")  // 允许所有跨域请求，包括浏览器扩展
 public class TodoController {
 
     private static final Logger log = LoggerFactory.getLogger(TodoController.class);

@@ -5,13 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>剪藏</title>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
-    <script>
-        marked.setOptions({
-            breaks: true,
-            gfm: true
-        });
-    </script>
+    <script src="libs/marked.min.js"></script>
+    <script src="libs/axios.min.js"></script>
+    <script src="clip.js"></script>
+    <script src="clip-main.js"></script>
     <style>
         :root {
             /* 现代简洁风格色彩 */
@@ -1695,7 +1692,7 @@
             <p id="confirm-message">确定要删除这个剪藏吗？</p>
         </div>
         <div class="modal-footer">
-            <button class="btn-secondary" onclick="closeConfirmModal()">取消</button>
+            <button class="btn-secondary" id="close-confirm-btn">取消</button>
             <button class="btn-primary" id="confirm-btn">确认</button>
         </div>
     </div>
@@ -1705,16 +1702,16 @@
     <div class="modal-content" style="max-width: 760px;">
         <div class="modal-header">
             <h3 id="prompt-config-title">Prompt 配置</h3>
-            <button class="modal-close" type="button" onclick="closePromptConfigModal()">&times;</button>
+            <button class="modal-close" type="button" id="close-prompt-config-btn">&times;</button>
         </div>
         <div class="modal-body">
             <label class="modal-label" for="prompt-config-textarea" id="prompt-config-desc">编辑系统提示词</label>
             <textarea id="prompt-config-textarea" class="modal-textarea"></textarea>
         </div>
         <div class="modal-footer">
-            <button class="btn-secondary" type="button" onclick="resetPromptConfig()">恢复默认</button>
-            <button class="btn-secondary" type="button" onclick="closePromptConfigModal()">取消</button>
-            <button class="btn-primary" type="button" onclick="savePromptConfig()">保存</button>
+            <button class="btn-secondary" type="button" id="reset-prompt-config-btn">恢复默认</button>
+            <button class="btn-secondary" type="button" id="close-prompt-config-btn-footer">取消</button>
+            <button class="btn-primary" type="button" id="save-prompt-config-btn">保存</button>
         </div>
     </div>
 </div>
@@ -1723,15 +1720,15 @@
     <div class="modal-content" style="max-width: 520px;">
         <div class="modal-header">
             <h3 id="feedback-title">提示</h3>
-            <button class="modal-close" type="button" onclick="closeFeedbackModal()">&times;</button>
+            <button class="modal-close" type="button" id="close-feedback-btn">&times;</button>
         </div>
         <div class="modal-body">
             <p id="feedback-message"></p>
             <div id="feedback-path-block" class="path-block" style="display: none;"></div>
         </div>
         <div class="modal-footer">
-            <button id="copy-path-btn" class="btn-secondary" style="display: none;" type="button" onclick="copyFeedbackPath()">复制路径</button>
-            <button class="btn-primary" type="button" onclick="closeFeedbackModal()">我知道了</button>
+            <button id="copy-path-btn" class="btn-secondary" style="display: none;" type="button">复制路径</button>
+            <button class="btn-primary" type="button" id="close-feedback-btn-footer">我知道了</button>
         </div>
     </div>
 </div>
@@ -1754,24 +1751,24 @@
         <p class="subtitle">捕捉灵感，智能整理，构建你的个人知识库</p>
         <div class="toggle-container">
             <div class="action-split-group">
-                <button class="icon-btn" type="button" title="Git配置" onclick="openGitConfigModal()">⚙️</button>
-                <button class="toggle-btn main-btn" id="sync-btn" onclick="syncGit()">
+                <button class="icon-btn" type="button" title="Git配置" id="open-git-config-btn">⚙️</button>
+                <button class="toggle-btn main-btn" id="sync-btn">
                     <span class="toggle-text">🔄 同步仓库</span>
                 </button>
             </div>
             <div class="action-split-group">
-                <button class="icon-btn" type="button" title="配置整理Prompt" onclick="openPromptConfigModal('daily')">⚙️</button>
-                <button class="toggle-btn main-btn" id="organize-btn" onclick="organizeContent()">
+                <button class="icon-btn" type="button" title="配置整理Prompt" id="open-daily-prompt-btn">⚙️</button>
+                <button class="toggle-btn main-btn" id="organize-btn">
                     <span class="toggle-text">📚 整理今日内容</span>
                 </button>
             </div>
             <div class="action-split-group">
-                <button class="icon-btn" type="button" title="配置周报Prompt" onclick="openPromptConfigModal('weekly')">⚙️</button>
-                <button class="toggle-btn main-btn" id="weekly-report-btn" onclick="generateWeeklyReport()">
+                <button class="icon-btn" type="button" title="配置周报Prompt" id="open-weekly-prompt-btn">⚙️</button>
+                <button class="toggle-btn main-btn" id="weekly-report-btn">
                     <span class="toggle-text">📊 生成周报总结</span>
                 </button>
             </div>
-            <button class="toggle-btn" id="toggle-btn" onclick="toggleMode()">
+            <button class="toggle-btn" id="toggle-btn">
                 <span class="toggle-text" id="toggle-text">🔍 切换到信息检索</span>
             </button>
         </div>
@@ -1781,10 +1778,10 @@
         <div style="display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto;">
             <span id="notification-message" style="font-weight: 600;">内容整理完成！</span>
             <div style="display: flex; gap: 12px;">
-                <button id="open-folder-btn" onclick="openStorageFolder()" style="background: white; color: var(--primary); border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.3s ease;">
+                <button id="open-folder-btn" style="background: white; color: var(--primary); border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.3s ease;">
                     📂 打开存储目录
                 </button>
-                <button onclick="closeNotification()" style="background: transparent; color: white; border: 2px solid white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                <button id="close-notification-btn" style="background: transparent; color: white; border: 2px solid white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 600;">
                     关闭
                 </button>
             </div>
@@ -1802,10 +1799,10 @@
                         <span>💡 提示：可直接粘贴图片到输入框</span>
                     </div>
                     <div id="image-upload-area" class="file-upload-area" style="margin-top: 12px;">
-                        <button type="button" class="upload-btn" style="background-color: #f0f0f0; border: 1px dashed #ddd; border-radius: 4px; padding: 8px 16px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem; display: inline-block; width: auto;" onclick="document.getElementById('image-input').click()">
+                        <button type="button" class="upload-btn" style="background-color: #f0f0f0; border: 1px dashed #ddd; border-radius: 4px; padding: 8px 16px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem; display: inline-block; width: auto;" id="upload-btn">
                             📷 上传图片
                         </button>
-                        <input type="file" id="image-input" accept="image/*" multiple style="display: none;" onchange="handleImageFiles(this.files)">
+                        <input type="file" id="image-input" accept="image/*" multiple style="display: none;">
                         <div class="upload-tips" style="margin-top: 8px; font-size: 0.85rem; color: var(--text-secondary); text-align: left;">
                             <span>支持批量上传图片</span>
                         </div>
@@ -1824,7 +1821,7 @@
                         <div id="file-info" class="file-info" style="display:none;">
                             <span id="file-name"></span>
                             <span id="file-size"></span>
-                            <button type="button" class="file-remove-btn" onclick="removeFile()">✕</button>
+                            <button type="button" class="file-remove-btn" id="file-remove-btn">✕</button>
                         </div>
                     </div>
                 </div>
@@ -1859,8 +1856,8 @@
                     </div>
                 </div>
                 <div class="form-actions">
-                    <button type="button" class="btn-secondary" onclick="clearForm()">清空</button>
-                    <button type="button" class="btn-secondary" onclick="startVoiceInput()">🎤 语音输入</button>
+                    <button type="button" class="btn-secondary" id="clear-form-btn">清空</button>
+                    <button type="button" class="btn-secondary" id="voice-input-btn">🎤 语音输入</button>
                     <button type="submit" class="btn-primary">添加剪藏</button>
                 </div>
             </form>
@@ -1882,7 +1879,7 @@
                     </select>
                 </div>
                 <div class="form-actions">
-                    <button type="button" class="btn-secondary" onclick="clearSearch()">清空</button>
+                    <button type="button" class="btn-secondary" id="clear-search-btn">清空</button>
                     <button type="submit" class="btn-primary">搜索</button>
                 </div>
             </form>
@@ -1900,13 +1897,13 @@
     <div id="search-results-page" style="display: none;">
         <div class="list-header">
             <h2>搜索结果</h2>
-            <button class="btn-secondary" onclick="backToList()">返回列表</button>
+            <button class="btn-secondary" id="back-to-list-btn">返回列表</button>
         </div>
         <div id="search-results" class="clip-items"></div>
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<!-- <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script>
     const API_BASE_URL = 'http://127.0.0.1:8080/api/clip';
     const GIT_API_BASE_URL = 'http://127.0.0.1:8080/api/git';
@@ -3303,17 +3300,17 @@
                 testBtn.textContent = '测试连接';
             });
     }
-</script>
+</script> -->
 
 <!-- Git配置弹窗 -->
 <div id="git-config-modal" class="modal" style="display: none;">
     <div class="modal-content" style="max-width: 560px;">
         <div class="modal-header">
             <h3>Git配置</h3>
-            <button class="modal-close" type="button" onclick="closeGitConfigModal()">&times;</button>
+            <button class="modal-close" type="button" id="close-git-config-btn">&times;</button>
         </div>
         <div class="modal-body">
-            <form onsubmit="event.preventDefault(); saveGitConfig();">
+            <form id="git-config-form">
                 <div style="margin-bottom: 15px;">
                     <label class="modal-label">远程仓库URL</label>
                     <input type="text" id="remoteUrl" class="modal-input" placeholder="https://github.com/username/repo.git">
@@ -3331,8 +3328,8 @@
                     <input type="text" id="branch" class="modal-input" placeholder="main">
                 </div>
                 <div class="modal-footer" style="padding: 20px 0 0 0; border-top: none;">
-                    <button class="btn-secondary" type="button" onclick="testGitConnection()" id="test-connection-btn">测试连接</button>
-                    <button class="btn-secondary" type="button" onclick="closeGitConfigModal()">取消</button>
+                    <button class="btn-secondary" type="button" id="test-connection-btn">测试连接</button>
+                    <button class="btn-secondary" type="button" id="cancel-git-config-btn">取消</button>
                     <button class="btn-primary" type="submit">保存配置</button>
                 </div>
             </form>

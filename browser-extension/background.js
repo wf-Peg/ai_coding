@@ -501,14 +501,17 @@ async function getConfig(sendResponse) {
 // 异步获取配置
 function getConfigAsync() {
   return new Promise((resolve) => {
-    chrome.storage.local.get(['apiUrl', 'apiTimeout', 'apiRetryCount', 'defaultType', 'clipPageShortcut', 'clipSelectionShortcut', 'enableModelCleanup', 'modelApiKey', 'modelProvider', 'modelName'], (result) => {
+    chrome.storage.local.get(['uiTheme', 'apiUrl', 'apiTimeout', 'apiRetryCount', 'defaultType', 'clipPageShortcut', 'clipSelectionShortcut', 'enableNotifications', 'successNotification', 'enableModelCleanup', 'modelApiKey', 'modelProvider', 'modelName'], (result) => {
       resolve({
+        uiTheme: result.uiTheme || 'notion',
         apiUrl: result.apiUrl || 'http://localhost:8080/api/clip/add',
         apiTimeout: result.apiTimeout || 30,
         apiRetryCount: result.apiRetryCount || 2,
         defaultType: result.defaultType || 'ai-text',
         clipPageShortcut: result.clipPageShortcut || 'Ctrl+Shift+S',
         clipSelectionShortcut: result.clipSelectionShortcut || 'Ctrl+Shift+D',
+        enableNotifications: result.enableNotifications !== false,
+        successNotification: result.successNotification !== false,
         enableModelCleanup: result.enableModelCleanup || false,
         modelApiKey: result.modelApiKey || '',
         modelProvider: result.modelProvider || 'openai',
@@ -529,13 +532,24 @@ async function saveConfig(data, sendResponse) {
 }
 
 // 显示通知
-function showNotification(message, type = 'info') {
-  // 使用简单的console.log，实际可以使用chrome.notifications
-  console.log(`[${type.toUpperCase()}] ${message}`);
-  
-  // 尝试使用浏览器通知
+async function showNotification(message, type = 'info') {
+  const config = await getConfigAsync();
+  const theme = config.uiTheme === 'regular' ? 'regular' : 'notion';
+  const title = theme === 'notion' ? '剪藏收集箱' : '智能剪藏助手';
+  const prefix = theme === 'notion' ? 'Collected' : type.toUpperCase();
+
+  console.log(`[${prefix}] ${message}`);
+
+  if (!config.enableNotifications) {
+    return;
+  }
+
+  if (type === 'success' && !config.successNotification) {
+    return;
+  }
+
   if (Notification.permission === 'granted') {
-    new Notification('智能剪藏助手', {
+    new Notification(title, {
       body: message,
       icon: 'icons/icon-48.png'
     });

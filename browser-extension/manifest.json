@@ -61,7 +61,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["index.html", "clip.html", "todo.html", "styles/*.css"],
+      "resources": ["index.html", "clip.html", "todo.html", "styles/*.css", "libs/*.js"],
       "matches": ["<all_urls>"]
     }
   ]

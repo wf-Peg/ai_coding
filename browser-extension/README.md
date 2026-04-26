@@ -68,6 +68,7 @@
 - **API超时时间**: API调用的超时时间（1-60秒）
 - **API重试次数**: API调用失败时的重试次数（0-5次）
 - **默认剪藏类型**: AI文本整理 / 仅存储内容 / 链接AI解析 / 文档AI解析
+- **界面风格**: 常规风格 / Notion风格（`options` 与 `popup` 联动）
 - **默认使用AI自动生成标签**: 开启/关闭
 - **自动记录来源URL**: 开启/关闭
 - **浏览器通知**: 开启/关闭成功通知
@@ -120,9 +121,17 @@ browser-extension/
 ├── content.css            # 内容样式
 ├── popup.html/css/js      # 弹出窗口
 ├── options.html/css/js    # 选项页面
+├── shared-ui-theme.css    # 共享主题变量（regular/notion）
+├── shared-ui-base.css     # 共享基础组件样式
 ├── icons/                 # 图标文件
 └── README.md              # 说明文档
 ```
+
+### 主题说明
+
+- `uiTheme` 配置保存在 `chrome.storage.local`。
+- `options.html` 里切换风格并保存后，`popup.html` 会自动应用相同风格。
+- 默认风格为 `notion`。
 
 ### 调试技巧
 

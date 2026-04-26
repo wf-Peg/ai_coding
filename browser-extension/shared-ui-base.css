@@ -1,0 +1,189 @@
+/* Shared UI base styles for options/popup pages */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    'Microsoft YaHei', sans-serif;
+  background: var(--background);
+  color: var(--text);
+}
+
+.container {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.header {
+  background: var(--header-bg);
+  color: var(--header-text);
+  border-bottom: 1px solid var(--border);
+}
+
+.header h1 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.form-group label {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.help-text {
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.checkbox-group,
+.ai-tags-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-hover);
+}
+
+.checkbox-group input[type="checkbox"],
+.ai-tags-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.checkbox-group label,
+.ai-tags-checkbox label {
+  margin: 0;
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--text);
+}
+
+button {
+  border: none;
+  border-radius: var(--radius);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 2px 8px var(--focus-ring);
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-hover);
+}
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+  background: var(--surface-hover);
+  transform: translateY(-1px);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.footer {
+  background: var(--background-dark);
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border);
+}
+
+html[data-theme="notion"] .container {
+  border-radius: 12px;
+}
+
+html[data-theme="notion"] .header {
+  text-align: left;
+}
+
+html[data-theme="notion"] .subtitle {
+  color: var(--text-secondary);
+  opacity: 1;
+}
+
+html[data-theme="notion"] .checkbox-group,
+html[data-theme="notion"] .ai-tags-checkbox {
+  background: #fbfbfa;
+  border-color: #e1e1de;
+}
+
+html[data-theme="notion"] .checkbox-group input[type="checkbox"],
+html[data-theme="notion"] .ai-tags-checkbox input[type="checkbox"] {
+  accent-color: #2f3437;
+}
+
+html[data-theme="notion"] .checkbox-group:hover,
+html[data-theme="notion"] .ai-tags-checkbox:hover {
+  background: #ffffff;
+  border-color: #dcdcd8;
+}
+
+html[data-theme="notion"] .form-group input,
+html[data-theme="notion"] .form-group select,
+html[data-theme="notion"] .form-group textarea {
+  border-width: 1px;
+}
+
+html[data-theme="notion"] .btn-primary {
+  background: #2f3437;
+  box-shadow: none;
+}
+
+html[data-theme="notion"] .btn-primary:hover {
+  background: #1f2328;
+  box-shadow: none;
+}
+
+html[data-theme="notion"] .btn-secondary {
+  background: #f7f7f5;
+}
+
+html[data-theme="notion"] .btn-secondary:hover {
+  background: #efefed;
+}
+
+html[data-theme="notion"] .footer {
+  background: #ffffff;
+}
