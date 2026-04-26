@@ -179,6 +179,13 @@
           <button class="btn-browse" id="browseOrganized" type="button">浏览...</button>
         </div>
       </div>
+      <div class="form-group">
+        <label>周报存储目录 <span class="hint">（必填）</span></label>
+        <div class="path-group">
+          <input type="text" id="weeklyReportPath" placeholder="选择周报文件存放目录" />
+          <button class="btn-browse" id="browseWeeklyReport" type="button">浏览...</button>
+        </div>
+      </div>
     </div>
     <div class="section">
       <div class="section-title"><span class="icon">📧</span> 邮件通知 <span class="hint">（可选）</span></div>
@@ -268,6 +275,7 @@
         document.getElementById('frontendPort').value = config.frontendPort || 3000;
         document.getElementById('storagePath').value = config.storagePath || '';
         document.getElementById('organizedPath').value = config.organizedPath || '';
+        document.getElementById('weeklyReportPath').value = config.weeklyReportPath || '';
         // Mail config
         document.getElementById('mailEnabled').checked = config.mailEnabled || false;
         document.getElementById('mailHost').value = config.mailHost || '';
@@ -337,6 +345,16 @@
         }
       });
 
+      // Browse weekly report directory
+      document.getElementById('browseWeeklyReport').addEventListener('click', async function() {
+        try {
+          var dir = await api.selectDirectory();
+          if (dir) document.getElementById('weeklyReportPath').value = dir;
+        } catch (e) {
+          showStatus('选择目录失败: ' + e.message, 'error');
+        }
+      });
+
       // Quit app button
       document.getElementById('btnQuit').addEventListener('click', async function() {
         await api.quitApp();
@@ -345,25 +363,27 @@
       // Save and start
       document.getElementById('btnSave').addEventListener('click', async function() {
         var apiKey = document.getElementById('apiKey').value.trim();
-        var backendPort = parseInt(document.getElementById('backendPort').value) || 8080;
-        var frontendPort = parseInt(document.getElementById('frontendPort').value) || 3000;
-        var storagePath = document.getElementById('storagePath').value.trim();
-        var organizedPath = document.getElementById('organizedPath').value.trim();
+    var backendPort = parseInt(document.getElementById('backendPort').value) || 8080;
+    var frontendPort = parseInt(document.getElementById('frontendPort').value) || 3000;
+    var storagePath = document.getElementById('storagePath').value.trim();
+    var organizedPath = document.getElementById('organizedPath').value.trim();
+    var weeklyReportPath = document.getElementById('weeklyReportPath').value.trim();
 
-        if (!apiKey) { showStatus('请填写 DashScope API Key', 'error'); return; }
-        if (!storagePath) { showStatus('请选择剪藏文件存储目录', 'error'); return; }
-        if (!organizedPath) { showStatus('请选择总结文件存储目录', 'error'); return; }
-        if (backendPort === frontendPort) { showStatus('前端和后端端口不能相同', 'error'); return; }
+    if (!apiKey) { showStatus('请填写 DashScope API Key', 'error'); return; }
+    if (!storagePath) { showStatus('请选择剪藏文件存储目录', 'error'); return; }
+    if (!organizedPath) { showStatus('请选择总结文件存储目录', 'error'); return; }
+    if (!weeklyReportPath) { showStatus('请选择周报存储目录', 'error'); return; }
+    if (backendPort === frontendPort) { showStatus('前端和后端端口不能相同', 'error'); return; }
 
-        var newConfig = {
-          apiKey: apiKey, backendPort: backendPort, frontendPort: frontendPort,
-          storagePath: storagePath, organizedPath: organizedPath, configured: true,
-          mailEnabled: document.getElementById('mailEnabled').checked,
-          mailHost: document.getElementById('mailHost').value.trim(),
-          mailPort: parseInt(document.getElementById('mailPort').value) || 465,
-          mailUsername: document.getElementById('mailUsername').value.trim(),
-          mailPassword: document.getElementById('mailPassword').value.trim()
-        };
+    var newConfig = {
+      apiKey: apiKey, backendPort: backendPort, frontendPort: frontendPort,
+      storagePath: storagePath, organizedPath: organizedPath, weeklyReportPath: weeklyReportPath, configured: true,
+      mailEnabled: document.getElementById('mailEnabled').checked,
+      mailHost: document.getElementById('mailHost').value.trim(),
+      mailPort: parseInt(document.getElementById('mailPort').value) || 465,
+      mailUsername: document.getElementById('mailUsername').value.trim(),
+      mailPassword: document.getElementById('mailPassword').value.trim()
+    };
 
         var btn = document.getElementById('btnSave');
         btn.disabled = true;
