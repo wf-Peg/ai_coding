@@ -31,7 +31,7 @@
       {
         "from": "frontend",
         "to": "frontend",
-        "filter": ["index.html", "public/**/*"]
+        "filter": ["**/*"]
       },
       {
         "from": "jre",
