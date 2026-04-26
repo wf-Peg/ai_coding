@@ -514,8 +514,13 @@ function setupIPC() {
     } catch (e) {
       return { success: false, message: `Backend restart failed: ${e.message}` };
     }
+    // Wait for Spring Boot to fully initialize
+    await new Promise(resolve => setTimeout(resolve, 3000));
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.loadURL(`http://127.0.0.1:${config.frontendPort}`);
+    } else {
+      // If no main window exists, create one
+      createMainWindow(config);
     }
     return { success: true, message: 'Services restarted' };
   });
