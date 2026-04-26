@@ -154,11 +154,11 @@
       <div class="section-title"><span class="icon">🔌</span> 端口配置</div>
       <div class="port-row">
         <div class="form-group">
-          <label>后端端口</label>
+          <label>后端端口 <span class="hint">（必填）</span></label>
           <input type="number" id="backendPort" value="8080" min="1024" max="65535" />
         </div>
         <div class="form-group">
-          <label>前端端口</label>
+          <label>前端端口 <span class="hint">（必填）</span></label>
           <input type="number" id="frontendPort" value="3000" min="1024" max="65535" />
         </div>
       </div>
@@ -166,14 +166,14 @@
     <div class="section">
       <div class="section-title"><span class="icon">📁</span> 存储目录</div>
       <div class="form-group">
-        <label>剪藏文件存储目录</label>
+        <label>剪藏文件存储目录 <span class="hint">（必填）</span></label>
         <div class="path-group">
           <input type="text" id="storagePath" placeholder="选择剪藏文件存放目录" />
           <button class="btn-browse" id="browseStorage" type="button">浏览...</button>
         </div>
       </div>
       <div class="form-group">
-        <label>总结文件存储目录</label>
+        <label>总结文件存储目录 <span class="hint">（必填）</span></label>
         <div class="path-group">
           <input type="text" id="organizedPath" placeholder="选择总结文件存放目录" />
           <button class="btn-browse" id="browseOrganized" type="button">浏览...</button>
