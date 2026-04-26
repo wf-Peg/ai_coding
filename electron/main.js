@@ -27,6 +27,7 @@ const DEFAULT_CONFIG = {
   apiKey: '',
   storagePath: path.join(APP_DIR, 'clip-storage'),
   organizedPath: path.join(APP_DIR, 'clip-organized'),
+  weeklyReportPath: path.join(APP_DIR, 'weeklyReport'),
   configured: false,
   mailEnabled: false,
   mailHost: '',
@@ -132,7 +133,8 @@ function generateApplicationYml(config) {
     server: { port: config.backendPort },
     clip: {
       storage: { path: config.storagePath },
-      'organized-storage': { path: config.organizedPath }
+      'organized-storage': { path: config.organizedPath },
+      'clip-weekly-report': { path: config.weeklyReportPath }
     }
   };
 
@@ -218,6 +220,9 @@ function startBackend(config) {
     }
     if (!fs.existsSync(config.organizedPath)) {
       fs.mkdirSync(config.organizedPath, { recursive: true });
+    }
+    if (!fs.existsSync(config.weeklyReportPath)) {
+      fs.mkdirSync(config.weeklyReportPath, { recursive: true });
     }
 
     // Write application.yml next to jar
