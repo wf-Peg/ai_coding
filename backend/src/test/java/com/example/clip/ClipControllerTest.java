@@ -2,6 +2,7 @@ package com.example.clip;
 
 import com.example.clip.controller.ClipController;
 import com.example.clip.core.AiService;
+import com.example.clip.dto.ClipRequest;
 import com.example.clip.model.ClipContent;
 import com.example.clip.service.ClipService;
 import com.example.clip.service.ContentOrganizeService;
@@ -15,8 +16,11 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Collections;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -74,5 +78,34 @@ public class ClipControllerTest {
                 .param("query", "test")
                 .param("topK", "5"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    public void testAddClipDefaultsToInboxAndAcceptsStructuredFields() throws Exception {
+        ClipContent clip = new ClipContent();
+        clip.setId(1L);
+        clip.setCategory("inbox");
+
+        when(clipService.saveClip(any(ClipRequest.class))).thenReturn(clip);
+
+        String body = """
+                {
+                  "type": "ai-text",
+                  "content": "test content",
+                  "sourceUrl": "https://example.com/article",
+                  "title": "Example title",
+                  "siteName": "example.com",
+                  "capturedAt": "2026-04-27T12:00:00+08:00",
+                  "selectedText": "selected text",
+                  "captureMethod": "shortcut"
+                }
+                """;
+
+        mockMvc.perform(post("/api/clip/add")
+                .contentType("application/json")
+                .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("success"))
+                .andExpect(jsonPath("$.id").value(1L));
     }
 }

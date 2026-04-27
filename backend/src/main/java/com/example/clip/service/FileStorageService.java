@@ -50,6 +50,7 @@ public class FileStorageService {
             for (Map<String, Object> cat : AiService.CATEGORY_TREE) {
                 Files.createDirectories(storagePath.resolve(cat.get("value").toString()));
             }
+            Files.createDirectories(storagePath.resolve(ClipService.INBOX_CATEGORY));
             Files.createDirectories(storagePath.resolve("default"));
             // 创建待办事项目录
             Files.createDirectories(storagePath.resolve("todoList"));
@@ -92,6 +93,10 @@ public class FileStorageService {
     private Path getCategoryPath(String category) {
         // 处理空分类，默认为"default"
         String cat = (category != null && !category.isEmpty()) ? category : "default";
+
+        if (ClipService.INBOX_CATEGORY.equals(cat)) {
+            return storagePath.resolve(ClipService.INBOX_CATEGORY);
+        }
 
         // 查找一级分类目录名
         for (Map<String, Object> topCat : AiService.CATEGORY_TREE) {
@@ -531,4 +536,3 @@ public class FileStorageService {
         return storagePath;
     }
 }
-

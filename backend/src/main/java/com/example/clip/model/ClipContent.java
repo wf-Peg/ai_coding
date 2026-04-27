@@ -20,6 +20,18 @@ public class ClipContent {
 
     private String category;  // 分类，用于垂直领域
 
+    private String title;  // 采集标题
+
+    private String sourceUrl;  // 结构化来源 URL
+
+    private String siteName;  // 站点名称
+
+    private String capturedAt;  // 采集时间
+
+    private String selectedText;  // 原始选中文本
+
+    private String captureMethod;  // 采集方式
+
     private List<String> tags = new ArrayList<>();  // 标签列表
 
     private LocalDateTime createdAt;  // 创建时间
@@ -92,6 +104,54 @@ public class ClipContent {
 
     public void setCategory(String category) {
         this.category = category;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    public String getSourceUrl() {
+        return sourceUrl;
+    }
+
+    public void setSourceUrl(String sourceUrl) {
+        this.sourceUrl = sourceUrl;
+    }
+
+    public String getSiteName() {
+        return siteName;
+    }
+
+    public void setSiteName(String siteName) {
+        this.siteName = siteName;
+    }
+
+    public String getCapturedAt() {
+        return capturedAt;
+    }
+
+    public void setCapturedAt(String capturedAt) {
+        this.capturedAt = capturedAt;
+    }
+
+    public String getSelectedText() {
+        return selectedText;
+    }
+
+    public void setSelectedText(String selectedText) {
+        this.selectedText = selectedText;
+    }
+
+    public String getCaptureMethod() {
+        return captureMethod;
+    }
+
+    public void setCaptureMethod(String captureMethod) {
+        this.captureMethod = captureMethod;
     }
 
     public List<String> getTags() {

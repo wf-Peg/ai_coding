@@ -1844,7 +1844,8 @@
                 <div class="form-group">
                     <label for="category">分类</label>
                     <select id="category">
-                        <option value="">默认AI匹配分类</option>
+                        <option value="inbox">收件箱（稍后整理）</option>
+                        <option value="">AI匹配分类</option>
                     </select>
                 </div>
                 <div class="form-group" id="tags-group">
@@ -2318,6 +2319,7 @@
 
     // Category value-to-label mapping
     const CATEGORY_LABELS = {
+        'inbox': '收件箱',
         'work': '工作项目', 'work-company': '工作项目 > 公司事务', 'work-side': '工作项目 > 个人副业',
         'study': '学习成长', 'study-course': '学习成长 > 课程学习', 'study-book': '学习成长 > 读书笔记',
         'life': '生活健康', 'life-daily': '生活健康 > 日常记录', 'life-health': '生活健康 > 健康运动',
@@ -2340,11 +2342,11 @@
 
             // Fill add-clip category select
             const select = document.getElementById('category');
-            select.innerHTML = '<option value="">AI匹配分类</option>';
+            select.innerHTML = '<option value="inbox">收件箱（稍后整理）</option><option value="">AI匹配分类</option>';
 
             // Fill search category select
             const searchSelect = document.getElementById('search-category');
-            searchSelect.innerHTML = '<option value="">全部分类</option>';
+            searchSelect.innerHTML = '<option value="">全部分类</option><option value="inbox">收件箱</option>';
 
             categories.forEach(cat => {
                 if (cat.children && cat.children.length > 0) {
@@ -2429,7 +2431,7 @@
         document.getElementById('content').value = '';
         document.getElementById('type').value = 'ai-text';
         document.getElementById('source').value = '';
-        document.getElementById('category').value = '';
+        document.getElementById('category').value = 'inbox';
         document.getElementById('ai-generate-tags').checked = false;
         toggleTagInput();
         currentTags = [];

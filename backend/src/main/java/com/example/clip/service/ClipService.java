@@ -20,6 +20,8 @@ import java.util.Map;
 @Service
 public class ClipService {
 
+    public static final String INBOX_CATEGORY = "inbox";
+
     private static final Logger logger = LoggerFactory.getLogger(ClipService.class);
     private final FileStorageService storageService;  // 文件存储服务
     private final AiService aiService;  // AI服务
@@ -164,6 +166,35 @@ public class ClipService {
     }
 
     /**
+     * 保存剪藏内容（结构化请求版本）
+     *
+     * @param request 剪藏请求
+     * @return 保存后的剪藏内容
+     */
+    public ClipContent saveClip(ClipRequest request) {
+        String normalizedCategory = normalizeCategory(request);
+        String normalizedSource = firstNonBlank(request.getSourceUrl(), request.getSource());
+        ClipContent clipContent = saveClip(
+                request.getContent(),
+                request.getType(),
+                normalizedSource,
+                normalizedCategory,
+                request.getFileData(),
+                request.getFileName(),
+                request.getImageDataList()
+        );
+
+        clipContent.setTitle(request.getTitle());
+        clipContent.setSourceUrl(firstNonBlank(request.getSourceUrl(), request.getSource()));
+        clipContent.setSiteName(request.getSiteName());
+        clipContent.setCapturedAt(request.getCapturedAt());
+        clipContent.setSelectedText(request.getSelectedText());
+        clipContent.setCaptureMethod(request.getCaptureMethod());
+
+        return storageService.saveClip(clipContent);
+    }
+
+    /**
      * AI处理：一次性生成摘要、分析和标签
      * 标签直接设置到clipContent对象上
      *
@@ -268,6 +299,33 @@ public class ClipService {
      */
     public List<ClipContent> getClipsByCategory(String category) {
         return storageService.getClipsByCategory(category);
+    }
+
+    private String normalizeCategory(ClipRequest request) {
+        String category = request.getCategory();
+        if (category != null && !category.isBlank()) {
+            return category.trim();
+        }
+
+        boolean isStructuredCapture = (request.getCaptureMethod() != null && !request.getCaptureMethod().isBlank())
+                || (request.getSourceUrl() != null && !request.getSourceUrl().isBlank())
+                || (request.getTitle() != null && !request.getTitle().isBlank())
+                || (request.getSelectedText() != null && !request.getSelectedText().isBlank());
+
+        if (isStructuredCapture) {
+            return INBOX_CATEGORY;
+        }
+        return category;
+    }
+
+    private String firstNonBlank(String primary, String fallback) {
+        if (primary != null && !primary.isBlank()) {
+            return primary.trim();
+        }
+        if (fallback != null && !fallback.isBlank()) {
+            return fallback.trim();
+        }
+        return fallback;
     }
 
     /**

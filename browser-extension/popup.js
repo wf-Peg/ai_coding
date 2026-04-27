@@ -18,11 +18,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   const openOptions = document.getElementById('openOptions');
 
   let currentTags = [];
+  let currentCaptureData = {};
+  let activeTabContext = null;
   const MAX_TAGS = 10;
 
   // 检查是否有待处理的剪藏数据
   const result = await chrome.storage.local.get('pendingClip');
   if (result.pendingClip) {
+    currentCaptureData = result.pendingClip;
     fillFormWithData(result.pendingClip);
     // 清除待处理数据
     await chrome.storage.local.remove('pendingClip');
@@ -33,6 +36,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab) {
+        activeTabContext = tab;
         sourceInput.value = tab.url || '';
         // 尝试获取选中文本
         const [selectionResult] = await chrome.scripting.executeScript({
@@ -83,9 +87,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         type: typeSelect.value,
         content: content,
         source: sourceInput.value.trim(),
+        sourceUrl: sourceInput.value.trim(),
+        title: currentCaptureData.title || activeTabContext?.title || '',
+        siteName: currentCaptureData.siteName || inferSiteName(sourceInput.value.trim()),
+        capturedAt: currentCaptureData.capturedAt || new Date().toISOString(),
+        selectedText: currentCaptureData.selectedText || '',
+        captureMethod: currentCaptureData.captureMethod || 'popup',
         category: categorySelect.value,
         tags: aiTagsCheckbox.checked ? null : currentTags,
-        useAiTags: typeSelect.value === 'store-only' ? false : aiTagsCheckbox.checked
+        useAiTags: typeSelect.value === 'store-only' ? false : aiTagsCheckbox.checked,
+        imageDataList: currentCaptureData.imageDataList || []
       };
 
       const response = await chrome.runtime.sendMessage({
@@ -100,7 +111,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           window.close();
         }, 1500);
       } else {
-        showStatus('❌ ' + (response.error || '发送失败'), 'error');
+        showStatus('❌ ' + formatErrorMessage(response.errorType, response.error), 'error');
       }
     } catch (error) {
       console.error('提交失败:', error);
@@ -115,9 +126,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     contentInput.value = '';
     sourceInput.value = '';
     typeSelect.value = 'ai-text';
-    categorySelect.value = '';
+    categorySelect.value = 'inbox';
     aiTagsCheckbox.checked = true;
     currentTags = [];
+    currentCaptureData = {};
     renderTags();
     handleAiTagsToggle();
     hideStatus();
@@ -184,9 +196,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 用数据填充表单
   function fillFormWithData(data) {
     if (data.content) contentInput.value = data.content;
-    if (data.source) sourceInput.value = data.source;
+    if (data.sourceUrl || data.source) sourceInput.value = data.sourceUrl || data.source;
     if (data.type) typeSelect.value = data.type;
-    if (data.category) categorySelect.value = data.category;
+    categorySelect.value = data.category || 'inbox';
     if (data.useAiTags !== undefined) aiTagsCheckbox.checked = data.useAiTags;
     
     handleAiTagsToggle();
@@ -234,6 +246,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  function formatErrorMessage(errorType, fallbackMessage) {
+    switch (errorType) {
+      case 'timeout':
+        return '请求超时，请稍后重试';
+      case 'service_unreachable':
+        return '无法连接后端服务，请确认服务已启动';
+      case 'http_error':
+        return fallbackMessage || '接口请求失败';
+      case 'api_error':
+        return fallbackMessage || '服务处理失败';
+      default:
+        return fallbackMessage || '发送失败';
+    }
+  }
+
+  function inferSiteName(url) {
+    try {
+      return new URL(url).hostname.replace(/^www\./, '');
+    } catch (error) {
+      return '';
+    }
   }
 
   function applyTheme(themeId) {

@@ -10,6 +10,12 @@ public class ClipRequest {
     private String type;
     private String source;
     private String category;
+    private String title;
+    private String sourceUrl;
+    private String siteName;
+    private String capturedAt;
+    private String selectedText;
+    private String captureMethod;
     private List<String> tags;
     private Boolean useAiTags;
     private String fileData;
@@ -46,6 +52,54 @@ public class ClipRequest {
 
     public void setCategory(String category) {
         this.category = category;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    public String getSourceUrl() {
+        return sourceUrl;
+    }
+
+    public void setSourceUrl(String sourceUrl) {
+        this.sourceUrl = sourceUrl;
+    }
+
+    public String getSiteName() {
+        return siteName;
+    }
+
+    public void setSiteName(String siteName) {
+        this.siteName = siteName;
+    }
+
+    public String getCapturedAt() {
+        return capturedAt;
+    }
+
+    public void setCapturedAt(String capturedAt) {
+        this.capturedAt = capturedAt;
+    }
+
+    public String getSelectedText() {
+        return selectedText;
+    }
+
+    public void setSelectedText(String selectedText) {
+        this.selectedText = selectedText;
+    }
+
+    public String getCaptureMethod() {
+        return captureMethod;
+    }
+
+    public void setCaptureMethod(String captureMethod) {
+        this.captureMethod = captureMethod;
     }
 
     public List<String> getTags() {

@@ -2,9 +2,6 @@ package com.example.clip.utils;
 
 import com.example.clip.config.ClipImageStorageProperties;
 import com.example.clip.core.AiService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -21,10 +18,13 @@ import java.util.Map;
  * 负责图片的存储和路径生成
  */
 @Component
-@RequiredArgsConstructor
 public class ImageUtils {
 
     private final ClipImageStorageProperties props;
+
+    public ImageUtils(ClipImageStorageProperties props) {
+        this.props = props;
+    }
 
 
     /**
@@ -168,4 +168,3 @@ public class ImageUtils {
         return imageData.length <= maxSize;
     }
 }
-
