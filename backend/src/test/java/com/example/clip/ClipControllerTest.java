@@ -4,10 +4,12 @@ import com.example.clip.controller.ClipController;
 import com.example.clip.core.AiService;
 import com.example.clip.dto.ClipRequest;
 import com.example.clip.model.ClipContent;
+import com.example.clip.model.TodoContent;
 import com.example.clip.service.ClipService;
 import com.example.clip.service.ContentOrganizeService;
 import com.example.clip.service.PromptConfigService;
 import com.example.clip.service.SearchService;
+import com.example.clip.service.TodoService;
 import com.example.clip.service.WeeklyReportService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,6 +54,9 @@ public class ClipControllerTest {
 
     @MockBean
     private WeeklyReportService weeklyReportService;
+
+    @MockBean
+    private TodoService todoService;
 
     /**
      * 测试获取分类列表
@@ -103,6 +108,8 @@ public class ClipControllerTest {
                   "siteName": "example.com",
                   "capturedAt": "2026-04-27T12:00:00+08:00",
                   "selectedText": "selected text",
+                  "contextBefore": "before",
+                  "contextAfter": "after",
                   "captureMethod": "shortcut"
                 }
                 """;
@@ -147,5 +154,35 @@ public class ClipControllerTest {
                 .andExpect(jsonPath("$.status").value("success"))
                 .andExpect(jsonPath("$.mode").value("manual"))
                 .andExpect(jsonPath("$.clipId").value(1));
+    }
+
+    @Test
+    public void testGetInboxClips() throws Exception {
+        when(clipService.getClipsByWorkflowStatus("inbox")).thenReturn(Collections.emptyList());
+
+        mockMvc.perform(get("/api/clip/inbox"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    public void testClipToTodo() throws Exception {
+        ClipContent clip = new ClipContent();
+        clip.setId(1L);
+        clip.setTitle("source title");
+        clip.setSourceUrl("https://example.com/article");
+        clip.setCategory("work-company");
+        when(clipService.getClipById(1L)).thenReturn(clip);
+
+        TodoContent todo = new TodoContent();
+        todo.setId(9L);
+        when(todoService.saveTodo(any(TodoContent.class))).thenReturn(todo);
+
+        mockMvc.perform(post("/api/clip/to-todo")
+                        .contentType("application/json")
+                        .content("{\"clipId\":1}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("success"))
+                .andExpect(jsonPath("$.todoId").value(9))
+                .andExpect(jsonPath("$.sourceClipId").value(1));
     }
 }

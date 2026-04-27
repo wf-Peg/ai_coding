@@ -25,17 +25,70 @@ async function handleExtraction(selectionOnly, sendResponse) {
 
 async function extractCapturePayload(selectionOnly) {
   const selection = window.getSelection().toString().trim();
+  const selectionContext = extractSelectionContext(window.getSelection());
   const pageContent = selectionOnly ? '' : await extractPageContent();
   const primaryContent = selectionOnly ? selection : (pageContent || selection);
 
   return {
     content: cleanContent(primaryContent),
     selectedText: selection,
+    contextBefore: cleanContent(selectionContext.before),
+    contextAfter: cleanContent(selectionContext.after),
     sourceUrl: window.location.href,
     title: document.title,
     siteName: extractSiteName(),
     capturedAt: new Date().toISOString()
   };
+}
+
+function extractSelectionContext(selection) {
+  const context = { before: '', after: '' };
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    return context;
+  }
+
+  try {
+    const range = selection.getRangeAt(0);
+    const container = range.commonAncestorContainer;
+    const textNode = container.nodeType === Node.TEXT_NODE ? container : findPrimaryTextNode(container);
+    if (!textNode || !textNode.textContent) {
+      return context;
+    }
+
+    const selected = selection.toString();
+    if (!selected) {
+      return context;
+    }
+
+    const fullText = textNode.textContent;
+    const index = fullText.indexOf(selected);
+    if (index < 0) {
+      return context;
+    }
+
+    const windowSize = 120;
+    context.before = fullText.slice(Math.max(0, index - windowSize), index);
+    context.after = fullText.slice(index + selected.length, index + selected.length + windowSize);
+  } catch (error) {
+    console.warn('提取选区上下文失败:', error);
+  }
+
+  return context;
+}
+
+function findPrimaryTextNode(container) {
+  if (!container) {
+    return null;
+  }
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (node.textContent && node.textContent.trim().length > 0) {
+        return NodeFilter.FILTER_ACCEPT;
+      }
+      return NodeFilter.FILTER_SKIP;
+    }
+  });
+  return walker.nextNode();
 }
 
 async function extractPageContent() {

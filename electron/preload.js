@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getConfig: () => ipcRenderer.invoke('get-config'),
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
   checkBackend: (port) => ipcRenderer.invoke('check-backend', port),
+  clipToTodo: (payload) => ipcRenderer.invoke('clip-to-todo', payload),
+  deriveKnowledge: (clipId, asyncMode = false) => ipcRenderer.invoke('derive-knowledge', clipId, asyncMode),
   restartBackend: (config) => ipcRenderer.invoke('restart-backend', config),
   onLoadConfig: (callback) => ipcRenderer.on('load-config', (event, config) => callback(config)),
   onFirstRun: (callback) => ipcRenderer.on('first-run', (event) => callback()),

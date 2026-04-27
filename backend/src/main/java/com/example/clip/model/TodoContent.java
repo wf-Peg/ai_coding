@@ -24,6 +24,10 @@ public class TodoContent {
 
     private String category;  // 分类
 
+    private Long sourceClipId;  // 回链来源剪藏ID
+
+    private String sourceUrl;  // 来源URL
+
     /**
      * 无参构造函数
      * 自动设置创建时间为当前时间
@@ -129,6 +133,22 @@ public class TodoContent {
         this.category = category;
     }
 
+    public Long getSourceClipId() {
+        return sourceClipId;
+    }
+
+    public void setSourceClipId(Long sourceClipId) {
+        this.sourceClipId = sourceClipId;
+    }
+
+    public String getSourceUrl() {
+        return sourceUrl;
+    }
+
+    public void setSourceUrl(String sourceUrl) {
+        this.sourceUrl = sourceUrl;
+    }
+
     /**
      * 生成待办事项的正文和摘要
      * 按照字段名/字段值的方式拼接
@@ -141,6 +161,8 @@ public class TodoContent {
         sb.append(" deadline/").append(deadline != null ? deadline : "");
         sb.append(" completed/").append(completed);
         sb.append(" category/").append(category != null ? category : "");
+        sb.append(" sourceClipId/").append(sourceClipId != null ? sourceClipId : "");
+        sb.append(" sourceUrl/").append(sourceUrl != null ? sourceUrl : "");
         return sb.toString();
     }
 }

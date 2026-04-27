@@ -15,6 +15,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -27,6 +28,9 @@ public class ClipService {
     public static final String INBOX_CATEGORY = "inbox";
     public static final String WORKFLOW_INBOX = "inbox";
     public static final String WORKFLOW_ORGANIZED = "organized";
+    private static final Set<String> SUPPORTED_CAPTURE_METHODS = Set.of(
+            "popup", "context-menu", "shortcut", "floating-button", "system-share", "system-clip"
+    );
 
     private static final Logger logger = LoggerFactory.getLogger(ClipService.class);
     private final FileStorageService storageService;  // 文件存储服务
@@ -197,7 +201,9 @@ public class ClipService {
         clipContent.setSiteName(request.getSiteName());
         clipContent.setCapturedAt(request.getCapturedAt());
         clipContent.setSelectedText(request.getSelectedText());
-        clipContent.setCaptureMethod(request.getCaptureMethod());
+        clipContent.setContextBefore(request.getContextBefore());
+        clipContent.setContextAfter(request.getContextAfter());
+        clipContent.setCaptureMethod(normalizeCaptureMethod(request.getCaptureMethod()));
         clipContent.setWorkflowStatus(workflowStatus);
 
         return storageService.saveClip(clipContent);
@@ -421,7 +427,9 @@ public class ClipService {
         return (request.getCaptureMethod() != null && !request.getCaptureMethod().isBlank())
                 || (request.getSourceUrl() != null && !request.getSourceUrl().isBlank())
                 || (request.getTitle() != null && !request.getTitle().isBlank())
-                || (request.getSelectedText() != null && !request.getSelectedText().isBlank());
+                || (request.getSelectedText() != null && !request.getSelectedText().isBlank())
+                || (request.getContextBefore() != null && !request.getContextBefore().isBlank())
+                || (request.getContextAfter() != null && !request.getContextAfter().isBlank());
     }
 
     private void applyAutoOrganize(ClipContent clip) {
@@ -505,6 +513,17 @@ public class ClipService {
             return fallback.trim();
         }
         return fallback;
+    }
+
+    private String normalizeCaptureMethod(String captureMethod) {
+        if (captureMethod == null || captureMethod.isBlank()) {
+            return null;
+        }
+        String normalized = captureMethod.trim().toLowerCase();
+        if (SUPPORTED_CAPTURE_METHODS.contains(normalized)) {
+            return normalized;
+        }
+        return "popup";
     }
 
     /**

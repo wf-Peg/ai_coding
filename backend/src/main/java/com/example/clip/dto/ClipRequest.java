@@ -15,7 +15,10 @@ public class ClipRequest {
     private String siteName;
     private String capturedAt;
     private String selectedText;
+    private String contextBefore;
+    private String contextAfter;
     private String captureMethod;
+    private String target;
     private String workflowStatus;
     private List<String> tags;
     private Boolean useAiTags;
@@ -101,6 +104,30 @@ public class ClipRequest {
 
     public void setCaptureMethod(String captureMethod) {
         this.captureMethod = captureMethod;
+    }
+
+    public String getContextBefore() {
+        return contextBefore;
+    }
+
+    public void setContextBefore(String contextBefore) {
+        this.contextBefore = contextBefore;
+    }
+
+    public String getContextAfter() {
+        return contextAfter;
+    }
+
+    public void setContextAfter(String contextAfter) {
+        this.contextAfter = contextAfter;
+    }
+
+    public String getTarget() {
+        return target;
+    }
+
+    public void setTarget(String target) {
+        this.target = target;
     }
 
     public String getWorkflowStatus() {

@@ -2,6 +2,7 @@ package com.example.clip.service;
 
 import com.example.clip.core.AiService;
 import com.example.clip.model.ClipContent;
+import com.example.clip.model.KnowledgeEntry;
 import com.example.clip.model.TodoContent;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -54,6 +55,8 @@ public class FileStorageService {
             Files.createDirectories(storagePath.resolve("default"));
             // 创建待办事项目录
             Files.createDirectories(storagePath.resolve("todoList"));
+            // 创建知识条目目录
+            Files.createDirectories(storagePath.resolve("knowledge"));
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -146,6 +149,7 @@ public class FileStorageService {
                 .filter(Files::isRegularFile)
                 .filter(path -> path.toString().endsWith(".json"))
                 .filter(path -> !path.toString().contains("todoList")) // 过滤掉待办事项目录
+                .filter(path -> !path.toString().contains("knowledge")) // 过滤掉知识条目目录
                 .forEach(files::add);
         return files;
     }
@@ -354,6 +358,14 @@ public class FileStorageService {
     }
 
     /**
+     * 获取知识条目的日期文件路径
+     */
+    private Path getKnowledgeDateFilePath() {
+        String dateStr = LocalDate.now().format(DATE_FORMATTER);
+        return storagePath.resolve("knowledge").resolve(dateStr + ".json");
+    }
+
+    /**
      * 从文件中读取待办事项列表
      */
     private List<TodoContent> readTodoArrayFromFile(Path path) {
@@ -373,6 +385,25 @@ public class FileStorageService {
     }
 
     /**
+     * 从文件中读取知识条目列表
+     */
+    private List<KnowledgeEntry> readKnowledgeArrayFromFile(Path path) {
+        try {
+            if (!Files.exists(path)) {
+                return new ArrayList<>();
+            }
+            String content = Files.readString(path);
+            if (content == null || content.trim().isEmpty()) {
+                return new ArrayList<>();
+            }
+            return objectMapper.readValue(content, new TypeReference<List<KnowledgeEntry>>() {});
+        } catch (IOException e) {
+            e.printStackTrace();
+            return new ArrayList<>();
+        }
+    }
+
+    /**
      * 将待办事项列表写入文件
      */
     private void writeTodoArrayToFile(Path path, List<TodoContent> todos) {
@@ -382,6 +413,21 @@ public class FileStorageService {
                 Files.createDirectories(parent);
             }
             objectMapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), todos);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 将知识条目列表写入文件
+     */
+    private void writeKnowledgeArrayToFile(Path path, List<KnowledgeEntry> entries) {
+        try {
+            Path parent = path.getParent();
+            if (!Files.exists(parent)) {
+                Files.createDirectories(parent);
+            }
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), entries);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -540,6 +586,84 @@ public class FileStorageService {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * 保存知识条目
+     */
+    public KnowledgeEntry saveKnowledgeEntry(KnowledgeEntry entry) {
+        try {
+            if (entry.getId() == null) {
+                entry.setId(idGenerator.getAndIncrement());
+            }
+
+            Path filePath = getKnowledgeDateFilePath();
+            List<KnowledgeEntry> entries = readKnowledgeArrayFromFile(filePath);
+
+            boolean updated = false;
+            for (int i = 0; i < entries.size(); i++) {
+                if (entries.get(i).getId() != null && entries.get(i).getId().equals(entry.getId())) {
+                    entries.set(i, entry);
+                    updated = true;
+                    break;
+                }
+            }
+            if (!updated) {
+                entries.add(entry);
+            }
+
+            writeKnowledgeArrayToFile(filePath, entries);
+            return entry;
+        } catch (Exception e) {
+            log.error("Failed to save knowledge entry", e);
+            return null;
+        }
+    }
+
+    /**
+     * 获取所有知识条目
+     */
+    public List<KnowledgeEntry> getAllKnowledgeEntries() {
+        List<KnowledgeEntry> allEntries = new ArrayList<>();
+        try {
+            Path knowledgePath = storagePath.resolve("knowledge");
+            if (!Files.exists(knowledgePath)) {
+                return allEntries;
+            }
+
+            Files.walk(knowledgePath)
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".json"))
+                    .forEach(path -> allEntries.addAll(readKnowledgeArrayFromFile(path)));
+        } catch (IOException e) {
+            log.error("Failed to list knowledge entries", e);
+        }
+        return allEntries;
+    }
+
+    /**
+     * 根据ID获取知识条目
+     */
+    public KnowledgeEntry getKnowledgeEntryById(Long id) {
+        if (id == null) {
+            return null;
+        }
+        return getAllKnowledgeEntries().stream()
+                .filter(entry -> entry.getId() != null && entry.getId().equals(id))
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * 根据来源剪藏ID获取知识条目
+     */
+    public List<KnowledgeEntry> getKnowledgeEntriesBySourceClipId(Long clipId) {
+        if (clipId == null) {
+            return new ArrayList<>();
+        }
+        return getAllKnowledgeEntries().stream()
+                .filter(entry -> entry.getSourceClipId() != null && entry.getSourceClipId().equals(clipId))
+                .toList();
     }
 
     /**

@@ -197,6 +197,8 @@ async function clipImage(tab, imageUrl) {
       siteName: extraction.siteName,
       capturedAt: extraction.capturedAt,
       selectedText: '',
+      contextBefore: '',
+      contextAfter: '',
       captureMethod: 'context-menu',
       useAiTags: false,
       imageDataList: [imageData]
@@ -266,6 +268,8 @@ async function buildCapturePayload({ tab, extraction, type, useAiTags, captureMe
     siteName: extraction.siteName,
     capturedAt: extraction.capturedAt || new Date().toISOString(),
     selectedText: extraction.selectedText,
+    contextBefore: extraction.contextBefore,
+    contextAfter: extraction.contextAfter,
     captureMethod,
     useAiTags
   });
@@ -282,6 +286,8 @@ function createPayload(data) {
     siteName: data.siteName || '',
     capturedAt: data.capturedAt || new Date().toISOString(),
     selectedText: data.selectedText || '',
+    contextBefore: data.contextBefore || '',
+    contextAfter: data.contextAfter || '',
     captureMethod: data.captureMethod || 'popup',
     workflowStatus: data.workflowStatus || DEFAULT_WORKFLOW_STATUS,
     category: data.category || '',

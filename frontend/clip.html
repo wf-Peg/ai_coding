@@ -822,12 +822,13 @@
             top: 0;
             right: 0;
             display: flex;
-            gap: 10px;
+            gap: 8px;
             z-index: 10;
-            margin-bottom: 16px;
+            margin-bottom: 10px;
             justify-content: flex-end;
-            max-width: 25%;
+            max-width: 40%;
             margin-left: auto;
+            align-items: center;
         }
 
         .clip-summary {
@@ -915,6 +916,55 @@
 
         .expand-btn.expanded .icon {
             transform: rotate(180deg);
+        }
+
+        .more-actions-wrapper {
+            position: relative;
+            display: inline-flex;
+        }
+
+        .more-actions-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            width: 176px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            opacity: 0;
+            transform: translateY(-6px) scale(0.98);
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .more-actions-menu.open {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            pointer-events: auto;
+        }
+
+        .more-action-btn {
+            width: 100%;
+            text-align: left;
+            background: var(--surface);
+            color: var(--text);
+            border: none;
+            border-bottom: 1px solid var(--border-light);
+            padding: 10px 12px;
+            font-size: 0.82rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .more-action-btn:last-child {
+            border-bottom: none;
+        }
+
+        .more-action-btn:hover {
+            background: var(--surface-hover);
+            color: var(--primary-dark);
         }
 
         .clip-detail {
@@ -1742,6 +1792,7 @@
 
             .clip-actions {
                 flex-direction: column;
+                align-items: stretch;
             }
         }
 
@@ -2053,6 +2104,7 @@
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script>
     const API_BASE_URL = 'http://127.0.0.1:8080/api/clip';
+    const KNOWLEDGE_API_BASE_URL = 'http://127.0.0.1:8080/api/knowledge';
     const GIT_API_BASE_URL = 'http://127.0.0.1:8080/api/git';
     let currentTags = [];
     const MAX_TAGS = 10;
@@ -2111,6 +2163,7 @@
                 applyTheme(event.newValue, false);
             }
         });
+        document.addEventListener('click', () => closeAllMoreActions());
 
         const tagInput = document.getElementById('tag-input');
         tagInput.addEventListener('keydown', (e) => {
@@ -2822,13 +2875,6 @@
                 const clipItem = createClipItem(clip, false);
                 clipItemsContainer.appendChild(clipItem);
             });
-
-            document.querySelectorAll('.delete-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const clipId = e.target.dataset.id;
-                    showConfirmModal(clipId, '确定要删除这个剪藏吗？');
-                });
-            });
         } catch (error) {
             console.error('获取剪藏列表失败:', error);
             document.getElementById('clip-items').innerHTML = `
@@ -2884,10 +2930,20 @@
                 <div class="clip-header">
                     <span class="category-badge">📁 ${categoryLabel}</span>
                     <div class="clip-actions">
-                        <button class="expand-btn" onclick="quickOrganizeClip(${clip.id})" title="快速AI整理本条">⚡ AI整理</button>
-                        <button class="expand-btn" onclick="openOrganizeActionModal('clip', ${clip.id}, 'manual')" title="编辑本条分类/类型/标签">✏️ 编辑</button>
-                        ${!isSearch ? `<button class="delete-btn" data-id="${clip.id}">删除</button>` : ''}
-                        ${!isStoreOnly ? `<button class="expand-btn" onclick="generateDivergentSummary(${clip.id})" title="发散总结">💡</button>` : ''}
+                        <div class="more-actions-wrapper">
+                            <button class="expand-btn" onclick="toggleMoreActions(this, event)" title="查看可用操作">
+                                <span class="text">更多功能</span>
+                                <span class="icon">▼</span>
+                            </button>
+                            <div class="more-actions-menu">
+                                <button class="more-action-btn" onclick="handleMoreAction(event, 'organize-auto', ${clip.id})">⚡ 快速AI整理</button>
+                                <button class="more-action-btn" onclick="handleMoreAction(event, 'organize-manual', ${clip.id})">✏️ 编辑分类/标签</button>
+                                <button class="more-action-btn" onclick="handleMoreAction(event, 'to-todo', ${clip.id})">✅ 转待办</button>
+                                <button class="more-action-btn" onclick="handleMoreAction(event, 'derive-knowledge', ${clip.id})">🧠 生成知识</button>
+                                ${!isStoreOnly ? `<button class="more-action-btn" onclick="handleMoreAction(event, 'divergent', ${clip.id})">💡 发散总结</button>` : ''}
+                                ${!isSearch ? `<button class="more-action-btn delete-btn" data-id="${clip.id}" onclick="handleMoreAction(event, 'delete', ${clip.id})">🗑️ 删除</button>` : ''}
+                            </div>
+                        </div>
                         <button class="expand-btn" onclick="toggleDetail(this)">
                             <span class="icon">▼</span>
                             <span class="text">展开</span>
@@ -2978,6 +3034,7 @@
     }
 
     function toggleDetail(btn) {
+        closeAllMoreActions();
         const clipItem = btn.closest('.clip-item');
         const detail = clipItem.querySelector('.clip-detail');
         const icon = btn.querySelector('.icon');
@@ -2990,6 +3047,61 @@
             text.textContent = '收起';
         } else {
             text.textContent = '展开';
+        }
+    }
+
+    function closeAllMoreActions() {
+        document.querySelectorAll('.more-actions-menu.open').forEach(menu => {
+            menu.classList.remove('open');
+            const trigger = menu.closest('.more-actions-wrapper')?.querySelector('.expand-btn');
+            if (trigger) {
+                trigger.classList.remove('expanded');
+            }
+        });
+    }
+
+    function toggleMoreActions(btn, event) {
+        event.stopPropagation();
+        const wrapper = btn.closest('.more-actions-wrapper');
+        const menu = wrapper?.querySelector('.more-actions-menu');
+        if (!menu) {
+            return;
+        }
+        const shouldOpen = !menu.classList.contains('open');
+        closeAllMoreActions();
+        if (shouldOpen) {
+            menu.classList.add('open');
+            btn.classList.add('expanded');
+        } else {
+            menu.classList.remove('open');
+            btn.classList.remove('expanded');
+        }
+    }
+
+    function handleMoreAction(event, action, clipId) {
+        event.stopPropagation();
+        closeAllMoreActions();
+        switch (action) {
+            case 'organize-auto':
+                quickOrganizeClip(clipId);
+                break;
+            case 'organize-manual':
+                openOrganizeActionModal('clip', clipId, 'manual');
+                break;
+            case 'to-todo':
+                quickClipToTodo(clipId);
+                break;
+            case 'derive-knowledge':
+                deriveKnowledgeFromClip(clipId);
+                break;
+            case 'divergent':
+                generateDivergentSummary(clipId);
+                break;
+            case 'delete':
+                showConfirmModal(clipId, '确定要删除这个剪藏吗？');
+                break;
+            default:
+                break;
         }
     }
 
@@ -3252,6 +3364,52 @@
         } catch (error) {
             console.error('快速整理失败:', error);
             showError('整理失败', error.response?.data?.message || '请稍后重试');
+        } finally {
+            hideLoading();
+        }
+    }
+
+    async function quickClipToTodo(clipId) {
+        const clip = clipCache.get(String(clipId));
+        const payload = {
+            clipId,
+            title: clip?.selectedText || clip?.summary || clip?.title || '来自剪藏的待办'
+        };
+
+        try {
+            showLoading('正在转为待办...', '正在创建待办并回链来源...');
+            if (window.electronAPI && typeof window.electronAPI.clipToTodo === 'function') {
+                const result = await window.electronAPI.clipToTodo(payload);
+                if (!result.success) {
+                    throw new Error(result.message || '转换失败');
+                }
+            } else {
+                await axios.post(`${API_BASE_URL}/to-todo`, payload);
+            }
+            showNotification('已转为待办，可在左侧待办列表查看', false);
+        } catch (error) {
+            console.error('转待办失败:', error);
+            showError('转待办失败', error.message || error.response?.data?.message || '请稍后重试');
+        } finally {
+            hideLoading();
+        }
+    }
+
+    async function deriveKnowledgeFromClip(clipId) {
+        try {
+            showLoading('正在生成知识条目...', '正在从当前剪藏派生结构化知识...');
+            if (window.electronAPI && typeof window.electronAPI.deriveKnowledge === 'function') {
+                const result = await window.electronAPI.deriveKnowledge(clipId, false);
+                if (!result.success) {
+                    throw new Error(result.message || '生成失败');
+                }
+            } else {
+                await axios.post(`${KNOWLEDGE_API_BASE_URL}/derive/${clipId}`);
+            }
+            showNotification(`知识条目生成成功（来源剪藏ID: ${clipId}）`, false);
+        } catch (error) {
+            console.error('生成知识条目失败:', error);
+            showError('生成知识失败', error.message || error.response?.data?.message || '请稍后重试');
         } finally {
             hideLoading();
         }

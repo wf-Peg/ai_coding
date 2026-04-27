@@ -30,6 +30,10 @@ public class ClipContent {
 
     private String selectedText;  // 原始选中文本
 
+    private String contextBefore;  // 选中文本前文
+
+    private String contextAfter;  // 选中文本后文
+
     private String captureMethod;  // 采集方式
 
     private String workflowStatus;  // 流程状态：inbox / organized / archived
@@ -154,6 +158,22 @@ public class ClipContent {
 
     public void setCaptureMethod(String captureMethod) {
         this.captureMethod = captureMethod;
+    }
+
+    public String getContextBefore() {
+        return contextBefore;
+    }
+
+    public void setContextBefore(String contextBefore) {
+        this.contextBefore = contextBefore;
+    }
+
+    public String getContextAfter() {
+        return contextAfter;
+    }
+
+    public void setContextAfter(String contextAfter) {
+        this.contextAfter = contextAfter;
     }
 
     public String getWorkflowStatus() {

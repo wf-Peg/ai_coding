@@ -4,14 +4,17 @@ import com.example.clip.config.PromptConfig;
 import com.example.clip.core.AiService;
 import com.example.clip.dto.ClipRequest;
 import com.example.clip.dto.ClipResponse;
+import com.example.clip.dto.ClipToTodoRequest;
 import com.example.clip.dto.OrganizeClipRequest;
 import com.example.clip.dto.OrganizeInboxRequest;
 import com.example.clip.dto.TagRequest;
 import com.example.clip.model.ClipContent;
+import com.example.clip.model.TodoContent;
 import com.example.clip.service.ClipService;
 import com.example.clip.service.ContentOrganizeService;
 import com.example.clip.service.PromptConfigService;
 import com.example.clip.service.SearchService;
+import com.example.clip.service.TodoService;
 import com.example.clip.service.WeeklyReportService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +44,7 @@ public class ClipController {
     private final ContentOrganizeService contentOrganizeService;  // 内容整理服务
     private final WeeklyReportService weeklyReportService;  // 周报服务
     private final PromptConfigService promptConfigService;
+    private final TodoService todoService;
 
     /**
      * 构造函数
@@ -50,13 +54,14 @@ public class ClipController {
      * @param contentOrganizeService 内容整理服务
      * @param weeklyReportService 周报服务
      */
-    public ClipController(ClipService clipService, SearchService searchService, AiService aiService, ContentOrganizeService contentOrganizeService, WeeklyReportService weeklyReportService, PromptConfigService promptConfigService) {
+    public ClipController(ClipService clipService, SearchService searchService, AiService aiService, ContentOrganizeService contentOrganizeService, WeeklyReportService weeklyReportService, PromptConfigService promptConfigService, TodoService todoService) {
         this.clipService = clipService;
         this.searchService = searchService;
         this.aiService = aiService;
         this.contentOrganizeService = contentOrganizeService;
         this.weeklyReportService = weeklyReportService;
         this.promptConfigService = promptConfigService;
+        this.todoService = todoService;
     }
 
     /**
@@ -162,6 +167,11 @@ public class ClipController {
         return ResponseEntity.ok(clipService.getClipsByWorkflowStatus(workflowStatus));
     }
 
+    @GetMapping("/inbox")
+    public ResponseEntity<List<ClipContent>> getInboxClips() {
+        return ResponseEntity.ok(clipService.getClipsByWorkflowStatus(ClipService.WORKFLOW_INBOX));
+    }
+
     /**
      * 删除剪藏内容
      * @param id 剪藏ID
@@ -241,6 +251,51 @@ public class ClipController {
                     "message", e.getMessage()
             ));
         }
+    }
+
+    @PostMapping("/to-todo")
+    public ResponseEntity<?> clipToTodo(@RequestBody ClipToTodoRequest request) {
+        if (request.getClipId() == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "clipId 不能为空"
+            ));
+        }
+
+        ClipContent clip = clipService.getClipById(request.getClipId());
+        if (clip == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "未找到对应剪藏记录: " + request.getClipId()
+            ));
+        }
+
+        TodoContent todo = new TodoContent();
+        String title = request.getTitle();
+        if (title == null || title.isBlank()) {
+            title = firstNonBlank(clip.getSelectedText(), clip.getSummary(), clip.getTitle(), "来自剪藏的待办");
+        }
+        todo.setTitle(title);
+        todo.setPriority(firstNonBlank(request.getPriority(), "medium"));
+        todo.setDeadline(request.getDeadline());
+        todo.setCategory(firstNonBlank(request.getCategory(), clip.getCategory(), "inbox"));
+        todo.setCompleted(false);
+        todo.setSourceClipId(clip.getId());
+        todo.setSourceUrl(clip.getSourceUrl());
+
+        TodoContent saved = todoService.saveTodo(todo);
+        if (saved == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "待办保存失败"
+            ));
+        }
+
+        return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "todoId", saved.getId(),
+                "sourceClipId", clip.getId()
+        ));
     }
 
     /**
@@ -353,5 +408,17 @@ public class ClipController {
     @PostMapping("/prompt-config/reset")
     public ResponseEntity<PromptConfig> resetPromptConfig() {
         return ResponseEntity.ok(promptConfigService.resetToDefault());
+    }
+
+    private String firstNonBlank(String... candidates) {
+        if (candidates == null) {
+            return null;
+        }
+        for (String candidate : candidates) {
+            if (candidate != null && !candidate.isBlank()) {
+                return candidate.trim();
+            }
+        }
+        return null;
     }
 }

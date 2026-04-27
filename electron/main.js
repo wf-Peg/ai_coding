@@ -336,6 +336,53 @@ function checkPort(port) {
   });
 }
 
+function requestBackend(config, method, endpoint, payload) {
+  return new Promise((resolve, reject) => {
+    const body = payload ? JSON.stringify(payload) : null;
+    const req = http.request({
+      hostname: '127.0.0.1',
+      port: config.backendPort,
+      path: endpoint,
+      method,
+      timeout: 5000,
+      headers: body ? {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body)
+      } : {}
+    }, (res) => {
+      let raw = '';
+      res.on('data', (chunk) => { raw += chunk; });
+      res.on('end', () => {
+        let parsed = null;
+        if (raw) {
+          try {
+            parsed = JSON.parse(raw);
+          } catch (error) {
+            parsed = raw;
+          }
+        }
+
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(parsed);
+          return;
+        }
+
+        reject(new Error(typeof parsed === 'string' ? parsed : JSON.stringify(parsed || { status: res.statusCode })));
+      });
+    });
+
+    req.on('error', reject);
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('backend request timeout'));
+    });
+    if (body) {
+      req.write(body);
+    }
+    req.end();
+  });
+}
+
 // ==================== Frontend Static Server ====================
 
 let frontendServer = null;
@@ -383,7 +430,8 @@ function createMainWindow(config) {
     title: 'Clip',
     webPreferences: {
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js')
     }
   });
 
@@ -503,6 +551,30 @@ function setupIPC() {
   ipcMain.handle('get-config', async () => loadConfig());
 
   ipcMain.handle('check-backend', async (event, port) => await checkPort(port));
+
+  ipcMain.handle('clip-to-todo', async (event, payload) => {
+    try {
+      const config = loadConfig();
+      const result = await requestBackend(config, 'POST', '/api/clip/to-todo', payload || {});
+      return { success: true, data: result };
+    } catch (e) {
+      return { success: false, message: `clip to todo failed: ${e.message}` };
+    }
+  });
+
+  ipcMain.handle('derive-knowledge', async (event, clipId, asyncMode = false) => {
+    try {
+      if (!clipId) {
+        return { success: false, message: 'clipId is required' };
+      }
+      const config = loadConfig();
+      const endpoint = `/api/knowledge/derive/${clipId}${asyncMode ? '?async=true' : ''}`;
+      const result = await requestBackend(config, 'POST', endpoint);
+      return { success: true, data: result };
+    } catch (e) {
+      return { success: false, message: `derive knowledge failed: ${e.message}` };
+    }
+  });
 
   ipcMain.handle('restart-backend', async (event, config) => {
     saveConfig({ ...config, configured: true });
