@@ -923,48 +923,105 @@
             display: inline-flex;
         }
 
-        .more-actions-menu {
+        .fan-drawer {
             position: absolute;
-            top: calc(100% + 8px);
-            right: 0;
-            width: 176px;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            overflow: hidden;
-            opacity: 0;
-            transform: translateY(-6px) scale(0.98);
+            top: 20px;
+            right: 24px;
+            width: 0;
+            height: 0;
             pointer-events: none;
-            transition: opacity 0.2s ease, transform 0.2s ease;
+            z-index: 12;
         }
 
-        .more-actions-menu.open {
-            opacity: 1;
-            transform: translateY(0) scale(1);
+        .fan-drawer::before {
+            content: '';
+            position: absolute;
+            right: -18px;
+            top: -18px;
+            width: 260px;
+            height: 260px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 100% 100%, rgba(63, 140, 255, 0.14), rgba(63, 140, 255, 0.03) 62%, rgba(63, 140, 255, 0) 70%);
+            opacity: 0;
+            transform: scale(0.82);
+            transition: opacity 0.22s ease, transform 0.22s ease;
+            pointer-events: none;
+        }
+
+        .fan-action-btn {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 40px;
+            height: 40px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(8px);
+            color: var(--text-secondary);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.02rem;
+            cursor: pointer;
+            opacity: 0;
+            transform: translate(0, 0) scale(0.76);
+            box-shadow: var(--shadow);
+            pointer-events: none;
+            transition: transform 0.26s ease, opacity 0.26s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .fan-icon {
+            width: 18px;
+            height: 18px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .fan-action-btn .fan-label {
+            position: absolute;
+            right: 48px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(17, 24, 39, 0.9);
+            color: #fff;
+            border-radius: 999px;
+            padding: 3px 10px;
+            font-size: 0.7rem;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
+        }
+
+        .fan-drawer.open {
             pointer-events: auto;
         }
 
-        .more-action-btn {
-            width: 100%;
-            text-align: left;
-            background: var(--surface);
-            color: var(--text);
-            border: none;
-            border-bottom: 1px solid var(--border-light);
-            padding: 10px 12px;
-            font-size: 0.82rem;
-            cursor: pointer;
-            transition: var(--transition);
+        .fan-drawer.open::before {
+            opacity: 1;
+            transform: scale(1);
         }
 
-        .more-action-btn:last-child {
-            border-bottom: none;
+        .fan-drawer.open .fan-action-btn {
+            opacity: 0.7;
+            pointer-events: auto;
+            transform: translate(var(--tx), var(--ty)) scale(1);
         }
 
-        .more-action-btn:hover {
-            background: var(--surface-hover);
+        .fan-action-btn:hover {
+            opacity: 1 !important;
+            transform: translate(var(--tx), var(--ty)) scale(1.18);
             color: var(--primary-dark);
+            border-color: var(--primary);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .fan-action-btn:hover .fan-label {
+            opacity: 1;
         }
 
         .clip-detail {
@@ -2925,23 +2982,30 @@
         const summaryClass = isStoreOnly ? 'store-only-summary' : '';
         const originalContent = clip.content || '';
         const analysisContent = clip.analysis || '';
+        const fanButtons = [
+            buildFanActionButton('organize-auto', clip.id, '-58px', '-6px', '快速AI整理', renderFanActionIcon('organizeAuto')),
+            buildFanActionButton('organize-manual', clip.id, '-104px', '-34px', '编辑分类/标签', renderFanActionIcon('organizeManual')),
+            buildFanActionButton('to-todo', clip.id, '-134px', '-78px', '转待办', renderFanActionIcon('toTodo')),
+            buildFanActionButton('derive-knowledge', clip.id, '-142px', '-132px', '生成知识', renderFanActionIcon('knowledge'))
+        ];
+        if (!isStoreOnly) {
+            fanButtons.push(buildFanActionButton('divergent', clip.id, '-122px', '-184px', '发散总结', renderFanActionIcon('divergent')));
+        }
+        if (!isSearch) {
+            fanButtons.push(buildFanActionButton('delete', clip.id, '-80px', '-224px', '删除', renderFanActionIcon('delete')));
+        }
 
         clipItem.innerHTML = `
                 <div class="clip-header">
                     <span class="category-badge">📁 ${categoryLabel}</span>
                     <div class="clip-actions">
                         <div class="more-actions-wrapper">
-                            <button class="expand-btn" onclick="toggleMoreActions(this, event)" title="查看可用操作">
+                            <button class="expand-btn" onclick="toggleMoreActions(this, event)" title="扇形抽屉功能面板">
                                 <span class="text">更多功能</span>
                                 <span class="icon">▼</span>
                             </button>
-                            <div class="more-actions-menu">
-                                <button class="more-action-btn" onclick="handleMoreAction(event, 'organize-auto', ${clip.id})">⚡ 快速AI整理</button>
-                                <button class="more-action-btn" onclick="handleMoreAction(event, 'organize-manual', ${clip.id})">✏️ 编辑分类/标签</button>
-                                <button class="more-action-btn" onclick="handleMoreAction(event, 'to-todo', ${clip.id})">✅ 转待办</button>
-                                <button class="more-action-btn" onclick="handleMoreAction(event, 'derive-knowledge', ${clip.id})">🧠 生成知识</button>
-                                ${!isStoreOnly ? `<button class="more-action-btn" onclick="handleMoreAction(event, 'divergent', ${clip.id})">💡 发散总结</button>` : ''}
-                                ${!isSearch ? `<button class="more-action-btn delete-btn" data-id="${clip.id}" onclick="handleMoreAction(event, 'delete', ${clip.id})">🗑️ 删除</button>` : ''}
+                            <div class="fan-drawer">
+                                ${fanButtons.join('')}
                             </div>
                         </div>
                         <button class="expand-btn" onclick="toggleDetail(this)">
@@ -3051,9 +3115,9 @@
     }
 
     function closeAllMoreActions() {
-        document.querySelectorAll('.more-actions-menu.open').forEach(menu => {
-            menu.classList.remove('open');
-            const trigger = menu.closest('.more-actions-wrapper')?.querySelector('.expand-btn');
+        document.querySelectorAll('.fan-drawer.open').forEach(drawer => {
+            drawer.classList.remove('open');
+            const trigger = drawer.closest('.more-actions-wrapper')?.querySelector('.expand-btn');
             if (trigger) {
                 trigger.classList.remove('expanded');
             }
@@ -3063,24 +3127,52 @@
     function toggleMoreActions(btn, event) {
         event.stopPropagation();
         const wrapper = btn.closest('.more-actions-wrapper');
-        const menu = wrapper?.querySelector('.more-actions-menu');
-        if (!menu) {
+        const drawer = wrapper?.querySelector('.fan-drawer');
+        if (!drawer) {
             return;
         }
-        const shouldOpen = !menu.classList.contains('open');
+        const shouldOpen = !drawer.classList.contains('open');
         closeAllMoreActions();
         if (shouldOpen) {
-            menu.classList.add('open');
+            drawer.classList.add('open');
             btn.classList.add('expanded');
         } else {
-            menu.classList.remove('open');
+            drawer.classList.remove('open');
             btn.classList.remove('expanded');
+        }
+    }
+
+    function buildFanActionButton(action, clipId, tx, ty, label, iconSvg) {
+        return `<button class="fan-action-btn" style="--tx:${tx};--ty:${ty};" onclick="handleMoreAction(event, '${action}', ${clipId})">${iconSvg}<span class="fan-label">${label}</span></button>`;
+    }
+
+    function renderFanActionIcon(type) {
+        switch (type) {
+            case 'organizeAuto':
+                return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M12 3l2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.3-4.5 2.3.9-5L4.8 8.3l5-.7L12 3z"/></svg>';
+            case 'organizeManual':
+                return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>';
+            case 'toTodo':
+                return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M9 11l2 2 4-4"/><rect x="3" y="4" width="18" height="16" rx="2"/></svg>';
+            case 'knowledge':
+                return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-4 12.8V18a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-3.2A7 7 0 0 0 12 2z"/><path d="M9 22h6"/></svg>';
+            case 'divergent':
+                return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2v2"/><path d="M5 9H3"/><path d="M21 9h-2"/><path d="M6.3 4.3 7.7 5.7"/><path d="M17.7 5.7 19.1 4.3"/><path d="M8 14h8"/></svg>';
+            case 'delete':
+                return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>';
+            default:
+                return '<svg class="fan-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>';
         }
     }
 
     function handleMoreAction(event, action, clipId) {
         event.stopPropagation();
         closeAllMoreActions();
+        const label = getMoreActionLabel(action);
+        showActionConfirm(`确定执行「${label}」吗？`, () => performMoreAction(action, clipId));
+    }
+
+    function performMoreAction(action, clipId) {
         switch (action) {
             case 'organize-auto':
                 quickOrganizeClip(clipId);
@@ -3098,10 +3190,29 @@
                 generateDivergentSummary(clipId);
                 break;
             case 'delete':
-                showConfirmModal(clipId, '确定要删除这个剪藏吗？');
+                deleteClip(clipId);
                 break;
             default:
                 break;
+        }
+    }
+
+    function getMoreActionLabel(action) {
+        switch (action) {
+            case 'organize-auto':
+                return '快速AI整理';
+            case 'organize-manual':
+                return '编辑分类/标签';
+            case 'to-todo':
+                return '转待办';
+            case 'derive-knowledge':
+                return '生成知识';
+            case 'divergent':
+                return '发散总结';
+            case 'delete':
+                return '删除';
+            default:
+                return '该操作';
         }
     }
 
@@ -3200,10 +3311,14 @@
 
     let confirmActionCallback = null;
 
-    function showConfirmModal(id, message) {
+    function showActionConfirm(message, callback) {
         document.getElementById('confirm-message').textContent = message;
         document.getElementById('confirm-modal').style.display = 'flex';
-        confirmActionCallback = () => deleteClip(id);
+        confirmActionCallback = callback;
+    }
+
+    function showConfirmModal(id, message) {
+        showActionConfirm(message, () => deleteClip(id));
     }
 
     function closeConfirmModal() {
