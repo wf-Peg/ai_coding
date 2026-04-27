@@ -965,10 +965,13 @@
             font-size: 1.02rem;
             cursor: pointer;
             opacity: 0;
-            transform: translate(0, 0) scale(0.76);
+            transform: translate(0, 0) scale(0.48) rotate(-12deg);
             box-shadow: var(--shadow);
             pointer-events: none;
-            transition: transform 0.26s ease, opacity 0.26s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+            filter: blur(1.6px);
+            will-change: transform, opacity, filter;
+            transition: transform 0.42s cubic-bezier(0.2, 0.9, 0.2, 1.08), opacity 0.32s ease, filter 0.28s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+            transition-delay: 0ms;
         }
 
         .fan-icon {
@@ -1009,7 +1012,9 @@
         .fan-drawer.open .fan-action-btn {
             opacity: 0.7;
             pointer-events: auto;
-            transform: translate(var(--tx), var(--ty)) scale(1);
+            transform: translate(var(--tx), var(--ty)) scale(1) rotate(0deg);
+            filter: blur(0);
+            transition-delay: var(--d, 0ms);
         }
 
         .fan-action-btn:hover {
@@ -2983,16 +2988,16 @@
         const originalContent = clip.content || '';
         const analysisContent = clip.analysis || '';
         const fanButtons = [
-            buildFanActionButton('organize-auto', clip.id, '-58px', '-6px', '快速AI整理', renderFanActionIcon('organizeAuto')),
-            buildFanActionButton('organize-manual', clip.id, '-104px', '-34px', '编辑分类/标签', renderFanActionIcon('organizeManual')),
-            buildFanActionButton('to-todo', clip.id, '-134px', '-78px', '转待办', renderFanActionIcon('toTodo')),
-            buildFanActionButton('derive-knowledge', clip.id, '-142px', '-132px', '生成知识', renderFanActionIcon('knowledge'))
+            buildFanActionButton('organize-auto', clip.id, '-58px', '-6px', '快速AI整理', renderFanActionIcon('organizeAuto'), 0),
+            buildFanActionButton('organize-manual', clip.id, '-104px', '-34px', '编辑分类/标签', renderFanActionIcon('organizeManual'), 36),
+            buildFanActionButton('to-todo', clip.id, '-134px', '-78px', '转待办', renderFanActionIcon('toTodo'), 72),
+            buildFanActionButton('derive-knowledge', clip.id, '-142px', '-132px', '生成知识', renderFanActionIcon('knowledge'), 108)
         ];
         if (!isStoreOnly) {
-            fanButtons.push(buildFanActionButton('divergent', clip.id, '-122px', '-184px', '发散总结', renderFanActionIcon('divergent')));
+            fanButtons.push(buildFanActionButton('divergent', clip.id, '-122px', '-184px', '发散总结', renderFanActionIcon('divergent'), 144));
         }
         if (!isSearch) {
-            fanButtons.push(buildFanActionButton('delete', clip.id, '-80px', '-224px', '删除', renderFanActionIcon('delete')));
+            fanButtons.push(buildFanActionButton('delete', clip.id, '-80px', '-224px', '删除', renderFanActionIcon('delete'), 180));
         }
 
         clipItem.innerHTML = `
@@ -3142,8 +3147,8 @@
         }
     }
 
-    function buildFanActionButton(action, clipId, tx, ty, label, iconSvg) {
-        return `<button class="fan-action-btn" style="--tx:${tx};--ty:${ty};" onclick="handleMoreAction(event, '${action}', ${clipId})">${iconSvg}<span class="fan-label">${label}</span></button>`;
+    function buildFanActionButton(action, clipId, tx, ty, label, iconSvg, delayMs = 0) {
+        return `<button class="fan-action-btn" style="--tx:${tx};--ty:${ty};--d:${delayMs}ms;" onclick="handleMoreAction(event, '${action}', ${clipId})">${iconSvg}<span class="fan-label">${label}</span></button>`;
     }
 
     function renderFanActionIcon(type) {
