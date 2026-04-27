@@ -2,6 +2,8 @@ package com.example.clip.service;
 
 import com.example.clip.core.AiService;
 import com.example.clip.dto.ClipRequest;
+import com.example.clip.dto.OrganizeClipRequest;
+import com.example.clip.dto.OrganizeInboxRequest;
 import com.example.clip.model.ClipContent;
 import com.example.clip.utils.ImageUtils;
 import org.slf4j.Logger;
@@ -10,8 +12,10 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 剪藏服务类
@@ -21,6 +25,8 @@ import java.util.Map;
 public class ClipService {
 
     public static final String INBOX_CATEGORY = "inbox";
+    public static final String WORKFLOW_INBOX = "inbox";
+    public static final String WORKFLOW_ORGANIZED = "organized";
 
     private static final Logger logger = LoggerFactory.getLogger(ClipService.class);
     private final FileStorageService storageService;  // 文件存储服务
@@ -172,11 +178,13 @@ public class ClipService {
      * @return 保存后的剪藏内容
      */
     public ClipContent saveClip(ClipRequest request) {
+        String workflowStatus = normalizeWorkflowStatus(request);
         String normalizedCategory = normalizeCategory(request);
+        String effectiveType = normalizeType(request.getType(), workflowStatus);
         String normalizedSource = firstNonBlank(request.getSourceUrl(), request.getSource());
         ClipContent clipContent = saveClip(
                 request.getContent(),
-                request.getType(),
+                effectiveType,
                 normalizedSource,
                 normalizedCategory,
                 request.getFileData(),
@@ -190,6 +198,7 @@ public class ClipService {
         clipContent.setCapturedAt(request.getCapturedAt());
         clipContent.setSelectedText(request.getSelectedText());
         clipContent.setCaptureMethod(request.getCaptureMethod());
+        clipContent.setWorkflowStatus(workflowStatus);
 
         return storageService.saveClip(clipContent);
     }
@@ -301,21 +310,191 @@ public class ClipService {
         return storageService.getClipsByCategory(category);
     }
 
-    private String normalizeCategory(ClipRequest request) {
-        String category = request.getCategory();
-        if (category != null && !category.isBlank()) {
-            return category.trim();
+    public List<ClipContent> getClipsByWorkflowStatus(String workflowStatus) {
+        if (workflowStatus == null || workflowStatus.isBlank()) {
+            return getAllClips();
+        }
+        String normalized = workflowStatus.trim();
+        return getAllClips().stream()
+                .filter(clip -> normalized.equalsIgnoreCase(resolveWorkflowStatus(clip)))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 整理收件箱：默认AI分类，可手动覆盖类型/分类/标签
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> organizeInbox(OrganizeInboxRequest request) {
+        String mode = (request == null || request.getMode() == null) ? "auto" : request.getMode().trim().toLowerCase();
+        List<ClipContent> inboxClips = getClipsByWorkflowStatus(WORKFLOW_INBOX);
+        int organizedCount = 0;
+
+        for (ClipContent clip : inboxClips) {
+            if ("manual".equals(mode)) {
+                applyManualOverrides(clip, request);
+            } else {
+                applyAutoOrganize(clip);
+            }
+
+            if (clip.getType() == null || clip.getType().isBlank()) {
+                clip.setType("store-only");
+            }
+            if (clip.getCategory() == null || clip.getCategory().isBlank()) {
+                clip.setCategory("default");
+            }
+            clip.setWorkflowStatus(WORKFLOW_ORGANIZED);
+            storageService.replaceClip(clip);
+            organizedCount++;
         }
 
-        boolean isStructuredCapture = (request.getCaptureMethod() != null && !request.getCaptureMethod().isBlank())
+        Map<String, Object> result = new HashMap<>();
+        result.put("status", "success");
+        result.put("mode", mode);
+        result.put("organizedCount", organizedCount);
+        return result;
+    }
+
+    /**
+     * 单条整理：支持任意剪藏记录
+     */
+    public Map<String, Object> organizeClip(Long clipId, OrganizeClipRequest request) {
+        ClipContent clip = getClipById(clipId);
+        if (clip == null) {
+            throw new IllegalArgumentException("未找到对应剪藏记录: " + clipId);
+        }
+
+        String mode = (request == null || request.getMode() == null) ? "auto" : request.getMode().trim().toLowerCase();
+        if ("manual".equals(mode)) {
+            applyManualOverrides(clip, request);
+        } else {
+            applyAutoOrganize(clip);
+        }
+
+        if (clip.getType() == null || clip.getType().isBlank()) {
+            clip.setType("store-only");
+        }
+        if (clip.getCategory() == null || clip.getCategory().isBlank()) {
+            clip.setCategory("default");
+        }
+
+        // 单条整理完成后标记为已整理
+        clip.setWorkflowStatus(WORKFLOW_ORGANIZED);
+        storageService.replaceClip(clip);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("status", "success");
+        result.put("mode", mode);
+        result.put("clipId", clip.getId());
+        return result;
+    }
+
+    private String normalizeCategory(ClipRequest request) {
+        String category = request.getCategory();
+        if (category == null || category.isBlank()) {
+            return null;
+        }
+
+        String normalized = category.trim();
+        if (INBOX_CATEGORY.equalsIgnoreCase(normalized)) {
+            // 兼容旧逻辑：category=inbox 迁移为 workflowStatus=inbox
+            return null;
+        }
+        return normalized;
+    }
+
+    private String normalizeWorkflowStatus(ClipRequest request) {
+        if (request.getWorkflowStatus() != null && !request.getWorkflowStatus().isBlank()) {
+            return request.getWorkflowStatus().trim().toLowerCase();
+        }
+
+        if (request.getCategory() != null && INBOX_CATEGORY.equalsIgnoreCase(request.getCategory().trim())) {
+            return WORKFLOW_INBOX;
+        }
+
+        if (isStructuredCapture(request)) {
+            return WORKFLOW_INBOX;
+        }
+        return WORKFLOW_ORGANIZED;
+    }
+
+    private boolean isStructuredCapture(ClipRequest request) {
+        return (request.getCaptureMethod() != null && !request.getCaptureMethod().isBlank())
                 || (request.getSourceUrl() != null && !request.getSourceUrl().isBlank())
                 || (request.getTitle() != null && !request.getTitle().isBlank())
                 || (request.getSelectedText() != null && !request.getSelectedText().isBlank());
+    }
 
-        if (isStructuredCapture) {
-            return INBOX_CATEGORY;
+    private void applyAutoOrganize(ClipContent clip) {
+        if (clip == null || clip.getContent() == null || clip.getContent().isBlank()) {
+            return;
         }
-        return category;
+
+        Map<String, Object> aiResult = aiService.smartOrganize(clip.getContent());
+        Object category = aiResult.get("category");
+        if ((clip.getCategory() == null || clip.getCategory().isBlank()) && category instanceof String cat && !cat.isBlank()) {
+            clip.setCategory(cat);
+        }
+        Object tags = aiResult.get("tags");
+        if ((clip.getTags() == null || clip.getTags().isEmpty()) && tags instanceof List<?> tagList) {
+            List<String> normalizedTags = tagList.stream().filter(String.class::isInstance).map(String.class::cast).collect(Collectors.toList());
+            clip.setTags(normalizedTags);
+        }
+    }
+
+    private void applyManualOverrides(ClipContent clip, OrganizeInboxRequest request) {
+        if (request == null) {
+            return;
+        }
+        if (request.getType() != null && !request.getType().isBlank()) {
+            clip.setType(request.getType().trim());
+        } else if (clip.getType() == null || clip.getType().isBlank()) {
+            clip.setType("store-only");
+        }
+        if (request.getCategory() != null && !request.getCategory().isBlank()) {
+            clip.setCategory(request.getCategory().trim());
+        }
+        if (request.getTags() != null && !request.getTags().isEmpty()) {
+            clip.setTags(request.getTags().stream().filter(tag -> tag != null && !tag.isBlank()).map(String::trim).collect(Collectors.toList()));
+        }
+    }
+
+    private void applyManualOverrides(ClipContent clip, OrganizeClipRequest request) {
+        if (request == null) {
+            return;
+        }
+        if (request.getType() != null && !request.getType().isBlank()) {
+            clip.setType(request.getType().trim());
+        } else if (clip.getType() == null || clip.getType().isBlank()) {
+            clip.setType("store-only");
+        }
+        if (request.getCategory() != null && !request.getCategory().isBlank()) {
+            clip.setCategory(request.getCategory().trim());
+        }
+        if (request.getTags() != null && !request.getTags().isEmpty()) {
+            clip.setTags(request.getTags().stream().filter(tag -> tag != null && !tag.isBlank()).map(String::trim).collect(Collectors.toList()));
+        }
+    }
+
+    private String normalizeType(String requestType, String workflowStatus) {
+        // inbox阶段统一只做收件，不做AI整理
+        if (WORKFLOW_INBOX.equalsIgnoreCase(workflowStatus)) {
+            return "store-only";
+        }
+        if (requestType != null && !requestType.isBlank()) {
+            return requestType.trim();
+        }
+        return "ai-text";
+    }
+
+    private String resolveWorkflowStatus(ClipContent clip) {
+        if (clip.getWorkflowStatus() != null && !clip.getWorkflowStatus().isBlank()) {
+            return clip.getWorkflowStatus();
+        }
+        // 兼容旧数据：历史上 category=inbox 的记录视为 inbox 状态
+        if (INBOX_CATEGORY.equalsIgnoreCase(clip.getCategory())) {
+            return WORKFLOW_INBOX;
+        }
+        return WORKFLOW_ORGANIZED;
     }
 
     private String firstNonBlank(String primary, String fallback) {

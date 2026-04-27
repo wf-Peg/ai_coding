@@ -93,6 +93,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         capturedAt: currentCaptureData.capturedAt || new Date().toISOString(),
         selectedText: currentCaptureData.selectedText || '',
         captureMethod: currentCaptureData.captureMethod || 'popup',
+        workflowStatus: currentCaptureData.workflowStatus || 'inbox',
         category: categorySelect.value,
         tags: aiTagsCheckbox.checked ? null : currentTags,
         useAiTags: typeSelect.value === 'store-only' ? false : aiTagsCheckbox.checked,
@@ -126,7 +127,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     contentInput.value = '';
     sourceInput.value = '';
     typeSelect.value = 'ai-text';
-    categorySelect.value = 'inbox';
+    categorySelect.value = '';
     aiTagsCheckbox.checked = true;
     currentTags = [];
     currentCaptureData = {};
@@ -198,7 +199,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (data.content) contentInput.value = data.content;
     if (data.sourceUrl || data.source) sourceInput.value = data.sourceUrl || data.source;
     if (data.type) typeSelect.value = data.type;
-    categorySelect.value = data.category || 'inbox';
+    categorySelect.value = data.category || '';
     if (data.useAiTags !== undefined) aiTagsCheckbox.checked = data.useAiTags;
     
     handleAiTagsToggle();

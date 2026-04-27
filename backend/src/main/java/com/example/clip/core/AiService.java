@@ -51,13 +51,10 @@ public class AiService {
      */
     public Map<String, Object> processClipContent(String content, boolean includeCategory) {
         StringBuilder systemPrompt = new StringBuilder();
-        systemPrompt.append("你是一个专业的内容分析助手。请对以下内容完成");
+        systemPrompt.append(promptConfigService.getClipAnalyzePrompt()).append("\n\n");
+        systemPrompt.append("请对以下内容完成");
         
-        if (includeCategory) {
-            systemPrompt.append("四项任务");
-        } else {
-            systemPrompt.append("三项任务");
-        }
+        systemPrompt.append(includeCategory ? "四项任务" : "三项任务");
         
         systemPrompt.append("，严格按JSON格式返回：\n\n")
                 .append("1. 摘要(summary)：不超过100字的简短摘要\n")

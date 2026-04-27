@@ -135,6 +135,19 @@ h1 {
     margin: 0;
 }
 
+.action-split-group.add-clip-action-split .main-btn {
+    background: #f7f7f5;
+    color: var(--text);
+    border: 1px solid #dcdcd8;
+    box-shadow: none;
+}
+
+.action-split-group.add-clip-action-split .main-btn:hover {
+    background: #efefed;
+    color: var(--text);
+    border-color: #dcdcd8;
+}
+
 .clip-form,
 .clip-item,
 .empty-state {

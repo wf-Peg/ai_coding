@@ -1841,7 +1841,6 @@
                 <div class="form-group">
                     <label for="category">分类</label>
                     <select id="category">
-                        <option value="inbox">收件箱（稍后整理）</option>
                         <option value="">AI匹配分类</option>
                     </select>
                 </div>
@@ -2338,11 +2337,11 @@
 
             // Fill add-clip category select
             const select = document.getElementById('category');
-            select.innerHTML = '<option value="inbox">收件箱（稍后整理）</option><option value="">AI匹配分类</option>';
+            select.innerHTML = '<option value="">AI匹配分类</option>';
 
             // Fill search category select
             const searchSelect = document.getElementById('search-category');
-            searchSelect.innerHTML = '<option value="">全部分类</option><option value="inbox">收件箱</option>';
+            searchSelect.innerHTML = '<option value="">全部分类</option>';
 
             categories.forEach(cat => {
                 if (cat.children && cat.children.length > 0) {
@@ -2427,7 +2426,7 @@
         document.getElementById('content').value = '';
         document.getElementById('type').value = 'ai-text';
         document.getElementById('source').value = '';
-        document.getElementById('category').value = 'inbox';
+        document.getElementById('category').value = '';
         document.getElementById('ai-generate-tags').checked = false;
         toggleTagInput();
         currentTags = [];

@@ -4,6 +4,8 @@ import com.example.clip.config.PromptConfig;
 import com.example.clip.core.AiService;
 import com.example.clip.dto.ClipRequest;
 import com.example.clip.dto.ClipResponse;
+import com.example.clip.dto.OrganizeClipRequest;
+import com.example.clip.dto.OrganizeInboxRequest;
 import com.example.clip.dto.TagRequest;
 import com.example.clip.model.ClipContent;
 import com.example.clip.service.ClipService;
@@ -66,9 +68,10 @@ public class ClipController {
     public ResponseEntity<?> addClip(@RequestBody ClipRequest request) {
         log.info("[API] /add called, type={}, useAiTags={}", request.getType(), request.getUseAiTags());
         ClipContent clip = clipService.saveClip(request);
+        String savedType = clip.getType();
 
         // 处理标签：如果用户提供了手动标签，覆盖AI生成的标签
-        if (!"store-only".equals(request.getType())) {
+        if (!"store-only".equals(savedType)) {
             if (request.getTags() != null && !request.getTags().isEmpty()) {
                 clip.setTags(request.getTags());
                 clipService.saveClip(clip);
@@ -147,9 +150,16 @@ public class ClipController {
      * @return 响应实体，包含所有剪藏内容列表
      */
     @GetMapping("/list")
-    public ResponseEntity<List<ClipContent>> getClipList() {
-        List<ClipContent> clips = clipService.getAllClips();
+    public ResponseEntity<List<ClipContent>> getClipList(@RequestParam(required = false) String workflowStatus) {
+        List<ClipContent> clips = (workflowStatus == null || workflowStatus.isBlank())
+                ? clipService.getAllClips()
+                : clipService.getClipsByWorkflowStatus(workflowStatus);
         return ResponseEntity.ok(clips);
+    }
+
+    @GetMapping("/workflow/{workflowStatus}")
+    public ResponseEntity<List<ClipContent>> getClipsByWorkflowStatus(@PathVariable String workflowStatus) {
+        return ResponseEntity.ok(clipService.getClipsByWorkflowStatus(workflowStatus));
     }
 
     /**
@@ -213,6 +223,24 @@ public class ClipController {
     @PostMapping("/organize")
     public ResponseEntity<?> organizeContent() {
         return ResponseEntity.ok(contentOrganizeService.organizeContent());
+    }
+
+    @PostMapping("/organize-inbox")
+    public ResponseEntity<Map<String, Object>> organizeInbox(@RequestBody(required = false) OrganizeInboxRequest request) {
+        return ResponseEntity.ok(clipService.organizeInbox(request));
+    }
+
+    @PostMapping("/organize/{id}")
+    public ResponseEntity<?> organizeClip(@PathVariable(name = "id") Long id,
+                                          @RequestBody(required = false) OrganizeClipRequest request) {
+        try {
+            return ResponseEntity.ok(clipService.organizeClip(id, request));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", e.getMessage()
+            ));
+        }
     }
 
     /**

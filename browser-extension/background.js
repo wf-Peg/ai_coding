@@ -1,4 +1,4 @@
-const DEFAULT_CATEGORY = 'inbox';
+const DEFAULT_WORKFLOW_STATUS = 'inbox';
 
 chrome.runtime.onInstalled.addListener(() => {
   createContextMenus();
@@ -283,7 +283,8 @@ function createPayload(data) {
     capturedAt: data.capturedAt || new Date().toISOString(),
     selectedText: data.selectedText || '',
     captureMethod: data.captureMethod || 'popup',
-    category: data.category || DEFAULT_CATEGORY,
+    workflowStatus: data.workflowStatus || DEFAULT_WORKFLOW_STATUS,
+    category: data.category || '',
     useAiTags: data.useAiTags !== false,
     tags: data.tags || null,
     imageDataList: data.imageDataList || []

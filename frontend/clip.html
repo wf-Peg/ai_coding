@@ -280,6 +280,21 @@
             box-shadow: none;
         }
 
+        .action-split-group.add-clip-action-split .main-btn {
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 0;
+            box-shadow: none;
+            font-weight: 600;
+        }
+
+        .action-split-group.add-clip-action-split .main-btn:hover {
+            background: var(--surface-hover);
+            color: var(--text);
+            border-color: var(--border);
+        }
+
         .toggle-btn {
             width: auto;
             height: auto;
@@ -442,6 +457,20 @@
             background: linear-gradient(135deg, #275fc0, var(--primary-dark));
             color: #ffffff;
             border-color: rgba(47, 114, 216, 0.5);
+        }
+
+        html[data-theme="regular"] .action-split-group.add-clip-action-split .main-btn {
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 0;
+            box-shadow: none;
+        }
+
+        html[data-theme="regular"] .action-split-group.add-clip-action-split .main-btn:hover {
+            background: var(--surface-hover);
+            color: var(--text);
+            border-color: var(--border);
         }
 
         html[data-theme="regular"] #toggle-btn {
@@ -625,6 +654,35 @@
             gap: 16px;
             margin-top: 32px;
             flex-wrap: wrap;
+            align-items: stretch;
+        }
+
+        .form-actions > button,
+        .form-actions > .action-split-group {
+            flex: 1 1 170px;
+            min-width: 170px;
+            height: 48px;
+        }
+
+        .form-actions > .action-split-group {
+            display: flex;
+            align-items: stretch;
+        }
+
+        .form-actions > .action-split-group .icon-btn,
+        .form-actions > .action-split-group .main-btn {
+            height: 100%;
+        }
+
+        .form-actions > .action-split-group .icon-btn {
+            width: 48px;
+            min-width: 48px;
+            padding: 0;
+        }
+
+        .form-actions > .action-split-group .main-btn {
+            flex: 1 1 auto;
+            min-width: 0;
         }
 
         button {
@@ -683,6 +741,24 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 28px;
+        }
+
+        .list-controls {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .workflow-filter {
+            min-width: 160px;
+            height: 40px;
+            padding: 8px 36px 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background-color: var(--surface);
+            color: var(--text);
+            font-size: 0.9rem;
+            cursor: pointer;
         }
 
         h2 {
@@ -1645,6 +1721,20 @@
                 gap: 12px;
             }
 
+            .list-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
+            .list-controls {
+                width: 100%;
+            }
+
+            .workflow-filter {
+                width: 100%;
+            }
+
             .meta-item {
                 font-size: 0.8rem;
                 padding: 3px 10px;
@@ -1719,6 +1809,45 @@
     </div>
 </div>
 
+<div id="organize-action-modal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 720px;">
+        <div class="modal-header">
+            <h3 id="organize-action-title">整理收件箱</h3>
+            <button class="modal-close" type="button" onclick="closeOrganizeActionModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <label class="modal-label" for="organize-mode">整理模式</label>
+            <select id="organize-mode" class="modal-textarea" style="min-height: 44px;" onchange="toggleOrganizeManualFields()">
+                <option value="auto">默认AI分类整理</option>
+                <option value="manual">手动覆盖整理</option>
+            </select>
+
+            <div id="organize-manual-fields" style="display: none; margin-top: 16px;">
+                <label class="modal-label" for="organize-type">类型（可选）</label>
+                <select id="organize-type" class="modal-textarea" style="min-height: 44px;">
+                    <option value="">保持原类型</option>
+                    <option value="ai-text">AI文本整理</option>
+                    <option value="store-only">只存储内容</option>
+                    <option value="link-ai">链接AI解析整理</option>
+                    <option value="doc-ai">文档AI解析整理</option>
+                </select>
+
+                <label class="modal-label" for="organize-category" style="margin-top: 12px;">分类（可选）</label>
+                <select id="organize-category" class="modal-textarea" style="min-height: 44px;">
+                    <option value="">保持原分类</option>
+                </select>
+
+                <label class="modal-label" for="organize-tags-input" style="margin-top: 12px;">标签（可选，逗号分隔）</label>
+                <input id="organize-tags-input" class="modal-textarea" style="min-height: 44px;" placeholder="例如：前端, 架构, AI" />
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" type="button" onclick="closeOrganizeActionModal()">取消</button>
+            <button class="btn-primary" type="button" onclick="confirmOrganizeAction()">开始整理</button>
+        </div>
+    </div>
+</div>
+
 <div id="feedback-modal" class="modal" style="display: none;">
     <div class="modal-content" style="max-width: 520px;">
         <div class="modal-header">
@@ -1763,6 +1892,11 @@
                 <button class="icon-btn" type="button" title="配置整理Prompt" onclick="openPromptConfigModal('daily')">⚙️</button>
                 <button class="toggle-btn main-btn" id="organize-btn" onclick="organizeContent()">
                     <span class="toggle-text">📚 整理今日内容</span>
+                </button>
+            </div>
+            <div class="action-split-group">
+                <button class="toggle-btn main-btn" id="organize-inbox-btn" onclick="openOrganizeActionModal('inbox')">
+                    <span class="toggle-text">📥 整理收件箱</span>
                 </button>
             </div>
             <div class="action-split-group">
@@ -1831,8 +1965,8 @@
                 <div class="form-group">
                     <label for="type">类型</label>
                     <select id="type" onchange="handleTypeChange()">
-                        <option value="ai-text">AI文本整理</option>
                         <option value="store-only">只存储内容</option>
+                        <option value="ai-text">AI文本整理</option>
                         <option value="link-ai">链接AI解析整理</option>
                         <option value="doc-ai">文档AI解析整理</option>
                     </select>
@@ -1844,8 +1978,7 @@
                 <div class="form-group">
                     <label for="category">分类</label>
                     <select id="category">
-                        <option value="inbox">收件箱（稍后整理）</option>
-                        <option value="">AI匹配分类</option>
+                        <option value="">AI匹配分类（收件箱由流程状态控制）</option>
                     </select>
                 </div>
                 <div class="form-group" id="tags-group">
@@ -1862,7 +1995,10 @@
                 <div class="form-actions">
                     <button type="button" class="btn-secondary" onclick="clearForm()">清空</button>
                     <button type="button" class="btn-secondary" onclick="startVoiceInput()">🎤 语音输入</button>
-                    <button type="submit" class="btn-primary">添加剪藏</button>
+                    <div class="action-split-group add-clip-action-split">
+                        <button class="icon-btn" type="button" title="配置添加剪藏AI Prompt" onclick="openPromptConfigModal('clip')">⚙️</button>
+                        <button type="submit" class="btn-primary main-btn">添加剪藏</button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -1893,7 +2029,14 @@
     <div id="clip-list">
         <div class="list-header">
             <h2>剪藏列表</h2>
-            <span id="clip-count" class="clip-count">0</span>
+            <div class="list-controls">
+                <select id="workflow-filter" class="workflow-filter">
+                    <option value="">全部流程</option>
+                    <option value="inbox">仅收件箱（待整理）</option>
+                    <option value="organized">仅已整理</option>
+                </select>
+                <span id="clip-count" class="clip-count">0</span>
+            </div>
         </div>
         <div id="clip-items" class="clip-items"></div>
     </div>
@@ -1915,10 +2058,16 @@
     const MAX_TAGS = 10;
     const THEME_STORAGE_KEY = 'app_theme_v1';
     const DEFAULT_THEME = 'notion';
+    const DEFAULT_CLIP_ANALYZE_PROMPT =
+        '你是一个专业的内容分析助手。请对输入内容生成高质量摘要、分析和标签。\n' +
+        '输出应准确、简洁、结构化，避免空话和重复。\n' +
+        'analysis 字段使用 Markdown 格式，重点提炼关键结论与可执行洞见。';
     let currentPromptType = 'daily';
     let promptConfigCache = null;
     let feedbackPathValue = '';
     let currentTheme = DEFAULT_THEME;
+    let currentOrganizeTarget = { scope: 'inbox', clipId: null };
+    const clipCache = new Map();
 
     function getNextThemeId(themeId) {
         return themeId === 'notion' ? 'regular' : 'notion';
@@ -1974,6 +2123,10 @@
 
         // 为确认按钮添加点击事件
         document.getElementById('confirm-btn').addEventListener('click', confirmAction);
+        const workflowFilter = document.getElementById('workflow-filter');
+        if (workflowFilter) {
+            workflowFilter.addEventListener('change', fetchClips);
+        }
 
         document.getElementById('clip-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -1981,6 +2134,7 @@
             const type = document.getElementById('type').value;
             const source = document.getElementById('source').value;
             const category = document.getElementById('category').value;
+            const submitCategory = category || 'inbox';
             const useAiTags = document.getElementById('ai-generate-tags').checked;
             const submitBtn = e.target.querySelector('button[type="submit"]');
 
@@ -1989,7 +2143,8 @@
             let requestBody = {
                 type,
                 source,
-                category,
+                category: submitCategory,
+                workflowStatus: 'inbox',
                 tags: useAiTags ? null : currentTags,
                 useAiTags: type === 'store-only' ? false : useAiTags
             };
@@ -2334,6 +2489,25 @@
         return CATEGORY_LABELS[value] || value;
     }
 
+    function getWorkflowStatusLabel(value) {
+        if (!value) return '未指定';
+        if (value === 'inbox') return '收件箱';
+        if (value === 'organized') return '已整理';
+        return value;
+    }
+
+    function resolveWorkflowStatus(clip) {
+        const status = (clip?.workflowStatus || '').toString().trim().toLowerCase();
+        if (status) {
+            return status;
+        }
+        // 兼容旧数据与未升级后端
+        if ((clip?.category || '').toString().trim().toLowerCase() === 'inbox') {
+            return 'inbox';
+        }
+        return 'organized';
+    }
+
     // Load category tree from backend
     async function loadCategories() {
         try {
@@ -2342,11 +2516,16 @@
 
             // Fill add-clip category select
             const select = document.getElementById('category');
-            select.innerHTML = '<option value="inbox">收件箱（稍后整理）</option><option value="">AI匹配分类</option>';
+            select.innerHTML = '<option value="">AI匹配分类（收件箱由流程状态控制）</option>';
 
             // Fill search category select
             const searchSelect = document.getElementById('search-category');
-            searchSelect.innerHTML = '<option value="">全部分类</option><option value="inbox">收件箱</option>';
+            searchSelect.innerHTML = '<option value="">全部分类</option>';
+
+            const organizeCategory = document.getElementById('organize-category');
+            if (organizeCategory) {
+                organizeCategory.innerHTML = '<option value="">保持原分类</option>';
+            }
 
             categories.forEach(cat => {
                 if (cat.children && cat.children.length > 0) {
@@ -2367,6 +2546,13 @@
                         opt.value = child.value;
                         opt.textContent = cat.label + ' > ' + child.label;
                         searchSelect.appendChild(opt);
+
+                        if (organizeCategory) {
+                            const organizeOpt = document.createElement('option');
+                            organizeOpt.value = child.value;
+                            organizeOpt.textContent = cat.label + ' > ' + child.label;
+                            organizeCategory.appendChild(organizeOpt);
+                        }
                     });
                 } else {
                     const option = document.createElement('option');
@@ -2378,6 +2564,13 @@
                     searchOpt.value = cat.value;
                     searchOpt.textContent = cat.label;
                     searchSelect.appendChild(searchOpt);
+
+                    if (organizeCategory) {
+                        const organizeOpt = document.createElement('option');
+                        organizeOpt.value = cat.value;
+                        organizeOpt.textContent = cat.label;
+                        organizeCategory.appendChild(organizeOpt);
+                    }
                 }
             });
         } catch (error) {
@@ -2431,7 +2624,7 @@
         document.getElementById('content').value = '';
         document.getElementById('type').value = 'ai-text';
         document.getElementById('source').value = '';
-        document.getElementById('category').value = 'inbox';
+        document.getElementById('category').value = '';
         document.getElementById('ai-generate-tags').checked = false;
         toggleTagInput();
         currentTags = [];
@@ -2552,6 +2745,7 @@
     });
 
     function displaySearchResults(results) {
+        clipCache.clear();
         const searchResultsContainer = document.getElementById('search-results');
         searchResultsContainer.innerHTML = '';
 
@@ -2564,6 +2758,9 @@
                 `;
         } else {
             results.forEach(clip => {
+                if (clip && clip.id != null) {
+                    clipCache.set(String(clip.id), clip);
+                }
                 const clipItem = createClipItem(clip, true);
                 searchResultsContainer.appendChild(clipItem);
             });
@@ -2575,8 +2772,14 @@
 
     async function fetchClips() {
         try {
+            const workflowFilter = document.getElementById('workflow-filter');
+            const workflowStatus = workflowFilter ? workflowFilter.value : '';
             const response = await axios.get(`${API_BASE_URL}/list`);
             let clips = response.data;
+
+            if (workflowStatus) {
+                clips = clips.filter(clip => resolveWorkflowStatus(clip) === workflowStatus);
+            }
 
             // 过滤掉待办事项数据（前端过滤，后端存储不变）
             const filteredClips = clips.filter(clip => {
@@ -2595,6 +2798,7 @@
 
             const clipItemsContainer = document.getElementById('clip-items');
             const clipCountElement = document.getElementById('clip-count');
+            clipCache.clear();
 
             clipCountElement.textContent = filteredClips.length;
             clipItemsContainer.innerHTML = '';
@@ -2612,6 +2816,9 @@
             filteredClips.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
             filteredClips.forEach(clip => {
+                if (clip && clip.id != null) {
+                    clipCache.set(String(clip.id), clip);
+                }
                 const clipItem = createClipItem(clip, false);
                 clipItemsContainer.appendChild(clipItem);
             });
@@ -2636,6 +2843,7 @@
     function createClipItem(clip, isSearch) {
         const clipItem = document.createElement('div');
         clipItem.className = 'clip-item';
+        const normalizedWorkflow = resolveWorkflowStatus(clip);
 
         const createdAt = new Date(clip.createdAt).toLocaleString('zh-CN', {
             year: 'numeric',
@@ -2644,6 +2852,10 @@
             hour: '2-digit',
             minute: '2-digit'
         });
+
+        const categoryLabel = normalizedWorkflow === 'inbox'
+            ? '收件箱（待整理）'
+            : (clip.category ? getCategoryLabel(clip.category) : '未分类');
 
         let tagsHtml = '';
         if (clip.tags && clip.tags.length > 0) {
@@ -2670,8 +2882,10 @@
 
         clipItem.innerHTML = `
                 <div class="clip-header">
-                    <span class="category-badge">📁 ${getCategoryLabel(clip.category)}</span>
+                    <span class="category-badge">📁 ${categoryLabel}</span>
                     <div class="clip-actions">
+                        <button class="expand-btn" onclick="quickOrganizeClip(${clip.id})" title="快速AI整理本条">⚡ AI整理</button>
+                        <button class="expand-btn" onclick="openOrganizeActionModal('clip', ${clip.id}, 'manual')" title="编辑本条分类/类型/标签">✏️ 编辑</button>
                         ${!isSearch ? `<button class="delete-btn" data-id="${clip.id}">删除</button>` : ''}
                         ${!isStoreOnly ? `<button class="expand-btn" onclick="generateDivergentSummary(${clip.id})" title="发散总结">💡</button>` : ''}
                         <button class="expand-btn" onclick="toggleDetail(this)">
@@ -2683,6 +2897,8 @@
                 <div class="clip-summary ${summaryClass}" title="${escapeHtml(displaySummary)}">${escapeHtml(displaySummary)}</div>
                 <div class="clip-meta">
                     <span class="meta-item meta-type">类型: ${getTypeLabel(clip.type)}</span>
+                    <span class="meta-item">流程: ${getWorkflowStatusLabel(normalizedWorkflow)}</span>
+                    <span class="meta-item">分类: ${clip.category ? getCategoryLabel(clip.category) : '未分类'}</span>
                     <span class="meta-item">来源: ${clip.source}</span>
                     <span class="meta-item">创建时间: ${createdAt}</span>
                 </div>
@@ -2892,15 +3108,28 @@
         return promptConfigCache;
     }
 
+    function getPromptValueByType(config, type) {
+        if (type === 'clip') {
+            return config.clipAnalyzeSystemPrompt || DEFAULT_CLIP_ANALYZE_PROMPT;
+        }
+        if (type === 'daily') {
+            return config.dailyOrganizeSystemPrompt || '';
+        }
+        return config.weeklyReportSystemPrompt || '';
+    }
+
     async function openPromptConfigModal(type) {
         currentPromptType = type;
         const title = document.getElementById('prompt-config-title');
         const desc = document.getElementById('prompt-config-desc');
         const textarea = document.getElementById('prompt-config-textarea');
 
-        if (type === 'daily') {
-            title.textContent = '整理今日内容 Prompt 配置';
-            desc.textContent = '编辑整理今日内容时使用的系统提示词';
+        if (type === 'clip') {
+            title.textContent = '添加剪藏 AI Prompt 配置';
+            desc.textContent = '编辑添加剪藏时的AI分析系统提示词';
+        } else if (type === 'daily') {
+            title.textContent = '整理收件箱 Prompt 配置';
+            desc.textContent = '编辑整理收件箱时使用的系统提示词';
         } else {
             title.textContent = '周报总结 Prompt 配置';
             desc.textContent = '编辑生成周报总结时使用的系统提示词';
@@ -2908,9 +3137,7 @@
 
         try {
             const config = await loadPromptConfig();
-            textarea.value = type === 'daily'
-                ? (config.dailyOrganizeSystemPrompt || '')
-                : (config.weeklyReportSystemPrompt || '');
+            textarea.value = getPromptValueByType(config, type);
             document.getElementById('prompt-config-modal').style.display = 'flex';
         } catch (error) {
             console.error('加载Prompt配置失败:', error);
@@ -2933,10 +3160,13 @@
         try {
             const config = await loadPromptConfig();
             const payload = {
+                clipAnalyzeSystemPrompt: config.clipAnalyzeSystemPrompt || DEFAULT_CLIP_ANALYZE_PROMPT,
                 dailyOrganizeSystemPrompt: config.dailyOrganizeSystemPrompt || '',
                 weeklyReportSystemPrompt: config.weeklyReportSystemPrompt || ''
             };
-            if (currentPromptType === 'daily') {
+            if (currentPromptType === 'clip') {
+                payload.clipAnalyzeSystemPrompt = value;
+            } else if (currentPromptType === 'daily') {
                 payload.dailyOrganizeSystemPrompt = value;
             } else {
                 payload.weeklyReportSystemPrompt = value;
@@ -2958,9 +3188,7 @@
             promptConfigCache = response.data;
 
             const textarea = document.getElementById('prompt-config-textarea');
-            textarea.value = currentPromptType === 'daily'
-                ? (promptConfigCache.dailyOrganizeSystemPrompt || '')
-                : (promptConfigCache.weeklyReportSystemPrompt || '');
+            textarea.value = getPromptValueByType(promptConfigCache, currentPromptType);
             showNotification('Prompt 已恢复默认配置');
         } catch (error) {
             console.error('重置Prompt配置失败:', error);
@@ -2987,31 +3215,133 @@
         }
     }
 
-    async function organizeContent() {
-        const organizeBtn = document.getElementById('organize-btn');
-        const originalText = organizeBtn.textContent;
+    function openOrganizeActionModal(scope = 'inbox', clipId = null, preferredMode = 'auto') {
+        currentOrganizeTarget = { scope, clipId };
+        const titleEl = document.getElementById('organize-action-title');
+        document.getElementById('organize-mode').value = preferredMode === 'manual' ? 'manual' : 'auto';
+        const typeEl = document.getElementById('organize-type');
+        const categoryEl = document.getElementById('organize-category');
+        const tagsEl = document.getElementById('organize-tags-input');
+        typeEl.value = '';
+        categoryEl.value = '';
+        tagsEl.value = '';
+
+        if (scope === 'clip' && clipId != null) {
+            titleEl.textContent = '整理当前剪藏';
+            const clip = clipCache.get(String(clipId));
+            if (clip) {
+                typeEl.value = clip.type || '';
+                categoryEl.value = clip.category || '';
+                tagsEl.value = Array.isArray(clip.tags) ? clip.tags.join(', ') : '';
+            }
+        } else {
+            titleEl.textContent = '整理收件箱';
+        }
+        toggleOrganizeManualFields();
+        document.getElementById('organize-action-modal').style.display = 'flex';
+    }
+
+    async function quickOrganizeClip(clipId) {
+        try {
+            showLoading('正在快速整理...', '正在对当前剪藏进行AI分类与标签整理...');
+            const response = await axios.post(`${API_BASE_URL}/organize/${clipId}`, { mode: 'auto' });
+            if (response.data.status === 'success') {
+                showNotification('当前剪藏已完成AI整理', true);
+                await fetchClips();
+            }
+        } catch (error) {
+            console.error('快速整理失败:', error);
+            showError('整理失败', error.response?.data?.message || '请稍后重试');
+        } finally {
+            hideLoading();
+        }
+    }
+
+    function closeOrganizeActionModal() {
+        document.getElementById('organize-action-modal').style.display = 'none';
+    }
+
+    function toggleOrganizeManualFields() {
+        const mode = document.getElementById('organize-mode').value;
+        document.getElementById('organize-manual-fields').style.display = mode === 'manual' ? 'block' : 'none';
+    }
+
+    async function confirmOrganizeAction() {
+        const isClipScope = currentOrganizeTarget.scope === 'clip' && currentOrganizeTarget.clipId != null;
+        const organizeBtn = isClipScope
+            ? null
+            : document.getElementById('organize-inbox-btn');
+        const originalText = organizeBtn ? organizeBtn.textContent : '';
+        const mode = document.getElementById('organize-mode').value;
+        const type = document.getElementById('organize-type').value;
+        const category = document.getElementById('organize-category').value;
+        const tagsInput = document.getElementById('organize-tags-input').value.trim();
+        const tags = tagsInput ? tagsInput.split(/[，,]/).map(t => t.trim()).filter(Boolean) : [];
 
         try {
-            // 显示加载状态
-            showLoading('正在整理内容...', '正在处理剪藏内容，请稍候...');
+            closeOrganizeActionModal();
+            showLoading(
+                isClipScope ? '正在整理当前剪藏...' : '正在整理收件箱...',
+                mode === 'auto' ? '默认AI分类处理中...' : '正在应用手动覆盖规则...'
+            );
+            if (organizeBtn) {
+                organizeBtn.disabled = true;
+                organizeBtn.classList.add('btn-loading');
+            }
 
-            // 禁用按钮
-            organizeBtn.disabled = true;
-            organizeBtn.classList.add('btn-loading');
+            const payload = { mode };
+            if (mode === 'manual') {
+                payload.type = type;
+                payload.category = category;
+                payload.tags = tags;
+            }
 
-            const response = await axios.post(`${API_BASE_URL}/organize`);
+            const endpoint = isClipScope
+                ? `${API_BASE_URL}/organize/${currentOrganizeTarget.clipId}`
+                : `${API_BASE_URL}/organize-inbox`;
+            const response = await axios.post(endpoint, payload);
 
             if (response.data.status === 'success') {
-                showNotification('内容整理完成！', true);
+                if (isClipScope) {
+                    showNotification('当前剪藏整理完成', true);
+                } else {
+                    const count = response.data.organizedCount || 0;
+                    showNotification(`收件箱整理完成，共处理 ${count} 条内容`, true);
+                }
+                await fetchClips();
             }
         } catch (error) {
             console.error('整理内容失败:', error);
             showError('整理失败', error.response?.data?.message || '请稍后重试');
         } finally {
-            // 隐藏加载状态
             hideLoading();
+            if (organizeBtn) {
+                organizeBtn.disabled = false;
+                organizeBtn.classList.remove('btn-loading');
+                organizeBtn.textContent = originalText;
+            }
+        }
+    }
 
-            // 恢复按钮状态
+    async function organizeContent() {
+        const organizeBtn = document.getElementById('organize-btn');
+        const originalText = organizeBtn.textContent;
+
+        try {
+            showLoading('正在整理今日内容...', '按分类聚合并生成整理结果...');
+            organizeBtn.disabled = true;
+            organizeBtn.classList.add('btn-loading');
+            const response = await axios.post(`${API_BASE_URL}/organize`);
+            if (response.data.status === 'success') {
+                showNotification(response.data.message || '今日内容整理完成', true);
+            } else {
+                showNotification('整理请求已完成', true);
+            }
+        } catch (error) {
+            console.error('整理今日内容失败:', error);
+            showError('整理失败', error.response?.data?.message || '请稍后重试');
+        } finally {
+            hideLoading();
             organizeBtn.disabled = false;
             organizeBtn.classList.remove('btn-loading');
             organizeBtn.textContent = originalText;

@@ -8,6 +8,7 @@ import com.example.clip.service.ClipService;
 import com.example.clip.service.ContentOrganizeService;
 import com.example.clip.service.PromptConfigService;
 import com.example.clip.service.SearchService;
+import com.example.clip.service.WeeklyReportService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -15,8 +16,10 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Collections;
+import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -46,6 +49,9 @@ public class ClipControllerTest {
 
     @MockBean
     private PromptConfigService promptConfigService;
+
+    @MockBean
+    private WeeklyReportService weeklyReportService;
 
     /**
      * 测试获取分类列表
@@ -107,5 +113,39 @@ public class ClipControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("success"))
                 .andExpect(jsonPath("$.id").value(1L));
+    }
+
+    @Test
+    public void testOrganizeInbox() throws Exception {
+        when(clipService.organizeInbox(any())).thenReturn(Map.of(
+                "status", "success",
+                "mode", "auto",
+                "organizedCount", 2
+        ));
+
+        mockMvc.perform(post("/api/clip/organize-inbox")
+                        .contentType("application/json")
+                        .content("{\"mode\":\"auto\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("success"))
+                .andExpect(jsonPath("$.mode").value("auto"))
+                .andExpect(jsonPath("$.organizedCount").value(2));
+    }
+
+    @Test
+    public void testOrganizeSingleClip() throws Exception {
+        when(clipService.organizeClip(eq(1L), any())).thenReturn(Map.of(
+                "status", "success",
+                "mode", "manual",
+                "clipId", 1
+        ));
+
+        mockMvc.perform(post("/api/clip/organize/1")
+                        .contentType("application/json")
+                        .content("{\"mode\":\"manual\",\"type\":\"ai-text\",\"category\":\"work-company\",\"tags\":[\"a\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("success"))
+                .andExpect(jsonPath("$.mode").value("manual"))
+                .andExpect(jsonPath("$.clipId").value(1));
     }
 }

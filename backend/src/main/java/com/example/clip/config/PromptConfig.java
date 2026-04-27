@@ -6,15 +6,25 @@ package com.example.clip.config;
  */
 public class PromptConfig {
 
+    private String clipAnalyzeSystemPrompt;
     private String dailyOrganizeSystemPrompt;
     private String weeklyReportSystemPrompt;
 
     public PromptConfig() {
     }
 
-    public PromptConfig(String dailyOrganizeSystemPrompt, String weeklyReportSystemPrompt) {
+    public PromptConfig(String clipAnalyzeSystemPrompt, String dailyOrganizeSystemPrompt, String weeklyReportSystemPrompt) {
+        this.clipAnalyzeSystemPrompt = clipAnalyzeSystemPrompt;
         this.dailyOrganizeSystemPrompt = dailyOrganizeSystemPrompt;
         this.weeklyReportSystemPrompt = weeklyReportSystemPrompt;
+    }
+
+    public String getClipAnalyzeSystemPrompt() {
+        return clipAnalyzeSystemPrompt;
+    }
+
+    public void setClipAnalyzeSystemPrompt(String clipAnalyzeSystemPrompt) {
+        this.clipAnalyzeSystemPrompt = clipAnalyzeSystemPrompt;
     }
 
     public String getDailyOrganizeSystemPrompt() {

@@ -32,6 +32,8 @@ public class ClipContent {
 
     private String captureMethod;  // 采集方式
 
+    private String workflowStatus;  // 流程状态：inbox / organized / archived
+
     private List<String> tags = new ArrayList<>();  // 标签列表
 
     private LocalDateTime createdAt;  // 创建时间
@@ -152,6 +154,14 @@ public class ClipContent {
 
     public void setCaptureMethod(String captureMethod) {
         this.captureMethod = captureMethod;
+    }
+
+    public String getWorkflowStatus() {
+        return workflowStatus;
+    }
+
+    public void setWorkflowStatus(String workflowStatus) {
+        this.workflowStatus = workflowStatus;
     }
 
     public List<String> getTags() {

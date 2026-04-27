@@ -296,6 +296,28 @@ public class FileStorageService {
     }
 
     /**
+     * 跨分类更新剪藏：先全量移除旧记录，再按当前分类写入
+     */
+    public ClipContent replaceClip(ClipContent clip) {
+        if (clip == null || clip.getId() == null) {
+            return saveClip(clip);
+        }
+        try {
+            List<Path> jsonFiles = getAllJsonFiles();
+            for (Path path : jsonFiles) {
+                List<ClipContent> clips = readClipArrayFromFile(path);
+                boolean found = clips.removeIf(item -> item.getId() != null && item.getId().equals(clip.getId()));
+                if (found) {
+                    writeClipArrayToFile(path, clips);
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return saveClip(clip);
+    }
+
+    /**
      * 按分类获取剪藏
      * 支持一级和二级分类查询
      */

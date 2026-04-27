@@ -16,6 +16,7 @@ public class ClipRequest {
     private String capturedAt;
     private String selectedText;
     private String captureMethod;
+    private String workflowStatus;
     private List<String> tags;
     private Boolean useAiTags;
     private String fileData;
@@ -100,6 +101,14 @@ public class ClipRequest {
 
     public void setCaptureMethod(String captureMethod) {
         this.captureMethod = captureMethod;
+    }
+
+    public String getWorkflowStatus() {
+        return workflowStatus;
+    }
+
+    public void setWorkflowStatus(String workflowStatus) {
+        this.workflowStatus = workflowStatus;
     }
 
     public List<String> getTags() {

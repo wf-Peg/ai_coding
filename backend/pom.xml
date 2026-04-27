@@ -123,6 +123,14 @@
     <!-- 构建配置 -->
     <build>
         <plugins>
+            <!-- Surefire：兼容较新JDK下Mockito/ByteBuddy的测试运行 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>-Dnet.bytebuddy.experimental=true</argLine>
+                </configuration>
+            </plugin>
             <!-- Spring Boot Maven插件 -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>

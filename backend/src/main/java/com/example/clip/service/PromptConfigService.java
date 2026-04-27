@@ -24,6 +24,10 @@ public class PromptConfigService {
         }
 
         PromptConfig normalized = new PromptConfig();
+        normalized.setClipAnalyzeSystemPrompt(normalizeOrDefault(
+                loaded.getClipAnalyzeSystemPrompt(),
+                DEFAULT_CLIP_ANALYZE_PROMPT
+        ));
         normalized.setDailyOrganizeSystemPrompt(normalizeOrDefault(
                 loaded.getDailyOrganizeSystemPrompt(),
                 DEFAULT_DAILY_ORGANIZE_PROMPT
@@ -36,11 +40,16 @@ public class PromptConfigService {
     }
 
     public PromptConfig savePromptConfig(PromptConfig config) {
-        validate(config);
+        if (config == null) {
+            throw new IllegalArgumentException("Prompt配置不能为空");
+        }
+        PromptConfig existing = getPromptConfig();
         PromptConfig normalized = new PromptConfig(
-                config.getDailyOrganizeSystemPrompt().trim(),
-                config.getWeeklyReportSystemPrompt().trim()
+                normalizeOrDefault(config.getClipAnalyzeSystemPrompt(), existing.getClipAnalyzeSystemPrompt()),
+                normalizeOrDefault(config.getDailyOrganizeSystemPrompt(), existing.getDailyOrganizeSystemPrompt()),
+                normalizeOrDefault(config.getWeeklyReportSystemPrompt(), existing.getWeeklyReportSystemPrompt())
         );
+        validate(normalized);
         storageService.saveConfig(normalized);
         return normalized;
     }
@@ -57,6 +66,10 @@ public class PromptConfigService {
         return prompt.replace("{{category}}", safeCategory);
     }
 
+    public String getClipAnalyzePrompt() {
+        return getPromptConfig().getClipAnalyzeSystemPrompt();
+    }
+
     public String getWeeklyReportPrompt() {
         return getPromptConfig().getWeeklyReportSystemPrompt();
     }
@@ -69,13 +82,14 @@ public class PromptConfigService {
     }
 
     private PromptConfig getDefaultConfig() {
-        return new PromptConfig(DEFAULT_DAILY_ORGANIZE_PROMPT, DEFAULT_WEEKLY_REPORT_PROMPT);
+        return new PromptConfig(DEFAULT_CLIP_ANALYZE_PROMPT, DEFAULT_DAILY_ORGANIZE_PROMPT, DEFAULT_WEEKLY_REPORT_PROMPT);
     }
 
     private void validate(PromptConfig config) {
         if (config == null) {
             throw new IllegalArgumentException("Prompt配置不能为空");
         }
+        validateField("clipAnalyzeSystemPrompt", config.getClipAnalyzeSystemPrompt());
         validateField("dailyOrganizeSystemPrompt", config.getDailyOrganizeSystemPrompt());
         validateField("weeklyReportSystemPrompt", config.getWeeklyReportSystemPrompt());
     }
@@ -134,6 +148,11 @@ public class PromptConfigService {
             "- 保持客观、理性的语调。\n" +
             "- 确保“分析”部分具有高信息密度，拒绝废话。\n" +
             "- 清洗格式错误（如多余的冒号、错误的换行、标题符号重叠）。";
+
+    private static final String DEFAULT_CLIP_ANALYZE_PROMPT =
+            "你是一个专业的内容分析助手。请对输入内容生成高质量摘要、分析和标签。\n" +
+            "输出应准确、简洁、结构化，避免空话和重复。\n" +
+            "analysis 字段使用 Markdown 格式，重点提炼关键结论与可执行洞见。";
 
     private static final String DEFAULT_WEEKLY_REPORT_PROMPT =
             "# Role\n" +
