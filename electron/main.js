@@ -81,12 +81,51 @@ function getJavaCommand() {
   const allPaths = [...embeddedPaths, ...localPaths];
   for (const p of allPaths) {
     if (fs.existsSync(p)) {
+      // Fix permissions on macOS: ensure Java binary is executable
+      // The bundled JRE loses executable permissions during packaging
+      if (process.platform === 'darwin') {
+        try {
+          fs.chmodSync(p, 0o755);
+          // Also fix dylib files in the JRE lib directory
+          const libDir = path.dirname(path.dirname(p));
+          const libPath = path.join(libDir, 'lib');
+          if (fs.existsSync(libPath)) {
+            fixPermissionsRecursive(libPath);
+          }
+          // Fix lib/server directory for jvm.cfg etc.
+          const serverPath = path.join(libDir, 'lib', 'server');
+          if (fs.existsSync(serverPath)) {
+            fixPermissionsRecursive(serverPath);
+          }
+        } catch (e) {
+          console.log('Failed to fix JRE permissions:', e.message);
+        }
+      }
       console.log('Found Java at:', p);
       return p;
     }
   }
   console.log('No embedded JRE found, using system java');
   return 'java';
+}
+
+function fixPermissionsRecursive(dir) {
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        fixPermissionsRecursive(fullPath);
+      } else if (entry.isFile()) {
+        // Make all .dylib, .so, and executable files executable
+        if (entry.name.endsWith('.dylib') || entry.name.endsWith('.so') || !path.extname(entry.name)) {
+          fs.chmodSync(fullPath, 0o755);
+        }
+      }
+    }
+  } catch (e) {
+    console.log('Failed to fix permissions in', dir, ':', e.message);
+  }
 }
 
 function getJarPath() {
