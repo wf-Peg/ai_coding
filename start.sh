@@ -76,21 +76,35 @@ if port_in_use $FRONTEND_PORT; then
 else
   echo "[2/2] Starting frontend..."
 
-  if command -v npx &>/dev/null; then
-    npx serve "$FRONTEND_DIR" -l $FRONTEND_PORT --no-clipboard --listen 0.0.0.0 > "$FRONTEND_LOG" 2>&1 &
-    FRONTEND_PID=$!
-    echo "       Frontend starting... (PID: $FRONTEND_PID)"
-    sleep 3
-  elif command -v python3 &>/dev/null; then
+  if command -v python3 &>/dev/null; then
     cd "$FRONTEND_DIR"
     python3 -m http.server $FRONTEND_PORT --bind 0.0.0.0 > "$FRONTEND_LOG" 2>&1 &
     FRONTEND_PID=$!
     cd "$SCRIPT_DIR"
     echo "       Frontend starting... (PID: $FRONTEND_PID, using Python)"
-    sleep 2
+  elif command -v npx &>/dev/null; then
+    npx serve "$FRONTEND_DIR" --no-clipboard \
+      --listen "tcp://0.0.0.0:$FRONTEND_PORT" > "$FRONTEND_LOG" 2>&1 &
+    FRONTEND_PID=$!
+    echo "       Frontend starting... (PID: $FRONTEND_PID, using npx serve)"
   else
-    echo "[WARN] Neither npx nor python3 found. Start frontend manually:"
-    echo "        npx serve frontend -l $FRONTEND_PORT --listen 0.0.0.0"
+    echo "[WARN] Neither python3 nor npx found. Start frontend manually:"
+    echo "        python3 -m http.server $FRONTEND_PORT --bind 0.0.0.0"
+  fi
+
+  # Wait for frontend to be ready
+  sleep 2
+  RETRIES=0
+  while [ $RETRIES -lt 10 ]; do
+    if curl -sf "http://127.0.0.1:$FRONTEND_PORT" >/dev/null 2>&1; then
+      echo "       Frontend ready!"
+      break
+    fi
+    sleep 1
+    RETRIES=$((RETRIES + 1))
+  done
+  if [ $RETRIES -ge 10 ]; then
+    echo "[WARN] Frontend not responding yet. Check $FRONTEND_LOG"
   fi
 fi
 

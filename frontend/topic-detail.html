@@ -216,6 +216,65 @@
 
         .radius-sm { border-radius: 8px; }
 
+        /* Notion 主题 */
+        html[data-theme="notion"] {
+            --primary: #2383e2;
+            --primary-dark: #1f76c9;
+            --background: #f7f7f5;
+            --surface: #ffffff;
+            --text: #2f3437;
+            --text-secondary: #6b6f76;
+            --text-muted: #8a8f98;
+            --border: #e8e8e6;
+            --shadow: 0 1px 0 rgba(15,23,42,0.03), 0 8px 20px rgba(15,23,42,0.04);
+        }
+        html[data-theme="notion"] .nav {
+            border-bottom-color: #e8e8e6;
+        }
+        html[data-theme="notion"] .nav .back-btn {
+            border-color: #dcdcd8;
+            color: #6b6f76;
+        }
+        html[data-theme="notion"] .nav .back-btn:hover { background: #f1f1ef; }
+        html[data-theme="notion"] .nav .btn {
+            border-color: #dcdcd8;
+            color: #6b6f76;
+        }
+        html[data-theme="notion"] .nav .btn:hover { background: #f1f1ef; }
+        html[data-theme="notion"] .nav .btn.danger { color: #e03e3e; border-color: #f5d0d0; }
+        html[data-theme="notion"] .nav .btn.danger:hover { background: #fdeeee; }
+        html[data-theme="notion"] .topic-summary {
+            background: #f1f1ef;
+            border-left-color: #2383e2;
+            color: #6b6f76;
+        }
+        html[data-theme="notion"] .topic-content {
+            border-color: #e8e8e6;
+        }
+        html[data-theme="notion"] .topic-content code {
+            background: #f1f1ef;
+        }
+        html[data-theme="notion"] .topic-content blockquote {
+            background: #f7f7f5;
+            border-left-color: #2383e2;
+            color: #6b6f76;
+        }
+        html[data-theme="notion"] .topic-content th {
+            background: #f7f7f5;
+        }
+        html[data-theme="notion"] .topic-content td,
+        html[data-theme="notion"] .topic-content th {
+            border-color: #e8e8e6;
+        }
+        html[data-theme="notion"] .topic-meta .tag {
+            background: #f1f1ef;
+            color: #5f646c;
+        }
+        html[data-theme="notion"] .loading .spinner {
+            border-color: #e8e8e6;
+            border-top-color: #2383e2;
+        }
+
         @media (max-width: 768px) {
             .container { padding: 16px; }
             .topic-title { font-size: 1.4rem; }
@@ -246,5 +305,17 @@
     <script src="libs/marked.min.js"></script>
     <script src="libs/html2canvas.min.js"></script>
     <script src="topic-detail.js"></script>
+    <script>
+      (function() {
+        const KEY = 'app_theme_v1';
+        function apply(t) {
+          document.documentElement.setAttribute('data-theme', t === 'regular' ? 'regular' : 'notion');
+        }
+        apply(localStorage.getItem(KEY) || 'notion');
+        window.addEventListener('storage', function(e) {
+          if (e.key === KEY) apply(e.newValue);
+        });
+      })();
+    </script>
 </body>
 </html>

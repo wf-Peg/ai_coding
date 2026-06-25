@@ -141,12 +141,38 @@
       <a href="https://dashscope.console.aliyun.com/apiKey" target="_blank" style="color: #667eea;">点击获取 API Key</a>
     </div>
     <div class="section">
-      <div class="section-title"><span class="icon">🔑</span> API 配置</div>
+      <div class="section-title"><span class="icon">🔑</span> AI 模型配置</div>
       <div class="form-group">
-        <label>DashScope API Key <span class="hint">（必填）</span></label>
-        <div class="api-key-wrapper">
-          <input type="password" id="apiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" />
-          <button class="toggle-visibility" id="toggleApiKey" type="button">👁</button>
+        <label>当前使用模型</label>
+        <select id="activeProvider" style="width:100%;padding:10px 14px;border:1px solid #d9dce1;border-radius:8px;font-size:14px;outline:none;background:white;cursor:pointer;">
+          <option value="dashscope">阿里云 DashScope</option>
+          <option value="deepseek">DeepSeek</option>
+        </select>
+      </div>
+      <div id="dashscopeFields">
+        <div class="form-group">
+          <label>DashScope API Key <span class="hint">（必填）</span></label>
+          <div class="api-key-wrapper">
+            <input type="password" id="apiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" />
+            <button class="toggle-visibility" id="toggleApiKey" type="button">👁</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>DashScope 模型</label>
+          <input type="text" id="dashscopeModel" placeholder="qwen-plus" style="width:100%;padding:10px 14px;border:1px solid #d9dce1;border-radius:8px;font-size:14px;outline:none;background:white;" />
+        </div>
+      </div>
+      <div id="deepseekFields" style="display:none;">
+        <div class="form-group">
+          <label>DeepSeek API Key <span class="hint">（必填）</span></label>
+          <div class="api-key-wrapper">
+            <input type="password" id="deepseekApiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" />
+            <button class="toggle-visibility" id="toggleDeepseekApiKey" type="button">👁</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>DeepSeek 模型</label>
+          <input type="text" id="deepseekModel" placeholder="deepseek-chat" style="width:100%;padding:10px 14px;border:1px solid #d9dce1;border-radius:8px;font-size:14px;outline:none;background:white;" />
         </div>
       </div>
     </div>
@@ -270,7 +296,11 @@
     waitForAPI(function(api) {
       // Listen for config load
       api.onLoadConfig(function(config) {
+        document.getElementById('activeProvider').value = config.activeProvider || 'dashscope';
         document.getElementById('apiKey').value = config.apiKey || '';
+        document.getElementById('dashscopeModel').value = config.dashscopeModel || 'qwen-plus';
+        document.getElementById('deepseekApiKey').value = config.deepseekApiKey || '';
+        document.getElementById('deepseekModel').value = config.deepseekModel || 'deepseek-chat';
         document.getElementById('backendPort').value = config.backendPort || 8080;
         document.getElementById('frontendPort').value = config.frontendPort || 3000;
         document.getElementById('storagePath').value = config.storagePath || '';
@@ -283,6 +313,8 @@
         document.getElementById('mailUsername').value = config.mailUsername || '';
         document.getElementById('mailPassword').value = config.mailPassword || '';
         document.getElementById('mailFields').style.display = config.mailEnabled ? 'block' : 'none';
+        // Update provider fields visibility
+        updateProviderFields();
       });
 
       // Listen for first run
@@ -319,6 +351,32 @@
           btn.textContent = '👁';
         }
       });
+
+      // Toggle DeepSeek API key visibility
+      document.getElementById('toggleDeepseekApiKey').addEventListener('click', function() {
+        var input = document.getElementById('deepseekApiKey');
+        var btn = document.getElementById('toggleDeepseekApiKey');
+        if (input.type === 'password') {
+          input.type = 'text';
+          btn.textContent = '🙈';
+        } else {
+          input.type = 'password';
+          btn.textContent = '👁';
+        }
+      });
+
+      // Provider switch
+      function updateProviderFields() {
+        var provider = document.getElementById('activeProvider').value;
+        if (provider === 'deepseek') {
+          document.getElementById('dashscopeFields').style.display = 'none';
+          document.getElementById('deepseekFields').style.display = 'block';
+        } else {
+          document.getElementById('dashscopeFields').style.display = 'block';
+          document.getElementById('deepseekFields').style.display = 'none';
+        }
+      }
+      document.getElementById('activeProvider').addEventListener('change', updateProviderFields);
 
       // Toggle mail fields visibility
       document.getElementById('mailEnabled').addEventListener('change', function() {
@@ -376,7 +434,11 @@
     if (backendPort === frontendPort) { showStatus('前端和后端端口不能相同', 'error'); return; }
 
     var newConfig = {
-      apiKey: apiKey, backendPort: backendPort, frontendPort: frontendPort,
+      activeProvider: document.getElementById('activeProvider').value,
+      apiKey: apiKey, dashscopeModel: document.getElementById('dashscopeModel').value,
+      deepseekApiKey: document.getElementById('deepseekApiKey').value.trim(),
+      deepseekModel: document.getElementById('deepseekModel').value,
+      backendPort: backendPort, frontendPort: frontendPort,
       storagePath: storagePath, organizedPath: organizedPath, weeklyReportPath: weeklyReportPath, configured: true,
       mailEnabled: document.getElementById('mailEnabled').checked,
       mailHost: document.getElementById('mailHost').value.trim(),

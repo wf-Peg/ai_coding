@@ -35,6 +35,16 @@ spring:
           # 模型名称，默认使用 qwen-turbo
           # 可选值: qwen-turbo, qwen-plus, qwen-max, qwen-max-longcontext,qwen-flash
           model: qwen-plus
+    openai:
+      # DeepSeek API Key（OpenAI 兼容API）
+      # 从 `https://platform.deepseek.com/api_keys` 获取
+      api-key: your-deepseek-api-key
+      base-url: https://api.deepseek.com
+      chat:
+        options:
+          # DeepSeek 模型名称
+          # 可选值: deepseek-chat, deepseek-reasoner
+          model: deepseek-chat
 
 # 服务器配置
 server:

@@ -150,6 +150,12 @@
             </svg>
             <span class="label">话题</span>
         </button>
+        <button class="nav-item" data-view="settings" title="设置">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+            <span class="label">设置</span>
+        </button>
     </nav>
     <div class="main-content" id="mainContent">
         <div class="container" id="homeView">
@@ -183,6 +189,13 @@
 
     applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME);
 
+    // 监听 iframe 子页面的主题变更消息
+    window.addEventListener('message', event => {
+      if (event.data && event.data.type === 'themeChanged') {
+        applyTheme(event.data.theme, false);
+      }
+    });
+
     // 导航切换
     const navItems = document.querySelectorAll('.nav-item');
     const mainContent = document.getElementById('mainContent');
@@ -201,6 +214,9 @@
         } else if (view === 'topic') {
           // 加载话题页面
           mainContent.innerHTML = '<iframe src="topic.html" style="width:100%;height:100%;border:none;"></iframe>';
+        } else if (view === 'settings') {
+          // 加载设置页面
+          mainContent.innerHTML = '<iframe src="settings.html" style="width:100%;height:100%;border:none;"></iframe>';
         }
       });
     });

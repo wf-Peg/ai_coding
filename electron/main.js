@@ -25,6 +25,10 @@ const DEFAULT_CONFIG = {
   backendPort: 8080,
   frontendPort: 3000,
   apiKey: '',
+  activeProvider: 'dashscope',
+  deepseekApiKey: '',
+  deepseekModel: 'deepseek-chat',
+  dashscopeModel: 'qwen-plus',
   storagePath: path.join(APP_DIR, 'clip-storage'),
   organizedPath: path.join(APP_DIR, 'clip-organized'),
   weeklyReportPath: path.join(APP_DIR, 'weeklyReport'),
@@ -197,7 +201,12 @@ function generateApplicationYml(config) {
       ai: {
         dashscope: {
           'api-key': config.apiKey,
-          chat: { options: { model: 'qwen-plus' } }
+          chat: { options: { model: config.dashscopeModel || 'qwen-plus' } }
+        },
+        openai: {
+          'api-key': config.deepseekApiKey || '',
+          'base-url': 'https://api.deepseek.com',
+          chat: { options: { model: config.deepseekModel || 'deepseek-chat' } }
         }
       }
     },

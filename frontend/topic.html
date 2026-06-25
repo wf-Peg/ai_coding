@@ -268,6 +268,70 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
+        /* Notion 主题 */
+        html[data-theme="notion"] {
+            --primary: #2383e2;
+            --primary-dark: #1f76c9;
+            --background: #f7f7f5;
+            --surface: #ffffff;
+            --text: #2f3437;
+            --text-secondary: #6b6f76;
+            --text-muted: #8a8f98;
+            --border: #e8e8e6;
+            --shadow: 0 1px 0 rgba(15,23,42,0.03), 0 8px 20px rgba(15,23,42,0.04);
+            --shadow-hover: 0 1px 0 rgba(15,23,42,0.04), 0 12px 24px rgba(15,23,42,0.08);
+        }
+        html[data-theme="notion"] .header {
+            background: rgba(255,255,255,0.9);
+            border-bottom-color: #e8e8e6;
+        }
+        html[data-theme="notion"] .search-box input {
+            background: #f1f1ef;
+            border-color: #dcdcd8;
+        }
+        html[data-theme="notion"] .search-box input:focus {
+            background: #ffffff;
+            border-color: #2383e2;
+        }
+        html[data-theme="notion"] .filter-tag {
+            border-color: #dcdcd8;
+            background: #ffffff;
+            color: #6b6f76;
+        }
+        html[data-theme="notion"] .filter-tag:hover { border-color: #2383e2; color: #2383e2; }
+        html[data-theme="notion"] .filter-tag.active {
+            background: #2f3437;
+            color: #ffffff;
+            border-color: #2f3437;
+        }
+        html[data-theme="notion"] .topic-card {
+            border-color: #e8e8e6;
+            box-shadow: none;
+        }
+        html[data-theme="notion"] .topic-card:hover {
+            border-color: #d8d8d4;
+            box-shadow: 0 1px 0 rgba(15,23,42,0.04), 0 12px 24px rgba(15,23,42,0.08);
+        }
+        html[data-theme="notion"] .topic-card .tag {
+            background: #f1f1ef;
+            color: #5f646c;
+        }
+        html[data-theme="notion"] .topic-card .footer {
+            border-top-color: #e8e8e6;
+        }
+        html[data-theme="notion"] .btn-primary {
+            background: #2f3437;
+            color: #ffffff;
+        }
+        html[data-theme="notion"] .btn-primary:hover {
+            background: #1f2328;
+            box-shadow: 0 4px 12px rgba(31,35,40,0.3);
+        }
+        html[data-theme="notion"] .loading .spinner {
+            border-color: #e8e8e6;
+            border-top-color: #2383e2;
+        }
+
         @media (max-width: 768px) {
             .header-inner { flex-wrap: wrap; }
             .search-box { order: 3; max-width: 100%; flex-basis: 100%; }
@@ -308,5 +372,17 @@
     </div>
 
     <script src="topic.js"></script>
+    <script>
+      (function() {
+        const KEY = 'app_theme_v1';
+        function apply(t) {
+          document.documentElement.setAttribute('data-theme', t === 'regular' ? 'regular' : 'notion');
+        }
+        apply(localStorage.getItem(KEY) || 'notion');
+        window.addEventListener('storage', function(e) {
+          if (e.key === KEY) apply(e.newValue);
+        });
+      })();
+    </script>
 </body>
 </html>

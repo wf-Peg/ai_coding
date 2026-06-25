@@ -216,6 +216,73 @@
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
 
+        /* Notion 主题 */
+        html[data-theme="notion"] {
+            --primary: #2383e2;
+            --primary-dark: #1f76c9;
+            --background: #f7f7f5;
+            --surface: #ffffff;
+            --text: #2f3437;
+            --text-secondary: #6b6f76;
+            --text-muted: #8a8f98;
+            --border: #e8e8e6;
+            --radius: 12px;
+            --radius-sm: 8px;
+            --shadow: 0 1px 0 rgba(15,23,42,0.03), 0 8px 20px rgba(15,23,42,0.04);
+        }
+        html[data-theme="notion"] .nav {
+            border-bottom-color: #e8e8e6;
+        }
+        html[data-theme="notion"] .nav .back-btn {
+            border-color: #dcdcd8;
+            color: #6b6f76;
+        }
+        html[data-theme="notion"] .nav .back-btn:hover { background: #f1f1ef; }
+        html[data-theme="notion"] .nav .btn-secondary {
+            border-color: #dcdcd8;
+            color: #6b6f76;
+        }
+        html[data-theme="notion"] .nav .btn-secondary:hover { background: #f1f1ef; }
+        html[data-theme="notion"] .nav .btn-primary {
+            background: #2f3437;
+            color: #ffffff;
+        }
+        html[data-theme="notion"] .nav .btn-primary:hover { background: #1f2328; }
+        html[data-theme="notion"] .form-group input,
+        html[data-theme="notion"] .form-group select,
+        html[data-theme="notion"] .form-group textarea {
+            border-color: #dcdcd8;
+            background: #ffffff;
+        }
+        html[data-theme="notion"] .form-group input:focus,
+        html[data-theme="notion"] .form-group select:focus,
+        html[data-theme="notion"] .form-group textarea:focus {
+            border-color: #2383e2;
+            box-shadow: 0 0 0 3px rgba(35,131,226,0.15);
+        }
+        html[data-theme="notion"] .tags-input-wrapper {
+            border-color: #dcdcd8;
+            background: #ffffff;
+        }
+        html[data-theme="notion"] .tags-input-wrapper:focus-within {
+            border-color: #2383e2;
+            box-shadow: 0 0 0 3px rgba(35,131,226,0.15);
+        }
+        html[data-theme="notion"] .tag-item {
+            background: #f1f1ef;
+            color: #5f646c;
+        }
+        html[data-theme="notion"] .import-section {
+            background: #f1f1ef;
+            border-color: #2383e2;
+        }
+        html[data-theme="notion"] .import-section h3 { color: #2383e2; }
+        html[data-theme="notion"] .import-section .btn-import {
+            background: #2f3437;
+            color: #ffffff;
+        }
+        html[data-theme="notion"] .import-section .btn-import:hover { background: #1f2328; }
+
         @media (max-width: 768px) {
             .form-row { flex-direction: column; }
             .container { padding: 16px; }
@@ -285,5 +352,17 @@
     </div>
 
     <script src="topic-editor.js"></script>
+    <script>
+      (function() {
+        const KEY = 'app_theme_v1';
+        function apply(t) {
+          document.documentElement.setAttribute('data-theme', t === 'regular' ? 'regular' : 'notion');
+        }
+        apply(localStorage.getItem(KEY) || 'notion');
+        window.addEventListener('storage', function(e) {
+          if (e.key === KEY) apply(e.newValue);
+        });
+      })();
+    </script>
 </body>
 </html>
