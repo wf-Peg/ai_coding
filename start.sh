@@ -77,20 +77,20 @@ else
   echo "[2/2] Starting frontend..."
 
   if command -v npx &>/dev/null; then
-    npx serve "$FRONTEND_DIR" -l $FRONTEND_PORT > "$FRONTEND_LOG" 2>&1 &
+    npx serve "$FRONTEND_DIR" -l $FRONTEND_PORT --no-clipboard --listen 0.0.0.0 > "$FRONTEND_LOG" 2>&1 &
     FRONTEND_PID=$!
     echo "       Frontend starting... (PID: $FRONTEND_PID)"
     sleep 3
   elif command -v python3 &>/dev/null; then
     cd "$FRONTEND_DIR"
-    python3 -m http.server $FRONTEND_PORT > "$FRONTEND_LOG" 2>&1 &
+    python3 -m http.server $FRONTEND_PORT --bind 0.0.0.0 > "$FRONTEND_LOG" 2>&1 &
     FRONTEND_PID=$!
     cd "$SCRIPT_DIR"
     echo "       Frontend starting... (PID: $FRONTEND_PID, using Python)"
     sleep 2
   else
     echo "[WARN] Neither npx nor python3 found. Start frontend manually:"
-    echo "        npx serve frontend -l $FRONTEND_PORT"
+    echo "        npx serve frontend -l $FRONTEND_PORT --listen 0.0.0.0"
   fi
 fi
 

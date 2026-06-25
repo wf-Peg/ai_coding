@@ -81,6 +81,10 @@ function getJavaCommand() {
   const allPaths = [...embeddedPaths, ...localPaths];
   for (const p of allPaths) {
     if (fs.existsSync(p)) {
+      if (!isExecutableForCurrentPlatform(p)) {
+        console.warn(`Skipping incompatible bundled Java for ${process.platform}: ${p}`);
+        continue;
+      }
       // Fix permissions on macOS: ensure Java binary is executable
       // The bundled JRE loses executable permissions during packaging
       if (process.platform === 'darwin') {
@@ -107,6 +111,34 @@ function getJavaCommand() {
   }
   console.log('No embedded JRE found, using system java');
   return 'java';
+}
+
+function isExecutableForCurrentPlatform(filePath) {
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    const header = Buffer.alloc(4);
+    fs.readSync(fd, header, 0, header.length, 0);
+    fs.closeSync(fd);
+
+    const isElf = header[0] === 0x7f && header[1] === 0x45 && header[2] === 0x4c && header[3] === 0x46;
+    const isWindowsExe = header[0] === 0x4d && header[1] === 0x5a;
+    const magic = header.readUInt32BE(0);
+    const isMachO = [
+      0xfeedface,
+      0xfeedfacf,
+      0xcefaedfe,
+      0xcffaedfe,
+      0xcafebabe,
+      0xbebafeca
+    ].includes(magic);
+
+    if (process.platform === 'darwin') return isMachO;
+    if (process.platform === 'win32') return isWindowsExe;
+    if (process.platform === 'linux') return isElf;
+  } catch (e) {
+    console.warn(`Could not inspect Java executable ${filePath}: ${e.message}`);
+  }
+  return true;
 }
 
 function fixPermissionsRecursive(dir) {
