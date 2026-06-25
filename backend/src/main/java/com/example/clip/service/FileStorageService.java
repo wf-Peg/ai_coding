@@ -4,6 +4,7 @@ import com.example.clip.core.AiService;
 import com.example.clip.model.ClipContent;
 import com.example.clip.model.KnowledgeEntry;
 import com.example.clip.model.TodoContent;
+import com.example.clip.model.Topic;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -57,6 +58,8 @@ public class FileStorageService {
             Files.createDirectories(storagePath.resolve("todoList"));
             // 创建知识条目目录
             Files.createDirectories(storagePath.resolve("knowledge"));
+            // 创建话题目录
+            Files.createDirectories(storagePath.resolve("topic"));
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -680,5 +683,131 @@ public class FileStorageService {
      */
     public Path getStoragePath() {
         return storagePath;
+    }
+
+    /**
+     * 获取话题存储目录路径
+     */
+    public Path getTopicStoragePath() {
+        return storagePath.resolve("topic");
+    }
+
+    // ==================== Topic 存储 ====================
+
+    private Path getTopicDateFilePath() {
+        String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        return storagePath.resolve("topic").resolve(date + ".json");
+    }
+
+    private List<Topic> readTopicArrayFromFile(Path path) {
+        try {
+            if (!Files.exists(path)) {
+                return new ArrayList<>();
+            }
+            String content = Files.readString(path);
+            if (content == null || content.trim().isEmpty()) {
+                return new ArrayList<>();
+            }
+            return objectMapper.readValue(content, new TypeReference<List<Topic>>() {});
+        } catch (IOException e) {
+            e.printStackTrace();
+            return new ArrayList<>();
+        }
+    }
+
+    private void writeTopicArrayToFile(Path path, List<Topic> topics) {
+        try {
+            Path parent = path.getParent();
+            if (!Files.exists(parent)) {
+                Files.createDirectories(parent);
+            }
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), topics);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public Topic saveTopic(Topic topic) {
+        try {
+            if (topic.getId() == null) {
+                topic.setId(idGenerator.getAndIncrement());
+            }
+
+            Path filePath = getTopicDateFilePath();
+            List<Topic> topics = readTopicArrayFromFile(filePath);
+
+            boolean updated = false;
+            for (int i = 0; i < topics.size(); i++) {
+                if (topics.get(i).getId() != null && topics.get(i).getId().equals(topic.getId())) {
+                    topics.set(i, topic);
+                    updated = true;
+                    break;
+                }
+            }
+            if (!updated) {
+                topics.add(topic);
+            }
+
+            writeTopicArrayToFile(filePath, topics);
+            return topic;
+        } catch (Exception e) {
+            log.error("Failed to save topic", e);
+            return null;
+        }
+    }
+
+    public List<Topic> getAllTopics() {
+        List<Topic> allTopics = new ArrayList<>();
+        try {
+            Path topicPath = storagePath.resolve("topic");
+            if (!Files.exists(topicPath)) {
+                return allTopics;
+            }
+
+            Files.walk(topicPath)
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".json"))
+                    .forEach(path -> allTopics.addAll(readTopicArrayFromFile(path)));
+
+            // 按创建时间倒序
+            allTopics.sort((a, b) -> {
+                if (a.getCreatedAt() == null && b.getCreatedAt() == null) return 0;
+                if (a.getCreatedAt() == null) return 1;
+                if (b.getCreatedAt() == null) return -1;
+                return b.getCreatedAt().compareTo(a.getCreatedAt());
+            });
+        } catch (IOException e) {
+            log.error("Failed to list topics", e);
+        }
+        return allTopics;
+    }
+
+    public Topic getTopicById(Long id) {
+        if (id == null) return null;
+        return getAllTopics().stream()
+                .filter(t -> t.getId() != null && t.getId().equals(id))
+                .findFirst()
+                .orElse(null);
+    }
+
+    public void deleteTopic(Long id) {
+        if (id == null) return;
+        try {
+            Path topicPath = storagePath.resolve("topic");
+            if (!Files.exists(topicPath)) return;
+
+            Files.walk(topicPath)
+                    .filter(Files::isRegularFile)
+                    .filter(p -> p.toString().endsWith(".json"))
+                    .forEach(path -> {
+                        List<Topic> topics = readTopicArrayFromFile(path);
+                        boolean found = topics.removeIf(t -> t.getId() != null && t.getId().equals(id));
+                        if (found) {
+                            writeTopicArrayToFile(path, topics);
+                        }
+                    });
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }

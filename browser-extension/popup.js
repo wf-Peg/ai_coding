@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const statusMessage = document.getElementById('statusMessage');
   const settingsBtn = document.getElementById('settingsBtn');
   const openClipList = document.getElementById('openClipList');
+  const openTopicList = document.getElementById('openTopicList');
   const openOptions = document.getElementById('openOptions');
 
   let currentTags = [];
@@ -57,6 +58,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   clearBtn.addEventListener('click', handleClear);
   settingsBtn.addEventListener('click', () => chrome.runtime.openOptionsPage());
   openClipList.addEventListener('click', openClipListPage);
+  openTopicList.addEventListener('click', openTopicListPage);
   openOptions.addEventListener('click', () => chrome.runtime.openOptionsPage());
 
   // AI标签复选框事件
@@ -243,6 +245,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   function openClipListPage() {
     // 打开本地的index.html文件
     chrome.tabs.create({ url: chrome.runtime.getURL('index.html') });
+  }
+
+  // 打开话题列表页面
+  function openTopicListPage() {
+    chrome.tabs.create({ url: chrome.runtime.getURL('topic.html') });
   }
 
   // HTML转义

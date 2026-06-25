@@ -2,7 +2,7 @@
 
 /**
  * afterPack hook for electron-builder
- * Fixes JRE binary permissions inside the packaged macOS app
+ * Validates the bundled JRE and fixes binary permissions inside the packaged macOS app.
  */
 const fs = require('fs');
 const path = require('path');
@@ -20,10 +20,41 @@ exports.default = async function(context) {
     return;
   }
 
+  const javaBinary = path.join(jreBin, 'java');
+  if (!isMacExecutable(javaBinary)) {
+    throw new Error(
+      `[afterPack] Bundled JRE is not a macOS executable: ${javaBinary}\n` +
+      'Use a macOS JRE/JDK for mac builds. The current jre/bin/java appears to be for another OS.'
+    );
+  }
+
   console.log('[afterPack] Fixing JRE permissions in:', jreBin);
   fixPermissionsRecursive(jreBin);
   console.log('[afterPack] JRE permissions fixed');
 };
+
+function isMacExecutable(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return false;
+  }
+
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const header = Buffer.alloc(4);
+    fs.readSync(fd, header, 0, header.length, 0);
+    const magic = header.readUInt32BE(0);
+    return [
+      0xfeedface,
+      0xfeedfacf,
+      0xcefaedfe,
+      0xcffaedfe,
+      0xcafebabe,
+      0xbebafeca
+    ].includes(magic);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
 
 function fixPermissionsRecursive(dir) {
   try {

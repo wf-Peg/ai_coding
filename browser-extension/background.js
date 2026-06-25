@@ -73,6 +73,13 @@ function createContextMenus() {
   });
 
   chrome.contextMenus.create({
+    id: 'clip-to-topic',
+    parentId: 'clip-main',
+    title: '剪藏到话题',
+    contexts: ['page', 'selection']
+  });
+
+  chrome.contextMenus.create({
     id: 'clip-ai-text',
     parentId: 'clip-main',
     title: 'AI文本整理',
@@ -104,6 +111,9 @@ async function handleContextMenuClick(info, tab) {
       break;
     case 'clip-image':
       await clipImage(tab, info.srcUrl);
+      break;
+    case 'clip-to-topic':
+      await clipToTopic(tab, info);
       break;
     case 'clip-ai-text':
       await clipWithType(tab, 'ai-text', Boolean(info.selectionText));
@@ -208,6 +218,36 @@ async function clipImage(tab, imageUrl) {
   } catch (error) {
     handleCaptureError(error, '剪藏图片失败');
     throw error;
+  }
+}
+
+async function clipToTopic(tab, info) {
+  await ensureTab(tab);
+  showNotification('正在准备话题内容...', 'info');
+
+  try {
+    const extraction = await requestCaptureData(tab.id, info.selectionText ? 'extractSelectionData' : 'extractPageData');
+    const content = info.selectionText || extraction.content || '';
+    const title = extraction.title || tab.title || '';
+
+    if (!content) {
+      throw createClassifiedError('extract_failed', '未提取到可用内容');
+    }
+
+    // 构建URL参数，打开话题编辑器
+    const params = new URLSearchParams();
+    params.set('fromClip', '1');
+    params.set('title', title);
+    params.set('content', content);
+    if (extraction.sourceUrl || tab.url) {
+      params.set('source', extraction.sourceUrl || tab.url);
+    }
+
+    const editorUrl = chrome.runtime.getURL('topic-editor.html') + '?' + params.toString();
+    await chrome.tabs.create({ url: editorUrl });
+    showNotification('已打开话题编辑器', 'success');
+  } catch (error) {
+    handleCaptureError(error, '剪藏到话题失败');
   }
 }
 
