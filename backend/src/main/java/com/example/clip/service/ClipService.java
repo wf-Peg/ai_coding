@@ -336,17 +336,24 @@ public class ClipService {
         int organizedCount = 0;
 
         for (ClipContent clip : inboxClips) {
+            if (!"store-only".equals(clip.getType())) {
+                continue;
+            }
+
             if ("manual".equals(mode)) {
                 applyManualOverrides(clip, request);
             } else {
-                applyAutoOrganize(clip);
+                applyFullAiOrganize(clip);
             }
 
             if (clip.getType() == null || clip.getType().isBlank()) {
-                clip.setType("store-only");
+                clip.setType("ai-text");
             }
             if (clip.getCategory() == null || clip.getCategory().isBlank()) {
                 clip.setCategory("default");
+            }
+            if (!"store-only".equals(clip.getType()) && needsAiOrganizeResult(clip)) {
+                applyFullAiOrganize(clip);
             }
             clip.setWorkflowStatus(WORKFLOW_ORGANIZED);
             storageService.replaceClip(clip);
@@ -373,7 +380,7 @@ public class ClipService {
         if ("manual".equals(mode)) {
             applyManualOverrides(clip, request);
         } else {
-            applyAutoOrganize(clip);
+            applyFullAiOrganize(clip);
         }
 
         if (clip.getType() == null || clip.getType().isBlank()) {
@@ -409,15 +416,22 @@ public class ClipService {
     }
 
     private String normalizeWorkflowStatus(ClipRequest request) {
+        String requestType = normalizeRequestedType(request.getType());
         if (request.getWorkflowStatus() != null && !request.getWorkflowStatus().isBlank()) {
-            return request.getWorkflowStatus().trim().toLowerCase();
+            String requestedStatus = request.getWorkflowStatus().trim().toLowerCase();
+            if (WORKFLOW_INBOX.equals(requestedStatus) && !"store-only".equals(requestType)) {
+                return WORKFLOW_ORGANIZED;
+            }
+            return requestedStatus;
         }
 
-        if (request.getCategory() != null && INBOX_CATEGORY.equalsIgnoreCase(request.getCategory().trim())) {
+        if ("store-only".equals(requestType)) {
             return WORKFLOW_INBOX;
         }
 
-        if (isStructuredCapture(request)) {
+        if (request.getCategory() != null
+                && INBOX_CATEGORY.equalsIgnoreCase(request.getCategory().trim())
+                && "store-only".equals(requestType)) {
             return WORKFLOW_INBOX;
         }
         return WORKFLOW_ORGANIZED;
@@ -447,6 +461,40 @@ public class ClipService {
             List<String> normalizedTags = tagList.stream().filter(String.class::isInstance).map(String.class::cast).collect(Collectors.toList());
             clip.setTags(normalizedTags);
         }
+    }
+
+    private boolean needsAiOrganizeResult(ClipContent clip) {
+        return clip.getSummary() == null || clip.getSummary().isBlank()
+                || clip.getAnalysis() == null || clip.getAnalysis().isBlank();
+    }
+
+    private void applyFullAiOrganize(ClipContent clip) {
+        if (clip == null || clip.getContent() == null || clip.getContent().isBlank()) {
+            return;
+        }
+
+        Map<String, Object> aiResult = aiService.processClipContent(clip.getContent(), true);
+        Object summary = aiResult.get("summary");
+        if (summary instanceof String value && !value.isBlank()) {
+            clip.setSummary(value);
+        }
+        Object analysis = aiResult.get("analysis");
+        if (analysis instanceof String value) {
+            clip.setAnalysis(value);
+        }
+        Object tags = aiResult.get("tags");
+        if (tags instanceof List<?> tagList) {
+            List<String> normalizedTags = tagList.stream()
+                    .filter(String.class::isInstance)
+                    .map(String.class::cast)
+                    .collect(Collectors.toList());
+            clip.setTags(normalizedTags);
+        }
+        Object category = aiResult.get("category");
+        if (category instanceof String value && !value.isBlank()) {
+            clip.setCategory(value);
+        }
+        clip.setType("ai-text");
     }
 
     private void applyManualOverrides(ClipContent clip, OrganizeInboxRequest request) {
@@ -484,10 +532,13 @@ public class ClipService {
     }
 
     private String normalizeType(String requestType, String workflowStatus) {
-        // inbox阶段统一只做收件，不做AI整理
-        if (WORKFLOW_INBOX.equalsIgnoreCase(workflowStatus)) {
-            return "store-only";
+        if (requestType != null && !requestType.isBlank()) {
+            return requestType.trim();
         }
+        return "ai-text";
+    }
+
+    private String normalizeRequestedType(String requestType) {
         if (requestType != null && !requestType.isBlank()) {
             return requestType.trim();
         }
@@ -498,8 +549,8 @@ public class ClipService {
         if (clip.getWorkflowStatus() != null && !clip.getWorkflowStatus().isBlank()) {
             return clip.getWorkflowStatus();
         }
-        // 兼容旧数据：历史上 category=inbox 的记录视为 inbox 状态
-        if (INBOX_CATEGORY.equalsIgnoreCase(clip.getCategory())) {
+        // 兼容旧数据：仅将历史 category=inbox 且只存储内容的记录视为 inbox 状态
+        if (INBOX_CATEGORY.equalsIgnoreCase(clip.getCategory()) && "store-only".equals(clip.getType())) {
             return WORKFLOW_INBOX;
         }
         return WORKFLOW_ORGANIZED;

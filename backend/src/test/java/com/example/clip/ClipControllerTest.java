@@ -22,6 +22,8 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -184,5 +186,36 @@ public class ClipControllerTest {
                 .andExpect(jsonPath("$.status").value("success"))
                 .andExpect(jsonPath("$.todoId").value(9))
                 .andExpect(jsonPath("$.sourceClipId").value(1));
+    }
+
+    @Test
+    public void testDivergentSummaryGeneratedAndPersisted() throws Exception {
+        ClipContent clip = new ClipContent();
+        clip.setId(1L);
+        clip.setContent("source content");
+        clip.setCategory("work-company");
+        when(clipService.getClipById(1L)).thenReturn(clip);
+        when(aiService.generateDivergentSummary(eq("source content"), eq("work-company"), any())).thenReturn("new divergent");
+
+        mockMvc.perform(get("/api/clip/divergent-summary/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").value("new divergent"));
+
+        verify(clipService).saveClip(clip);
+    }
+
+    @Test
+    public void testDivergentSummaryReturnsCachedValue() throws Exception {
+        ClipContent clip = new ClipContent();
+        clip.setId(1L);
+        clip.setDivergentSummary("cached divergent");
+        when(clipService.getClipById(1L)).thenReturn(clip);
+
+        mockMvc.perform(get("/api/clip/divergent-summary/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").value("cached divergent"));
+
+        verify(aiService, never()).generateDivergentSummary(any(), any(), any());
+        verify(clipService, never()).saveClip(any(ClipContent.class));
     }
 }

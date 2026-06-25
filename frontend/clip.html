@@ -627,10 +627,8 @@
         textarea:focus,
         select:focus {
             outline: none;
-            border-color: var(--miyazaki-green);
-            box-shadow:
-                    0 0 0 2px rgba(74, 124, 89, 0.2),
-                    0 4px 8px rgba(74, 124, 89, 0.1);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(63, 140, 255, 0.2);
             background: var(--surface-hover);
         }
 
@@ -925,115 +923,68 @@
 
         .fan-drawer {
             position: absolute;
-            top: 20px;
-            right: 24px;
-            width: 0;
-            height: 0;
-            pointer-events: none;
+            top: calc(100% + 8px);
+            right: 0;
+            min-width: 200px;
+            display: none;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: rgba(255, 255, 255, 0.96);
+            box-shadow: var(--shadow-hover);
             z-index: 12;
-        }
-
-        .fan-drawer::before {
-            content: '';
-            position: absolute;
-            right: -18px;
-            top: -18px;
-            width: 260px;
-            height: 260px;
-            border-radius: 50%;
-            background: radial-gradient(circle at 100% 100%, rgba(63, 140, 255, 0.14), rgba(63, 140, 255, 0.03) 62%, rgba(63, 140, 255, 0) 70%);
-            opacity: 0;
-            transform: scale(0.82);
-            transition: opacity 0.22s ease, transform 0.22s ease;
-            pointer-events: none;
+            backdrop-filter: blur(4px);
         }
 
         .fan-action-btn {
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 40px;
-            height: 40px;
-            border-radius: 999px;
-            border: 1px solid var(--border);
-            background: rgba(255, 255, 255, 0.72);
-            backdrop-filter: blur(8px);
-            color: var(--text-secondary);
             display: inline-flex;
             align-items: center;
-            justify-content: center;
-            font-size: 1.02rem;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text-secondary);
+            font-size: 0.78rem;
             cursor: pointer;
-            opacity: 0;
-            transform: translate(0, 0) scale(0.48) rotate(-12deg);
-            box-shadow: var(--shadow);
-            pointer-events: none;
-            filter: blur(1.6px);
-            will-change: transform, opacity, filter;
-            transition: transform 0.42s cubic-bezier(0.2, 0.9, 0.2, 1.08), opacity 0.32s ease, filter 0.28s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-            transition-delay: 0ms;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            box-shadow: none;
+            min-width: auto;
+            flex: 0 1 auto;
         }
 
         .fan-icon {
-            width: 18px;
-            height: 18px;
+            width: 16px;
+            height: 16px;
             stroke: currentColor;
             fill: none;
             stroke-width: 2;
             stroke-linecap: round;
             stroke-linejoin: round;
-            transform: scale(1);
-            transition: transform 0.2s ease, filter 0.2s ease;
+            flex-shrink: 0;
         }
 
         .fan-action-btn .fan-label {
-            position: absolute;
-            right: 48px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: rgba(17, 24, 39, 0.9);
-            color: #fff;
-            border-radius: 999px;
-            padding: 3px 10px;
-            font-size: 0.7rem;
-            white-space: nowrap;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-            pointer-events: none;
+            font-size: 0.75rem;
+            color: var(--text);
         }
 
         .fan-drawer.open {
-            pointer-events: auto;
-        }
-
-        .fan-drawer.open::before {
-            opacity: 1;
-            transform: scale(1);
-        }
-
-        .fan-drawer.open .fan-action-btn {
-            opacity: 0.7;
-            pointer-events: auto;
-            transform: translate(var(--tx), var(--ty)) scale(1) rotate(0deg);
-            filter: blur(0);
-            transition-delay: var(--d, 0ms);
+            display: flex;
         }
 
         .fan-action-btn:hover {
-            opacity: 1 !important;
-            transform: translate(var(--tx), var(--ty)) scale(1.22);
             color: var(--primary-dark);
             border-color: var(--primary);
-            box-shadow: var(--shadow-hover);
+            background: var(--surface-hover);
+            box-shadow: var(--shadow);
         }
 
         .fan-action-btn:hover .fan-icon {
-            transform: scale(1.28);
-            filter: drop-shadow(0 0 6px rgba(63, 140, 255, 0.45));
-        }
-
-        .fan-action-btn:hover .fan-label {
-            opacity: 1;
+            filter: drop-shadow(0 0 4px rgba(63, 140, 255, 0.3));
         }
 
         .clip-detail {
@@ -1356,28 +1307,26 @@
             flex: 1;
             min-width: 180px;
             padding: 10px 16px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid var(--border);
             border-radius: 20px;
-            background: rgba(30, 41, 59, 0.4);
+            background: var(--surface);
             color: var(--text);
             font-size: 0.95rem;
             font-family: inherit;
             transition: var(--transition);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
         }
 
         .tag-input:focus {
             outline: none;
             border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
-            background: rgba(30, 41, 59, 0.8);
+            background: var(--surface-hover);
         }
 
         .tag-input:disabled {
             opacity: 0.5;
             cursor: not-allowed;
-            background: rgba(30, 41, 59, 0.3);
+            background: var(--background-dark);
         }
 
         .file-upload-area {
@@ -1946,8 +1895,8 @@
                 <label class="modal-label" for="organize-type">类型（可选）</label>
                 <select id="organize-type" class="modal-textarea" style="min-height: 44px;">
                     <option value="">保持原类型</option>
-                    <option value="ai-text">AI文本整理</option>
                     <option value="store-only">只存储内容</option>
+                    <option value="ai-text">AI文本整理</option>
                     <option value="link-ai">链接AI解析整理</option>
                     <option value="doc-ai">文档AI解析整理</option>
                 </select>
@@ -2051,23 +2000,7 @@
             <form id="clip-form">
                 <div class="form-group">
                     <label for="content">内容</label>
-                    <textarea id="content" placeholder="请输入要剪藏的内容，支持粘贴图片..."></textarea>
-                    <div class="input-tips" style="margin-top: 8px; font-size: 0.85rem; color: var(--text-secondary);">
-                        <span>💡 提示：可直接粘贴图片到输入框</span>
-                    </div>
-                    <div id="image-upload-area" class="file-upload-area" style="margin-top: 12px;">
-                        <button type="button" class="upload-btn" style="background-color: #f0f0f0; border: 1px dashed #ddd; border-radius: 4px; padding: 8px 16px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem; display: inline-block; width: auto;" onclick="document.getElementById('image-input').click()">
-                            📷 上传图片
-                        </button>
-                        <input type="file" id="image-input" accept="image/*" multiple style="display: none;" onchange="handleImageFiles(this.files)">
-                        <div class="upload-tips" style="margin-top: 8px; font-size: 0.85rem; color: var(--text-secondary); text-align: left;">
-                            <span>支持批量上传图片</span>
-                        </div>
-                    </div>
-                    <div id="image-previews" class="image-previews" style="margin-top: 16px; display: none;">
-                        <h3 style="margin-bottom: 12px; color: var(--text); font-size: 1rem; font-weight: 600;">图片预览</h3>
-                        <div class="preview-grid" id="preview-grid" style="display: flex; flex-wrap: wrap; gap: 12px;"></div>
-                    </div>
+                    <textarea id="content" placeholder="请输入要剪藏的内容..."></textarea>
                     <div id="file-upload-area" class="file-upload-area" style="display:none;">
                         <div class="file-upload-dropzone" id="file-dropzone">
                             <div class="file-upload-icon">📄</div>
@@ -2098,7 +2031,7 @@
                 <div class="form-group">
                     <label for="category">分类</label>
                     <select id="category">
-                        <option value="">AI匹配分类（收件箱由流程状态控制）</option>
+                        <option value="">落入收件箱</option>
                     </select>
                 </div>
                 <div class="form-group" id="tags-group">
@@ -2114,7 +2047,7 @@
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn-secondary" onclick="clearForm()">清空</button>
-                    <button type="button" class="btn-secondary" onclick="startVoiceInput()">🎤 语音输入</button>
+<!--                    <button type="button" class="btn-secondary" onclick="startVoiceInput()">🎤 语音输入</button>-->
                     <div class="action-split-group add-clip-action-split">
                         <button class="icon-btn" type="button" title="配置添加剪藏AI Prompt" onclick="openPromptConfigModal('clip')">⚙️</button>
                         <button type="submit" class="btn-primary main-btn">添加剪藏</button>
@@ -2215,6 +2148,10 @@
         updateThemeToggleLabel();
     }
 
+    // File upload state
+    let uploadedFileBase64 = null;
+    let uploadedFileName = null;
+
     document.addEventListener('DOMContentLoaded', () => {
         applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME);
         fetchClips();
@@ -2256,7 +2193,6 @@
             const type = document.getElementById('type').value;
             const source = document.getElementById('source').value;
             const category = document.getElementById('category').value;
-            const submitCategory = category || 'inbox';
             const useAiTags = document.getElementById('ai-generate-tags').checked;
             const submitBtn = e.target.querySelector('button[type="submit"]');
 
@@ -2265,11 +2201,15 @@
             let requestBody = {
                 type,
                 source,
-                category: submitCategory,
-                workflowStatus: 'inbox',
+                category,
                 tags: useAiTags ? null : currentTags,
                 useAiTags: type === 'store-only' ? false : useAiTags
             };
+
+            // store-only 类型才发送 workflowStatus: "inbox"
+            if (type === 'store-only') {
+                requestBody.workflowStatus = 'inbox';
+            }
 
             if (type === 'doc-ai') {
                 if (!uploadedFileBase64) {
@@ -2287,13 +2227,7 @@
                 requestBody.content = content;
             }
 
-            // Add image data if any
-            if (uploadedImages.length > 0) {
-                requestBody.imageDataList = uploadedImages.map(img => ({
-                    base64Data: img.base64.split(',')[1], // Extract base64 data without prefix
-                    fileName: img.fileName
-                }));
-            }
+            // 图片上传功能已关闭，不再提交 imageDataList
 
             // 禁用提交按钮并显示加载状态
             const originalText = submitBtn.textContent;
@@ -2373,117 +2307,10 @@
         });
     });
 
-    // File upload state
-    let uploadedFileBase64 = null;
-    let uploadedFileName = null;
-
-    // Image upload state
-    let uploadedImages = [];
-
-    // Add paste event listener for image pasting
-    document.getElementById('content').addEventListener('paste', function(e) {
-        const items = e.clipboardData.items;
-
-        for (let i = 0; i < items.length; i++) {
-            if (items[i].type.indexOf('image') !== -1) {
-                e.preventDefault();
-                const file = items[i].getAsFile();
-                handleImageFile(file, 1);
-                break;
-            }
-        }
-    });
-
-    function handleImageFiles(files) {
-        if (files.length > 0) {
-            Array.from(files).forEach((file, index) => {
-                handleImageFile(file, index + 1);
-            });
-        }
-    }
-
-    function handleImageFile(file, index) {
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const base64 = reader.result;
-            const timestamp = new Date().getTime();
-            const extension = file.name ? file.name.split('.').pop().toLowerCase() : 'png';
-            // 使用实际的图片数量作为序号
-            const imageIndex = uploadedImages.length + 1;
-            const fileName = `file-${timestamp}-${imageIndex}.${extension}`;
-
-            // Add to uploaded images array
-            uploadedImages.push({ base64, fileName });
-
-            // Update image previews
-            updateImagePreviews();
-        };
-        reader.readAsDataURL(file);
-    }
-
-    function updateImagePreviews() {
-        const previewGrid = document.getElementById('preview-grid');
-        const imagePreviews = document.getElementById('image-previews');
-
-        if (uploadedImages.length > 0) {
-            previewGrid.innerHTML = '';
-            uploadedImages.forEach((img, index) => {
-                const previewItem = document.createElement('div');
-                previewItem.style.cssText = `
-                        position: relative;
-                        width: 120px;
-                        height: 120px;
-                        border: 1px solid var(--border);
-                        border-radius: 4px;
-                        overflow: hidden;
-                    `;
-
-                previewItem.innerHTML = `
-                        <img src="${img.base64}" alt="预览 ${index + 1}" style="width: 100%; height: 100%; object-fit: cover;">
-                        <button type="button" onclick="removeImage(${index})" style="
-                            position: absolute;
-                            top: 5px;
-                            right: 5px;
-                            background-color: rgba(255, 0, 0, 0.8);
-                            color: white;
-                            border: none;
-                            border-radius: 50%;
-                            width: 24px;
-                            height: 24px;
-                            font-size: 16px;
-                            cursor: pointer;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            transition: background-color 0.3s ease;
-                        ">×</button>
-                    `;
-
-                previewGrid.appendChild(previewItem);
-            });
-
-            imagePreviews.style.display = 'block';
-        } else {
-            imagePreviews.style.display = 'none';
-        }
-    }
-
-    function removeImage(index) {
-        uploadedImages.splice(index, 1);
-        updateImagePreviews();
-    }
-
-    function clearImages() {
-        uploadedImages = [];
-        updateImagePreviews();
-    }
-
     // Type label mapping
     const TYPE_LABELS = {
-        'ai-text': 'AI文本整理',
         'store-only': '纯文本存储',
+        'ai-text': 'AI文本整理',
         'link-ai': '链接解析',
         'doc-ai': '文档解析',
         'text': '文本', 'image': '图片', 'file': '文件', 'link': '链接'
@@ -2494,8 +2321,8 @@
     }
 
     // Type switch handler
-    document.getElementById('type').addEventListener('change', function() {
-        const type = this.value;
+    function handleTypeChange() {
+        const type = document.getElementById('type').value;
         const contentArea = document.getElementById('content');
         const fileUploadArea = document.getElementById('file-upload-area');
         const tagsGroup = document.getElementById('tags-group');
@@ -2525,39 +2352,42 @@
             fileUploadArea.style.display = 'none';
             tagsGroup.style.display = '';
         }
-    });
+    }
 
     // File upload handlers
     const dropzone = document.getElementById('file-dropzone');
     const fileInput = document.getElementById('file-input');
 
-    dropzone.addEventListener('click', () => fileInput.click());
+    if (dropzone) {
+        dropzone.addEventListener('click', () => fileInput.click());
 
-    dropzone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropzone.classList.add('dragover');
-    });
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
 
-    dropzone.addEventListener('dragleave', () => {
-        dropzone.classList.remove('dragover');
-    });
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('dragover');
+        });
 
-    dropzone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropzone.classList.remove('dragover');
-        if (e.dataTransfer.files.length > 0) {
-            handleFile(e.dataTransfer.files[0]);
-        }
-    });
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+    }
 
-    fileInput.addEventListener('change', () => {
-        if (fileInput.files.length > 0) {
-            handleFile(fileInput.files[0]);
-        }
-    });
+    if (fileInput) {
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                handleFile(fileInput.files[0]);
+            }
+        });
+    }
 
     function handleFile(file) {
-        const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
         const allowedExts = ['.pdf', '.docx', '.txt', '.md', '.csv'];
         const ext = '.' + file.name.split('.').pop().toLowerCase();
 
@@ -2591,8 +2421,6 @@
         if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
         return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     }
-
-
 
     // Category value-to-label mapping
     const CATEGORY_LABELS = {
@@ -2638,7 +2466,7 @@
 
             // Fill add-clip category select
             const select = document.getElementById('category');
-            select.innerHTML = '<option value="">AI匹配分类（收件箱由流程状态控制）</option>';
+            select.innerHTML = '<option value="">落入收件箱</option>';
 
             // Fill search category select
             const searchSelect = document.getElementById('search-category');
@@ -2744,7 +2572,7 @@
 
     function clearForm() {
         document.getElementById('content').value = '';
-        document.getElementById('type').value = 'ai-text';
+        document.getElementById('type').value = 'store-only';
         document.getElementById('source').value = '';
         document.getElementById('category').value = '';
         document.getElementById('ai-generate-tags').checked = false;
@@ -2752,7 +2580,7 @@
         currentTags = [];
         renderTags();
         removeFile();
-        clearImages();
+        // 图片相关已移除A
         document.getElementById('type').dispatchEvent(new Event('change'));
     }
 
@@ -2995,16 +2823,15 @@
         const originalContent = clip.content || '';
         const analysisContent = clip.analysis || '';
         const fanButtons = [
-            buildFanActionButton('organize-auto', clip.id, '-58px', '-6px', '快速AI整理', renderFanActionIcon('organizeAuto'), 0),
-            buildFanActionButton('organize-manual', clip.id, '-104px', '-34px', '编辑分类/标签', renderFanActionIcon('organizeManual'), 36),
-            buildFanActionButton('to-todo', clip.id, '-134px', '-78px', '转待办', renderFanActionIcon('toTodo'), 72),
-            buildFanActionButton('derive-knowledge', clip.id, '-142px', '-132px', '生成知识', renderFanActionIcon('knowledge'), 108)
+            buildFanActionButton('organize-auto', clip.id, '快速AI整理', renderFanActionIcon('organizeAuto')),
+            buildFanActionButton('organize-manual', clip.id, '编辑分类/标签', renderFanActionIcon('organizeManual')),
+            buildFanActionButton('to-todo', clip.id, '转待办', renderFanActionIcon('toTodo')),
         ];
         if (!isStoreOnly) {
-            fanButtons.push(buildFanActionButton('divergent', clip.id, '-122px', '-184px', '发散总结', renderFanActionIcon('divergent'), 144));
+            fanButtons.push(buildFanActionButton('divergent', clip.id, '发散性总结', renderFanActionIcon('divergent')));
         }
         if (!isSearch) {
-            fanButtons.push(buildFanActionButton('delete', clip.id, '-80px', '-224px', '删除', renderFanActionIcon('delete'), 180));
+            fanButtons.push(buildFanActionButton('delete', clip.id, '删除', renderFanActionIcon('delete')));
         }
 
         clipItem.innerHTML = `
@@ -3012,7 +2839,7 @@
                     <span class="category-badge">📁 ${categoryLabel}</span>
                     <div class="clip-actions">
                         <div class="more-actions-wrapper">
-                            <button class="expand-btn" onclick="toggleMoreActions(this, event)" title="扇形抽屉功能面板">
+                            <button class="expand-btn" onclick="toggleMoreActions(this, event)" title="更多功能">
                                 <span class="text">更多功能</span>
                                 <span class="icon">▼</span>
                             </button>
@@ -3154,8 +2981,8 @@
         }
     }
 
-    function buildFanActionButton(action, clipId, tx, ty, label, iconSvg, delayMs = 0) {
-        return `<button class="fan-action-btn" style="--tx:${tx};--ty:${ty};--d:${delayMs}ms;" onclick="handleMoreAction(event, '${action}', ${clipId})">${iconSvg}<span class="fan-label">${label}</span></button>`;
+    function buildFanActionButton(action, clipId, label, iconSvg) {
+        return `<button class="fan-action-btn" title="${label}" aria-label="${label}" onclick="handleMoreAction(event, '${action}', ${clipId})">${iconSvg}<span class="fan-label">${label}</span></button>`;
     }
 
     function renderFanActionIcon(type) {
@@ -3166,8 +2993,6 @@
                 return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>';
             case 'toTodo':
                 return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M9 11l2 2 4-4"/><rect x="3" y="4" width="18" height="16" rx="2"/></svg>';
-            case 'knowledge':
-                return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-4 12.8V18a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-3.2A7 7 0 0 0 12 2z"/><path d="M9 22h6"/></svg>';
             case 'divergent':
                 return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2v2"/><path d="M5 9H3"/><path d="M21 9h-2"/><path d="M6.3 4.3 7.7 5.7"/><path d="M17.7 5.7 19.1 4.3"/><path d="M8 14h8"/></svg>';
             case 'delete':
@@ -3181,7 +3006,11 @@
         event.stopPropagation();
         closeAllMoreActions();
         const label = getMoreActionLabel(action);
-        showActionConfirm(`确定执行「${label}」吗？`, () => performMoreAction(action, clipId));
+        if (action == 'organize-manual') {
+            performMoreAction(action, clipId)
+        } else {
+            showActionConfirm(`确定执行「${label}」吗？`, () => performMoreAction(action, clipId));
+        }
     }
 
     function performMoreAction(action, clipId) {
@@ -3194,9 +3023,6 @@
                 break;
             case 'to-todo':
                 quickClipToTodo(clipId);
-                break;
-            case 'derive-knowledge':
-                deriveKnowledgeFromClip(clipId);
                 break;
             case 'divergent':
                 generateDivergentSummary(clipId);
@@ -3212,15 +3038,13 @@
     function getMoreActionLabel(action) {
         switch (action) {
             case 'organize-auto':
-                return '快速AI整理';
+                return '快速整理';
             case 'organize-manual':
                 return '编辑分类/标签';
             case 'to-todo':
                 return '转待办';
-            case 'derive-knowledge':
-                return '生成知识';
             case 'divergent':
-                return '发散总结';
+                return '发散性总结';
             case 'delete':
                 return '删除';
             default:
@@ -3522,26 +3346,6 @@
         }
     }
 
-    async function deriveKnowledgeFromClip(clipId) {
-        try {
-            showLoading('正在生成知识条目...', '正在从当前剪藏派生结构化知识...');
-            if (window.electronAPI && typeof window.electronAPI.deriveKnowledge === 'function') {
-                const result = await window.electronAPI.deriveKnowledge(clipId, false);
-                if (!result.success) {
-                    throw new Error(result.message || '生成失败');
-                }
-            } else {
-                await axios.post(`${KNOWLEDGE_API_BASE_URL}/derive/${clipId}`);
-            }
-            showNotification(`知识条目生成成功（来源剪藏ID: ${clipId}）`, false);
-        } catch (error) {
-            console.error('生成知识条目失败:', error);
-            showError('生成知识失败', error.message || error.response?.data?.message || '请稍后重试');
-        } finally {
-            hideLoading();
-        }
-    }
-
     function closeOrganizeActionModal() {
         document.getElementById('organize-action-modal').style.display = 'none';
     }
@@ -3672,6 +3476,11 @@
         notificationMessage.textContent = message;
         openFolderBtn.style.display = showOpenButton === true ? 'block' : 'none';
         notificationBar.style.display = 'block';
+
+        // 5秒后自动关闭
+        setTimeout(() => {
+            notificationBar.style.display = 'none';
+        }, 5000);
     }
 
     function closeNotification() {
@@ -3795,29 +3604,9 @@
         }, 5000);
     }
 
-    function handleTypeChange() {
-        const type = document.getElementById('type').value;
-        const imageUploadArea = document.getElementById('image-upload-area');
-        const fileUploadArea = document.getElementById('file-upload-area');
-        
-        // 控制图片上传区域显示
-        if (type === 'ai-text' || type === 'store-only') {
-            imageUploadArea.style.display = 'block';
-        } else {
-            imageUploadArea.style.display = 'none';
-        }
-        
-        // 控制文件上传区域显示
-        if (type === 'doc-ai') {
-            fileUploadArea.style.display = 'block';
-        } else {
-            fileUploadArea.style.display = 'none';
-        }
-    }
-
     function syncGit() {
         const syncBtn = document.getElementById('sync-btn');
-        
+
         syncBtn.disabled = true;
         syncBtn.innerHTML = '<span class="toggle-text">🔄 同步中...</span>';
 
@@ -3825,12 +3614,12 @@
             .then(response => {
                 syncBtn.innerHTML = '<span class="toggle-text">🔄 同步仓库</span>';
                 syncBtn.disabled = false;
-                showNotification('同步成功', 'success');
+                showNotification('同步成功');
             })
             .catch(error => {
                 syncBtn.innerHTML = '<span class="toggle-text">🔄 同步仓库</span>';
                 syncBtn.disabled = false;
-                showNotification('同步失败', 'error');
+                showNotification('同步失败: ' + (error.response?.data?.message || error.message));
                 console.error('Git sync failed:', error);
             });
     }
@@ -3864,7 +3653,7 @@
                     document.getElementById('remoteUrl').value = config.remoteUrl || '';
                     document.getElementById('username').value = config.username || '';
                     document.getElementById('password').value = config.password || '';
-                    document.getElementById('branch').value = config.branch || 'main'; // 默认分支为main
+                    document.getElementById('branch').value = config.branch || 'main';
                 }
             })
             .catch(error => {
@@ -3883,11 +3672,11 @@
 
         axios.post(`${GIT_API_BASE_URL}/config`, config)
             .then(response => {
-                showNotification('Git配置保存成功', 'success');
+                showNotification('Git配置保存成功');
                 closeGitConfigModal();
             })
             .catch(error => {
-                showNotification('Git配置保存失败: ' + error.response.data, 'error');
+                showNotification('Git配置保存失败: ' + (error.response?.data || error.message));
             });
     }
 
@@ -3911,16 +3700,17 @@
                 return axios.post(`${GIT_API_BASE_URL}/test-connection`);
             })
             .then(response => {
-                showNotification(response.data, 'success');
+                showNotification(response.data);
             })
             .catch(error => {
-                showNotification('连接测试失败: ' + error.response.data, 'error');
+                showNotification('连接测试失败: ' + (error.response?.data || error.message));
             })
             .finally(() => {
                 testBtn.disabled = false;
                 testBtn.textContent = '测试连接';
             });
     }
+
 </script>
 
 <!-- Git配置弹窗 -->

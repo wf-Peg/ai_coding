@@ -46,6 +46,8 @@ public class ClipContent {
 
     private String analysis;  // 内容分析
 
+    private String divergentSummary;  // 发散性总结
+
     private List<String> imagePaths = new ArrayList<>();  // 图片相对路径列表
 
     /**
@@ -214,6 +216,14 @@ public class ClipContent {
 
     public void setAnalysis(String analysis) {
         this.analysis = analysis;
+    }
+
+    public String getDivergentSummary() {
+        return divergentSummary;
+    }
+
+    public void setDivergentSummary(String divergentSummary) {
+        this.divergentSummary = divergentSummary;
     }
 
     public List<String> getImagePaths() {

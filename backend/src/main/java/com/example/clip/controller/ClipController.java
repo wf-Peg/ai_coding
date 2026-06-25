@@ -221,7 +221,13 @@ public class ClipController {
             return ResponseEntity.notFound().build();
         }
 
+        if (clip.getDivergentSummary() != null && !clip.getDivergentSummary().isBlank()) {
+            return ResponseEntity.ok(clip.getDivergentSummary());
+        }
+
         String summary = aiService.generateDivergentSummary(clip.getContent(), clip.getCategory(), clip.getTags());
+        clip.setDivergentSummary(summary);
+        clipService.saveClip(clip);
         return ResponseEntity.ok(summary);
     }
 
