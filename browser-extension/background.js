@@ -109,28 +109,33 @@ function createContextMenus() {
 }
 
 async function handleContextMenuClick(info, tab) {
-  switch (info.menuItemId) {
-    case 'clip-entire-page':
-      await clipPage(tab, 'context-menu');
-      break;
-    case 'clip-selection':
-      await clipSelection(tab, 'context-menu');
-      break;
-    case 'clip-image':
-      await clipImage(tab, info.srcUrl);
-      break;
-    case 'clip-to-topic':
-      await clipToTopic(tab, info);
-      break;
-    case 'clip-ai-text':
-      await clipWithType(tab, 'ai-text', Boolean(info.selectionText));
-      break;
-    case 'clip-store-only':
-      await clipWithType(tab, 'store-only', Boolean(info.selectionText));
-      break;
-    case 'clip-settings':
-      openOptions();
-      break;
+  try {
+    switch (info.menuItemId) {
+      case 'clip-entire-page':
+        await clipPage(tab, 'context-menu');
+        break;
+      case 'clip-selection':
+        await clipSelection(tab, 'context-menu');
+        break;
+      case 'clip-image':
+        await clipImage(tab, info.srcUrl);
+        break;
+      case 'clip-to-topic':
+        await clipToTopic(tab, info);
+        break;
+      case 'clip-ai-text':
+        await clipWithType(tab, 'ai-text', Boolean(info.selectionText));
+        break;
+      case 'clip-store-only':
+        await clipWithType(tab, 'store-only', Boolean(info.selectionText));
+        break;
+      case 'clip-settings':
+        openOptions();
+        break;
+    }
+  } catch (error) {
+    // 上下文菜单操作的兜底 error 提示
+    showNotification(error?.message || '剪藏操作失败，请重试', 'error');
   }
 }
 
@@ -164,9 +169,9 @@ async function clipPage(tab, captureMethod = 'context-menu') {
     }
 
     await openPopupWithData(payload);
+    showNotification('已打开剪藏窗口，请确认保存', 'success');
   } catch (error) {
     handleCaptureError(error, '剪藏页面失败');
-    throw error;
   }
 }
 
@@ -189,9 +194,9 @@ async function clipSelection(tab, captureMethod = 'shortcut') {
     });
 
     await openPopupWithData(payload);
+    showNotification('已打开剪藏窗口，请确认保存', 'success');
   } catch (error) {
     handleCaptureError(error, '剪藏选中内容失败');
-    throw error;
   }
 }
 
@@ -222,9 +227,9 @@ async function clipImage(tab, imageUrl) {
     });
 
     await openPopupWithData(payload);
+    showNotification('已打开剪藏窗口，请确认保存', 'success');
   } catch (error) {
     handleCaptureError(error, '剪藏图片失败');
-    throw error;
   }
 }
 
@@ -284,6 +289,7 @@ async function clipWithType(tab, type, preferSelection) {
     if (!result.success) {
       throw createClassifiedError(result.errorType || 'api_error', result.error || '发送失败');
     }
+    showNotification('剪藏成功！', 'success');
   } catch (error) {
     handleCaptureError(error, '快速剪藏失败');
   }

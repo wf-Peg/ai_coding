@@ -242,11 +242,12 @@
             overflow: hidden;
             box-shadow: none;
             border: 1px solid var(--border);
+            background: var(--surface);
         }
 
         .action-split-group .icon-btn {
             border: none;
-            background: var(--background);
+            background: var(--surface);
             color: var(--text-secondary);
             padding: 0 14px;
             min-width: auto;
@@ -258,7 +259,7 @@
         }
 
         .action-split-group .icon-btn:hover {
-            background: var(--background-dark);
+            background: var(--surface-hover);
             color: var(--text);
         }
 
@@ -557,6 +558,16 @@
             display: inline-block;
         }
 
+        .tag-expand-btn {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+        }
         .tag-expand-btn:hover {
             background: var(--border);
             color: var(--text);
@@ -1884,6 +1895,20 @@
         html[data-theme="dark"] .btn-secondary:hover { background: #4a4a4a; }
         html[data-theme="dark"] .tag { background: #3a3a3a; color: #d4d4d4; }
         html[data-theme="dark"] .notification { background: #2d2d2d; color: #d4d4d4; }
+
+        /* action-split-group 深色覆盖 */
+        html[data-theme="dark"] .action-split-group { border-color: #4a4a4a; background: #3a3a3a !important; }
+        html[data-theme="dark"] .action-split-group > * { background: #3a3a3a !important; }
+        html[data-theme="dark"] .action-split-group .icon-btn { color: #9a9a9a !important; }
+        html[data-theme="dark"] .action-split-group .icon-btn:hover { background: #4a4a4a !important; color: #d4d4d4 !important; }
+        html[data-theme="dark"] .action-split-group .main-btn { color: #d4d4d4 !important; }
+        html[data-theme="dark"] .action-split-group .main-btn:hover { background: #4a4a4a !important; }
+
+        /* category-badge 深色覆盖 */
+        html[data-theme="dark"] .category-badge { background: #3a3a3a !important; color: #9a9a9a !important; border-color: #4a4a4a !important; }
+
+        /* meta-type 深色覆盖 */
+        html[data-theme="dark"] .meta-item.meta-type { background: #3a3a3a !important; color: #9a9a9a !important; border-color: #4a4a4a !important; }
 
         /* 编辑弹窗紧凑 textarea */
         .modal-textarea.compact-textarea {
@@ -3538,6 +3563,12 @@
     }
 
     async function organizeContent() {
+        showActionConfirm('确定要整理今日内容吗？将按分类聚合并生成整理结果。', async () => {
+            await doOrganizeContent();
+        });
+    }
+
+    async function doOrganizeContent() {
         const organizeBtn = document.getElementById('organize-btn');
         const originalText = organizeBtn.textContent;
 
@@ -3563,6 +3594,12 @@
     }
 
     async function generateWeeklyReport() {
+        showActionConfirm('确定要生成周报总结吗？将汇总本周所有剪藏内容生成周报。', async () => {
+            await doGenerateWeeklyReport();
+        });
+    }
+
+    async function doGenerateWeeklyReport() {
         const reportBtn = document.getElementById('weekly-report-btn');
         const originalText = reportBtn.textContent;
 
@@ -3730,6 +3767,12 @@
     }
 
     function syncGit() {
+        showActionConfirm('确定要同步仓库吗？将把本地剪藏数据推送到 Git 远程仓库。', () => {
+            doSyncGit();
+        });
+    }
+
+    function doSyncGit() {
         const syncBtn = document.getElementById('sync-btn');
 
         syncBtn.disabled = true;

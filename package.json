@@ -6,10 +6,11 @@
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --dir",
-    "build:win": "electron-builder --win",
-    "build:mac": "electron-builder --mac",
-    "build:linux": "electron-builder --linux",
-    "build:all": "electron-builder --win --mac --linux",
+    "prebuild": "node scripts/prebuild-clean.js",
+    "build:win": "npm run prebuild && electron-builder --win",
+    "build:mac": "npm run prebuild && electron-builder --mac",
+    "build:linux": "npm run prebuild && electron-builder --linux",
+    "build:all": "npm run prebuild && electron-builder --win --mac --linux",
     "build:jar": "cd backend && mvn clean package -DskipTests",
     "postinstall": "electron-builder install-app-deps"
   },
