@@ -491,6 +491,7 @@ function startFrontendServer(config) {
             });
           } else { res.writeHead(500); res.end('Error'); }
         }
+      }
       }));
     server.listen(config.frontendPort, '127.0.0.1', () => {
       frontendServer = server;
