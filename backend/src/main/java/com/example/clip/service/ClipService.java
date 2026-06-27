@@ -529,6 +529,15 @@ public class ClipService {
         if (request.getTags() != null && !request.getTags().isEmpty()) {
             clip.setTags(request.getTags().stream().filter(tag -> tag != null && !tag.isBlank()).map(String::trim).collect(Collectors.toList()));
         }
+        if (request.getContent() != null) {
+            clip.setContent(request.getContent().trim());
+        }
+        if (request.getSummary() != null) {
+            clip.setSummary(request.getSummary().trim().isEmpty() ? null : request.getSummary().trim());
+        }
+        if (request.getAnalysis() != null) {
+            clip.setAnalysis(request.getAnalysis().trim().isEmpty() ? null : request.getAnalysis().trim());
+        }
     }
 
     private String normalizeType(String requestType, String workflowStatus) {

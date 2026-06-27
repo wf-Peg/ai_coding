@@ -1840,6 +1840,81 @@
                 min-width: auto;
             }
         }
+
+        /* 深色主题 */
+        html[data-theme="dark"] {
+            --primary: #569cff;
+            --primary-light: #2a4a7a;
+            --primary-dark: #4a8ae8;
+            --secondary: #f0a030;
+            --accent: #4ecb71;
+            --background: #1e1e1e;
+            --background-dark: #252525;
+            --surface: #2d2d2d;
+            --surface-hover: #3a3a3a;
+            --text: #d4d4d4;
+            --text-secondary: #9a9a9a;
+            --border: #3e3e3e;
+            --border-light: #333333;
+            --success: #4ecb71;
+            --warning: #f0a030;
+            --error: #e06060;
+            --priority-high: #e06060;
+            --priority-medium: #f0a030;
+            --priority-low: #569cff;
+            --priority-high-light: #3a1a1a;
+            --priority-medium-light: #3a2a1a;
+            --priority-low-light: #1a2a3a;
+            --shadow: 0 4px 6px -1px rgba(0,0,0,0.4);
+            --shadow-hover: 0 10px 15px -3px rgba(0,0,0,0.5);
+        }
+        html[data-theme="dark"] body { background: var(--background); color: var(--text); }
+        html[data-theme="dark"] .clip-item { background: var(--surface); border-color: var(--border); }
+        html[data-theme="dark"] .clip-item:hover { background: var(--surface-hover); }
+        html[data-theme="dark"] input, html[data-theme="dark"] textarea, html[data-theme="dark"] select {
+            background: #3a3a3a; border-color: #4a4a4a; color: #d4d4d4;
+        }
+        html[data-theme="dark"] input:focus, html[data-theme="dark"] textarea:focus, html[data-theme="dark"] select:focus {
+            border-color: #569cff;
+        }
+        html[data-theme="dark"] .modal-content { background: #2d2d2d; border-color: #3e3e3e; }
+        html[data-theme="dark"] .modal-header { border-color: #3e3e3e; }
+        html[data-theme="dark"] .modal-footer { border-color: #3e3e3e; }
+        html[data-theme="dark"] .btn-secondary { background: #3a3a3a; border-color: #4a4a4a; color: #d4d4d4; }
+        html[data-theme="dark"] .btn-secondary:hover { background: #4a4a4a; }
+        html[data-theme="dark"] .tag { background: #3a3a3a; color: #d4d4d4; }
+        html[data-theme="dark"] .notification { background: #2d2d2d; color: #d4d4d4; }
+
+        /* 编辑弹窗紧凑 textarea */
+        .modal-textarea.compact-textarea {
+            min-height: auto !important;
+            height: auto !important;
+            max-height: 3.6em;
+            resize: vertical;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+        .modal-textarea.compact-textarea::-webkit-scrollbar { width: 4px; }
+        .modal-textarea.compact-textarea::-webkit-scrollbar-thumb { background: #c0c0c0; border-radius: 2px; }
+        html[data-theme="dark"] .modal-textarea.compact-textarea::-webkit-scrollbar-thumb { background: #555; }
+
+        /* 编辑弹窗整体滚动 */
+        #organize-action-modal .modal-content {
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #organize-action-modal .modal-header { flex-shrink: 0; }
+        #organize-action-modal .modal-body {
+            flex: 1 1 auto;
+            overflow-y: auto;
+            min-height: 0;
+        }
+        #organize-action-modal .modal-footer { flex-shrink: 0; }
+        #organize-action-modal .modal-body::-webkit-scrollbar { width: 6px; }
+        #organize-action-modal .modal-body::-webkit-scrollbar-track { background: transparent; }
+        #organize-action-modal .modal-body::-webkit-scrollbar-thumb { background: #c0c0c0; border-radius: 3px; }
+        html[data-theme="dark"] #organize-action-modal .modal-body::-webkit-scrollbar-thumb { background: #4a4a4a; }
     </style>
     <link id="clipThemeNotion" rel="stylesheet" href="./styles/clip-theme-notion.css">
 </head>
@@ -1908,11 +1983,20 @@
 
                 <label class="modal-label" for="organize-tags-input" style="margin-top: 12px;">标签（可选，逗号分隔）</label>
                 <input id="organize-tags-input" class="modal-textarea" style="min-height: 44px;" placeholder="例如：前端, 架构, AI" />
+
+                <label class="modal-label" for="organize-content" style="margin-top: 12px;">原文内容</label>
+                <textarea id="organize-content" class="modal-textarea compact-textarea" rows="2" placeholder="编辑剪藏原文内容..."></textarea>
+
+                <label class="modal-label" for="organize-summary" style="margin-top: 12px;">摘要</label>
+                <textarea id="organize-summary" class="modal-textarea compact-textarea" rows="2" placeholder="编辑内容摘要..."></textarea>
+
+                <label class="modal-label" for="organize-analysis" style="margin-top: 12px;">AI分析</label>
+                <textarea id="organize-analysis" class="modal-textarea compact-textarea" rows="2" placeholder="编辑AI分析结果..."></textarea>
             </div>
         </div>
         <div class="modal-footer">
             <button class="btn-secondary" type="button" onclick="closeOrganizeActionModal()">取消</button>
-            <button class="btn-primary" type="button" onclick="confirmOrganizeAction()">开始整理</button>
+            <button class="btn-primary" type="button" onclick="confirmOrganizeAction()">保存</button>
         </div>
     </div>
 </div>
@@ -2111,6 +2195,7 @@
     let currentTags = [];
     const MAX_TAGS = 10;
     const THEME_STORAGE_KEY = 'app_theme_v1';
+    const APPEARANCE_KEY = 'app_appearance_v1';
     const DEFAULT_THEME = 'notion';
     const DEFAULT_CLIP_ANALYZE_PROMPT =
         '你是一个专业的内容分析助手。请对输入内容生成高质量摘要、分析和标签。\n' +
@@ -2122,6 +2207,14 @@
     let currentTheme = DEFAULT_THEME;
     let currentOrganizeTarget = { scope: 'inbox', clipId: null };
     const clipCache = new Map();
+
+    function getEffectiveTheme() {
+        const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+        if (appearance === 'system') {
+            return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'notion';
+        }
+        return appearance;
+    }
 
     function getNextThemeId(themeId) {
         return themeId === 'notion' ? 'regular' : 'notion';
@@ -2141,8 +2234,13 @@
         if (notionThemeLink) {
             notionThemeLink.disabled = currentTheme !== 'notion';
         }
-        document.documentElement.setAttribute('data-theme', currentTheme);
-        if (persist) {
+        const effectiveTheme = getEffectiveTheme();
+        if (effectiveTheme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+            document.documentElement.setAttribute('data-theme', currentTheme);
+        }
+        if (persist && effectiveTheme !== 'dark') {
             localStorage.setItem(THEME_STORAGE_KEY, currentTheme);
         }
         updateThemeToggleLabel();
@@ -2153,7 +2251,7 @@
     let uploadedFileName = null;
 
     document.addEventListener('DOMContentLoaded', () => {
-        applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME);
+        applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME, false);
         fetchClips();
         loadCategories();
         handleTypeChange();
@@ -2165,11 +2263,26 @@
             });
         }
         window.addEventListener('storage', event => {
-            if (event.key === THEME_STORAGE_KEY) {
-                applyTheme(event.newValue, false);
+            if (event.key === THEME_STORAGE_KEY || event.key === APPEARANCE_KEY) {
+                applyTheme(event.newValue || localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME, false);
             }
         });
         document.addEventListener('click', () => closeAllMoreActions());
+
+        // 监听父页面主题变更消息
+        window.addEventListener('message', event => {
+            if (event.data && (event.data.type === 'themeChanged' || event.data.type === 'appearanceChanged')) {
+                applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME, false);
+            }
+        });
+
+        // 监听系统主题变化
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            const appearance = localStorage.getItem(APPEARANCE_KEY) || 'light';
+            if (appearance === 'system') {
+                applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME, false);
+            }
+        });
 
         const tagInput = document.getElementById('tag-input');
         tagInput.addEventListener('keydown', (e) => {
@@ -2824,7 +2937,7 @@
         const analysisContent = clip.analysis || '';
         const fanButtons = [
             buildFanActionButton('organize-auto', clip.id, '快速AI整理', renderFanActionIcon('organizeAuto')),
-            buildFanActionButton('organize-manual', clip.id, '编辑分类/标签', renderFanActionIcon('organizeManual')),
+            buildFanActionButton('organize-manual', clip.id, '编辑', renderFanActionIcon('organizeManual')),
             buildFanActionButton('to-todo', clip.id, '转待办', renderFanActionIcon('toTodo')),
         ];
         if (!isStoreOnly) {
@@ -3040,7 +3153,7 @@
             case 'organize-auto':
                 return '快速整理';
             case 'organize-manual':
-                return '编辑分类/标签';
+                return '编辑';
             case 'to-todo':
                 return '转待办';
             case 'divergent':
@@ -3281,7 +3394,7 @@
     function openOrganizeActionModal(scope = 'inbox', clipId = null, preferredMode = 'auto') {
         currentOrganizeTarget = { scope, clipId };
         const titleEl = document.getElementById('organize-action-title');
-        document.getElementById('organize-mode').value = preferredMode === 'manual' ? 'manual' : 'auto';
+        document.getElementById('organize-mode').value = preferredMode === 'manual' ? 'manual' : (scope === 'clip' ? 'manual' : 'auto');
         const typeEl = document.getElementById('organize-type');
         const categoryEl = document.getElementById('organize-category');
         const tagsEl = document.getElementById('organize-tags-input');
@@ -3290,12 +3403,15 @@
         tagsEl.value = '';
 
         if (scope === 'clip' && clipId != null) {
-            titleEl.textContent = '整理当前剪藏';
+            titleEl.textContent = '编辑剪藏';
             const clip = clipCache.get(String(clipId));
             if (clip) {
                 typeEl.value = clip.type || '';
                 categoryEl.value = clip.category || '';
                 tagsEl.value = Array.isArray(clip.tags) ? clip.tags.join(', ') : '';
+                document.getElementById('organize-content').value = clip.content || '';
+                document.getElementById('organize-summary').value = clip.summary || '';
+                document.getElementById('organize-analysis').value = clip.analysis || '';
             }
         } else {
             titleEl.textContent = '整理收件箱';
@@ -3366,11 +3482,14 @@
         const category = document.getElementById('organize-category').value;
         const tagsInput = document.getElementById('organize-tags-input').value.trim();
         const tags = tagsInput ? tagsInput.split(/[，,]/).map(t => t.trim()).filter(Boolean) : [];
+        const content = document.getElementById('organize-content').value.trim();
+        const summary = document.getElementById('organize-summary').value.trim();
+        const analysis = document.getElementById('organize-analysis').value.trim();
 
         try {
             closeOrganizeActionModal();
             showLoading(
-                isClipScope ? '正在整理当前剪藏...' : '正在整理收件箱...',
+                isClipScope ? '正在保存剪藏编辑...' : '正在整理收件箱...',
                 mode === 'auto' ? '默认AI分类处理中...' : '正在应用手动覆盖规则...'
             );
             if (organizeBtn) {
@@ -3384,6 +3503,12 @@
                 payload.category = category;
                 payload.tags = tags;
             }
+            // 始终携带可编辑字段（剪藏编辑场景）
+            if (isClipScope) {
+                payload.content = content;
+                payload.summary = summary;
+                payload.analysis = analysis;
+            }
 
             const endpoint = isClipScope
                 ? `${API_BASE_URL}/organize/${currentOrganizeTarget.clipId}`
@@ -3392,7 +3517,7 @@
 
             if (response.data.status === 'success') {
                 if (isClipScope) {
-                    showNotification('当前剪藏整理完成', true);
+                    showNotification('剪藏编辑已保存', true);
                 } else {
                     const count = response.data.organizedCount || 0;
                     showNotification(`收件箱整理完成，共处理 ${count} 条内容`, true);

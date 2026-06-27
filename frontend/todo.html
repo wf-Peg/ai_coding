@@ -805,6 +805,29 @@
             cursor: pointer;
             opacity: 0.5;
         }
+
+        /* 深色主题 */
+        html[data-theme="dark"] {
+            --bg: #1e1e1e;
+            --fg: #d4d4d4;
+            --fg-muted: #9a9a9a;
+            --border: #3e3e3e;
+            --border-light: #333333;
+            --surface: #2d2d2d;
+            --surface-hover: #3a3a3a;
+            --primary: #569cff;
+            --primary-hover: #4a8ae8;
+            --danger: #e06060;
+            --danger-bg: #3a1a1a;
+            --success: #4ecb71;
+            --success-bg: #1a3a2a;
+        }
+        html[data-theme="dark"] body { background: var(--bg); color: var(--fg); }
+        html[data-theme="dark"] .todo-item { background: var(--surface); border-color: var(--border); }
+        html[data-theme="dark"] .todo-item:hover { background: var(--surface-hover); }
+        html[data-theme="dark"] input, html[data-theme="dark"] textarea, html[data-theme="dark"] select {
+            background: #3a3a3a; border-color: #4a4a4a; color: #d4d4d4;
+        }
     </style>
     <link id="themeRegular" rel="stylesheet" href="./styles/theme-regular.css" disabled>
     <link id="themeNotion" rel="stylesheet" href="./styles/theme-notion.css">
@@ -918,6 +941,7 @@
   // ── API ──
   const TODO_API_BASE_URL = 'http://127.0.0.1:8080/api/todo';
   const THEME_STORAGE_KEY = 'app_theme_v1';
+  const APPEARANCE_KEY = 'app_appearance_v1';
   const DEFAULT_THEME = 'notion';
   const THEMES = [
     { id: 'regular', name: '常规风格', link: themeRegular },
@@ -928,6 +952,14 @@
     return acc;
   }, {});
   let currentTheme = DEFAULT_THEME;
+
+  function getEffectiveTheme() {
+    const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+    if (appearance === 'system') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'notion';
+    }
+    return appearance;
+  }
 
   function getNextThemeId(themeId) {
     const index = THEMES.findIndex(theme => theme.id === themeId);
@@ -947,8 +979,14 @@
       theme.link.disabled = theme.id !== currentTheme;
     });
 
-    document.documentElement.setAttribute('data-theme', currentTheme);
-    if (persist) {
+    // 处理深色主题：当外观设置为 dark 或 system(dark) 时应用 data-theme="dark"
+    const effectiveTheme = getEffectiveTheme();
+    if (effectiveTheme === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.setAttribute('data-theme', currentTheme);
+    }
+    if (persist && effectiveTheme !== 'dark') {
       localStorage.setItem(THEME_STORAGE_KEY, currentTheme);
     }
     updateThemeToggleLabel();
@@ -1347,8 +1385,23 @@
     btn.addEventListener('click', () => setFilter(btn.dataset.filter));
   });
   window.addEventListener('storage', event => {
-    if (event.key === THEME_STORAGE_KEY) {
-      applyTheme(event.newValue, false);
+    if (event.key === THEME_STORAGE_KEY || event.key === APPEARANCE_KEY) {
+      applyTheme(event.newValue || localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME, false);
+    }
+  });
+
+  // 监听父页面主题变更消息
+  window.addEventListener('message', event => {
+    if (event.data && (event.data.type === 'themeChanged' || event.data.type === 'appearanceChanged')) {
+      applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME, false);
+    }
+  });
+
+  // 监听系统主题变化
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    const appearance = localStorage.getItem(APPEARANCE_KEY) || 'light';
+    if (appearance === 'system') {
+      applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME, false);
     }
   });
 
@@ -1365,7 +1418,7 @@
   window.app = { toggleComplete, startEdit, cancelEdit, saveEdit, confirmDelete };
 
   // ── Init ──
-  applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME);
+  applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME, false);
   fetchTodos();
 
 })();

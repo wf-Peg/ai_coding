@@ -8,20 +8,39 @@
     <style>
         :root {
             --bg: #f7f7f5;
+            --titlebar-bg: #f0f0ec;
+            --titlebar-border: #e0e0da;
             --panel-border: #e2e2dd;
             --primary: #3f8cff;
             --primary-light: #eff6ff;
             --text: #1f2937;
             --text-secondary: #6b7280;
             --nav-width: 64px;
+            --titlebar-height: 38px;
+            --win-btn-hover: #e0e0dc;
+            --win-btn-close-hover: #e81123;
+            --win-btn-close-active: #bf0f1d;
         }
 
         html[data-theme="regular"] {
             --bg: #ecf5ff;
             --panel-border: #c5daf8;
+            --titlebar-bg: #e0edff;
+            --titlebar-border: #c5daf8;
         }
 
-        /* 布局样式 */
+        html[data-theme="dark"] {
+            --bg: #1e1e1e;
+            --titlebar-bg: #2d2d2d;
+            --titlebar-border: #3e3e3e;
+            --panel-border: #3e3e3e;
+            --primary: #569cff;
+            --primary-light: #1a2d4a;
+            --text: #d4d4d4;
+            --text-secondary: #9a9a9a;
+            --win-btn-hover: #3e3e3e;
+        }
+
         body {
             margin: 0;
             padding: 0;
@@ -29,61 +48,120 @@
             overflow: hidden;
             font-family: "IBM Plex Sans", "Noto Sans SC", Arial, sans-serif;
             background: var(--bg);
-        }
-
-        .app-layout {
-            display: flex;
-            height: 100vh;
-        }
-
-        /* 左侧导航栏 */
-        .nav-sidebar {
-            width: var(--nav-width);
-            background: #ffffff;
-            border-right: 1px solid var(--panel-border);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 16px 0;
-            gap: 4px;
-            flex-shrink: 0;
-            z-index: 10;
-        }
-        .nav-item {
-            width: 44px;
-            height: 44px;
-            border-radius: 12px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 2px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            color: var(--text-secondary);
-            border: none;
-            background: transparent;
-            font-size: 0.65rem;
-            font-family: inherit;
-            padding: 4px;
-        }
-        .nav-item:hover {
-            background: #f3f4f6;
             color: var(--text);
         }
-        .nav-item.active {
-            background: var(--primary-light);
-            color: var(--primary);
-        }
-        .nav-item svg {
-            width: 20px;
-            height: 20px;
+
+        /* ====== 自定义标题栏 ====== */
+        .titlebar {
+            height: var(--titlebar-height);
+            background: var(--titlebar-bg);
+            border-bottom: 1px solid var(--titlebar-border);
+            display: flex;
+            align-items: center;
+            -webkit-app-region: drag;
+            user-select: none;
             flex-shrink: 0;
         }
-        .nav-item .label {
-            font-size: 0.6rem;
+        .titlebar-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 14px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text);
+            -webkit-app-region: no-drag;
+        }
+        .titlebar-brand svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+        .titlebar-nav {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            height: 100%;
+            -webkit-app-region: no-drag;
+        }
+        .titlebar-nav .nav-btn {
+            height: 100%;
+            padding: 0 14px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-size: 0.8rem;
             font-weight: 500;
-            line-height: 1;
+            color: var(--text-secondary);
+            font-family: inherit;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            position: relative;
+        }
+        .titlebar-nav .nav-btn:hover {
+            color: var(--text);
+            background: rgba(0,0,0,0.04);
+        }
+        .titlebar-nav .nav-btn.active {
+            color: var(--primary);
+        }
+        .titlebar-nav .nav-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 14px;
+            right: 14px;
+            height: 2px;
+            background: var(--primary);
+            border-radius: 1px 1px 0 0;
+        }
+        .titlebar-nav .nav-btn svg {
+            width: 15px;
+            height: 15px;
+        }
+
+        /* 窗口控制按钮 */
+        .titlebar-spacer {
+            flex: 1;
+        }
+        .window-controls {
+            display: flex;
+            height: 100%;
+            -webkit-app-region: no-drag;
+        }
+        .window-controls button {
+            width: 46px;
+            height: 100%;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.1s ease;
+            color: var(--text-secondary);
+        }
+        .window-controls button:hover {
+            background: var(--win-btn-hover);
+        }
+        .window-controls button svg {
+            width: 12px;
+            height: 12px;
+        }
+        .window-controls .btn-close:hover {
+            background: var(--win-btn-close-hover);
+            color: #fff;
+        }
+        .window-controls .btn-close:hover svg {
+            stroke: #fff;
+        }
+
+        /* ====== 布局 ====== */
+        .app-layout {
+            display: flex;
+            height: calc(100vh - var(--titlebar-height));
         }
 
         .main-content {
@@ -111,18 +189,8 @@
 
         /* 响应式设计 */
         @media (max-width: 768px) {
-            .nav-sidebar {
-                flex-direction: row;
-                width: 100%;
-                height: 56px;
-                padding: 8px 16px;
-                gap: 8px;
-                border-right: none;
-                border-bottom: 1px solid var(--panel-border);
-                justify-content: space-around;
-            }
-            .app-layout { flex-direction: column-reverse; }
-            .main-content { flex: 1; }
+            .titlebar-nav .nav-btn { padding: 0 10px; font-size: 0.75rem; }
+            .titlebar-brand { padding: 0 8px; font-size: 0.78rem; }
             .container {
                 grid-template-columns: 1fr;
                 grid-template-rows: 1fr 1fr;
@@ -135,28 +203,50 @@
     </style>
 </head>
 <body>
-<div class="app-layout">
-    <nav class="nav-sidebar" id="navSidebar">
-        <button class="nav-item active" data-view="home" title="首页">
+<!-- ====== 自定义标题栏（Obsidian 风格） ====== -->
+<div class="titlebar" id="titlebar">
+    <div class="titlebar-brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span>碎碎记</span>
+    </div>
+    <nav class="titlebar-nav" id="titlebarNav">
+        <button class="nav-btn active" data-view="home">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
                 <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
             </svg>
-            <span class="label">首页</span>
+            首页
         </button>
-        <button class="nav-item" data-view="topic" title="话题">
+        <button class="nav-btn" data-view="topic">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
             </svg>
-            <span class="label">话题</span>
+            话题
         </button>
-        <button class="nav-item" data-view="settings" title="设置">
+        <button class="nav-btn" data-view="settings">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
             </svg>
-            <span class="label">设置</span>
+            设置
         </button>
     </nav>
+    <div class="titlebar-spacer"></div>
+    <div class="window-controls" id="windowControls">
+        <button id="btnMinimize" title="最小化">
+            <svg viewBox="0 0 12 12"><line x1="1" y1="6" x2="11" y2="6" stroke="currentColor" stroke-width="1.2"/></svg>
+        </button>
+        <button id="btnMaximize" title="最大化">
+            <svg viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+        </button>
+        <button id="btnClose" class="btn-close" title="关闭">
+            <svg viewBox="0 0 12 12"><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" stroke-width="1.2"/><line x1="11" y1="1" x2="1" y2="11" stroke="currentColor" stroke-width="1.2"/></svg>
+        </button>
+    </div>
+</div>
+
+<div class="app-layout">
     <div class="main-content" id="mainContent">
         <div class="container" id="homeView">
             <div class="todo-section">
@@ -170,56 +260,128 @@
 </div>
 <script>
   (function() {
-      const THEME_STORAGE_KEY = 'app_theme_v1';
-      const DEFAULT_THEME = 'notion';
+      const THEME_KEY = 'app_theme_v1';
+      const APPEARANCE_KEY = 'app_appearance_v1'; // regular | dark | notion | system
 
-      function applyTheme(themeId, persist = true) {
-      const currentTheme = themeId === 'regular' ? 'regular' : DEFAULT_THEME;
-      document.documentElement.setAttribute('data-theme', currentTheme);
-      if (persist) {
-        localStorage.setItem(THEME_STORAGE_KEY, currentTheme);
+      // ====== 主题管理 ======
+      function getEffectiveTheme() {
+        const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+        if (appearance === 'system') {
+          return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'notion';
+        }
+        return appearance;
       }
-    }
 
-    window.addEventListener('storage', event => {
-      if (event.key === THEME_STORAGE_KEY) {
-        applyTheme(event.newValue, false);
+      function applyTheme(themeOverride, persist = true) {
+        const theme = themeOverride || getEffectiveTheme();
+        const dataTheme = theme === 'dark' ? 'dark' : (theme === 'regular' ? 'regular' : 'notion');
+        document.documentElement.setAttribute('data-theme', dataTheme);
+        if (persist) {
+          localStorage.setItem(THEME_KEY, dataTheme);
+        }
       }
-    });
 
-    applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME);
+      // 监听系统主题变化
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        const appearance = localStorage.getItem(APPEARANCE_KEY) || 'light';
+        if (appearance === 'system') {
+          applyTheme(null, false);
+        }
+      });
 
-    // 监听 iframe 子页面的主题变更消息
-    window.addEventListener('message', event => {
-      if (event.data && event.data.type === 'themeChanged') {
-        applyTheme(event.data.theme, false);
-      }
-    });
+      window.addEventListener('storage', event => {
+        if (event.key === THEME_KEY || event.key === APPEARANCE_KEY) {
+          applyTheme(null, false);
+        }
+      });
 
-    // 导航切换
-    const navItems = document.querySelectorAll('.nav-item');
-    const mainContent = document.getElementById('mainContent');
-    const homeView = document.getElementById('homeView');
+      applyTheme(null, false);
 
-    navItems.forEach(item => {
-      item.addEventListener('click', () => {
-        // 更新激活状态
-        navItems.forEach(n => n.classList.remove('active'));
-        item.classList.add('active');
+      // 监听 iframe 子页面的主题变更消息
+      window.addEventListener('message', event => {
+        if (event.data && event.data.type === 'themeChanged') {
+          applyTheme(event.data.theme, false);
+        }
+        if (event.data && event.data.type === 'appearanceChanged') {
+          applyTheme(null, false);
+        }
+      });
 
-        const view = item.dataset.view;
+      // ====== 导航切换（SPA 路由） ======
+      const navBtns = document.querySelectorAll('.titlebar-nav .nav-btn');
+      const mainContent = document.getElementById('mainContent');
+      const homeView = document.getElementById('homeView');
+      const VIEW_IFRAME = { topic: 'topic.html', settings: 'settings.html' };
+
+      function renderView(view) {
+        navBtns.forEach(n => n.classList.remove('active'));
+        const targetBtn = document.querySelector(`.nav-btn[data-view="${view}"]`);
+        if (targetBtn) targetBtn.classList.add('active');
         if (view === 'home') {
           mainContent.innerHTML = '';
           mainContent.appendChild(homeView);
-        } else if (view === 'topic') {
-          // 加载话题页面
-          mainContent.innerHTML = '<iframe src="topic.html" style="width:100%;height:100%;border:none;"></iframe>';
-        } else if (view === 'settings') {
-          // 加载设置页面
-          mainContent.innerHTML = '<iframe src="settings.html" style="width:100%;height:100%;border:none;"></iframe>';
+        } else if (VIEW_IFRAME[view]) {
+          mainContent.innerHTML = `<iframe src="${VIEW_IFRAME[view]}" style="width:100%;height:100%;border:none;"></iframe>`;
         }
+      }
+
+      function pathToView(path) {
+        const clean = path.replace(/\/$/, '');
+        if (clean === '/topic') return 'topic';
+        if (clean === '/settings') return 'settings';
+        return 'home';
+      }
+
+      navBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const view = btn.dataset.view;
+          renderView(view);
+          if (window.history.pushState) {
+            window.history.pushState({ view }, '', view === 'home' ? '/' : `/${view}`);
+          }
+        });
       });
-    });
+
+      window.addEventListener('popstate', () => {
+        renderView(pathToView(window.location.pathname));
+      });
+
+      // 初始路由
+      (function () {
+        const view = pathToView(window.location.pathname);
+        if (view !== 'home') {
+          renderView(view);
+          window.history.replaceState({ view }, '', `/${view}`);
+        }
+      })();
+
+      // ====== 窗口控制（仅 Electron 环境） ======
+      if (window.electronAPI) {
+        document.getElementById('btnMinimize').addEventListener('click', () => window.electronAPI.windowMinimize());
+        document.getElementById('btnMaximize').addEventListener('click', () => window.electronAPI.windowMaximize());
+        document.getElementById('btnClose').addEventListener('click', () => window.electronAPI.windowClose());
+
+        // 同步最大化图标
+        window.electronAPI.onWindowMaximized((maximized) => {
+          const icon = document.querySelector('#btnMaximize svg');
+          if (maximized) {
+            icon.innerHTML = '<rect x="2.5" y="0.5" width="8" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="0.5" y="2.5" width="8" height="8" rx="1" fill="var(--titlebar-bg)" stroke="currentColor" stroke-width="1.2"/>';
+          } else {
+            icon.innerHTML = '<rect x="1.5" y="1.5" width="9" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/>';
+          }
+        });
+
+        // 初始检测最大化状态
+        window.electronAPI.windowIsMaximized().then(maximized => {
+          if (maximized) {
+            const icon = document.querySelector('#btnMaximize svg');
+            icon.innerHTML = '<rect x="2.5" y="0.5" width="8" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="0.5" y="2.5" width="8" height="8" rx="1" fill="var(--titlebar-bg)" stroke="currentColor" stroke-width="1.2"/>';
+          }
+        });
+      } else {
+        // 浏览器环境隐藏窗口控制按钮
+        document.getElementById('windowControls').style.display = 'none';
+      }
   })();
 </script>
 </body>

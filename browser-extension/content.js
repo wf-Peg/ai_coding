@@ -193,7 +193,33 @@ function createFloatingButton() {
   });
 
   button.addEventListener('click', () => {
-    chrome.runtime.sendMessage({ action: 'clipCurrentPage' });
+    // 视觉反馈动画
+    button.style.transform = 'scale(0.92)';
+    button.style.opacity = '0.8';
+    button.textContent = '⏳';
+    chrome.runtime.sendMessage({ action: 'clipCurrentPage' }, (response) => {
+      if (response && response.success) {
+        button.textContent = '✅';
+        button.style.background = 'linear-gradient(135deg, #22c55e, #4ade80)';
+      } else {
+        button.textContent = '❌';
+        button.style.background = 'linear-gradient(135deg, #ef4444, #f87171)';
+      }
+      setTimeout(() => {
+        button.textContent = '📝';
+        button.style.background = 'linear-gradient(135deg, #3b82f6, #60a5fa)';
+        button.style.transform = 'scale(1)';
+        button.style.opacity = '1';
+      }, 2000);
+    });
+    // 即使无回调也恢复
+    setTimeout(() => {
+      if (button.textContent === '⏳') {
+        button.textContent = '📝';
+        button.style.transform = 'scale(1)';
+        button.style.opacity = '1';
+      }
+    }, 3000);
   });
 
   document.body.appendChild(button);

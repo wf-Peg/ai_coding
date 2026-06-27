@@ -283,6 +283,43 @@
         }
         html[data-theme="notion"] .import-section .btn-import:hover { background: #1f2328; }
 
+        /* 深色主题 */
+        html[data-theme="dark"] {
+            --primary: #569cff;
+            --primary-dark: #4a8ae8;
+            --background: #1e1e1e;
+            --surface: #2d2d2d;
+            --text: #d4d4d4;
+            --text-secondary: #9a9a9a;
+            --text-muted: #6a6a6a;
+            --border: #3e3e3e;
+        }
+        html[data-theme="dark"] body { background: var(--background); color: var(--text); }
+        html[data-theme="dark"] .nav { background: var(--surface); border-bottom-color: var(--border); }
+        html[data-theme="dark"] .nav .back-btn { border-color: var(--border); color: var(--text-secondary); }
+        html[data-theme="dark"] .nav .back-btn:hover { background: #3a3a3a; }
+        html[data-theme="dark"] .nav .btn-secondary { background: var(--surface); border-color: var(--border); color: var(--text-secondary); }
+        html[data-theme="dark"] .nav .btn-secondary:hover { background: #3a3a3a; }
+        html[data-theme="dark"] .nav .btn-primary { background: var(--primary); color: #fff; }
+        html[data-theme="dark"] .nav .btn-primary:hover { background: var(--primary-dark); }
+        html[data-theme="dark"] .form-group label { color: var(--text-secondary); }
+        html[data-theme="dark"] input, html[data-theme="dark"] textarea, html[data-theme="dark"] select {
+            background: #3a3a3a; border-color: #4a4a4a; color: #d4d4d4;
+        }
+        html[data-theme="dark"] input:focus, html[data-theme="dark"] textarea:focus, html[data-theme="dark"] select:focus {
+            border-color: var(--primary); box-shadow: 0 0 0 3px rgba(86,156,255,0.2);
+        }
+        html[data-theme="dark"] .tags-input-wrapper { background: #3a3a3a; border-color: #4a4a4a; }
+        html[data-theme="dark"] .tags-input-wrapper:focus-within { border-color: var(--primary); }
+        html[data-theme="dark"] .tags-input-wrapper input { background: transparent; color: #d4d4d4; }
+        html[data-theme="dark"] .tag-item { background: #3a3a3a; color: #9a9a9a; }
+        html[data-theme="dark"] .import-section { background: #2a2d3a; border-color: var(--primary); }
+        html[data-theme="dark"] .import-section h3 { color: var(--primary); }
+        html[data-theme="dark"] .import-section .btn-import { background: var(--primary); color: #fff; }
+        html[data-theme="dark"] .btn { background: #3a3a3a; color: #d4d4d4; border-color: #4a4a4a; }
+        html[data-theme="dark"] .btn-primary { background: #569cff; color: #fff; border-color: #569cff; }
+        html[data-theme="dark"] .tag { background: #3a3a3a; color: #d4d4d4; }
+
         @media (max-width: 768px) {
             .form-row { flex-direction: column; }
             .container { padding: 16px; }
@@ -298,7 +335,15 @@
     </nav>
 
     <div class="container">
-        <div class="form-group">
+        <div class="import-section">
+            <h3>从已有剪藏导入</h3>
+            <select id="clipSelect">
+                <option value="">-- 选择剪藏 --</option>
+            </select>
+            <button class="btn-import" id="importBtn">导入</button>
+        </div>
+
+        <div class="form-group" style="margin-top: 20px;">
             <label>标题</label>
             <input type="text" id="titleInput" placeholder="给话题起个标题..." maxlength="120" />
         </div>
@@ -341,26 +386,28 @@
 **加粗** *斜体*
 - 列表项"></textarea>
         </div>
-
-        <div class="import-section">
-            <h3>从已有剪藏导入</h3>
-            <select id="clipSelect">
-                <option value="">-- 选择剪藏 --</option>
-            </select>
-            <button class="btn-import" id="importBtn">导入</button>
-        </div>
     </div>
 
     <script src="topic-editor.js"></script>
     <script>
       (function() {
-        const KEY = 'app_theme_v1';
-        function apply(t) {
-          document.documentElement.setAttribute('data-theme', t === 'regular' ? 'regular' : 'notion');
+        const THEME_KEY = 'app_theme_v1';
+        const APPEARANCE_KEY = 'app_appearance_v1';
+        function getEffective() {
+          const app = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+          if (app === 'system') return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'notion';
+          return app;
         }
-        apply(localStorage.getItem(KEY) || 'notion');
+        function apply() {
+          const t = getEffective();
+          document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : (t === 'regular' ? 'regular' : 'notion'));
+        }
+        apply();
         window.addEventListener('storage', function(e) {
-          if (e.key === KEY) apply(e.newValue);
+          if (e.key === THEME_KEY || e.key === APPEARANCE_KEY) apply();
+        });
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+          if ((localStorage.getItem(APPEARANCE_KEY) || 'notion') === 'system') apply();
         });
       })();
     </script>

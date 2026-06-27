@@ -1,29 +1,54 @@
 const API_BASE = 'http://127.0.0.1:8080/api/model-config';
 const THEME_KEY = 'app_theme_v1';
+const APPEARANCE_KEY = 'app_appearance_v1'; // regular | dark | notion | system
 
-// 主题管理
-function applyTheme(theme) {
-  const t = theme === 'regular' ? 'regular' : 'notion';
-  document.documentElement.setAttribute('data-theme', t);
-  document.getElementById('themeSelect').value = t;
-  localStorage.setItem(THEME_KEY, t);
-  // 通知父页面同步主题
-  try { window.parent.postMessage({ type: 'themeChanged', theme: t }, '*'); } catch(e) {}
+// ====== 外观管理 ======
+function getEffectiveTheme() {
+  const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+  if (appearance === 'system') {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'notion';
+  }
+  return appearance;
 }
 
-function onThemeChange() {
-  applyTheme(document.getElementById('themeSelect').value);
+function applyAppearance(appearance) {
+  localStorage.setItem(APPEARANCE_KEY, appearance);
+  const theme = getEffectiveTheme();
+  const dataTheme = theme === 'dark' ? 'dark' : (theme === 'regular' ? 'regular' : 'notion');
+  document.documentElement.setAttribute('data-theme', dataTheme);
+  localStorage.setItem(THEME_KEY, dataTheme);
+  // 通知父页面
+  try { window.parent.postMessage({ type: 'appearanceChanged', appearance: appearance }, '*'); } catch(e) {}
 }
 
-// 初始化主题
-(function initTheme() {
-  const saved = localStorage.getItem(THEME_KEY) || 'notion';
-  document.documentElement.setAttribute('data-theme', saved === 'regular' ? 'regular' : 'notion');
+function onAppearanceChange() {
+  applyAppearance(document.getElementById('appearanceSelect').value);
+}
+
+// 初始化外观
+(function initAppearance() {
+  const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+  document.getElementById('appearanceSelect').value = appearance;
+  const theme = getEffectiveTheme();
+  const dataTheme = theme === 'dark' ? 'dark' : (theme === 'regular' ? 'regular' : 'notion');
+  document.documentElement.setAttribute('data-theme', dataTheme);
+
   window.addEventListener('storage', function(e) {
-    if (e.key === THEME_KEY) {
-      const t = e.newValue === 'regular' ? 'regular' : 'notion';
-      document.documentElement.setAttribute('data-theme', t);
-      document.getElementById('themeSelect').value = t;
+    if (e.key === THEME_KEY || e.key === APPEARANCE_KEY) {
+      const theme = getEffectiveTheme();
+      const dataTheme = theme === 'dark' ? 'dark' : (theme === 'regular' ? 'regular' : 'notion');
+      document.documentElement.setAttribute('data-theme', dataTheme);
+      document.getElementById('appearanceSelect').value = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+    }
+  });
+
+  // 监听系统主题变化
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+    if (appearance === 'system') {
+      const theme = getEffectiveTheme();
+      const dataTheme = theme === 'dark' ? 'dark' : (theme === 'regular' ? 'regular' : 'notion');
+      document.documentElement.setAttribute('data-theme', dataTheme);
     }
   });
 })();
@@ -208,7 +233,7 @@ function showToast(message) {
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
-  const saved = localStorage.getItem(THEME_KEY) || 'notion';
-  document.getElementById('themeSelect').value = saved === 'regular' ? 'regular' : 'notion';
+  const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+  document.getElementById('appearanceSelect').value = appearance;
   loadConfig();
 });

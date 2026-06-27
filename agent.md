@@ -88,3 +88,4 @@ build.bat       # Windows
 9. **Electron 改动**：仅修改 `electron/` 目录，不耦合业务逻辑
 10. **兼容性**：不破坏现有 API 接口和前端页面
 11. 重要的代码要增加日志与代码注释，清晰且方便问题排查
+12. **SPA 路由约定**：新增页面（如 `topic.html`）必须在 `index.html` 中做两件事：(a) 在 `VIEW_IFRAME` 注册映射；(b) 在 `pathToView()` 注册 URL path。导航用 `history.pushState`，监听 `popstate` 支持前进/后退。所有静态服务器必须启用 SPA fallback（`npx serve --single`，Python 需自定义 SPAHandler，Electron 设 `serve-static` 的 `fallthrough: false` + `onerror` 回退到 `index.html`）。`index.html` 是唯一入口，禁止 `window.location.href` 跳转。

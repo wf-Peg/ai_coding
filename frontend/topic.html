@@ -339,6 +339,53 @@
             .container { padding: 16px; }
             .filter-bar { padding: 0 16px; }
         }
+
+        /* 深色主题 */
+        html[data-theme="dark"] {
+            --primary: #569cff;
+            --primary-light: #73b2ff;
+            --primary-dark: #4a8ae8;
+            --background: #1e1e1e;
+            --surface: #2d2d2d;
+            --text: #d4d4d4;
+            --text-secondary: #9a9a9a;
+            --text-muted: #6a6a6a;
+            --border: #3e3e3e;
+            --shadow: 0 2px 8px rgba(0,0,0,0.4);
+            --shadow-hover: 0 8px 25px rgba(0,0,0,0.5);
+        }
+        html[data-theme="dark"] body { background: var(--background); color: var(--text); }
+        html[data-theme="dark"] .header {
+            background: rgba(45,45,45,0.9);
+            border-bottom-color: var(--border);
+        }
+        html[data-theme="dark"] .search-box input {
+            background: #3a3a3a;
+            border-color: #4a4a4a;
+            color: #d4d4d4;
+        }
+        html[data-theme="dark"] .search-box input:focus { background: #3a3a3a; border-color: var(--primary); }
+        html[data-theme="dark"] .search-box svg { color: var(--text-muted); }
+        html[data-theme="dark"] .btn-primary { background: var(--primary); color: #fff; }
+        html[data-theme="dark"] .btn-primary:hover { background: var(--primary-dark); }
+        html[data-theme="dark"] .filter-tag {
+            background: var(--surface);
+            border-color: var(--border);
+            color: var(--text-secondary);
+        }
+        html[data-theme="dark"] .filter-tag:hover { border-color: var(--primary); color: var(--primary); }
+        html[data-theme="dark"] .filter-tag.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+        html[data-theme="dark"] .topic-card {
+            background: var(--surface);
+            border-color: var(--border);
+        }
+        html[data-theme="dark"] .topic-card:hover { background: #3a3a3a; border-color: #4a4a4a; }
+        html[data-theme="dark"] .topic-card .tag { background: #3a3a3a; color: #9a9a9a; }
+        html[data-theme="dark"] .topic-card .footer { border-top-color: var(--border); }
+        html[data-theme="dark"] .topic-card .meta { color: var(--text-muted); }
+        html[data-theme="dark"] .empty-state { color: var(--text-muted); }
+        html[data-theme="dark"] .loading { color: var(--text-muted); }
+        html[data-theme="dark"] .loading .spinner { border-color: var(--border); border-top-color: var(--primary); }
     </style>
 </head>
 <body>
@@ -374,13 +421,23 @@
     <script src="topic.js"></script>
     <script>
       (function() {
-        const KEY = 'app_theme_v1';
-        function apply(t) {
-          document.documentElement.setAttribute('data-theme', t === 'regular' ? 'regular' : 'notion');
+        const THEME_KEY = 'app_theme_v1';
+        const APPEARANCE_KEY = 'app_appearance_v1';
+        function getEffective() {
+          const app = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+          if (app === 'system') return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'notion';
+          return app;
         }
-        apply(localStorage.getItem(KEY) || 'notion');
+        function apply() {
+          const t = getEffective();
+          document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : (t === 'regular' ? 'regular' : 'notion'));
+        }
+        apply();
         window.addEventListener('storage', function(e) {
-          if (e.key === KEY) apply(e.newValue);
+          if (e.key === THEME_KEY || e.key === APPEARANCE_KEY) apply();
+        });
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+          if ((localStorage.getItem(APPEARANCE_KEY) || 'notion') === 'system') apply();
         });
       })();
     </script>

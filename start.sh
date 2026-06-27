@@ -76,20 +76,30 @@ if port_in_use $FRONTEND_PORT; then
 else
   echo "[2/2] Starting frontend..."
 
-  if command -v python3 &>/dev/null; then
+  if command -v node &>/dev/null; then
     cd "$FRONTEND_DIR"
-    python3 -m http.server $FRONTEND_PORT --bind 0.0.0.0 > "$FRONTEND_LOG" 2>&1 &
+    node server.js > "$FRONTEND_LOG" 2>&1 &
     FRONTEND_PID=$!
     cd "$SCRIPT_DIR"
-    echo "       Frontend starting... (PID: $FRONTEND_PID, using Python)"
-  elif command -v npx &>/dev/null; then
-    npx serve "$FRONTEND_DIR" --no-clipboard \
-      --listen "tcp://0.0.0.0:$FRONTEND_PORT" > "$FRONTEND_LOG" 2>&1 &
+    echo "       Frontend starting... (PID: $FRONTEND_PID, Node SPA)"
+  elif command -v python3 &>/dev/null; then
+    cd "$FRONTEND_DIR"
+    python3 -c "
+import http.server, os
+class S(http.server.SimpleHTTPRequestHandler):
+    def do_GET(self):
+        p = self.translate_path(self.path)
+        if not os.path.exists(p) or os.path.isdir(p):
+            self.path = '/index.html'
+        return super().do_GET()
+http.server.HTTPServer(('0.0.0.0', $FRONTEND_PORT), S).serve_forever()
+" > "$FRONTEND_LOG" 2>&1 &
     FRONTEND_PID=$!
-    echo "       Frontend starting... (PID: $FRONTEND_PID, using npx serve)"
+    cd "$SCRIPT_DIR"
+    echo "       Frontend starting... (PID: $FRONTEND_PID, Python SPA)"
   else
-    echo "[WARN] Neither python3 nor npx found. Start frontend manually:"
-    echo "        python3 -m http.server $FRONTEND_PORT --bind 0.0.0.0"
+    echo "[WARN] Neither node nor python3 found. Start frontend manually:"
+    echo "        node frontend/server.js"
   fi
 
   # Wait for frontend to be ready

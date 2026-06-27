@@ -112,16 +112,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (response.success) {
         showStatus('✅ 剪藏成功！', 'success');
+        // 通知 background（失败不影响主流程）
+        try { chrome.runtime.sendMessage({ action: 'popupClipCompleted', success: true }); } catch (e) {}
         setTimeout(() => {
           handleClear();
           window.close();
-        }, 1500);
+        }, 2500);
       } else {
         showStatus('❌ ' + formatErrorMessage(response.errorType, response.error), 'error');
+        try { chrome.runtime.sendMessage({ action: 'popupClipCompleted', success: false, error: formatErrorMessage(response.errorType, response.error) }); } catch (e) {}
       }
     } catch (error) {
       console.error('提交失败:', error);
       showStatus('❌ 发送失败，请重试', 'error');
+      try { chrome.runtime.sendMessage({ action: 'popupClipCompleted', success: false, error: '发送失败，请重试' }); } catch (e) {}
     } finally {
       setLoading(false);
     }

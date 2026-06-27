@@ -47,7 +47,7 @@ async function loadClips() {
   }
 }
 
-// 从剪藏导入
+// 从剪藏导入（仅数据回显，不创建话题）
 async function importFromClip() {
   const clipId = document.getElementById('clipSelect').value;
   if (!clipId) {
@@ -56,16 +56,22 @@ async function importFromClip() {
   }
 
   try {
-    const response = await fetch(`${API_BASE}/from-clip/${clipId}`, { method: 'POST' });
-    const topic = await response.json();
+    // 直接从已加载的剪藏列表中获取数据，做数据回显
+    const response = await fetch(`${CLIP_API}/list`);
+    const clips = await response.json();
+    const clip = clips.find(c => String(c.id) === String(clipId));
+    if (!clip) {
+      showToast('未找到该剪藏');
+      return;
+    }
 
-    document.getElementById('titleInput').value = topic.title || '';
-    document.getElementById('summaryInput').value = topic.summary || '';
-    document.getElementById('contentInput').value = topic.content || '';
-    document.getElementById('categorySelect').value = topic.category || 'other';
-    tags = topic.tags || [];
+    document.getElementById('titleInput').value = clip.title || clip.summary || `剪藏 #${clip.id}`;
+    document.getElementById('summaryInput').value = clip.summary || '';
+    document.getElementById('contentInput').value = clip.content || '';
+    document.getElementById('categorySelect').value = clip.category || 'other';
+    tags = clip.tags || [];
     renderTags();
-    showToast('导入成功！');
+    showToast('已导入剪藏数据，请编辑后点击发布');
   } catch (error) {
     console.error('导入失败:', error);
     showToast('导入失败');

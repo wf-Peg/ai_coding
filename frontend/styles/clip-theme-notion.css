@@ -322,3 +322,68 @@ select:focus {
     color: #2f3437 !important;
     border: 1px solid #d7d7d4 !important;
 }
+
+/* 深色主题覆盖 */
+html[data-theme="dark"] {
+    --primary: #569cff;
+    --primary-light: #4a8ae8;
+    --secondary: #9a9a9a;
+    --accent: #d4d4d4;
+    --background: #1e1e1e;
+    --background-dark: #252525;
+    --surface: #2d2d2d;
+    --surface-hover: #3a3a3a;
+    --text: #d4d4d4;
+    --text-secondary: #9a9a9a;
+    --border: #3e3e3e;
+    --border-light: #333333;
+    --primary-bg: rgba(86, 156, 255, 0.12);
+    --error-bg: rgba(224, 96, 96, 0.12);
+    --shadow: 0 1px 0 rgba(0,0,0,0.3);
+    --shadow-hover: 0 8px 20px rgba(0,0,0,0.4);
+}
+html[data-theme="dark"] body { background: var(--background); color: var(--text); }
+html[data-theme="dark"] header { background: var(--surface); border-color: var(--border); }
+html[data-theme="dark"] h1 { color: #d4d4d4; }
+html[data-theme="dark"] .subtitle { color: var(--text-secondary); }
+html[data-theme="dark"] .toggle-btn { background: #3a3a3a; color: #d4d4d4; border-color: #4a4a4a; }
+html[data-theme="dark"] .toggle-btn:hover { background: #4a4a4a; }
+html[data-theme="dark"] .toggle-btn.active,
+html[data-theme="dark"] .toggle-btn.active:hover { background: #569cff; color: #fff; border-color: #569cff; }
+html[data-theme="dark"] .action-split-group { border-color: #4a4a4a; }
+html[data-theme="dark"] .action-split-group .icon-btn { background: #3a3a3a; color: #9a9a9a; border-color: #4a4a4a; }
+html[data-theme="dark"] .action-split-group .icon-btn:hover { background: #4a4a4a; }
+html[data-theme="dark"] .action-split-group .main-btn { background: #3a3a3a; color: #d4d4d4; border-color: #4a4a4a; }
+html[data-theme="dark"] .action-split-group .main-btn:hover { background: #4a4a4a; }
+html[data-theme="dark"] .action-split-group.add-clip-action-split .main-btn { background: #3a3a3a; color: #d4d4d4; border-color: #4a4a4a; }
+html[data-theme="dark"] .action-split-group.add-clip-action-split .main-btn:hover { background: #4a4a4a; }
+html[data-theme="dark"] .clip-form,
+html[data-theme="dark"] .clip-item,
+html[data-theme="dark"] .empty-state { border-color: var(--border); }
+html[data-theme="dark"] .clip-count { background: #3a3a3a; color: #9a9a9a; border-color: #4a4a4a; }
+html[data-theme="dark"] input[type="text"],
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] select { background: #3a3a3a; border-color: #4a4a4a; color: #d4d4d4; }
+html[data-theme="dark"] input[type="text"]:focus,
+html[data-theme="dark"] textarea:focus,
+html[data-theme="dark"] select:focus { border-color: #569cff; background: #3a3a3a; }
+html[data-theme="dark"] .btn-primary { background: #569cff; color: #fff; border-color: #569cff; }
+html[data-theme="dark"] .btn-primary:hover { background: #4a8ae8; }
+html[data-theme="dark"] .btn-secondary { background: #3a3a3a; color: #d4d4d4; border-color: #4a4a4a; }
+html[data-theme="dark"] .btn-secondary:hover { background: #4a4a4a; }
+html[data-theme="dark"] .ai-tags-checkbox { background: #3a3a3a; border-color: #4a4a4a; }
+html[data-theme="dark"] .ai-tags-checkbox:hover { background: #4a4a4a; }
+html[data-theme="dark"] .content-section { background: #3a3a3a; border-color: var(--border); }
+html[data-theme="dark"] .content-section h4,
+html[data-theme="dark"] .markdown-content h1,
+html[data-theme="dark"] .markdown-content h2,
+html[data-theme="dark"] .markdown-content h3,
+html[data-theme="dark"] .markdown-content h4 { color: #d4d4d4 !important; }
+html[data-theme="dark"] .tag { background: #3a3a3a; color: #9a9a9a; border-color: #4a4a4a; }
+html[data-theme="dark"] .category-badge { background: #3a3a3a; color: #9a9a9a; border-color: #4a4a4a; }
+html[data-theme="dark"] .tag:hover { background: #4a4a4a; }
+html[data-theme="dark"] .clip-item:hover { border-color: #4a4a4a; }
+html[data-theme="dark"] .modal { background: rgba(0,0,0,0.5); }
+html[data-theme="dark"] .modal-content { border-color: var(--border); }
+html[data-theme="dark"] #notification-bar { background: #2d2d2d !important; border-color: #3e3e3e; }
+html[data-theme="dark"] #notification-bar #open-folder-btn { background: #3a3a3a !important; color: #d4d4d4 !important; border-color: #4a4a4a !important; }

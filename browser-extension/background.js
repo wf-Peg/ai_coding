@@ -32,6 +32,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         .then(() => sendResponse({ success: true }))
         .catch((error) => sendResponse({ success: false, error: error.message }));
       return true;
+    case 'popupClipCompleted':
+      if (request.success) {
+        showNotification('剪藏成功！', 'success');
+      } else {
+        showNotification(request.error || '剪藏失败', 'error');
+      }
+      break;
     default:
       sendResponse({ error: '未知操作' });
   }
@@ -566,12 +573,19 @@ async function showNotification(message, type = 'info') {
     return;
   }
 
+  // 优先系统通知
   if (Notification.permission === 'granted') {
-    new Notification(title, {
-      body: message,
-      icon: 'icons/icon-48.png'
-    });
+    try { new Notification(title, { body: message, icon: 'icons/icon-48.png' }); return; } catch (e) {}
   }
+
+  // 兜底：扩展图标角标
+  try {
+    const badgeText = type === 'success' ? 'OK' : type === 'error' ? 'ERR' : '...';
+    const badgeColor = type === 'success' ? '#22c55e' : type === 'error' ? '#ef4444' : '#3b82f6';
+    await chrome.action.setBadgeText({ text: badgeText });
+    await chrome.action.setBadgeBackgroundColor({ color: badgeColor });
+    setTimeout(async () => { try { await chrome.action.setBadgeText({ text: '' }); } catch (e) {} }, 3000);
+  } catch (e) { console.warn('无法设置角标:', e); }
 }
 
 async function cleanContentWithModel(content, config) {

@@ -59,7 +59,7 @@ if %errorlevel% equ 0 (
 
 echo [2/2] Starting frontend...
 cd /d "%~dp0"
-start "Clip-Frontend" /min cmd /c "npx serve frontend -l 3000"
+start "Clip-Frontend" /min cmd /c "cd frontend && node server.js"
 timeout /t 3 /nobreak >nul
 echo       Frontend started!
 

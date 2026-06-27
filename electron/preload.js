@@ -14,5 +14,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onStartupError: (callback) => ipcRenderer.on('startup-error', (event, msg) => callback(msg)),
   configDone: (config) => ipcRenderer.send('config-done', config),
   quitApp: () => ipcRenderer.invoke('quit-app'),
-  removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel)
+  removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel),
+  // Window controls
+  windowMinimize: () => ipcRenderer.invoke('window-minimize'),
+  windowMaximize: () => ipcRenderer.invoke('window-maximize'),
+  windowClose: () => ipcRenderer.invoke('window-close'),
+  windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  onWindowMaximized: (callback) => ipcRenderer.on('window-maximized', (event, maximized) => callback(maximized))
 });

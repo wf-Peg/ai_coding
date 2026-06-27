@@ -476,10 +476,22 @@ function startFrontendServer(config) {
     }
     const finalhandler = require('finalhandler');
     const serveStatic = require('serve-static');
-    const serve = serveStatic(frontendDir, { index: ['index.html'] });
+    const serve = serveStatic(frontendDir, { index: ['index.html'], fallthrough: false });
     const server = http.createServer((req, res) => {
-      serve(req, res, finalhandler(req, res));
-    });
+      serve(req, res, finalhandler(req, res, {
+        onerror: () => {
+          // SPA fallback: 非文件路径回退到 index.html
+          const fs = require('fs');
+          const urlPath = new URL(req.url, `http://127.0.0.1:${config.frontendPort}`).pathname;
+          const fp = path.join(frontendDir, urlPath);
+          if (!fs.existsSync(fp) || fs.statSync(fp).isDirectory()) {
+            fs.readFile(path.join(frontendDir, 'index.html'), (e, d) => {
+              if (e) { res.writeHead(500); res.end('Error'); }
+              else { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(d); }
+            });
+          } else { res.writeHead(500); res.end('Error'); }
+        }
+      }));
     server.listen(config.frontendPort, '127.0.0.1', () => {
       frontendServer = server;
       console.log(`Frontend server: http://127.0.0.1:${config.frontendPort}`);
@@ -507,6 +519,7 @@ function stopFrontendServer() {
 function createMainWindow(config) {
   mainWindow = new BrowserWindow({
     width: 1200, height: 800, minWidth: 900, minHeight: 600,
+    frame: false,
     title: 'Clip',
     webPreferences: {
       nodeIntegration: false,
@@ -537,6 +550,10 @@ function createMainWindow(config) {
 
   loadWithRetry(5);
   mainWindow.on('closed', () => { mainWindow = null; });
+
+  // Notify renderer on maximize/unmaximize
+  mainWindow.on('maximize', () => mainWindow.webContents.send('window-maximized', true));
+  mainWindow.on('unmaximize', () => mainWindow.webContents.send('window-maximized', false));
 
   const menuTemplate = [
     { label: 'Clip', submenu: [
@@ -686,6 +703,18 @@ function setupIPC() {
   ipcMain.handle('quit-app', async () => {
     quitApp();
   });
+
+  // Window controls (frameless)
+  ipcMain.handle('window-minimize', () => { mainWindow?.minimize(); });
+  ipcMain.handle('window-maximize', () => {
+    if (mainWindow?.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow?.maximize();
+    }
+  });
+  ipcMain.handle('window-close', () => { mainWindow?.close(); });
+  ipcMain.handle('window-is-maximized', () => mainWindow?.isMaximized() ?? false);
 }
 
 // ==================== App Lifecycle ====================

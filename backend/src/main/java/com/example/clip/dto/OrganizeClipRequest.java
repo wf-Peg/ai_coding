@@ -10,6 +10,9 @@ public class OrganizeClipRequest {
     private String type;
     private String category;
     private List<String> tags;
+    private String content;
+    private String summary;
+    private String analysis;
 
     public String getMode() {
         return mode;
@@ -41,5 +44,29 @@ public class OrganizeClipRequest {
 
     public void setTags(List<String> tags) {
         this.tags = tags;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public void setContent(String content) {
+        this.content = content;
+    }
+
+    public String getSummary() {
+        return summary;
+    }
+
+    public void setSummary(String summary) {
+        this.summary = summary;
+    }
+
+    public String getAnalysis() {
+        return analysis;
+    }
+
+    public void setAnalysis(String analysis) {
+        this.analysis = analysis;
     }
 }
