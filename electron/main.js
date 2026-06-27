@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn, execSync } = require('child_process');
@@ -69,7 +69,9 @@ function saveConfig(config) {
 let backendProcess = null;
 let mainWindow = null;
 let configWindow = null;
+let tray = null;
 let isQuitting = false;
+let closeToTray = null; // null=每次询问, true=记住到托盘, false=记住退出
 
 function getJavaCommand() {
   const isWin = process.platform === 'win32';
@@ -516,6 +518,87 @@ function stopFrontendServer() {
 
 // ==================== Window Management ====================
 
+function createTray() {
+  const iconPath = path.join(__dirname, 'icon.png');
+  let trayIcon;
+  if (fs.existsSync(iconPath)) {
+    trayIcon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
+  } else {
+    // 创建一个简单的 16x16 托盘图标
+    trayIcon = nativeImage.createEmpty();
+  }
+
+  tray = new Tray(trayIcon);
+  tray.setToolTip('剪藏');
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: '显示主窗口',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        } else {
+          const config = loadConfig();
+          createMainWindow(config);
+        }
+      }
+    },
+    { type: 'separator' },
+    {
+      label: '退出',
+      click: () => {
+        isQuitting = true;
+        quitApp();
+      }
+    }
+  ]);
+
+  tray.setContextMenu(contextMenu);
+
+  // 双击托盘图标显示窗口
+  tray.on('double-click', () => {
+    if (mainWindow) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
+function showCloseDialog(win) {
+  const options = {
+    type: 'question',
+    buttons: ['最小化到系统托盘', '退出程序'],
+    defaultId: 0,
+    cancelId: 0,
+    title: '关闭确认',
+    message: '请选择关闭方式',
+    detail: '您希望最小化到系统托盘还是退出程序？',
+    checkboxLabel: '记住我的选择',
+    checkboxChecked: false
+  };
+
+  // 如果是 macOS，使用不同的窗口引用
+  const parent = win || BrowserWindow.getFocusedWindow();
+  dialog.showMessageBox(parent, options).then((result) => {
+    const { response, checkboxChecked } = result;
+    if (checkboxChecked) {
+      closeToTray = response === 0;
+    }
+
+    if (response === 0) {
+      // 最小化到托盘
+      if (win) {
+        win.hide();
+      }
+    } else {
+      // 退出程序
+      isQuitting = true;
+      quitApp();
+    }
+  });
+}
+
 function createMainWindow(config) {
   mainWindow = new BrowserWindow({
     width: 1200, height: 800, minWidth: 900, minHeight: 600,
@@ -527,6 +610,11 @@ function createMainWindow(config) {
       preload: path.join(__dirname, 'preload.js')
     }
   });
+
+  // 创建系统托盘（仅首次）
+  if (!tray) {
+    createTray();
+  }
 
   // Load frontend with auto-retry
   function loadWithRetry(attempts) {
@@ -550,6 +638,30 @@ function createMainWindow(config) {
 
   loadWithRetry(5);
   mainWindow.on('closed', () => { mainWindow = null; });
+
+  // 关闭窗口时：弹出提示选择是最小化到托盘还是退出
+  mainWindow.on('close', (event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      if (closeToTray === true) {
+        // 已记住选择：直接最小化到托盘
+        mainWindow.hide();
+      } else if (closeToTray === false) {
+        // 已记住选择：直接退出
+        isQuitting = true;
+        quitApp();
+      } else {
+        // 未记住选择：弹出对话框
+        showCloseDialog(mainWindow);
+      }
+    }
+  });
+
+  // 最小化时：隐藏到系统托盘
+  mainWindow.on('minimize', (event) => {
+    event.preventDefault();
+    mainWindow.hide();
+  });
 
   // Notify renderer on maximize/unmaximize
   mainWindow.on('maximize', () => mainWindow.webContents.send('window-maximized', true));
@@ -619,6 +731,10 @@ function showConfigWindow(config) {
 
 function quitApp() {
   isQuitting = true;
+  if (tray) {
+    tray.destroy();
+    tray = null;
+  }
   stopBackend();
   stopFrontendServer();
   app.quit();
@@ -816,10 +932,12 @@ app.whenReady().then(async () => {
   }
 });
 
-// Prevent default close behavior - use our quitApp instead
+// Prevent default close behavior - keep app alive when tray is active
 app.on('window-all-closed', (e) => {
-  // On macOS, keep app alive; on other platforms, quit
-  if (process.platform !== 'darwin') {
+  // 有托盘时不退出，macOS 也不退出
+  if (tray || process.platform === 'darwin') {
+    // keep alive
+  } else {
     quitApp();
   }
 });
@@ -837,7 +955,11 @@ app.on('will-quit', () => {
 });
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
+  // 如果窗口被隐藏到托盘，则显示它
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
+    mainWindow.focus();
+  } else if (BrowserWindow.getAllWindows().length === 0) {
     const config = loadConfig();
     createMainWindow(config);
   }
