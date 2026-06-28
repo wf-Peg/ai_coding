@@ -39,8 +39,6 @@ function renderDetail(topic) {
   const tagsHtml = (topic.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
   const categoryLabel = { work: '工作', study: '学习', life: '生活', tech: '技术', other: '其他' }[topic.category] || topic.category;
 
-  const coverHtml = `<div class="cover-placeholder">${getCategoryEmoji(topic.category)}</div>`;
-
   // Markdown 渲染内容
   let contentHtml = '';
   if (topic.content) {
@@ -55,7 +53,6 @@ function renderDetail(topic) {
 
   const container = document.getElementById('detailContainer');
   container.innerHTML = `
-    ${coverHtml}
     <h1 class="topic-title">${escapeHtml(topic.title)}</h1>
     <div class="topic-meta">
       ${tagsHtml}
@@ -148,11 +145,6 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
-}
-
-function getCategoryEmoji(category) {
-  const map = { work: '💼', study: '📚', life: '🏠', tech: '💻', other: '📌' };
-  return map[category] || '📌';
 }
 
 function showToast(message) {
