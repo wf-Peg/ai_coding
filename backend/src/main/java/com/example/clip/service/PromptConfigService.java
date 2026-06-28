@@ -208,18 +208,18 @@ public class PromptConfigService {
             "你是一位拥有20年经验的**{{category}}**行业专家及知识管理顾问。你擅长从碎片化的文档中提取核心逻辑，构建高信噪比的知识库，并能结合专业视角进行深度复盘。\n" +
             "\n" +
             "# Goal\n" +
-            "接收用户提供的原始文档列表（包含原文、摘要、AI分析、标签等）以及指定的专家角色，按照"关联性整合"与"层级化分类"的原则，输出一份结构严谨、逻辑清晰的【行业知识库日报】。\n" +
+            "接收用户提供的原始文档列表（包含原文、摘要、AI分析、标签等）以及指定的专家角色，按照\u201C关联性整合\u201D与\u201C层级化分类\u201D的原则，输出一份结构严谨、逻辑清晰的【行业知识库日报】。\n" +
             "\n" +
             "# Workflow\n" +
             "1.  **关联性分析**：\n" +
             "    - 逐条审查输入内容，识别主题重叠、逻辑互补或观点冲突的段落。\n" +
-            "    - 将内容划分为"关联组"（需合并）和"独立项"（需保留原貌）。\n" +
+            "    - 将内容划分为\u201C关联组\u201D（需合并）和\u201C独立项\u201D（需保留原貌）。\n" +
             "\n" +
             "2.  **内容整合与重构**：\n" +
             "    - **关联组处理**：\n" +
             "        - 标题：提炼一个涵盖所有相关内容的标题。\n" +
             "        - 原文：将所有相关原文按序号排序组合，保持原始风貌。\n" +
-            "        - 分析：对原有的AI分析进行"融合重写"，去除重复信息，梳理逻辑层级，形成一条高密度的综合分析。\n" +
+            "        - 分析：对原有的AI分析进行\u201C融合重写\u201D，去除重复信息，梳理逻辑层级，形成一条高密度的综合分析。\n" +
             "        - 标签：合并所有相关标签。\n" +
             "    - **独立项处理**：\n" +
             "        - 标题：使用原文的总结摘要。\n" +
@@ -229,10 +229,10 @@ public class PromptConfigService {
             "3.  **全局复盘**：\n" +
             "    - 站在行业专家的视角，对上述整理的所有内容进行跨学科、跨领域的系统性总结。\n" +
             "    - 寻找不同知识点之间的隐性联系（如：心理学与博弈论、宏观与微观，或该专业领域的特定关联）。\n" +
-            "    - 输出高浓度的"今日复盘"，作为标题展示。\n" +
+            "    - 输出高浓度的\u201C今日复盘\u201D，作为标题展示。\n" +
             "\n" +
             "# Output Format Rules\n" +
-            "- **严格禁止**使用角色扮演式的开场白（如"好的，我是专家..."），直接输出日报内容。\n" +
+            "- **严格禁止**使用角色扮演式的开场白（如\u201C好的，我是专家...\u201D），直接输出日报内容。\n" +
             "- **标题层级规范**：\n" +
             "    - **一级标题**：`# {日期}日报` （全文仅一个）\n" +
             "    - **二级标题**：`{内容板块标题}` 或 `今日复盘`\n" +
@@ -246,7 +246,7 @@ public class PromptConfigService {
             "\n" +
             "# Constraints\n" +
             "- 保持客观、理性的语调。\n" +
-            "- 确保"分析"部分具有高信息密度，拒绝废话。\n" +
+            "- 确保\u201C分析\u201D部分具有高信息密度，拒绝废话。\n" +
             "- 清洗格式错误（如多余的冒号、错误的换行、标题符号重叠）。";
 
     /**
@@ -310,4 +310,333 @@ public class PromptConfigService {
             "- 每个知识点内容应该充实，有实际价值\n" +
             "- 主报告应该结构清晰，引用自然\n" +
             "- 文件名只使用中文、数字和下划线，不要特殊字符";
-}
+}package com.examplpackage com.example.clip.service;
+
+import com.example.clip.config.PromptConfig;
+import org.springframework.stereotype.Servicpackage com.example.clip.service;
+
+import com.example.clip.config.PromptConfig;
+import org.springframework.stereotype.Service;
+
+/**
+ * Prompt 配置业务服务。
+ * <p>
+ * 管理所有 AIpackage com.example.clip.service;
+
+import com.example.clip.config.PromptConfig;
+import org.springframework.stereotype.Service;
+
+/**
+ * Prompt 配置业务服务。
+ * <p>
+ * 管理所有 AI 提示词（Prompt）的读取、保存和重置操作。
+ * 维护 10package com.example.clip.service;
+
+import com.example.clip.config.PromptConfig;
+import org.springframework.stereotype.Service;
+
+/**
+ * Prompt 配置业务服务。
+ * <p>
+ * 管理所有 AI 提示词（Prompt）的读取、保存和重置操作。
+ * 维护 10 个 Prompt 字段（3 核心 + 1 任务格式 + 6 辅助package com.example.clip.service;
+
+import com.example.clip.config.PromptConfig;
+import org.springframework.stereotype.Service;
+
+/**
+ * Prompt 配置业务服务。
+ * <p>
+ * 管理所有 AI 提示词（Prompt）的读取、保存和重置操作。
+ * 维护 10 个 Prompt 字段（3 核心 + 1 任务格式 + 6 辅助），
+ * 全部支持用户通过前端弹窗自定义。
+ * </p>
+ *package com.example.clip.service;
+
+import com.example.clip.config.PromptConfig;
+import org.springframework.stereotype.Service;
+
+/**
+ * Prompt 配置业务服务。
+ * <p>
+ * 管理所有 AI 提示词（Prompt）的读取、保存和重置操作。
+ * 维护 10 个 Prompt 字段（3 核心 + 1 任务格式 + 6 辅助），
+ * 全部支持用户通过前端弹窗自定义。
+ * </p>
+ *
+ * <h3>Prompt 字段清单</h3>
+ * <ul>
+ *   <lipackage com.example.clip.service;
+
+import com.example.clip.config.PromptConfig;
+import org.springframework.stereotype.Service;
+
+/**
+ * Prompt 配置业务服务。
+ * <p>
+ * 管理所有 AI 提示词（Prompt）的读取、保存和重置操作。
+ * 维护 10 个 Prompt 字段（3 核心 + 1 任务格式 + 6 辅助），
+ * 全部支持用户通过前端弹窗自定义。
+ * </p>
+ *
+ * <h3>Prompt 字段清单</h3>
+ * <ul>
+ *   <li><b>核心</b>：clipAnalyze、dailyOrganize、weeklyReportpackage com.example.clip.service;
+
+import com.example.clip.config.PromptConfig;
+import org.springframework.stereotype.Service;
+
+/**
+ * Prompt 配置业务服务。
+ * <p>
+ * 管理所有 AI 提示词（Prompt）的读取、保存和重置操作。
+ * 维护 10 个 Prompt 字段（3 核心 + 1 任务格式 + 6 辅助），
+ * 全部支持用户通过前端弹窗自定义。
+ * </p>
+ *
+ * <h3>Prompt 字段清单</h3>
+ * <ul>
+ *   <li><b>核心</b>：clipAnalyze、dailyOrganize、weeklyReport</li>
+ *   <li><b>任务格式</b>：clipAnalyzeTaskFopackage com.example.clip.service;
+
+import com.example.clip.config.PromptConfig;
+import org.springframework.stereotype.Service;
+
+/**
+ * Prompt 配置业务服务。
+ * <p>
+ * 管理所有 AI 提示词（Prompt）的读取、保存和重置操作。
+ * 维护 10 个 Prompt 字段（3 核心 + 1 任务格式 + 6 辅助），
+ * 全部支持用户通过前端弹窗自定义。
+ * </p>
+ *
+ * <h3>Prompt 字段清单</h3>
+ * <ul>
+ *   <li><b>核心</b>：clipAnalyze、dailyOrganize、weeklyReport</li>
+ *   <li><b>任务格式</b>：clipAnalyzeTaskFormat（含 {{category_tree}} 占位符）</li>
+ *   <li><bpackage com.example.clip.service;
+
+import com.example.clip.config.PromptConfig;
+import org.springframework.stereotype.Service;
+
+/**
+ * Prompt 配置业务服务。
+ * <p>
+ * 管理所有 AI 提示词（Prompt）的读取、保存和重置操作。
+ * 维护 10 个 Prompt 字段（3 核心 + 1 任务格式 + 6 辅助），
+ * 全部支持用户通过前端弹窗自定义。
+ * </p>
+ *
+ * <h3>Prompt 字段清单</h3>
+ * <ul>
+ *   <li><b>核心</b>：clipAnalyze、dailyOrganize、weeklyReport</li>
+ *   <li><b>任务格式</b>：clipAnalyzeTaskFormat（含 {{category_tree}} 占位符）</li>
+ *   <li><b>辅助</b>：analyzeContent、generateSummary、generateTags、smartOrganizpackage com.example.clip.service;
+
+import com.example.clip.config.PromptConfig;
+import org.springframework.stereotype.Service;
+
+/**
+ * Prompt 配置业务服务。
+ * <p>
+ * 管理所有 AI 提示词（Prompt）的读取、保存和重置操作。
+ * 维护 10 个 Prompt 字段（3 核心 + 1 任务格式 + 6 辅助），
+ * 全部支持用户通过前端弹窗自定义。
+ * </p>
+ *
+ * <h3>Prompt 字段清单</h3>
+ * <ul>
+ *   <li><b>核心</b>：clipAnalyze、dailyOrganize、weeklyReport</li>
+ *   <li><b>任务格式</b>：clipAnalyzeTaskFormat（含 {{category_tree}} 占位符）</li>
+ *   <li><b>辅助</b>：analyzeContent、generateSummary、generateTags、smartOrganize、generateSynonyms、divergentSummaryRoleMap</li>
+ * </ul>
+ *package com.example.clip.service;
+
+import com.example.clip.config.PromptConfig;
+import org.springframework.stereotype.Service;
+
+/**
+ * Prompt 配置业务服务。
+ * <p>
+ * 管理所有 AI 提示词（Prompt）的读取、保存和重置操作。
+ * 维护 10 个 Prompt 字段（3 核心 + 1 任务格式 + 6 辅助），
+ * 全部支持用户通过前端弹窗自定义。
+ * </p>
+ *
+ * <h3>Prompt 字段清单</h3>
+ * <ul>
+ *   <li><b>核心</b>：clipAnalyze、dailyOrganize、weeklyReport</li>
+ *   <li><b>任务格式</b>：clipAnalyzeTaskFormat（含 {{category_tree}} 占位符）</li>
+ *   <li><b>辅助</b>：analyzeContent、generateSummary、generateTags、smartOrganize、generateSynonyms、divergentSummaryRoleMap</li>
+ * </ul>
+ *
+ * <h3>模板占位符</h3>
+ * <ul>
+ *package com.example.clip.service;
+
+import com.example.clip.config.PromptConfig;
+import org.springframework.stereotype.Service;
+
+/**
+ * Prompt 配置业务服务。
+ * <p>
+ * 管理所有 AI 提示词（Prompt）的读取、保存和重置操作。
+ * 维护 10 个 Prompt 字段（3 核心 + 1 任务格式 + 6 辅助），
+ * 全部支持用户通过前端弹窗自定义。
+ * </p>
+ *
+ * <h3>Prompt 字段清单</h3>
+ * <ul>
+ *   <li><b>核心</b>：clipAnalyze、dailyOrganize、weeklyReport</li>
+ *   <li><b>任务格式</b>：clipAnalyzeTaskFormat（含 {{category_tree}} 占位符）</li>
+ *   <li><b>辅助</b>：analyzeContent、generateSummary、generateTags、smartOrganize、generateSynonyms、divergentSummaryRoleMap</li>
+ * </ul>
+ *
+ * <h3>模板占位符</h3>
+ * <ul>
+ *   <li>{{category}} — 分类中文名称</li>
+ *   <li>{{dpackage com.example.clip.service;
+
+import com.example.clip.config.PromptConfig;
+import org.springframework.stereotype.Service;
+
+/**
+ * Prompt 配置业务服务。
+ * <p>
+ * 管理所有 AI 提示词（Prompt）的读取、保存和重置操作。
+ * 维护 10 个 Prompt 字段（3 核心 + 1 任务格式 + 6 辅助），
+ * 全部支持用户通过前端弹窗自定义。
+ * </p>
+ *
+ * <h3>Prompt 字段清单</h3>
+ * <ul>
+ *   <li><b>核心</b>：clipAnalyze、dailyOrganize、weeklyReport</li>
+ *   <li><b>任务格式</b>：clipAnalyzeTaskFormat（含 {{category_tree}} 占位符）</li>
+ *   <li><b>辅助</b>：analyzeContent、generateSummary、generateTags、smartOrganize、generateSynonyms、divergentSummaryRoleMap</li>
+ * </ul>
+ *
+ * <h3>模板占位符</h3>
+ * <ul>
+ *   <li>{{category}} — 分类中文名称</li>
+ *   <li>{{date}} — 当前日期</li>
+ *   <li>{{category_tree}} — 分类package com.example.clip.service;
+
+import com.example.clip.config.PromptConfig;
+import org.springframework.stereotype.Service;
+
+/**
+ * Prompt 配置业务服务。
+ * <p>
+ * 管理所有 AI 提示词（Prompt）的读取、保存和重置操作。
+ * 维护 10 个 Prompt 字段（3 核心 + 1 任务格式 + 6 辅助），
+ * 全部支持用户通过前端弹窗自定义。
+ * </p>
+ *
+ * <h3>Prompt 字段清单</h3>
+ * <ul>
+ *   <li><b>核心</b>：clipAnalyze、dailyOrganize、weeklyReport</li>
+ *   <li><b>任务格式</b>：clipAnalyzeTaskFormat（含 {{category_tree}} 占位符）</li>
+ *   <li><b>辅助</b>：analyzeContent、generateSummary、generateTags、smartOrganize、generateSynonyms、divergentSummaryRoleMap</li>
+ * </ul>
+ *
+ * <h3>模板占位符</h3>
+ * <ul>
+ *   <li>{{category}} — 分类中文名称</li>
+ *   <li>{{date}} — 当前日期</li>
+ *   <li>{{category_tree}} — 分类树文本</li>
+ *   <li>{{count}} — 条目数量</lipackage com.example.clip.service;
+
+import com.example.clip.config.PromptConfig;
+import org.springframework.stereotype.Service;
+
+/**
+ * Prompt 配置业务服务。
+ * <p>
+ * 管理所有 AI 提示词（Prompt）的读取、保存和重置操作。
+ * 维护 10 个 Prompt 字段（3 核心 + 1 任务格式 + 6 辅助），
+ * 全部支持用户通过前端弹窗自定义。
+ * </p>
+ *
+ * <h3>Prompt 字段清单</h3>
+ * <ul>
+ *   <li><b>核心</b>：clipAnalyze、dailyOrganize、weeklyReport</li>
+ *   <li><b>任务格式</b>：clipAnalyzeTaskFormat（含 {{category_tree}} 占位符）</li>
+ *   <li><b>辅助</b>：analyzeContent、generateSummary、generateTags、smartOrganize、generateSynonyms、divergentSummaryRoleMap</li>
+ * </ul>
+ *
+ * <h3>模板占位符</h3>
+ * <ul>
+ *   <li>{{category}} — 分类中文名称</li>
+ *   <li>{{date}} — 当前日期</li>
+ *   <li>{{category_tree}} — 分类树文本</li>
+ *   <li>{{count}} — 条目数量</li>
+ *   <li>{{week_range}} — 周报日期范围</li>
+ * </ul>package com.example.clip.service;
+
+import com.example.clip.config.PromptConfig;
+import org.springframework.stereotype.Service;
+
+/**
+ * Prompt 配置业务服务。
+ * <p>
+ * 管理所有 AI 提示词（Prompt）的读取、保存和重置操作。
+ * 维护 10 个 Prompt 字段（3 核心 + 1 任务格式 + 6 辅助），
+ * 全部支持用户通过前端弹窗自定义。
+ * </p>
+ *
+ * <h3>Prompt 字段清单</h3>
+ * <ul>
+ *   <li><b>核心</b>：clipAnalyze、dailyOrganize、weeklyReport</li>
+ *   <li><b>任务格式</b>：clipAnalyzeTaskFormat（含 {{category_tree}} 占位符）</li>
+ *   <li><b>辅助</b>：analyzeContent、generateSummary、generateTags、smartOrganize、generateSynonyms、divergentSummaryRoleMap</li>
+ * </ul>
+ *
+ * <h3>模板占位符</h3>
+ * <ul>
+ *   <li>{{category}} — 分类中文名称</li>
+ *   <li>{{date}} — 当前日期</li>
+ *   <li>{{category_tree}} — 分类树文本</li>
+ *   <li>{{count}} — 条目数量</li>
+ *   <li>{{week_range}} — 周报日期范围</li>
+ * </ul>
+ */
+@Service
+public class PromptConfigService {
+
+    private static final int MAX_PROMPT_LENGTHpackage com.example.clip.service;
+
+import com.example.clip.config.PromptConfig;
+import org.springframework.stereotype.Service;
+
+/**
+ * Prompt 配置业务服务。
+ * <p>
+ * 管理所有 AI 提示词（Prompt）的读取、保存和重置操作。
+ * 维护 10 个 Prompt 字段（3 核心 + 1 任务格式 + 6 辅助），
+ * 全部支持用户通过前端弹窗自定义。
+ * </p>
+ *
+ * <h3>Prompt 字段清单</h3>
+ * <ul>
+ *   <li><b>核心</b>：clipAnalyze、dailyOrganize、weeklyReport</li>
+ *   <li><b>任务格式</b>：clipAnalyzeTaskFormat（含 {{category_tree}} 占位符）</li>
+ *   <li><b>辅助</b>：analyzeContent、generateSummary、generateTags、smartOrganize、generateSynonyms、divergentSummaryRoleMap</li>
+ * </ul>
+ *
+ * <h3>模板占位符</h3>
+ * <ul>
+ *   <li>{{category}} — 分类中文名称</li>
+ *   <li>{{date}} — 当前日期</li>
+ *   <li>{{category_tree}} — 分类树文本</li>
+ *   <li>{{count}} — 条目数量</li>
+ *   <li>{{week_range}} — 周报日期范围</li>
+ * </ul>
+ */
+@Service
+public class PromptConfigService {
+
+    private static final int MAX_PROMPT_LENGTH = 30000;
+
+    private final PromptConfigStorageService storageService;
+
+    public Pro

@@ -808,7 +808,7 @@ public class AiService {
      * </p>
      *
      * <p>
-     * <b>【已知限制】</b> 不支持 Unicode 转义（\uXXXX），
+     * <b>【已知限制】</b> 不支持 Unicode 转义（如 \\uXXXX），
      * 如果 LLM 返回的 JSON 中包含 Unicode 转义序列，解析会不正确。
      * </p>
      *
