@@ -725,7 +725,7 @@ function startFrontendServer(config) {
           }
         }
       }
-      }));
+      ));
     });
 
     // 绑定到 127.0.0.1 仅监听本地回环，不对外暴露
