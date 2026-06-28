@@ -1,3 +1,12 @@
+// ============================================================
+// 此文件已整体注释掉，因为当前项目中 Embedding（向量嵌入）功能
+// 暂未启用。Spring AI 的 EmbeddingClient 依赖需要额外的配置
+// 和 API Key，目前应用的核心功能（LLM 对话）不依赖 Embedding。
+//
+// 如果未来需要启用向量嵌入功能（如语义搜索、RAG 等），
+// 可以取消注释并根据实际使用的 Embedding 提供者进行配置。
+// ============================================================
+
 //package com.example.clip.core;
 //
 //import org.springframework.ai.embedding.EmbeddingClient;

@@ -2,7 +2,6 @@ package com.example.clip.service;
 
 import com.example.clip.core.AiService;
 import com.example.clip.model.ClipContent;
-import com.example.clip.service.EmailService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,17 +17,42 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * 周报生成服务
+ * <p>
+ * 负责生成最近7天的内容周报，流程如下：
+ * <ol>
+ *   <li>筛选最近 7 天创建的剪藏内容</li>
+ *   <li>按分类分组</li>
+ *   <li>对每个分类调用 AI 提取知识点（主报告 + 知识点列表）</li>
+ *   <li>保存主报告和知识点文件（使用 Obsidian 双链语法）</li>
+ *   <li>发送邮件通知（可选）</li>
+ *   <li>执行 Git 操作</li>
+ * </ol>
+ * 与 {@link ContentOrganizeService} 类似，但周报侧重于知识点的拆分和关联。
+ * </p>
+ *
+ * @see AiService
+ * @see ContentOrganizeService
+ */
 @Service
 public class WeeklyReportService {
 
     private static final Logger log = LoggerFactory.getLogger(WeeklyReportService.class);
 
+    /** 文件存储服务 */
     private final FileStorageService storageService;
+    /** AI 服务，用于知识点提取 */
     private final AiService aiService;
+    /** 邮件服务 */
     private final EmailService emailService;
+    /** Git 服务 */
     private final GitService gitService;
+    /** 周报存储根目录 */
     private final Path weeklyReportPath;
+    /** 上次周报生成状态 */
     private String lastReportStatus;
+    /** 上次周报生成消息 */
     private String lastReportMessage;
 
     @Autowired
@@ -48,6 +72,9 @@ public class WeeklyReportService {
         this.lastReportMessage = "";
     }
 
+    /**
+     * 初始化周报存储目录
+     */
     private void initWeeklyReportStorage() {
         try {
             if (!Files.exists(weeklyReportPath)) {
@@ -58,6 +85,15 @@ public class WeeklyReportService {
         }
     }
 
+    /**
+     * 生成周报
+     * <p>
+     * 核心流程：筛选最近 7 天内容 → 按分类分组 → AI 提取知识点 → 保存文件 → 发送邮件 → Git 操作。
+     * AI 返回的主报告和知识点列表分别保存为独立文件，知识点使用 Obsidian 双链语法引用。
+     * </p>
+     *
+     * @return 周报生成结果 Map
+     */
     public Map<String, Object> generateWeeklyReport() {
         Map<String, Object> result = new HashMap<>();
         lastReportStatus = "processing";
@@ -68,10 +104,12 @@ public class WeeklyReportService {
             LocalDate today = LocalDate.now();
             LocalDate weekAgo = today.minusDays(7);
 
+            // 筛选最近 7 天（含今天）的剪藏内容
             List<ClipContent> weeklyClips = allClips.stream()
                     .filter(clip -> {
                         if (clip.getCreatedAt() == null) return false;
                         LocalDate clipDate = clip.getCreatedAt().toLocalDate();
+                        // 日期在 [weekAgo, today] 范围内
                         return !clipDate.isBefore(weekAgo) && !clipDate.isAfter(today);
                     })
                     .collect(Collectors.toList());
@@ -85,7 +123,9 @@ public class WeeklyReportService {
                 return result;
             }
 
+            // 按分类分组
             Map<String, List<ClipContent>> clipsByCategory = groupClipsByCategory(weeklyClips);
+            // 周次标识，如 "2025_W26"
             String weekSuffix = getWeekSuffix(today);
 
             int reportCount = 0;
@@ -96,23 +136,28 @@ public class WeeklyReportService {
                 List<ClipContent> categoryClips = entry.getValue();
 
                 if (!categoryClips.isEmpty()) {
+                    // 组织分类内容为 Markdown 文本
                     String organizedContent = organizeCategoryContent(category, categoryClips, today, weekAgo);
-                    
+
+                    // 调用 AI 提取知识点
                     Map<String, Object> extractionResult = aiService.extractKnowledgePoints(organizedContent, category);
                     String mainReport = (String) extractionResult.get("mainReport");
                     @SuppressWarnings("unchecked")
                     List<Map<String, String>> knowledgePoints = (List<Map<String, String>>) extractionResult.get("knowledgePoints");
 
+                    // 按分类目录/周次组织存储
                     String categoryDir = getCategoryDir(category);
                     Path categoryPath = weeklyReportPath.resolve(categoryDir).resolve(weekSuffix);
                     if (!Files.exists(categoryPath)) {
                         Files.createDirectories(categoryPath);
                     }
 
+                    // 保存主报告
                     String mainReportFileName = category + "_周报_" + weekSuffix + ".md";
                     saveReportFile(categoryPath, mainReportFileName, mainReport);
                     generatedFiles.add(categoryPath.resolve(mainReportFileName).toString());
 
+                    // 保存每个知识点为独立文件
                     for (Map<String, String> kp : knowledgePoints) {
                         String kpFileName = kp.get("fileName") + ".md";
                         String kpContent = formatKnowledgePointContent(kp);
@@ -133,7 +178,7 @@ public class WeeklyReportService {
             result.put("generatedFiles", generatedFiles);
             result.put("storagePath", weeklyReportPath.toAbsolutePath().toString());
 
-            // 发送邮件通知（如果配置）
+            // 发送邮件通知
             sendWeeklyReportEmail(today, reportCount, clipsByCategory);
 
         } catch (Exception e) {
@@ -143,14 +188,13 @@ public class WeeklyReportService {
             result.put("message", lastReportMessage);
             e.printStackTrace();
         } finally {
-            // 无论主流程是否成功，都执行git操作
+            // 无论主流程是否成功，都执行 Git 操作
             try {
                 Path gitDirectory = storageService.getStorageParentPath();
                 if (gitDirectory != null) {
                     gitService.executeGitOperations(gitDirectory);
                 }
             } catch (Exception e) {
-                // 只打日志，不影响主流程
                 log.error("Git operation failed in finally block: {}", e.getMessage());
             }
         }
@@ -158,6 +202,12 @@ public class WeeklyReportService {
         return result;
     }
 
+    /**
+     * 格式化知识点内容为 Markdown
+     *
+     * @param kp 知识点 Map（包含 title、content 和 fileName）
+     * @return 格式化后的 Markdown 字符串
+     */
     private String formatKnowledgePointContent(Map<String, String> kp) {
         StringBuilder sb = new StringBuilder();
         sb.append("# ").append(kp.get("title") != null ? kp.get("title") : kp.get("fileName")).append("\n\n");
@@ -165,17 +215,35 @@ public class WeeklyReportService {
         return sb.toString();
     }
 
+    /**
+     * 按分类分组剪藏内容
+     *
+     * @param clips 剪藏列表
+     * @return 按分类分组的 Map
+     */
     private Map<String, List<ClipContent>> groupClipsByCategory(List<ClipContent> clips) {
         Map<String, List<ClipContent>> result = new HashMap<>();
-        
+
         for (ClipContent clip : clips) {
             String category = clip.getCategory() != null ? clip.getCategory() : "default";
             result.computeIfAbsent(category, k -> new ArrayList<>()).add(clip);
         }
-        
+
         return result;
     }
 
+    /**
+     * 组织单个分类的周报内容
+     * <p>
+     * 生成包含标题、周期、原文、图片、AI 分析、标签的 Markdown 内容。
+     * </p>
+     *
+     * @param category  分类名称
+     * @param clips     剪藏列表
+     * @param endDate   周期结束日期
+     * @param startDate 周期开始日期
+     * @return Markdown 格式的内容
+     */
     private String organizeCategoryContent(String category, List<ClipContent> clips, LocalDate endDate, LocalDate startDate) {
         StringBuilder contentBuilder = new StringBuilder();
         contentBuilder.append("# ").append(getCategoryName(category)).append(" 周报\n\n");
@@ -186,23 +254,24 @@ public class WeeklyReportService {
         for (int i = 0; i < clips.size(); i++) {
             ClipContent clip = clips.get(i);
             contentBuilder.append("## ").append(i + 1).append(". ").append(clip.getSummary() != null ? clip.getSummary() : "内容摘要").append("\n\n");
-            
+
             if (clip.getContent() != null) {
                 contentBuilder.append("### 原文\n\n").append(clip.getContent()).append("\n\n");
             }
-            
+
             if (clip.getImagePaths() != null && !clip.getImagePaths().isEmpty()) {
                 contentBuilder.append("### 图片\n\n");
                 for (String imagePath : clip.getImagePaths()) {
+                    // 注意：图片引用为空，实际图片路径未嵌入，可能需要在整理时修复
                     contentBuilder.append("![图片]()\n");
                 }
                 contentBuilder.append("\n");
             }
-            
+
             if (clip.getAnalysis() != null) {
                 contentBuilder.append("### AI分析\n\n").append(clip.getAnalysis()).append("\n\n");
             }
-            
+
             if (clip.getTags() != null && !clip.getTags().isEmpty()) {
                 contentBuilder.append("### 标签\n\n");
                 for (String tag : clip.getTags()) {
@@ -210,19 +279,38 @@ public class WeeklyReportService {
                 }
                 contentBuilder.append("\n\n");
             }
-            
+
             contentBuilder.append("---\n\n");
         }
 
         return contentBuilder.toString();
     }
 
+    /**
+     * 获取周次后缀
+     * <p>
+     * 格式：{年份}_W{周数}，如 "2025_W26"。
+     * 使用 ISO 周标准（WEEK_OF_WEEK_BASED_YEAR）。
+     * </p>
+     *
+     * @param date 日期
+     * @return 周次字符串
+     */
     private String getWeekSuffix(LocalDate date) {
         int year = date.getYear();
         int week = date.get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR);
         return String.format("%d_W%02d", year, week);
     }
 
+    /**
+     * 将 category value 映射为文件系统目录路径
+     * <p>
+     * 例如: "work-company" → "work/公司事务"。
+     * </p>
+     *
+     * @param category 分类值
+     * @return 目录路径
+     */
     private String getCategoryDir(String category) {
         String cat = (category != null && !category.isEmpty()) ? category : "default";
 
@@ -247,6 +335,15 @@ public class WeeklyReportService {
         return cat;
     }
 
+    /**
+     * 将 category value 映射为中文名称
+     * <p>
+     * 例如: "work-company" → "工作项目 > 公司事务"。
+     * </p>
+     *
+     * @param category 分类值
+     * @return 中文名称
+     */
     private String getCategoryName(String category) {
         if (category == null || category.isEmpty()) return "默认分类";
 
@@ -272,9 +369,21 @@ public class WeeklyReportService {
         return category;
     }
 
+    /**
+     * 保存报告文件
+     * <p>
+     * 如果文件已存在，先创建带时间戳的备份，再写入新内容。
+     * </p>
+     *
+     * @param directory 目标目录
+     * @param fileName  文件名
+     * @param content   文件内容
+     * @throws IOException 文件操作异常
+     */
     private void saveReportFile(Path directory, String fileName, String content) throws IOException {
         Path filePath = directory.resolve(fileName);
 
+        // 如果文件已存在，备份旧文件
         if (Files.exists(filePath)) {
             long timestamp = System.currentTimeMillis();
             String baseName = fileName.substring(0, fileName.lastIndexOf('.'));
@@ -284,26 +393,40 @@ public class WeeklyReportService {
             Files.move(filePath, backupPath);
         }
 
+        // 写入 UTF-8 编码内容
         Files.write(filePath, content.getBytes("UTF-8"));
     }
 
+    /**
+     * 获取上次周报生成状态
+     */
     public String getLastReportStatus() {
         return lastReportStatus;
     }
 
+    /**
+     * 获取上次周报生成消息
+     */
     public String getLastReportMessage() {
         return lastReportMessage;
     }
 
+    /**
+     * 获取周报存储路径
+     */
     public String getWeeklyReportPath() {
         return weeklyReportPath.toAbsolutePath().toString();
     }
 
     /**
      * 发送周报邮件通知
-     * @param date 周报日期
-     * @param reportCount 生成的报告数量
-     * @param clipsByCategory 按分类分组的剪藏内容
+     * <p>
+     * 构建 HTML 格式的周报邮件，如果邮件未配置则跳过。
+     * </p>
+     *
+     * @param date             周报日期
+     * @param reportCount      生成的报告数量
+     * @param clipsByCategory  按分类分组的剪藏内容
      */
     private void sendWeeklyReportEmail(LocalDate date, int reportCount, Map<String, List<ClipContent>> clipsByCategory) {
         try {

@@ -17,16 +17,37 @@ import java.util.stream.Collectors;
 
 /**
  * 话题 REST API 控制器
- * 提供话题的 CRUD、搜索、互动等接口
+ * <p>
+ * 提供话题（Topic）的全生命周期管理，包括：
+ * <ul>
+ *   <li>话题的创建、更新、删除、查询</li>
+ *   <li>从剪藏内容一键创建话题</li>
+ *   <li>话题搜索（按关键词和分类）</li>
+ *   <li>话题点赞互动</li>
+ *   <li>话题存储目录管理</li>
+ * </ul>
+ * 所有接口均映射到 {@code /api/topic} 路径下，并允许跨域访问。
+ * </p>
+ *
+ * @see TopicService
+ * @see FileStorageService
  */
 @RestController
 @RequestMapping("/api/topic")
 @CrossOrigin(origins = "*")
 public class TopicController {
 
+    /** 话题核心业务服务 */
     private final TopicService topicService;
+    /** 文件存储服务，管理话题文件的存储路径 */
     private final FileStorageService storageService;
 
+    /**
+     * 构造函数，通过依赖注入初始化服务组件
+     *
+     * @param topicService   话题服务
+     * @param storageService 文件存储服务
+     */
     public TopicController(TopicService topicService, FileStorageService storageService) {
         this.topicService = topicService;
         this.storageService = storageService;
@@ -34,9 +55,17 @@ public class TopicController {
 
     /**
      * 创建话题
+     * <p>
+     * POST /api/topic
+     * <p>
+     * 接收话题数据，创建新的话题记录。从请求 DTO 中提取字段映射到实体对象后保存。
+     *
+     * @param request 话题创建请求，包含标题、摘要、内容、封面图、分类、标签等信息
+     * @return 创建成功的话题响应；若保存失败则返回 400
      */
     @PostMapping
     public ResponseEntity<TopicResponse> createTopic(@RequestBody TopicRequest request) {
+        // 将请求 DTO 映射为实体对象
         Topic topic = new Topic();
         topic.setTitle(request.getTitle());
         topic.setSummary(request.getSummary());
@@ -44,6 +73,7 @@ public class TopicController {
         topic.setCoverImage(request.getCoverImage());
         topic.setCategory(request.getCategory());
         topic.setTags(request.getTags());
+        // 关联来源剪藏 ID，用于追溯话题的来源
         topic.setSourceClipId(request.getSourceClipId());
         topic.setPublished(request.isPublished());
 
@@ -56,14 +86,24 @@ public class TopicController {
 
     /**
      * 更新话题
+     * <p>
+     * PUT /api/topic/{id}
+     * <p>
+     * 根据 ID 查找现有话题，用请求中的字段覆盖后保存。
+     *
+     * @param id      话题 ID
+     * @param request 话题更新请求
+     * @return 更新后的话题响应；若话题不存在则返回 404
      */
     @PutMapping("/{id}")
     public ResponseEntity<TopicResponse> updateTopic(@PathVariable Long id, @RequestBody TopicRequest request) {
+        // 先查找话题，不存在则返回 404
         Topic topic = topicService.getTopicById(id);
         if (topic == null) {
             return ResponseEntity.notFound().build();
         }
 
+        // 全量覆盖更新各字段
         topic.setTitle(request.getTitle());
         topic.setSummary(request.getSummary());
         topic.setContent(request.getContent());
@@ -78,24 +118,42 @@ public class TopicController {
 
     /**
      * 获取话题列表
+     * <p>
+     * GET /api/topic/list?category=xxx&keyword=yyy
+     * <p>
+     * 支持按分类和关键词组合筛选。若两者都为空，返回全部话题。
+     *
+     * @param category 可选的分类筛选条件
+     * @param keyword  可选的搜索关键词（模糊匹配）
+     * @return 话题响应列表
      */
     @GetMapping("/list")
     public ResponseEntity<List<TopicResponse>> listTopics(
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String keyword) {
         List<Topic> topics;
+        // 根据参数组合选择不同的查询策略
         if (keyword != null && !keyword.isEmpty()) {
+            // 有关键词时，调用搜索服务（支持按分类进一步过滤）
             topics = topicService.searchTopics(keyword, category);
         } else if (category != null && !category.isEmpty()) {
+            // 仅按分类筛选（传 null 关键词表示不过滤关键词）
             topics = topicService.searchTopics(null, category);
         } else {
+            // 无任何过滤条件，返回全部
             topics = topicService.getAllTopics();
         }
+        // 将实体列表转换为响应 DTO 列表
         return ResponseEntity.ok(topics.stream().map(this::toResponse).collect(Collectors.toList()));
     }
 
     /**
      * 获取话题详情
+     * <p>
+     * GET /api/topic/{id}
+     *
+     * @param id 话题 ID
+     * @return 话题详情响应；若不存在则返回 404
      */
     @GetMapping("/{id}")
     public ResponseEntity<TopicResponse> getTopic(@PathVariable Long id) {
@@ -108,6 +166,11 @@ public class TopicController {
 
     /**
      * 删除话题
+     * <p>
+     * DELETE /api/topic/{id}
+     *
+     * @param id 话题 ID
+     * @return 包含 "success" 状态的响应
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, String>> deleteTopic(@PathVariable Long id) {
@@ -116,7 +179,14 @@ public class TopicController {
     }
 
     /**
-     * 点赞
+     * 点赞话题
+     * <p>
+     * POST /api/topic/{id}/like
+     * <p>
+     * 对指定话题执行点赞操作，likeCount 自增 1。
+     *
+     * @param id 话题 ID
+     * @return 更新后的话题响应；若话题不存在则返回 404
      */
     @PostMapping("/{id}/like")
     public ResponseEntity<TopicResponse> likeTopic(@PathVariable Long id) {
@@ -128,7 +198,15 @@ public class TopicController {
     }
 
     /**
-     * 从剪藏创建话题
+     * 从剪藏内容创建话题
+     * <p>
+     * POST /api/topic/from-clip/{clipId}
+     * <p>
+     * 根据剪藏 ID 查找对应的剪藏内容，将其转换为话题。
+     * 这是将碎片化剪藏升级为结构化话题的快捷入口。
+     *
+     * @param clipId 源剪藏内容 ID
+     * @return 新创建的话题响应；若剪藏不存在或转换失败则返回 400
      */
     @PostMapping("/from-clip/{clipId}")
     public ResponseEntity<TopicResponse> createFromClip(@PathVariable Long clipId) {
@@ -141,6 +219,14 @@ public class TopicController {
 
     /**
      * 搜索话题
+     * <p>
+     * GET /api/topic/search?keyword=xxx&category=yyy
+     * <p>
+     * 按关键词和/或分类进行话题搜索，两个参数均为可选。
+     *
+     * @param keyword  可选的搜索关键词
+     * @param category 可选的分类过滤
+     * @return 匹配的话题响应列表
      */
     @GetMapping("/search")
     public ResponseEntity<List<TopicResponse>> searchTopics(
@@ -152,6 +238,12 @@ public class TopicController {
 
     /**
      * 获取话题存储目录路径
+     * <p>
+     * GET /api/topic/storage-path
+     * <p>
+     * 返回话题文件在服务器上的绝对存储路径，供前端展示或调试使用。
+     *
+     * @return 包含存储路径的 Map
      */
     @GetMapping("/storage-path")
     public ResponseEntity<Map<String, String>> getStoragePath() {
@@ -161,25 +253,45 @@ public class TopicController {
 
     /**
      * 在文件管理器中打开话题存储目录
+     * <p>
+     * POST /api/topic/storage-path/open
+     * <p>
+     * 在服务器操作系统上使用系统默认文件管理器打开话题存储目录。
+     * 依赖 AWT Desktop API，在无头（headless）服务器环境下可能不支持。
+     * 若目录不存在则自动创建。
+     *
+     * @return 操作结果，包含状态和路径；若失败则返回 500
      */
     @PostMapping("/storage-path/open")
     public ResponseEntity<Map<String, String>> openStoragePath() {
         try {
             Path topicPath = storageService.getTopicStoragePath();
             File dir = topicPath.toFile();
+            // 目录不存在时自动创建
             if (!dir.exists()) {
                 dir.mkdirs();
             }
+            // 检查当前环境是否支持桌面操作（非 headless 模式）
             if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
                 Desktop.getDesktop().open(dir);
                 return ResponseEntity.ok(Map.of("status", "success", "path", topicPath.toAbsolutePath().toString()));
             }
+            // 桌面操作不支持（如 headless 服务器），返回提示
             return ResponseEntity.ok(Map.of("status", "unsupported", "path", topicPath.toAbsolutePath().toString()));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("status", "error", "message", e.getMessage()));
         }
     }
 
+    /**
+     * 将 Topic 实体转换为 TopicResponse DTO
+     * <p>
+     * 提取实体中的关键字段，构建前端所需的响应对象。
+     * 这样做可以避免直接暴露实体内部结构，也便于后续扩展响应字段。
+     *
+     * @param topic 话题实体对象
+     * @return 话题响应 DTO
+     */
     private TopicResponse toResponse(Topic topic) {
         TopicResponse response = new TopicResponse();
         response.setId(topic.getId());

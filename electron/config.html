@@ -5,18 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>剪藏 - 设置</title>
   <style>
+    /* ===== 全局重置与基础样式 ===== */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
       background: #f5f7fa; color: #333; overflow: hidden;
     }
+
+    /* ===== 页面头部（渐变色标题栏） ===== */
     .header {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white; padding: 24px 32px;
     }
     .header h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
     .header p { font-size: 13px; opacity: 0.85; }
+
+    /* ===== 主内容区域（可滚动） ===== */
     .container { padding: 24px 32px; max-height: calc(100vh - 100px); overflow-y: auto; }
+
+    /* ===== 配置区块 ===== */
     .section { margin-bottom: 24px; }
     .section-title {
       font-size: 14px; font-weight: 600; color: #555;
@@ -24,6 +31,8 @@
       border-bottom: 1px solid #e8ecf1;
       display: flex; align-items: center; gap: 8px;
     }
+
+    /* ===== 表单元素 ===== */
     .form-group { margin-bottom: 16px; }
     .form-group label {
       display: block; font-size: 13px; color: #666;
@@ -42,6 +51,8 @@
       border-color: #667eea;
       box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
     }
+
+    /* ===== 路径选择器（输入框 + 浏览按钮） ===== */
     .path-group { display: flex; gap: 8px; }
     .path-group input { flex: 1; }
     .btn-browse {
@@ -51,6 +62,8 @@
       white-space: nowrap; transition: background 0.2s;
     }
     .btn-browse:hover { background: #e4e7ec; }
+
+    /* ===== API Key 输入框中的密码可见性切换按钮 ===== */
     .api-key-wrapper { position: relative; }
     .api-key-wrapper input { padding-right: 42px; }
     .toggle-visibility {
@@ -59,6 +72,8 @@
       font-size: 16px; color: #999; padding: 4px;
     }
     .toggle-visibility:hover { color: #666; }
+
+    /* ===== 底部操作按钮区域 ===== */
     .actions {
       display: flex; gap: 12px; justify-content: space-between;
       padding-top: 16px; border-top: 1px solid #e8ecf1;
@@ -79,6 +94,8 @@
     }
     .btn-danger:hover { background: #fef2f2; }
     .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ===== 状态栏（成功/错误/加载中） ===== */
     .status-bar {
       margin-top: 12px; padding: 10px 14px; border-radius: 8px;
       font-size: 13px; display: none;
@@ -86,19 +103,25 @@
     .status-bar.success { display: block; background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
     .status-bar.error { display: block; background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
     .status-bar.loading { display: block; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+
+    /* ===== 首次运行提示横幅 ===== */
     .first-run-notice {
       background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
       padding: 14px 16px; margin-bottom: 20px;
       font-size: 13px; color: #92400e; line-height: 1.6;
     }
     .first-run-notice strong { display: block; margin-bottom: 4px; font-size: 14px; }
+
+    /* ===== 端口行（两个端口输入框并排） ===== */
     .port-row { display: flex; gap: 16px; }
     .port-row .form-group { flex: 1; }
+
+    /* ===== 自定义滚动条 ===== */
     .container::-webkit-scrollbar { width: 6px; }
     .container::-webkit-scrollbar-track { background: transparent; }
     .container::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
 
-    /* Startup overlay */
+    /* ===== 启动遮罩层（覆盖整个页面，显示加载动画和进度） ===== */
     .startup-overlay {
       display: none;
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -130,18 +153,28 @@
   </style>
 </head>
 <body>
+
+  <!-- ==================== 页面头部 ==================== -->
   <div class="header">
     <h1 id="headerTitle">⚙️ 剪藏 - 设置</h1>
     <p id="headerDesc">配置应用参数</p>
   </div>
+
+  <!-- ==================== 主内容区域 ==================== -->
   <div class="container">
+
+    <!-- 首次运行提示横幅：仅在首次启动时显示，引导用户完成初始配置 -->
     <div id="firstRunNotice" class="first-run-notice" style="display:none;">
       <strong>欢迎使用剪藏！</strong>
       首次使用需要完成以下配置。请确保已准备好阿里云 DashScope API Key。
       <a href="https://dashscope.console.aliyun.com/apiKey" target="_blank" style="color: #667eea;">点击获取 API Key</a>
     </div>
+
+    <!-- ===== AI 模型配置区块 ===== -->
     <div class="section">
       <div class="section-title"><span class="icon">🔑</span> AI 模型配置</div>
+
+      <!-- AI 提供商选择（DashScope / DeepSeek），切换时显示对应的字段组 -->
       <div class="form-group">
         <label>当前使用模型</label>
         <select id="activeProvider" style="width:100%;padding:10px 14px;border:1px solid #d9dce1;border-radius:8px;font-size:14px;outline:none;background:white;cursor:pointer;">
@@ -149,6 +182,8 @@
           <option value="deepseek">DeepSeek</option>
         </select>
       </div>
+
+      <!-- DashScope 配置字段（默认显示） -->
       <div id="dashscopeFields">
         <div class="form-group">
           <label>DashScope API Key <span class="hint">（必填）</span></label>
@@ -162,6 +197,8 @@
           <input type="text" id="dashscopeModel" placeholder="qwen-plus" style="width:100%;padding:10px 14px;border:1px solid #d9dce1;border-radius:8px;font-size:14px;outline:none;background:white;" />
         </div>
       </div>
+
+      <!-- DeepSeek 配置字段（默认隐藏，当选择 DeepSeek 时显示） -->
       <div id="deepseekFields" style="display:none;">
         <div class="form-group">
           <label>DeepSeek API Key <span class="hint">（必填）</span></label>
@@ -176,6 +213,8 @@
         </div>
       </div>
     </div>
+
+    <!-- ===== 端口配置区块 ===== -->
     <div class="section">
       <div class="section-title"><span class="icon">🔌</span> 端口配置</div>
       <div class="port-row">
@@ -189,6 +228,8 @@
         </div>
       </div>
     </div>
+
+    <!-- ===== 存储目录配置区块 ===== -->
     <div class="section">
       <div class="section-title"><span class="icon">📁</span> 存储目录</div>
       <div class="form-group">
@@ -213,12 +254,15 @@
         </div>
       </div>
     </div>
+
+    <!-- ===== 邮件通知配置区块（可选） ===== -->
     <div class="section">
       <div class="section-title"><span class="icon">📧</span> 邮件通知 <span class="hint">（可选）</span></div>
       <div class="form-group" style="display:flex;align-items:center;gap:8px;">
         <input type="checkbox" id="mailEnabled" style="width:auto;" />
         <label for="mailEnabled" style="margin:0;cursor:pointer;">启用整理完成后发送邮件</label>
       </div>
+      <!-- 邮件详细配置字段，仅在勾选"启用邮件"后显示 -->
       <div id="mailFields" style="display:none;">
         <div class="form-group">
           <label>SMTP 服务器</label>
@@ -238,36 +282,54 @@
         </div>
       </div>
     </div>
+
+    <!-- ===== 底部操作按钮 ===== -->
     <div class="actions">
       <div class="actions-left">
+        <!-- 退出应用按钮：首次运行时隐藏，非首次运行时显示 -->
         <button class="btn btn-danger" id="btnQuit" type="button">退出应用</button>
       </div>
       <div class="actions-right">
+        <!-- 保存并启动按钮：保存配置，然后启动/重启后端服务 -->
         <button class="btn btn-primary" id="btnSave" type="button">保存并启动</button>
       </div>
     </div>
+
+    <!-- 状态栏：用于显示保存/启动结果（成功/失败/加载中） -->
     <div class="status-bar" id="statusBar"></div>
   </div>
 
-  <!-- Startup overlay -->
+  <!-- ==================== 启动遮罩层 ==================== -->
+  <!-- 启动/重启服务时覆盖整个页面，显示旋转加载动画和进度描述 -->
   <div class="startup-overlay" id="startupOverlay">
     <div class="spinner"></div>
     <div class="startup-text">正在启动服务...</div>
     <div class="startup-step" id="startupStep">准备中</div>
   </div>
 
+  <!-- ==================== 页面逻辑脚本 ==================== -->
   <script>
+    /**
+     * 等待 electronAPI 就绪后再执行业务逻辑
+     *
+     * 由于 preload.js 通过 contextBridge 暴露 API，在页面脚本执行时
+     * window.electronAPI 可能尚未挂载完成。此函数以轮询方式检测 API 是否就绪，
+     * 最多等待 5 秒（100 次 × 50ms），超时后显示错误。
+     *
+     * @param {Function} callback - API 就绪后的回调函数，接收 electronAPI 对象
+     */
     function waitForAPI(callback) {
       if (window.electronAPI) {
         callback(window.electronAPI);
       } else {
-        let attempts = 0;
-        const timer = setInterval(() => {
+        var attempts = 0;
+        var timer = setInterval(function() {
           attempts++;
           if (window.electronAPI) {
             clearInterval(timer);
             callback(window.electronAPI);
           } else if (attempts > 100) {
+            // 超过 5 秒仍未就绪，视为失败
             clearInterval(timer);
             showStatus('electronAPI not available', 'error');
           }
@@ -275,26 +337,41 @@
       }
     }
 
-    let isFirstRun = false;
+    /** 是否为首次运行（首次运行时行为不同：不显示退出按钮，走 configDone 流程） */
+    var isFirstRun = false;
 
+    /**
+     * 在页面底部状态栏显示消息
+     * @param {string} message - 要显示的消息文本
+     * @param {string} type - 消息类型：'success' | 'error' | 'loading'，决定颜色样式
+     */
     function showStatus(message, type) {
-      const bar = document.getElementById('statusBar');
+      var bar = document.getElementById('statusBar');
       bar.textContent = message;
       bar.style.display = 'block';
       bar.className = 'status-bar ' + type;
     }
 
+    /**
+     * 显示启动遮罩层（覆盖整个页面，显示加载动画）
+     * @param {string} step - 当前步骤描述文本，如 "正在保存配置..."
+     */
     function showStartupOverlay(step) {
       document.getElementById('startupOverlay').classList.add('active');
       document.getElementById('startupStep').textContent = step || '准备中';
     }
 
+    /** 隐藏启动遮罩层 */
     function hideStartupOverlay() {
       document.getElementById('startupOverlay').classList.remove('active');
     }
 
+    // 等待 electronAPI 就绪后，开始绑定所有事件和初始化逻辑
     waitForAPI(function(api) {
-      // Listen for config load
+
+      // ===== 监听主进程事件：加载已有配置 =====
+      // 主进程在配置窗口打开时，通过 'load-config' 频道发送已保存的配置
+      // 渲染进程收到后，将配置数据填充到表单各字段中
       api.onLoadConfig(function(config) {
         document.getElementById('activeProvider').value = config.activeProvider || 'dashscope';
         document.getElementById('apiKey').value = config.apiKey || '';
@@ -306,40 +383,46 @@
         document.getElementById('storagePath').value = config.storagePath || '';
         document.getElementById('organizedPath').value = config.organizedPath || '';
         document.getElementById('weeklyReportPath').value = config.weeklyReportPath || '';
-        // Mail config
+        // 邮件配置
         document.getElementById('mailEnabled').checked = config.mailEnabled || false;
         document.getElementById('mailHost').value = config.mailHost || '';
         document.getElementById('mailPort').value = config.mailPort || 465;
         document.getElementById('mailUsername').value = config.mailUsername || '';
         document.getElementById('mailPassword').value = config.mailPassword || '';
         document.getElementById('mailFields').style.display = config.mailEnabled ? 'block' : 'none';
-        // Update provider fields visibility
+        // 根据当前选择的提供商，更新对应字段组的显示/隐藏
         updateProviderFields();
       });
 
-      // Listen for first run
+      // ===== 监听主进程事件：首次运行 =====
+      // 首次运行时，显示欢迎横幅，修改标题，隐藏退出按钮
       api.onFirstRun(function() {
         isFirstRun = true;
         document.getElementById('firstRunNotice').style.display = 'block';
         document.getElementById('headerTitle').textContent = '剪藏 - 初始设置';
         document.getElementById('headerDesc').textContent = '首次使用，请完成配置后启动';
-        // Hide quit button on first run
+        // 首次运行时没有已运行的服务，因此不需要退出按钮
         document.getElementById('btnQuit').style.display = 'none';
       });
 
-      // Listen for startup progress (from main process)
+      // ===== 监听主进程事件：启动进度 =====
+      // 主进程在启动后端服务过程中，会多次推送进度更新
+      // 渲染进程在启动遮罩层上显示当前进度描述
       api.onStartupProgress(function(msg) {
         showStartupOverlay(msg);
       });
 
-      // Listen for startup error
+      // ===== 监听主进程事件：启动失败 =====
+      // 启动过程中发生错误时，主进程推送此事件
+      // 渲染进程隐藏遮罩，显示错误信息，并恢复保存按钮的可用状态
       api.onStartupError(function(msg) {
         hideStartupOverlay();
         showStatus('启动失败: ' + msg, 'error');
         document.getElementById('btnSave').disabled = false;
       });
 
-      // Toggle API key visibility
+      // ===== DashScope API Key 密码可见性切换 =====
+      // 点击眼睛图标，在 password 和 text 类型之间切换，实现密码显隐
       document.getElementById('toggleApiKey').addEventListener('click', function() {
         var input = document.getElementById('apiKey');
         var btn = document.getElementById('toggleApiKey');
@@ -352,7 +435,8 @@
         }
       });
 
-      // Toggle DeepSeek API key visibility
+      // ===== DeepSeek API Key 密码可见性切换 =====
+      // 逻辑同上，控制 DeepSeek 的 API Key 输入框显隐
       document.getElementById('toggleDeepseekApiKey').addEventListener('click', function() {
         var input = document.getElementById('deepseekApiKey');
         var btn = document.getElementById('toggleDeepseekApiKey');
@@ -365,7 +449,12 @@
         }
       });
 
-      // Provider switch
+      // ===== AI 提供商切换 =====
+      /**
+       * 根据当前选中的 AI 提供商，切换显示对应的配置字段组
+       * - DashScope: 显示 dashscopeFields，隐藏 deepseekFields
+       * - DeepSeek:  隐藏 dashscopeFields，显示 deepseekFields
+       */
       function updateProviderFields() {
         var provider = document.getElementById('activeProvider').value;
         if (provider === 'deepseek') {
@@ -378,12 +467,14 @@
       }
       document.getElementById('activeProvider').addEventListener('change', updateProviderFields);
 
-      // Toggle mail fields visibility
+      // ===== 邮件配置区域的显示/隐藏切换 =====
+      // 勾选「启用邮件」时展开邮件详细配置字段，取消勾选时隐藏
       document.getElementById('mailEnabled').addEventListener('change', function() {
         document.getElementById('mailFields').style.display = this.checked ? 'block' : 'none';
       });
 
-      // Browse storage directory
+      // ===== 浏览按钮：剪藏文件存储目录 =====
+      // 调用主进程的目录选择对话框，将用户选择的路径填入输入框
       document.getElementById('browseStorage').addEventListener('click', async function() {
         try {
           var dir = await api.selectDirectory();
@@ -393,7 +484,7 @@
         }
       });
 
-      // Browse organized directory
+      // ===== 浏览按钮：总结文件存储目录 =====
       document.getElementById('browseOrganized').addEventListener('click', async function() {
         try {
           var dir = await api.selectDirectory();
@@ -403,7 +494,7 @@
         }
       });
 
-      // Browse weekly report directory
+      // ===== 浏览按钮：周报存储目录 =====
       document.getElementById('browseWeeklyReport').addEventListener('click', async function() {
         try {
           var dir = await api.selectDirectory();
@@ -413,54 +504,75 @@
         }
       });
 
-      // Quit app button
+      // ===== 退出应用按钮 =====
+      // 调用主进程的 quit-app 方法，退出整个 Electron 应用
       document.getElementById('btnQuit').addEventListener('click', async function() {
         await api.quitApp();
       });
 
-      // Save and start
+      // ===== 保存并启动按钮 =====
+      // 核心逻辑：收集表单数据 → 验证必填项 → 调用主进程保存/启动
+      // 首次运行：通过 configDone 单向发送配置，主进程通过事件推送进度
+      // 非首次运行：通过 restartBackend 双向通信，等待重启结果
       document.getElementById('btnSave').addEventListener('click', async function() {
+        // 收集表单数据
+        var activeProvider = document.getElementById('activeProvider').value;
         var apiKey = document.getElementById('apiKey').value.trim();
-    var backendPort = parseInt(document.getElementById('backendPort').value) || 8080;
-    var frontendPort = parseInt(document.getElementById('frontendPort').value) || 3000;
-    var storagePath = document.getElementById('storagePath').value.trim();
-    var organizedPath = document.getElementById('organizedPath').value.trim();
-    var weeklyReportPath = document.getElementById('weeklyReportPath').value.trim();
+        var deepseekApiKey = document.getElementById('deepseekApiKey').value.trim();
+        var backendPort = parseInt(document.getElementById('backendPort').value) || 8080;
+        var frontendPort = parseInt(document.getElementById('frontendPort').value) || 3000;
+        var storagePath = document.getElementById('storagePath').value.trim();
+        var organizedPath = document.getElementById('organizedPath').value.trim();
+        var weeklyReportPath = document.getElementById('weeklyReportPath').value.trim();
 
-    if (!apiKey) { showStatus('请填写 DashScope API Key', 'error'); return; }
-    if (!storagePath) { showStatus('请选择剪藏文件存储目录', 'error'); return; }
-    if (!organizedPath) { showStatus('请选择总结文件存储目录', 'error'); return; }
-    if (!weeklyReportPath) { showStatus('请选择周报存储目录', 'error'); return; }
-    if (backendPort === frontendPort) { showStatus('前端和后端端口不能相同', 'error'); return; }
+        // 表单验证：根据当前选择的 AI 提供商，检查对应的 API Key 是否填写
+        if (activeProvider === 'deepseek') {
+          if (!deepseekApiKey) { showStatus('请填写 DeepSeek API Key', 'error'); return; }
+        } else {
+          if (!apiKey) { showStatus('请填写 DashScope API Key', 'error'); return; }
+        }
+        if (!storagePath) { showStatus('请选择剪藏文件存储目录', 'error'); return; }
+        if (!organizedPath) { showStatus('请选择总结文件存储目录', 'error'); return; }
+        if (!weeklyReportPath) { showStatus('请选择周报存储目录', 'error'); return; }
+        if (backendPort === frontendPort) { showStatus('前端和后端端口不能相同', 'error'); return; }
 
-    var newConfig = {
-      activeProvider: document.getElementById('activeProvider').value,
-      apiKey: apiKey, dashscopeModel: document.getElementById('dashscopeModel').value,
-      deepseekApiKey: document.getElementById('deepseekApiKey').value.trim(),
-      deepseekModel: document.getElementById('deepseekModel').value,
-      backendPort: backendPort, frontendPort: frontendPort,
-      storagePath: storagePath, organizedPath: organizedPath, weeklyReportPath: weeklyReportPath, configured: true,
-      mailEnabled: document.getElementById('mailEnabled').checked,
-      mailHost: document.getElementById('mailHost').value.trim(),
-      mailPort: parseInt(document.getElementById('mailPort').value) || 465,
-      mailUsername: document.getElementById('mailUsername').value.trim(),
-      mailPassword: document.getElementById('mailPassword').value.trim()
-    };
+        // 构建完整的配置对象，包含所有表单字段
+        var newConfig = {
+          activeProvider: activeProvider,
+          apiKey: apiKey,
+          dashscopeModel: document.getElementById('dashscopeModel').value,
+          deepseekApiKey: deepseekApiKey,
+          deepseekModel: document.getElementById('deepseekModel').value,
+          backendPort: backendPort,
+          frontendPort: frontendPort,
+          storagePath: storagePath,
+          organizedPath: organizedPath,
+          weeklyReportPath: weeklyReportPath,
+          configured: true,
+          mailEnabled: document.getElementById('mailEnabled').checked,
+          mailHost: document.getElementById('mailHost').value.trim(),
+          mailPort: parseInt(document.getElementById('mailPort').value) || 465,
+          mailUsername: document.getElementById('mailUsername').value.trim(),
+          mailPassword: document.getElementById('mailPassword').value.trim()
+        };
 
         var btn = document.getElementById('btnSave');
-        btn.disabled = true;
+        btn.disabled = true; // 禁用按钮防止重复提交
 
         if (isFirstRun) {
-          // Show startup overlay for first run
+          // 首次运行：通过 configDone 单向发送配置给主进程
+          // 主进程负责保存配置、启动服务，并通过 startup-progress 事件推送进度
           showStartupOverlay('正在保存配置...');
           api.configDone(newConfig);
-          // Main process will send startup-progress events
         } else {
+          // 非首次运行：通过 restartBackend 双向通信
+          // 主进程用新配置重启后端服务，返回结果告知成功或失败
           showStartupOverlay('正在保存配置并重启服务...');
           try {
             var result = await api.restartBackend(newConfig);
             if (result.success) {
               showStartupOverlay('启动成功！');
+              // 1 秒后自动关闭配置窗口
               setTimeout(function() {
                 hideStartupOverlay();
                 window.close();

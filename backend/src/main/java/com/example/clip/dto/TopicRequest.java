@@ -3,17 +3,37 @@ package com.example.clip.dto;
 import java.util.List;
 
 /**
- * 话题创建/更新请求
+ * 话题创建/更新请求（TopicRequest）DTO。
+ * <p>
+ * 用于创建或更新话题。字段与 {@link com.example.clip.model.Topic Topic} 模型
+ * 基本对应，但不包含 {@code likeCount}、{@code createdAt}、{@code updatedAt}
+ * 等由服务端管理的字段。
+ * </p>
  */
 public class TopicRequest {
 
+    /** 话题标题 */
     private String title;
+
+    /** 一句话摘要 */
     private String summary;
+
+    /** 完整内容，Markdown 格式 */
     private String content;
+
+    /** 封面图路径 */
     private String coverImage;
+
+    /** 分类标识 */
     private String category;
+
+    /** 标签列表 */
     private List<String> tags;
+
+    /** 来源剪藏 ID（可选） */
     private Long sourceClipId;
+
+    /** 是否发布 */
     private boolean published;
 
     public String getTitle() { return title; }
