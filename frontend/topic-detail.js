@@ -103,11 +103,15 @@ async function exportScreenshot() {
       return;
     }
 
+    const theme = document.documentElement.getAttribute('data-theme');
+    const isDark = theme === 'dark';
+    const bgColor = isDark ? '#1e1e1e' : '#f9fafb';
+
     const container = document.getElementById('detailContainer');
     const canvas = await html2canvas(container, {
       scale: 2,
       useCORS: true,
-      backgroundColor: '#f9fafb',
+      backgroundColor: bgColor,
       logging: false
     });
 
