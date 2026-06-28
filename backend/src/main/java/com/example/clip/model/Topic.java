@@ -38,9 +38,6 @@ public class Topic {
     /** 完整的 AI 对话内容，支持 Markdown 格式 */
     private String content;
 
-    /** 封面图路径，用于话题卡片展示 */
-    private String coverImage;
-
     /** 分类标识，与剪藏分类体系一致 */
     private String category;
 
@@ -85,9 +82,6 @@ public class Topic {
 
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
-
-    public String getCoverImage() { return coverImage; }
-    public void setCoverImage(String coverImage) { this.coverImage = coverImage; }
 
     public String getCategory() { return category; }
     public void setCategory(String category) { this.category = category; }

@@ -20,7 +20,6 @@ async function loadTopic(id) {
     document.getElementById('titleInput').value = topic.title || '';
     document.getElementById('summaryInput').value = topic.summary || '';
     document.getElementById('contentInput').value = topic.content || '';
-    document.getElementById('coverInput').value = topic.coverImage || '';
     document.getElementById('categorySelect').value = topic.category || 'other';
 
     tags = topic.tags || [];
@@ -107,7 +106,6 @@ async function saveTopic(published) {
     title: title,
     summary: document.getElementById('summaryInput').value.trim(),
     content: content,
-    coverImage: document.getElementById('coverInput').value.trim(),
     category: document.getElementById('categorySelect').value,
     tags: tags,
     published: published
@@ -179,7 +177,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const clipSource = params.get('source');
     if (clipTitle) document.getElementById('titleInput').value = clipTitle;
     if (clipContent) document.getElementById('contentInput').value = clipContent;
-    if (clipSource) document.getElementById('coverInput').value = clipSource;
   }
 
   loadClips();

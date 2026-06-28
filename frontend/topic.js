@@ -71,9 +71,7 @@ function createTopicCard(topic) {
 
   const tagsHtml = (topic.tags || []).slice(0, 3).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
 
-  const coverHtml = topic.coverImage
-    ? `<img class="cover" src="${escapeHtml(topic.coverImage)}" alt="${escapeHtml(topic.title)}" loading="lazy" />`
-    : `<div class="cover-placeholder">${getCategoryEmoji(topic.category)}</div>`;
+  const coverHtml = `<div class="cover-placeholder">${getCategoryEmoji(topic.category)}</div>`;
 
   return `
     <div class="topic-card" onclick="location.href='topic-detail.html?id=${topic.id}'">

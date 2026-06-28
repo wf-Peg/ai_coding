@@ -39,9 +39,7 @@ function renderDetail(topic) {
   const tagsHtml = (topic.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
   const categoryLabel = { work: '工作', study: '学习', life: '生活', tech: '技术', other: '其他' }[topic.category] || topic.category;
 
-  const coverHtml = topic.coverImage
-    ? `<img class="cover-image" src="${escapeHtml(topic.coverImage)}" alt="${escapeHtml(topic.title)}" />`
-    : `<div class="cover-placeholder">${getCategoryEmoji(topic.category)}</div>`;
+  const coverHtml = `<div class="cover-placeholder">${getCategoryEmoji(topic.category)}</div>`;
 
   // Markdown 渲染内容
   let contentHtml = '';
@@ -87,8 +85,6 @@ async function openStorageFolder() {
     const result = await response.json();
     if (result.status === 'success') {
       showToast('已打开存储目录: ' + result.path);
-    } else if (result.status === 'unsupported') {
-      showToast('当前系统不支持自动打开目录，路径: ' + result.path);
     } else {
       showToast('打开失败: ' + (result.message || '未知错误'));
     }

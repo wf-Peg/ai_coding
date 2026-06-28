@@ -71,7 +71,6 @@ public class TopicService {
         existing.setTitle(topic.getTitle());
         existing.setSummary(topic.getSummary());
         existing.setContent(topic.getContent());
-        existing.setCoverImage(topic.getCoverImage());
         existing.setCategory(topic.getCategory());
         existing.setTags(topic.getTags());
         existing.setPublished(topic.isPublished());

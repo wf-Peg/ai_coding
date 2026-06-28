@@ -21,9 +21,6 @@ public class TopicRequest {
     /** 完整内容，Markdown 格式 */
     private String content;
 
-    /** 封面图路径 */
-    private String coverImage;
-
     /** 分类标识 */
     private String category;
 
@@ -44,9 +41,6 @@ public class TopicRequest {
 
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
-
-    public String getCoverImage() { return coverImage; }
-    public void setCoverImage(String coverImage) { this.coverImage = coverImage; }
 
     public String getCategory() { return category; }
     public void setCategory(String category) { this.category = category; }
