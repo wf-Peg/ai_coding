@@ -3,27 +3,78 @@ package com.example.clip.dto;
 import java.util.List;
 
 /**
- * 剪藏请求对象
+ * 剪藏请求（ClipRequest）DTO。
+ * <p>
+ * 用于接收前端发送的剪藏创建/更新请求。包含剪藏内容的所有元数据字段，
+ * 以及图片数据、文件数据等附件信息。内部类 {@link ImageData} 用于
+ * 封装 Base64 编码的图片数据。
+ * </p>
+ *
+ * <h3>特殊字段说明</h3>
+ * <ul>
+ *   <li>{@code useAiTags}：控制是否使用 AI 自动生成标签</li>
+ *   <li>{@code fileData}：Base64 编码的文件数据，用于文件类型剪藏</li>
+ *   <li>{@code imageDataList}：多图片附件列表，每项包含 Base64 数据和文件名</li>
+ *   <li>{@code target}：剪藏目标，如 "inbox" 指定存入收件箱</li>
+ * </ul>
  */
 public class ClipRequest {
+
+    /** 剪藏内容，核心文本数据 */
     private String content;
+
+    /** 剪藏类型：text、image、file 等 */
     private String type;
+
+    /** 剪藏来源：system、browser、manual */
     private String source;
+
+    /** 分类标识 */
     private String category;
+
+    /** 标题 */
     private String title;
+
+    /** 来源 URL */
     private String sourceUrl;
+
+    /** 站点名称 */
     private String siteName;
+
+    /** 采集时间 */
     private String capturedAt;
+
+    /** 用户选中的原始文本 */
     private String selectedText;
+
+    /** 选中文本上文 */
     private String contextBefore;
+
+    /** 选中文本下文 */
     private String contextAfter;
+
+    /** 采集方式 */
     private String captureMethod;
+
+    /** 剪藏目标，如 "inbox" 表示存入收件箱 */
     private String target;
+
+    /** 工作流状态 */
     private String workflowStatus;
+
+    /** 标签列表 */
     private List<String> tags;
+
+    /** 是否使用 AI 自动生成标签 */
     private Boolean useAiTags;
+
+    /** Base64 编码的文件数据，用于文件类型剪藏 */
     private String fileData;
+
+    /** 原始文件名，用于文件类型剪藏 */
     private String fileName;
+
+    /** 图片附件列表，每项包含 Base64 数据和文件名 */
     private List<ImageData> imageDataList;
 
     public String getContent() {
@@ -179,10 +230,18 @@ public class ClipRequest {
     }
 
     /**
-     * 图片数据对象
+     * 图片数据内部类。
+     * <p>
+     * 封装单张图片的 Base64 编码数据及其原始文件名，
+     * 用于剪藏请求中附带多张图片的场景。
+     * </p>
      */
     public static class ImageData {
+
+        /** 图片的 Base64 编码字符串 */
         private String base64Data;
+
+        /** 原始文件名，用于保留扩展名信息 */
         private String fileName;
 
         public String getBase64Data() {

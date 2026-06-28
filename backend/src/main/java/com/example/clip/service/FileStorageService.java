@@ -25,30 +25,72 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * 文件存储服务
+ * <p>
+ * 核心持久化层，使用 JSON 文件系统替代数据库存储，负责所有数据模型的 CRUD 操作。
+ * 数据组织方式：
+ * <ul>
+ *   <li><b>剪藏内容</b>：按分类目录 + 日期文件（yyMMdd.json）存储，如 clip-storage/work/公司事务/260414.json</li>
+ *   <li><b>待办事项</b>：统一存储在 todoList 目录下，按日期文件组织</li>
+ *   <li><b>知识条目</b>：存储在 knowledge 目录下，按日期文件组织</li>
+ *   <li><b>话题</b>：存储在 topic 目录下，按日期文件（yyyy-MM-dd.json）组织</li>
+ * </ul>
+ * 使用 {@link AtomicLong} 生成全局唯一 ID，启动时扫描已有数据避免 ID 冲突。
+ * JSON 序列化使用 Jackson，注册了 JavaTimeModule 支持 Java 8 时间类型。
+ * 文件内容为 JSON 数组格式，每个文件可包含多条记录。
+ * </p>
+ *
+ * @see ClipService
+ * @see TodoService
+ * @see TopicService
+ */
 @Service
 public class FileStorageService {
 
     private static final Logger log = LoggerFactory.getLogger(FileStorageService.class);
+    /** JSON 序列化/反序列化工具 */
     private final ObjectMapper objectMapper;
+    /** 存储根目录路径 */
     private final Path storagePath;
+    /** 全局 ID 生成器，使用 AtomicLong 保证线程安全 */
     private final AtomicLong idGenerator = new AtomicLong(1);
+    /** 日期格式化器，用于生成文件名（如 260414） */
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyMMdd");
 
+    /**
+     * 构造器初始化
+     * <p>
+     * 配置 Jackson ObjectMapper（注册 JavaTimeModule、忽略未知属性），
+     * 初始化存储目录结构，扫描已有数据初始化 ID 生成器。
+     * </p>
+     *
+     * @param storagePath 存储根目录路径（从配置读取，默认 ./clip-storage）
+     */
     public FileStorageService(@Value("${clip.storage.path:./clip-storage}") String storagePath) {
         this.objectMapper = new ObjectMapper();
+        // 注册 JavaTimeModule 以支持 LocalDateTime 等 Java 8 时间类型的序列化
         this.objectMapper.registerModule(new JavaTimeModule());
+        // 忽略 JSON 中未知的属性，避免反序列化时因新增字段导致失败
         this.objectMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         this.storagePath = Paths.get(storagePath);
         initStorage();
         initIdGenerator();
     }
 
+    /**
+     * 初始化存储目录结构
+     * <p>
+     * 创建根目录、所有一级分类目录、inbox/default/todoList/knowledge/topic 等子目录。
+     * 目录创建失败只打印日志，不抛出异常（可能因权限问题导致）。
+     * </p>
+     */
     private void initStorage() {
         try {
             if (!Files.exists(storagePath)) {
                 Files.createDirectories(storagePath);
             }
-            // 为每个一级分类创建目录
+            // 为每个一级分类创建目录（如 work、learning、life 等）
             for (Map<String, Object> cat : AiService.CATEGORY_TREE) {
                 Files.createDirectories(storagePath.resolve(cat.get("value").toString()));
             }
@@ -66,7 +108,13 @@ public class FileStorageService {
     }
 
     /**
-     * 初始化ID生成器，扫描已有数据中的最大ID，避免ID冲突
+     * 初始化 ID 生成器
+     * <p>
+     * 扫描所有 JSON 文件中已有的剪藏记录，找到最大 ID 值，
+     * 将 ID 生成器的起始值设为 maxId + 1，避免 ID 冲突。
+     * 注意：此方法仅扫描剪藏记录，不扫描待办/知识条目/话题的 ID。
+     * 如果这些实体也使用 idGenerator，可能存在 ID 冲突风险。
+     * </p>
      */
     private void initIdGenerator() {
         try {
@@ -89,12 +137,20 @@ public class FileStorageService {
     // ==================== Category → 目录路径映射 ====================
 
     /**
-     * 将category value映射为文件系统目录路径
-     * 例如: "work-company" → "work/公司事务"
-     *       "work" → "work"
-     *       null/空 → "default"
+     * 将 category value 映射为文件系统目录路径
+     * <p>
+     * 映射规则：
+     * <ul>
+     *   <li>inbox → clip-storage/inbox</li>
+     *   <li>一级分类（如 work）→ clip-storage/work</li>
+     *   <li>二级分类（如 work-company）→ clip-storage/work/公司事务</li>
+     *   <li>null/空 → clip-storage/default</li>
+     *   <li>未匹配的分类 → clip-storage/{category}（兼容旧数据）</li>
+     * </ul>
+     * </p>
+     *
      * @param category 分类值
-     * @return 目录路径
+     * @return 分类对应的目录路径
      */
     private Path getCategoryPath(String category) {
         // 处理空分类，默认为"default"
@@ -104,34 +160,40 @@ public class FileStorageService {
             return storagePath.resolve(ClipService.INBOX_CATEGORY);
         }
 
-        // 查找一级分类目录名
+        // 在 CATEGORY_TREE 中查找一级和二级分类
         for (Map<String, Object> topCat : AiService.CATEGORY_TREE) {
             String topValue = topCat.get("value").toString();
 
             if (topValue.equals(cat)) {
-                // 一级分类: 直接用value作为目录名
+                // 一级分类：直接用 value 作为目录名
                 return storagePath.resolve(topValue);
             }
 
             // 检查二级分类
+            @SuppressWarnings("unchecked")
             List<Map<String, Object>> children = (List<Map<String, Object>>) topCat.get("children");
             if (children != null) {
                 for (Map<String, Object> child : children) {
                     if (child.get("value").toString().equals(cat)) {
-                        // 二级分类: 一级目录/二级中文名
+                        // 二级分类：一级目录/二级中文名
                         return storagePath.resolve(topValue).resolve(child.get("label").toString());
                     }
                 }
             }
         }
 
-        // 兼容旧数据: 直接用category value作为目录名
+        // 兼容旧数据：直接用 category value 作为目录名
         return storagePath.resolve(cat);
     }
 
     /**
      * 获取分类目录下当天的日期文件路径
-     * 例如: clip-storage/work/公司事务/260414.json
+     * <p>
+     * 例如：clip-storage/work/公司事务/260414.json
+     * </p>
+     *
+     * @param category 分类值
+     * @return 日期文件路径
      */
     private Path getDateFilePath(String category) {
         String dateStr = LocalDate.now().format(DATE_FORMATTER);
@@ -141,7 +203,14 @@ public class FileStorageService {
     // ==================== 文件读写 ====================
 
     /**
-     * 获取所有 json 文件（递归遍历）
+     * 获取所有 JSON 文件（递归遍历）
+     * <p>
+     * 遍历 storagePath 下所有目录，过滤出 .json 文件。
+     * 排除 todoList 和 knowledge 目录下的文件，避免与剪藏数据混淆。
+     * </p>
+     *
+     * @return JSON 文件路径列表
+     * @throws IOException 遍历文件系统可能的异常
      */
     private List<Path> getAllJsonFiles() throws IOException {
         List<Path> files = new ArrayList<>();
@@ -151,14 +220,22 @@ public class FileStorageService {
         Files.walk(storagePath)
                 .filter(Files::isRegularFile)
                 .filter(path -> path.toString().endsWith(".json"))
-                .filter(path -> !path.toString().contains("todoList")) // 过滤掉待办事项目录
-                .filter(path -> !path.toString().contains("knowledge")) // 过滤掉知识条目目录
+                .filter(path -> !path.toString().contains("todoList")) // 过滤待办事项目录
+                .filter(path -> !path.toString().contains("knowledge")) // 过滤知识条目目录
+                .filter(path -> !path.toString().contains("topic"))     // 过滤话题目录
                 .forEach(files::add);
         return files;
     }
 
     /**
-     * 从文件中读取 JSONArray 为 ClipContent 列表
+     * 从文件中读取 JSON 数组为 ClipContent 列表
+     * <p>
+     * 如果文件不存在或内容为空，返回空列表。
+     * 使用 Jackson TypeReference 进行泛型反序列化。
+     * </p>
+     *
+     * @param path JSON 文件路径
+     * @return ClipContent 列表（可能为空）
      */
     private List<ClipContent> readClipArrayFromFile(Path path) {
         try {
@@ -177,7 +254,14 @@ public class FileStorageService {
     }
 
     /**
-     * 将 ClipContent 列表写入文件
+     * 将 ClipContent 列表写入 JSON 文件
+     * <p>
+     * 自动创建父目录，使用 pretty printer 格式化输出。
+     * 写入失败只打印日志，不抛出异常。
+     * </p>
+     *
+     * @param path  目标文件路径
+     * @param clips 要写入的剪藏列表
      */
     private void writeClipArrayToFile(Path path, List<ClipContent> clips) {
         try {
@@ -194,11 +278,20 @@ public class FileStorageService {
     // ==================== CRUD ====================
 
     /**
-     * 保存剪藏：追加到对应分类的当天日期文件中
+     * 保存剪藏内容（新增或更新）
+     * <p>
+     * 如果 ID 为 null 则生成新 ID；如果 ID 已存在则更新对应记录。
+     * 根据分类写入对应目录的日期文件中。
+     * 分类为空时默认归入 "default" 分类。
+     * </p>
+     *
+     * @param clip 剪藏内容对象
+     * @return 保存后的剪藏内容；若失败返回 null
      */
     public ClipContent saveClip(ClipContent clip) {
         try {
             if (clip.getId() == null) {
+                // 新记录：分配全局唯一 ID
                 clip.setId(idGenerator.getAndIncrement());
             }
 
@@ -213,7 +306,7 @@ public class FileStorageService {
 
             List<ClipContent> clips = readClipArrayFromFile(filePath);
 
-            // 检查是否已存在相同ID（更新场景）
+            // 检查是否已存在相同 ID（更新场景），存在则替换
             boolean updated = false;
             for (int i = 0; i < clips.size(); i++) {
                 if (clips.get(i).getId() != null && clips.get(i).getId().equals(clip.getId())) {
@@ -224,6 +317,7 @@ public class FileStorageService {
             }
 
             if (!updated) {
+                // 新增：追加到列表末尾
                 clips.add(clip);
             }
 
@@ -236,7 +330,13 @@ public class FileStorageService {
     }
 
     /**
-     * 获取所有剪藏
+     * 获取所有剪藏内容
+     * <p>
+     * 遍历所有 JSON 文件，读取并合并所有剪藏记录。
+     * 注意：结果未排序，顺序取决于文件系统遍历顺序。
+     * </p>
+     *
+     * @return 所有剪藏内容的列表
      */
     public List<ClipContent> getAllClips() {
         List<ClipContent> allClips = new ArrayList<>();
@@ -253,7 +353,14 @@ public class FileStorageService {
     }
 
     /**
-     * 根据ID查找剪藏
+     * 根据 ID 查找剪藏
+     * <p>
+     * 遍历所有文件查找匹配 ID 的记录，找到后立即返回。
+     * 性能：O(n) 全表扫描，数据量大时可能需要优化。
+     * </p>
+     *
+     * @param id 剪藏 ID（字符串形式）
+     * @return 匹配的剪藏内容；未找到返回 null
      */
     public ClipContent getClipById(String id) {
         try {
@@ -273,7 +380,13 @@ public class FileStorageService {
     }
 
     /**
-     * 删除剪藏：只从 JSONArray 中移除对应ID的元素，不删除文件
+     * 删除剪藏
+     * <p>
+     * 遍历所有文件，找到匹配 ID 的记录并移除，然后回写文件。
+     * 使用 Iterator 安全删除。找到即停止，不继续遍历。
+     * </p>
+     *
+     * @param id 要删除的剪藏 ID
      */
     public void deleteClip(Long id) {
         try {
@@ -282,6 +395,7 @@ public class FileStorageService {
                 List<ClipContent> clips = readClipArrayFromFile(path);
                 boolean found = false;
 
+                // 使用 Iterator 安全删除，避免 ConcurrentModificationException
                 Iterator<ClipContent> iterator = clips.iterator();
                 while (iterator.hasNext()) {
                     ClipContent clip = iterator.next();
@@ -294,7 +408,7 @@ public class FileStorageService {
 
                 if (found) {
                     writeClipArrayToFile(path, clips);
-                    break;
+                    break; // 找到并删除后停止遍历
                 }
             }
         } catch (IOException e) {
@@ -303,7 +417,15 @@ public class FileStorageService {
     }
 
     /**
-     * 跨分类更新剪藏：先全量移除旧记录，再按当前分类写入
+     * 替换剪藏（跨分类更新）
+     * <p>
+     * 先全量扫描所有文件，移除旧记录，再按当前分类重新写入。
+     * 这解决了剪藏分类变更时需要在不同目录间移动的问题。
+     * 使用 removeIf 简化删除逻辑。
+     * </p>
+     *
+     * @param clip 更新后的剪藏内容（必须包含有效 ID）
+     * @return 保存后的剪藏内容
      */
     public ClipContent replaceClip(ClipContent clip) {
         if (clip == null || clip.getId() == null) {
@@ -313,6 +435,7 @@ public class FileStorageService {
             List<Path> jsonFiles = getAllJsonFiles();
             for (Path path : jsonFiles) {
                 List<ClipContent> clips = readClipArrayFromFile(path);
+                // 使用 removeIf 移除匹配 ID 的记录
                 boolean found = clips.removeIf(item -> item.getId() != null && item.getId().equals(clip.getId()));
                 if (found) {
                     writeClipArrayToFile(path, clips);
@@ -326,7 +449,13 @@ public class FileStorageService {
 
     /**
      * 按分类获取剪藏
-     * 支持一级和二级分类查询
+     * <p>
+     * 支持一级和二级分类查询。通过控制 walk 深度来限制遍历范围。
+     * 一级分类深度为 2（storagePath/category/），二级分类深度为 3。
+     * </p>
+     *
+     * @param category 分类值
+     * @return 该分类下的剪藏列表
      */
     public List<ClipContent> getClipsByCategory(String category) {
         List<ClipContent> clips = new ArrayList<>();
@@ -336,6 +465,9 @@ public class FileStorageService {
                 return clips;
             }
 
+            // 计算最大遍历深度：
+            // 一级分类（如 work）：storagePath(0)/work(1) → 深度 2
+            // 二级分类（如 work/公司事务）：storagePath(0)/work(1)/公司事务(2) → 深度 3
             int maxDepth = categoryPath.getNameCount() - storagePath.getNameCount() + 1;
             Files.walk(categoryPath, maxDepth)
                     .filter(Files::isRegularFile)
@@ -354,6 +486,11 @@ public class FileStorageService {
 
     /**
      * 获取待办事项的日期文件路径
+     * <p>
+     * 格式：clip-storage/todoList/{yyMMdd}.json
+     * </p>
+     *
+     * @return 待办事项日期文件路径
      */
     private Path getTodoDateFilePath() {
         String dateStr = LocalDate.now().format(DATE_FORMATTER);
@@ -362,6 +499,11 @@ public class FileStorageService {
 
     /**
      * 获取知识条目的日期文件路径
+     * <p>
+     * 格式：clip-storage/knowledge/{yyMMdd}.json
+     * </p>
+     *
+     * @return 知识条目日期文件路径
      */
     private Path getKnowledgeDateFilePath() {
         String dateStr = LocalDate.now().format(DATE_FORMATTER);
@@ -370,6 +512,12 @@ public class FileStorageService {
 
     /**
      * 从文件中读取待办事项列表
+     * <p>
+     * 如果文件不存在或内容为空，返回空列表。
+     * </p>
+     *
+     * @param path JSON 文件路径
+     * @return 待办事项列表
      */
     private List<TodoContent> readTodoArrayFromFile(Path path) {
         try {
@@ -389,6 +537,9 @@ public class FileStorageService {
 
     /**
      * 从文件中读取知识条目列表
+     *
+     * @param path JSON 文件路径
+     * @return 知识条目列表
      */
     private List<KnowledgeEntry> readKnowledgeArrayFromFile(Path path) {
         try {
@@ -407,7 +558,13 @@ public class FileStorageService {
     }
 
     /**
-     * 将待办事项列表写入文件
+     * 将待办事项列表写入 JSON 文件
+     * <p>
+     * 自动创建父目录，使用 pretty printer 格式化。
+     * </p>
+     *
+     * @param path  目标文件路径
+     * @param todos 待办事项列表
      */
     private void writeTodoArrayToFile(Path path, List<TodoContent> todos) {
         try {
@@ -422,7 +579,10 @@ public class FileStorageService {
     }
 
     /**
-     * 将知识条目列表写入文件
+     * 将知识条目列表写入 JSON 文件
+     *
+     * @param path    目标文件路径
+     * @param entries 知识条目列表
      */
     private void writeKnowledgeArrayToFile(Path path, List<KnowledgeEntry> entries) {
         try {
@@ -437,17 +597,25 @@ public class FileStorageService {
     }
 
     /**
-     * 保存待办事项
+     * 保存待办事项（新增或更新）
+     * <p>
+     * 更新场景会先从所有文件中删除旧记录，再追加新记录。
+     * 这样避免了跨文件查找的问题，但可能导致数据文件分布变化。
+     * </p>
+     *
+     * @param todo 待办事项对象
+     * @return 保存后的待办事项
      */
     public TodoContent saveTodo(TodoContent todo) {
         log.info("[FileStorageService] saveTodo called with todo: title={}, priority={}, deadline={}, completed={}, category={}", 
             todo.getTitle(), todo.getPriority(), todo.getDeadline(), todo.isCompleted(), todo.getCategory());
         try {
             if (todo.getId() == null) {
+                // 新记录：分配全局唯一 ID
                 todo.setId(idGenerator.getAndIncrement());
                 log.info("[FileStorageService] Generated new id: {}", todo.getId());
             } else {
-                // 更新场景：先从所有文件中删除原始待办事项
+                // 更新场景：先从所有文件中删除旧记录，再追加新记录
                 deleteTodoFromAllFiles(todo.getId());
                 log.info("[FileStorageService] Deleted original todo from all files");
             }
@@ -457,7 +625,7 @@ public class FileStorageService {
             List<TodoContent> todos = readTodoArrayFromFile(filePath);
             log.info("[FileStorageService] Read {} existing todos from file", todos.size());
 
-            // 添加更新后的待办事项
+            // 追加更新后的待办事项
             todos.add(todo);
             log.info("[FileStorageService] Added todo to list");
 
@@ -472,7 +640,13 @@ public class FileStorageService {
     }
 
     /**
-     * 从所有待办事项文件中删除指定ID的待办事项
+     * 从所有待办事项文件中删除指定 ID 的待办事项
+     * <p>
+     * 遍历 todoList 目录下所有 JSON 文件，找到并移除匹配 ID 的记录。
+     * 用于更新场景：先删除旧记录，再写入新记录。
+     * </p>
+     *
+     * @param id 待删除的待办事项 ID
      */
     private void deleteTodoFromAllFiles(Long id) {
         try {
@@ -481,6 +655,7 @@ public class FileStorageService {
                 return;
             }
 
+            // 遍历所有待办事项 JSON 文件
             Files.walk(todoPath)
                     .filter(Files::isRegularFile)
                     .filter(path -> path.toString().endsWith(".json"))
@@ -488,6 +663,7 @@ public class FileStorageService {
                         List<TodoContent> todos = readTodoArrayFromFile(path);
                         boolean found = false;
 
+                        // 使用 Iterator 安全删除
                         Iterator<TodoContent> iterator = todos.iterator();
                         while (iterator.hasNext()) {
                             TodoContent todo = iterator.next();
@@ -509,6 +685,11 @@ public class FileStorageService {
 
     /**
      * 获取所有待办事项
+     * <p>
+     * 遍历 todoList 目录下所有 JSON 文件，合并所有记录。
+     * </p>
+     *
+     * @return 所有待办事项列表
      */
     public List<TodoContent> getAllTodos() {
         List<TodoContent> allTodos = new ArrayList<>();
@@ -532,7 +713,13 @@ public class FileStorageService {
     }
 
     /**
-     * 根据ID获取待办事项
+     * 根据 ID 获取单个待办事项
+     * <p>
+     * 遍历所有待办事项文件查找匹配 ID 的记录。
+     * </p>
+     *
+     * @param id 待办事项 ID
+     * @return 匹配的待办事项；未找到返回 null
      */
     public TodoContent getTodoById(Long id) {
         try {
@@ -557,6 +744,11 @@ public class FileStorageService {
 
     /**
      * 删除待办事项
+     * <p>
+     * 遍历所有待办事项文件，找到并移除匹配 ID 的记录。
+     * </p>
+     *
+     * @param id 待删除的待办事项 ID
      */
     public void deleteTodo(Long id) {
         try {
@@ -592,7 +784,13 @@ public class FileStorageService {
     }
 
     /**
-     * 保存知识条目
+     * 保存知识条目（新增或更新）
+     * <p>
+     * 如果 ID 为 null 则生成新 ID，如果 ID 已存在则更新对应记录。
+     * </p>
+     *
+     * @param entry 知识条目对象
+     * @return 保存后的知识条目；若失败返回 null
      */
     public KnowledgeEntry saveKnowledgeEntry(KnowledgeEntry entry) {
         try {
@@ -603,6 +801,7 @@ public class FileStorageService {
             Path filePath = getKnowledgeDateFilePath();
             List<KnowledgeEntry> entries = readKnowledgeArrayFromFile(filePath);
 
+            // 检查是否已存在相同 ID（更新场景）
             boolean updated = false;
             for (int i = 0; i < entries.size(); i++) {
                 if (entries.get(i).getId() != null && entries.get(i).getId().equals(entry.getId())) {
@@ -612,6 +811,7 @@ public class FileStorageService {
                 }
             }
             if (!updated) {
+                // 新增：追加到列表末尾
                 entries.add(entry);
             }
 
@@ -625,6 +825,11 @@ public class FileStorageService {
 
     /**
      * 获取所有知识条目
+     * <p>
+     * 遍历 knowledge 目录下所有 JSON 文件，合并所有记录。
+     * </p>
+     *
+     * @return 所有知识条目列表
      */
     public List<KnowledgeEntry> getAllKnowledgeEntries() {
         List<KnowledgeEntry> allEntries = new ArrayList<>();
@@ -645,7 +850,13 @@ public class FileStorageService {
     }
 
     /**
-     * 根据ID获取知识条目
+     * 根据 ID 获取知识条目
+     * <p>
+     * 使用 Stream 流式过滤，获取所有条目后按 ID 匹配。
+     * </p>
+     *
+     * @param id 知识条目 ID
+     * @return 匹配的知识条目；未找到返回 null
      */
     public KnowledgeEntry getKnowledgeEntryById(Long id) {
         if (id == null) {
@@ -658,7 +869,13 @@ public class FileStorageService {
     }
 
     /**
-     * 根据来源剪藏ID获取知识条目
+     * 根据来源剪藏 ID 获取关联的知识条目
+     * <p>
+     * 用于查找从某个剪藏记录生成的所有知识条目。
+     * </p>
+     *
+     * @param clipId 来源剪藏 ID
+     * @return 关联的知识条目列表（可能为空）
      */
     public List<KnowledgeEntry> getKnowledgeEntriesBySourceClipId(Long clipId) {
         if (clipId == null) {
@@ -671,6 +888,10 @@ public class FileStorageService {
 
     /**
      * 获取存储路径的父级目录
+     * <p>
+     * 用于 Git 操作：Git 仓库通常位于存储目录的父级。
+     * </p>
+     *
      * @return 存储路径的父级目录
      */
     public Path getStorageParentPath() {
@@ -678,7 +899,8 @@ public class FileStorageService {
     }
 
     /**
-     * 获取存储路径
+     * 获取存储根目录路径
+     *
      * @return 存储路径
      */
     public Path getStoragePath() {
@@ -687,6 +909,8 @@ public class FileStorageService {
 
     /**
      * 获取话题存储目录路径
+     *
+     * @return 话题存储路径（clip-storage/topic）
      */
     public Path getTopicStoragePath() {
         return storagePath.resolve("topic");
@@ -694,11 +918,27 @@ public class FileStorageService {
 
     // ==================== Topic 存储 ====================
 
+    /**
+     * 获取话题的日期文件路径
+     * <p>
+     * 格式：clip-storage/topic/{yyyy-MM-dd}.json
+     * 注意：话题使用 yyyy-MM-dd 格式（与剪藏的 yyMMdd 不同），
+     * 这种格式更易读，但需注意不同格式导致的问题。
+     * </p>
+     *
+     * @return 话题日期文件路径
+     */
     private Path getTopicDateFilePath() {
         String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
         return storagePath.resolve("topic").resolve(date + ".json");
     }
 
+    /**
+     * 从文件中读取话题列表
+     *
+     * @param path JSON 文件路径
+     * @return 话题列表
+     */
     private List<Topic> readTopicArrayFromFile(Path path) {
         try {
             if (!Files.exists(path)) {
@@ -715,6 +955,12 @@ public class FileStorageService {
         }
     }
 
+    /**
+     * 将话题列表写入 JSON 文件
+     *
+     * @param path   目标文件路径
+     * @param topics 话题列表
+     */
     private void writeTopicArrayToFile(Path path, List<Topic> topics) {
         try {
             Path parent = path.getParent();
@@ -727,6 +973,15 @@ public class FileStorageService {
         }
     }
 
+    /**
+     * 保存话题（新增或更新）
+     * <p>
+     * 如果 ID 为 null 则生成新 ID，如果 ID 已存在则更新对应记录。
+     * </p>
+     *
+     * @param topic 话题对象
+     * @return 保存后的话题
+     */
     public Topic saveTopic(Topic topic) {
         try {
             if (topic.getId() == null) {
@@ -736,6 +991,7 @@ public class FileStorageService {
             Path filePath = getTopicDateFilePath();
             List<Topic> topics = readTopicArrayFromFile(filePath);
 
+            // 检查是否已存在相同 ID（更新场景）
             boolean updated = false;
             for (int i = 0; i < topics.size(); i++) {
                 if (topics.get(i).getId() != null && topics.get(i).getId().equals(topic.getId())) {
@@ -756,6 +1012,15 @@ public class FileStorageService {
         }
     }
 
+    /**
+     * 获取所有话题
+     * <p>
+     * 遍历 topic 目录下所有 JSON 文件，合并所有记录，
+     * 并按创建时间倒序排列（最新的在前）。
+     * </p>
+     *
+     * @return 所有话题列表（按创建时间倒序）
+     */
     public List<Topic> getAllTopics() {
         List<Topic> allTopics = new ArrayList<>();
         try {
@@ -769,11 +1034,11 @@ public class FileStorageService {
                     .filter(path -> path.toString().endsWith(".json"))
                     .forEach(path -> allTopics.addAll(readTopicArrayFromFile(path)));
 
-            // 按创建时间倒序
+            // 按创建时间倒序排列（最新的在前）
             allTopics.sort((a, b) -> {
                 if (a.getCreatedAt() == null && b.getCreatedAt() == null) return 0;
-                if (a.getCreatedAt() == null) return 1;
-                if (b.getCreatedAt() == null) return -1;
+                if (a.getCreatedAt() == null) return 1;   // null 排在后面
+                if (b.getCreatedAt() == null) return -1;  // null 排在后面
                 return b.getCreatedAt().compareTo(a.getCreatedAt());
             });
         } catch (IOException e) {
@@ -782,6 +1047,15 @@ public class FileStorageService {
         return allTopics;
     }
 
+    /**
+     * 根据 ID 获取话题
+     * <p>
+     * 使用 Stream 流式过滤，获取所有话题后按 ID 匹配。
+     * </p>
+     *
+     * @param id 话题 ID
+     * @return 匹配的话题；未找到返回 null
+     */
     public Topic getTopicById(Long id) {
         if (id == null) return null;
         return getAllTopics().stream()
@@ -790,6 +1064,14 @@ public class FileStorageService {
                 .orElse(null);
     }
 
+    /**
+     * 删除话题
+     * <p>
+     * 遍历所有话题文件，使用 removeIf 移除匹配 ID 的记录。
+     * </p>
+     *
+     * @param id 要删除的话题 ID
+     */
     public void deleteTopic(Long id) {
         if (id == null) return;
         try {
@@ -801,6 +1083,7 @@ public class FileStorageService {
                     .filter(p -> p.toString().endsWith(".json"))
                     .forEach(path -> {
                         List<Topic> topics = readTopicArrayFromFile(path);
+                        // 使用 removeIf 移除匹配 ID 的记录
                         boolean found = topics.removeIf(t -> t.getId() != null && t.getId().equals(id));
                         if (found) {
                             writeTopicArrayToFile(path, topics);

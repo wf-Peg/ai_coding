@@ -5,65 +5,98 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 剪藏内容模型类
- * 存储剪藏的内容、类型、来源、分类、标签等信息
+ * 剪藏内容（ClipContent）模型类。
+ * <p>
+ * 剪藏是 Clip 系统的核心实体，用于存储用户从浏览器、手动输入或系统自动采集
+ * 的内容片段。每条剪藏记录包含原始内容、元数据（来源、时间、采集方式等）、
+ * 工作流状态、AI 分析结果（摘要、分析、发散性总结）以及关联的图片路径。
+ * </p>
+ *
+ * <h3>工作流状态流转</h3>
+ * <pre>
+ *   inbox（收件箱） → organized（已整理） → archived（已归档）
+ * </pre>
+ *
+ * @see TodoContent 可从剪藏生成待办事项
+ * @see KnowledgeEntry 可从剪藏提取知识条目
  */
 public class ClipContent {
 
-    private Long id;  // 剪藏ID
+    /** 剪藏唯一标识 ID，由持久层自动生成 */
+    private Long id;
 
-    private String content;  // 剪藏内容
+    /** 剪藏的核心内容，支持文本、HTML 等格式 */
+    private String content;
 
-    private String type;  // 剪藏类型：text, image, file, etc.
+    /** 剪藏类型：text（文本）、image（图片）、file（文件）等 */
+    private String type;
 
-    private String source;  // 剪藏来源：system, browser, manual
+    /** 剪藏来源：system（系统自动）、browser（浏览器插件）、manual（手动录入） */
+    private String source;
 
-    private String category;  // 分类，用于垂直领域
+    /** 分类标识，用于垂直领域划分，如 "work"、"study"、"life" 等 */
+    private String category;
 
-    private String title;  // 采集标题
+    /** 采集时自动提取或用户指定的标题 */
+    private String title;
 
-    private String sourceUrl;  // 结构化来源 URL
+    /** 结构化来源 URL，记录原始网页地址 */
+    private String sourceUrl;
 
-    private String siteName;  // 站点名称
+    /** 来源站点名称，如 "知乎"、"GitHub" 等 */
+    private String siteName;
 
-    private String capturedAt;  // 采集时间
+    /** 采集时间，格式为 yyyy-MM-dd HH:mm:ss 的字符串 */
+    private String capturedAt;
 
-    private String selectedText;  // 原始选中文本
+    /** 用户在页面上实际选中的原始文本 */
+    private String selectedText;
 
-    private String contextBefore;  // 选中文本前文
+    /** 选中文本之前的上文内容，用于 AI 理解语境 */
+    private String contextBefore;
 
-    private String contextAfter;  // 选中文本后文
+    /** 选中文本之后的下文内容，用于 AI 理解语境 */
+    private String contextAfter;
 
-    private String captureMethod;  // 采集方式
+    /** 采集方式，如 "mouse-select"、"keyboard-shortcut" 等 */
+    private String captureMethod;
 
-    private String workflowStatus;  // 流程状态：inbox / organized / archived
+    /** 工作流状态：inbox（收件箱）、organized（已整理）、archived（已归档） */
+    private String workflowStatus;
 
-    private List<String> tags = new ArrayList<>();  // 标签列表
+    /** 标签列表，支持多标签分类和检索 */
+    private List<String> tags = new ArrayList<>();
 
-    private LocalDateTime createdAt;  // 创建时间
+    /** 记录创建时间（服务端时间），用于排序和审计 */
+    private LocalDateTime createdAt;
 
-    private String summary;  // 内容摘要
+    /** AI 生成的内容摘要，简明扼要地概括剪藏内容 */
+    private String summary;
 
-    private String analysis;  // 内容分析
+    /** AI 对内容的深度分析结果 */
+    private String analysis;
 
-    private String divergentSummary;  // 发散性总结
+    /** AI 生成的发散性总结，从不同角度拓展思考 */
+    private String divergentSummary;
 
-    private List<String> imagePaths = new ArrayList<>();  // 图片相对路径列表
+    /** 关联的图片相对路径列表，用于富文本剪藏中的图片引用 */
+    private List<String> imagePaths = new ArrayList<>();
 
     /**
-     * 无参构造函数
-     * 自动设置创建时间为当前时间
+     * 无参构造函数。
+     * 自动设置创建时间（{@code createdAt}）为当前时间。
      */
     public ClipContent() {
         this.createdAt = LocalDateTime.now();
     }
 
     /**
-     * 构造函数
-     * @param content 剪藏内容
-     * @param type 剪藏类型
-     * @param source 剪藏来源
-     * @param category 剪藏分类
+     * 带参构造函数，用于快速创建剪藏记录。
+     *
+     * @param content  剪藏的核心内容
+     * @param type     剪藏类型（text/image/file）
+     * @param source   剪藏来源（system/browser/manual）
+     * @param category 分类标识
      */
     public ClipContent(String content, String type, String source, String category) {
         this.content = content;

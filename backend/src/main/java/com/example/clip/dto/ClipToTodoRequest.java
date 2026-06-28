@@ -1,14 +1,27 @@
 package com.example.clip.dto;
 
 /**
- * 剪藏转待办请求
+ * 剪藏转待办请求（ClipToTodoRequest）DTO。
+ * <p>
+ * 用于将指定剪藏转换为待办事项的请求。必须提供源剪藏 ID（{@code clipId}），
+ * 可选的待办属性（标题、优先级、截止日期、分类）用于覆盖默认值。
+ * </p>
  */
 public class ClipToTodoRequest {
 
+    /** 源剪藏 ID，必填 */
     private Long clipId;
+
+    /** 待办事项标题，不填则使用剪藏标题 */
     private String title;
+
+    /** 优先级：high、medium、low */
     private String priority;
+
+    /** 截止日期 */
     private String deadline;
+
+    /** 分类标识 */
     private String category;
 
     public Long getClipId() {

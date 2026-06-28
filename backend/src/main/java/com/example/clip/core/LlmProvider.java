@@ -1,28 +1,58 @@
 package com.example.clip.core;
 
 /**
- * LLM 提供者接口
- * 抽象不同大模型厂商的调用方式，支持运行时热切换
+ * LLM（大语言模型）提供者统一接口。
+ * <p>
+ * 抽象不同大模型厂商（如阿里云 DashScope、DeepSeek）的调用方式，
+ * 使得上层业务代码无需关心底层具体是哪个厂商的模型。
+ * 支持运行时通过配置切换不同的 LLM 提供者，实现热切换。
+ * </p>
+ *
+ * <p>实现类必须提供以下能力：</p>
+ * <ul>
+ *   <li>对话（chat）：发送系统提示词和用户消息，获取模型回复</li>
+ *   <li>名称标识：返回提供者的唯一名称，用于日志和路由判断</li>
+ *   <li>可用性检查：判断当前提供者是否已配置好 API Key 等必要参数</li>
+ * </ul>
+ *
+ * @see RoutingLlmProvider 路由实现，根据配置动态选择底层提供者
+ * @see DashScopeLlmProvider 阿里云 DashScope 实现
+ * @see DeepSeekLlmProvider DeepSeek 实现
  */
 public interface LlmProvider {
 
     /**
-     * 调用 LLM 进行对话
-     * @param systemPrompt 系统提示词
-     * @param userMessage 用户消息
-     * @return 模型回复内容
+     * 调用 LLM 进行对话。
+     * <p>
+     * 将系统提示词（system prompt）和用户消息（user message）一起发送给大模型，
+     * 返回模型的文本回复。
+     * </p>
+     *
+     * @param systemPrompt 系统提示词，用于设定模型的角色、行为规范和输出格式
+     * @param userMessage  用户消息，即需要模型处理的具体内容
+     * @return 模型生成的文本回复
+     * @throws RuntimeException 当 API 调用失败时抛出
      */
     String chat(String systemPrompt, String userMessage);
 
     /**
-     * 获取提供者名称
-     * @return "dashscope" 或 "deepseek"
+     * 获取当前提供者的唯一名称标识。
+     * <p>
+     * 用于日志记录、路由决策以及前端展示当前使用的模型厂商。
+     * </p>
+     *
+     * @return 提供者名称，如 "dashscope" 或 "deepseek"
      */
     String getProviderName();
 
     /**
-     * 当前提供者是否可用（API Key 已配置）
-     * @return 是否可用
+     * 判断当前提供者是否可用。
+     * <p>
+     * 通常检查 API Key 是否已配置且非空。
+     * 路由提供者会根据此返回值决定是否回退到备用提供者。
+     * </p>
+     *
+     * @return true 表示可用，false 表示不可用（缺少必要配置）
      */
     boolean isAvailable();
 }

@@ -19,33 +19,56 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 剪藏服务类
- * 处理剪藏内容的保存、AI分析、存储等操作
+ * 剪藏业务核心服务
+ * <p>
+ * 负责剪藏内容的完整生命周期管理，包括：
+ * <ul>
+ *   <li>多种类型的剪藏保存（AI文本、仅存储、链接AI、文档AI）</li>
+ *   <li>图片上传、Base64解码与存储</li>
+ *   <li>AI 分析（摘要、标签、分类）</li>
+ *   <li>收件箱（inbox）工作流管理</li>
+ *   <li>剪藏内容的手动/AI 整理</li>
+ * </ul>
+ * 工作流状态：inbox（待整理）→ organized（已整理）。
+ * </p>
+ *
+ * @see FileStorageService
+ * @see AiService
  */
 @Service
 public class ClipService {
 
+    /** 收件箱分类名称常量 */
     public static final String INBOX_CATEGORY = "inbox";
+    /** 工作流状态：待整理（收件箱中） */
     public static final String WORKFLOW_INBOX = "inbox";
+    /** 工作流状态：已整理 */
     public static final String WORKFLOW_ORGANIZED = "organized";
+    /** 支持的浏览器捕获方式白名单，用于校验和规范化 */
     private static final Set<String> SUPPORTED_CAPTURE_METHODS = Set.of(
             "popup", "context-menu", "shortcut", "floating-button", "system-share", "system-clip"
     );
 
     private static final Logger logger = LoggerFactory.getLogger(ClipService.class);
-    private final FileStorageService storageService;  // 文件存储服务
-    private final AiService aiService;  // AI服务
-    private final LinkParseService linkParseService;  // 链接解析服务
-    private final DocumentParseService documentParseService;  // 文档解析服务
+    /** 文件存储服务，负责 JSON 文件持久化 */
+    private final FileStorageService storageService;
+    /** AI 服务，负责内容分析、摘要、分类等 */
+    private final AiService aiService;
+    /** 链接解析服务，负责爬取网页内容 */
+    private final LinkParseService linkParseService;
+    /** 文档解析服务，负责解析 PDF/DOCX/TXT 等文档 */
+    private final DocumentParseService documentParseService;
+    /** 图片工具类，负责图片验证和存储 */
     private final ImageUtils imageUtils;
 
     /**
-     * 构造函数
+     * 构造器注入所有依赖
      *
      * @param storageService       文件存储服务
-     * @param aiService            AI服务
+     * @param aiService            AI 服务
      * @param linkParseService     链接解析服务
      * @param documentParseService 文档解析服务
+     * @param imageUtils           图片工具类
      */
     public ClipService(FileStorageService storageService, AiService aiService,
                        LinkParseService linkParseService, DocumentParseService documentParseService,
@@ -58,53 +81,63 @@ public class ClipService {
     }
 
     /**
-     * 保存剪藏内容（支持图片上传）
+     * 保存剪藏内容（核心方法，支持图片上传）
+     * <p>
+     * 根据类型（type）执行不同的处理逻辑：
+     * <ul>
+     *   <li>store-only：仅存储原文，不做 AI 分析</li>
+     *   <li>link-ai：爬取链接内容 → AI 分析</li>
+     *   <li>doc-ai：解析文档（PDF/DOCX等）→ AI 分析</li>
+     *   <li>ai-text（默认）：直接 AI 分析文本内容</li>
+     * </ul>
+     * 对于 ai-text 和 store-only 类型，还会处理图片上传（Base64 解码 → 验证 → 存储）。
+     * </p>
      *
-     * @param content       剪藏内容
-     * @param type          剪藏类型
-     * @param source        剪藏来源
-     * @param category      剪藏分类
-     * @param fileData      文件数据（Base64编码）
-     * @param fileName      文件名
-     * @param imageDataList 图片数据列表
-     * @return 保存后的剪藏内容
+     * @param content       剪藏文本内容
+     * @param type          剪藏类型（ai-text/store-only/link-ai/doc-ai）
+     * @param source        来源信息
+     * @param category      分类（可为 null，AI 会自动分类）
+     * @param fileData      文件数据（Base64 编码，仅 doc-ai 类型使用）
+     * @param fileName      文件名（仅 doc-ai 类型使用）
+     * @param imageDataList 图片数据列表（Base64 编码的图片）
+     * @return 保存后的剪藏内容对象
      */
     public ClipContent saveClip(String content, String type, String source, String category,
                                 String fileData, String fileName, List<ClipRequest.ImageData> imageDataList) {
         ClipContent clipContent = new ClipContent(content, type, source, category);
 
-        // 处理图片 - 只有ai-text和store-only类型才处理图片上传
+        // 处理图片上传 - 只有 ai-text 和 store-only 类型才处理图片
         if (("ai-text".equals(type) || "store-only".equals(type)) && imageDataList != null && !imageDataList.isEmpty()) {
             try {
-                // 生成笔记文件名（用于图片存储）
+                // 生成笔记文件名，用于图片存储的目录组织
                 String noteFileName = generateNoteFileName(category);
                 String cat = (category != null && !category.isEmpty()) ? category : "default";
 
-                // 处理每张图片
+                // 逐张处理图片：Base64解码 → 类型校验 → 大小校验 → 存储
                 for (int i = 0; i < imageDataList.size(); i++) {
                     ClipRequest.ImageData imageData = imageDataList.get(i);
                     if (imageData.getBase64Data() != null && !imageData.getBase64Data().isEmpty()) {
-                        // 解码Base64图片数据
+                        // Base64 解码为字节数组
                         byte[] imageBytes = Base64.getDecoder().decode(imageData.getBase64Data());
 
-                        // 验证图片文件类型
+                        // 校验图片文件类型（白名单：jpg/png/gif/webp等）
                         if (!ImageUtils.isValidImageFile(imageData.getFileName())) {
                             logger.warn("Invalid image file type: {}", imageData.getFileName());
                             continue;
                         }
 
-                        // 验证图片大小（限制10MB）
+                        // 校验图片大小（限制 10MB），防止大文件占用过多存储
                         if (!ImageUtils.isWithinSizeLimit(imageBytes, 10 * 1024 * 1024)) {
                             logger.warn("Image too large: {}", imageData.getFileName());
                             continue;
                         }
-                        // 存储图片并获取相对路径
+                        // 存储图片到文件系统，返回相对路径
                         String imagePath = imageUtils.storeImage(imageBytes, imageData.getFileName(), cat, noteFileName);
 
-                        // 将图片路径添加到clipContent
+                        // 记录图片路径
                         clipContent.getImagePaths().add(imagePath);
 
-                        // 在内容中添加图片引用
+                        // 在 Markdown 内容中嵌入图片引用
                         if (clipContent.getContent() == null) {
                             clipContent.setContent("");
                         }
@@ -113,46 +146,47 @@ public class ClipService {
                 }
             } catch (Exception e) {
                 logger.error("Failed to process images: {}", e.getMessage(), e);
-                // 图片处理失败不影响文本内容的保存
+                // 图片处理失败不影响文本内容的保存，继续后续流程
             }
         }
 
+        // 根据类型执行不同的处理逻辑
         switch (type != null ? type : "ai-text") {
             case "store-only":
-                // 仅存储内容，不进行AI处理
+                // 仅存储模式：原文即摘要，不调用 AI
                 clipContent.setSummary(content != null ? content : "");
                 clipContent.setAnalysis("");
                 break;
 
             case "link-ai":
-                // 爬取链接内容，然后进行AI处理
+                // 链接 AI 模式：先爬取网页内容，再 AI 分析
                 String originalUrl = content;
                 String crawledText = linkParseService.parseUrl(content);
-                // 存储：URL + 爬取的原始文本
+                // 存储原始 URL 和爬取到的文本
                 clipContent.setContent("来源链接: " + originalUrl + "\n\n" + crawledText);
-                // 如果没有分类，则使用AI分类
+                // 如果用户未指定分类，则让 AI 自动分类
                 boolean useAiCategoryLink = (clipContent.getCategory() == null || clipContent.getCategory().isEmpty());
                 processWithAi(clipContent, useAiCategoryLink);
                 break;
 
             case "doc-ai":
-                // 解析文档，然后进行AI处理
+                // 文档 AI 模式：解析文档内容 → AI 分析
                 try {
                     byte[] fileBytes = Base64.getDecoder().decode(fileData);
-                    
-                    // 存储源文件（按照图片存储逻辑）
+
+                    // 先存储源文件到文件系统
                     String noteFileName = generateNoteFileName(category);
                     String cat = (category != null && !category.isEmpty()) ? category : "default";
                     String sourceFilePath = imageUtils.storeImage(fileBytes, fileName, cat, noteFileName);
-                    
-                    // 将源文件路径添加到clipContent
+
+                    // 记录源文件路径
                     clipContent.getImagePaths().add(sourceFilePath);
-                    
-                    // 解析文档
+
+                    // 解析文档内容为纯文本
                     String parsedText = documentParseService.parseDocument(fileBytes, fileName, sourceFilePath);
                     clipContent.setContent(parsedText);
-                    
-                    // 如果没有分类，则使用AI分类
+
+                    // 如果未指定分类，使用 AI 自动分类
                     boolean useAiCategoryDoc = (clipContent.getCategory() == null || clipContent.getCategory().isEmpty());
                     processWithAi(clipContent, useAiCategoryDoc);
                 } catch (Exception e) {
@@ -164,8 +198,7 @@ public class ClipService {
 
             case "ai-text":
             default:
-                // 原始逻辑：AI文本处理
-                // 如果没有分类，则使用AI分类
+                // AI 文本模式（默认）：直接对文本内容进行 AI 分析
                 boolean useAiCategory = (clipContent.getCategory() == null || clipContent.getCategory().isEmpty());
                 processWithAi(clipContent, useAiCategory);
                 break;
@@ -177,14 +210,22 @@ public class ClipService {
 
     /**
      * 保存剪藏内容（结构化请求版本）
+     * <p>
+     * 将 {@link ClipRequest} 结构化请求转换为内部参数后调用核心保存方法。
+     * 此方法会额外处理标题、来源 URL、捕获方式等工作流元数据。
+     * </p>
      *
-     * @param request 剪藏请求
+     * @param request 结构化剪藏请求
      * @return 保存后的剪藏内容
      */
     public ClipContent saveClip(ClipRequest request) {
+        // 规范化工作流状态：根据请求类型和 category 推断 inbox/organized
         String workflowStatus = normalizeWorkflowStatus(request);
+        // 规范化分类：兼容旧版 category=inbox 的迁移逻辑
         String normalizedCategory = normalizeCategory(request);
+        // 规范化类型：确保 type 不为空
         String effectiveType = normalizeType(request.getType(), workflowStatus);
+        // 优先使用 sourceUrl，其次使用 source
         String normalizedSource = firstNonBlank(request.getSourceUrl(), request.getSource());
         ClipContent clipContent = saveClip(
                 request.getContent(),
@@ -196,6 +237,7 @@ public class ClipService {
                 request.getImageDataList()
         );
 
+        // 设置浏览器插件传来的结构化元数据
         clipContent.setTitle(request.getTitle());
         clipContent.setSourceUrl(firstNonBlank(request.getSourceUrl(), request.getSource()));
         clipContent.setSiteName(request.getSiteName());
@@ -210,30 +252,37 @@ public class ClipService {
     }
 
     /**
-     * AI处理：一次性生成摘要、分析和标签
-     * 标签直接设置到clipContent对象上
+     * AI 处理：一次性生成摘要、分析和标签
+     * <p>
+     * 调用 AI 服务对剪藏内容进行分析，返回结果包含摘要、分析文本、
+     * 标签列表和分类建议。如果剪藏内容已有标签或分类，则不会覆盖。
+     * 如果 AI 调用失败，则设置默认的失败提示。
+     * </p>
      *
-     * @param clipContent   剪藏内容对象
-     * @param useAiCategory 是否使用AI分类
+     * @param clipContent   剪藏内容对象（会被直接修改）
+     * @param useAiCategory 是否使用 AI 生成的分类（当用户未指定分类时为 true）
      */
     @SuppressWarnings("unchecked")
     private void processWithAi(ClipContent clipContent, boolean useAiCategory) {
         try {
+            // 调用 AI 服务，一次性获取摘要、分析、标签和分类
             Map<String, Object> aiResult = aiService.processClipContent(clipContent.getContent(), useAiCategory);
+            // 提取各字段，若 AI 未返回则使用默认值
             clipContent.setSummary((String) aiResult.getOrDefault("summary", "摘要生成失败"));
             clipContent.setAnalysis((String) aiResult.getOrDefault("analysis", ""));
             List<String> tags = (List<String>) aiResult.getOrDefault("tags", List.of());
-            // 如果clipContent没有设置标签，则设置AI生成的标签
+            // 如果剪藏内容已有标签，则保留用户标签，不覆盖
             if (clipContent.getTags() == null || clipContent.getTags().isEmpty()) {
                 clipContent.setTags(tags);
             }
-            // 如果使用AI分类且clipContent没有设置分类，则设置AI生成的分类
+            // 如果开启了 AI 分类且剪藏内容未设置分类，则使用 AI 分类
             if (useAiCategory && (clipContent.getCategory() == null || clipContent.getCategory().isEmpty())) {
                 String category = (String) aiResult.getOrDefault("category", "default");
                 clipContent.setCategory(category);
             }
         } catch (Exception e) {
             e.printStackTrace();
+            // AI 处理失败时设置默认提示，不影响内容保存
             clipContent.setSummary("摘要生成失败");
             clipContent.setAnalysis("分析生成失败");
         }
@@ -316,45 +365,75 @@ public class ClipService {
         return storageService.getClipsByCategory(category);
     }
 
+    /**
+     * 根据工作流状态获取剪藏内容
+     * <p>
+     * 如果工作流状态为 null 或空，则返回所有剪藏。
+     * 否则过滤出匹配工作流状态的内容。兼容旧数据中没有 workflowStatus 字段的记录。
+     * </p>
+     *
+     * @param workflowStatus 工作流状态（inbox/organized），可为 null
+     * @return 匹配的剪藏内容列表
+     */
     public List<ClipContent> getClipsByWorkflowStatus(String workflowStatus) {
         if (workflowStatus == null || workflowStatus.isBlank()) {
             return getAllClips();
         }
         String normalized = workflowStatus.trim();
+        // 流式过滤：先获取全部，再按状态筛选
         return getAllClips().stream()
                 .filter(clip -> normalized.equalsIgnoreCase(resolveWorkflowStatus(clip)))
                 .collect(Collectors.toList());
     }
 
     /**
-     * 整理收件箱：默认AI分类，可手动覆盖类型/分类/标签
+     * 批量整理收件箱
+     * <p>
+     * 遍历所有 inbox 状态的剪藏记录，根据模式（auto/manual）执行整理：
+     * <ul>
+     *   <li>auto 模式：调用 AI 自动生成摘要、分析、标签、分类</li>
+     *   <li>manual 模式：使用请求中指定的类型、分类、标签覆盖</li>
+     * </ul>
+     * 整理完成后，将工作流状态改为 organized 并持久化。
+     * 注意：仅处理 store-only 类型的剪藏，其他类型（如 ai-text）跳过。
+     * </p>
+     *
+     * @param request 整理请求（包含 mode 和可选的覆盖字段）
+     * @return 整理结果，包含状态、模式、整理数量
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> organizeInbox(OrganizeInboxRequest request) {
+        // 默认为 auto 模式
         String mode = (request == null || request.getMode() == null) ? "auto" : request.getMode().trim().toLowerCase();
         List<ClipContent> inboxClips = getClipsByWorkflowStatus(WORKFLOW_INBOX);
         int organizedCount = 0;
 
         for (ClipContent clip : inboxClips) {
+            // 只整理 store-only 类型的剪藏（其他类型已有 AI 分析结果）
             if (!"store-only".equals(clip.getType())) {
                 continue;
             }
 
             if ("manual".equals(mode)) {
+                // 手动模式：使用请求中指定的字段覆盖
                 applyManualOverrides(clip, request);
             } else {
+                // 自动模式：调用 AI 进行全面整理
                 applyFullAiOrganize(clip);
             }
 
+            // 确保类型和分类不为空，设置默认值
             if (clip.getType() == null || clip.getType().isBlank()) {
                 clip.setType("ai-text");
             }
             if (clip.getCategory() == null || clip.getCategory().isBlank()) {
                 clip.setCategory("default");
             }
+            // 如果 type 已变更但缺少 AI 分析结果，补充 AI 整理
             if (!"store-only".equals(clip.getType()) && needsAiOrganizeResult(clip)) {
                 applyFullAiOrganize(clip);
             }
+            // 标记为已整理并持久化
             clip.setWorkflowStatus(WORKFLOW_ORGANIZED);
             storageService.replaceClip(clip);
             organizedCount++;
@@ -368,7 +447,16 @@ public class ClipService {
     }
 
     /**
-     * 单条整理：支持任意剪藏记录
+     * 单条剪藏整理
+     * <p>
+     * 对指定 ID 的剪藏记录执行整理操作。支持 auto 和 manual 两种模式。
+     * 整理完成后自动标记为 organized 状态。
+     * </p>
+     *
+     * @param clipId  剪藏记录 ID
+     * @param request 整理请求（包含 mode 和可选的覆盖字段）
+     * @return 整理结果，包含状态、模式、clipId
+     * @throws IllegalArgumentException 如果指定 ID 的剪藏记录不存在
      */
     public Map<String, Object> organizeClip(Long clipId, OrganizeClipRequest request) {
         ClipContent clip = getClipById(clipId);
@@ -401,6 +489,13 @@ public class ClipService {
         return result;
     }
 
+    /**
+     * 规范化分类字段
+     * <p>
+     * 如果分类为 inbox，则迁移为 workflowStatus=inbox（兼容旧逻辑），
+     * 此时 category 返回 null 以便后续 AI 自动分类。
+     * </p>
+     */
     private String normalizeCategory(ClipRequest request) {
         String category = request.getCategory();
         if (category == null || category.isBlank()) {
@@ -409,34 +504,49 @@ public class ClipService {
 
         String normalized = category.trim();
         if (INBOX_CATEGORY.equalsIgnoreCase(normalized)) {
-            // 兼容旧逻辑：category=inbox 迁移为 workflowStatus=inbox
+            // 兼容旧逻辑：category=inbox 迁移为 workflowStatus=inbox，category 置空让 AI 分类
             return null;
         }
         return normalized;
     }
 
+    /**
+     * 规范化工作流状态
+     * <p>
+     * 根据请求类型和分类推断工作流状态：
+     * store-only 类型默认进入 inbox，非 store-only 默认为 organized。
+     * </p>
+     */
     private String normalizeWorkflowStatus(ClipRequest request) {
         String requestType = normalizeRequestedType(request.getType());
+        // 如果请求中明确指定了工作流状态，优先使用
         if (request.getWorkflowStatus() != null && !request.getWorkflowStatus().isBlank()) {
             String requestedStatus = request.getWorkflowStatus().trim().toLowerCase();
+            // 非 store-only 类型出现在 inbox 不合理，强制改为 organized
             if (WORKFLOW_INBOX.equals(requestedStatus) && !"store-only".equals(requestType)) {
                 return WORKFLOW_ORGANIZED;
             }
             return requestedStatus;
         }
 
+        // store-only 类型默认进入 inbox 等待整理
         if ("store-only".equals(requestType)) {
             return WORKFLOW_INBOX;
         }
 
+        // 兼容旧逻辑：category=inbox 且 store-only 类型 → inbox
         if (request.getCategory() != null
                 && INBOX_CATEGORY.equalsIgnoreCase(request.getCategory().trim())
                 && "store-only".equals(requestType)) {
             return WORKFLOW_INBOX;
         }
+        // 其他情况默认已整理
         return WORKFLOW_ORGANIZED;
     }
 
+    /**
+     * 判断是否为结构化捕获（浏览器插件发送的结构化数据）
+     */
     private boolean isStructuredCapture(ClipRequest request) {
         return (request.getCaptureMethod() != null && !request.getCaptureMethod().isBlank())
                 || (request.getSourceUrl() != null && !request.getSourceUrl().isBlank())
@@ -446,6 +556,13 @@ public class ClipService {
                 || (request.getContextAfter() != null && !request.getContextAfter().isBlank());
     }
 
+    /**
+     * 自动整理单个剪藏（轻量版，仅设置分类和标签）
+     * <p>
+     * 调用 AI 的 smartOrganize 方法，仅获取分类和标签建议。
+     * 不会覆盖已有的分类和标签。
+     * </p>
+     */
     private void applyAutoOrganize(ClipContent clip) {
         if (clip == null || clip.getContent() == null || clip.getContent().isBlank()) {
             return;
@@ -453,27 +570,44 @@ public class ClipService {
 
         Map<String, Object> aiResult = aiService.smartOrganize(clip.getContent());
         Object category = aiResult.get("category");
+        // 仅当剪藏未设置分类时才覆盖
         if ((clip.getCategory() == null || clip.getCategory().isBlank()) && category instanceof String cat && !cat.isBlank()) {
             clip.setCategory(cat);
         }
         Object tags = aiResult.get("tags");
+        // 仅当剪藏未设置标签时才覆盖
         if ((clip.getTags() == null || clip.getTags().isEmpty()) && tags instanceof List<?> tagList) {
+            // 过滤非 String 元素，确保类型安全
             List<String> normalizedTags = tagList.stream().filter(String.class::isInstance).map(String.class::cast).collect(Collectors.toList());
             clip.setTags(normalizedTags);
         }
     }
 
+    /**
+     * 判断剪藏是否需要 AI 整理结果
+     * <p>
+     * 如果摘要或分析为空，说明需要 AI 整理。
+     * </p>
+     */
     private boolean needsAiOrganizeResult(ClipContent clip) {
         return clip.getSummary() == null || clip.getSummary().isBlank()
                 || clip.getAnalysis() == null || clip.getAnalysis().isBlank();
     }
 
+    /**
+     * 全面 AI 整理（重量版，生成摘要、分析、标签、分类）
+     * <p>
+     * 调用 AI 的 processClipContent 方法，获取完整的分析结果。
+     * 会覆盖剪藏的所有 AI 分析字段，并将 type 设为 ai-text。
+     * </p>
+     */
     private void applyFullAiOrganize(ClipContent clip) {
         if (clip == null || clip.getContent() == null || clip.getContent().isBlank()) {
             return;
         }
 
         Map<String, Object> aiResult = aiService.processClipContent(clip.getContent(), true);
+        // 使用类型安全的方式提取各字段
         Object summary = aiResult.get("summary");
         if (summary instanceof String value && !value.isBlank()) {
             clip.setSummary(value);
@@ -484,6 +618,7 @@ public class ClipService {
         }
         Object tags = aiResult.get("tags");
         if (tags instanceof List<?> tagList) {
+            // 过滤非法元素，确保标签列表只包含 String
             List<String> normalizedTags = tagList.stream()
                     .filter(String.class::isInstance)
                     .map(String.class::cast)
@@ -497,6 +632,12 @@ public class ClipService {
         clip.setType("ai-text");
     }
 
+    /**
+     * 手动覆盖剪藏字段（OrganizeInboxRequest 版本）
+     * <p>
+     * 仅覆盖请求中明确指定的字段，未指定的字段保持不变。
+     * </p>
+     */
     private void applyManualOverrides(ClipContent clip, OrganizeInboxRequest request) {
         if (request == null) {
             return;
@@ -510,10 +651,17 @@ public class ClipService {
             clip.setCategory(request.getCategory().trim());
         }
         if (request.getTags() != null && !request.getTags().isEmpty()) {
+            // 过滤空白标签
             clip.setTags(request.getTags().stream().filter(tag -> tag != null && !tag.isBlank()).map(String::trim).collect(Collectors.toList()));
         }
     }
 
+    /**
+     * 手动覆盖剪藏字段（OrganizeClipRequest 版本，支持更多字段）
+     * <p>
+     * 除了类型、分类、标签外，还支持覆盖内容和摘要/分析。
+     * </p>
+     */
     private void applyManualOverrides(ClipContent clip, OrganizeClipRequest request) {
         if (request == null) {
             return;
@@ -527,8 +675,10 @@ public class ClipService {
             clip.setCategory(request.getCategory().trim());
         }
         if (request.getTags() != null && !request.getTags().isEmpty()) {
+            // 过滤空白标签
             clip.setTags(request.getTags().stream().filter(tag -> tag != null && !tag.isBlank()).map(String::trim).collect(Collectors.toList()));
         }
+        // OrganizeClipRequest 额外支持覆盖内容和摘要/分析
         if (request.getContent() != null) {
             clip.setContent(request.getContent().trim());
         }
@@ -540,6 +690,9 @@ public class ClipService {
         }
     }
 
+    /**
+     * 规范化类型字段，默认返回 "ai-text"
+     */
     private String normalizeType(String requestType, String workflowStatus) {
         if (requestType != null && !requestType.isBlank()) {
             return requestType.trim();
@@ -547,6 +700,9 @@ public class ClipService {
         return "ai-text";
     }
 
+    /**
+     * 规范化请求类型，默认返回 "ai-text"
+     */
     private String normalizeRequestedType(String requestType) {
         if (requestType != null && !requestType.isBlank()) {
             return requestType.trim();
@@ -554,6 +710,13 @@ public class ClipService {
         return "ai-text";
     }
 
+    /**
+     * 解析剪藏的实际工作流状态
+     * <p>
+     * 优先使用记录的 workflowStatus 字段，兼容旧数据中通过 category=inbox
+     * 且 type=store-only 来判断 inbox 状态的逻辑。
+     * </p>
+     */
     private String resolveWorkflowStatus(ClipContent clip) {
         if (clip.getWorkflowStatus() != null && !clip.getWorkflowStatus().isBlank()) {
             return clip.getWorkflowStatus();
@@ -565,6 +728,9 @@ public class ClipService {
         return WORKFLOW_ORGANIZED;
     }
 
+    /**
+     * 返回第一个非空白字符串，优先使用 primary，其次 fallback
+     */
     private String firstNonBlank(String primary, String fallback) {
         if (primary != null && !primary.isBlank()) {
             return primary.trim();
@@ -575,6 +741,12 @@ public class ClipService {
         return fallback;
     }
 
+    /**
+     * 规范化捕获方式
+     * <p>
+     * 如果捕获方式在白名单中则直接使用，否则返回默认值 "popup"。
+     * </p>
+     */
     private String normalizeCaptureMethod(String captureMethod) {
         if (captureMethod == null || captureMethod.isBlank()) {
             return null;
@@ -583,36 +755,47 @@ public class ClipService {
         if (SUPPORTED_CAPTURE_METHODS.contains(normalized)) {
             return normalized;
         }
+        // 不在白名单中的捕获方式，默认使用 popup
         return "popup";
     }
 
     /**
      * 生成笔记文件名
-     * 格式：{category}_{yyMMdd}
+     * <p>
+     * 格式：{category}_{yyMMdd}，用于图片和文档的存储目录组织。
+     * 分类中的斜杠会被替换为连字符，避免产生子目录。
+     * </p>
      *
-     * @param category 分类
-     * @return 笔记文件名
+     * @param category 分类名
+     * @return 文件名（如 "work_250628"）
      */
     private String generateNoteFileName(String category) {
         String cat = (category != null && !category.isEmpty()) ? category : "default";
-        // 移除分类中的斜杠和其他特殊字符
+        // 移除分类中的斜杠和其他特殊字符，避免路径问题
         cat = cat.replaceAll("/", "-");
-        // 获取当前日期
+        // 获取当前日期作为后缀
         String dateSuffix = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyMMdd"));
         return cat + "_" + dateSuffix;
     }
 
     /**
      * 异步处理剪藏内容
+     * <p>
+     * 使用 {@link Async} 注解在独立线程中执行 AI 分析，
+     * 避免阻塞主请求线程。先等待 1 秒确保数据已持久化，
+     * 再读取剪藏内容进行 AI 分析后更新。
+     * </p>
      *
-     * @param clipId 剪藏ID
+     * @param clipId 剪藏记录 ID
      */
     @Async
     public void processClipAsync(Long clipId) {
         try {
+            // 等待 1 秒确保主流程已持久化数据
             Thread.sleep(1000);
             ClipContent clip = storageService.getClipById(clipId.toString());
             if (clip != null) {
+                // 分别调用 AI 生成摘要和分析
                 String summary = aiService.generateSummary(clip.getContent());
                 String analysis = aiService.analyzeContent(clip.getContent());
                 clip.setSummary(summary);

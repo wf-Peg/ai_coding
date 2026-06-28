@@ -5,24 +5,68 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 话题模型
- * 用于分享有价值的AI对话、记录AI对话、收藏优质内容
+ * 话题（Topic）模型类。
+ * <p>
+ * 话题是 Clip 系统的分享与沉淀模块，用于将 AI 对话、优质内容整理为结构化话题，
+ * 支持发布到公共广场、点赞互动等社交功能。每个话题可关联一个来源剪藏。
+ * </p>
+ *
+ * <h3>核心属性</h3>
+ * <ul>
+ *   <li>{@code content} 为 Markdown 格式的完整 AI 对话内容</li>
+ *   <li>{@code published} 控制话题是否对外可见</li>
+ *   <li>{@code likeCount} 记录点赞数，用于热门排序</li>
+ * </ul>
+ *
+ * <h3>约束</h3>
+ * <ul>
+ *   <li>构造函数中 {@code published} 默认为 {@code false}，避免意外发布</li>
+ *   <li>{@code likeCount} 默认从 0 开始</li>
+ * </ul>
  */
 public class Topic {
 
+    /** 话题唯一标识 ID */
     private Long id;
-    private String title;          // 话题标题
-    private String summary;        // 一句话摘要
-    private String content;        // 完整的AI对话内容（Markdown格式）
-    private String coverImage;     // 封面图路径
-    private String category;       // 分类
+
+    /** 话题标题，吸引眼球的简短标题 */
+    private String title;
+
+    /** 一句话摘要，用于列表页展示 */
+    private String summary;
+
+    /** 完整的 AI 对话内容，支持 Markdown 格式 */
+    private String content;
+
+    /** 封面图路径，用于话题卡片展示 */
+    private String coverImage;
+
+    /** 分类标识，与剪藏分类体系一致 */
+    private String category;
+
+    /** 标签列表，支持多标签检索 */
     private List<String> tags = new ArrayList<>();
-    private Long sourceClipId;     // 来源剪藏ID（可选）
-    private boolean published;     // 是否发布
-    private int likeCount;         // 点赞数
+
+    /** 来源剪藏 ID（可选），用于从话题回链到原始剪藏 */
+    private Long sourceClipId;
+
+    /** 是否已发布，true 表示对外可见 */
+    private boolean published;
+
+    /** 点赞数，用于热门排序和社交互动 */
+    private int likeCount;
+
+    /** 创建时间 */
     private LocalDateTime createdAt;
+
+    /** 最后更新时间，每次修改时需手动更新 */
     private LocalDateTime updatedAt;
 
+    /**
+     * 无参构造函数。
+     * 初始化创建时间和更新时间为当前时间，{@code published} 默认为 false，
+     * {@code likeCount} 默认为 0。
+     */
     public Topic() {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();

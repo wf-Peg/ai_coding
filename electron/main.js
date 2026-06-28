@@ -1,3 +1,13 @@
+/**
+ * Clip 剪藏 - Electron 主进程入口
+ * 
+ * 职责：
+ * 1. 管理应用生命周期（启动、退出、托盘）
+ * 2. 管理前后端服务进程（Spring Boot 后端 + 静态文件前端）
+ * 3. 管理窗口（主窗口、配置窗口）、系统托盘、菜单栏
+ * 4. 提供 IPC 通道供渲染进程调用
+ */
+
 const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -5,10 +15,28 @@ const { spawn, execSync } = require('child_process');
 const http = require('http');
 const yaml = require('js-yaml');
 
-// ==================== Path Resolution ====================
+// 懒加载的模块（避免阻塞启动）
+let finalhandler, serveStatic;
+
+// ==================== 路径解析 ====================
+// 根据是否打包（isPackaged）决定资源路径：
+//   - 打包后：资源在 resources/ 目录，exe 在上级目录
+//   - 开发模式：资源在项目根目录
+
+/** 是否已打包为可执行文件 */
 const isPackaged = app.isPackaged;
+
+/** Electron 资源目录（打包后为 resources/，开发模式为项目根目录） */
 const resourcesPath = process.resourcesPath || app.getAppPath();
+
+/** 
+ * 应用根目录
+ * - 打包后：exe 所在目录（如 C:\Program Files\Clip\）
+ * - 开发模式：项目根目录
+ */
 const APP_DIR = isPackaged ? path.dirname(app.getPath('exe')) : app.getAppPath();
+
+/** 日志输出目录（与应用根目录相同） */
 const LOG_DIR = APP_DIR;
 
 console.log('=== App Startup ===');
@@ -16,36 +44,52 @@ console.log('isPackaged:', isPackaged);
 console.log('resourcesPath:', resourcesPath);
 console.log('APP_DIR:', APP_DIR);
 
-// ==================== Config Management ====================
+// ==================== 配置管理 ====================
+// 配置文件存储在 Electron 的 userData 目录下，与安装目录分离
+// 这样卸载重装时不会丢失配置
 
+/** 配置目录（系统用户数据目录下的 config 子目录） */
 const CONFIG_DIR = path.join(app.getPath('userData'), 'config');
+
+/** 配置文件路径 */
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 
+/** 默认配置（新用户首次运行时使用） */
 const DEFAULT_CONFIG = {
-  backendPort: 8080,
-  frontendPort: 3000,
-  apiKey: '',
-  activeProvider: 'dashscope',
-  deepseekApiKey: '',
+  backendPort: 8080,           // Spring Boot 后端端口
+  frontendPort: 3000,           // 前端静态服务器端口
+  apiKey: '',                   // DashScope API Key
+  activeProvider: 'dashscope',  // 当前 AI 提供商
+  deepseekApiKey: '',           // DeepSeek API Key
   deepseekModel: 'deepseek-chat',
   dashscopeModel: 'qwen-plus',
-  storagePath: path.join(APP_DIR, 'clip-storage'),
-  organizedPath: path.join(APP_DIR, 'clip-organized'),
-  weeklyReportPath: path.join(APP_DIR, 'weeklyReport'),
-  configured: false,
-  mailEnabled: false,
+  storagePath: path.join(APP_DIR, 'clip-storage'),         // 剪藏存储路径
+  organizedPath: path.join(APP_DIR, 'clip-organized'),     // 整理后存储路径
+  weeklyReportPath: path.join(APP_DIR, 'weeklyReport'),    // 周报存储路径
+  configured: false,            // 是否已完成首次配置
+  mailEnabled: false,           // 邮件功能是否启用
   mailHost: '',
   mailPort: 465,
   mailUsername: '',
   mailPassword: ''
 };
 
+/**
+ * 确保配置目录存在
+ * 使用 { recursive: true } 自动创建所有父级目录
+ */
 function ensureConfigDir() {
   if (!fs.existsSync(CONFIG_DIR)) {
     fs.mkdirSync(CONFIG_DIR, { recursive: true });
   }
 }
 
+/**
+ * 加载配置文件
+ * 如果配置文件不存在或解析失败，返回默认配置
+ * 使用展开运算符合并：文件中的值覆盖默认值，缺失的字段保留默认值
+ * @returns {Object} 合并后的配置对象
+ */
 function loadConfig() {
   ensureConfigDir();
   try {
@@ -59,50 +103,92 @@ function loadConfig() {
   return { ...DEFAULT_CONFIG };
 }
 
+/**
+ * 保存配置到文件
+ * JSON.stringify 第三个参数 2 用于缩进格式化
+ * @param {Object} config - 要保存的配置对象
+ */
 function saveConfig(config) {
   ensureConfigDir();
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
 }
 
-// ==================== Process Management ====================
+// ==================== 进程管理 ====================
 
+/** 后端 Java 进程引用 */
 let backendProcess = null;
-let mainWindow = null;
-let configWindow = null;
-let tray = null;
-let isQuitting = false;
-let closeToTray = null; // null=每次询问, true=记住到托盘, false=记住退出
 
+/** 主窗口引用 */
+let mainWindow = null;
+
+/** 配置窗口引用（单例，同时只能打开一个） */
+let configWindow = null;
+
+/** 系统托盘引用 */
+let tray = null;
+
+/** 
+ * 是否正在退出应用
+ * 用于区分"正常退出"和"关闭窗口到托盘"两种场景
+ * 设为 true 后，close 事件将不再拦截，允许窗口正常关闭
+ */
+let isQuitting = false;
+
+/** 
+ * 关闭窗口时的行为偏好
+ * null  = 未设置，每次关闭都弹窗询问
+ * true  = 用户选择了"记住：最小化到托盘"
+ * false = 用户选择了"记住：退出程序"
+ */
+let closeToTray = null;
+
+/**
+ * 查找可用的 Java 可执行文件路径
+ * 优先级：嵌入式 JRE > 系统 Java
+ * 搜索顺序：resources/jre > resources/runtime > APP_DIR/jre > APP_DIR/runtime > 系统 PATH
+ * @returns {string} Java 可执行文件路径
+ */
 function getJavaCommand() {
   const isWin = process.platform === 'win32';
   const javaExe = isWin ? 'java.exe' : 'java';
+
+  // 打包后的嵌入式 JRE 路径（resources 目录由 electron-builder 的 extraResources 配置）
   const embeddedPaths = [
     path.join(resourcesPath, 'jre', 'bin', javaExe),
     path.join(resourcesPath, 'runtime', 'bin', javaExe),
   ];
+
+  // 开发模式下的本地 JRE 路径
   const localPaths = [
     path.join(APP_DIR, 'jre', 'bin', javaExe),
     path.join(APP_DIR, 'runtime', 'bin', javaExe),
   ];
+
+  // 按优先级依次尝试：嵌入式路径优先，本地路径作为备选
   const allPaths = [...embeddedPaths, ...localPaths];
+
   for (const p of allPaths) {
     if (fs.existsSync(p)) {
+      // 验证可执行文件格式是否匹配当前平台（避免将 Windows exe 用于 macOS）
       if (!isExecutableForCurrentPlatform(p)) {
         console.warn(`Skipping incompatible bundled Java for ${process.platform}: ${p}`);
         continue;
       }
-      // Fix permissions on macOS: ensure Java binary is executable
-      // The bundled JRE loses executable permissions during packaging
+
+      // macOS 打包后 JRE 会丢失可执行权限，需要修复
       if (process.platform === 'darwin') {
         try {
+          // 修复 Java 二进制文件权限
           fs.chmodSync(p, 0o755);
-          // Also fix dylib files in the JRE lib directory
+
+          // 递归修复 JRE lib 目录下的 .dylib 和 .so 文件权限
           const libDir = path.dirname(path.dirname(p));
           const libPath = path.join(libDir, 'lib');
           if (fs.existsSync(libPath)) {
             fixPermissionsRecursive(libPath);
           }
-          // Fix lib/server directory for jvm.cfg etc.
+
+          // 修复 lib/server 目录（含 jvm.cfg 等关键文件）
           const serverPath = path.join(libDir, 'lib', 'server');
           if (fs.existsSync(serverPath)) {
             fixPermissionsRecursive(serverPath);
@@ -111,31 +197,50 @@ function getJavaCommand() {
           console.log('Failed to fix JRE permissions:', e.message);
         }
       }
+
       console.log('Found Java at:', p);
       return p;
     }
   }
+
+  // 未找到嵌入式 JRE，回退到系统安装的 Java
   console.log('No embedded JRE found, using system java');
   return 'java';
 }
 
+/**
+ * 验证可执行文件格式是否匹配当前操作系统平台
+ * 通过读取文件头魔数（magic bytes）判断：
+ *   - ELF (0x7F 'E' 'L' 'F')     → Linux
+ *   - PE  (0x4D 0x5A, 'MZ')      → Windows
+ *   - Mach-O (多种魔数)            → macOS
+ * 
+ * @param {string} filePath - 可执行文件路径
+ * @returns {boolean} 是否匹配当前平台
+ */
 function isExecutableForCurrentPlatform(filePath) {
   try {
+    // 只读取文件前 4 字节作为魔数判断
     const fd = fs.openSync(filePath, 'r');
     const header = Buffer.alloc(4);
     fs.readSync(fd, header, 0, header.length, 0);
     fs.closeSync(fd);
 
+    // ELF 魔数：0x7F 'E' 'L' 'F'
     const isElf = header[0] === 0x7f && header[1] === 0x45 && header[2] === 0x4c && header[3] === 0x46;
+
+    // PE 魔数（Windows）：'MZ'
     const isWindowsExe = header[0] === 0x4d && header[1] === 0x5a;
+
+    // Mach-O 魔数（macOS）：有多种变体，包括 32/64 位、大/小端、通用二进制
     const magic = header.readUInt32BE(0);
     const isMachO = [
-      0xfeedface,
-      0xfeedfacf,
-      0xcefaedfe,
-      0xcffaedfe,
-      0xcafebabe,
-      0xbebafeca
+      0xfeedface,  // MH_MAGIC (32-bit, big-endian)
+      0xfeedfacf,  // MH_MAGIC_64 (64-bit, big-endian)
+      0xcefaedfe,  // MH_CIGAM (32-bit, little-endian)
+      0xcffaedfe,  // MH_CIGAM_64 (64-bit, little-endian)
+      0xcafebabe,  // FAT_MAGIC (universal binary, big-endian)
+      0xbebafeca   // FAT_CIGAM (universal binary, little-endian)
     ].includes(magic);
 
     if (process.platform === 'darwin') return isMachO;
@@ -144,18 +249,26 @@ function isExecutableForCurrentPlatform(filePath) {
   } catch (e) {
     console.warn(`Could not inspect Java executable ${filePath}: ${e.message}`);
   }
+  // 无法判断时默认允许（避免误拦）
   return true;
 }
 
+/**
+ * 递归修复目录下所有文件的权限（macOS 专用）
+ * 针对 JRE 中的 .dylib、.so 和无扩展名文件设置可执行权限
+ * 
+ * @param {string} dir - 要修复的目录路径
+ */
 function fixPermissionsRecursive(dir) {
   try {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
+        // 递归处理子目录
         fixPermissionsRecursive(fullPath);
       } else if (entry.isFile()) {
-        // Make all .dylib, .so, and executable files executable
+        // 修复动态库（.dylib、.so）和无扩展名可执行文件
         if (entry.name.endsWith('.dylib') || entry.name.endsWith('.so') || !path.extname(entry.name)) {
           fs.chmodSync(fullPath, 0o755);
         }
@@ -166,11 +279,20 @@ function fixPermissionsRecursive(dir) {
   }
 }
 
+/**
+ * 查找后端 JAR 包路径
+ * 按优先级搜索多个可能位置（打包路径 > 开发路径）
+ * @returns {string|null} JAR 文件路径，未找到返回 null
+ */
 function getJarPath() {
   const possiblePaths = [
+    // 打包后：resources/backend/ 目录（由 extraResources 配置）
     path.join(resourcesPath, 'backend', 'clip-demo-0.0.1-SNAPSHOT.jar'),
+    // 开发模式：APP_DIR 下的 backend 目录
     path.join(APP_DIR, 'backend', 'clip-demo-0.0.1-SNAPSHOT.jar'),
+    // 开发模式：APP_DIR 根目录
     path.join(APP_DIR, 'clip-demo-0.0.1-SNAPSHOT.jar'),
+    // 开发模式：Maven target 目录
     path.join(app.getAppPath(), 'backend', 'target', 'clip-demo-0.0.1-SNAPSHOT.jar'),
   ];
   for (const p of possiblePaths) {
@@ -182,9 +304,16 @@ function getJarPath() {
   return null;
 }
 
+/**
+ * 查找前端静态文件目录
+ * 通过检查 index.html 是否存在来判断
+ * @returns {string|null} 前端目录路径，未找到返回 null
+ */
 function getFrontendDir() {
   const possiblePaths = [
+    // 打包后：resources/frontend/
     path.join(resourcesPath, 'frontend'),
+    // 开发模式：项目根目录下的 frontend/
     path.join(app.getAppPath(), 'frontend'),
   ];
   for (const p of possiblePaths) {
@@ -196,15 +325,24 @@ function getFrontendDir() {
   return null;
 }
 
+/**
+ * 生成 Spring Boot 的 application.yml 配置内容
+ * 根据用户配置动态生成 YAML，支持 AI 提供商切换和邮件配置
+ * 
+ * @param {Object} config - 用户配置对象
+ * @returns {string} YAML 格式的配置字符串
+ */
 function generateApplicationYml(config) {
   const ymlConfig = {
     spring: {
       application: { name: 'clip-demo' },
       ai: {
+        // 通义千问 / DashScope 配置
         dashscope: {
           'api-key': config.apiKey,
           chat: { options: { model: config.dashscopeModel || 'qwen-plus' } }
         },
+        // DeepSeek 配置（兼容 OpenAI 协议）
         openai: {
           'api-key': config.deepseekApiKey || '',
           'base-url': 'https://api.deepseek.com',
@@ -220,7 +358,7 @@ function generateApplicationYml(config) {
     }
   };
 
-  // Add mail config if enabled
+  // 仅在邮件功能启用且配置了主机时添加邮件配置
   if (config.mailEnabled && config.mailHost) {
     ymlConfig.spring.mail = {
       host: config.mailHost,
@@ -238,23 +376,38 @@ function generateApplicationYml(config) {
   return yaml.dump(ymlConfig, { lineWidth: -1, quotingType: '"' });
 }
 
-// ==================== Kill Port Process ====================
+// ==================== 端口进程清理 ====================
 
+/**
+ * 强制终止占用指定端口的进程
+ * 跨平台实现：
+ *   - Windows: netstat 查找 PID → taskkill 强制终止
+ *   - macOS/Linux: lsof 查找 PID → SIGKILL 信号终止
+ * 
+ * 用于启动前清理上一次运行残留的进程
+ * 
+ * @param {number} port - 要清理的端口号
+ */
 function killPortProcess(port) {
   const isWin = process.platform === 'win32';
   try {
     if (isWin) {
-      // Windows: netstat find PID then taskkill
+      // Windows: netstat -ano 输出最后列为 PID
       const result = execSync(`netstat -ano | findstr :${port}`, { encoding: 'utf-8', timeout: 5000 });
       const lines = result.trim().split('\n');
+
+      // 使用 Set 去重（同一端口可能有多条记录，PID 相同）
       const pids = new Set();
       for (const line of lines) {
         const parts = line.trim().split(/\s+/);
-        const pid = parts[parts.length - 1];
+        const pid = parts[parts.length - 1]; // netstat 输出最后一列是 PID
+        // 排除 PID 0（系统空闲进程）和非数字字符串
         if (pid && /^\d+$/.test(pid) && pid !== '0') {
           pids.add(pid);
         }
       }
+
+      // 逐个终止进程
       for (const pid of pids) {
         try {
           execSync(`taskkill /F /PID ${pid}`, { encoding: 'utf-8', timeout: 5000 });
@@ -264,12 +417,13 @@ function killPortProcess(port) {
         }
       }
     } else {
-      // macOS/Linux: lsof find PID then kill
+      // macOS/Linux: lsof -ti 列出占用端口的 PID（-t 仅输出 PID，-i 按端口过滤）
       try {
         const result = execSync(`lsof -ti :${port}`, { encoding: 'utf-8', timeout: 5000 });
         const pids = result.trim().split('\n').filter(p => p);
         for (const pid of pids) {
           try {
+            // SIGKILL (9) 强制终止，进程无法捕获或忽略
             process.kill(parseInt(pid), 'SIGKILL');
             console.log(`Killed process ${pid} on port ${port}`);
           } catch (e) {
@@ -277,17 +431,29 @@ function killPortProcess(port) {
           }
         }
       } catch (e) {
-        // lsof returns non-zero if no process found, that's fine
+        // lsof 在无进程占用端口时返回非零退出码，属于正常情况
       }
     }
   } catch (e) {
-    // netstat/lsof returns non-zero if no process found, that's fine
+    // netstat/findstr 在无匹配时也会返回非零退出码，正常情况
     console.log(`No process found on port ${port}`);
   }
 }
 
-// ==================== Backend Process ====================
+// ==================== 后端进程管理 ====================
 
+/**
+ * 启动 Spring Boot 后端进程
+ * 流程：
+ * 1. 查找 JAR 包和 Java 可执行文件
+ * 2. 确保存储目录存在
+ * 3. 生成 application.yml 配置文件
+ * 4. 以子进程方式启动 Java
+ * 5. 轮询端口直到后端就绪（最多等待 120 秒）
+ * 
+ * @param {Object} config - 用户配置
+ * @returns {Promise<boolean>} 启动成功时 resolve
+ */
 function startBackend(config) {
   return new Promise((resolve, reject) => {
     const jarPath = getJarPath();
@@ -297,6 +463,7 @@ function startBackend(config) {
     }
     const javaCmd = getJavaCommand();
 
+    // 确保所有存储目录存在
     if (!fs.existsSync(config.storagePath)) {
       fs.mkdirSync(config.storagePath, { recursive: true });
     }
@@ -307,12 +474,12 @@ function startBackend(config) {
       fs.mkdirSync(config.weeklyReportPath, { recursive: true });
     }
 
-    // Write application.yml next to jar
+    // 在 JAR 包同级目录生成 application.yml（Spring Boot 自动读取）
     const jarDir = path.dirname(jarPath);
     const ymlPath = path.join(jarDir, 'application.yml');
     fs.writeFileSync(ymlPath, generateApplicationYml(config), 'utf-8');
 
-    // Log file path
+    // 后端日志写入文件（追加模式），便于排查问题
     const logFile = path.join(LOG_DIR, 'backend.log');
     const logStream = fs.openSync(logFile, 'a');
 
@@ -320,6 +487,9 @@ function startBackend(config) {
     console.log(`Working dir: ${jarDir}`);
     console.log(`Log file: ${logFile}`);
 
+    // 启动 Java 子进程
+    // stdio: ['pipe', logStream, logStream] 表示 stdin 管道，stdout/stderr 重定向到日志文件
+    // windowsHide: true 避免 Windows 上弹出命令行窗口
     backendProcess = spawn(javaCmd, ['-jar', jarPath], {
       cwd: jarDir,
       stdio: ['pipe', logStream, logStream],
@@ -329,7 +499,7 @@ function startBackend(config) {
 
     let resolved = false;
 
-    // Poll port to detect backend readiness (more reliable than stdout parsing)
+    // 轮询检测后端端口是否就绪（比解析 stdout 更可靠）
     const pollInterval = setInterval(() => {
       if (resolved) { clearInterval(pollInterval); return; }
       checkPort(config.backendPort).then((open) => {
@@ -340,9 +510,9 @@ function startBackend(config) {
           resolve(true);
         }
       });
-    }, 2000);
+    }, 2000); // 每 2 秒检测一次
 
-    // Timeout: 120 seconds (wait for Windows firewall dialog)
+    // 超时处理：120 秒（预留 Windows 防火墙弹窗等待时间）
     setTimeout(() => {
       if (!resolved) {
         clearInterval(pollInterval);
@@ -351,11 +521,13 @@ function startBackend(config) {
       }
     }, 120000);
 
+    // 监听子进程退出事件（非正常退出时记录日志）
     backendProcess.on('close', (code) => {
       console.log(`Backend exited with code: ${code}`);
       backendProcess = null;
     });
 
+    // 监听子进程启动错误（如找不到 Java、权限不足等）
     backendProcess.on('error', (err) => {
       console.error(`Backend start error: ${err.message}`);
       if (!resolved) {
@@ -367,15 +539,28 @@ function startBackend(config) {
   });
 }
 
+/**
+ * 停止后端进程
+ * 采用优雅关闭 + 强制终止 + 端口清理的三级策略：
+ * 1. 先发送 SIGTERM 请求优雅关闭
+ * 2. 3 秒后若未退出则 SIGKILL 强制终止
+ * 3. 最后通过端口清理兜底（防止僵尸进程）
+ */
 function stopBackend() {
+  // 预加载配置，避免重复调用 loadConfig
+  const config = loadConfig();
+
   if (backendProcess) {
     console.log('Stopping backend...');
-    const config = loadConfig();
+
+    // 第一步：发送 SIGTERM（优雅关闭，Spring Boot 会执行 shutdown hook）
     try {
       backendProcess.kill('SIGTERM');
     } catch (e) {
-      // ignore
+      // 进程可能已经退出，忽略错误
     }
+
+    // 第二步：3 秒后强制 SIGKILL（防止进程卡住不退出）
     setTimeout(() => {
       if (backendProcess) {
         try {
@@ -386,55 +571,78 @@ function stopBackend() {
         backendProcess = null;
       }
     }, 3000);
-    // Also kill port processes as fallback
+
+    // 1 秒后也通过端口清理兜底
     if (config && config.backendPort) {
       setTimeout(() => killPortProcess(config.backendPort), 1000);
     }
   }
-  // Always kill port processes on configured ports
-  const config = loadConfig();
+
+  // 无论 backendProcess 是否存在，都执行端口清理以防僵尸进程
   if (config) {
     killPortProcess(config.backendPort);
     killPortProcess(config.frontendPort);
   }
 }
 
+/**
+ * 检测指定端口是否可访问（HTTP 200 响应）
+ * 向后端 API 发送 GET 请求，根据响应状态码判断服务是否就绪
+ * 
+ * @param {number} port - 要检测的端口号
+ * @returns {Promise<boolean>} 端口是否可访问
+ */
 function checkPort(port) {
   return new Promise((resolve) => {
     const req = http.request({
       hostname: '127.0.0.1', port: port,
       path: '/api/clip/list', method: 'GET', timeout: 3000
     }, (res) => {
-      // Only resolve true if we get a valid HTTP response (not blocked by firewall)
+      // 必须实际收到响应体才算真正可用（防火墙可能允许连接但不返回数据）
       let data = '';
       res.on('data', (chunk) => { data += chunk; });
       res.on('end', () => {
         resolve(res.statusCode === 200);
       });
     });
-    req.on('error', () => resolve(false));
-    req.on('timeout', () => { req.destroy(); resolve(false); });
+    req.on('error', () => resolve(false));    // 连接失败（端口未开放）
+    req.on('timeout', () => { req.destroy(); resolve(false); }); // 超时
     req.end();
   });
 }
 
+/**
+ * 向后端 API 发送 HTTP 请求
+ * 统一的请求封装，自动处理 JSON 序列化/反序列化
+ * 
+ * @param {Object} config - 用户配置（含后端端口）
+ * @param {string} method - HTTP 方法（GET/POST/PUT/DELETE）
+ * @param {string} endpoint - API 路径（如 /api/clip/list）
+ * @param {Object} [payload] - 请求体（POST 时使用，自动 JSON 序列化）
+ * @returns {Promise<Object>} 响应数据（JSON 解析后或原始文本）
+ */
 function requestBackend(config, method, endpoint, payload) {
   return new Promise((resolve, reject) => {
+    // 请求体序列化（仅当有 payload 时）
     const body = payload ? JSON.stringify(payload) : null;
+
     const req = http.request({
       hostname: '127.0.0.1',
       port: config.backendPort,
       path: endpoint,
       method,
       timeout: 5000,
+      // 有 body 时设置 Content-Type 和 Content-Length 头
       headers: body ? {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(body)
       } : {}
     }, (res) => {
+      // 收集响应体（分块接收）
       let raw = '';
       res.on('data', (chunk) => { raw += chunk; });
       res.on('end', () => {
+        // 尝试 JSON 解析，失败则保留原始文本
         let parsed = null;
         if (raw) {
           try {
@@ -444,11 +652,13 @@ function requestBackend(config, method, endpoint, payload) {
           }
         }
 
+        // 2xx 状态码视为成功
         if (res.statusCode >= 200 && res.statusCode < 300) {
           resolve(parsed);
           return;
         }
 
+        // 非 2xx 状态码：构造错误信息
         reject(new Error(typeof parsed === 'string' ? parsed : JSON.stringify(parsed || { status: res.statusCode })));
       });
     });
@@ -458,6 +668,8 @@ function requestBackend(config, method, endpoint, payload) {
       req.destroy();
       reject(new Error('backend request timeout'));
     });
+
+    // 写入请求体（如果有）
     if (body) {
       req.write(body);
     }
@@ -465,10 +677,18 @@ function requestBackend(config, method, endpoint, payload) {
   });
 }
 
-// ==================== Frontend Static Server ====================
+// ==================== 前端静态服务器 ====================
 
+/** 前端 HTTP 服务器实例 */
 let frontendServer = null;
 
+/**
+ * 启动前端静态文件服务器
+ * 使用 serve-static 托管前端构建产物，同时支持 SPA 路由回退
+ * 
+ * @param {Object} config - 用户配置（含前端端口）
+ * @returns {Promise<boolean>} 启动成功时 resolve
+ */
 function startFrontendServer(config) {
   return new Promise((resolve, reject) => {
     const frontendDir = getFrontendDir();
@@ -476,30 +696,46 @@ function startFrontendServer(config) {
       reject(new Error('Cannot find frontend files (index.html). Searched:\n- resources/frontend/\n- app directory'));
       return;
     }
-    const finalhandler = require('finalhandler');
-    const serveStatic = require('serve-static');
+
+    // 懒加载依赖模块（仅在首次启动时 require）
+    if (!finalhandler) finalhandler = require('finalhandler');
+    if (!serveStatic) serveStatic = require('serve-static');
+
+    // 创建静态文件服务中间件
+    // fallthrough: false 表示文件不存在时触发 onerror 回调（而非交给 next）
     const serve = serveStatic(frontendDir, { index: ['index.html'], fallthrough: false });
+
     const server = http.createServer((req, res) => {
       serve(req, res, finalhandler(req, res, {
+        // 当静态文件不存在时：SPA 回退到 index.html
         onerror: () => {
-          // SPA fallback: 非文件路径回退到 index.html
-          const fs = require('fs');
+          // 解析请求路径，判断是否为非文件路径（如 /about, /settings）
           const urlPath = new URL(req.url, `http://127.0.0.1:${config.frontendPort}`).pathname;
           const fp = path.join(frontendDir, urlPath);
+
+          // 如果路径对应的是目录或不存在文件，回退到 index.html（SPA 前端路由处理）
           if (!fs.existsSync(fp) || fs.statSync(fp).isDirectory()) {
             fs.readFile(path.join(frontendDir, 'index.html'), (e, d) => {
               if (e) { res.writeHead(500); res.end('Error'); }
               else { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(d); }
             });
-          } else { res.writeHead(500); res.end('Error'); }
+          } else {
+            // 文件存在但无法访问（如权限问题）
+            res.writeHead(500); res.end('Error');
+          }
         }
       }
       }));
+    });
+
+    // 绑定到 127.0.0.1 仅监听本地回环，不对外暴露
     server.listen(config.frontendPort, '127.0.0.1', () => {
       frontendServer = server;
       console.log(`Frontend server: http://127.0.0.1:${config.frontendPort}`);
       resolve(true);
     });
+
+    // 端口被占用时给出明确错误提示
     server.on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
         reject(new Error(`Port ${config.frontendPort} is already in use`));
@@ -510,6 +746,9 @@ function startFrontendServer(config) {
   });
 }
 
+/**
+ * 停止前端静态文件服务器
+ */
 function stopFrontendServer() {
   if (frontendServer) {
     frontendServer.close();
@@ -517,29 +756,39 @@ function stopFrontendServer() {
   }
 }
 
-// ==================== Window Management ====================
+// ==================== 系统托盘 ====================
 
+/**
+ * 创建系统托盘图标
+ * 托盘右键菜单提供"显示主窗口"和"退出"选项
+ * 双击托盘图标可快速恢复窗口
+ */
 function createTray() {
   const iconPath = path.join(__dirname, 'icon.png');
   let trayIcon;
+
+  // 尝试加载应用图标，缩放到 16x16（托盘标准尺寸）
   if (fs.existsSync(iconPath)) {
     trayIcon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
   } else {
-    // 创建一个简单的 16x16 托盘图标
+    // 图标缺失时创建空图标（托盘仍然可用，但不显示图标）
     trayIcon = nativeImage.createEmpty();
   }
 
   tray = new Tray(trayIcon);
   tray.setToolTip('剪藏');
 
+  // 右键菜单
   const contextMenu = Menu.buildFromTemplate([
     {
       label: '显示主窗口',
       click: () => {
         if (mainWindow) {
+          // 窗口已存在（隐藏状态）：直接显示并聚焦
           mainWindow.show();
           mainWindow.focus();
         } else {
+          // 窗口已被销毁：重新创建
           const config = loadConfig();
           createMainWindow(config);
         }
@@ -549,7 +798,7 @@ function createTray() {
     {
       label: '退出',
       click: () => {
-        isQuitting = true;
+        isQuitting = true;   // 标记为正常退出，跳过 close 事件拦截
         quitApp();
       }
     }
@@ -557,7 +806,7 @@ function createTray() {
 
   tray.setContextMenu(contextMenu);
 
-  // 双击托盘图标显示窗口
+  // 双击托盘图标：快速恢复窗口
   tray.on('double-click', () => {
     if (mainWindow) {
       mainWindow.show();
@@ -566,12 +815,19 @@ function createTray() {
   });
 }
 
+/**
+ * 显示关闭方式选择对话框
+ * 用户关闭窗口时弹出，提供"最小化到托盘"和"退出程序"两个选项
+ * 支持"记住我的选择"功能，勾选后下次不再询问
+ * 
+ * @param {BrowserWindow} win - 触发关闭的窗口实例
+ */
 function showCloseDialog(win) {
   const options = {
     type: 'question',
     buttons: ['最小化到系统托盘', '退出程序'],
-    defaultId: 0,
-    cancelId: 0,
+    defaultId: 0,   // 默认选中第一个按钮（最小化到托盘）
+    cancelId: 0,    // 按 ESC 等同于点击第一个按钮
     title: '关闭确认',
     message: '请选择关闭方式',
     detail: '您希望最小化到系统托盘还是退出程序？',
@@ -579,115 +835,145 @@ function showCloseDialog(win) {
     checkboxChecked: false
   };
 
-  // 如果是 macOS，使用不同的窗口引用
+  // 获取父窗口：优先使用传入的窗口，否则使用当前聚焦窗口
   const parent = win || BrowserWindow.getFocusedWindow();
   dialog.showMessageBox(parent, options).then((result) => {
     const { response, checkboxChecked } = result;
+
+    // 如果用户勾选了"记住我的选择"，持久化偏好
     if (checkboxChecked) {
-      closeToTray = response === 0;
+      closeToTray = response === 0;   // 按钮 0 = 最小化到托盘
     }
 
     if (response === 0) {
-      // 最小化到托盘
+      // 选择"最小化到系统托盘"：隐藏窗口但不退出
       if (win) {
         win.hide();
       }
     } else {
-      // 退出程序
+      // 选择"退出程序"：完整退出应用
       isQuitting = true;
       quitApp();
     }
   });
 }
 
+// ==================== 窗口管理 ====================
+
+/**
+ * 创建主窗口
+ * 无边框窗口（frame: false），标题栏由前端渲染
+ * 注册 close 和 minimize 事件处理以实现托盘功能
+ * 
+ * @param {Object} config - 用户配置
+ */
 function createMainWindow(config) {
   mainWindow = new BrowserWindow({
-    width: 1200, height: 800, minWidth: 900, minHeight: 600,
-    frame: false,
+    width: 1200, height: 800,
+    minWidth: 900, minHeight: 600,
+    frame: false,          // 无边框（自定义标题栏）
     title: 'Clip',
     webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      nodeIntegration: false,          // 安全：禁用 Node.js 集成
+      contextIsolation: true,          // 安全：启用上下文隔离
+      preload: path.join(__dirname, 'preload.js')  // 预加载脚本暴露安全 API
     }
   });
 
-  // 创建系统托盘（仅首次）
+  // 首次创建主窗口时初始化系统托盘
   if (!tray) {
     createTray();
   }
 
-  // Load frontend with auto-retry
+  // 加载前端页面（带自动重试）
   function loadWithRetry(attempts) {
     if (attempts <= 0) {
+      // 最后一次尝试：不捕获错误，让异常自然抛出
       mainWindow.loadURL(`http://127.0.0.1:${config.frontendPort}`);
       return;
     }
+    // 加载失败后等待 2 秒重试，最多重试 attempts 次
     mainWindow.loadURL(`http://127.0.0.1:${config.frontendPort}`).catch(() => {
       setTimeout(() => loadWithRetry(attempts - 1), 2000);
     });
   }
 
+  // 监听页面加载失败事件（如连接被拒绝 ERR_CONNECTION_REFUSED: -102）
   mainWindow.webContents.on('did-fail-load', (event, errorCode) => {
     if (errorCode === -102 || errorCode === -3) {
-      // ERR_CONNECTION_REFUSED or ERR_ABORTED, retry
+      // -102: ERR_CONNECTION_REFUSED（后端未就绪）
+      // -3:  ERR_ABORTED（加载被中断）
       setTimeout(() => {
         mainWindow.loadURL(`http://127.0.0.1:${config.frontendPort}`);
       }, 2000);
     }
   });
 
+  // 开始加载页面，最多重试 5 次（共 10 秒）
   loadWithRetry(5);
+
+  // 窗口销毁时清理引用
   mainWindow.on('closed', () => { mainWindow = null; });
 
-  // 关闭窗口时：弹出提示选择是最小化到托盘还是退出
+  // ===== 关闭窗口拦截 =====
+  // 当用户点击关闭按钮时，行为取决于 closeToTray 状态：
+  //   null  → 弹出对话框询问
+  //   true  → 直接隐藏到托盘
+  //   false → 直接退出程序
   mainWindow.on('close', (event) => {
     if (!isQuitting) {
-      event.preventDefault();
+      event.preventDefault();  // 阻止默认关闭行为
       if (closeToTray === true) {
-        // 已记住选择：直接最小化到托盘
         mainWindow.hide();
       } else if (closeToTray === false) {
-        // 已记住选择：直接退出
         isQuitting = true;
         quitApp();
       } else {
-        // 未记住选择：弹出对话框
         showCloseDialog(mainWindow);
       }
     }
   });
 
-  // 最小化时：隐藏到系统托盘
+  // ===== 最小化拦截 =====
+  // 点击最小化按钮时，不缩小到任务栏，而是隐藏到系统托盘
   mainWindow.on('minimize', (event) => {
     event.preventDefault();
     mainWindow.hide();
   });
 
-  // Notify renderer on maximize/unmaximize
+  // 最大化/还原状态变化时通知渲染进程（用于更新标题栏按钮图标）
   mainWindow.on('maximize', () => mainWindow.webContents.send('window-maximized', true));
   mainWindow.on('unmaximize', () => mainWindow.webContents.send('window-maximized', false));
 
+  // ===== 应用菜单栏 =====
   const menuTemplate = [
-    { label: 'Clip', submenu: [
+    {
+      label: 'Clip', submenu: [
         { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => showConfigWindow(config) },
         { type: 'separator' },
         { label: 'Exit', accelerator: 'Alt+F4', click: () => quitApp() }
-    ]},
-    { label: 'Edit', submenu: [
+      ]
+    },
+    {
+      label: 'Edit', submenu: [
         { role: 'undo' }, { role: 'redo' }, { type: 'separator' },
         { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }
-    ]},
-    { label: 'View', submenu: [
+      ]
+    },
+    {
+      label: 'View', submenu: [
         { role: 'reload' }, { role: 'toggleDevTools' }, { type: 'separator' },
         { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { type: 'separator' },
         { role: 'togglefullscreen' }
-    ]},
-    { label: 'Help', submenu: [
-        { label: 'View Log', click: () => {
+      ]
+    },
+    {
+      label: 'Help', submenu: [
+        {
+          label: 'View Log', click: () => {
             const logFile = path.join(LOG_DIR, 'backend.log');
             if (fs.existsSync(logFile)) {
-              shell.openPath(logFile);
+              shell.openPath(logFile);  // 用系统默认程序打开日志文件
             } else {
               dialog.showMessageBox(mainWindow, {
                 type: 'info', title: 'Log',
@@ -695,55 +981,85 @@ function createMainWindow(config) {
                 detail: `Expected at: ${logFile}`
               });
             }
-        }},
+          }
+        },
         { type: 'separator' },
-        { label: 'About', click: () => {
+        {
+          label: 'About', click: () => {
             dialog.showMessageBox(mainWindow, {
               type: 'info', title: 'About',
               message: 'Clip - Information Retrieval System',
               detail: 'Version: 1.0.0\nSpring Boot + Electron\nDashScope AI'
             });
-        }}
-    ]}
+          }
+        }
+      ]
+    }
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
 }
 
+/**
+ * 显示配置窗口（单例模式）
+ * 如果已存在则聚焦，否则创建新窗口
+ * 
+ * @param {Object} config - 当前配置（传递给配置页面）
+ */
 function showConfigWindow(config) {
   if (configWindow) { configWindow.focus(); return; }
+
   configWindow = new BrowserWindow({
-    width: 560, height: 700, resizable: false,
+    width: 560, height: 700,
+    resizable: false,
     title: 'Clip - Settings',
-    parent: mainWindow,
+    parent: mainWindow,      // 设置父窗口，随父窗口一起关闭
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js')
     }
   });
+
+  // 加载独立的配置页面（非 SPA 路由）
   configWindow.loadFile(path.join(__dirname, 'config.html'));
+
+  // 页面加载完成后发送当前配置
   configWindow.webContents.on('did-finish-load', () => {
     configWindow.webContents.send('load-config', config);
   });
+
   configWindow.on('closed', () => { configWindow = null; });
 }
 
-// ==================== Quit App ====================
+// ==================== 退出应用 ====================
 
+/**
+ * 完整退出应用
+ * 按顺序执行：销毁托盘 → 停止后端 → 停止前端 → 退出 Electron
+ */
 function quitApp() {
   isQuitting = true;
+
+  // 销毁系统托盘图标，防止退出后托盘残留
   if (tray) {
     tray.destroy();
     tray = null;
   }
+
   stopBackend();
   stopFrontendServer();
   app.quit();
 }
 
-// ==================== IPC ====================
+// ==================== IPC 通信 ====================
 
+/**
+ * 注册所有 IPC 处理器
+ * 渲染进程通过 window.electronAPI 调用这些方法
+ * 使用 ipcMain.handle 支持异步返回（Promise）
+ */
 function setupIPC() {
+  // 保存配置
   ipcMain.handle('save-config', async (event, newConfig) => {
     try {
       saveConfig(newConfig);
@@ -753,6 +1069,7 @@ function setupIPC() {
     }
   });
 
+  // 打开系统目录选择对话框
   ipcMain.handle('select-directory', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory', 'createDirectory'],
@@ -762,10 +1079,13 @@ function setupIPC() {
     return result.filePaths[0];
   });
 
+  // 获取当前配置
   ipcMain.handle('get-config', async () => loadConfig());
 
+  // 检查后端是否可用
   ipcMain.handle('check-backend', async (event, port) => await checkPort(port));
 
+  // 剪藏转为待办事项
   ipcMain.handle('clip-to-todo', async (event, payload) => {
     try {
       const config = loadConfig();
@@ -776,12 +1096,14 @@ function setupIPC() {
     }
   });
 
+  // 从剪藏派生知识
   ipcMain.handle('derive-knowledge', async (event, clipId, asyncMode = false) => {
     try {
       if (!clipId) {
         return { success: false, message: 'clipId is required' };
       }
       const config = loadConfig();
+      // asyncMode 为 true 时添加 ?async=true 查询参数，后端异步处理
       const endpoint = `/api/knowledge/derive/${clipId}${asyncMode ? '?async=true' : ''}`;
       const result = await requestBackend(config, 'POST', endpoint);
       return { success: true, data: result };
@@ -790,39 +1112,57 @@ function setupIPC() {
     }
   });
 
+  // 重启后端服务（用于配置变更后重新加载）
   ipcMain.handle('restart-backend', async (event, config) => {
+    // 保存新配置并标记为已配置
     saveConfig({ ...config, configured: true });
+
+    // 停止旧服务
     stopBackend();
     stopFrontendServer();
+
+    // 等待 3 秒确保旧进程完全退出
     await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // 重新启动前端服务
     try {
       await startFrontendServer(config);
     } catch (e) {
       return { success: false, message: `Frontend restart failed: ${e.message}` };
     }
+
+    // 重新启动后端服务
     try {
       await startBackend(config);
     } catch (e) {
       return { success: false, message: `Backend restart failed: ${e.message}` };
     }
-    // Wait for Spring Boot to fully initialize
+
+    // 等待 Spring Boot 完全初始化（3 秒）
     await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // 重新加载页面
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.loadURL(`http://127.0.0.1:${config.frontendPort}`);
     } else {
-      // If no main window exists, create one
       createMainWindow(config);
     }
+
     return { success: true, message: 'Services restarted' };
   });
 
-  // Quit app from config window
+  // 退出应用（从配置窗口调用）
   ipcMain.handle('quit-app', async () => {
     quitApp();
   });
 
-  // Window controls (frameless)
+  // ===== 无边框窗口控制 =====
+  // 这些 IPC 由前端标题栏的按钮触发
+
+  // 最小化窗口 → 触发 minimize 事件 → 隐藏到托盘
   ipcMain.handle('window-minimize', () => { mainWindow?.minimize(); });
+
+  // 最大化/还原窗口切换
   ipcMain.handle('window-maximize', () => {
     if (mainWindow?.isMaximized()) {
       mainWindow.unmaximize();
@@ -830,24 +1170,30 @@ function setupIPC() {
       mainWindow?.maximize();
     }
   });
+
+  // 关闭窗口 → 触发 close 事件 → 根据 closeToTray 决定行为
   ipcMain.handle('window-close', () => { mainWindow?.close(); });
+
+  // 查询当前窗口是否最大化（前端用于显示对应图标）
   ipcMain.handle('window-is-maximized', () => mainWindow?.isMaximized() ?? false);
 }
 
-// ==================== App Lifecycle ====================
+// ==================== 应用生命周期 ====================
 
 app.whenReady().then(async () => {
   setupIPC();
   const config = loadConfig();
   console.log('Config loaded:', JSON.stringify(config, null, 2));
 
-  // Kill any existing processes on configured ports before starting
+  // 启动前清理端口上残留的旧进程（如上次崩溃未清理的）
   killPortProcess(config.backendPort);
   killPortProcess(config.frontendPort);
 
   if (!config.configured || !config.apiKey) {
-    // === First run: show config window ===
+    // ===== 首次运行：显示配置引导窗口 =====
     console.log('First run - showing config window');
+
+    // 复用 mainWindow 变量指向配置窗口
     mainWindow = new BrowserWindow({
       width: 560, height: 700, resizable: false,
       title: 'Clip - Setup',
@@ -857,22 +1203,25 @@ app.whenReady().then(async () => {
         preload: path.join(__dirname, 'preload.js')
       }
     });
+
     mainWindow.loadFile(path.join(__dirname, 'config.html'));
     mainWindow.webContents.on('did-finish-load', () => {
       mainWindow.webContents.send('load-config', config);
-      mainWindow.webContents.send('first-run', true);
+      mainWindow.webContents.send('first-run', true);  // 通知前端进入首次运行模式
     });
 
+    // 监听配置完成事件（由前端 config.html 发送）
     ipcMain.on('config-done', async (event, newConfig) => {
       console.log('Config done received:', JSON.stringify(newConfig, null, 2));
       saveConfig({ ...newConfig, configured: true });
 
-      // Send loading status to config window before closing
+      // 向配置窗口发送启动进度提示
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('startup-progress', '正在启动前端服务...');
       }
 
       try {
+        // 按顺序启动前后端服务
         await startFrontendServer(newConfig);
 
         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -883,11 +1232,12 @@ app.whenReady().then(async () => {
 
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('startup-progress', '启动成功！');
-          await new Promise(resolve => setTimeout(resolve, 800));
+          await new Promise(resolve => setTimeout(resolve, 800));  // 短暂显示"启动成功"
           mainWindow.close();
           mainWindow = null;
         }
 
+        // 创建主窗口（此时会同时创建系统托盘）
         createMainWindow(newConfig);
       } catch (e) {
         console.error('Startup failed:', e);
@@ -900,12 +1250,14 @@ app.whenReady().then(async () => {
       }
     });
   } else {
-    // === Already configured: start services ===
+    // ===== 已配置完成：直接启动服务 =====
     try {
       await startFrontendServer(config);
       await startBackend(config);
-      // Wait for Spring Boot to fully initialize
+
+      // 等待 Spring Boot 完全初始化（IoC 容器加载、端口监听）
       await new Promise(resolve => setTimeout(resolve, 3000));
+
       createMainWindow(config);
     } catch (e) {
       console.error('Startup failed:', e);
@@ -916,6 +1268,8 @@ app.whenReady().then(async () => {
         `Frontend: ${getFrontendDir()}\n\n` +
         `Open Settings (Ctrl+,) to reconfigure.`
       );
+
+      // 启动失败时降级到配置窗口，允许用户修改配置
       mainWindow = new BrowserWindow({
         width: 560, height: 700, resizable: false,
         title: 'Clip - Settings',
@@ -933,34 +1287,37 @@ app.whenReady().then(async () => {
   }
 });
 
-// Prevent default close behavior - keep app alive when tray is active
+// 所有窗口关闭时：有托盘或 macOS 时不退出应用
 app.on('window-all-closed', (e) => {
-  // 有托盘时不退出，macOS 也不退出
   if (tray || process.platform === 'darwin') {
-    // keep alive
+    // 托盘存在时保持应用运行在后台
+    // macOS 惯例：关闭所有窗口后应用仍保持运行
   } else {
     quitApp();
   }
 });
 
+// 应用即将退出前：标记退出状态并清理服务
 app.on('before-quit', () => {
   isQuitting = true;
   stopBackend();
   stopFrontendServer();
 });
 
-// Prevent windows from closing directly - ensure cleanup
+// 应用退出时：确保清理所有服务进程
 app.on('will-quit', () => {
   stopBackend();
   stopFrontendServer();
 });
 
+// macOS Dock 图标点击或应用激活时
 app.on('activate', () => {
-  // 如果窗口被隐藏到托盘，则显示它
+  // 优先恢复隐藏的窗口（托盘场景）
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.show();
     mainWindow.focus();
   } else if (BrowserWindow.getAllWindows().length === 0) {
+    // 无窗口存在时创建新窗口
     const config = loadConfig();
     createMainWindow(config);
   }
