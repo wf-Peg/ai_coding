@@ -77,6 +77,9 @@ public class ClipRequest {
     /** 图片附件列表，每项包含 Base64 数据和文件名 */
     private List<ImageData> imageDataList;
 
+    /** 用户自己的思考（可选，可编辑），记录阅读后的主观判断、疑问、联想 */
+    private String myThoughts;
+
     public String getContent() {
         return content;
     }
@@ -227,6 +230,14 @@ public class ClipRequest {
 
     public void setImageDataList(List<ImageData> imageDataList) {
         this.imageDataList = imageDataList;
+    }
+
+    public String getMyThoughts() {
+        return myThoughts;
+    }
+
+    public void setMyThoughts(String myThoughts) {
+        this.myThoughts = myThoughts;
     }
 
     /**

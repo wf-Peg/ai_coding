@@ -83,6 +83,14 @@ public class ClipContent {
     private List<String> imagePaths = new ArrayList<>();
 
     /**
+     * 用户自己的思考（可选，可编辑）。
+     * 用于记录阅读后的主观判断、疑问、联想、反思等。
+     * 与 AI 生成的 analysis 不同，这是用户的主动认知输出。
+     * 在日报/周报中，包含此字段的剪藏会触发"认知对话模式"。
+     */
+    private String myThoughts;
+
+    /**
      * 无参构造函数。
      * 自动设置创建时间（{@code createdAt}）为当前时间。
      */
@@ -265,5 +273,13 @@ public class ClipContent {
 
     public void setImagePaths(List<String> imagePaths) {
         this.imagePaths = imagePaths;
+    }
+
+    public String getMyThoughts() {
+        return myThoughts;
+    }
+
+    public void setMyThoughts(String myThoughts) {
+        this.myThoughts = myThoughts;
     }
 }

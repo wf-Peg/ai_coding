@@ -115,6 +115,61 @@ public class AiService {
      * @param includeCategory 是否包含分类任务
      * @return 包含处理结果的 Map
      */
+    /**
+     * 一键处理碎片内容（带用户思考）。
+     * <p>
+     * 当用户为剪藏附加了「我的思考」（myThoughts）时使用此方法。
+     * 在标准分析流程基础上，追加"认知对话模式"指令，
+     * 要求 AI 将用户思考与原文进行对照分析，输出融合了用户视角的结果。
+     * </p>
+     *
+     * <h3>与标准流程的区别</h3>
+     * <ul>
+     *   <li>系统提示词中追加认知对话模式指令（思考-内容对照、标签融合、摘要视角）</li>
+     *   <li>用户消息中包含「💭 我的思考」标记，将思考作为额外上下文传递给 AI</li>
+     * </ul>
+     *
+     * @param content         用户输入的碎片内容
+     * @param includeCategory 是否包含分类任务
+     * @param myThoughts      用户自己的思考，非空字符串时触发认知对话模式
+     * @return 包含处理结果的 Map
+     */
+    public Map<String, Object> processClipContent(String content, boolean includeCategory, String myThoughts) {
+        // 1. 角色 Prompt（来自 PromptConfigService，用户可自定义）
+        StringBuilder systemPrompt = new StringBuilder();
+        systemPrompt.append(promptConfigService.getClipAnalyzePrompt()).append("\n\n");
+
+        // 2. 任务格式 Prompt（来自 PromptConfigService，支持 {{category_tree}} 占位符）
+        String categoryTreeText = includeCategory ? getCategoryDescription() : "";
+        String taskFormat = promptConfigService.getRenderedClipAnalyzeTaskFormat(categoryTreeText);
+        taskFormat = taskFormat.replace("{task_count}", includeCategory ? "四项" : "三项");
+        systemPrompt.append(taskFormat);
+
+        // 3. 如果有用户思考，追加认知对话模式指令
+        if (myThoughts != null && !myThoughts.trim().isEmpty()) {
+            systemPrompt.append(promptConfigService.getClipAnalyzeDialoguePrompt());
+        }
+
+        // 4. 构建用户消息：如果有思考，将思考附加到内容之后
+        String userMessage = content;
+        if (myThoughts != null && !myThoughts.trim().isEmpty()) {
+            userMessage = content + "\n\n---\n💭 我的思考：\n" + myThoughts.trim();
+        }
+
+        try {
+            String responseStr = llmProvider.chat(systemPrompt.toString(), userMessage);
+            return parseProcessResult(responseStr);
+        } catch (Exception e) {
+            logger.error("[AI] processClipContent with thoughts failed: {}", e.getMessage(), e);
+            Map<String, Object> fallback = new LinkedHashMap<>();
+            fallback.put("summary", "处理失败: " + e.getMessage());
+            fallback.put("analysis", "");
+            fallback.put("tags", List.of());
+            fallback.put("category", "default");
+            return fallback;
+        }
+    }
+
     public Map<String, Object> processClipContent(String content, boolean includeCategory) {
         // 1. 角色 Prompt（来自 PromptConfigService，用户可自定义）
         StringBuilder systemPrompt = new StringBuilder();
@@ -510,6 +565,27 @@ public class AiService {
         }
     }
 
+    /**
+     * 使用自定义 Prompt 整理内容用于知识库存储。
+     * <p>
+     * 与 {@link #organizeContentForKnowledgeBase(String, String)} 不同，
+     * 此方法接受调用方预先组装好的完整 systemPrompt，允许在标准 Prompt 之外
+     * 追加额外的指令（如认知对话模式）。
+     * </p>
+     *
+     * @param category     内容分类
+     * @param content      需要整理的内容
+     * @param systemPrompt 完整的系统提示词（已由调用方组装）
+     * @return 整理后的内容，或错误信息
+     */
+    public String organizeContentForKnowledgeBase(String category, String content, String systemPrompt) {
+        try {
+            return llmProvider.chat(systemPrompt, content);
+        } catch (Exception e) {
+            return "内容整理过程中发生错误: " + e.getMessage();
+        }
+    }
+
     // ==================== 搜索增强 ====================
 
     /**
@@ -572,9 +648,25 @@ public class AiService {
      * @return 包含 mainReport 和 knowledgePoints 的 Map
      */
     public Map<String, Object> extractKnowledgePoints(String content, String category) {
+        String systemPrompt = promptConfigService.getWeeklyReportPrompt();
+        return extractKnowledgePoints(content, category, systemPrompt);
+    }
+
+    /**
+     * 使用自定义 Prompt 从内容中提取知识点。
+     * <p>
+     * 与 {@link #extractKnowledgePoints(String, String)} 的区别在于允许调用方
+     * 传入预先组装好的完整 systemPrompt，以便在标准 Prompt 之外追加额外指令。
+     * </p>
+     *
+     * @param content      需要提取知识点的内容
+     * @param category     内容分类
+     * @param systemPrompt 完整的系统提示词（已由调用方组装）
+     * @return 包含 mainReport 和 knowledgePoints 的 Map
+     */
+    public Map<String, Object> extractKnowledgePoints(String content, String category, String systemPrompt) {
         Map<String, Object> result = new LinkedHashMap<>();
         try {
-            String systemPrompt = promptConfigService.getWeeklyReportPrompt();
             String responseStr = llmProvider.chat(systemPrompt,
                     "分类：" + getCategoryName(category) + "\n\n内容：\n" + content);
 

@@ -794,12 +794,11 @@
             .stats-inline { gap: 6px; }
         }
 
-        /* ── Obsidian 风格滚动条 ── */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; }
+        ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
         ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
-        * { scrollbar-width: thin; scrollbar-color: var(--border-light) transparent; }
 
         /* ── Date input styling ── */
         input[type="date"]::-webkit-calendar-picker-indicator {
