@@ -2038,6 +2038,9 @@
 
                 <label class="modal-label" for="organize-analysis" style="margin-top: 12px;">AI分析</label>
                 <textarea id="organize-analysis" class="modal-textarea compact-textarea" rows="2" placeholder="编辑AI分析结果..."></textarea>
+
+                <label class="modal-label" for="organize-thoughts" style="margin-top: 12px;">💭 我的思考</label>
+                <textarea id="organize-thoughts" class="modal-textarea compact-textarea" rows="2" placeholder="记录你的想法、疑问、联想或反思..."></textarea>
             </div>
         </div>
         <div class="modal-footer">
@@ -2174,6 +2177,10 @@
                         <div class="tags-list" id="tags-list"></div>
                         <input type="text" id="tag-input" placeholder="输入标签后按回车 (最多10个)" style="flex: 1; min-width: 180px; padding: 10px 16px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--text); font-size: 0.95rem; font-family: inherit; transition: var(--transition);">
                     </div>
+                </div>
+                <div class="form-group">
+                    <label for="my-thoughts">💭 我的思考</label>
+                    <textarea id="my-thoughts" placeholder="记录你的想法、疑问、联想或反思...（可选）" style="min-height: 60px; padding: 10px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); font-size: 0.95rem; font-family: inherit; resize: vertical; transition: var(--transition); width: 100%; box-sizing: border-box;"></textarea>
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn-secondary" onclick="clearForm()">清空</button>
@@ -2364,6 +2371,12 @@
                 tags: useAiTags ? null : currentTags,
                 useAiTags: type === 'store-only' ? false : useAiTags
             };
+
+            // 附加用户思考（可选字段）
+            const myThoughts = document.getElementById('my-thoughts').value.trim();
+            if (myThoughts) {
+                requestBody.myThoughts = myThoughts;
+            }
 
             // store-only 类型才发送 workflowStatus: "inbox"
             if (type === 'store-only') {
@@ -2735,6 +2748,7 @@
         document.getElementById('source').value = '';
         document.getElementById('category').value = '';
         document.getElementById('ai-generate-tags').checked = false;
+        document.getElementById('my-thoughts').value = '';
         toggleTagInput();
         currentTags = [];
         renderTags();
@@ -2996,6 +3010,7 @@
         clipItem.innerHTML = `
                 <div class="clip-header">
                     <span class="category-badge">📁 ${categoryLabel}</span>
+                    ${clip.myThoughts ? '<span class="category-badge" style="background: rgba(168,85,247,0.1); color: #a855f7; border-color: rgba(168,85,247,0.2);">💭 有思考</span>' : ''}
                     <div class="clip-actions">
                         <div class="more-actions-wrapper">
                             <button class="expand-btn" onclick="toggleMoreActions(this, event)" title="更多功能">
@@ -3029,6 +3044,15 @@
                             📋 复制原文
                         </button>
                     </div>
+                    ${clip.myThoughts ? `
+                    <div class="content-section" style="border-left: 3px solid #a855f7; background: linear-gradient(135deg, rgba(168,85,247,0.04), transparent);">
+                        <h4 style="color: #a855f7;">💭 我的思考</h4>
+                        <div class="content-text truncated">${escapeHtml(clip.myThoughts)}</div>
+                        <button class="copy-btn" onclick="copyToClipboard('${escapeJs(clip.myThoughts)}')" style="background: rgba(168,85,247,0.1); color: #a855f7;">
+                            📋 复制思考
+                        </button>
+                    </div>
+                    ` : ''}
                     ${!isStoreOnly ? (analysisContent ? `
                     <div class="content-section">
                         <h4>AI分析</h4>
@@ -3519,6 +3543,7 @@
                 document.getElementById('organize-content').value = clip.content || '';
                 document.getElementById('organize-summary').value = clip.summary || '';
                 document.getElementById('organize-analysis').value = clip.analysis || '';
+                document.getElementById('organize-thoughts').value = clip.myThoughts || '';
             }
         } else {
             titleEl.textContent = '整理收件箱';
@@ -3592,6 +3617,7 @@
         const content = document.getElementById('organize-content').value.trim();
         const summary = document.getElementById('organize-summary').value.trim();
         const analysis = document.getElementById('organize-analysis').value.trim();
+        const myThoughts = document.getElementById('organize-thoughts').value.trim();
 
         try {
             closeOrganizeActionModal();
@@ -3615,6 +3641,7 @@
                 payload.content = content;
                 payload.summary = summary;
                 payload.analysis = analysis;
+                payload.myThoughts = myThoughts;
             }
 
             const endpoint = isClipScope

@@ -38,6 +38,9 @@ public class OrganizeClipRequest {
     /** AI 生成的分析结果 */
     private String analysis;
 
+    /** 用户自己的思考 */
+    private String myThoughts;
+
     public String getMode() {
         return mode;
     }
@@ -92,5 +95,13 @@ public class OrganizeClipRequest {
 
     public void setAnalysis(String analysis) {
         this.analysis = analysis;
+    }
+
+    public String getMyThoughts() {
+        return myThoughts;
+    }
+
+    public void setMyThoughts(String myThoughts) {
+        this.myThoughts = myThoughts;
     }
 }

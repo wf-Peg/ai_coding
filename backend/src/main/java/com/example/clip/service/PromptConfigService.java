@@ -127,6 +127,14 @@ public class PromptConfigService {
         return DEFAULT_WEEKLY_DIALOGUE_PROMPT;
     }
 
+    /**
+     * 获取剪藏分析"认知对话模式"追加 Prompt。
+     * 当剪藏内容包含用户思考（myThoughts）时，在剪藏分析 Prompt 之后追加。
+     */
+    public String getClipAnalyzeDialoguePrompt() {
+        return DEFAULT_CLIP_ANALYZE_DIALOGUE_PROMPT;
+    }
+
     // ==================== 便捷 Getter（任务格式） ====================
 
     /**
@@ -420,6 +428,31 @@ public class PromptConfigService {
             "- thoughtCount：该主题下包含用户思考的卡片数量\n" +
             "- readiness：ready（视角配齐可写）、partial（部分视角，需补充）、gap（有明显缺口需调研）\n" +
             "- 优先检测包含用户思考的主题簇；没有用户思考的主题不需要检测";
+
+    /**
+     * 剪藏分析"认知对话模式"追加 Prompt。
+     * 当剪藏内容包含用户自己的思考（myThoughts）时，
+     * 在剪藏分析 Prompt 之后追加此指令，将分析模式从"客观分析"升级为"认知对话"。
+     */
+    private static final String DEFAULT_CLIP_ANALYZE_DIALOGUE_PROMPT =
+            "\n\n" +
+            "# Cognitive Dialogue Mode（认知对话模式）\n" +
+            "用户在剪藏时附加了「我的思考」，这是用户阅读内容时记录的主观判断和观点。\n" +
+            "请在标准分析的基础上，额外完成以下任务：\n" +
+            "\n" +
+            "## 1. 思考-内容对照\n" +
+            "在 analysis 中增加「💭 思考对照」小节：\n" +
+            "- 用户思考与原文内容的关联点是什么\n" +
+            "- 用户思考是否支持、补充或挑战了原文观点\n" +
+            "- 原文中是否有用户思考未覆盖的重要角度\n" +
+            "\n" +
+            "## 2. 标签融合\n" +
+            "- 从用户思考中提取关键概念，作为额外标签加入 tags\n" +
+            "- 标签总数仍控制在 3-8 个\n" +
+            "\n" +
+            "## 3. 摘要视角\n" +
+            "- summary 应体现用户关注的重点，而非仅客观概括原文\n" +
+            "- 在摘要中融合用户思考的核心关切";
 
     /** 默认深度内容分析 Prompt */
     private static final String DEFAULT_ANALYZE_CONTENT_PROMPT =

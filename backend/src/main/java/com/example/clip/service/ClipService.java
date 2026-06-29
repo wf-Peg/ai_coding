@@ -267,8 +267,14 @@ public class ClipService {
     @SuppressWarnings("unchecked")
     private void processWithAi(ClipContent clipContent, boolean useAiCategory) {
         try {
-            // 调用 AI 服务，一次性获取摘要、分析、标签和分类
-            Map<String, Object> aiResult = aiService.processClipContent(clipContent.getContent(), useAiCategory);
+            // 检测是否有用户思考，有则使用带思考的 AI 分析方法
+            String myThoughts = clipContent.getMyThoughts();
+            Map<String, Object> aiResult;
+            if (myThoughts != null && !myThoughts.trim().isEmpty()) {
+                aiResult = aiService.processClipContent(clipContent.getContent(), useAiCategory, myThoughts);
+            } else {
+                aiResult = aiService.processClipContent(clipContent.getContent(), useAiCategory);
+            }
             // 提取各字段，若 AI 未返回则使用默认值
             clipContent.setSummary((String) aiResult.getOrDefault("summary", "摘要生成失败"));
             clipContent.setAnalysis((String) aiResult.getOrDefault("analysis", ""));
@@ -689,6 +695,9 @@ public class ClipService {
         }
         if (request.getAnalysis() != null) {
             clip.setAnalysis(request.getAnalysis().trim().isEmpty() ? null : request.getAnalysis().trim());
+        }
+        if (request.getMyThoughts() != null) {
+            clip.setMyThoughts(request.getMyThoughts().trim().isEmpty() ? null : request.getMyThoughts().trim());
         }
     }
 

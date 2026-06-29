@@ -115,6 +115,61 @@ public class AiService {
      * @param includeCategory 是否包含分类任务
      * @return 包含处理结果的 Map
      */
+    /**
+     * 一键处理碎片内容（带用户思考）。
+     * <p>
+     * 当用户为剪藏附加了「我的思考」（myThoughts）时使用此方法。
+     * 在标准分析流程基础上，追加"认知对话模式"指令，
+     * 要求 AI 将用户思考与原文进行对照分析，输出融合了用户视角的结果。
+     * </p>
+     *
+     * <h3>与标准流程的区别</h3>
+     * <ul>
+     *   <li>系统提示词中追加认知对话模式指令（思考-内容对照、标签融合、摘要视角）</li>
+     *   <li>用户消息中包含「💭 我的思考」标记，将思考作为额外上下文传递给 AI</li>
+     * </ul>
+     *
+     * @param content         用户输入的碎片内容
+     * @param includeCategory 是否包含分类任务
+     * @param myThoughts      用户自己的思考，非空字符串时触发认知对话模式
+     * @return 包含处理结果的 Map
+     */
+    public Map<String, Object> processClipContent(String content, boolean includeCategory, String myThoughts) {
+        // 1. 角色 Prompt（来自 PromptConfigService，用户可自定义）
+        StringBuilder systemPrompt = new StringBuilder();
+        systemPrompt.append(promptConfigService.getClipAnalyzePrompt()).append("\n\n");
+
+        // 2. 任务格式 Prompt（来自 PromptConfigService，支持 {{category_tree}} 占位符）
+        String categoryTreeText = includeCategory ? getCategoryDescription() : "";
+        String taskFormat = promptConfigService.getRenderedClipAnalyzeTaskFormat(categoryTreeText);
+        taskFormat = taskFormat.replace("{task_count}", includeCategory ? "四项" : "三项");
+        systemPrompt.append(taskFormat);
+
+        // 3. 如果有用户思考，追加认知对话模式指令
+        if (myThoughts != null && !myThoughts.trim().isEmpty()) {
+            systemPrompt.append(promptConfigService.getClipAnalyzeDialoguePrompt());
+        }
+
+        // 4. 构建用户消息：如果有思考，将思考附加到内容之后
+        String userMessage = content;
+        if (myThoughts != null && !myThoughts.trim().isEmpty()) {
+            userMessage = content + "\n\n---\n💭 我的思考：\n" + myThoughts.trim();
+        }
+
+        try {
+            String responseStr = llmProvider.chat(systemPrompt.toString(), userMessage);
+            return parseProcessResult(responseStr);
+        } catch (Exception e) {
+            logger.error("[AI] processClipContent with thoughts failed: {}", e.getMessage(), e);
+            Map<String, Object> fallback = new LinkedHashMap<>();
+            fallback.put("summary", "处理失败: " + e.getMessage());
+            fallback.put("analysis", "");
+            fallback.put("tags", List.of());
+            fallback.put("category", "default");
+            return fallback;
+        }
+    }
+
     public Map<String, Object> processClipContent(String content, boolean includeCategory) {
         // 1. 角色 Prompt（来自 PromptConfigService，用户可自定义）
         StringBuilder systemPrompt = new StringBuilder();
