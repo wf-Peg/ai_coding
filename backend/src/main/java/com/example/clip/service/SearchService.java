@@ -189,7 +189,8 @@ public class SearchService {
      * 构建剪藏的可搜索文本
      * <p>
      * 将剪藏的所有文本字段拼接为一个大字符串（小写），
-     * 包括：正文、类型、来源、分类、摘要、分析、所有标签。
+     * 包括：正文、类型、来源、分类、摘要、分析、所有标签、
+     * 用户自己的思考（myThoughts）、AI发散性总结（divergentSummary）。
      * 这样一次 contains 即可覆盖所有字段。
      * </p>
      *
@@ -210,6 +211,10 @@ public class SearchService {
         sb.append(clip.getSummary() != null ? clip.getSummary() : "");
         sb.append(" ");
         sb.append(clip.getAnalysis() != null ? clip.getAnalysis() : "");
+        sb.append(" ");
+        sb.append(clip.getMyThoughts() != null ? clip.getMyThoughts() : "");
+        sb.append(" ");
+        sb.append(clip.getDivergentSummary() != null ? clip.getDivergentSummary() : "");
 
         // 标签也加入搜索范围
         if (clip.getTags() != null) {
