@@ -17,6 +17,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 内容整理服务
@@ -419,10 +420,14 @@ public class ContentOrganizeService {
     }
 
     /**
-     * 发送整理结果邮件通知
+     * 发送整理结果邮件通知（日报）
      * <p>
-     * 构建 HTML 格式的日报邮件，包含各分类的内容数量和摘要。
-     * 如果邮件未配置则静默跳过。
+     * 构建结构化的 HTML 日报邮件，包含以下信息层级：
+     * <ol>
+     *   <li><b>概览</b>：日期、总条数、分类数、来源数、标签数</li>
+     *   <li><b>全局统计</b>：来源站点分布、内容类型分布、热门标签</li>
+     *   <li><b>分类详情</b>：每个分类下的剪藏卡片（摘要、来源链接、标签、AI 分析摘要）</li>
+     * </ol>
      * </p>
      *
      * @param date            整理日期
@@ -431,53 +436,214 @@ public class ContentOrganizeService {
      */
     private void sendOrganizeEmail(LocalDate date, int organizedCount, Map<String, List<ClipContent>> clipsByCategory) {
         try {
-            // 邮件未配置则跳过
             if (!emailService.isEmailConfigured()) {
                 return;
             }
 
-            String dateStr = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-            String subject = "剪藏日报 - " + dateStr;
+            // ── 收集所有剪藏列表 ──
+            List<ClipContent> allClips = clipsByCategory.values().stream()
+                    .flatMap(List::stream)
+                    .collect(Collectors.toList());
 
-            // 构建 HTML 邮件内容
+            // ── 统计信息 ──
+            int totalItems = allClips.size();
+            int totalTags = (int) allClips.stream().filter(c -> c.getTags() != null).flatMap(c -> c.getTags().stream()).distinct().count();
+            int totalSources = (int) allClips.stream().map(c -> c.getSiteName() != null ? c.getSiteName() : "未知来源").distinct().count();
+            int totalImageCount = (int) allClips.stream().filter(c -> c.getImagePaths() != null).mapToInt(c -> c.getImagePaths().size()).sum();
+
+            String dateStr = date.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日"));
+            String dateKey = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            String subject = "剪藏日报 | " + dateKey + " | " + totalItems + "条内容";
+
+            // ── 构建 HTML ──
             StringBuilder html = new StringBuilder();
-            html.append("<div style=\"font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;\">");
-            html.append("<h2 style=\"color: #3b82f6;\">剪藏日报</h2>");
-            html.append("<p style=\"color: #6b7280;\">").append(dateStr).append("</p>");
-            html.append("<hr style=\"border: none; border-top: 1px solid #e5e7eb;\">");
-            html.append("<p>共整理 <strong>").append(organizedCount).append("</strong> 个分类，");
-            // 统计总内容条数
-            html.append("总计 <strong>").append(clipsByCategory.values().stream().mapToInt(List::size).sum()).append("</strong> 条内容。</p>");
+            html.append("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head><body>");
+            html.append("<div style=\"font-family: -apple-system, 'Microsoft YaHei', sans-serif; max-width: 640px; margin: 0 auto; padding: 20px 0;\">");
 
-            // 按分类展示内容摘要
-            for (Map.Entry<String, List<ClipContent>> entry : clipsByCategory.entrySet()) {
-                String categoryName = getCategoryName(entry.getKey());
-                List<ClipContent> clips = entry.getValue();
-                html.append("<div style=\"margin: 16px 0; padding: 12px; background: #f9fafb; border-radius: 8px;\">");
-                html.append("<h3 style=\"color: #1f2937; margin: 0 0 8px;\">").append(categoryName).append("</h3>");
-                html.append("<p style=\"color: #6b7280; margin: 0;\">").append(clips.size()).append(" 条内容</p>");
-                for (ClipContent clip : clips) {
-                    String summary = clip.getSummary() != null ? clip.getSummary() : "无摘要";
-                    // 摘要截断，避免过长
-                    if (summary.length() > 80) summary = summary.substring(0, 80) + "...";
-                    html.append("<p style=\"margin: 4px 0; color: #374151; font-size: 14px;\">• ").append(summary).append("</p>");
-                }
+            // ===== 头部 =====
+            html.append("<div style=\"background: linear-gradient(135deg, #3b82f6, #6366f1); color: #fff; padding: 24px 28px; border-radius: 12px 12px 0 0;\">");
+            html.append("<h1 style=\"margin: 0; font-size: 22px; font-weight: 700;\">剪藏日报</h1>");
+            html.append("<p style=\"margin: 6px 0 0; font-size: 14px; opacity: 0.85;\">").append(dateStr).append("</p>");
+            html.append("</div>");
+
+            // ===== 概览统计卡片 =====
+            html.append("<div style=\"background: #f8fafc; padding: 20px 28px; border-bottom: 1px solid #e2e8f0;\">");
+            html.append("<table style=\"width: 100%; border-collapse: collapse;\">");
+            html.append("<tr>");
+            html.append(buildStatCell("剪藏", String.valueOf(totalItems)));
+            html.append(buildStatCell("分类", String.valueOf(organizedCount)));
+            html.append(buildStatCell("来源", String.valueOf(totalSources)));
+            html.append(buildStatCell("标签", String.valueOf(totalTags)));
+            if (totalImageCount > 0) {
+                html.append(buildStatCell("图片", String.valueOf(totalImageCount)));
+            }
+            html.append("</tr></table></div>");
+
+            // ===== 全局统计面板 =====
+            html.append("<div style=\"padding: 20px 28px; background: #fff;\">");
+            html.append("<h2 style=\"font-size: 16px; color: #1e293b; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 2px solid #3b82f6;\">全局统计</h2>");
+
+            // 来源分布
+            Map<String, Long> sourceCounts = allClips.stream()
+                    .collect(Collectors.groupingBy(c -> c.getSiteName() != null && !c.getSiteName().isEmpty() ? c.getSiteName() : "其他", Collectors.counting()));
+            if (!sourceCounts.isEmpty()) {
+                html.append("<div style=\"margin-bottom: 14px;\">");
+                html.append("<span style=\"color: #64748b; font-size: 13px;\">来源分布：</span>");
+                sourceCounts.entrySet().stream()
+                        .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                        .forEach(e -> html.append("<span style=\"display: inline-block; background: #e0e7ff; color: #3730a3; font-size: 12px; padding: 2px 8px; border-radius: 10px; margin: 2px 4px;\">")
+                                .append(escapeHtml(e.getKey())).append(" ×").append(e.getValue()).append("</span>"));
                 html.append("</div>");
             }
 
-            html.append("<hr style=\"border: none; border-top: 1px solid #e5e7eb;\">");
-            html.append("<p style=\"color: #9ca3af; font-size: 12px;\">存储路径: ").append(organizedStoragePath.toAbsolutePath()).append("</p>");
+            // 内容类型分布
+            Map<String, Long> typeCounts = allClips.stream()
+                    .collect(Collectors.groupingBy(c -> {
+                        String t = c.getType();
+                        if (t == null) return "其他";
+                        switch (t) {
+                            case "ai-text": return "文本";
+                            case "link-ai": return "链接";
+                            case "doc-ai": return "文档";
+                            case "store-only": return "纯存储";
+                            default: return t;
+                        }
+                    }, Collectors.counting()));
+            html.append("<div style=\"margin-bottom: 14px;\">");
+            html.append("<span style=\"color: #64748b; font-size: 13px;\">内容类型：</span>");
+            typeCounts.forEach((type, count) -> html.append("<span style=\"display: inline-block; background: #fef3c7; color: #92400e; font-size: 12px; padding: 2px 8px; border-radius: 10px; margin: 2px 4px;\">")
+                    .append(type).append(" ×").append(count).append("</span>"));
             html.append("</div>");
 
-            // 发送邮件（发给自己）
-            emailService.sendOrganizeResult(
-                    emailService.getMailFrom(),
-                    subject,
-                    html.toString()
-            );
+            // 热门标签
+            Map<String, Long> tagCounts = allClips.stream()
+                    .filter(c -> c.getTags() != null)
+                    .flatMap(c -> c.getTags().stream())
+                    .collect(Collectors.groupingBy(t -> t, Collectors.counting()));
+            if (!tagCounts.isEmpty()) {
+                html.append("<div style=\"margin-bottom: 14px;\">");
+                html.append("<span style=\"color: #64748b; font-size: 13px;\">热门标签：</span>");
+                tagCounts.entrySet().stream()
+                        .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                        .limit(10)
+                        .forEach(e -> html.append("<span style=\"display: inline-block; background: #dcfce7; color: #166534; font-size: 12px; padding: 2px 8px; border-radius: 10px; margin: 2px 4px;\">#")
+                                .append(escapeHtml(e.getKey())).append("</span>"));
+                html.append("</div>");
+            }
+
+            html.append("</div>");
+
+            // ===== 分类详情 =====
+            html.append("<div style=\"padding: 4px 28px 20px; background: #fff;\">");
+            html.append("<h2 style=\"font-size: 16px; color: #1e293b; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 2px solid #3b82f6;\">分类详情</h2>");
+
+            // 按分类中条目数降序排列
+            clipsByCategory.entrySet().stream()
+                    .sorted(Map.Entry.<String, List<ClipContent>>comparingByValue(
+                            (a, b) -> Integer.compare(b.size(), a.size())))
+                    .forEach(entry -> {
+                        String categoryName = getCategoryName(entry.getKey());
+                        List<ClipContent> clips = entry.getValue();
+
+                        html.append("<div style=\"margin: 14px 0; padding: 16px; background: #f8fafc; border-radius: 10px; border-left: 4px solid #3b82f6;\">");
+                        html.append("<h3 style=\"margin: 0 0 4px; color: #1e293b; font-size: 15px;\">")
+                                .append(categoryName)
+                                .append(" <span style=\"color: #94a3b8; font-size: 12px; font-weight: normal;\">")
+                                .append(clips.size()).append(" 条</span></h3>");
+
+                        // 该分类下的来源统计
+                        Map<String, Long> catSources = clips.stream()
+                                .collect(Collectors.groupingBy(c -> c.getSiteName() != null && !c.getSiteName().isEmpty() ? c.getSiteName() : "其他", Collectors.counting()));
+                        if (!catSources.isEmpty()) {
+                            html.append("<p style=\"margin: 0 0 10px; font-size: 12px; color: #94a3b8;\">");
+                            catSources.entrySet().stream()
+                                    .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                                    .forEach(e -> html.append(escapeHtml(e.getKey())).append("(").append(e.getValue()).append(") "));
+                            html.append("</p>");
+                        }
+
+                        // 剪藏条目列表
+                        for (ClipContent clip : clips) {
+                            html.append("<div style=\"margin: 8px 0; padding: 10px 12px; background: #fff; border-radius: 6px; border: 1px solid #e2e8f0;\">");
+
+                            // 摘要 + 来源链接
+                            html.append("<div style=\"margin-bottom: 4px;\">");
+                            String summary = clip.getSummary() != null ? clip.getSummary() : "无摘要";
+                            html.append("<span style=\"font-weight: 600; color: #1e293b; font-size: 14px;\">").append(escapeHtml(summary)).append("</span>");
+                            if (clip.getSourceUrl() != null && !clip.getSourceUrl().isEmpty()) {
+                                html.append(" <a href=\"").append(escapeAttr(clip.getSourceUrl())).append("\" style=\"color: #3b82f6; font-size: 12px; text-decoration: none;\">[原文]</a>");
+                            }
+                            html.append("</div>");
+
+                            // 标签
+                            if (clip.getTags() != null && !clip.getTags().isEmpty()) {
+                                html.append("<div style=\"margin-bottom: 4px;\">");
+                                for (String tag : clip.getTags()) {
+                                    html.append("<span style=\"display: inline-block; background: #ede9fe; color: #6d28d9; font-size: 11px; padding: 1px 6px; border-radius: 8px; margin-right: 4px;\">#").append(escapeHtml(tag)).append("</span>");
+                                }
+                                html.append("</div>");
+                            }
+
+                            // AI 分析摘要（截取前 120 字）
+                            if (clip.getAnalysis() != null && !clip.getAnalysis().isEmpty()) {
+                                String analysis = clip.getAnalysis();
+                                if (analysis.length() > 120) analysis = analysis.substring(0, 120) + "...";
+                                html.append("<p style=\"margin: 4px 0 0; font-size: 12px; color: #64748b; line-height: 1.5;\">")
+                                        .append(escapeHtml(analysis)).append("</p>");
+                            }
+
+                            html.append("</div>");
+                        }
+
+                        html.append("</div>");
+                    });
+
+            html.append("</div>");
+
+            // ===== 页脚 =====
+            html.append("<div style=\"padding: 16px 28px; background: #f1f5f9; border-radius: 0 0 12px 12px; color: #94a3b8; font-size: 12px;\">");
+            html.append("存储路径：").append(organizedStoragePath.toAbsolutePath()).append("<br>");
+            html.append("由 Clip 剪藏系统自动生成 · ").append(dateKey);
+            html.append("</div>");
+
+            html.append("</div></body></html>");
+
+            emailService.sendOrganizeResult(emailService.getMailFrom(), subject, html.toString());
         } catch (Exception e) {
-            // 邮件发送失败不影响整理流程
             log.error("[Organize] Failed to send email: {}", e.getMessage());
         }
+    }
+
+    /**
+     * 构建统计数字单元格（HTML table td）
+     * <p>
+     * 用于概览统计卡片，展示"指标名 + 数值"的紧凑布局。
+     * </p>
+     *
+     * @param label 指标名称
+     * @param value 指标数值
+     * @return HTML td 字符串
+     */
+    private String buildStatCell(String label, String value) {
+        return "<td style=\"text-align: center; padding: 0 12px;\">"
+                + "<div style=\"font-size: 22px; font-weight: 700; color: #1e293b;\">" + value + "</div>"
+                + "<div style=\"font-size: 12px; color: #64748b;\">" + label + "</div>"
+                + "</td>";
+    }
+
+    /**
+     * 转义 HTML 特殊字符（正文内容安全）
+     */
+    private String escapeHtml(String text) {
+        if (text == null) return "";
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    /**
+     * 转义 HTML 属性值中的特殊字符
+     */
+    private String escapeAttr(String text) {
+        if (text == null) return "";
+        return text.replace("&", "&amp;").replace("\"", "&quot;").replace("'", "&#39;").replace("<", "&lt;").replace(">", "&gt;");
     }
 }
