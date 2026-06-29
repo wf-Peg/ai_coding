@@ -129,114 +129,81 @@
             border-color: var(--primary);
         }
 
-        /* Card Grid */
+        /* Topic List — 纯文字列表 */
         .container {
-            max-width: 1200px;
+            max-width: 840px;
             margin: 0 auto;
             padding: 24px 32px 48px;
         }
-        .topic-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 20px;
+        .topic-list {
+            display: flex;
+            flex-direction: column;
         }
-        .topic-card {
-            background: var(--surface);
-            border-radius: var(--radius);
-            overflow: hidden;
+        .topic-item {
+            display: flex;
+            flex-direction: column;
+            padding: 20px 0;
             cursor: pointer;
             transition: var(--transition);
-            border: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            position: relative;
+        }
+        .topic-item:last-child { border-bottom: none; }
+        .topic-item::before {
+            content: '';
+            position: absolute;
+            left: -16px;
+            top: 20px;
+            bottom: 20px;
+            width: 3px;
+            border-radius: 2px;
+            background: transparent;
+            transition: background 0.2s ease;
+        }
+        .topic-item:hover { padding-left: 8px; }
+        .topic-item:hover::before { background: var(--primary); }
+        .topic-item .item-row {
             display: flex;
-            flex-direction: column;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 16px;
         }
-        .topic-card:hover {
-            transform: translateY(-3px);
-            box-shadow: var(--shadow-hover);
-        }
-        .topic-card .cover {
-            width: 100%;
-            height: 180px;
-            object-fit: cover;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 2.5rem;
-        }
-        .topic-card .cover-placeholder {
-            width: 100%;
-            height: 180px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 3rem;
-        }
-        .topic-card .body {
-            padding: 16px 20px;
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-        }
-        .topic-card .title {
+        .topic-item .title {
             font-size: 1.1rem;
             font-weight: 600;
-            margin-bottom: 8px;
             line-height: 1.4;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
+            color: var(--text);
+            flex: 1;
         }
-        .topic-card .summary {
+        .topic-item .date {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+        .topic-item .summary {
             font-size: 0.9rem;
             color: var(--text-secondary);
-            margin-bottom: 12px;
+            margin-top: 6px;
             line-height: 1.5;
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
-            flex: 1;
         }
-        .topic-card .footer {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding-top: 12px;
-            border-top: 1px solid var(--border);
-        }
-        .topic-card .tags {
+        .topic-item .tags {
             display: flex;
             gap: 6px;
             flex-wrap: wrap;
+            margin-top: 10px;
         }
-        .topic-card .tag {
+        .topic-item .tag {
             padding: 2px 8px;
             border-radius: 12px;
             background: #eff6ff;
             color: var(--primary);
             font-size: 0.75rem;
             font-weight: 500;
-        }
-        .topic-card .meta {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            white-space: nowrap;
-        }
-        .topic-card .like-count {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        .topic-card .like-count svg {
-            width: 14px;
-            height: 14px;
         }
 
         /* Empty State */
@@ -304,20 +271,13 @@
             color: #ffffff;
             border-color: #2f3437;
         }
-        html[data-theme="notion"] .topic-card {
-            border-color: #e8e8e6;
-            box-shadow: none;
+        html[data-theme="notion"] .topic-item {
+            border-bottom-color: #e8e8e6;
         }
-        html[data-theme="notion"] .topic-card:hover {
-            border-color: #d8d8d4;
-            box-shadow: 0 1px 0 rgba(15,23,42,0.04), 0 12px 24px rgba(15,23,42,0.08);
-        }
-        html[data-theme="notion"] .topic-card .tag {
+        html[data-theme="notion"] .topic-item:hover { background: transparent; }
+        html[data-theme="notion"] .topic-item .tag {
             background: #f1f1ef;
             color: #5f646c;
-        }
-        html[data-theme="notion"] .topic-card .footer {
-            border-top-color: #e8e8e6;
         }
         html[data-theme="notion"] .btn-primary {
             background: #2f3437;
@@ -335,7 +295,6 @@
         @media (max-width: 768px) {
             .header-inner { flex-wrap: wrap; }
             .search-box { order: 3; max-width: 100%; flex-basis: 100%; }
-            .topic-grid { grid-template-columns: 1fr; }
             .container { padding: 16px; }
             .filter-bar { padding: 0 16px; }
         }
@@ -375,14 +334,11 @@
         }
         html[data-theme="dark"] .filter-tag:hover { border-color: var(--primary); color: var(--primary); }
         html[data-theme="dark"] .filter-tag.active { background: var(--primary); color: #fff; border-color: var(--primary); }
-        html[data-theme="dark"] .topic-card {
-            background: var(--surface);
-            border-color: var(--border);
+        html[data-theme="dark"] .topic-item {
+            border-bottom-color: var(--border);
         }
-        html[data-theme="dark"] .topic-card:hover { background: #3a3a3a; border-color: #4a4a4a; }
-        html[data-theme="dark"] .topic-card .tag { background: #3a3a3a; color: #9a9a9a; }
-        html[data-theme="dark"] .topic-card .footer { border-top-color: var(--border); }
-        html[data-theme="dark"] .topic-card .meta { color: var(--text-muted); }
+        html[data-theme="dark"] .topic-item:hover { background: rgba(255,255,255,0.02); }
+        html[data-theme="dark"] .topic-item .tag { background: #3a3a3a; color: #9a9a9a; }
         html[data-theme="dark"] .empty-state { color: var(--text-muted); }
         html[data-theme="dark"] .loading { color: var(--text-muted); }
         html[data-theme="dark"] .loading .spinner { border-color: var(--border); border-top-color: var(--primary); }
@@ -411,7 +367,7 @@
         <span class="filter-tag" data-category="other">其他</span>
     </div>
 
-    <div class="container" id="topicGrid">
+    <div class="container" id="topicList">
         <div class="loading">
             <div class="spinner"></div>
             <p>加载中...</p>

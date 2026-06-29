@@ -92,3 +92,8 @@ build.bat       # Windows
 (b) 在 `pathToView()` 注册 URL path。导航用 `history.pushState`，监听 `popstate` 支持前进/后退。
 所有静态服务器必须启用 SPA fallback（`npx serve --single`，Python 需自定义 SPAHandler，Electron 设 `serve-static` 的 `fallthrough: false` + `onerror` 回退到 `index.html`）。
 `index.html` 是唯一入口，禁止 `window.location.href` 跳转。
+13. **提交历史记录**：每次 `git commit` 后，必须同步追加一条记录到项目根目录的 `commit_history.log`。
+    - 格式：`YYYY-MM-DD HH:MM | 提交说明`（日期时间 + 竖线 + 改动摘要）
+    - 说明要求：浓缩核心改动内容，30字以内，突出功能点而非技术细节
+    - 重复提交合并：若同一功能多次提交注释，合并为一条（如"后端项目代码注释完善（多轮提交合并）"）
+    - git 操作后立即执行，不可遗漏

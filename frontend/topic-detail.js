@@ -39,10 +39,6 @@ function renderDetail(topic) {
   const tagsHtml = (topic.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
   const categoryLabel = { work: '工作', study: '学习', life: '生活', tech: '技术', other: '其他' }[topic.category] || topic.category;
 
-  const coverHtml = topic.coverImage
-    ? `<img class="cover-image" src="${escapeHtml(topic.coverImage)}" alt="${escapeHtml(topic.title)}" />`
-    : `<div class="cover-placeholder">${getCategoryEmoji(topic.category)}</div>`;
-
   // Markdown 渲染内容
   let contentHtml = '';
   if (topic.content) {
@@ -57,7 +53,6 @@ function renderDetail(topic) {
 
   const container = document.getElementById('detailContainer');
   container.innerHTML = `
-    ${coverHtml}
     <h1 class="topic-title">${escapeHtml(topic.title)}</h1>
     <div class="topic-meta">
       ${tagsHtml}
@@ -87,8 +82,6 @@ async function openStorageFolder() {
     const result = await response.json();
     if (result.status === 'success') {
       showToast('已打开存储目录: ' + result.path);
-    } else if (result.status === 'unsupported') {
-      showToast('当前系统不支持自动打开目录，路径: ' + result.path);
     } else {
       showToast('打开失败: ' + (result.message || '未知错误'));
     }
@@ -110,11 +103,15 @@ async function exportScreenshot() {
       return;
     }
 
+    const theme = document.documentElement.getAttribute('data-theme');
+    const isDark = theme === 'dark';
+    const bgColor = isDark ? '#1e1e1e' : '#f9fafb';
+
     const container = document.getElementById('detailContainer');
     const canvas = await html2canvas(container, {
       scale: 2,
       useCORS: true,
-      backgroundColor: '#f9fafb',
+      backgroundColor: bgColor,
       logging: false
     });
 
@@ -152,11 +149,6 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
-}
-
-function getCategoryEmoji(category) {
-  const map = { work: '💼', study: '📚', life: '🏠', tech: '💻', other: '📌' };
-  return map[category] || '📌';
 }
 
 function showToast(message) {

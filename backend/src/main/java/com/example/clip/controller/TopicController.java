@@ -8,7 +8,6 @@ import com.example.clip.service.TopicService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.awt.Desktop;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.List;
@@ -70,10 +69,8 @@ public class TopicController {
         topic.setTitle(request.getTitle());
         topic.setSummary(request.getSummary());
         topic.setContent(request.getContent());
-        topic.setCoverImage(request.getCoverImage());
         topic.setCategory(request.getCategory());
         topic.setTags(request.getTags());
-        // 关联来源剪藏 ID，用于追溯话题的来源
         topic.setSourceClipId(request.getSourceClipId());
         topic.setPublished(request.isPublished());
 
@@ -107,7 +104,6 @@ public class TopicController {
         topic.setTitle(request.getTitle());
         topic.setSummary(request.getSummary());
         topic.setContent(request.getContent());
-        topic.setCoverImage(request.getCoverImage());
         topic.setCategory(request.getCategory());
         topic.setTags(request.getTags());
         topic.setPublished(request.isPublished());
@@ -252,32 +248,34 @@ public class TopicController {
     }
 
     /**
-     * 在文件管理器中打开话题存储目录
+     * 打开话题文件存储目录。
      * <p>
-     * POST /api/topic/storage-path/open
-     * <p>
-     * 在服务器操作系统上使用系统默认文件管理器打开话题存储目录。
-     * 依赖 AWT Desktop API，在无头（headless）服务器环境下可能不支持。
+     * 使用 ProcessBuilder 启动系统文件管理器，跨平台兼容（Windows/macOS/Linux）。
      * 若目录不存在则自动创建。
      *
-     * @return 操作结果，包含状态和路径；若失败则返回 500
+     * @return 操作结果，包含状态和路径
      */
     @PostMapping("/storage-path/open")
     public ResponseEntity<Map<String, String>> openStoragePath() {
         try {
             Path topicPath = storageService.getTopicStoragePath();
             File dir = topicPath.toFile();
-            // 目录不存在时自动创建
             if (!dir.exists()) {
                 dir.mkdirs();
             }
-            // 检查当前环境是否支持桌面操作（非 headless 模式）
-            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
-                Desktop.getDesktop().open(dir);
-                return ResponseEntity.ok(Map.of("status", "success", "path", topicPath.toAbsolutePath().toString()));
+
+            String os = System.getProperty("os.name").toLowerCase();
+            ProcessBuilder pb;
+            if (os.contains("win")) {
+                pb = new ProcessBuilder("explorer.exe", topicPath.toAbsolutePath().toString());
+            } else if (os.contains("mac")) {
+                pb = new ProcessBuilder("open", topicPath.toAbsolutePath().toString());
+            } else {
+                pb = new ProcessBuilder("xdg-open", topicPath.toAbsolutePath().toString());
             }
-            // 桌面操作不支持（如 headless 服务器），返回提示
-            return ResponseEntity.ok(Map.of("status", "unsupported", "path", topicPath.toAbsolutePath().toString()));
+            pb.start();
+
+            return ResponseEntity.ok(Map.of("status", "success", "path", topicPath.toAbsolutePath().toString()));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("status", "error", "message", e.getMessage()));
         }
@@ -298,7 +296,6 @@ public class TopicController {
         response.setTitle(topic.getTitle());
         response.setSummary(topic.getSummary());
         response.setContent(topic.getContent());
-        response.setCoverImage(topic.getCoverImage());
         response.setCategory(topic.getCategory());
         response.setTags(topic.getTags());
         response.setSourceClipId(topic.getSourceClipId());
