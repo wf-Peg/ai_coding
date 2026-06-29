@@ -1920,8 +1920,9 @@
             line-height: 1.6;
         }
         .modal-textarea.compact-textarea::-webkit-scrollbar { width: 4px; }
-        .modal-textarea.compact-textarea::-webkit-scrollbar-thumb { background: #c0c0c0; border-radius: 2px; }
-        html[data-theme="dark"] .modal-textarea.compact-textarea::-webkit-scrollbar-thumb { background: #555; }
+        .modal-textarea.compact-textarea::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; }
+        .modal-textarea.compact-textarea::-webkit-scrollbar-track { background: transparent; }
+        html[data-theme="dark"] .modal-textarea.compact-textarea::-webkit-scrollbar-thumb { background: var(--border); }
 
         /* 编辑弹窗整体滚动 */
         #organize-action-modal .modal-content {
@@ -1938,8 +1939,41 @@
         #organize-action-modal .modal-footer { flex-shrink: 0; }
         #organize-action-modal .modal-body::-webkit-scrollbar { width: 6px; }
         #organize-action-modal .modal-body::-webkit-scrollbar-track { background: transparent; }
-        #organize-action-modal .modal-body::-webkit-scrollbar-thumb { background: #c0c0c0; border-radius: 3px; }
-        html[data-theme="dark"] #organize-action-modal .modal-body::-webkit-scrollbar-thumb { background: #4a4a4a; }
+        #organize-action-modal .modal-body::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; }
+        html[data-theme="dark"] #organize-action-modal .modal-body::-webkit-scrollbar-thumb { background: var(--border); }
+
+        /* ===== Obsidian 风格全局滚动条 =====
+         * 特性：极窄、圆角胶囊形、无按钮、自动隐藏轨道
+         * 颜色使用 CSS 变量自动适配 light/dark 皮肤 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-light);
+            border-radius: 999px;
+            transition: background 0.2s ease;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--fg-muted);
+        }
+        /* Firefox 兼容 */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: var(--border-light) transparent;
+        }
+        html[data-theme="dark"] ::-webkit-scrollbar-thumb {
+            background: var(--border);
+        }
+        html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+            background: var(--fg-muted);
+        }
+        html[data-theme="dark"] * {
+            scrollbar-color: var(--border) transparent;
+        }
     </style>
     <link id="clipThemeNotion" rel="stylesheet" href="./styles/clip-theme-notion.css">
 </head>
