@@ -247,6 +247,8 @@ public class ClipService {
         clipContent.setContextAfter(request.getContextAfter());
         clipContent.setCaptureMethod(normalizeCaptureMethod(request.getCaptureMethod()));
         clipContent.setWorkflowStatus(workflowStatus);
+        // 传递用户自己的思考
+        clipContent.setMyThoughts(request.getMyThoughts());
 
         return storageService.saveClip(clipContent);
     }

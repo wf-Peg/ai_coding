@@ -273,6 +273,30 @@ public class ClipController {
     }
 
     /**
+     * 更新剪藏的"我的思考"字段
+     * <p>
+     * PUT /api/clip/{id}/thoughts
+     * <p>
+     * 允许用户对已保存的剪藏追加或修改自己的思考。
+     * 请求体为 {"myThoughts": "..."}，可选字段，传空字符串可清空。
+     *
+     * @param id   剪藏 ID
+     * @param body 包含 myThoughts 字段的 JSON 对象
+     * @return 更新后的剪藏内容；若剪藏不存在则返回 404
+     */
+    @PutMapping("/{id}/thoughts")
+    public ResponseEntity<?> updateThoughts(@PathVariable(name = "id") Long id, @RequestBody Map<String, String> body) {
+        ClipContent clip = clipService.getClipById(id);
+        if (clip == null) {
+            return ResponseEntity.notFound().build();
+        }
+        String thoughts = body.getOrDefault("myThoughts", "");
+        clip.setMyThoughts(thoughts.isEmpty() ? null : thoughts);
+        clipService.saveClip(clip);
+        return ResponseEntity.ok(Map.of("status", "success", "myThoughts", clip.getMyThoughts() != null ? clip.getMyThoughts() : ""));
+    }
+
+    /**
      * 全文搜索剪藏内容
      * <p>
      * GET /api/clip/search?query=xxx&topK=5

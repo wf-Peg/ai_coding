@@ -51,6 +51,8 @@ public class ContentOrganizeService {
     private final EmailService emailService;
     /** Git 服务，用于自动提交整理结果 */
     private final GitService gitService;
+    /** Prompt 配置服务，用于获取认知对话模式 Prompt */
+    private final PromptConfigService promptConfigService;
     /** 整理结果的存储根目录 */
     private final Path organizedStoragePath;
     /** 上次整理状态（idle/processing/completed/error） */
@@ -73,11 +75,13 @@ public class ContentOrganizeService {
             AiService aiService,
             EmailService emailService,
             GitService gitService,
+            PromptConfigService promptConfigService,
             @Value("${clip.organized-storage.path:./clip-organized}") String organizedStoragePath) {
         this.storageService = storageService;
         this.aiService = aiService;
         this.emailService = emailService;
         this.gitService = gitService;
+        this.promptConfigService = promptConfigService;
         this.organizedStoragePath = Paths.get(organizedStoragePath);
         // 确保整理存储目录存在
         initOrganizedStorage();
@@ -251,6 +255,10 @@ public class ContentOrganizeService {
                 contentBuilder.append("### AI分析\n\n").append(clip.getAnalysis()).append("\n\n");
             }
 
+            if (clip.getMyThoughts() != null && !clip.getMyThoughts().isEmpty()) {
+                contentBuilder.append("### 💭 我的思考\n\n").append(clip.getMyThoughts()).append("\n\n");
+            }
+
             if (clip.getTags() != null && !clip.getTags().isEmpty()) {
                 contentBuilder.append("### 标签\n\n");
                 for (String tag : clip.getTags()) {
@@ -271,6 +279,8 @@ public class ContentOrganizeService {
      * 使用 AI 组织内容
      * <p>
      * 调用 AI 服务对原始内容进行智能整理（如合并重复、优化结构等）。
+     * 如果检测到内容中包含用户自己的思考（💭 我的思考），
+     * 会在 Prompt 末尾追加"认知对话模式"指令，将整理从"客观汇总"升级为"认知对话"。
      * 如果 AI 调用失败，返回原始内容作为降级方案。
      * </p>
      *
@@ -280,7 +290,13 @@ public class ContentOrganizeService {
      */
     private String aiOrganizeContent(String category, String content) {
         try {
-            return aiService.organizeContentForKnowledgeBase(getCategoryName(category), content);
+            // 检测是否存在用户思考，决定是否启用认知对话模式
+            boolean hasThoughts = content.contains("💭 我的思考");
+            String systemPrompt = promptConfigService.renderDailyPrompt(category);
+            if (hasThoughts) {
+                systemPrompt += promptConfigService.getDailyDialoguePrompt();
+            }
+            return aiService.organizeContentForKnowledgeBase(category, content, systemPrompt);
         } catch (Exception e) {
             e.printStackTrace();
             return content;
@@ -564,10 +580,17 @@ public class ContentOrganizeService {
 
                         // 剪藏条目列表
                         for (ClipContent clip : clips) {
-                            html.append("<div style=\"margin: 8px 0; padding: 10px 12px; background: #fff; border-radius: 6px; border: 1px solid #e2e8f0;\">");
+                            boolean hasThoughts = clip.getMyThoughts() != null && !clip.getMyThoughts().isEmpty();
+                            String borderColor = hasThoughts ? "#a855f7" : "#e2e8f0";
+                            String bgColor = hasThoughts ? "#faf5ff" : "#fff";
 
-                            // 摘要 + 来源链接
+                            html.append("<div style=\"margin: 8px 0; padding: 10px 12px; background: ").append(bgColor).append("; border-radius: 6px; border: 1px solid ").append(borderColor).append(";\">");
+
+                            // 摘要 + 来源链接 + 思考标记
                             html.append("<div style=\"margin-bottom: 4px;\">");
+                            if (hasThoughts) {
+                                html.append("<span style=\"font-size: 14px;\" title=\"包含用户思考\">💭 </span>");
+                            }
                             String summary = clip.getSummary() != null ? clip.getSummary() : "无摘要";
                             html.append("<span style=\"font-weight: 600; color: #1e293b; font-size: 14px;\">").append(escapeHtml(summary)).append("</span>");
                             if (clip.getSourceUrl() != null && !clip.getSourceUrl().isEmpty()) {
@@ -582,6 +605,13 @@ public class ContentOrganizeService {
                                     html.append("<span style=\"display: inline-block; background: #ede9fe; color: #6d28d9; font-size: 11px; padding: 1px 6px; border-radius: 8px; margin-right: 4px;\">#").append(escapeHtml(tag)).append("</span>");
                                 }
                                 html.append("</div>");
+                            }
+
+                            // 用户思考预览（截取前 80 字）
+                            if (hasThoughts) {
+                                String thought = clip.getMyThoughts();
+                                if (thought.length() > 80) thought = thought.substring(0, 80) + "...";
+                                html.append("<p style=\"margin: 4px 0 0; font-size: 12px; color: #7c3aed; line-height: 1.5; font-style: italic;\">💭 ").append(escapeHtml(thought)).append("</p>");
                             }
 
                             // AI 分析摘要（截取前 120 字）

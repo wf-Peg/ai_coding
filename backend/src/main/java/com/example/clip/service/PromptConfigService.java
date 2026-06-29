@@ -111,6 +111,22 @@ public class PromptConfigService {
         return getPromptConfig().getWeeklyReportSystemPrompt();
     }
 
+    /**
+     * 获取日报"认知对话模式"追加 Prompt。
+     * 当本批内容包含用户思考时，在日报 Prompt 之后追加。
+     */
+    public String getDailyDialoguePrompt() {
+        return DEFAULT_DAILY_DIALOGUE_PROMPT;
+    }
+
+    /**
+     * 获取周报"认知对话模式"追加 Prompt。
+     * 当本周内容包含用户思考时，在周报 Prompt 之后追加。
+     */
+    public String getWeeklyDialoguePrompt() {
+        return DEFAULT_WEEKLY_DIALOGUE_PROMPT;
+    }
+
     // ==================== 便捷 Getter（任务格式） ====================
 
     /**
@@ -325,6 +341,85 @@ public class PromptConfigService {
             "- 每个知识点内容应该充实，有实际价值\n" +
             "- 主报告应该结构清晰，引用自然\n" +
             "- 文件名只使用中文、数字和下划线，不要特殊字符";
+
+    /**
+     * 日报"认知对话模式"追加 Prompt。
+     * 当本批内容中包含用户自己的思考（myThoughts）时，
+     * 在日报 Prompt 之后追加此指令，将整理模式从"客观汇总"升级为"认知对话"。
+     */
+    private static final String DEFAULT_DAILY_DIALOGUE_PROMPT =
+            "\n\n" +
+            "# Cognitive Dialogue Mode（认知对话模式）\n" +
+            "以上内容中标记了「💭 我的思考」的部分是用户自己记录的观点和判断。\n" +
+            "这是用户的主动认知输出，而非被动收集的素材。请按以下规则处理：\n" +
+            "\n" +
+            "## 1. 思考优先原则\n" +
+            "- 在整合时，优先将「我的思考」作为核心观点，原文作为支撑材料\n" +
+            "- 不要改写用户的思考，直接引用；如需补充，在引用后添加「补充分析」段落\n" +
+            "\n" +
+            "## 2. 原子化切卡\n" +
+            "- 将每条「我的思考」拆分为独立的判断单元，每个单元满足：\n" +
+            "  - 一个判断点：只讲一个观点、一个发现、一个疑问\n" +
+            "  - 独立可读：脱离上下文也能理解\n" +
+            "  - 标注来源：引用对应的原文片段\n" +
+            "- 在整理后的内容中，每个独立的判断单元使用二级标题 ## 标注\n" +
+            "\n" +
+            "## 3. 冲突发现\n" +
+            "- 如果多条「我的思考」围绕同一主题但有不同甚至相反的结论，在「今日复盘」之前单独列出「⚡ 观点碰撞」段落\n" +
+            "- 碰撞段落需包含：\n" +
+            "  - 碰撞点是什么（一句话概括）\n" +
+            "  - 各方立场和边界条件\n" +
+            "  - 可能的调和方向或待验证的假设\n" +
+            "\n" +
+            "## 4. 脉络追踪\n" +
+            "- 在「今日复盘」中，增加「思考脉络」小节\n" +
+            "- 总结今天我的思考主题演变：我关注了什么？我的判断在变化吗？哪些新问题浮现了？\n" +
+            "\n" +
+            "## 5. 就绪提示\n" +
+            "- 如果某个主题下积累了3条以上相关思考，在末尾添加「✍️ 写作提示」段落\n" +
+            "- 格式：「主题 X 已积累 N 条相关思考，视角覆盖 [角度A, 角度B, ...]，可以考虑撰写文章」";
+
+    /**
+     * 周报"认知对话模式"追加 Prompt。
+     * 当本周内容中包含用户自己的思考（myThoughts）时，
+     * 在周报 Prompt 之后追加此指令。
+     */
+    private static final String DEFAULT_WEEKLY_DIALOGUE_PROMPT =
+            "\n\n" +
+            "# Cognitive Dialogue Mode（认知对话模式）\n" +
+            "本周内容中包含了用户自己的思考记录（标记为「💭 我的思考」）。\n" +
+            "请在标准流程之外，额外完成以下分析：\n" +
+            "\n" +
+            "## 1. 思考脉络图\n" +
+            "在 mainReport 中增加「思考脉络」章节，分析本周用户的思考主题如何演变：\n" +
+            "- 哪些主题持续关注？\n" +
+            "- 哪些观点发生了转变？\n" +
+            "- 哪些新问题浮现？\n" +
+            "\n" +
+            "## 2. 观点碰撞检测\n" +
+            "在 mainReport 中增加「⚡ 观点碰撞」章节（如有）：\n" +
+            "- 同一主题，不同时间有不同判断 → 标注「思考演变」\n" +
+            "- 同一主题，同一时间有对立观点 → 标注「认知冲突」\n" +
+            "- 每条碰撞需说明：碰撞点、各方立场、可能的调和方向\n" +
+            "\n" +
+            "## 3. 文章就绪簇检测\n" +
+            "在 JSON 输出的根级别增加 readyClusters 字段：\n" +
+            "{\n" +
+            "  \"mainReport\": \"...\",\n" +
+            "  \"knowledgePoints\": [...],\n" +
+            "  \"readyClusters\": [\n" +
+            "    {\n" +
+            "      \"topic\": \"候选文章主题\",\n" +
+            "      \"thoughtCount\": 3,\n" +
+            "      \"perspectives\": [\"观点A\", \"观点B\"],\n" +
+            "      \"readiness\": \"ready|partial|gap\",\n" +
+            "      \"suggestion\": \"建议从xxx角度展开，补充yyy方面的内容\"\n" +
+            "    }\n" +
+            "  ]\n" +
+            "}\n" +
+            "- thoughtCount：该主题下包含用户思考的卡片数量\n" +
+            "- readiness：ready（视角配齐可写）、partial（部分视角，需补充）、gap（有明显缺口需调研）\n" +
+            "- 优先检测包含用户思考的主题簇；没有用户思考的主题不需要检测";
 
     /** 默认深度内容分析 Prompt */
     private static final String DEFAULT_ANALYZE_CONTENT_PROMPT =

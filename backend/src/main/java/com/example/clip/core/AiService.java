@@ -510,6 +510,27 @@ public class AiService {
         }
     }
 
+    /**
+     * 使用自定义 Prompt 整理内容用于知识库存储。
+     * <p>
+     * 与 {@link #organizeContentForKnowledgeBase(String, String)} 不同，
+     * 此方法接受调用方预先组装好的完整 systemPrompt，允许在标准 Prompt 之外
+     * 追加额外的指令（如认知对话模式）。
+     * </p>
+     *
+     * @param category     内容分类
+     * @param content      需要整理的内容
+     * @param systemPrompt 完整的系统提示词（已由调用方组装）
+     * @return 整理后的内容，或错误信息
+     */
+    public String organizeContentForKnowledgeBase(String category, String content, String systemPrompt) {
+        try {
+            return llmProvider.chat(systemPrompt, content);
+        } catch (Exception e) {
+            return "内容整理过程中发生错误: " + e.getMessage();
+        }
+    }
+
     // ==================== 搜索增强 ====================
 
     /**
@@ -572,9 +593,25 @@ public class AiService {
      * @return 包含 mainReport 和 knowledgePoints 的 Map
      */
     public Map<String, Object> extractKnowledgePoints(String content, String category) {
+        String systemPrompt = promptConfigService.getWeeklyReportPrompt();
+        return extractKnowledgePoints(content, category, systemPrompt);
+    }
+
+    /**
+     * 使用自定义 Prompt 从内容中提取知识点。
+     * <p>
+     * 与 {@link #extractKnowledgePoints(String, String)} 的区别在于允许调用方
+     * 传入预先组装好的完整 systemPrompt，以便在标准 Prompt 之外追加额外指令。
+     * </p>
+     *
+     * @param content      需要提取知识点的内容
+     * @param category     内容分类
+     * @param systemPrompt 完整的系统提示词（已由调用方组装）
+     * @return 包含 mainReport 和 knowledgePoints 的 Map
+     */
+    public Map<String, Object> extractKnowledgePoints(String content, String category, String systemPrompt) {
         Map<String, Object> result = new LinkedHashMap<>();
         try {
-            String systemPrompt = promptConfigService.getWeeklyReportPrompt();
             String responseStr = llmProvider.chat(systemPrompt,
                     "分类：" + getCategoryName(category) + "\n\n内容：\n" + content);
 

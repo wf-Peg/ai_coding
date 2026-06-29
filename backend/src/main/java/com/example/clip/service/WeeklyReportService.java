@@ -2,6 +2,7 @@ package com.example.clip.service;
 
 import com.example.clip.core.AiService;
 import com.example.clip.model.ClipContent;
+import com.example.clip.model.KnowledgeExtractionResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,6 +49,8 @@ public class WeeklyReportService {
     private final EmailService emailService;
     /** Git 服务 */
     private final GitService gitService;
+    /** Prompt 配置服务，用于获取认知对话模式 Prompt */
+    private final PromptConfigService promptConfigService;
     /** 周报存储根目录 */
     private final Path weeklyReportPath;
     /** 上次周报生成状态 */
@@ -61,11 +64,13 @@ public class WeeklyReportService {
             AiService aiService,
             EmailService emailService,
             GitService gitService,
+            PromptConfigService promptConfigService,
             @Value("${clip.clip-weekly-report.path:./weeklyReport}") String weeklyReportPath) {
         this.storageService = storageService;
         this.aiService = aiService;
         this.emailService = emailService;
         this.gitService = gitService;
+        this.promptConfigService = promptConfigService;
         this.weeklyReportPath = Paths.get(weeklyReportPath);
         initWeeklyReportStorage();
         this.lastReportStatus = "idle";
@@ -139,8 +144,15 @@ public class WeeklyReportService {
                     // 组织分类内容为 Markdown 文本
                     String organizedContent = organizeCategoryContent(category, categoryClips, today, weekAgo);
 
+                    // 检测是否存在用户思考，决定是否启用认知对话模式
+                    boolean hasThoughts = organizedContent.contains("💭 我的思考");
+                    String systemPrompt = promptConfigService.getWeeklyReportPrompt();
+                    if (hasThoughts) {
+                        systemPrompt += promptConfigService.getWeeklyDialoguePrompt();
+                    }
+
                     // 调用 AI 提取知识点
-                    Map<String, Object> extractionResult = aiService.extractKnowledgePoints(organizedContent, category);
+                    Map<String, Object> extractionResult = aiService.extractKnowledgePoints(organizedContent, category, systemPrompt);
                     String mainReport = (String) extractionResult.get("mainReport");
                     @SuppressWarnings("unchecked")
                     List<Map<String, String>> knowledgePoints = (List<Map<String, String>>) extractionResult.get("knowledgePoints");
@@ -270,6 +282,10 @@ public class WeeklyReportService {
 
             if (clip.getAnalysis() != null) {
                 contentBuilder.append("### AI分析\n\n").append(clip.getAnalysis()).append("\n\n");
+            }
+
+            if (clip.getMyThoughts() != null && !clip.getMyThoughts().isEmpty()) {
+                contentBuilder.append("### 💭 我的思考\n\n").append(clip.getMyThoughts()).append("\n\n");
             }
 
             if (clip.getTags() != null && !clip.getTags().isEmpty()) {
@@ -593,10 +609,17 @@ public class WeeklyReportService {
 
                         // 剪藏条目列表
                         for (ClipContent clip : clips) {
-                            html.append("<div style=\"margin: 8px 0; padding: 10px 12px; background: #fff; border-radius: 6px; border: 1px solid #e2e8f0;\">");
+                            boolean hasThoughts = clip.getMyThoughts() != null && !clip.getMyThoughts().isEmpty();
+                            String borderColor = hasThoughts ? "#a855f7" : "#e2e8f0";
+                            String bgColor = hasThoughts ? "#faf5ff" : "#fff";
 
-                            // 摘要 + 来源链接
+                            html.append("<div style=\"margin: 8px 0; padding: 10px 12px; background: ").append(bgColor).append("; border-radius: 6px; border: 1px solid ").append(borderColor).append(";\">");
+
+                            // 摘要 + 来源链接 + 思考标记
                             html.append("<div style=\"margin-bottom: 4px;\">");
+                            if (hasThoughts) {
+                                html.append("<span style=\"font-size: 14px;\" title=\"包含用户思考\">💭 </span>");
+                            }
                             String summary = clip.getSummary() != null ? clip.getSummary() : "无摘要";
                             html.append("<span style=\"font-weight: 600; color: #1e293b; font-size: 14px;\">").append(escapeHtml(summary)).append("</span>");
                             if (clip.getSourceUrl() != null && !clip.getSourceUrl().isEmpty()) {
@@ -611,6 +634,13 @@ public class WeeklyReportService {
                                     html.append("<span style=\"display: inline-block; background: #ede9fe; color: #6d28d9; font-size: 11px; padding: 1px 6px; border-radius: 8px; margin-right: 4px;\">#").append(escapeHtml(tag)).append("</span>");
                                 }
                                 html.append("</div>");
+                            }
+
+                            // 用户思考预览（截取前 80 字）
+                            if (hasThoughts) {
+                                String thought = clip.getMyThoughts();
+                                if (thought.length() > 80) thought = thought.substring(0, 80) + "...";
+                                html.append("<p style=\"margin: 4px 0 0; font-size: 12px; color: #7c3aed; line-height: 1.5; font-style: italic;\">💭 ").append(escapeHtml(thought)).append("</p>");
                             }
 
                             // AI 分析摘要
