@@ -101,6 +101,51 @@ download_jre() {
 # ============================================================
 PLATFORM="${1:-auto}"
 
+# ---- 检查本地 JDK/JRE ----
+log_info "检查本地 JDK/JRE..."
+
+# 1) JAVA_HOME
+if [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+  log_info "发现 JAVA_HOME = $JAVA_HOME"
+  "$JAVA_HOME/bin/java" -version 2>&1 | head -1
+  log_info "本地 JDK 已可用，无需下载 JRE。如仍需下载请手动指定平台。"
+  exit 0
+fi
+
+# 2) 系统 PATH 上的 java
+if command -v java &>/dev/null; then
+  JAVA_PATH=$(command -v java)
+  log_info "发现系统 Java: $JAVA_PATH"
+  java -version 2>&1 | head -1
+  log_info "本地 JDK 已可用，无需下载 JRE。如仍需下载请手动指定平台。"
+  exit 0
+fi
+
+# 3) 常见安装路径
+for dir in \
+  "/usr/lib/jvm/java-21-openjdk" \
+  "/usr/lib/jvm/jdk-21" \
+  "/Library/Java/JavaVirtualMachines/jdk-21.jdk" \
+  "/Library/Java/JavaVirtualMachines/temurin-21.jdk" \
+  "/opt/homebrew/opt/openjdk@21" \
+  "$HOME/.sdkman/candidates/java/21"* \
+  ; do
+  if [ -x "$dir/bin/java" ]; then
+    log_info "发现: $dir"
+    "$dir/bin/java" -version 2>&1 | head -1
+    log_info "本地 JDK 已可用，无需下载 JRE。如仍需下载请手动指定平台。"
+    exit 0
+  fi
+done
+
+# 4) 项目 jre/ 目录
+if [ -d "$JRE_DIR/win/bin" ] || [ -d "$JRE_DIR/mac/bin" ] || [ -d "$JRE_DIR/mac-arm/bin" ]; then
+  log_info "项目 jre/ 目录已存在，跳过下载"
+  exit 0
+fi
+
+log_info "未找到本地 JDK 21，开始下载 JRE..."
+
 if [ "$PLATFORM" = "all" ]; then
   log_info "下载所有平台 JRE..."
   download_jre "win"
