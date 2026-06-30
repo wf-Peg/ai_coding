@@ -108,9 +108,20 @@ log_ok "版本号已更新"
 # ============================================================
 log_step 3 "下载 JDK 21 JRE（免安装便携版）"
 
-if [ -d "jre/win/bin" ] || [ -d "jre/mac/bin" ] || [ -d "jre/mac-arm/bin" ]; then
+# 检查本地 JDK/JRE
+JRE_NEEDED=true
+if [ -d "$JRE_DIR/win/bin" ] || [ -d "$JRE_DIR/mac/bin" ] || [ -d "$JRE_DIR/mac-arm/bin" ]; then
   log_ok "JRE 已存在，跳过下载"
-else
+  JRE_NEEDED=false
+elif [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+  log_ok "使用 JAVA_HOME: $JAVA_HOME"
+  JRE_NEEDED=false
+elif command -v java &>/dev/null; then
+  log_ok "使用系统 Java: $(command -v java)"
+  JRE_NEEDED=false
+fi
+
+if [ "$JRE_NEEDED" = true ]; then
   bash scripts/download-jre.sh all 2>&1 | sed 's/^/  /' || {
     log_warn "JRE 下载失败，打包将使用系统 JDK 路径"
     log_warn "如需内嵌 JRE，请手动运行: npm run download-jre:all"

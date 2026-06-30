@@ -1,31 +1,27 @@
 @echo off
+chcp 65001 >nul 2>&1
 REM ============================================================
-REM release.bat — 一键发布脚本 (Windows 版)
+REM release.bat
+REM One-click release: build -> pack -> GitHub Release (Windows)
 REM
-REM 用法：
-REM   scripts\release.bat 1.0.1 "更新说明"
-REM   scripts\release.bat 1.0.1                    REM 不写说明则用默认
-REM   scripts\release.bat 1.0.1 "" win             REM 只构建 Windows
-REM   scripts\release.bat 1.0.1 "" all             REM 构建所有平台
+REM Usage:
+REM   scripts\release.bat 1.0.1 "release notes"
+REM   scripts\release.bat 1.0.1                      : default notes
+REM   scripts\release.bat 1.0.1 "" win               : Windows only
+REM   scripts\release.bat 1.0.1 "" all               : all platforms
 REM
-REM 前置条件：
-REM   1. 已安装 JDK 21 + Maven + Node.js
-REM   2. 已配置 GitHub CLI (gh auth login)
-REM   3. 已运行 npm install
+REM Prereq: JDK 21 + Maven + Node.js + GitHub CLI
 REM ============================================================
 setlocal enabledelayedexpansion
+title Release Publisher
 
 set "VERSION=%~1"
 set "NOTES=%~2"
 set "PLATFORM=%~3"
 
-if "%VERSION%"=="" (
-    echo 用法: scripts\release.bat ^<版本号^> [更新说明] [平台: win^|mac^|linux^|all]
-    echo 示例: scripts\release.bat 1.0.1 "新增我的思考功能" all
-    exit /b 1
-)
+if "%VERSION%"=="" goto :usage
 
-if "%NOTES%"=="" set "NOTES=版本更新"
+if "%NOTES%"=="" set "NOTES=Version update"
 if "%PLATFORM%"=="" set "PLATFORM=all"
 
 set "TAG=v%VERSION%"
@@ -34,175 +30,199 @@ set "DIST_DIR=dist-electron"
 set "SCRIPT_DIR=%~dp0"
 set "PROJECT_DIR=%SCRIPT_DIR%.."
 
+REM ---- detect how we were launched ----
+set "LAUNCHED_BY_DBLCLICK=0"
+echo %CMDCMDLINE% | findstr /i /c:"%COMSPEC%" >nul
+if %ERRORLEVEL% NEQ 0 set "LAUNCHED_BY_DBLCLICK=1"
+
 cd /d "%PROJECT_DIR%"
 
 echo.
-echo =============================================
-echo   发布版本: %TAG%
-echo   目标平台: %PLATFORM%
-echo   仓库: %REPO%
-echo =============================================
+echo ============================================
+echo   Release: %TAG%
+echo   Platform: %PLATFORM%
+echo   Repo: %REPO%
+echo ============================================
 echo.
 
 REM ============================================================
-REM 步骤 1: 前置检查
+REM Step 1: Pre-check
 REM ============================================================
-echo [1/8] 前置检查
+echo [1/8] Pre-check
 
-REM 检查 Java
+echo   Checking tools ...
+
 where java >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo   [错误] 未安装 Java，请先安装 JDK 21
-    exit /b 1
+    echo   [ERROR] Java not found. Please install JDK 21.
+    goto :fail
 )
+for /f "tokens=*" %%V in ('java -version 2^>^&1 ^| findstr /i "version"') do echo   Java: %%V
 
-REM 检查 Java 版本
-for /f "tokens=3" %%i in ('java -version 2^>^&1 ^| findstr /i "version"') do (
-    set "JAVA_VER=%%i"
-)
-set "JAVA_VER=%JAVA_VER:"=%"
-echo   Java 版本: %JAVA_VER%
-
-REM 检查 Maven
 where mvn >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo   [错误] 未安装 Maven
-    exit /b 1
+    echo   [ERROR] Maven not found.
+    goto :fail
 )
 
-REM 检查 Node.js
 where node >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo   [错误] 未安装 Node.js
-    exit /b 1
+    echo   [ERROR] Node.js not found.
+    goto :fail
 )
 
-REM 检查 npm
 where npm >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo   [错误] 未安装 npm
-    exit /b 1
+    echo   [ERROR] npm not found.
+    goto :fail
 )
 
-REM 检查 GitHub CLI
 where gh >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo   [错误] 未安装 GitHub CLI ^(gh^)
-    echo   请运行: winget install GitHub.cli
-    echo   然后: gh auth login
-    exit /b 1
+    echo   [ERROR] GitHub CLI not found.
+    echo   Run: winget install GitHub.cli
+    echo   Then: gh auth login
+    goto :fail
 )
 
-REM 检查 git 状态
-git status --porcelain 2>nul | findstr /r "." >nul
-if %ERRORLEVEL% EQU 0 (
-    echo   [警告] 工作区有未提交的更改
-    git status --short
-    set /p "CONTINUE=是否继续? (y/N): "
-    if /I not "!CONTINUE!"=="y" exit /b 1
-)
-
-REM 检查 gh 认证
 gh auth status >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo   [错误] GitHub CLI 未认证，请运行: gh auth login
-    exit /b 1
+    echo   [ERROR] GitHub CLI not authenticated. Run: gh auth login
+    goto :fail
 )
 
-echo   [OK] 前置检查通过
+REM check git status
+git status --porcelain 2>nul | findstr /r "." >nul
+if %ERRORLEVEL% EQU 0 (
+    echo   [WARNING] Uncommitted changes detected:
+    git status --short
+    set /p "CONTINUE=Continue? (y/N): "
+    if /I not "!CONTINUE!"=="y" goto :fail
+)
+
+echo   [OK] Pre-check passed
 
 REM ============================================================
-REM 步骤 2: 更新版本号
+REM Step 2: Bump version
 REM ============================================================
-echo [2/8] 更新版本号到 %VERSION%...
+echo [2/8] Bump version to %VERSION% ...
 
 node -e "const pkg = require('./package.json'); pkg.version = '%VERSION%'; require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\r\n');"
 if %ERRORLEVEL% NEQ 0 (
-    echo   [错误] 版本号更新失败
-    exit /b 1
+    echo   [ERROR] Failed to update version
+    goto :fail
 )
 
 git add package.json
 git commit -m "chore: bump version to %VERSION%" 2>nul
-if %ERRORLEVEL% NEQ 0 echo   [警告] 版本号可能未变化
+if %ERRORLEVEL% NEQ 0 echo   [WARNING] Version may be unchanged
 
-echo   [OK] 版本号已更新
+echo   [OK] Version updated
 
 REM ============================================================
-REM 步骤 3: 下载 JRE
+REM Step 3: JRE / JDK
 REM ============================================================
-echo [3/8] 下载 JDK 21 JRE（免安装便携版）...
+echo [3/8] JRE / JDK check ...
 
+REM check if jre/ already exists
 if exist "jre\win\bin\java.exe" (
-    echo   [OK] JRE 已存在，跳过下载
-) else if exist "jre\mac\bin\java" (
-    echo   [OK] JRE 已存在，跳过下载
-) else (
-    call scripts\download-jre.bat all
-    if %ERRORLEVEL% NEQ 0 (
-        echo   [警告] JRE 下载失败，打包将使用系统 JDK 路径
-        echo   [警告] 如需内嵌 JRE，请手动运行: scripts\download-jre.bat all
+    echo   [OK] Built-in JRE found: jre\win
+    goto :step4
+)
+if exist "jre\mac\bin\java" (
+    echo   [OK] Built-in JRE found: jre\mac
+    goto :step4
+)
+
+REM check if local JDK is available
+if defined JAVA_HOME (
+    if exist "%JAVA_HOME%\bin\java.exe" (
+        echo   [OK] Using JAVA_HOME: %JAVA_HOME%
+        goto :step4
     )
 )
 
+where java.exe >nul 2>&1
+if %ERRORLEVEL% EQU 0 (
+    echo   [OK] Using system Java
+    goto :step4
+)
+
+REM no JDK/JRE found, try to download
+echo   Downloading JRE ...
+call scripts\download-jre.bat all
+if %ERRORLEVEL% NEQ 0 (
+    echo   [WARNING] JRE download failed. Build will use system JDK.
+    echo   [WARNING] Run manually: scripts\download-jre.bat all
+)
+
+:step4
+
 REM ============================================================
-REM 步骤 4: 构建后端 JAR
+REM Step 4: Build backend JAR
 REM ============================================================
-echo [4/8] 构建后端 JAR...
+echo [4/8] Build backend JAR ...
 
 cd backend
 call mvn clean package -DskipTests -q 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo   [错误] Maven 构建失败
+    echo   [ERROR] Maven build failed
     cd ..
-    exit /b 1
+    goto :fail
 )
 cd ..
 
 if exist "backend\target\clip-demo-0.0.1-SNAPSHOT.jar" (
     for %%f in (backend\target\clip-demo-0.0.1-SNAPSHOT.jar) do set "JAR_SIZE=%%~zf"
     set /a "JAR_SIZE_MB=!JAR_SIZE! / 1048576"
-    echo   [OK] 后端 JAR 构建完成 ^(!JAR_SIZE_MB! MB^)
+    echo   [OK] Backend JAR built ^(!JAR_SIZE_MB! MB^)
 ) else (
-    echo   [错误] 后端 JAR 构建失败！文件不存在
-    exit /b 1
+    echo   [ERROR] Backend JAR not found
+    goto :fail
 )
 
 REM ============================================================
-REM 步骤 5: 构建桌面客户端
+REM Step 5: Build desktop client
 REM ============================================================
-echo [5/8] 构建桌面客户端...
+echo [5/8] Build desktop client ...
 
 if /I "%PLATFORM%"=="win" (
-    echo   构建 Windows 便携版...
+    echo   Building Windows ...
     call npm run build:win
 ) else if /I "%PLATFORM%"=="mac" (
-    echo   构建 macOS...
+    echo   Building macOS ...
     call npm run build:mac
 ) else if /I "%PLATFORM%"=="linux" (
-    echo   构建 Linux...
+    echo   Building Linux ...
     call npm run build:linux
 ) else if /I "%PLATFORM%"=="all" (
-    echo   构建 Windows...
+    echo   Building Windows ...
     call npm run build:win
-    echo   构建 macOS...
+    if %ERRORLEVEL% NEQ 0 goto :fail
+    echo   Building macOS ...
     call npm run build:mac
-    echo   构建 Linux...
+    if %ERRORLEVEL% NEQ 0 (
+        echo   [WARNING] macOS build failed (may need macOS host)
+    )
+    echo   Building Linux ...
     call npm run build:linux
+    if %ERRORLEVEL% NEQ 0 (
+        echo   [WARNING] Linux build failed (may need Linux host)
+    )
 )
 
 if %ERRORLEVEL% NEQ 0 (
-    echo   [错误] 构建失败
-    exit /b 1
+    echo   [ERROR] Build failed
+    goto :fail
 )
 
-echo   [OK] 构建产物:
+echo   [OK] Build artifacts:
 dir /b "%DIST_DIR%\*.exe" "%DIST_DIR%\*.dmg" "%DIST_DIR%\*.AppImage" "%DIST_DIR%\*.zip" 2>nul
 
 REM ============================================================
-REM 步骤 6: 创建更新包 ZIP
+REM Step 6: Create update zip
 REM ============================================================
-echo [6/8] 创建增量更新包...
+echo [6/8] Create update package ...
 
 set "UPDATE_ZIP=clip-update-%VERSION%.zip"
 if exist "%DIST_DIR%\win-unpacked\resources" (
@@ -212,16 +232,16 @@ if exist "%DIST_DIR%\win-unpacked\resources" (
     if exist "%UPDATE_ZIP%" (
         for %%f in ("%UPDATE_ZIP%") do set "UPDATE_SIZE=%%~zf"
         set /a "UPDATE_SIZE_MB=!UPDATE_SIZE! / 1048576"
-        echo   [OK] 更新包已创建: %UPDATE_ZIP% ^(!UPDATE_SIZE_MB! MB^)
+        echo   [OK] Update package: %UPDATE_ZIP% ^(!UPDATE_SIZE_MB! MB^)
     )
 ) else (
-    echo   [警告] win-unpacked 目录不存在，跳过更新包创建
+    echo   [WARNING] win-unpacked not found, skipping update package
 )
 
 REM ============================================================
-REM 步骤 7: 验证产物
+REM Step 7: Verify
 REM ============================================================
-echo [7/8] 验证构建产物...
+echo [7/8] Verify artifacts ...
 
 set "HAS_ARTIFACTS=0"
 for %%f in ("%DIST_DIR%\*.exe" "%DIST_DIR%\*.dmg" "%DIST_DIR%\*.AppImage" "%DIST_DIR%\*.zip" "%UPDATE_ZIP%") do (
@@ -232,51 +252,84 @@ for %%f in ("%DIST_DIR%\*.exe" "%DIST_DIR%\*.dmg" "%DIST_DIR%\*.AppImage" "%DIST
 )
 
 if "!HAS_ARTIFACTS!"=="0" (
-    echo   [错误] 没有找到构建产物！
-    exit /b 1
+    echo   [ERROR] No artifacts found!
+    goto :fail
 )
 
 REM ============================================================
-REM 步骤 8: 推送代码 + 创建 Release
+REM Step 8: Push + Release
 REM ============================================================
-echo [8/8] 推送代码到远程...
+echo [8/8] Push code + Create Release ...
 
-REM 获取当前分支名
 for /f "tokens=*" %%b in ('git branch --show-current') do set "BRANCH=%%b"
 
 git push origin "!BRANCH!"
 if %ERRORLEVEL% NEQ 0 (
-    echo   [错误] 推送失败
-    exit /b 1
+    echo   [ERROR] Push failed
+    goto :fail
 )
-echo   [OK] 代码已推送
+echo   [OK] Code pushed
 
-echo   创建 GitHub Release...
+echo   Creating GitHub Release ...
 
-REM 构建 gh release create 命令
 set "RELEASE_CMD=gh release create %TAG% --repo %REPO% --title "%TAG%" --notes "%NOTES%""
 
-REM 附加所有构建产物
 for %%f in ("%DIST_DIR%\*.exe" "%DIST_DIR%\*.dmg" "%DIST_DIR%\*.AppImage" "%DIST_DIR%\*.zip") do (
     if exist %%f set "RELEASE_CMD=!RELEASE_CMD! %%f"
 )
 if exist "%UPDATE_ZIP%" set "RELEASE_CMD=!RELEASE_CMD! %UPDATE_ZIP%"
 
-%RELEASE_CMD%
+!RELEASE_CMD!
 if %ERRORLEVEL% NEQ 0 (
-    echo   [错误] Release 创建失败
-    exit /b 1
+    echo   [ERROR] Release creation failed
+    goto :fail
 )
 
 echo.
-echo =============================================
-echo   发布完成！
-echo   版本: %TAG%
-echo   Release: https://github.com/%REPO%/releases/tag/%TAG%
-echo =============================================
+echo ============================================
+echo   Release Complete!
+echo   Version: %TAG%
+echo   URL: https://github.com/%REPO%/releases/tag/%TAG%
+echo ============================================
 echo.
-echo 构建产物列表:
+echo Artifacts:
 dir /b "%DIST_DIR%\*.exe" "%DIST_DIR%\*.dmg" "%DIST_DIR%\*.AppImage" "%DIST_DIR%\*.zip" 2>nul
-if exist "%UPDATE_ZIP%" echo %UPDATE_ZIP% ^(增量更新包^)
+if exist "%UPDATE_ZIP%" echo %UPDATE_ZIP% (update package)
 echo.
+
+:end
+if "%LAUNCHED_BY_DBLCLICK%"=="1" (
+    echo Press any key to exit ...
+    pause >nul
+)
 endlocal
+exit /b 0
+
+:fail
+echo.
+echo ============================================
+echo   Release FAILED. Check errors above.
+echo ============================================
+if "%LAUNCHED_BY_DBLCLICK%"=="1" (
+    echo.
+    echo Press any key to exit ...
+    pause >nul
+)
+endlocal
+exit /b 1
+
+:usage
+echo.
+echo Release Publisher
+echo.
+echo Usage:
+echo   scripts\release.bat ^<version^> ["release notes"] [platform]
+echo.
+echo Examples:
+echo   scripts\release.bat 1.0.1 "New feature" all
+echo   scripts\release.bat 1.0.1 "" win
+echo.
+echo Platforms: win, mac, linux, all (default)
+echo.
+pause
+exit /b 0
