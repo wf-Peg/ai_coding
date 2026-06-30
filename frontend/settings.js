@@ -236,4 +236,220 @@ document.addEventListener('DOMContentLoaded', () => {
   const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
   document.getElementById('appearanceSelect').value = appearance;
   loadConfig();
+  initUpdateUI();
 });
+
+// ==================== 更新管理 ====================
+
+let updateDownloadUrl = null;
+let isUpdating = false;
+
+/**
+ * 初始化更新 UI。
+ * 读取当前版本号、更新配置，并监听来自主进程的更新事件。
+ */
+async function initUpdateUI() {
+  // 仅在 Electron 环境中显示更新功能
+  if (!window.electronAPI) {
+    document.getElementById('updateSection').style.display = 'none';
+    return;
+  }
+
+  try {
+    // 加载当前版本号
+    const version = await window.electronAPI.getVersion();
+    document.getElementById('currentVersion').textContent = 'v' + version;
+
+    // 加载更新配置
+    const config = await window.electronAPI.getUpdateConfig();
+    const toggle = document.getElementById('autoUpdateToggle');
+    toggle.checked = config.autoUpdate === true;
+    document.getElementById('updateFrequency').value = config.frequency || 'weekly';
+    onAutoUpdateToggle();
+
+    // 监听主进程推送的更新进度
+    window.electronAPI.onUpdateProgress((data) => {
+      document.getElementById('updateStatus').style.display = 'block';
+      document.getElementById('updateMessage').textContent = data.message;
+      document.getElementById('updateMessage').className = 'update-checking';
+
+      const progressBar = document.getElementById('updateProgressBar');
+      const progressFill = document.getElementById('updateProgressFill');
+      if (data.percent >= 0) {
+        progressBar.style.display = 'block';
+        progressFill.style.width = data.percent + '%';
+      }
+
+      if (data.percent >= 100) {
+        document.getElementById('updateActions').style.display = 'none';
+        document.getElementById('cancelUpdateBtn').style.display = 'none';
+      }
+    });
+
+    // 监听新版本可用
+    window.electronAPI.onUpdateAvailable((data) => {
+      showUpdateAvailable(data);
+    });
+
+    // 监听更新完成
+    window.electronAPI.onUpdateComplete(() => {
+      document.getElementById('updateMessage').textContent = '更新完成，应用即将重启...';
+      document.getElementById('updateMessage').className = 'update-available';
+    });
+
+    // 监听更新错误
+    window.electronAPI.onUpdateError((msg) => {
+      document.getElementById('updateMessage').textContent = '更新失败: ' + msg;
+      document.getElementById('updateMessage').className = 'update-error';
+      document.getElementById('updateProgressBar').style.display = 'none';
+      document.getElementById('updateNowBtn').style.display = 'block';
+      document.getElementById('cancelUpdateBtn').style.display = 'none';
+      isUpdating = false;
+    });
+  } catch (e) {
+    console.error('[Update] Init UI failed:', e);
+  }
+}
+
+/**
+ * 自动更新开关切换。
+ */
+function onAutoUpdateToggle() {
+  const checked = document.getElementById('autoUpdateToggle').checked;
+  document.getElementById('frequencyGroup').style.display = checked ? 'block' : 'none';
+  document.getElementById('autoUpdateLabel').textContent = checked ? '已开启' : '已关闭';
+  saveUpdateConfig();
+}
+
+/**
+ * 检查频率变更。
+ */
+function onFrequencyChange() {
+  saveUpdateConfig();
+}
+
+/**
+ * 保存更新配置到主进程。
+ */
+async function saveUpdateConfig() {
+  if (!window.electronAPI) return;
+  try {
+    const config = {
+      autoUpdate: document.getElementById('autoUpdateToggle').checked,
+      frequency: document.getElementById('updateFrequency').value
+    };
+    await window.electronAPI.saveUpdateConfig(config);
+  } catch (e) {
+    console.error('[Update] Save config failed:', e);
+  }
+}
+
+/**
+ * 手动检查更新。
+ */
+async function manualCheckUpdate() {
+  if (!window.electronAPI) {
+    showToast('仅在桌面客户端中可用');
+    return;
+  }
+
+  const statusEl = document.getElementById('updateStatus');
+  const msgEl = document.getElementById('updateMessage');
+  const checkBtn = document.getElementById('checkUpdateBtn');
+
+  // 显示检查中状态
+  statusEl.style.display = 'block';
+  msgEl.textContent = '正在检查更新...';
+  msgEl.className = 'update-checking';
+  document.getElementById('updateProgressBar').style.display = 'none';
+  document.getElementById('updateActions').style.display = 'none';
+  checkBtn.disabled = true;
+  checkBtn.textContent = '检查中...';
+
+  try {
+    const result = await window.electronAPI.checkForUpdate();
+
+    if (result.hasUpdate) {
+      showUpdateAvailable(result);
+    } else {
+      msgEl.textContent = result.message || '已是最新版本';
+      msgEl.className = 'update-available';
+      document.getElementById('updateActions').style.display = 'none';
+    }
+  } catch (e) {
+    msgEl.textContent = '检查失败: ' + e.message;
+    msgEl.className = 'update-error';
+  } finally {
+    checkBtn.disabled = false;
+    checkBtn.textContent = '检查更新';
+  }
+}
+
+/**
+ * 显示新版本可用信息。
+ */
+function showUpdateAvailable(data) {
+  const statusEl = document.getElementById('updateStatus');
+  const msgEl = document.getElementById('updateMessage');
+  const actionsEl = document.getElementById('updateActions');
+
+  statusEl.style.display = 'block';
+  msgEl.innerHTML = `发现新版本 <strong>v${data.version}</strong>（当前 v${data.currentVersion}）`;
+  msgEl.className = 'update-available';
+
+  // 显示更新日志
+  if (data.releaseNotes) {
+    const notesEl = document.createElement('div');
+    notesEl.className = 'update-notes';
+    notesEl.textContent = data.releaseNotes;
+    // 移除旧的更新日志
+    const oldNotes = statusEl.querySelector('.update-notes');
+    if (oldNotes) oldNotes.remove();
+    msgEl.after(notesEl);
+  }
+
+  actionsEl.style.display = 'block';
+  document.getElementById('updateNowBtn').style.display = 'block';
+  document.getElementById('cancelUpdateBtn').style.display = 'none';
+
+  // 保存下载地址
+  updateDownloadUrl = data.downloadUrl;
+}
+
+/**
+ * 开始下载并应用更新。
+ */
+async function startUpdate() {
+  if (isUpdating || !updateDownloadUrl) return;
+
+  isUpdating = true;
+  document.getElementById('updateNowBtn').style.display = 'none';
+  document.getElementById('cancelUpdateBtn').style.display = 'inline-block';
+  document.getElementById('updateProgressBar').style.display = 'block';
+
+  try {
+    const result = await window.electronAPI.downloadAndApplyUpdate(updateDownloadUrl);
+    if (!result.success) {
+      throw new Error(result.message);
+    }
+  } catch (e) {
+    console.error('[Update] Start update failed:', e);
+    document.getElementById('updateMessage').textContent = '更新失败: ' + e.message;
+    document.getElementById('updateMessage').className = 'update-error';
+    document.getElementById('updateProgressBar').style.display = 'none';
+    document.getElementById('updateNowBtn').style.display = 'block';
+    document.getElementById('cancelUpdateBtn').style.display = 'none';
+    isUpdating = false;
+  }
+}
+
+/**
+ * 取消更新（仅 UI 操作，不影响已在进行的下载）。
+ */
+function cancelUpdate() {
+  isUpdating = false;
+  document.getElementById('updateStatus').style.display = 'none';
+  document.getElementById('updateNowBtn').style.display = 'block';
+  document.getElementById('cancelUpdateBtn').style.display = 'none';
+  document.getElementById('updateProgressBar').style.display = 'none';
+}
