@@ -2,7 +2,6 @@ package com.example.clip.service;
 
 import com.example.clip.core.AiService;
 import com.example.clip.model.ClipContent;
-import com.example.clip.model.KnowledgeExtractionResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -145,7 +144,7 @@ public class WeeklyReportService {
                     String organizedContent = organizeCategoryContent(category, categoryClips, today, weekAgo);
 
                     // 检测是否存在用户思考，决定是否启用认知对话模式
-                    boolean hasThoughts = organizedContent.contains("💭 我的思考");
+                    boolean hasThoughts = organizedContent.contains("我的思考");
                     String systemPrompt = promptConfigService.getWeeklyReportPrompt();
                     if (hasThoughts) {
                         systemPrompt += promptConfigService.getWeeklyDialoguePrompt();
