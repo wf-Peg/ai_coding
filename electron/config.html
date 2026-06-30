@@ -150,6 +150,49 @@
       text-align: center;
       max-width: 300px;
     }
+  /* ===== 更新管理样式 ===== */
+    .toggle-switch {
+      position: relative; display: inline-block; width: 44px; height: 24px;
+    }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+      background: #d1d5db; border-radius: 24px; transition: 0.3s;
+    }
+    .toggle-slider::before {
+      content: ""; position: absolute; height: 18px; width: 18px;
+      left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.3s;
+    }
+    .toggle-switch input:checked + .toggle-slider { background: #667eea; }
+    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
+    .update-label { font-size: 13px; color: #666; }
+    .update-available { color: #16a34a; font-weight: 500; }
+    .update-checking { color: #666; }
+    .update-error { color: #dc2626; }
+    .update-notes {
+      background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;
+      padding: 10px; margin-top: 8px; max-height: 160px; overflow-y: auto;
+      font-size: 12px; white-space: pre-wrap; color: #166534;
+    }
+    .progress-bar {
+      width: 100%; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; margin-top: 8px;
+    }
+    .progress-fill {
+      height: 100%; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 3px; transition: width 0.3s ease; width: 0%;
+    }
+    .update-btn {
+      padding: 6px 14px; border: none; border-radius: 6px; font-size: 12px; font-weight: 500;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .update-btn.primary {
+      background: linear-gradient(135deg, #667eea, #764ba2); color: white;
+    }
+    .update-btn.primary:hover { opacity: 0.9; }
+    .update-btn.outline {
+      background: white; color: #555; border: 1px solid #d9dce1;
+    }
+    .update-btn.outline:hover { background: #f0f2f5; }
+    .update-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -279,6 +322,50 @@
         <div class="form-group">
           <label>授权码 <span class="hint">（非邮箱密码，需在邮箱设置中获取）</span></label>
           <input type="password" id="mailPassword" placeholder="SMTP授权码" />
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 软件更新区块 ===== -->
+    <div class="section" id="updateSection">
+      <div class="section-title"><span class="icon">🔄</span> 软件更新</div>
+
+      <div class="form-group">
+        <label>当前版本</label>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span id="currentVersion" style="font-weight:600;font-size:15px;">v1.0.0</span>
+          <button class="update-btn outline" id="checkUpdateBtn" onclick="manualCheckUpdate()" style="font-size:12px;">检查更新</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>自动检查更新</label>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <label class="toggle-switch">
+            <input type="checkbox" id="autoUpdateToggle" onchange="onAutoUpdateToggle()">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="update-label" id="autoUpdateLabel">已关闭</span>
+        </div>
+      </div>
+
+      <div class="form-group" id="frequencyGroup" style="display:none;">
+        <label>检查频率</label>
+        <select id="updateFrequency" onchange="onFrequencyChange()" style="width:100%;padding:8px 12px;border:1px solid #d9dce1;border-radius:6px;font-size:13px;outline:none;background:white;cursor:pointer;">
+          <option value="daily">每天</option>
+          <option value="weekly">每周</option>
+          <option value="monthly">每月</option>
+        </select>
+      </div>
+
+      <div id="updateStatus" style="display:none;margin-top:8px;">
+        <div id="updateMessage" style="font-size:13px;margin-bottom:6px;"></div>
+        <div class="progress-bar" id="updateProgressBar" style="display:none;">
+          <div class="progress-fill" id="updateProgressFill"></div>
+        </div>
+        <div id="updateActions" style="display:none;margin-top:8px;">
+          <button class="update-btn primary" id="updateNowBtn" onclick="startUpdate()" style="font-size:12px;">立即更新</button>
+          <button class="update-btn outline" id="cancelUpdateBtn" onclick="cancelUpdate()" style="display:none;font-size:12px;">取消</button>
         </div>
       </div>
     </div>
@@ -589,6 +676,172 @@
           }
         }
       });
+
+      // ===== 更新管理 =====
+      var updateDownloadUrl = null;
+      var isUpdating = false;
+
+      function initUpdateUI() {
+        // 加载当前版本号
+        api.getVersion().then(function(version) {
+          document.getElementById('currentVersion').textContent = 'v' + version;
+        }).catch(function() {});
+
+        // 加载更新配置
+        api.getUpdateConfig().then(function(config) {
+          var toggle = document.getElementById('autoUpdateToggle');
+          toggle.checked = config.autoUpdate === true;
+          document.getElementById('updateFrequency').value = config.frequency || 'weekly';
+          onAutoUpdateToggle();
+        }).catch(function() {});
+
+        // 监听更新进度
+        api.onUpdateProgress(function(data) {
+          var statusEl = document.getElementById('updateStatus');
+          var msgEl = document.getElementById('updateMessage');
+          statusEl.style.display = 'block';
+          msgEl.textContent = data.message;
+          msgEl.className = 'update-checking';
+
+          var bar = document.getElementById('updateProgressBar');
+          var fill = document.getElementById('updateProgressFill');
+          if (data.percent >= 0) {
+            bar.style.display = 'block';
+            fill.style.width = data.percent + '%';
+          }
+          if (data.percent >= 100) {
+            document.getElementById('updateActions').style.display = 'none';
+            document.getElementById('cancelUpdateBtn').style.display = 'none';
+          }
+        });
+
+        // 监听新版本可用
+        api.onUpdateAvailable(function(data) {
+          showUpdateAvailable(data);
+        });
+
+        // 监听更新完成
+        api.onUpdateComplete(function() {
+          document.getElementById('updateMessage').textContent = '更新完成，应用即将重启...';
+          document.getElementById('updateMessage').className = 'update-available';
+        });
+
+        // 监听更新错误
+        api.onUpdateError(function(msg) {
+          document.getElementById('updateMessage').textContent = '更新失败: ' + msg;
+          document.getElementById('updateMessage').className = 'update-error';
+          document.getElementById('updateProgressBar').style.display = 'none';
+          document.getElementById('updateNowBtn').style.display = 'block';
+          document.getElementById('cancelUpdateBtn').style.display = 'none';
+          isUpdating = false;
+        });
+      }
+
+      function onAutoUpdateToggle() {
+        var checked = document.getElementById('autoUpdateToggle').checked;
+        document.getElementById('frequencyGroup').style.display = checked ? 'block' : 'none';
+        document.getElementById('autoUpdateLabel').textContent = checked ? '已开启' : '已关闭';
+        saveUpdateConfig();
+      }
+
+      function onFrequencyChange() {
+        saveUpdateConfig();
+      }
+
+      function saveUpdateConfig() {
+        api.saveUpdateConfig({
+          autoUpdate: document.getElementById('autoUpdateToggle').checked,
+          frequency: document.getElementById('updateFrequency').value
+        }).catch(function(e) {
+          console.error('[Update] Save config failed:', e);
+        });
+      }
+
+      function manualCheckUpdate() {
+        var statusEl = document.getElementById('updateStatus');
+        var msgEl = document.getElementById('updateMessage');
+        var checkBtn = document.getElementById('checkUpdateBtn');
+
+        statusEl.style.display = 'block';
+        msgEl.textContent = '正在检查更新...';
+        msgEl.className = 'update-checking';
+        document.getElementById('updateProgressBar').style.display = 'none';
+        document.getElementById('updateActions').style.display = 'none';
+        checkBtn.disabled = true;
+        checkBtn.textContent = '检查中...';
+
+        api.checkForUpdate().then(function(result) {
+          if (result.hasUpdate) {
+            showUpdateAvailable(result);
+          } else {
+            msgEl.textContent = result.message || '已是最新版本';
+            msgEl.className = 'update-available';
+            document.getElementById('updateActions').style.display = 'none';
+          }
+        }).catch(function(e) {
+          msgEl.textContent = '检查失败: ' + e.message;
+          msgEl.className = 'update-error';
+        }).then(function() {
+          checkBtn.disabled = false;
+          checkBtn.textContent = '检查更新';
+        });
+      }
+
+      function showUpdateAvailable(data) {
+        var statusEl = document.getElementById('updateStatus');
+        var msgEl = document.getElementById('updateMessage');
+        var actionsEl = document.getElementById('updateActions');
+
+        statusEl.style.display = 'block';
+        msgEl.innerHTML = '发现新版本 <strong>v' + data.version + '</strong>（当前 v' + data.currentVersion + '）';
+        msgEl.className = 'update-available';
+
+        // 显示更新日志
+        if (data.releaseNotes) {
+          var notesEl = document.createElement('div');
+          notesEl.className = 'update-notes';
+          notesEl.textContent = data.releaseNotes;
+          var oldNotes = statusEl.querySelector('.update-notes');
+          if (oldNotes) oldNotes.remove();
+          msgEl.after(notesEl);
+        }
+
+        actionsEl.style.display = 'block';
+        document.getElementById('updateNowBtn').style.display = 'block';
+        document.getElementById('cancelUpdateBtn').style.display = 'none';
+        updateDownloadUrl = data.downloadUrl;
+      }
+
+      function startUpdate() {
+        if (isUpdating || !updateDownloadUrl) return;
+        isUpdating = true;
+        document.getElementById('updateNowBtn').style.display = 'none';
+        document.getElementById('cancelUpdateBtn').style.display = 'inline-block';
+        document.getElementById('updateProgressBar').style.display = 'block';
+
+        api.downloadAndApplyUpdate(updateDownloadUrl).then(function(result) {
+          if (!result.success) throw new Error(result.message);
+        }).catch(function(e) {
+          console.error('[Update] Start update failed:', e);
+          document.getElementById('updateMessage').textContent = '更新失败: ' + e.message;
+          document.getElementById('updateMessage').className = 'update-error';
+          document.getElementById('updateProgressBar').style.display = 'none';
+          document.getElementById('updateNowBtn').style.display = 'block';
+          document.getElementById('cancelUpdateBtn').style.display = 'none';
+          isUpdating = false;
+        });
+      }
+
+      function cancelUpdate() {
+        isUpdating = false;
+        document.getElementById('updateStatus').style.display = 'none';
+        document.getElementById('updateNowBtn').style.display = 'block';
+        document.getElementById('cancelUpdateBtn').style.display = 'none';
+        document.getElementById('updateProgressBar').style.display = 'none';
+      }
+
+      // 初始化更新 UI
+      initUpdateUI();
     });
   </script>
 </body>
