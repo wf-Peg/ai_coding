@@ -5,14 +5,21 @@
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
-    "pack": "electron-builder --dir",
+    "postinstall": "electron-builder install-app-deps",
     "prebuild": "node scripts/prebuild-clean.js",
-    "build:win": "npm run prebuild && electron-builder --win",
-    "build:mac": "npm run prebuild && electron-builder --mac",
-    "build:linux": "npm run prebuild && electron-builder --linux",
-    "build:all": "npm run prebuild && electron-builder --win --mac --linux",
+    "download-jre": "bash scripts/download-jre.sh",
+    "download-jre:all": "bash scripts/download-jre.sh all",
     "build:jar": "cd backend && mvn clean package -DskipTests",
-    "postinstall": "electron-builder install-app-deps"
+    "build:win": "npm run prebuild && electron-builder --win --x64",
+    "build:mac": "npm run prebuild && electron-builder --mac --arm64 --x64",
+    "build:linux": "npm run prebuild && electron-builder --linux --x64",
+    "build:all": "npm run prebuild && electron-builder --win --mac --linux",
+    "build:portable:win": "npm run prebuild && electron-builder --win portable --x64",
+    "build:portable:mac-x64": "npm run prebuild && electron-builder --mac --x64 zip",
+    "build:portable:mac-arm": "npm run prebuild && electron-builder --mac --arm64 zip",
+    "build:portable:all": "npm run prebuild && electron-builder --win portable --x64 --mac --arm64 --x64 zip",
+    "test:build": "node scripts/test-build.js",
+    "release": "bash scripts/release.sh"
   },
   "build": {
     "appId": "com.example.clip-demo",
@@ -45,10 +52,18 @@
         {
           "target": "nsis",
           "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
         }
       ],
       "signingHashAlgorithms": ["sha256"],
       "sign": null
+    },
+    "portable": {
+      "artifactName": "${productName}-portable-${version}-win-x64.${ext}",
+      "requestExecutionLevel": "user"
     },
     "nsis": {
       "oneClick": false,
@@ -65,13 +80,18 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["arm64"]
+          "arch": ["arm64", "x64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["arm64", "x64"]
         }
       ],
       "icon": "electron/icon.png",
       "category": "public.app-category.productivity",
       "hardenedRuntime": true,
-      "gatekeeperAssess": false
+      "gatekeeperAssess": false,
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "afterPack": "./electron/afterPack.js",
     "dmg": {

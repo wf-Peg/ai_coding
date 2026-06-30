@@ -70,9 +70,8 @@ build/
 out/
 release/
 
-# 嵌入式JRE/JDK（太大，使用prepare-jre.bat下载）
+# 嵌入式JRE（太大，使用prepare-jre.bat下载）
 jre/
-jdk/
 
 # 操作系统文件
 .DS_Store

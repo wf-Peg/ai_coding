@@ -170,5 +170,63 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * @param {Function} callback - 接收布尔值的回调，true 表示已最大化
    * 当用户通过系统手势或双击标题栏最大化窗口时，主进程推送此事件
    */
-  onWindowMaximized: (callback) => ipcRenderer.on('window-maximized', (event, maximized) => callback(maximized))
+  onWindowMaximized: (callback) => ipcRenderer.on('window-maximized', (event, maximized) => callback(maximized)),
+
+  // ===================== 更新管理 =====================
+
+  /**
+   * 获取当前应用版本号
+   * @returns {Promise<string>} 版本号字符串
+   */
+  getVersion: () => ipcRenderer.invoke('get-version'),
+
+  /**
+   * 获取更新配置（自动更新开关、频率）
+   * @returns {Promise<Object>} 更新配置对象
+   */
+  getUpdateConfig: () => ipcRenderer.invoke('get-update-config'),
+
+  /**
+   * 保存更新配置
+   * @param {Object} config - 更新配置 { autoUpdate, frequency }
+   * @returns {Promise<Object>} 保存结果
+   */
+  saveUpdateConfig: (config) => ipcRenderer.invoke('save-update-config', config),
+
+  /**
+   * 手动检查更新
+   * @returns {Promise<Object>} 更新检查结果 { hasUpdate, latestVersion, currentVersion, releaseNotes, downloadUrl, message }
+   */
+  checkForUpdate: () => ipcRenderer.invoke('check-for-update'),
+
+  /**
+   * 开始下载并应用更新
+   * @param {string} downloadUrl - 更新包下载地址
+   * @returns {Promise<Object>} 下载结果
+   */
+  downloadAndApplyUpdate: (downloadUrl) => ipcRenderer.invoke('download-and-apply-update', downloadUrl),
+
+  /**
+   * 监听更新进度事件
+   * @param {Function} callback - 接收 { message, percent } 的回调
+   */
+  onUpdateProgress: (callback) => ipcRenderer.on('update-progress', (event, data) => callback(data)),
+
+  /**
+   * 监听新版本可用事件
+   * @param {Function} callback - 接收 { version, notes, releaseUrl, downloadUrl } 的回调
+   */
+  onUpdateAvailable: (callback) => ipcRenderer.on('update-available', (event, data) => callback(data)),
+
+  /**
+   * 监听更新完成事件
+   * @param {Function} callback - 无参数回调
+   */
+  onUpdateComplete: (callback) => ipcRenderer.on('update-complete', () => callback()),
+
+  /**
+   * 监听更新错误事件
+   * @param {Function} callback - 接收错误消息字符串的回调
+   */
+  onUpdateError: (callback) => ipcRenderer.on('update-error', (event, msg) => callback(msg))
 });

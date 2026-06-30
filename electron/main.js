@@ -15,6 +15,9 @@ const { spawn, execSync } = require('child_process');
 const http = require('http');
 const yaml = require('js-yaml');
 
+// 更新管理器（自动更新 + 手动检查）
+const updateManager = require('./update-manager');
+
 // 懒加载的模块（避免阻塞启动）
 let finalhandler, serveStatic;
 
@@ -1040,6 +1043,9 @@ function showConfigWindow(config) {
 function quitApp() {
   isQuitting = true;
 
+  // 停止更新检查定时器
+  updateManager.stopAutoCheck();
+
   // 销毁系统托盘图标，防止退出后托盘残留
   if (tray) {
     tray.destroy();
@@ -1176,6 +1182,138 @@ function setupIPC() {
 
   // 查询当前窗口是否最大化（前端用于显示对应图标）
   ipcMain.handle('window-is-maximized', () => mainWindow?.isMaximized() ?? false);
+
+  // ===== 更新管理 =====
+
+  // 获取当前版本号
+  ipcMain.handle('get-version', async () => updateManager.getCurrentVersion());
+
+  // 获取更新配置
+  ipcMain.handle('get-update-config', async () => updateManager.loadUpdateConfig());
+
+  // 保存更新配置
+  ipcMain.handle('save-update-config', async (event, config) => {
+    updateManager.saveUpdateConfig(config);
+    // 重启定时器以应用新频率
+    updateManager.stopAutoCheck();
+    updateManager.startAutoCheck(async () => {
+      await checkForUpdates(true);
+    });
+    return { success: true };
+  });
+
+  // 手动检查更新
+  ipcMain.handle('check-for-update', async () => {
+    try {
+      return await checkForUpdates(false);
+    } catch (e) {
+      return { hasUpdate: false, message: '检查失败: ' + e.message };
+    }
+  });
+
+  // 开始下载并应用更新
+  ipcMain.handle('download-and-apply-update', async (event, downloadUrl) => {
+    try {
+      // 通过 IPC 事件向渲染进程发送进度
+      const sendProgress = (msg, percent) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('update-progress', { message: msg, percent });
+        }
+      };
+
+      sendProgress('正在下载更新...', 0);
+
+      const zipPath = await updateManager.downloadUpdate(downloadUrl, (received, total, percent) => {
+        const sizeMB = (received / 1024 / 1024).toFixed(1);
+        const totalMB = total > 0 ? (total / 1024 / 1024).toFixed(1) : '?';
+        sendProgress(`正在下载更新... ${sizeMB}MB / ${totalMB}MB`, Math.min(percent, 65));
+      });
+
+      sendProgress('正在应用更新...', 70);
+
+      await updateManager.applyUpdate(zipPath, sendProgress);
+
+      updateManager.recordCheckTime();
+
+      sendProgress('更新完成，即将重启...', 100);
+
+      // 延迟 1.5 秒后重启
+      setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('update-complete');
+        }
+        // 重启应用
+        app.relaunch();
+        app.exit(0);
+      }, 1500);
+
+      return { success: true };
+    } catch (e) {
+      console.error('[Update] Download and apply failed:', e.message);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('update-error', e.message);
+      }
+      return { success: false, message: '更新失败: ' + e.message };
+    }
+  });
+}
+
+// ==================== 更新检查逻辑 ====================
+
+/**
+ * 检查更新（自动或手动触发）。
+ * 
+ * 自动模式（silent=true）：仅在后台检查，有更新时通过托盘通知提示。
+ * 手动模式（silent=false）：返回详细结果供前端展示。
+ * 
+ * @param {boolean} silent - true=自动静默检查，false=手动检查（返回详细信息）
+ * @returns {Promise<Object>} 更新检查结果
+ */
+async function checkForUpdates(silent = true) {
+  const currentVersion = updateManager.getCurrentVersion();
+  console.log(`[Update] Checking for updates (current: ${currentVersion}, silent: ${silent})`);
+
+  const release = await updateManager.fetchLatestRelease();
+  if (!release) {
+    if (!silent) {
+      return { hasUpdate: false, currentVersion, message: '无法连接到更新服务器，请检查网络' };
+    }
+    return { hasUpdate: false };
+  }
+
+  const hasUpdate = updateManager.compareVersions(release.version, currentVersion) > 0;
+  updateManager.recordCheckTime();
+
+  if (hasUpdate) {
+    console.log(`[Update] New version available: ${release.version}`);
+
+    if (!silent && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-available', {
+        version: release.version,
+        notes: release.notes,
+        releaseUrl: release.releaseUrl,
+        downloadUrl: release.downloadUrl
+      });
+    }
+
+    return {
+      hasUpdate: true,
+      latestVersion: release.version,
+      currentVersion,
+      releaseNotes: release.notes,
+      releaseUrl: release.releaseUrl,
+      downloadUrl: release.downloadUrl,
+      message: `发现新版本 v${release.version}`
+    };
+  }
+
+  console.log('[Update] Already up to date');
+  return {
+    hasUpdate: false,
+    currentVersion,
+    latestVersion: release.version,
+    message: '已是最新版本'
+  };
 }
 
 // ==================== 应用生命周期 ====================
@@ -1239,6 +1377,11 @@ app.whenReady().then(async () => {
 
         // 创建主窗口（此时会同时创建系统托盘）
         createMainWindow(newConfig);
+
+        // 启动自动更新检查
+        updateManager.startAutoCheck(async () => {
+          await checkForUpdates(true);
+        });
       } catch (e) {
         console.error('Startup failed:', e);
         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1259,6 +1402,11 @@ app.whenReady().then(async () => {
       await new Promise(resolve => setTimeout(resolve, 3000));
 
       createMainWindow(config);
+
+      // 启动自动更新检查
+      updateManager.startAutoCheck(async () => {
+        await checkForUpdates(true);
+      });
     } catch (e) {
       console.error('Startup failed:', e);
       dialog.showErrorBox('Startup Failed',
