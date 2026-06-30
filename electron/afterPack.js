@@ -3,6 +3,11 @@
 /**
  * afterPack hook for electron-builder
  * Validates the bundled JRE and fixes binary permissions inside the packaged macOS app.
+ * 
+ * 处理场景：
+ * - macOS .app 包（dmg/zip）：修复 JRE 二进制权限，验证 macOS 可执行文件
+ * - Windows 便携版：无需额外处理
+ * - Linux AppImage：无需额外处理
  */
 const fs = require('fs');
 const path = require('path');
@@ -12,23 +17,45 @@ exports.default = async function(context) {
     return;
   }
 
-  const resourcesPath = path.join(context.appOutDir, context.packager.appInfo.productFilename + '.app', 'Contents', 'Resources');
+  const appName = context.packager.appInfo.productFilename;
+  const appPath = path.join(context.appOutDir, appName + '.app');
+  const resourcesPath = path.join(appPath, 'Contents', 'Resources');
   const jreBin = path.join(resourcesPath, 'jre', 'bin');
-  
+
   if (!fs.existsSync(jreBin)) {
-    console.log('[afterPack] No bundled JRE found, skipping permission fix');
+    console.log('[afterPack] No bundled JRE found in:', jreBin);
+    console.log('[afterPack] Checking for JRE in Resources root...');
+
+    // 检查 JRE 是否直接在 Resources 下（扁平结构）
+    const altJreBin = path.join(resourcesPath, 'jre');
+    if (fs.existsSync(altJreBin)) {
+      console.log('[afterPack] Found JRE at flat path');
+    } else {
+      console.log('[afterPack] No JRE found, skipping permission fix');
+      console.log('[afterPack] App will use system Java at runtime');
+    }
     return;
   }
 
   const javaBinary = path.join(jreBin, 'java');
+  if (!fs.existsSync(javaBinary)) {
+    console.log('[afterPack] java binary not found at:', javaBinary);
+    return;
+  }
+
   if (!isMacExecutable(javaBinary)) {
+    console.error('[afterPack] ERROR: Bundled JRE is not a macOS executable!');
+    console.error('[afterPack] Path:', javaBinary);
+    console.error('[afterPack] This usually means a Windows/Linux JRE was bundled.');
+    console.error('[afterPack] Please run: npm run download-jre (to download the correct macOS JRE)');
+    console.error('[afterPack] Then rebuild with: npm run build:mac');
     throw new Error(
-      `[afterPack] Bundled JRE is not a macOS executable: ${javaBinary}\n` +
-      'Use a macOS JRE/JDK for mac builds. The current jre/bin/java appears to be for another OS.'
+      `Bundled JRE is not a macOS executable: ${javaBinary}\n` +
+      'Use a macOS JRE/JDK for mac builds. Run: npm run download-jre'
     );
   }
 
-  console.log('[afterPack] Fixing JRE permissions in:', jreBin);
+  console.log('[afterPack] Valid macOS JRE detected, fixing permissions in:', jreBin);
   fixPermissionsRecursive(jreBin);
   console.log('[afterPack] JRE permissions fixed');
 };

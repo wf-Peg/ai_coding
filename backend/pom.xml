@@ -28,7 +28,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.compiler.encoding>UTF-8</maven.compiler.encoding>
         <!-- Java版本 -->
-        <java.version>17</java.version>
+        <java.version>21</java.version>
         <!-- Spring AI版本 -->
         <spring-ai.version>0.8.1</spring-ai.version>
     </properties>
