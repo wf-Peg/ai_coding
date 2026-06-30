@@ -610,17 +610,26 @@ public class FileStorageService {
         log.info("[FileStorageService] saveTodo called with todo: title={}, priority={}, deadline={}, completed={}, category={}", 
             todo.getTitle(), todo.getPriority(), todo.getDeadline(), todo.isCompleted(), todo.getCategory());
         try {
+            Path filePath;
             if (todo.getId() == null) {
                 // 新记录：分配全局唯一 ID
                 todo.setId(idGenerator.getAndIncrement());
+                filePath = getTodoDateFilePath();
                 log.info("[FileStorageService] Generated new id: {}", todo.getId());
             } else {
-                // 更新场景：先从所有文件中删除旧记录，再追加新记录
+                // 更新场景：先找到原始文件，再删除旧记录，保留 createdAt
+                Path originalFile = findTodoFilePath(todo.getId());
+                // 保护 createdAt：如果前端未传时间戳，从已有记录中读取
+                TodoContent existing = getTodoByIdInternal(todo.getId());
+                if (existing != null && todo.getCreatedAt() == null) {
+                    todo.setCreatedAt(existing.getCreatedAt());
+                }
                 deleteTodoFromAllFiles(todo.getId());
-                log.info("[FileStorageService] Deleted original todo from all files");
+                // 写回原始文件，找不到则用当天文件
+                filePath = (originalFile != null) ? originalFile : getTodoDateFilePath();
+                log.info("[FileStorageService] Deleted original todo, writing back to: {}", filePath);
             }
 
-            Path filePath = getTodoDateFilePath();
             log.info("[FileStorageService] Using file path: {}", filePath);
             List<TodoContent> todos = readTodoArrayFromFile(filePath);
             log.info("[FileStorageService] Read {} existing todos from file", todos.size());
@@ -635,6 +644,59 @@ public class FileStorageService {
         } catch (Exception e) {
             log.error("[FileStorageService] Exception while saving todo", e);
             e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * 查找指定待办所在的文件路径
+     * <p>
+     * 遍历 todoList 目录下所有 JSON 文件，找到包含指定 ID 的文件。
+     * 用于更新场景：确保更新后的记录写回原始文件，而非当天文件。
+     * </p>
+     *
+     * @param id 待办事项 ID
+     * @return 包含该待办的文件路径，未找到返回 null
+     */
+    private Path findTodoFilePath(Long id) {
+        try {
+            Path todoPath = storagePath.resolve("todoList");
+            if (!Files.exists(todoPath)) return null;
+            try (var stream = Files.walk(todoPath)) {
+                return stream
+                    .filter(Files::isRegularFile)
+                    .filter(p -> p.toString().endsWith(".json"))
+                    .filter(p -> {
+                        List<TodoContent> todos = readTodoArrayFromFile(p);
+                        return todos.stream().anyMatch(t -> id.equals(t.getId()));
+                    })
+                    .findFirst()
+                    .orElse(null);
+            }
+        } catch (Exception e) {
+            log.warn("[FileStorageService] Failed to find todo file for id={}", id, e);
+            return null;
+        }
+    }
+
+    /**
+     * 内部方法：根据 ID 获取待办事项（不走 controller 缓存）
+     */
+    private TodoContent getTodoByIdInternal(Long id) {
+        try {
+            Path todoPath = storagePath.resolve("todoList");
+            if (!Files.exists(todoPath)) return null;
+            try (var stream = Files.walk(todoPath)) {
+                return stream
+                    .filter(Files::isRegularFile)
+                    .filter(p -> p.toString().endsWith(".json"))
+                    .flatMap(p -> readTodoArrayFromFile(p).stream())
+                    .filter(t -> id.equals(t.getId()))
+                    .findFirst()
+                    .orElse(null);
+            }
+        } catch (Exception e) {
+            log.warn("[FileStorageService] Failed to get todo by id={}", id, e);
             return null;
         }
     }

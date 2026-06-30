@@ -1202,16 +1202,8 @@
     if (!todo) return;
     todo.completed = !todo.completed;
     try {
-      // 创建一个副本，避免发送不必要的字段
-      const updateTodo = {
-        id: todo.id,
-        title: todo.title,
-        priority: todo.priority,
-        deadline: todo.deadline,
-        completed: todo.completed,
-        category: todo.category
-      };
-      await axios.put(`${TODO_API_BASE_URL}/update`, updateTodo);
+      // 使用专用 status 接口，仅更新 completed 字段，不触发 createdAt 重置和文件迁移
+      await axios.put(`${TODO_API_BASE_URL}/${id}/status?completed=${todo.completed}`);
       renderTimeline();
       updateStats();
       showToast(todo.completed ? '已标记完成' : '已恢复待办', todo.completed ? '🎉' : '↩️');
@@ -1252,14 +1244,15 @@
     todo.priority = document.getElementById('editPriority-' + id).value;
     todo.deadline = document.getElementById('editDate-' + id).value;
     try {
-      // 创建一个副本，避免发送不必要的字段
+      // 创建一个副本，包含 createdAtTimestamp 以保留原始时间
       const updateTodo = {
         id: todo.id,
         title: todo.title,
         priority: todo.priority,
         deadline: todo.deadline,
         completed: todo.completed,
-        category: todo.category
+        category: todo.category,
+        createdAtTimestamp: todo.createdAt || todo.createdAtTimestamp || Date.now()
       };
       await axios.put(`${TODO_API_BASE_URL}/update`, updateTodo);
       renderTimeline();
