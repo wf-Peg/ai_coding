@@ -105,6 +105,14 @@ check('scripts 包含 release', () => {
   if (!pkg.scripts['release']) throw new Error('缺少 release');
 });
 
+check('scripts 包含 download-jre:win', () => {
+  if (!pkg.scripts['download-jre:win']) throw new Error('缺少 download-jre:win');
+});
+
+check('scripts 包含 release:win', () => {
+  if (!pkg.scripts['release:win']) throw new Error('缺少 release:win');
+});
+
 console.log('\n2. 关键文件检查');
 
 const requiredFiles = [
@@ -113,7 +121,9 @@ const requiredFiles = [
   'electron/update-manager.js',
   'electron/afterPack.js',
   'scripts/release.sh',
+  'scripts/release.bat',
   'scripts/download-jre.sh',
+  'scripts/download-jre.bat',
   'scripts/prebuild-clean.js',
   'frontend/index.html',
   'frontend/clip.html',

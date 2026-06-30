@@ -9,6 +9,8 @@
     "prebuild": "node scripts/prebuild-clean.js",
     "download-jre": "bash scripts/download-jre.sh",
     "download-jre:all": "bash scripts/download-jre.sh all",
+    "download-jre:win": "scripts\\download-jre.bat",
+    "download-jre:win:all": "scripts\\download-jre.bat all",
     "build:jar": "cd backend && mvn clean package -DskipTests",
     "build:win": "npm run prebuild && electron-builder --win --x64",
     "build:mac": "npm run prebuild && electron-builder --mac --arm64 --x64",
@@ -19,7 +21,8 @@
     "build:portable:mac-arm": "npm run prebuild && electron-builder --mac --arm64 zip",
     "build:portable:all": "npm run prebuild && electron-builder --win portable --x64 --mac --arm64 --x64 zip",
     "test:build": "node scripts/test-build.js",
-    "release": "bash scripts/release.sh"
+    "release": "bash scripts/release.sh",
+    "release:win": "scripts\\release.bat"
   },
   "build": {
     "appId": "com.example.clip-demo",
