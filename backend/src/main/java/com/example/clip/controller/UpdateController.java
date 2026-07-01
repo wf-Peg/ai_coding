@@ -134,7 +134,8 @@ public class UpdateController {
             result.put("tag_name", extractJsonString(body, "tag_name"));
             result.put("body", extractJsonString(body, "body"));
             result.put("html_url", extractJsonString(body, "html_url"));
-            result.put("assets", extractJsonString(body, "assets"));
+            // 提取 assets 数组的原始 JSON 文本
+            result.put("assets", extractJsonArray(body, "assets"));
 
             return result;
         } catch (Exception e) {
@@ -146,14 +147,33 @@ public class UpdateController {
     /**
      * 从 release 的 assets 数组中查找更新包下载地址。
      * 
-     * 匹配文件名包含 "clip-update" 的 asset 并返回其 browser_download_url。
+     * 在 assets JSON 数组中查找包含 "browser_download_url" 的条目，
+     * 匹配 URL 中包含 "clip-update" 的 asset 并返回其下载地址。
      * 
      * @param release release 信息 Map
      * @return 下载 URL，未找到返回 null
      */
     private String findUpdateAssetUrl(Map<String, Object> release) {
-        // 简化处理：返回 null 表示由 Electron 主进程自行解析
-        // 主进程能更完整地解析 assets JSON 数组
+        String assetsJson = (String) release.getOrDefault("assets", "");
+        if (assetsJson == null || assetsJson.isEmpty()) return null;
+
+        // 在 assets JSON 数组中查找 browser_download_url
+        // 格式: [{"name":"xxx","browser_download_url":"https://..."}]
+        int idx = 0;
+        while ((idx = assetsJson.indexOf("\"browser_download_url\"", idx)) >= 0) {
+            int colon = assetsJson.indexOf(":", idx);
+            if (colon < 0) break;
+            int startQuote = assetsJson.indexOf("\"", colon + 1);
+            if (startQuote < 0) break;
+            int endQuote = assetsJson.indexOf("\"", startQuote + 1);
+            if (endQuote < 0) break;
+            String url = assetsJson.substring(startQuote + 1, endQuote);
+            // 检查是否包含 clip-update
+            if (url.contains("clip-update")) {
+                return url;
+            }
+            idx = endQuote + 1;
+        }
         return null;
     }
 
@@ -211,5 +231,55 @@ public class UpdateController {
                 .replace("\\\"", "\"")
                 .replace("\\n", "\n")
                 .replace("\\t", "\t");
+    }
+
+    /**
+     * 从 JSON 字符串中提取字段的原始 JSON 数组/对象文本。
+     * 支持嵌套结构，通过括号匹配找到完整的值范围。
+     * 
+     * @param json  JSON 字符串
+     * @param field 字段名
+     * @return 原始 JSON 值文本，未找到返回空字符串
+     */
+    private String extractJsonArray(String json, String field) {
+        String key = "\"" + field + "\"";
+        int keyIdx = json.indexOf(key);
+        if (keyIdx < 0) return "";
+
+        int colonIdx = json.indexOf(":", keyIdx + key.length());
+        if (colonIdx < 0) return "";
+
+        // 跳过冒号后的空白
+        int start = colonIdx + 1;
+        while (start < json.length() && Character.isWhitespace(json.charAt(start))) {
+            start++;
+        }
+        if (start >= json.length()) return "";
+
+        char openChar = json.charAt(start);
+        char closeChar;
+        if (openChar == '[') closeChar = ']';
+        else if (openChar == '{') closeChar = '}';
+        else if (openChar == '"') closeChar = '"';
+        else return "";
+
+        // 括号匹配找到对应的闭合位置
+        int depth = 1;
+        int pos = start + 1;
+        boolean inString = false;
+        while (pos < json.length() && depth > 0) {
+            char c = json.charAt(pos);
+            if (c == '\\') {
+                pos++; // 跳过转义字符
+            } else if (c == '"') {
+                inString = !inString;
+            } else if (!inString) {
+                if (c == openChar && openChar != '"') depth++;
+                else if (c == closeChar) depth--;
+            }
+            pos++;
+        }
+
+        return json.substring(start, pos);
     }
 }

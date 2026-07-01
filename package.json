@@ -1,6 +1,6 @@
 {
   "name": "clip-demo",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "description": "剪藏 - 信息检索与剪藏系统",
   "main": "electron/main.js",
   "scripts": {
@@ -26,7 +26,7 @@
   },
   "build": {
     "appId": "com.example.clip-demo",
-    "productName": "剪藏",
+    "productName": "CutShelter",
     "copyright": "Copyright © 2024",
     "directories": {
       "output": "dist-electron"

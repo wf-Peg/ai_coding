@@ -10,6 +10,7 @@
 
 const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage } = require('electron');
 const path = require('path');
+const os = require('os');
 const fs = require('fs');
 const { spawn, execSync } = require('child_process');
 const http = require('http');
@@ -46,6 +47,11 @@ console.log('=== App Startup ===');
 console.log('isPackaged:', isPackaged);
 console.log('resourcesPath:', resourcesPath);
 console.log('APP_DIR:', APP_DIR);
+
+// 将 userData 目录重定向到 AppData\Local\CutShelter
+// 避免配置文件随 Windows 账户漫游，且更新应用后配置不丢失
+app.setPath('userData', path.join(os.homedir(), 'AppData', 'Local', 'CutShelter'));
+console.log('userData:', app.getPath('userData'));
 
 // ==================== 配置管理 ====================
 // 配置文件存储在 Electron 的 userData 目录下，与安装目录分离
@@ -719,12 +725,12 @@ function startFrontendServer(config) {
           // 如果路径对应的是目录或不存在文件，回退到 index.html（SPA 前端路由处理）
           if (!fs.existsSync(fp) || fs.statSync(fp).isDirectory()) {
             fs.readFile(path.join(frontendDir, 'index.html'), (e, d) => {
-              if (e) { res.writeHead(500); res.end('Error'); }
-              else { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(d); }
+              if (res.headersSent) return;
+              if (e) { res.writeHead(500); res.end('Error'); return; }
+              res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(d);
             });
           } else {
-            // 文件存在但无法访问（如权限问题）
-            res.writeHead(500); res.end('Error');
+            if (!res.headersSent) { res.writeHead(500); res.end('Error'); }
           }
         }
       }
@@ -989,10 +995,11 @@ function createMainWindow(config) {
         { type: 'separator' },
         {
           label: 'About', click: () => {
+            const ver = updateManager.getCurrentVersion();
             dialog.showMessageBox(mainWindow, {
               type: 'info', title: 'About',
-              message: 'Clip - Information Retrieval System',
-              detail: 'Version: 1.0.0\nSpring Boot + Electron\nDashScope AI'
+              message: 'CutShelter - Information Retrieval System',
+              detail: `Version: ${ver}\nSpring Boot + Electron\nDashScope AI`
             });
           }
         }
@@ -1271,55 +1278,103 @@ function setupIPC() {
  */
 async function checkForUpdates(silent = true) {
   const currentVersion = updateManager.getCurrentVersion();
-  console.log(`[Update] Checking for updates (current: ${currentVersion}, silent: ${silent})`);
+  console.log(`[Update] Checking for updates via backend (current: ${currentVersion}, silent: ${silent})`);
 
-  const release = await updateManager.fetchLatestRelease();
-  if (!release) {
+  try {
+    const config = loadConfig();
+    const url = `http://127.0.0.1:${config.backendPort}/api/update/check?currentVersion=${encodeURIComponent(currentVersion)}`;
+    const body = await httpGet(url);
+    const result = JSON.parse(body);
+
+    if (result.hasUpdate) {
+      updateManager.recordCheckTime();
+      console.log(`[Update] New version available: ${result.latestVersion}`);
+      if (!silent && mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('update-available', {
+          version: result.latestVersion,
+          notes: result.releaseNotes,
+          releaseUrl: result.releaseUrl,
+          downloadUrl: result.downloadUrl
+        });
+      }
+      return {
+        hasUpdate: true,
+        latestVersion: result.latestVersion,
+        currentVersion,
+        releaseNotes: result.releaseNotes,
+        releaseUrl: result.releaseUrl,
+        downloadUrl: result.downloadUrl,
+        message: `发现新版本 v${result.latestVersion}`
+      };
+    }
+
+    updateManager.recordCheckTime();
+    return {
+      hasUpdate: false,
+      currentVersion,
+      latestVersion: result.latestVersion,
+      message: result.message || '已是最新版本'
+    };
+  } catch (e) {
+    console.error('[Update] Backend check failed:', e.message);
     if (!silent) {
-      return { hasUpdate: false, currentVersion, message: '无法连接到更新服务器（GitHub API 不可达），请检查网络或代理设置' };
+      return { hasUpdate: false, currentVersion, message: '无法连接到后端服务，请确认后端已启动' };
     }
     return { hasUpdate: false };
   }
+}
 
-  const hasUpdate = updateManager.compareVersions(release.version, currentVersion) > 0;
-  updateManager.recordCheckTime();
-
-  if (hasUpdate) {
-    console.log(`[Update] New version available: ${release.version}`);
-
-    if (!silent && mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('update-available', {
-        version: release.version,
-        notes: release.notes,
-        releaseUrl: release.releaseUrl,
-        downloadUrl: release.downloadUrl
+/**
+ * 简单的 HTTP GET 请求（仅用于本地回环，无需代理）。
+ * @param {string} url - 请求 URL
+ * @returns {Promise<string>} 响应体
+ */
+function httpGet(url) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const req = http.request({
+      hostname: parsed.hostname,
+      port: parsed.port,
+      path: parsed.pathname + parsed.search,
+      method: 'GET',
+      timeout: 10000
+    }, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(body);
+        } else {
+          reject(new Error(`HTTP ${res.statusCode}`));
+        }
       });
-    }
-
-    return {
-      hasUpdate: true,
-      latestVersion: release.version,
-      currentVersion,
-      releaseNotes: release.notes,
-      releaseUrl: release.releaseUrl,
-      downloadUrl: release.downloadUrl,
-      message: `发现新版本 v${release.version}`
-    };
-  }
-
-  console.log('[Update] Already up to date');
-  return {
-    hasUpdate: false,
-    currentVersion,
-    latestVersion: release.version,
-    message: '已是最新版本'
-  };
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
+    req.end();
+  });
 }
 
 // ==================== 应用生命周期 ====================
 
 app.whenReady().then(async () => {
   setupIPC();
+
+  // 迁移旧配置：如果旧路径存在配置但新路径不存在，自动复制
+  const oldConfigDir = path.join(os.homedir(), 'AppData', 'Roaming', 'clip-demo', 'config');
+  const newConfigDir = path.join(app.getPath('userData'), 'config');
+  if (fs.existsSync(oldConfigDir) && !fs.existsSync(newConfigDir)) {
+    try {
+      fs.mkdirSync(newConfigDir, { recursive: true });
+      for (const f of fs.readdirSync(oldConfigDir)) {
+        fs.copyFileSync(path.join(oldConfigDir, f), path.join(newConfigDir, f));
+      }
+      console.log('[Config] Migrated from old location:', oldConfigDir);
+    } catch (e) {
+      console.error('[Config] Migration failed:', e.message);
+    }
+  }
+
   const config = loadConfig();
   console.log('Config loaded:', JSON.stringify(config, null, 2));
 
