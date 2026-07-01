@@ -159,6 +159,11 @@ public class UpdateController {
 
         // 在 assets JSON 数组中查找 browser_download_url
         // 格式: [{"name":"xxx","browser_download_url":"https://..."}]
+        // 优先级：clip-update ZIP > CutShelter ZIP > CutShelter EXE
+        String clipUpdateZip = null;
+        String cutShelterZip = null;
+        String cutShelterExe = null;
+
         int idx = 0;
         while ((idx = assetsJson.indexOf("\"browser_download_url\"", idx)) >= 0) {
             int colon = assetsJson.indexOf(":", idx);
@@ -168,13 +173,22 @@ public class UpdateController {
             int endQuote = assetsJson.indexOf("\"", startQuote + 1);
             if (endQuote < 0) break;
             String url = assetsJson.substring(startQuote + 1, endQuote);
-            // 检查是否包含 clip-update
-            if (url.contains("clip-update")) {
-                return url;
+            if (url.contains("clip-update") && url.endsWith(".zip")) {
+                clipUpdateZip = url;
+                break;  // 最优匹配，直接返回
+            }
+            if (url.contains("CutShelter") && url.endsWith(".zip") && cutShelterZip == null) {
+                cutShelterZip = url;
+            }
+            if (url.contains("CutShelter") && url.endsWith(".exe") && cutShelterExe == null) {
+                cutShelterExe = url;
             }
             idx = endQuote + 1;
         }
-        return null;
+
+        if (clipUpdateZip != null) return clipUpdateZip;
+        if (cutShelterZip != null) return cutShelterZip;
+        return cutShelterExe;  // 回退到 EXE 安装包
     }
 
     /**

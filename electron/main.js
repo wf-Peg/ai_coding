@@ -1228,6 +1228,29 @@ function setupIPC() {
         }
       };
 
+      const isExe = downloadUrl.toLowerCase().endsWith('.exe');
+
+      if (isExe) {
+        // EXE 安装包：下载后打开，提示用户手动安装
+        console.log('[Update] Downloading EXE installer:', downloadUrl);
+        sendProgress('正在下载安装包...', 0);
+        const exePath = await updateManager.downloadUpdate(downloadUrl, (received, total, percent) => {
+          const sizeMB = (received / 1024 / 1024).toFixed(1);
+          const totalMB = total > 0 ? (total / 1024 / 1024).toFixed(1) : '?';
+          sendProgress(`正在下载安装包... ${sizeMB}MB / ${totalMB}MB`, Math.min(percent, 90));
+        });
+        sendProgress('下载完成，即将打开安装包...', 100);
+        updateManager.recordCheckTime();
+        setTimeout(() => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('update-complete');
+          }
+          shell.openPath(exePath);
+        }, 1000);
+        return { success: true };
+      }
+
+      // ZIP 更新包：下载后解压替换 resources
       sendProgress('正在下载更新...', 0);
 
       const zipPath = await updateManager.downloadUpdate(downloadUrl, (received, total, percent) => {
@@ -1289,9 +1312,11 @@ async function checkForUpdates(silent = true) {
     if (result.hasUpdate) {
       updateManager.recordCheckTime();
       console.log(`[Update] New version available: ${result.latestVersion}`);
-      if (!silent && mainWindow && !mainWindow.isDestroyed()) {
+      // 自动检查（silent）时发送事件通知用户；手动检查靠返回值驱动 UI
+      if (silent && mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('update-available', {
           version: result.latestVersion,
+          currentVersion,
           notes: result.releaseNotes,
           releaseUrl: result.releaseUrl,
           downloadUrl: result.downloadUrl
@@ -1299,6 +1324,7 @@ async function checkForUpdates(silent = true) {
       }
       return {
         hasUpdate: true,
+        version: result.latestVersion,
         latestVersion: result.latestVersion,
         currentVersion,
         releaseNotes: result.releaseNotes,

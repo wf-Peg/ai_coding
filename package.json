@@ -1,6 +1,6 @@
 {
   "name": "clip-demo",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "CutShelter - Information Retrieval & Clip System",
   "main": "electron/main.js",
   "scripts": {
@@ -12,7 +12,7 @@
     "download-jre:win": "scripts\\download-jre.bat",
     "download-jre:win:all": "scripts\\download-jre.bat all",
     "build:jar": "cd backend && mvn clean package -DskipTests",
-    "build:win": "npm run prebuild && electron-builder --win --x64",
+    "build:win": "npm run prebuild && electron-builder --win --x64 && node scripts/build-update-zip.js",
     "build:mac": "npm run prebuild && electron-builder --mac --arm64 --x64",
     "build:linux": "npm run prebuild && electron-builder --linux --x64",
     "build:all": "npm run prebuild && electron-builder --win --mac --linux",

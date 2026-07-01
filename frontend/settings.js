@@ -415,17 +415,41 @@ function showUpdateAvailable(data) {
   const actionsEl = document.getElementById('updateActions');
 
   statusEl.style.display = 'block';
-  msgEl.innerHTML = `发现新版本 <strong>v${data.version}</strong>（当前 v${data.currentVersion}）`;
+  msgEl.innerHTML = `发现新版本 <strong>v${data.version || data.latestVersion}</strong>（当前 v${data.currentVersion || '未知'}）`;
   msgEl.className = 'update-available';
 
-  // 显示更新日志
+  // 显示更新日志（折叠长文本）
   if (data.releaseNotes) {
-    const notesEl = document.createElement('div');
-    notesEl.className = 'update-notes';
-    notesEl.textContent = data.releaseNotes;
-    // 移除旧的更新日志
     const oldNotes = statusEl.querySelector('.update-notes');
     if (oldNotes) oldNotes.remove();
+
+    const notesEl = document.createElement('div');
+    notesEl.className = 'update-notes';
+    const fullText = data.releaseNotes;
+    const maxPreview = 200;
+    if (fullText.length > maxPreview) {
+      const preview = document.createElement('span');
+      preview.textContent = fullText.substring(0, maxPreview) + '... ';
+      const more = document.createElement('span');
+      more.textContent = fullText.substring(maxPreview);
+      more.style.display = 'none';
+      const toggle = document.createElement('a');
+      toggle.textContent = '展开全部';
+      toggle.href = 'javascript:void(0)';
+      toggle.className = 'update-notes-toggle';
+      toggle.onclick = () => {
+        const isHidden = more.style.display === 'none';
+        more.style.display = isHidden ? 'inline' : 'none';
+        preview.style.display = isHidden ? 'none' : 'inline';
+        toggle.textContent = isHidden ? '收起' : '展开全部';
+      };
+      notesEl.appendChild(preview);
+      notesEl.appendChild(more);
+      notesEl.appendChild(document.createTextNode(' '));
+      notesEl.appendChild(toggle);
+    } else {
+      notesEl.textContent = fullText;
+    }
     msgEl.after(notesEl);
   }
 
@@ -435,6 +459,7 @@ function showUpdateAvailable(data) {
 
   // 保存下载地址
   updateDownloadUrl = data.downloadUrl;
+  console.log('[Update] Available, downloadUrl:', updateDownloadUrl || '(none)');
 }
 
 /**
@@ -442,8 +467,20 @@ function showUpdateAvailable(data) {
  */
 async function startUpdate() {
   const electronAPI = getElectronAPI();
-  if (isUpdating || !updateDownloadUrl || !electronAPI) return;
+  if (!electronAPI) {
+    showToast('仅在桌面客户端中可用');
+    return;
+  }
+  if (isUpdating) return;
+  if (!updateDownloadUrl) {
+    console.error('[Update] No download URL available');
+    const msgEl = document.getElementById('updateMessage');
+    msgEl.textContent = '更新失败：未找到下载地址，请确认 Release 中已上传更新包';
+    msgEl.className = 'update-error';
+    return;
+  }
 
+  console.log('[Update] Starting update download:', updateDownloadUrl);
   isUpdating = true;
   document.getElementById('updateNowBtn').style.display = 'none';
   document.getElementById('cancelUpdateBtn').style.display = 'inline-block';
