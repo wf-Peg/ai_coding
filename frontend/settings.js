@@ -275,7 +275,7 @@ async function initUpdateUI() {
     document.getElementById('frequencyGroup').style.display = 'none';
     const statusEl = document.getElementById('updateStatus');
     statusEl.style.display = 'block';
-    document.getElementById('updateMessage').textContent = '需要桌面客户端支持，请使用剪藏桌面应用';
+    document.getElementById('updateMessage').textContent = '需要桌面客户端支持，请使用 CutShelter 桌面应用';
     document.getElementById('updateMessage').className = 'update-available';
     return;
   }

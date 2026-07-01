@@ -1,5 +1,5 @@
 /**
- * Clip 剪藏 - Electron 主进程入口
+ * CutShelter - Electron 主进程入口
  * 
  * 职责：
  * 1. 管理应用生命周期（启动、退出、托盘）
@@ -785,7 +785,7 @@ function createTray() {
   }
 
   tray = new Tray(trayIcon);
-  tray.setToolTip('剪藏');
+  tray.setToolTip('CutShelter');
 
   // 右键菜单
   const contextMenu = Menu.buildFromTemplate([

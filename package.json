@@ -1,7 +1,7 @@
 {
   "name": "clip-demo",
-  "version": "1.0.4",
-  "description": "剪藏 - 信息检索与剪藏系统",
+  "version": "1.0.5",
+  "description": "CutShelter - Information Retrieval & Clip System",
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",

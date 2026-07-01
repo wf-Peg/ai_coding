@@ -2,7 +2,8 @@
 # 格式: 日期 时间 | 提交说明
 # 每次提交代码后自动追加到此文件
 
-2026-07-01 14:30 | 更新检查走后端代理 + 修复ERR_HTTP_HEADERS_SENT + 配置迁移CutShilter + 产品名改CutShilter
+2026-07-01 15:00 | CutShelter品牌统一 + 前端标题加英文名 + 后端日志同步到AppData\Local\CutShelter\logs
+2026-07-01 14:30 | 更新检查走后端代理 + 修复ERR_HTTP_HEADERS_SENT + 配置迁移CutShelter + 产品名改CutShelter
 2026-07-01 13:45 | 更新检查支持系统代理：Electron net.fetch + 手动HTTPS隧道回退
 2026-07-01 13:00 | 更新UI重构：移至保存按钮上方 + 统一保存 + Token认证 + 错误信息改进
 2026-07-01 11:10 | 话题/设置页补充Obsidian滚动条 + 修复iframe中electronAPI不可见

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>剪藏 - 设置</title>
+  <title>CutShelter - 设置</title>
   <style>
     /* ===== 全局重置与基础样式 ===== */
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -18,6 +18,7 @@
       color: white; padding: 24px 32px;
     }
     .header h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+    .brand-subtitle { font-size: 0.55em; font-weight: 400; color: #999; letter-spacing: 0.04em; vertical-align: middle; margin-left: 6px; }
     .header p { font-size: 13px; opacity: 0.85; }
 
     /* ===== 主内容区域（可滚动） ===== */
@@ -199,7 +200,7 @@
 
   <!-- ==================== 页面头部 ==================== -->
   <div class="header">
-    <h1 id="headerTitle">⚙️ 剪藏 - 设置</h1>
+    <h1 id="headerTitle">⚙️ CutShelter <span class="brand-subtitle">剪藏</span> - 设置</h1>
     <p id="headerDesc">配置应用参数</p>
   </div>
 
@@ -486,7 +487,7 @@
       api.onFirstRun(function() {
         isFirstRun = true;
         document.getElementById('firstRunNotice').style.display = 'block';
-        document.getElementById('headerTitle').textContent = '剪藏 - 初始设置';
+        document.getElementById('headerTitle').textContent = 'CutShelter - 初始设置';
         document.getElementById('headerDesc').textContent = '首次使用，请完成配置后启动';
         // 首次运行时没有已运行的服务，因此不需要退出按钮
         document.getElementById('btnQuit').style.display = 'none';
