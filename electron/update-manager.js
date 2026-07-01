@@ -15,9 +15,10 @@
  * - 更新完成后重启应用
  */
 
-const { app, BrowserWindow } = require('electron');
+const { app, net } = require('electron');
 const https = require('https');
 const http = require('http');
+const tls = require('tls');
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
@@ -108,33 +109,172 @@ function getCurrentVersion() {
   }
 }
 
+// ==================== 代理检测 ====================
+
+/**
+ * 检测系统代理 URL。
+ * 优先级：HTTPS_PROXY > https_proxy > HTTP_PROXY > http_proxy > Windows 系统代理
+ * Clash 等代理工具会自动设置系统代理，Electron 的 net 模块会自动跟随，
+ * 但 Node.js 原生 https 模块不会，所以需要手动检测作为回退。
+ * 
+ * @returns {string|null} 代理 URL，如 "http://127.0.0.1:7890"，无代理返回 null
+ */
+function detectProxyUrl() {
+  const envVars = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'];
+  for (const v of envVars) {
+    const val = process.env[v];
+    if (val) {
+      console.log(`[Update] Detected proxy from env ${v}: ${val}`);
+      return val;
+    }
+  }
+
+  // 尝试读取 Windows 系统代理设置
+  if (process.platform === 'win32') {
+    try {
+      const { execSync } = require('child_process');
+      const result = execSync('reg query "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyServer 2>nul', { encoding: 'utf-8', timeout: 3000 });
+      const match = result.match(/ProxyServer\s+REG_SZ\s+(.+)/);
+      if (match && match[1].trim()) {
+        const proxy = match[1].trim();
+        const url = proxy.startsWith('http') ? proxy : `http://${proxy}`;
+        console.log(`[Update] Detected proxy from Windows settings: ${url}`);
+        return url;
+      }
+    } catch (e) {
+      // 忽略错误
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 创建通过 HTTP 代理隧道的 HTTPS Agent。
+ * 与 Electron net 模块互补：net 模块为异步 fetch 走代理，此 Agent 为同步流式下载走代理。
+ * 
+ * @param {string} proxyUrl - 代理 URL（如 http://127.0.0.1:7890）
+ * @returns {https.Agent}
+ */
+function createProxyAgent(proxyUrl) {
+  const parsed = new URL(proxyUrl);
+  const proxyHost = parsed.hostname;
+  const proxyPort = parseInt(parsed.port, 10) || 8080;
+
+  return new https.Agent({
+    keepAlive: true,
+    createConnection: (options, callback) => {
+      const targetHost = options.hostname || options.host;
+      const targetPort = options.port || 443;
+
+      const req = http.request({
+        host: proxyHost,
+        port: proxyPort,
+        method: 'CONNECT',
+        path: `${targetHost}:${targetPort}`,
+        headers: {
+          'Proxy-Connection': 'Keep-Alive',
+          'User-Agent': 'Clip-App-Update/1.0'
+        },
+        timeout: 10000
+      });
+
+      req.on('connect', (res, socket) => {
+        if (res.statusCode !== 200) {
+          callback(new Error(`Proxy CONNECT failed: ${res.statusCode} ${res.statusMessage}`));
+          return;
+        }
+        const tlsSocket = tls.connect({
+          socket,
+          servername: targetHost,
+          rejectUnauthorized: true
+        }, () => {
+          callback(null, tlsSocket);
+        });
+        tlsSocket.on('error', callback);
+      });
+
+      req.on('error', (err) => {
+        callback(new Error(`Proxy connection to ${proxyHost}:${proxyPort} failed: ${err.message}`));
+      });
+      req.on('timeout', () => {
+        req.destroy();
+        callback(new Error(`Proxy CONNECT to ${targetHost}:${targetPort} via ${proxyHost}:${proxyPort} timed out`));
+      });
+
+      req.end();
+    }
+  });
+}
+
 // ==================== GitHub API 请求 ====================
+
+/** 缓存的代理 URL（首次检测后缓存） */
+let cachedProxyUrl = undefined;
+
+/**
+ * 获取代理 URL（带缓存，只检测一次）。
+ */
+function getProxyUrl() {
+  if (cachedProxyUrl === undefined) {
+    cachedProxyUrl = detectProxyUrl();
+  }
+  return cachedProxyUrl;
+}
 
 /**
  * 发送 HTTPS GET 请求。
+ * 优先使用 Electron net.fetch（自动跟随系统代理），
+ * 失败时回退到 Node.js https + 手动代理隧道。
  * 
  * @param {string} url - 请求 URL
  * @param {Object} headers - 额外请求头
  * @returns {Promise<string>} 响应体字符串
  */
-function httpsGet(url, headers = {}) {
+async function httpsGet(url, headers = {}) {
+  const defaultHeaders = {
+    'User-Agent': 'Clip-App-Update-Checker/1.0',
+    'Accept': 'application/vnd.github.v3+json',
+    ...headers
+  };
+
+  // 方案 1：Electron net.fetch（自动跟随系统代理）
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const response = await net.fetch(url, {
+      method: 'GET',
+      headers: defaultHeaders,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${await response.text().then(t => t.substring(0, 200))}`);
+    }
+    return await response.text();
+  } catch (e) {
+    console.log('[Update] net.fetch failed, trying manual proxy:', e.message);
+  }
+
+  // 方案 2：Node.js https + 手动代理隧道
+  const proxyUrl = getProxyUrl();
+  const agent = proxyUrl ? createProxyAgent(proxyUrl) : undefined;
+
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
     const options = {
       hostname: parsed.hostname,
       path: parsed.pathname + parsed.search,
       method: 'GET',
-      headers: {
-        'User-Agent': 'Clip-App-Update-Checker/1.0',
-        'Accept': 'application/vnd.github.v3+json',
-        ...headers
-      },
-      timeout: 15000
+      headers: defaultHeaders,
+      timeout: 15000,
+      agent
     };
 
     const req = https.request(options, (res) => {
-      // 处理重定向
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        // 重定向也走代理
         httpsGet(res.headers.location, headers).then(resolve).catch(reject);
         return;
       }
@@ -151,11 +291,11 @@ function httpsGet(url, headers = {}) {
     });
 
     req.on('error', (err) => {
-      reject(new Error(`Network error: ${err.message}`));
+      reject(new Error(`Network error: ${err.message}${proxyUrl ? ' (via proxy ' + proxyUrl + ')' : ' (direct)'}`));
     });
     req.on('timeout', () => {
       req.destroy();
-      reject(new Error(`Request to ${parsed.hostname} timed out after 15s`));
+      reject(new Error(`Request to ${parsed.hostname} timed out after 15s${proxyUrl ? ' (via proxy ' + proxyUrl + ')' : ' (direct)'}`));
     });
 
     req.end();
@@ -285,6 +425,10 @@ function downloadUpdate(downloadUrl, onProgress) {
     const isHttps = parsed.protocol === 'https:';
     const transport = isHttps ? https : http;
 
+    // 下载也走代理
+    const proxyUrl = getProxyUrl();
+    const agent = proxyUrl ? createProxyAgent(proxyUrl) : undefined;
+
     const options = {
       hostname: parsed.hostname,
       path: parsed.pathname + parsed.search,
@@ -293,7 +437,8 @@ function downloadUpdate(downloadUrl, onProgress) {
         'User-Agent': 'Clip-App-Update-Downloader/1.0',
         'Accept': 'application/octet-stream'
       },
-      timeout: 300000 // 5 分钟超时
+      timeout: 300000, // 5 分钟超时
+      agent
     };
 
     const req = transport.request(options, (res) => {
@@ -340,10 +485,12 @@ function downloadUpdate(downloadUrl, onProgress) {
       res.pipe(fileStream);
     });
 
-    req.on('error', reject);
+    req.on('error', (err) => {
+      reject(new Error(`Download error: ${err.message}${proxyUrl ? ' (via proxy ' + proxyUrl + ')' : ' (direct)'}`));
+    });
     req.on('timeout', () => {
       req.destroy();
-      reject(new Error('Download timeout'));
+      reject(new Error(`Download from ${parsed.hostname} timed out${proxyUrl ? ' (via proxy ' + proxyUrl + ')' : ' (direct)'}`));
     });
 
     req.end();
