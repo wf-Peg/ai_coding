@@ -324,6 +324,16 @@
             .form-row { flex-direction: column; }
             .container { padding: 16px; }
         }
+
+        /* ===== Obsidian 风格全局滚动条 ===== */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; transition: background 0.2s ease; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
+        * { scrollbar-width: thin; scrollbar-color: var(--border-light) transparent; }
+        html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: var(--border); }
+        html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
+        html[data-theme="dark"] * { scrollbar-color: var(--border) transparent; }
     </style>
 </head>
 <body>

@@ -290,6 +290,16 @@
         html[data-theme="dark"] .badge-inactive { background: #3a3a3a; color: #6a6a6a; }
         html[data-theme="dark"] .test-result.success { background: #1a3a2a; color: #4ecb71; }
         html[data-theme="dark"] .test-result.error { background: #3a1a1a; color: #e06060; }
+
+        /* ===== Obsidian 风格全局滚动条 ===== */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; transition: background 0.2s ease; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
+        * { scrollbar-width: thin; scrollbar-color: var(--border-light) transparent; }
+        html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: var(--border); }
+        html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
+        html[data-theme="dark"] * { scrollbar-color: var(--border) transparent; }
     </style>
 </head>
 <body>

@@ -245,30 +245,53 @@ let updateDownloadUrl = null;
 let isUpdating = false;
 
 /**
+ * 获取 Electron API（兼容 iframe 模式）。
+ * settings.html 在 index.html 的 iframe 中加载，preload 脚本只注入顶层窗口，
+ * 因此需要从 window.parent 获取 electronAPI。
+ */
+function getElectronAPI() {
+  return window.electronAPI || (window.parent && window.parent.electronAPI);
+}
+
+/**
  * 初始化更新 UI。
  * 读取当前版本号、更新配置，并监听来自主进程的更新事件。
  */
 async function initUpdateUI() {
-  // 仅在 Electron 环境中显示更新功能
-  if (!window.electronAPI) {
-    document.getElementById('updateSection').style.display = 'none';
+  const section = document.getElementById('updateSection');
+  section.style.display = 'block';
+
+  const electronAPI = getElectronAPI();
+
+  if (!electronAPI) {
+    // 非 Electron 环境：显示版本号 + 提示不可用，隐藏交互控件
+    document.getElementById('currentVersion').parentElement.style.display = 'flex';
+    document.getElementById('currentVersion').textContent = 'v1.0.0';
+    document.getElementById('checkUpdateBtn').style.display = 'none';
+    const toggleForm = document.getElementById('autoUpdateToggle').closest('.form-group');
+    if (toggleForm) toggleForm.style.display = 'none';
+    document.getElementById('frequencyGroup').style.display = 'none';
+    const statusEl = document.getElementById('updateStatus');
+    statusEl.style.display = 'block';
+    document.getElementById('updateMessage').textContent = '需要桌面客户端支持，请使用剪藏桌面应用';
+    document.getElementById('updateMessage').className = 'update-available';
     return;
   }
 
   try {
     // 加载当前版本号
-    const version = await window.electronAPI.getVersion();
+    const version = await electronAPI.getVersion();
     document.getElementById('currentVersion').textContent = 'v' + version;
 
     // 加载更新配置
-    const config = await window.electronAPI.getUpdateConfig();
+    const config = await electronAPI.getUpdateConfig();
     const toggle = document.getElementById('autoUpdateToggle');
     toggle.checked = config.autoUpdate === true;
     document.getElementById('updateFrequency').value = config.frequency || 'weekly';
     onAutoUpdateToggle();
 
     // 监听主进程推送的更新进度
-    window.electronAPI.onUpdateProgress((data) => {
+    electronAPI.onUpdateProgress((data) => {
       document.getElementById('updateStatus').style.display = 'block';
       document.getElementById('updateMessage').textContent = data.message;
       document.getElementById('updateMessage').className = 'update-checking';
@@ -287,18 +310,18 @@ async function initUpdateUI() {
     });
 
     // 监听新版本可用
-    window.electronAPI.onUpdateAvailable((data) => {
+    electronAPI.onUpdateAvailable((data) => {
       showUpdateAvailable(data);
     });
 
     // 监听更新完成
-    window.electronAPI.onUpdateComplete(() => {
+    electronAPI.onUpdateComplete(() => {
       document.getElementById('updateMessage').textContent = '更新完成，应用即将重启...';
       document.getElementById('updateMessage').className = 'update-available';
     });
 
     // 监听更新错误
-    window.electronAPI.onUpdateError((msg) => {
+    electronAPI.onUpdateError((msg) => {
       document.getElementById('updateMessage').textContent = '更新失败: ' + msg;
       document.getElementById('updateMessage').className = 'update-error';
       document.getElementById('updateProgressBar').style.display = 'none';
@@ -332,13 +355,14 @@ function onFrequencyChange() {
  * 保存更新配置到主进程。
  */
 async function saveUpdateConfig() {
-  if (!window.electronAPI) return;
+  const electronAPI = getElectronAPI();
+  if (!electronAPI) return;
   try {
     const config = {
       autoUpdate: document.getElementById('autoUpdateToggle').checked,
       frequency: document.getElementById('updateFrequency').value
     };
-    await window.electronAPI.saveUpdateConfig(config);
+    await electronAPI.saveUpdateConfig(config);
   } catch (e) {
     console.error('[Update] Save config failed:', e);
   }
@@ -348,7 +372,8 @@ async function saveUpdateConfig() {
  * 手动检查更新。
  */
 async function manualCheckUpdate() {
-  if (!window.electronAPI) {
+  const electronAPI = getElectronAPI();
+  if (!electronAPI) {
     showToast('仅在桌面客户端中可用');
     return;
   }
@@ -367,7 +392,7 @@ async function manualCheckUpdate() {
   checkBtn.textContent = '检查中...';
 
   try {
-    const result = await window.electronAPI.checkForUpdate();
+    const result = await electronAPI.checkForUpdate();
 
     if (result.hasUpdate) {
       showUpdateAvailable(result);
@@ -420,7 +445,8 @@ function showUpdateAvailable(data) {
  * 开始下载并应用更新。
  */
 async function startUpdate() {
-  if (isUpdating || !updateDownloadUrl) return;
+  const electronAPI = getElectronAPI();
+  if (isUpdating || !updateDownloadUrl || !electronAPI) return;
 
   isUpdating = true;
   document.getElementById('updateNowBtn').style.display = 'none';
@@ -428,7 +454,7 @@ async function startUpdate() {
   document.getElementById('updateProgressBar').style.display = 'block';
 
   try {
-    const result = await window.electronAPI.downloadAndApplyUpdate(updateDownloadUrl);
+    const result = await electronAPI.downloadAndApplyUpdate(updateDownloadUrl);
     if (!result.success) {
       throw new Error(result.message);
     }
