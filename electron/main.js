@@ -1276,7 +1276,7 @@ async function checkForUpdates(silent = true) {
   const release = await updateManager.fetchLatestRelease();
   if (!release) {
     if (!silent) {
-      return { hasUpdate: false, currentVersion, message: '无法连接到更新服务器，请检查网络' };
+      return { hasUpdate: false, currentVersion, message: '无法连接到更新服务器（GitHub API 不可达），请检查网络或代理设置' };
     }
     return { hasUpdate: false };
   }

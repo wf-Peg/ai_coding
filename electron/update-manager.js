@@ -150,10 +150,12 @@ function httpsGet(url, headers = {}) {
       });
     });
 
-    req.on('error', reject);
+    req.on('error', (err) => {
+      reject(new Error(`Network error: ${err.message}`));
+    });
     req.on('timeout', () => {
       req.destroy();
-      reject(new Error('Request timeout'));
+      reject(new Error(`Request to ${parsed.hostname} timed out after 15s`));
     });
 
     req.end();
@@ -164,12 +166,19 @@ function httpsGet(url, headers = {}) {
 
 /**
  * 从 GitHub Releases API 获取最新版本信息。
+ * 使用 GH_TOKEN 环境变量认证以避免 API 速率限制。
  * 
  * @returns {Promise<Object|null>} 包含 version, notes, downloadUrl, releaseUrl 的对象，失败返回 null
  */
 async function fetchLatestRelease() {
+  let lastError = null;
+  
+  // 尝试带 Token 请求（避免速率限制）
+  const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
   try {
-    const body = await httpsGet(GITHUB_API);
+    const body = await httpsGet(GITHUB_API, headers);
     const release = JSON.parse(body);
 
     // 提取版本号（去掉 "v" 前缀）
@@ -195,9 +204,42 @@ async function fetchLatestRelease() {
       publishedAt: release.published_at || ''
     };
   } catch (e) {
-    console.error('[Update] Failed to fetch latest release:', e.message);
-    return null;
+    lastError = e.message;
+    console.error('[Update] Failed to fetch latest release:', lastError);
   }
+
+  // Token 请求失败，尝试无 Token 请求（如果之前用了 Token）
+  if (token) {
+    try {
+      console.log('[Update] Retrying without token...');
+      const body = await httpsGet(GITHUB_API, {});
+      const release = JSON.parse(body);
+      const tagName = release.tag_name || '';
+      const version = tagName.replace(/^[vV]/, '');
+      let downloadUrl = null;
+      const assets = release.assets || [];
+      for (const asset of assets) {
+        if (asset.name && asset.name.includes('clip-update') && asset.name.endsWith('.zip')) {
+          downloadUrl = asset.browser_download_url;
+          break;
+        }
+      }
+      return {
+        version,
+        tagName,
+        notes: release.body || '',
+        releaseUrl: release.html_url || '',
+        downloadUrl,
+        publishedAt: release.published_at || ''
+      };
+    } catch (e2) {
+      lastError = e2.message;
+      console.error('[Update] Retry without token also failed:', lastError);
+    }
+  }
+
+  console.error(`[Update] All attempts failed. Last error: ${lastError}`);
+  return null;
 }
 
 /**

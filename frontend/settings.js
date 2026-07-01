@@ -93,6 +93,8 @@ async function saveConfig() {
     if (response.ok) {
       showToast('设置已保存');
       onProviderChange();
+      // 同步保存更新配置
+      saveUpdateConfig();
     } else {
       showToast('保存失败');
     }
@@ -341,18 +343,12 @@ function onAutoUpdateToggle() {
   const checked = document.getElementById('autoUpdateToggle').checked;
   document.getElementById('frequencyGroup').style.display = checked ? 'block' : 'none';
   document.getElementById('autoUpdateLabel').textContent = checked ? '已开启' : '已关闭';
-  saveUpdateConfig();
-}
-
-/**
- * 检查频率变更。
- */
-function onFrequencyChange() {
-  saveUpdateConfig();
+  // 不自动保存，由"保存设置"按钮统一触发
 }
 
 /**
  * 保存更新配置到主进程。
+ * 由"保存设置"按钮统一调用，不在 toggle/select 切换时自动保存。
  */
 async function saveUpdateConfig() {
   const electronAPI = getElectronAPI();

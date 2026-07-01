@@ -175,6 +175,11 @@
             color: #bbf7d0;
         }
 
+        .section-divider {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 28px 0 20px;
+        }
         .actions {
             display: flex;
             gap: 8px;
@@ -371,10 +376,6 @@
             <button class="btn btn-outline" id="testDeepseekBtn" onclick="testDeepseek()">测试连接</button>
         </div>
 
-        <div class="actions">
-            <button class="btn btn-primary" id="saveBtn" onclick="saveConfig()">保存设置</button>
-        </div>
-
         <!-- 更新管理 -->
         <div class="section" id="updateSection">
             <div class="section-title">软件更新</div>
@@ -402,7 +403,7 @@
 
             <div class="form-group" id="frequencyGroup" style="display: none;">
                 <label class="form-label">检查频率</label>
-                <select id="updateFrequency" onchange="onFrequencyChange()">
+                <select id="updateFrequency">
                     <option value="daily">每天</option>
                     <option value="weekly">每周</option>
                     <option value="monthly">每月</option>
@@ -424,6 +425,12 @@
                     </button>
                 </div>
             </div>
+        </div>
+
+        <hr class="section-divider" />
+
+        <div class="actions">
+            <button class="btn btn-primary" id="saveBtn" onclick="saveConfig()">保存设置</button>
         </div>
     </div>
 
