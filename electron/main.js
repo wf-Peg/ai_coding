@@ -1,4 +1,4 @@
-/**
+﻿/**
  * CutShelter - Electron 主进程入口
  * 
  * 职责：
@@ -8,13 +8,16 @@
  * 4. 提供 IPC 通道供渲染进程调用
  */
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, Notification } = require('electron');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const { spawn, execSync } = require('child_process');
 const http = require('http');
 const yaml = require('js-yaml');
+
+// Fix console Chinese encoding on Windows
+try { require('child_process').execSync('chcp 65001', { stdio: 'ignore' }); } catch {}
 
 // 更新管理器（自动更新 + 手动检查）
 const updateManager = require('./update-manager');
@@ -47,6 +50,32 @@ console.log('=== App Startup ===');
 console.log('isPackaged:', isPackaged);
 console.log('resourcesPath:', resourcesPath);
 console.log('APP_DIR:', APP_DIR);
+
+// Windows 通知要求：必须设置 AppUserModelId 且有 Start Menu 快捷方式
+if (process.platform === 'win32') {
+  app.setAppUserModelId(process.execPath);
+
+  // 自动创建 Start Menu 快捷方式（通知系统要求，否则通知不会弹出）
+  try {
+    const shortcutDir = path.join(os.homedir(), 'AppData', 'Roaming', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'CutShelter');
+    if (!fs.existsSync(shortcutDir)) {
+      fs.mkdirSync(shortcutDir, { recursive: true });
+    }
+    const shortcutPath = path.join(shortcutDir, 'CutShelter.lnk');
+    if (!fs.existsSync(shortcutPath)) {
+      shell.writeShortcutLink(shortcutPath, 'create', {
+        target: process.execPath,
+        args: '',
+        description: 'CutShelter - AI 驱动的剪藏与内容整理工具',
+        icon: process.execPath,
+        iconIndex: 0
+      });
+      console.log('[Startup] Created Start Menu shortcut for notifications');
+    }
+  } catch (e) {
+    console.warn('[Startup] Failed to create Start Menu shortcut:', e.message);
+  }
+}
 
 // 将 userData 目录重定向到 AppData\Local\CutShelter
 // 避免配置文件随 Windows 账户漫游，且更新应用后配置不丢失
@@ -1086,6 +1115,9 @@ function quitApp() {
   // 停止更新检查定时器
   updateManager.stopAutoCheck();
 
+  // 停止提醒调度器
+  stopReminderScheduler();
+
   // 销毁系统托盘图标，防止退出后托盘残留
   if (tray) {
     tray.destroy();
@@ -1414,6 +1446,127 @@ function httpGet(url) {
   });
 }
 
+/**
+ * 简单的 HTTP PUT 请求（仅用于本地回环，标记 reminderFired）。
+ * @param {string} url - 请求 URL
+ * @returns {Promise<string>} 响应体
+ */
+function httpPut(url) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const req = http.request({
+      hostname: parsed.hostname,
+      port: parsed.port,
+      path: parsed.pathname + parsed.search,
+      method: 'PUT',
+      timeout: 5000
+    }, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(body);
+        } else {
+          reject(new Error(`HTTP ${res.statusCode}`));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
+    req.end();
+  });
+}
+
+// ==================== 提醒调度器 ====================
+
+/** 提醒调度器定时器引用 */
+let reminderTimer = null;
+
+/**
+ * 弹出系统原生通知（Windows 使用 node-notifier，macOS 使用 Electron Notification）。
+ * @param {string} title - 通知标题
+ * @param {string} body - 通知正文
+ */
+function showNotification(title, body) {
+  return new Promise((resolve) => {
+    const notifier = require('node-notifier');
+    notifier.notify({
+      title: title,
+      message: body,
+      sound: true,
+      wait: false,
+      timeout: 10
+    }, (err) => {
+      if (err) {
+        console.error('[Reminder] node-notifier error:', err.message);
+      }
+      resolve();
+    });
+  });
+}
+
+/**
+ * 启动待办提醒调度器。
+ * 每 30 秒轮询后端 /api/todo/due-reminders 接口，
+ * 对到期的提醒通过 Electron Notification API 弹出系统原生通知，
+ * 然后标记 reminderFired=true 防止重复弹出。
+ */
+function startReminderScheduler() {
+  console.log('[Reminder] >>> startReminderScheduler() called, reminderTimer=', !!reminderTimer);
+  if (reminderTimer) {
+    console.log('[Reminder] Scheduler already running, skipping');
+    return;
+  }
+
+  const config = loadConfig();
+  const baseUrl = `http://127.0.0.1:${config.backendPort}`;
+
+  console.log('[Reminder] Scheduler started (interval: 30s)');
+
+  const checkReminders = async () => {
+    try {
+      const url = `${baseUrl}/api/todo/due-reminders`;
+      console.log('[Reminder] Polling ' + url + ' ...');
+      const body = await httpGet(url);
+      const reminders = JSON.parse(body);
+      console.log('[Reminder] Polled ' + reminders.length + ' due reminders');
+
+      if (!Array.isArray(reminders) || reminders.length === 0) return;
+
+      for (const todo of reminders) {
+        console.log('[Reminder] Found due: #' + todo.id + ' "' + (todo.title || '') + '" deadline=' + todo.deadline + ' ' + (todo.deadlineTime || '') + ' reminderMinutes=' + todo.reminderMinutes);
+        try {
+          // 使用 node-notifier 弹出系统原生通知
+          await showNotification(todo.title || '（无标题）', `截止时间: ${todo.deadline} ${todo.deadlineTime || ''}`);
+          console.log('[Reminder] Notification sent for todo #' + todo.id + ': ' + (todo.title || ''));
+
+          // 标记已触发，防止重复通知
+          await httpPut(`${baseUrl}/api/todo/${todo.id}/reminder-fired`);
+        } catch (e) {
+          console.error('[Reminder] Failed to send notification for todo #' + todo.id + ':', e.message);
+        }
+      }
+    } catch (e) {
+      console.error('[Reminder] Poll failed:', e.message);
+    }
+  };
+
+  // 立即执行一次，然后每 30 秒轮询
+  checkReminders();
+  reminderTimer = setInterval(checkReminders, 30000);
+}
+
+/**
+ * 停止提醒调度器
+ */
+function stopReminderScheduler() {
+  if (reminderTimer) {
+    clearInterval(reminderTimer);
+    reminderTimer = null;
+    console.log('[Reminder] Scheduler stopped');
+  }
+}
+
 // ==================== 应用生命周期 ====================
 
 app.whenReady().then(async () => {
@@ -1500,6 +1653,8 @@ app.whenReady().then(async () => {
           updateManager.startAutoCheck(async () => {
             await checkForUpdates(true);
           });
+          // 启动提醒调度器
+          startReminderScheduler();
         }).catch(e => {
           console.error('Startup failed:', e);
           if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1530,6 +1685,9 @@ app.whenReady().then(async () => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('backend-ready');
         }
+        // 后端就绪后才启动提醒调度器
+        console.log('[Reminder] Backend ready (configured path), about to start scheduler');
+        startReminderScheduler();
       }).catch(e => {
         console.error('Backend start failed:', e);
         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1584,6 +1742,7 @@ app.on('window-all-closed', (e) => {
 // 应用即将退出前：标记退出状态并清理服务
 app.on('before-quit', () => {
   isQuitting = true;
+  stopReminderScheduler();
   stopBackend();
   stopFrontendServer();
 });
