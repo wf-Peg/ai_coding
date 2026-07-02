@@ -228,5 +228,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * 监听更新错误事件
    * @param {Function} callback - 接收错误消息字符串的回调
    */
-  onUpdateError: (callback) => ipcRenderer.on('update-error', (event, msg) => callback(msg))
+  onUpdateError: (callback) => ipcRenderer.on('update-error', (event, msg) => callback(msg)),
+
+  // ===================== 后端启动状态 =====================
+
+  /**
+   * 监听后端就绪事件
+   * @param {Function} callback - 无参数回调，后端端口已可访问
+   */
+  onBackendReady: (callback) => ipcRenderer.on('backend-ready', () => callback()),
+
+  /**
+   * 监听后端启动失败事件
+   * @param {Function} callback - 接收错误消息字符串的回调
+   */
+  onBackendError: (callback) => ipcRenderer.on('backend-error', (event, msg) => callback(msg)),
+
+  /**
+   * 监听后端启动进度事件
+   * @param {Function} callback - 接收 { message, elapsed } 的回调
+   */
+  onBackendProgress: (callback) => ipcRenderer.on('backend-progress', (event, data) => callback(data))
 });

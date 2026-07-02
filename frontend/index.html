@@ -204,13 +204,56 @@
                 grid-template-rows: 1fr 1fr;
             }
             .todo-section {
-                border-right: none;
-                border-bottom: 1px solid var(--panel-border);
-            }
+            border-right: none;
+            border-bottom: 1px solid var(--panel-border);
         }
-    </style>
+    }
+
+    /* ====== 启动加载遮罩 ====== */
+    .startup-overlay {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: var(--bg);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.4s ease;
+    }
+    .startup-overlay.hidden {
+        opacity: 0; pointer-events: none;
+    }
+    .startup-spinner {
+        width: 36px; height: 36px;
+        border: 3px solid var(--panel-border);
+        border-top-color: var(--primary);
+        border-radius: 50%;
+        animation: startup-spin 0.8s linear infinite;
+        margin-bottom: 18px;
+    }
+    @keyframes startup-spin { to { transform: rotate(360deg); } }
+    .startup-text {
+        font-size: 15px; font-weight: 500; color: var(--text);
+        margin-bottom: 6px;
+    }
+    .startup-subtext {
+        font-size: 12px; color: var(--text-secondary);
+    }
+    .startup-subtext .retry-btn {
+        margin-top: 12px; padding: 6px 18px; border: 1px solid var(--primary);
+        background: var(--primary-light); color: var(--primary);
+        border-radius: 6px; cursor: pointer; font-size: 12px; font-family: inherit;
+    }
+    .startup-subtext .retry-btn:hover { opacity: 0.8; }
+</style>
 </head>
 <body>
+<!-- ====== 启动加载遮罩（仅 Electron 显示） ====== -->
+<div class="startup-overlay" id="startupOverlay">
+  <div class="startup-spinner"></div>
+  <div class="startup-text">应用启动中，请稍等...</div>
+  <div class="startup-subtext" id="startupSubtext">正在启动后端服务</div>
+</div>
 <!-- ====== 自定义标题栏（Obsidian 风格） ====== -->
 <div class="titlebar" id="titlebar">
     <div class="titlebar-brand">
@@ -365,6 +408,24 @@
 
       // ====== 窗口控制（仅 Electron 环境） ======
       if (window.electronAPI) {
+        // 启动遮罩：监听后端状态
+        const overlay = document.getElementById('startupOverlay');
+        const subtext = document.getElementById('startupSubtext');
+
+        window.electronAPI.onBackendProgress((data) => {
+          subtext.textContent = data.message;
+        });
+
+        window.electronAPI.onBackendReady(() => {
+          subtext.textContent = '启动完成';
+          setTimeout(() => overlay.classList.add('hidden'), 500);
+        });
+
+        window.electronAPI.onBackendError((msg) => {
+          subtext.innerHTML = `启动失败: ${msg}<br><button class="retry-btn" onclick="location.reload()">重试</button>`;
+          document.querySelector('.startup-spinner').style.display = 'none';
+        });
+
         document.getElementById('btnMinimize').addEventListener('click', () => window.electronAPI.windowMinimize());
         document.getElementById('btnMaximize').addEventListener('click', () => window.electronAPI.windowMaximize());
         document.getElementById('btnClose').addEventListener('click', () => window.electronAPI.windowClose());
@@ -387,7 +448,8 @@
           }
         });
       } else {
-        // 浏览器环境隐藏窗口控制按钮
+        // 浏览器环境：隐藏遮罩 + 窗口控制按钮
+        document.getElementById('startupOverlay').style.display = 'none';
         document.getElementById('windowControls').style.display = 'none';
       }
   })();

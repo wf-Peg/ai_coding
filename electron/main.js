@@ -509,6 +509,7 @@ function startBackend(config) {
     let resolved = false;
 
     // 轮询检测后端端口是否就绪（比解析 stdout 更可靠）
+    const startTime = Date.now();
     const pollInterval = setInterval(() => {
       if (resolved) { clearInterval(pollInterval); return; }
       checkPort(config.backendPort).then((open) => {
@@ -517,6 +518,17 @@ function startBackend(config) {
           clearInterval(pollInterval);
           console.log(`Backend started successfully on port ${config.backendPort}`);
           resolve(true);
+        } else if (!resolved) {
+          // 推送启动进度到渲染进程
+          const elapsed = Math.round((Date.now() - startTime) / 1000);
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('backend-progress', {
+              message: `正在启动后端服务... (${elapsed}秒)`,
+              elapsed
+            });
+          } else if (configWindow && !configWindow.isDestroyed()) {
+            configWindow.webContents.send('startup-progress', `正在启动后端服务... (${elapsed}秒)`);
+          }
         }
       });
     }, 2000); // 每 2 秒检测一次
@@ -1440,31 +1452,39 @@ app.whenReady().then(async () => {
       }
 
       try {
-        // 按顺序启动前后端服务
         await startFrontendServer(newConfig);
 
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('startup-progress', '正在启动后端服务，请稍候...');
         }
 
-        await startBackend(newConfig);
-
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('startup-progress', '启动成功！');
-          await new Promise(resolve => setTimeout(resolve, 800));  // 短暂显示"启动成功"
-          mainWindow.close();
-          mainWindow = null;
-        }
-
-        // 创建主窗口（此时会同时创建系统托盘）
-        createMainWindow(newConfig);
-
-        // 启动自动更新检查
-        updateManager.startAutoCheck(async () => {
-          await checkForUpdates(true);
+        // 后端异步启动，不阻塞窗口创建
+        startBackend(newConfig).then(() => {
+          console.log('Backend ready, closing config window');
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('startup-progress', '启动成功！');
+            setTimeout(() => {
+              mainWindow.close();
+              mainWindow = null;
+            }, 800);
+          }
+          // 创建主窗口
+          createMainWindow(newConfig);
+          // 启动自动更新检查
+          updateManager.startAutoCheck(async () => {
+            await checkForUpdates(true);
+          });
+        }).catch(e => {
+          console.error('Startup failed:', e);
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('startup-error', e.message);
+          } else {
+            dialog.showErrorBox('Startup Failed', e.message);
+            app.quit();
+          }
         });
       } catch (e) {
-        console.error('Startup failed:', e);
+        console.error('Frontend start failed:', e);
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('startup-error', e.message);
         } else {
@@ -1477,10 +1497,19 @@ app.whenReady().then(async () => {
     // ===== 已配置完成：直接启动服务 =====
     try {
       await startFrontendServer(config);
-      await startBackend(config);
 
-      // 等待 Spring Boot 完全初始化（IoC 容器加载、端口监听）
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // 后端异步启动，不阻塞窗口创建
+      startBackend(config).then(() => {
+        console.log('Backend ready, notifying renderer');
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('backend-ready');
+        }
+      }).catch(e => {
+        console.error('Backend start failed:', e);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('backend-error', e.message);
+        }
+      });
 
       createMainWindow(config);
 
