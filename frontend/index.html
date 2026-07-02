@@ -301,10 +301,10 @@
     <div class="main-content" id="mainContent">
         <div class="container" id="homeView">
             <div class="todo-section">
-                <iframe src="todo.html"></iframe>
+                <iframe id="todoFrame" data-src="todo.html" style="width:100%;height:100%;border:none;"></iframe>
             </div>
             <div class="clip-section">
-                <iframe src="clip.html"></iframe>
+                <iframe id="clipFrame" data-src="clip.html" style="width:100%;height:100%;border:none;"></iframe>
             </div>
         </div>
     </div>
@@ -407,6 +407,14 @@
       })();
 
       // ====== 窗口控制（仅 Electron 环境） ======
+      // 懒加载 iframe：从 data-src 读取真实 URL 并设置 src
+      function lazyLoadIframes() {
+        document.querySelectorAll('iframe[data-src]').forEach(iframe => {
+          iframe.src = iframe.dataset.src;
+          iframe.removeAttribute('data-src');
+        });
+      }
+
       if (window.electronAPI) {
         // 启动遮罩：监听后端状态
         const overlay = document.getElementById('startupOverlay');
@@ -418,6 +426,8 @@
 
         window.electronAPI.onBackendReady(() => {
           subtext.textContent = '启动完成';
+          // 加载子页面 iframe（后端就绪后才加载，避免 404 重试）
+          lazyLoadIframes();
           setTimeout(() => overlay.classList.add('hidden'), 500);
         });
 
@@ -448,7 +458,8 @@
           }
         });
       } else {
-        // 浏览器环境：隐藏遮罩 + 窗口控制按钮
+        // 浏览器环境：隐藏遮罩 + 窗口控制按钮 + 直接加载 iframe
+        lazyLoadIframes();
         document.getElementById('startupOverlay').style.display = 'none';
         document.getElementById('windowControls').style.display = 'none';
       }

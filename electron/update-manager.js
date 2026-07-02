@@ -90,7 +90,58 @@ function saveUpdateConfig(config) {
   }
 }
 
-// ==================== 版本信息 ====================
+// ==================== 版本缓存 ====================
+
+/** 版本缓存文件路径 */
+function getVersionCachePath() {
+  return path.join(app.getPath('userData'), 'config', 'version-cache.json');
+}
+
+/** 版本缓存有效期（毫秒），默认 1 小时 */
+const VERSION_CACHE_TTL = 60 * 60 * 1000;
+
+/**
+ * 从本地缓存读取版本信息。
+ * 如果缓存有效（未过期），直接返回，避免重复请求 GitHub API。
+ * 
+ * @returns {Object|null} 缓存的版本信息，无效或过期返回 null
+ */
+function loadVersionCache() {
+  try {
+    const cachePath = getVersionCachePath();
+    if (fs.existsSync(cachePath)) {
+      const cache = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
+      if (cache.cachedAt && Date.now() - cache.cachedAt < VERSION_CACHE_TTL) {
+        console.log('[Update] Using cached version info (cached at', new Date(cache.cachedAt).toISOString(), ')');
+        return cache.data;
+      }
+    }
+  } catch (e) {
+    console.error('[Update] Failed to load version cache:', e.message);
+  }
+  return null;
+}
+
+/**
+ * 保存版本信息到本地缓存。
+ * 
+ * @param {Object} data - 版本信息对象
+ */
+function saveVersionCache(data) {
+  try {
+    const cachePath = getVersionCachePath();
+    const dir = path.dirname(cachePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(cachePath, JSON.stringify({
+      cachedAt: Date.now(),
+      data
+    }, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('[Update] Failed to save version cache:', e.message);
+  }
+}
 
 /**
  * 获取当前应用版本号。
@@ -311,6 +362,12 @@ async function httpsGet(url, headers = {}) {
  * @returns {Promise<Object|null>} 包含 version, notes, downloadUrl, releaseUrl 的对象，失败返回 null
  */
 async function fetchLatestRelease() {
+  // 先检查本地缓存（1 小时内有效，避免频繁请求 API）
+  const cached = loadVersionCache();
+  if (cached) {
+    return cached;
+  }
+
   let lastError = null;
   
   // 尝试带 Token 请求（避免速率限制）
@@ -335,7 +392,7 @@ async function fetchLatestRelease() {
       }
     }
 
-    return {
+    const result = {
       version,
       tagName,
       notes: release.body || '',
@@ -343,6 +400,8 @@ async function fetchLatestRelease() {
       downloadUrl,
       publishedAt: release.published_at || ''
     };
+    saveVersionCache(result);  // 缓存结果
+    return result;
   } catch (e) {
     lastError = e.message;
     console.error('[Update] Failed to fetch latest release:', lastError);
@@ -364,7 +423,7 @@ async function fetchLatestRelease() {
           break;
         }
       }
-      return {
+      const result = {
         version,
         tagName,
         notes: release.body || '',
@@ -372,6 +431,8 @@ async function fetchLatestRelease() {
         downloadUrl,
         publishedAt: release.published_at || ''
       };
+      saveVersionCache(result);  // 缓存结果
+      return result;
     } catch (e2) {
       lastError = e2.message;
       console.error('[Update] Retry without token also failed:', lastError);

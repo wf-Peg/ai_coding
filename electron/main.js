@@ -345,6 +345,7 @@ function generateApplicationYml(config) {
   const ymlConfig = {
     spring: {
       application: { name: 'clip-demo' },
+      main: { 'lazy-initialization': true },  // 懒加载 Bean，加快启动
       ai: {
         // 通义千问 / DashScope 配置
         dashscope: {
@@ -499,7 +500,15 @@ function startBackend(config) {
     // 启动 Java 子进程
     // stdio: ['pipe', logStream, logStream] 表示 stdin 管道，stdout/stderr 重定向到日志文件
     // windowsHide: true 避免 Windows 上弹出命令行窗口
-    backendProcess = spawn(javaCmd, ['-jar', jarPath], {
+    // -Xms64m -Xmx256m: 限制堆内存，减少内存占用
+    // -XX:+UseG1GC: 使用 G1 垃圾回收器，启动更快
+    // -Dspring.main.lazy-initialization=true: 懒加载 Bean
+    backendProcess = spawn(javaCmd, [
+      '-jar', jarPath,
+      '-Xms64m', '-Xmx256m',
+      '-XX:+UseG1GC',
+      '-Dspring.main.lazy-initialization=true'
+    ], {
       cwd: jarDir,
       stdio: ['pipe', logStream, logStream],
       env: { ...process.env },
@@ -617,7 +626,7 @@ function checkPort(port) {
   return new Promise((resolve) => {
     const req = http.request({
       hostname: '127.0.0.1', port: port,
-      path: '/api/clip/list', method: 'GET', timeout: 3000
+      path: '/health', method: 'GET', timeout: 3000  // 轻量健康检查端点
     }, (res) => {
       // 必须实际收到响应体才算真正可用（防火墙可能允许连接但不返回数据）
       let data = '';
@@ -900,11 +909,6 @@ function createMainWindow(config) {
       preload: path.join(__dirname, 'preload.js')  // 预加载脚本暴露安全 API
     }
   });
-
-  // 首次创建主窗口时初始化系统托盘
-  if (!tray) {
-    createTray();
-  }
 
   // 加载前端页面（带自动重试）
   function loadWithRetry(attempts) {
@@ -1397,6 +1401,11 @@ function httpGet(url) {
 
 app.whenReady().then(async () => {
   setupIPC();
+
+  // 预创建系统托盘图标（不等窗口创建）
+  if (!tray) {
+    createTray();
+  }
 
   // 迁移旧配置：如果旧路径存在配置但新路径不存在，自动复制
   const oldConfigDir = path.join(os.homedir(), 'AppData', 'Roaming', 'clip-demo', 'config');
