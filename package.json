@@ -27,6 +27,7 @@
   "build": {
     "appId": "com.example.clip-demo",
     "productName": "CutShelter",
+    "asarUnpack": ["./node_modules/node-notifier/**/*"],
     "copyright": "Copyright © 2024",
     "directories": {
       "output": "dist-electron"

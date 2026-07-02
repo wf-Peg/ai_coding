@@ -16,9 +16,6 @@ const { spawn, execSync } = require('child_process');
 const http = require('http');
 const yaml = require('js-yaml');
 
-// Fix console Chinese encoding on Windows
-try { require('child_process').execSync('chcp 65001', { stdio: 'ignore' }); } catch {}
-
 // 更新管理器（自动更新 + 手动检查）
 const updateManager = require('./update-manager');
 
@@ -1489,17 +1486,182 @@ let reminderTimer = null;
  */
 function showNotification(title, body) {
   return new Promise((resolve) => {
-    const notifier = require('node-notifier');
-    notifier.notify({
-      title: title,
-      message: body,
-      sound: true,
-      wait: false,
-      timeout: 10
-    }, (err) => {
-      if (err) {
-        console.error('[Reminder] node-notifier error:', err.message);
+    const { screen } = require('electron');
+    const display = screen.getPrimaryDisplay();
+    const { width, height } = display.workAreaSize;
+
+    const toastWidth = 380;
+    const toastHeight = 160;
+    const margin = 24;
+
+    const toastWin = new BrowserWindow({
+      width: toastWidth,
+      height: toastHeight,
+      x: width - toastWidth - margin,
+      y: height - toastHeight - margin,
+      frame: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      transparent: true,
+      focusable: false,
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
       }
+    });
+
+    const safeTitle = (title || 'Todo Reminder').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const safeBody = (body || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+  body {
+    background: transparent;
+    height: 100vh;
+    overflow: hidden;
+    font-family: 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+  }
+  .card {
+    background: linear-gradient(135deg, rgba(28, 28, 34, 0.97), rgba(20, 20, 26, 0.97));
+    backdrop-filter: blur(20px);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.03);
+    height: 100%;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+    animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .accent-bar {
+    width: 4px;
+    background: linear-gradient(180deg, #f0a030, #ff6b3a);
+    flex-shrink: 0;
+  }
+  .content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 18px 20px 16px 18px;
+    min-width: 0;
+  }
+  .header-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .bell-icon {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(240, 160, 48, 0.25), rgba(255, 107, 58, 0.15));
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .bell-icon svg {
+    width: 16px; height: 16px;
+    stroke: #f0a030;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .title {
+    font-size: 12px;
+    font-weight: 500;
+    color: #f0a030;
+    letter-spacing: 0.5px;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .close-btn {
+    width: 24px; height: 24px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.3);
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .close-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.8);
+  }
+  .close-btn svg { width: 12px; height: 12px; }
+  .body-text {
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.95);
+    line-height: 1.4;
+    flex: 1;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .meta-text {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.4);
+    margin-top: 6px;
+  }
+  @keyframes slideIn {
+    from { transform: translateX(420px) scale(0.95); opacity: 0; }
+    to { transform: translateX(0) scale(1); opacity: 1; }
+  }
+  .card.closing {
+    animation: slideOut 0.3s cubic-bezier(0.4, 0, 1, 1) forwards;
+  }
+  @keyframes slideOut {
+    to { transform: translateX(420px); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="accent-bar"></div>
+    <div class="content">
+      <div class="header-row">
+        <div class="bell-icon">
+          <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        </div>
+        <div class="title">${safeTitle}</div>
+        <div class="close-btn" id="closeBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </div>
+      </div>
+      <div class="body-text">${safeBody}</div>
+      <div class="meta-text">Click the close button to dismiss</div>
+    </div>
+  </div>
+  <script>
+    document.getElementById('closeBtn').addEventListener('click', function() {
+      var card = document.getElementById('card');
+      card.classList.add('closing');
+      setTimeout(function() { window.close(); }, 300);
+    });
+  </script>
+</body>
+</html>`;
+
+    toastWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+
+    toastWin.once('ready-to-show', () => {
+      toastWin.show();
+      console.log('[Reminder] Toast window shown');
+    });
+
+    toastWin.on('closed', () => {
       resolve();
     });
   });
@@ -1537,7 +1699,7 @@ function startReminderScheduler() {
         console.log('[Reminder] Found due: #' + todo.id + ' "' + (todo.title || '') + '" deadline=' + todo.deadline + ' ' + (todo.deadlineTime || '') + ' reminderMinutes=' + todo.reminderMinutes);
         try {
           // 使用 node-notifier 弹出系统原生通知
-          await showNotification(todo.title || '（无标题）', `截止时间: ${todo.deadline} ${todo.deadlineTime || ''}`);
+          await showNotification(todo.title || 'Todo Reminder', 'Deadline: ' + todo.deadline + ' ' + (todo.deadlineTime || ''));
           console.log('[Reminder] Notification sent for todo #' + todo.id + ': ' + (todo.title || ''));
 
           // 标记已触发，防止重复通知
@@ -1570,6 +1732,11 @@ function stopReminderScheduler() {
 // ==================== 应用生命周期 ====================
 
 app.whenReady().then(async () => {
+  // Fix console Chinese encoding on Windows
+  if (process.platform === 'win32') {
+    try { require('child_process').execSync('chcp 65001', { stdio: 'ignore' }); } catch {}
+  }
+
   setupIPC();
 
   // 预创建系统托盘图标（不等窗口创建）
