@@ -218,41 +218,99 @@
         align-items: center;
         justify-content: center;
         z-index: 9999;
-        transition: opacity 0.4s ease;
+        transition: opacity 0.5s ease;
     }
     .startup-overlay.hidden {
         opacity: 0; pointer-events: none;
     }
-    .startup-spinner {
-        width: 36px; height: 36px;
-        border: 3px solid var(--panel-border);
-        border-top-color: var(--primary);
-        border-radius: 50%;
-        animation: startup-spin 0.8s linear infinite;
-        margin-bottom: 18px;
+    .startup-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 40px 48px;
     }
-    @keyframes startup-spin { to { transform: rotate(360deg); } }
-    .startup-text {
-        font-size: 15px; font-weight: 500; color: var(--text);
-        margin-bottom: 6px;
+    .startup-icon {
+        width: 56px; height: 56px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 16px;
+        display: flex; align-items: center; justify-content: center;
+        margin-bottom: 24px;
+        box-shadow: 0 8px 24px rgba(102, 126, 234, 0.25);
     }
-    .startup-subtext {
-        font-size: 12px; color: var(--text-secondary);
+    .startup-icon svg { width: 28px; height: 28px; color: white; }
+    .startup-title {
+        font-size: 18px; font-weight: 600; color: var(--text);
+        margin-bottom: 8px; letter-spacing: -0.3px;
     }
-    .startup-subtext .retry-btn {
-        margin-top: 12px; padding: 6px 18px; border: 1px solid var(--primary);
-        background: var(--primary-light); color: var(--primary);
-        border-radius: 6px; cursor: pointer; font-size: 12px; font-family: inherit;
+    .startup-status {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 13px; color: var(--text-secondary);
+        margin-bottom: 24px;
     }
-    .startup-subtext .retry-btn:hover { opacity: 0.8; }
+    .startup-dots { display: flex; gap: 4px; }
+    .startup-dots span {
+        width: 5px; height: 5px; border-radius: 50%;
+        background: var(--primary);
+        animation: dot-pulse 1.4s ease-in-out infinite;
+    }
+    .startup-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .startup-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes dot-pulse {
+        0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+        40% { opacity: 1; transform: scale(1); }
+    }
+    .startup-bar {
+        width: 180px; height: 3px; background: #e5e7eb;
+        border-radius: 2px; overflow: hidden;
+    }
+    .startup-bar-fill {
+        height: 100%; width: 30%;
+        background: linear-gradient(90deg, #667eea, #764ba2);
+        border-radius: 2px;
+        animation: bar-shift 1.6s ease-in-out infinite;
+    }
+    @keyframes bar-shift {
+        0% { transform: translateX(-30%); }
+        100% { transform: translateX(330%); }
+    }
+    .startup-error {
+        text-align: center;
+        font-size: 13px; color: #dc2626;
+        max-width: 280px; line-height: 1.5;
+    }
+    .startup-error .retry-btn {
+        display: inline-block; margin-top: 14px;
+        padding: 7px 22px; border: none;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white; border-radius: 8px; cursor: pointer;
+        font-size: 13px; font-family: inherit; font-weight: 500;
+        transition: opacity 0.2s;
+    }
+    .startup-error .retry-btn:hover { opacity: 0.85; }
 </style>
 </head>
 <body>
 <!-- ====== 启动加载遮罩（仅 Electron 显示） ====== -->
 <div class="startup-overlay" id="startupOverlay">
-  <div class="startup-spinner"></div>
-  <div class="startup-text">应用启动中，请稍等...</div>
-  <div class="startup-subtext" id="startupSubtext">正在启动后端服务</div>
+  <div class="startup-card">
+    <div class="startup-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    </div>
+    <div class="startup-title">碎碎记</div>
+    <div class="startup-status" id="startupStatus">
+      <span id="startupMsg">正在启动</span>
+      <div class="startup-dots" id="startupDots">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+    <div class="startup-bar" id="startupBar">
+      <div class="startup-bar-fill"></div>
+    </div>
+  </div>
 </div>
 <!-- ====== 自定义标题栏（Obsidian 风格） ====== -->
 <div class="titlebar" id="titlebar">
@@ -418,22 +476,29 @@
       if (window.electronAPI) {
         // 启动遮罩：监听后端状态
         const overlay = document.getElementById('startupOverlay');
-        const subtext = document.getElementById('startupSubtext');
+        const startupMsg = document.getElementById('startupMsg');
+        const startupDots = document.getElementById('startupDots');
+        const startupBar = document.getElementById('startupBar');
 
         window.electronAPI.onBackendProgress((data) => {
-          subtext.textContent = data.message;
+          startupMsg.textContent = data.message;
         });
 
         window.electronAPI.onBackendReady(() => {
-          subtext.textContent = '启动完成';
+          startupMsg.textContent = '启动完成';
+          startupDots.style.display = 'none';
+          startupBar.style.display = 'none';
           // 加载子页面 iframe（后端就绪后才加载，避免 404 重试）
           lazyLoadIframes();
-          setTimeout(() => overlay.classList.add('hidden'), 500);
+          setTimeout(() => overlay.classList.add('hidden'), 600);
         });
 
         window.electronAPI.onBackendError((msg) => {
-          subtext.innerHTML = `启动失败: ${msg}<br><button class="retry-btn" onclick="location.reload()">重试</button>`;
-          document.querySelector('.startup-spinner').style.display = 'none';
+          startupDots.style.display = 'none';
+          startupBar.style.display = 'none';
+          startupMsg.style.display = 'none';
+          const status = document.getElementById('startupStatus');
+          status.innerHTML = `<div class="startup-error">启动失败: ${msg}<br><button class="retry-btn" onclick="location.reload()">重试</button></div>`;
         });
 
         document.getElementById('btnMinimize').addEventListener('click', () => window.electronAPI.windowMinimize());
