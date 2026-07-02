@@ -504,10 +504,10 @@ function startBackend(config) {
     // -XX:+UseG1GC: 使用 G1 垃圾回收器，启动更快
     // -Dspring.main.lazy-initialization=true: 懒加载 Bean
     backendProcess = spawn(javaCmd, [
-      '-jar', jarPath,
       '-Xms64m', '-Xmx256m',
       '-XX:+UseG1GC',
-      '-Dspring.main.lazy-initialization=true'
+      '-Dspring.main.lazy-initialization=true',
+      '-jar', jarPath
     ], {
       cwd: jarDir,
       stdio: ['pipe', logStream, logStream],
