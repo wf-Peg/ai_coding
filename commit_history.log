@@ -2,6 +2,7 @@
 # 格式: 日期 时间 | 提交说明
 # 每次提交代码后自动追加到此文件
 
+2026-07-02 06:30 | 修复后端启动超时：添加/health端点 + checkPort增强TCP回退 + 移除lazy-initialization
 2026-07-01 15:30 | 修复更新通知vundefined + 折叠长文本 + 构建更新ZIP + EXE回退
 2026-07-01 15:00 | CutShelter品牌统一 + 前端标题加英文名 + 后端日志同步到AppData\Local\CutShelter\logs
 2026-07-01 14:30 | 更新检查走后端代理 + 修复ERR_HTTP_HEADERS_SENT + 配置迁移CutShelter + 产品名改CutShelter

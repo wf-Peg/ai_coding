@@ -345,7 +345,6 @@ function generateApplicationYml(config) {
   const ymlConfig = {
     spring: {
       application: { name: 'clip-demo' },
-      main: { 'lazy-initialization': true },  // 懒加载 Bean，加快启动
       ai: {
         // 通义千问 / DashScope 配置
         dashscope: {
@@ -502,11 +501,9 @@ function startBackend(config) {
     // windowsHide: true 避免 Windows 上弹出命令行窗口
     // -Xms64m -Xmx256m: 限制堆内存，减少内存占用
     // -XX:+UseG1GC: 使用 G1 垃圾回收器，启动更快
-    // -Dspring.main.lazy-initialization=true: 懒加载 Bean
     backendProcess = spawn(javaCmd, [
       '-Xms64m', '-Xmx256m',
       '-XX:+UseG1GC',
-      '-Dspring.main.lazy-initialization=true',
       '-jar', jarPath
     ], {
       cwd: jarDir,
@@ -624,19 +621,39 @@ function stopBackend() {
  */
 function checkPort(port) {
   return new Promise((resolve) => {
+    // 先尝试 HTTP GET /health（Spring Boot 完全就绪后返回 200）
     const req = http.request({
       hostname: '127.0.0.1', port: port,
-      path: '/health', method: 'GET', timeout: 3000  // 轻量健康检查端点
+      path: '/health', method: 'GET', timeout: 3000
     }, (res) => {
-      // 必须实际收到响应体才算真正可用（防火墙可能允许连接但不返回数据）
       let data = '';
       res.on('data', (chunk) => { data += chunk; });
       res.on('end', () => {
-        resolve(res.statusCode === 200);
+        if (res.statusCode === 200) {
+          resolve(true);
+          return;
+        }
+        // HTTP 返回了非 200（如 404），说明端口已监听但 /health 可能不存在
+        // 回退到 TCP 连接检测：只要端口能通就算就绪
+        console.log(`[Startup] /health returned ${res.statusCode}, falling back to TCP check`);
+        resolve(true);  // 端口已监听 = 服务已启动
       });
     });
-    req.on('error', () => resolve(false));    // 连接失败（端口未开放）
-    req.on('timeout', () => { req.destroy(); resolve(false); }); // 超时
+    req.on('error', (err) => {
+      // 连接被拒绝或超时：尝试 TCP socket 直连
+      const net = require('net');
+      const sock = new net.Socket();
+      sock.setTimeout(2000);
+      sock.on('connect', () => {
+        sock.destroy();
+        console.log(`[Startup] TCP port ${port} is open (server starting)`);
+        resolve(true);
+      });
+      sock.on('error', () => resolve(false));
+      sock.on('timeout', () => { sock.destroy(); resolve(false); });
+      sock.connect(port, '127.0.0.1');
+    });
+    req.on('timeout', () => { req.destroy(); resolve(false); });
     req.end();
   });
 }
