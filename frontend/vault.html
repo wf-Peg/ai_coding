@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>密码管理</title>
+<link rel="stylesheet" href="styles/theme-notion.css">
+<style>
+:root {
+  --vault-purple: #6366f1;
+  --vault-purple-dark: #5b5bd6;
+  --vault-purple-light: #eef0ff;
+  --vault-amber: #f59e0b;
+  --vault-green: #10b981;
+  --vault-red: #ef4444;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font-body); background: var(--bg); color: var(--fg); overflow: hidden; height: 100vh; }
+
+/* ====== 锁屏页 ====== */
+.lock-screen {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100vh; background: var(--bg);
+}
+.lock-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 40px 48px; width: 380px;
+  box-shadow: var(--shadow-md); text-align: center;
+}
+.lock-icon {
+  width: 56px; height: 56px;
+  background: linear-gradient(135deg, var(--vault-purple), #8b5cf6);
+  border-radius: 16px; margin: 0 auto 20px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
+}
+.lock-icon svg { width: 28px; height: 28px; color: white; }
+.lock-title { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+.lock-subtitle { font-size: 13px; color: var(--fg-secondary); margin-bottom: 24px; }
+.lock-input {
+  width: 100%; padding: 10px 14px; border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm); font-size: 14px; font-family: 'SF Mono', 'Consolas', monospace;
+  background: var(--bg-elevated); color: var(--fg); outline: none; transition: var(--transition);
+  margin-bottom: 12px;
+}
+.lock-input:focus { border-color: var(--vault-purple); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+.lock-btn {
+  width: 100%; padding: 10px; border: none; border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--vault-purple), #8b5cf6); color: white;
+  font-size: 14px; font-weight: 500; cursor: pointer; transition: var(--transition);
+}
+.lock-btn:hover { opacity: 0.9; }
+.lock-link { margin-top: 16px; font-size: 12px; color: var(--fg-muted); }
+.lock-link a { color: var(--vault-purple); cursor: pointer; text-decoration: none; }
+.lock-error { color: var(--vault-red); font-size: 12px; margin-top: 8px; display: none; }
+
+/* ====== 主界面 ====== */
+.vault-app { display: flex; height: 100vh; }
+
+/* 侧边栏 */
+.vault-sidebar {
+  width: 200px; flex-shrink: 0; background: var(--bg-elevated);
+  border-right: 1px solid var(--border); padding: 12px 8px;
+  display: flex; flex-direction: column; gap: 2px; overflow-y: auto;
+}
+.sidebar-header {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--fg-muted); padding: 8px 12px 4px;
+}
+.sidebar-item {
+  padding: 7px 12px; border-radius: 6px; cursor: pointer; font-size: 13px;
+  color: var(--fg-secondary); transition: var(--transition);
+  display: flex; align-items: center; gap: 8px;
+}
+.sidebar-item:hover { background: var(--accent-light); }
+.sidebar-item.active { background: var(--vault-purple-light); color: var(--vault-purple); font-weight: 500; }
+.sidebar-item .count { margin-left: auto; font-size: 11px; color: var(--fg-muted); }
+.sidebar-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+.sidebar-divider { height: 1px; background: var(--border); margin: 8px 12px; }
+.sidebar-search {
+  padding: 6px 12px; display: flex; align-items: center; gap: 6px;
+  background: var(--accent-light); border-radius: 6px; margin: 4px 8px 8px;
+}
+.sidebar-search input {
+  border: none; background: none; outline: none; font-size: 12px;
+  color: var(--fg); flex: 1; font-family: inherit;
+}
+
+/* 列表 */
+.vault-list {
+  width: 320px; flex-shrink: 0; border-right: 1px solid var(--border);
+  overflow-y: auto; background: var(--bg);
+}
+.list-header {
+  padding: 16px 20px 8px; display: flex; justify-content: space-between; align-items: center;
+}
+.list-header h2 { font-size: 16px; font-weight: 600; }
+.add-btn {
+  width: 28px; height: 28px; border: 1px solid var(--border-light); border-radius: 6px;
+  background: var(--card); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: var(--transition); color: var(--fg-secondary);
+}
+.add-btn:hover { border-color: var(--vault-purple); color: var(--vault-purple); background: var(--vault-purple-light); }
+.vault-card {
+  margin: 0 12px 4px; padding: 12px 14px; border: 1px solid transparent; border-radius: var(--radius-sm);
+  cursor: pointer; transition: var(--transition); display: flex; align-items: center; gap: 12px;
+}
+.vault-card:hover { background: var(--card-hover); }
+.vault-card.selected { background: var(--vault-purple-light); border-color: var(--vault-purple); }
+.card-icon {
+  width: 32px; height: 32px; border-radius: 7px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 600; color: white;
+}
+.card-info { flex: 1; min-width: 0; }
+.card-title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-subtitle { font-size: 11px; color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-fav { color: var(--vault-amber); flex-shrink: 0; }
+.empty-list { text-align: center; padding: 60px 20px; color: var(--fg-muted); font-size: 13px; }
+
+/* 详情面板 */
+.vault-detail {
+  flex: 1; overflow-y: auto; padding: 28px 32px; background: var(--bg-elevated);
+}
+.detail-header { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; }
+.detail-icon {
+  width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 600; color: white;
+}
+.detail-title { font-size: 22px; font-weight: 600; flex: 1; }
+.detail-actions { display: flex; gap: 8px; }
+.detail-btn {
+  padding: 6px 14px; border: 1px solid var(--border-light); border-radius: 6px;
+  background: var(--card); cursor: pointer; font-size: 12px; font-family: inherit;
+  color: var(--fg-secondary); transition: var(--transition);
+}
+.detail-btn:hover { border-color: var(--vault-purple); color: var(--vault-purple); }
+.detail-btn.danger:hover { border-color: var(--vault-red); color: var(--vault-red); }
+
+.detail-field {
+  display: flex; align-items: center; gap: 8px; padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.field-label { width: 80px; font-size: 12px; color: var(--fg-muted); flex-shrink: 0; }
+.field-value {
+  flex: 1; font-size: 14px; font-family: 'SF Mono', 'Consolas', monospace;
+  color: var(--fg); word-break: break-all;
+}
+.field-value.masked { letter-spacing: 2px; }
+.copy-btn {
+  padding: 3px 10px; border: 1px solid var(--border-light); border-radius: 4px;
+  background: var(--card); cursor: pointer; font-size: 11px; font-family: inherit;
+  color: var(--fg-muted); transition: var(--transition);
+}
+.copy-btn:hover { border-color: var(--vault-purple); color: var(--vault-purple); }
+.tags-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.tag-chip {
+  padding: 2px 10px; border-radius: 4px; font-size: 11px;
+  background: var(--accent-light); color: var(--fg-secondary);
+}
+
+/* ====== 模态框 ====== */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.4); z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.2s;
+}
+.modal-overlay.show { opacity: 1; pointer-events: all; }
+.modal-card {
+  background: var(--card); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg); width: 440px; max-height: 80vh; overflow-y: auto;
+  transform: scale(0.95); transition: transform 0.2s;
+}
+.modal-overlay.show .modal-card { transform: scale(1); }
+.modal-header { padding: 20px 24px 12px; font-size: 16px; font-weight: 600; }
+.modal-body { padding: 0 24px 16px; }
+.modal-footer { padding: 12px 24px 20px; display: flex; justify-content: flex-end; gap: 8px; }
+.form-group { margin-bottom: 14px; }
+.form-label { display: block; font-size: 12px; color: var(--fg-muted); margin-bottom: 4px; }
+.form-input {
+  width: 100%; padding: 8px 12px; border: 1px solid var(--border-light);
+  border-radius: 6px; font-size: 13px; font-family: inherit;
+  background: var(--bg-elevated); color: var(--fg); outline: none; transition: var(--transition);
+}
+.form-input:focus { border-color: var(--vault-purple); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+.form-select {
+  width: 100%; padding: 8px 12px; border: 1px solid var(--border-light);
+  border-radius: 6px; font-size: 13px; font-family: inherit;
+  background: var(--bg-elevated); color: var(--fg); outline: none; cursor: pointer;
+}
+.form-row { display: flex; gap: 8px; }
+.form-row .form-group { flex: 1; }
+.btn-primary {
+  padding: 8px 20px; border: none; border-radius: 6px;
+  background: linear-gradient(135deg, var(--vault-purple), #8b5cf6); color: white;
+  font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; transition: var(--transition);
+}
+.btn-primary:hover { opacity: 0.9; }
+.btn-secondary {
+  padding: 8px 20px; border: 1px solid var(--border-light); border-radius: 6px;
+  background: var(--card); color: var(--fg-secondary); font-size: 13px;
+  cursor: pointer; font-family: inherit; transition: var(--transition);
+}
+.btn-secondary:hover { background: var(--accent-light); }
+
+/* 密码生成器 */
+.gen-password-display {
+  font-family: 'SF Mono', 'Consolas', monospace; font-size: 16px;
+  padding: 14px 16px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); text-align: center; margin-bottom: 16px;
+  letter-spacing: 1px; word-break: break-all;
+}
+.gen-strength { height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; margin-bottom: 16px; }
+.gen-strength-fill { height: 100%; transition: width 0.3s, background 0.3s; }
+.checkbox-row {
+  display: flex; align-items: center; gap: 8px; padding: 6px 0;
+  font-size: 13px; color: var(--fg-secondary); cursor: pointer;
+}
+.checkbox-row input { accent-color: var(--vault-purple); }
+
+/* 审计面板 */
+.audit-section { margin-bottom: 20px; }
+.audit-section-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.audit-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 6px; }
+.audit-bar-segment { transition: width 0.3s; }
+.audit-item { padding: 8px 12px; background: var(--accent-light); border-radius: 6px; margin-bottom: 4px; font-size: 12px; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+  background: var(--fg); color: var(--bg-elevated); padding: 10px 24px;
+  border-radius: var(--radius-sm); font-size: 13px; box-shadow: var(--shadow-md);
+  transition: transform 0.3s; z-index: 2000; pointer-events: none;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* 滚动条 */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
+* { scrollbar-width: thin; scrollbar-color: var(--border-light) transparent; }
+</style>
+</head>
+<body>
+
+<!-- ====== 锁屏页 ====== -->
+<div class="lock-screen" id="lockScreen">
+  <div class="lock-card">
+    <div class="lock-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+    </div>
+    <div class="lock-title">密码库</div>
+    <div class="lock-subtitle" id="lockSubtitle">输入 DES Key 解锁密码库</div>
+    <input type="password" class="lock-input" id="keyInput" placeholder="粘贴或输入 DES Key..." onkeydown="if(event.key==='Enter')doUnlock()">
+    <button class="lock-btn" onclick="doUnlock()">解锁</button>
+    <div class="lock-error" id="lockError"></div>
+    <div class="lock-link">
+      <span id="firstTimeHint" style="display:none;">还没有密码库？</span>
+      <a id="initLink" onclick="showInitModal()" style="display:none;">初始化新密码库</a>
+      <span id="noKeyHint">没有 Key？</span>
+      <a onclick="showGenerateKeyModal()">生成新 Key</a>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 主界面 ====== -->
+<div class="vault-app" id="vaultApp" style="display:none;">
+  <!-- 侧边栏 -->
+  <div class="vault-sidebar">
+    <div class="sidebar-search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--fg-muted);">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" id="searchInput" placeholder="搜索密码..." oninput="onSearch()">
+    </div>
+    <div class="sidebar-item active" data-cat="all" onclick="filterCategory('all')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      全部 <span class="count" id="count-all">0</span>
+    </div>
+    <div class="sidebar-item" data-cat="login" onclick="filterCategory('login')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+      登录 <span class="count" id="count-login">0</span>
+    </div>
+    <div class="sidebar-item" data-cat="card" onclick="filterCategory('card')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+      卡片 <span class="count" id="count-card">0</span>
+    </div>
+    <div class="sidebar-item" data-cat="note" onclick="filterCategory('note')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      备注 <span class="count" id="count-note">0</span>
+    </div>
+    <div class="sidebar-item" data-cat="identity" onclick="filterCategory('identity')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      身份 <span class="count" id="count-identity">0</span>
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-item" data-cat="favorite" onclick="filterCategory('favorite')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      收藏
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-item" onclick="showKeyModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3"/></svg>
+      DES Key 管理
+    </div>
+    <div class="sidebar-item" onclick="showAuditModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11H1v12h8V11zM23 1h-8v22h8V1zM16 8h2M16 16h2M5 16h2M5 19h2"/></svg>
+      安全审计
+    </div>
+    <div class="sidebar-item" onclick="lockVault()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      锁定密码库
+    </div>
+  </div>
+
+  <!-- 列表 -->
+  <div class="vault-list">
+    <div class="list-header">
+      <h2 id="listTitle">全部</h2>
+      <div class="add-btn" onclick="showAddModal()" title="新增">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </div>
+    </div>
+    <div id="cardList"></div>
+  </div>
+
+  <!-- 详情 -->
+  <div class="vault-detail" id="detailPanel">
+    <div style="text-align:center; padding: 80px 20px; color: var(--fg-muted);">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.4; margin-bottom:12px;">
+        <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+      <div style="font-size:14px;">选择左侧的密码条目查看详情</div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 新增/编辑模态框 ====== -->
+<div class="modal-overlay" id="entryModal">
+  <div class="modal-card">
+    <div class="modal-header" id="entryModalTitle">新增密码</div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">名称 *</label>
+        <input type="text" class="form-input" id="entryTitle" placeholder="如 GitHub 账号">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">分类</label>
+          <select class="form-select" id="entryCategory">
+            <option value="login">登录</option>
+            <option value="card">卡片</option>
+            <option value="note">备注</option>
+            <option value="identity">身份</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">图标颜色</label>
+          <input type="color" class="form-input" id="entryColor" value="#6366f1" style="height:36px; cursor:pointer;">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">用户名</label>
+        <input type="text" class="form-input" id="entryUsername" placeholder="用户名或邮箱">
+      </div>
+      <div class="form-group">
+        <label class="form-label">密码</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" class="form-input" id="entryPassword" placeholder="密码" style="flex:1;">
+          <button class="btn-secondary" onclick="generateAndFill()" style="white-space:nowrap; padding:8px 12px;">生成</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">网址</label>
+        <input type="text" class="form-input" id="entryUrl" placeholder="https://...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">别名邮箱</label>
+        <input type="text" class="form-input" id="entryAlias" placeholder="别名邮箱（可选）">
+      </div>
+      <div class="form-group">
+        <label class="form-label">标签（逗号分隔）</label>
+        <input type="text" class="form-input" id="entryTags" placeholder="开发, 重要">
+      </div>
+      <div class="form-group">
+        <label class="form-label">备注</label>
+        <textarea class="form-input" id="entryNotes" rows="2" placeholder="备注..." style="resize:vertical; font-family:inherit;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('entryModal')">取消</button>
+      <button class="btn-primary" onclick="saveEntry()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 密码生成器模态框 ====== -->
+<div class="modal-overlay" id="genModal">
+  <div class="modal-card">
+    <div class="modal-header">密码生成器</div>
+    <div class="modal-body">
+      <div class="gen-password-display" id="genPassword">-</div>
+      <div class="gen-strength"><div class="gen-strength-fill" id="genStrengthBar" style="width:0%; background:var(--border);"></div></div>
+      <div class="form-group">
+        <label class="form-label">长度: <span id="genLengthVal">16</span></label>
+        <input type="range" id="genLength" min="6" max="48" value="16" oninput="document.getElementById('genLengthVal').textContent=this.value" style="width:100%;">
+      </div>
+      <label class="checkbox-row"><input type="checkbox" id="genUpper" checked> 大写字母 (A-Z)</label>
+      <label class="checkbox-row"><input type="checkbox" id="genLower" checked> 小写字母 (a-z)</label>
+      <label class="checkbox-row"><input type="checkbox" id="genDigits" checked> 数字 (0-9)</label>
+      <label class="checkbox-row"><input type="checkbox" id="genSpecial" checked> 特殊符号 (!@#$%)</label>
+      <label class="checkbox-row"><input type="checkbox" id="genExclude"> 排除易混淆字符 (0O1lI)</label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="copyGenerated()">复制</button>
+      <button class="btn-secondary" onclick="doGenerate()">重新生成</button>
+      <button class="btn-primary" onclick="useGenerated()">使用此密码</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== DES Key 管理模态框 ====== -->
+<div class="modal-overlay" id="keyModal">
+  <div class="modal-card">
+    <div class="modal-header">DES Key 管理</div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">当前 Key</label>
+        <div style="display:flex; gap:8px;">
+          <input type="password" class="form-input" id="keyDisplay" readonly style="flex:1;">
+          <button class="btn-secondary" onclick="toggleKeyVisibility()" style="white-space:nowrap; padding:8px 12px;" id="keyToggleBtn">显示</button>
+          <button class="btn-secondary" onclick="copyKey()" style="white-space:nowrap; padding:8px 12px;">复制</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <button class="btn-primary" onclick="generateNewKey()" style="width:100%;">生成新 Key</button>
+      </div>
+      <div style="padding:14px; background:#fef3c7; border:1px solid #fcd34d; border-radius:8px; font-size:12px; color:#92400e; line-height:1.6;">
+        <strong>重要提示：</strong><br>
+        Key 是唯一解密凭证，丢失无法恢复。<br>
+        请将 Key 安全保存到离线位置。<br>
+        生成新 Key 后需要重新初始化密码库。
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('keyModal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 安全审计模态框 ====== -->
+<div class="modal-overlay" id="auditModal">
+  <div class="modal-card" style="width:480px;">
+    <div class="modal-header">安全审计</div>
+    <div class="modal-body" id="auditBody">
+      <div style="text-align:center; padding:20px; color:var(--fg-muted);">加载中...</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('auditModal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 初始化密码库模态框 ====== -->
+<div class="modal-overlay" id="initModal">
+  <div class="modal-card">
+    <div class="modal-header">初始化密码库</div>
+    <div class="modal-body">
+      <div style="padding:14px; background:var(--vault-purple-light); border:1px solid var(--vault-purple); border-radius:8px; font-size:12px; color:var(--vault-purple); line-height:1.6; margin-bottom:16px;">
+        将使用以下 DES Key 创建一个新的空密码库。请务必妥善保存 Key。
+      </div>
+      <div class="form-group">
+        <label class="form-label">DES Key</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" class="form-input" id="initKeyInput" placeholder="输入或粘贴 DES Key" style="flex:1;">
+          <button class="btn-secondary" onclick="generateInitKey()" style="white-space:nowrap;">生成</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('initModal')">取消</button>
+      <button class="btn-primary" onclick="doInit()">创建密码库</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="libs/marked.min.js"></script>
+<script>
+const API = '/api/vault';
+let allEntries = [];
+let filteredEntries = [];
+let currentCategory = 'all';
+let selectedEntry = null;
+let editingId = null;
+let sessionKey = '';
+let generatedPassword = '';
+
+// ====== 初始化 ======
+async function init() {
+  try {
+    const res = await fetch(API + '/status');
+    const data = await res.json();
+    if (data.exists) {
+      document.getElementById('lockSubtitle').textContent = '输入 DES Key 解锁密码库';
+      document.getElementById('firstTimeHint').style.display = 'none';
+      document.getElementById('initLink').style.display = 'none';
+      document.getElementById('noKeyHint').style.display = 'inline';
+    } else {
+      document.getElementById('lockSubtitle').textContent = '首次使用，请初始化密码库';
+      document.getElementById('firstTimeHint').style.display = 'inline';
+      document.getElementById('initLink').style.display = 'inline';
+      document.getElementById('noKeyHint').style.display = 'none';
+    }
+  } catch (e) {
+    console.error('Status check failed', e);
+  }
+}
+
+// ====== 解锁 ======
+async function doUnlock() {
+  const key = document.getElementById('keyInput').value.trim();
+  if (!key) return;
+  const errEl = document.getElementById('lockError');
+  errEl.style.display = 'none';
+  try {
+    const res = await fetch(API + '/unlock', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({desKey: key})
+    });
+    const data = await res.json();
+    if (data.error) {
+      errEl.textContent = data.error;
+      errEl.style.display = 'block';
+      return;
+    }
+    sessionKey = key;
+    allEntries = data.entries || [];
+    filteredEntries = allEntries;
+    document.getElementById('lockScreen').style.display = 'none';
+    document.getElementById('vaultApp').style.display = 'flex';
+    renderList();
+    updateCounts();
+  } catch (e) {
+    errEl.textContent = '解锁失败，请检查后端服务是否运行';
+    errEl.style.display = 'block';
+  }
+}
+
+// ====== 锁定 ======
+async function lockVault() {
+  await fetch(API + '/lock', {method: 'POST'});
+  sessionKey = '';
+  allEntries = [];
+  document.getElementById('vaultApp').style.display = 'none';
+  document.getElementById('lockScreen').style.display = 'flex';
+  document.getElementById('keyInput').value = '';
+  init();
+}
+
+// ====== 初始化密码库 ======
+function showInitModal() {
+  document.getElementById('initKeyInput').value = '';
+  openModal('initModal');
+}
+function generateInitKey() {
+  document.getElementById('initKeyInput').value = generateKeyLocal();
+}
+async function doInit() {
+  const key = document.getElementById('initKeyInput').value.trim();
+  if (!key) { showToast('请输入或生成 DES Key'); return; }
+  try {
+    const res = await fetch(API + '/init', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({desKey: key})
+    });
+    const data = await res.json();
+    if (data.error) { showToast(data.error); return; }
+    sessionKey = key;
+    allEntries = data.entries || [];
+    filteredEntries = allEntries;
+    closeModal('initModal');
+    document.getElementById('lockScreen').style.display = 'none';
+    document.getElementById('vaultApp').style.display = 'flex';
+    renderList();
+    updateCounts();
+    showToast('密码库创建成功');
+  } catch (e) {
+    showToast('初始化失败');
+  }
+}
+
+// ====== 生成 Key ======
+function showGenerateKeyModal() {
+  const key = generateKeyLocal();
+  showToast('已生成 Key: ' + key + '（已复制到剪贴板）');
+  copyToClipboard(key);
+}
+function generateKeyLocal() {
+  // 前端生成临时 Key（后端也有接口，这里直接用 crypto）
+  const arr = new Uint8Array(8);
+  crypto.getRandomValues(arr);
+  return btoa(String.fromCharCode.apply(null, arr));
+}
+async function generateNewKey() {
+  const res = await fetch(API + '/generate-key', {method: 'POST'});
+  const data = await res.json();
+  document.getElementById('keyDisplay').value = data.key;
+  copyToClipboard(data.key);
+  showToast('新 Key 已生成并复制');
+}
+
+// ====== 列表渲染 ======
+function renderList() {
+  const container = document.getElementById('cardList');
+  if (filteredEntries.length === 0) {
+    container.innerHTML = '<div class="empty-list">暂无密码条目<br>点击右上角 + 添加</div>';
+    return;
+  }
+  container.innerHTML = filteredEntries.map(e => `
+    <div class="vault-card ${selectedEntry && selectedEntry.id === e.id ? 'selected' : ''}" onclick="selectEntry(${e.id})">
+      <div class="card-icon" style="background:${e.iconColor || '#6366f1'};">${(e.title || '?')[0].toUpperCase()}</div>
+      <div class="card-info">
+        <div class="card-title">${escapeHtml(e.title || '未命名')}</div>
+        <div class="card-subtitle">${escapeHtml(e.username || e.url || e.notes || '')}</div>
+      </div>
+      ${e.favorite ? '<span class="card-fav">★</span>' : ''}
+    </div>
+  `).join('');
+}
+
+function selectEntry(id) {
+  selectedEntry = allEntries.find(e => e.id === id);
+  renderDetail();
+  renderList();
+}
+
+// ====== 详情渲染 ======
+function renderDetail() {
+  const panel = document.getElementById('detailPanel');
+  if (!selectedEntry) {
+    panel.innerHTML = '<div style="text-align:center; padding:80px 20px; color:var(--fg-muted); font-size:14px;">选择左侧的密码条目查看详情</div>';
+    return;
+  }
+  const e = selectedEntry;
+  panel.innerHTML = `
+    <div class="detail-header">
+      <div class="detail-icon" style="background:${e.iconColor || '#6366f1'};">${(e.title || '?')[0].toUpperCase()}</div>
+      <div class="detail-title">${escapeHtml(e.title)}</div>
+      <div class="detail-actions">
+        <button class="detail-btn" onclick="showEditModal(${e.id})">编辑</button>
+        <button class="detail-btn danger" onclick="deleteEntry(${e.id})">删除</button>
+      </div>
+    </div>
+    ${e.username ? renderField('用户名', e.username, false) : ''}
+    ${e.password ? renderField('密码', e.password, true) : ''}
+    ${e.url ? renderField('网址', e.url, false) : ''}
+    ${e.alias ? renderField('别名', e.alias, false) : ''}
+    ${e.tags && e.tags.length ? `<div class="detail-field"><div class="field-label">标签</div><div class="tags-row">${e.tags.map(t => `<span class="tag-chip">${escapeHtml(t)}</span>`).join('')}</div></div>` : ''}
+    ${e.notes ? renderField('备注', e.notes, false) : ''}
+    <div style="margin-top:16px; font-size:11px; color:var(--fg-muted);">
+      创建: ${e.createdAt ? new Date(e.createdAt).toLocaleString('zh-CN') : '-'} ·
+      更新: ${e.updatedAt ? new Date(e.updatedAt).toLocaleString('zh-CN') : '-'}
+    </div>
+  `;
+}
+
+function renderField(label, value, isPassword) {
+  const id = 'field-' + label;
+  return `
+    <div class="detail-field">
+      <div class="field-label">${label}</div>
+      <div class="field-value masked" id="${id}">${isPassword ? '••••••••' : escapeHtml(value)}</div>
+      ${isPassword ? `<button class="copy-btn" onclick="togglePass('${id}','${escapeHtml(value)}')">显示</button>` : ''}
+      <button class="copy-btn" onclick="copyToClipboard('${escapeHtml(value).replace(/'/g,"\\'")}'); showToast('已复制')">复制</button>
+    </div>
+  `;
+}
+
+function togglePass(id, value) {
+  const el = document.getElementById(id);
+  const btn = el.nextElementSibling;
+  if (el.classList.contains('masked')) {
+    el.textContent = value;
+    el.classList.remove('masked');
+    btn.textContent = '隐藏';
+  } else {
+    el.textContent = '••••••••';
+    el.classList.add('masked');
+    btn.textContent = '显示';
+  }
+}
+
+// ====== 分类筛选 ======
+function filterCategory(cat) {
+  currentCategory = cat;
+  document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+  document.querySelector(`[data-cat="${cat}"]`).classList.add('active');
+  document.getElementById('listTitle').textContent = cat === 'all' ? '全部' : cat === 'favorite' ? '收藏' : ({login:'登录',card:'卡片',note:'备注',identity:'身份'})[cat];
+  applyFilter();
+}
+
+function onSearch() {
+  applyFilter();
+}
+
+function applyFilter() {
+  const keyword = document.getElementById('searchInput').value.toLowerCase();
+  filteredEntries = allEntries.filter(e => {
+    if (currentCategory === 'favorite') {
+      if (!e.favorite) return false;
+    } else if (currentCategory !== 'all') {
+      if (e.category !== currentCategory) return false;
+    }
+    if (keyword) {
+      const text = (e.title + ' ' + e.username + ' ' + e.url + ' ' + (e.tags||[]).join(' ') + ' ' + (e.notes||'')).toLowerCase();
+      if (!text.includes(keyword)) return false;
+    }
+    return true;
+  });
+  renderList();
+}
+
+function updateCounts() {
+  document.getElementById('count-all').textContent = allEntries.length;
+  ['login','card','note','identity'].forEach(cat => {
+    document.getElementById('count-' + cat).textContent = allEntries.filter(e => e.category === cat).length;
+  });
+}
+
+// ====== 新增/编辑 ======
+function showAddModal() {
+  editingId = null;
+  document.getElementById('entryModalTitle').textContent = '新增密码';
+  ['entryTitle','entryUsername','entryPassword','entryUrl','entryAlias','entryTags','entryNotes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('entryCategory').value = 'login';
+  document.getElementById('entryColor').value = '#6366f1';
+  openModal('entryModal');
+}
+
+function showEditModal(id) {
+  const e = allEntries.find(x => x.id === id);
+  if (!e) return;
+  editingId = id;
+  document.getElementById('entryModalTitle').textContent = '编辑密码';
+  document.getElementById('entryTitle').value = e.title || '';
+  document.getElementById('entryCategory').value = e.category || 'login';
+  document.getElementById('entryColor').value = e.iconColor || '#6366f1';
+  document.getElementById('entryUsername').value = e.username || '';
+  document.getElementById('entryPassword').value = e.password || '';
+  document.getElementById('entryUrl').value = e.url || '';
+  document.getElementById('entryAlias').value = e.alias || '';
+  document.getElementById('entryTags').value = (e.tags || []).join(', ');
+  document.getElementById('entryNotes').value = e.notes || '';
+  openModal('entryModal');
+}
+
+async function saveEntry() {
+  const title = document.getElementById('entryTitle').value.trim();
+  if (!title) { showToast('请输入名称'); return; }
+  const entry = {
+    title,
+    category: document.getElementById('entryCategory').value,
+    iconColor: document.getElementById('entryColor').value,
+    username: document.getElementById('entryUsername').value.trim(),
+    password: document.getElementById('entryPassword').value,
+    url: document.getElementById('entryUrl').value.trim(),
+    alias: document.getElementById('entryAlias').value.trim(),
+    tags: document.getElementById('entryTags').value.split(',').map(t => t.trim()).filter(t => t),
+    notes: document.getElementById('entryNotes').value.trim(),
+    favorite: selectedEntry && editingId === selectedEntry.id ? selectedEntry.favorite : false
+  };
+  try {
+    const url = editingId ? API + '/entry/' + editingId : API + '/entry';
+    const method = editingId ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method, headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(entry)
+    });
+    const data = await res.json();
+    if (data.error) { showToast(data.error); return; }
+    if (editingId) {
+      const idx = allEntries.findIndex(e => e.id === editingId);
+      if (idx >= 0) allEntries[idx] = data;
+      if (selectedEntry && selectedEntry.id === editingId) selectedEntry = data;
+    } else {
+      allEntries.push(data);
+    }
+    applyFilter();
+    updateCounts();
+    renderDetail();
+    closeModal('entryModal');
+    showToast(editingId ? '已更新' : '已添加');
+  } catch (e) {
+    showToast('保存失败');
+  }
+}
+
+async function deleteEntry(id) {
+  if (!confirm('确认删除此密码条目？')) return;
+  try {
+    await fetch(API + '/entry/' + id, {method: 'DELETE'});
+    allEntries = allEntries.filter(e => e.id !== id);
+    if (selectedEntry && selectedEntry.id === id) selectedEntry = null;
+    applyFilter();
+    updateCounts();
+    renderDetail();
+    showToast('已删除');
+  } catch (e) {
+    showToast('删除失败');
+  }
+}
+
+// ====== 密码生成器 ======
+function showGenModal() { openModal('genModal'); doGenerate(); }
+async function doGenerate() {
+  const params = {
+    length: parseInt(document.getElementById('genLength').value),
+    useUpper: document.getElementById('genUpper').checked,
+    useLower: document.getElementById('genLower').checked,
+    useDigits: document.getElementById('genDigits').checked,
+    useSpecial: document.getElementById('genSpecial').checked,
+    excludeAmbiguous: document.getElementById('genExclude').checked
+  };
+  try {
+    const res = await fetch(API + '/generate-password', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(params)
+    });
+    const data = await res.json();
+    generatedPassword = data.password;
+    document.getElementById('genPassword').textContent = data.password;
+    updateGenStrength(data.password);
+  } catch (e) {
+    showToast('生成失败');
+  }
+}
+function updateGenStrength(password) {
+  let score = 0;
+  if (password.length >= 8) score++;
+  if (password.length >= 12) score++;
+  if (password.length >= 16) score++;
+  if (/[a-z]/.test(password)) score++;
+  if (/[A-Z]/.test(password)) score++;
+  if (/[0-9]/.test(password)) score++;
+  if (/[^a-zA-Z0-9]/.test(password)) score++;
+  score = Math.min(score, 5);
+  const bar = document.getElementById('genStrengthBar');
+  bar.style.width = (score / 5 * 100) + '%';
+  const colors = ['#ef4444', '#f59e0b', '#f59e0b', '#10b981', '#10b981', '#10b981'];
+  bar.style.background = colors[score];
+}
+function copyGenerated() { copyToClipboard(generatedPassword); showToast('已复制'); }
+function useGenerated() {
+  document.getElementById('entryPassword').value = generatedPassword;
+  closeModal('genModal');
+  if (document.getElementById('entryModal').classList.contains('show') === false) {
+    showAddModal();
+    document.getElementById('entryPassword').value = generatedPassword;
+  }
+}
+function generateAndFill() {
+  showGenModal();
+}
+
+// ====== Key 管理 ======
+function showKeyModal() {
+  document.getElementById('keyDisplay').value = sessionKey;
+  document.getElementById('keyDisplay').type = 'password';
+  document.getElementById('keyToggleBtn').textContent = '显示';
+  openModal('keyModal');
+}
+function toggleKeyVisibility() {
+  const el = document.getElementById('keyDisplay');
+  const btn = document.getElementById('keyToggleBtn');
+  if (el.type === 'password') { el.type = 'text'; btn.textContent = '隐藏'; }
+  else { el.type = 'password'; btn.textContent = '显示'; }
+}
+function copyKey() { copyToClipboard(sessionKey); showToast('Key 已复制'); }
+
+// ====== 安全审计 ======
+async function showAuditModal() {
+  openModal('auditModal');
+  document.getElementById('auditBody').innerHTML = '<div style="text-align:center; padding:20px; color:var(--fg-muted);">加载中...</div>';
+  try {
+    const res = await fetch(API + '/audit');
+    const data = await res.json();
+    if (data.error) { document.getElementById('auditBody').innerHTML = '<div style="color:var(--vault-red);">'+data.error+'</div>'; return; }
+    const total = data.total || 0;
+    const strong = data.strong || 0;
+    const medium = data.medium || 0;
+    const weak = data.weak || 0;
+    const dups = data.duplicates || [];
+    const old = data.oldPasswords || [];
+    let html = '<div class="audit-section">';
+    html += '<div class="audit-section-title">密码强度</div>';
+    if (total > 0) {
+      html += '<div class="audit-bar">';
+      html += `<div class="audit-bar-segment" style="width:${strong/total*100}%; background:var(--vault-green);"></div>`;
+      html += `<div class="audit-bar-segment" style="width:${medium/total*100}%; background:var(--vault-amber);"></div>`;
+      html += `<div class="audit-bar-segment" style="width:${weak/total*100}%; background:var(--vault-red);"></div>`;
+      html += '</div>';
+      html += `<div style="font-size:12px; color:var(--fg-secondary);">强: ${strong} · 中等: ${medium} · 弱: ${weak}</div>`;
+    } else {
+      html += '<div class="audit-item">暂无密码数据</div>';
+    }
+    html += '</div>';
+    if (dups.length > 0) {
+      html += '<div class="audit-section"><div class="audit-section-title" style="color:var(--vault-red);">重复密码 ('+dups.length+'组)</div>';
+      dups.forEach(d => { html += '<div class="audit-item">'+d.passwords.join(' = ')+'</div>'; });
+      html += '</div>';
+    }
+    if (old.length > 0) {
+      html += '<div class="audit-section"><div class="audit-section-title" style="color:var(--vault-amber);">过期密码 ('+old.length+'条)</div>';
+      old.forEach(o => { html += '<div class="audit-item">'+o.title+' ('+o.daysOld+'天未更新)</div>'; });
+      html += '</div>';
+    }
+    if (dups.length === 0 && old.length === 0 && weak === 0) {
+      html += '<div style="text-align:center; padding:20px; color:var(--vault-green); font-size:14px;">所有密码安全性良好</div>';
+    }
+    document.getElementById('auditBody').innerHTML = html;
+  } catch (e) {
+    document.getElementById('auditBody').innerHTML = '<div style="color:var(--vault-red);">审计失败</div>';
+  }
+}
+
+// ====== 工具函数 ======
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2000);
+}
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+  });
+}
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// 启动
+init();
+</script>
+</body>
+</html>

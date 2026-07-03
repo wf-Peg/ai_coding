@@ -869,6 +869,23 @@ function createTray() {
     },
     { type: 'separator' },
     {
+      label: '密码管理',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+          // 通过 URL hash 触发前端跳转到 vault 视图
+          mainWindow.webContents.executeJavaScript(
+            "if (window.location.hash !== '#/vault') { window.history.pushState({view:'vault'}, '', '/vault'); window.dispatchEvent(new PopStateEvent('popstate')); }"
+          ).catch(err => console.warn('[Tray] navigate to vault failed:', err));
+        } else {
+          const config = loadConfig();
+          createMainWindow(config);
+        }
+      }
+    },
+    { type: 'separator' },
+    {
       label: '退出',
       click: () => {
         isQuitting = true;   // 标记为正常退出，跳过 close 事件拦截
