@@ -1678,21 +1678,7 @@ function showNotification(title, body) {
       console.log('[Reminder] Toast window shown');
     });
 
-    // 8 秒后自动关闭（用户不点关闭也会自动消失）
-    const autoCloseTimer = setTimeout(() => {
-      if (!toastWin.isDestroyed()) {
-        try {
-          toastWin.webContents.executeJavaScript(
-            "var c=document.getElementById('card');if(c){c.classList.add('closing');}setTimeout(function(){window.close();},300);"
-          );
-        } catch (e) {
-          toastWin.close();
-        }
-      }
-    }, 8000);
-
     toastWin.on('closed', () => {
-      clearTimeout(autoCloseTimer);
       resolve();
     });
   });
