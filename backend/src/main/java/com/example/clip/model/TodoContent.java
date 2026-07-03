@@ -37,6 +37,18 @@ public class TodoContent {
     /** 截止日期，格式为 yyyy-MM-dd 的字符串 */
     private String deadline;
 
+    /** 截止时间（HH:mm:ss），与 deadline 日期组合为完整截止时刻 */
+    private String deadlineTime;
+
+    /** 是否启用系统提醒 */
+    private boolean reminderEnabled;
+
+    /** 提醒提前分钟数（如 5、10、15、30、60） */
+    private int reminderMinutes;
+
+    /** 提醒是否已触发（防止重复通知） */
+    private boolean reminderFired;
+
     /** 完成状态，true 表示已完成 */
     private boolean completed;
 
@@ -110,6 +122,38 @@ public class TodoContent {
 
     public void setDeadline(String deadline) {
         this.deadline = deadline;
+    }
+
+    public String getDeadlineTime() {
+        return deadlineTime;
+    }
+
+    public void setDeadlineTime(String deadlineTime) {
+        this.deadlineTime = deadlineTime;
+    }
+
+    public boolean isReminderEnabled() {
+        return reminderEnabled;
+    }
+
+    public void setReminderEnabled(boolean reminderEnabled) {
+        this.reminderEnabled = reminderEnabled;
+    }
+
+    public int getReminderMinutes() {
+        return reminderMinutes;
+    }
+
+    public void setReminderMinutes(int reminderMinutes) {
+        this.reminderMinutes = reminderMinutes;
+    }
+
+    public boolean isReminderFired() {
+        return reminderFired;
+    }
+
+    public void setReminderFired(boolean reminderFired) {
+        this.reminderFired = reminderFired;
     }
 
     public boolean isCompleted() {
@@ -199,7 +243,9 @@ public class TodoContent {
         sb.append("title/").append(title != null ? title : "");
         sb.append(" priority/").append(priority != null ? priority : "");
         sb.append(" deadline/").append(deadline != null ? deadline : "");
+        sb.append(" deadlineTime/").append(deadlineTime != null ? deadlineTime : "");
         sb.append(" completed/").append(completed);
+        sb.append(" reminderEnabled/").append(reminderEnabled);
         sb.append(" category/").append(category != null ? category : "");
         sb.append(" sourceClipId/").append(sourceClipId != null ? sourceClipId : "");
         sb.append(" sourceUrl/").append(sourceUrl != null ? sourceUrl : "");

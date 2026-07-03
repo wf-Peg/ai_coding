@@ -1,6 +1,6 @@
 {
   "name": "clip-demo",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "CutShelter - Information Retrieval & Clip System",
   "main": "electron/main.js",
   "scripts": {
@@ -12,10 +12,10 @@
     "download-jre:win": "scripts\\download-jre.bat",
     "download-jre:win:all": "scripts\\download-jre.bat all",
     "build:jar": "cd backend && mvn clean package -DskipTests",
-    "build:win": "npm run prebuild && electron-builder --win --x64 && node scripts/build-update-zip.js",
-    "build:mac": "npm run prebuild && electron-builder --mac --arm64 --x64",
-    "build:linux": "npm run prebuild && electron-builder --linux --x64",
-    "build:all": "npm run prebuild && electron-builder --win --mac --linux",
+    "build:win": "npm run build:jar && npm run prebuild && electron-builder --win --x64 && node scripts/build-update-zip.js",
+    "build:mac": "npm run build:jar && npm run prebuild && electron-builder --mac --arm64 --x64",
+    "build:linux": "npm run build:jar && npm run prebuild && electron-builder --linux --x64",
+    "build:all": "npm run build:jar && npm run prebuild && electron-builder --win --mac --linux",
     "build:portable:win": "npm run prebuild && electron-builder --win portable --x64",
     "build:portable:mac-x64": "npm run prebuild && electron-builder --mac --x64 zip",
     "build:portable:mac-arm": "npm run prebuild && electron-builder --mac --arm64 zip",
@@ -27,6 +27,7 @@
   "build": {
     "appId": "com.example.clip-demo",
     "productName": "CutShelter",
+    "asarUnpack": ["./node_modules/node-notifier/**/*"],
     "copyright": "Copyright © 2024",
     "directories": {
       "output": "dist-electron"
@@ -42,26 +43,36 @@
       {
         "from": "frontend",
         "to": "frontend",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "jre",
         "to": "jre",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
-      "signingHashAlgorithms": ["sha256"],
+      "signingHashAlgorithms": [
+        "sha256"
+      ],
       "sign": null
     },
     "portable": {
@@ -83,11 +94,17 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["arm64", "x64"]
+          "arch": [
+            "arm64",
+            "x64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["arm64", "x64"]
+          "arch": [
+            "arm64",
+            "x64"
+          ]
         }
       ],
       "icon": "electron/icon.png",
@@ -115,7 +132,9 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "electron/icon.png",
@@ -125,6 +144,7 @@
   "dependencies": {
     "finalhandler": "^1.2.0",
     "js-yaml": "^4.1.0",
+    "node-notifier": "^10.0.1",
     "serve-static": "^1.15.0"
   },
   "devDependencies": {

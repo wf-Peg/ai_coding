@@ -1,4 +1,4 @@
-/**
+﻿/**
  * CutShelter - Electron 主进程入口
  * 
  * 职责：
@@ -8,7 +8,7 @@
  * 4. 提供 IPC 通道供渲染进程调用
  */
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, Notification } = require('electron');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -47,6 +47,32 @@ console.log('=== App Startup ===');
 console.log('isPackaged:', isPackaged);
 console.log('resourcesPath:', resourcesPath);
 console.log('APP_DIR:', APP_DIR);
+
+// Windows 通知要求：必须设置 AppUserModelId 且有 Start Menu 快捷方式
+if (process.platform === 'win32') {
+  app.setAppUserModelId(process.execPath);
+
+  // 自动创建 Start Menu 快捷方式（通知系统要求，否则通知不会弹出）
+  try {
+    const shortcutDir = path.join(os.homedir(), 'AppData', 'Roaming', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'CutShelter');
+    if (!fs.existsSync(shortcutDir)) {
+      fs.mkdirSync(shortcutDir, { recursive: true });
+    }
+    const shortcutPath = path.join(shortcutDir, 'CutShelter.lnk');
+    if (!fs.existsSync(shortcutPath)) {
+      shell.writeShortcutLink(shortcutPath, 'create', {
+        target: process.execPath,
+        args: '',
+        description: 'CutShelter - AI 驱动的剪藏与内容整理工具',
+        icon: process.execPath,
+        iconIndex: 0
+      });
+      console.log('[Startup] Created Start Menu shortcut for notifications');
+    }
+  } catch (e) {
+    console.warn('[Startup] Failed to create Start Menu shortcut:', e.message);
+  }
+}
 
 // 将 userData 目录重定向到 AppData\Local\CutShelter
 // 避免配置文件随 Windows 账户漫游，且更新应用后配置不丢失
@@ -345,7 +371,6 @@ function generateApplicationYml(config) {
   const ymlConfig = {
     spring: {
       application: { name: 'clip-demo' },
-      main: { 'lazy-initialization': true },  // 懒加载 Bean，加快启动
       ai: {
         // 通义千问 / DashScope 配置
         dashscope: {
@@ -502,11 +527,9 @@ function startBackend(config) {
     // windowsHide: true 避免 Windows 上弹出命令行窗口
     // -Xms64m -Xmx256m: 限制堆内存，减少内存占用
     // -XX:+UseG1GC: 使用 G1 垃圾回收器，启动更快
-    // -Dspring.main.lazy-initialization=true: 懒加载 Bean
     backendProcess = spawn(javaCmd, [
       '-Xms64m', '-Xmx256m',
       '-XX:+UseG1GC',
-      '-Dspring.main.lazy-initialization=true',
       '-jar', jarPath
     ], {
       cwd: jarDir,
@@ -624,19 +647,39 @@ function stopBackend() {
  */
 function checkPort(port) {
   return new Promise((resolve) => {
+    // 先尝试 HTTP GET /health（Spring Boot 完全就绪后返回 200）
     const req = http.request({
       hostname: '127.0.0.1', port: port,
-      path: '/health', method: 'GET', timeout: 3000  // 轻量健康检查端点
+      path: '/health', method: 'GET', timeout: 3000
     }, (res) => {
-      // 必须实际收到响应体才算真正可用（防火墙可能允许连接但不返回数据）
       let data = '';
       res.on('data', (chunk) => { data += chunk; });
       res.on('end', () => {
-        resolve(res.statusCode === 200);
+        if (res.statusCode === 200) {
+          resolve(true);
+          return;
+        }
+        // HTTP 返回了非 200（如 404），说明端口已监听但 /health 可能不存在
+        // 回退到 TCP 连接检测：只要端口能通就算就绪
+        console.log(`[Startup] /health returned ${res.statusCode}, falling back to TCP check`);
+        resolve(true);  // 端口已监听 = 服务已启动
       });
     });
-    req.on('error', () => resolve(false));    // 连接失败（端口未开放）
-    req.on('timeout', () => { req.destroy(); resolve(false); }); // 超时
+    req.on('error', (err) => {
+      // 连接被拒绝或超时：尝试 TCP socket 直连
+      const net = require('net');
+      const sock = new net.Socket();
+      sock.setTimeout(2000);
+      sock.on('connect', () => {
+        sock.destroy();
+        console.log(`[Startup] TCP port ${port} is open (server starting)`);
+        resolve(true);
+      });
+      sock.on('error', () => resolve(false));
+      sock.on('timeout', () => { sock.destroy(); resolve(false); });
+      sock.connect(port, '127.0.0.1');
+    });
+    req.on('timeout', () => { req.destroy(); resolve(false); });
     req.end();
   });
 }
@@ -1069,6 +1112,9 @@ function quitApp() {
   // 停止更新检查定时器
   updateManager.stopAutoCheck();
 
+  // 停止提醒调度器
+  stopReminderScheduler();
+
   // 销毁系统托盘图标，防止退出后托盘残留
   if (tray) {
     tray.destroy();
@@ -1397,9 +1443,300 @@ function httpGet(url) {
   });
 }
 
+/**
+ * 简单的 HTTP PUT 请求（仅用于本地回环，标记 reminderFired）。
+ * @param {string} url - 请求 URL
+ * @returns {Promise<string>} 响应体
+ */
+function httpPut(url) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const req = http.request({
+      hostname: parsed.hostname,
+      port: parsed.port,
+      path: parsed.pathname + parsed.search,
+      method: 'PUT',
+      timeout: 5000
+    }, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(body);
+        } else {
+          reject(new Error(`HTTP ${res.statusCode}`));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
+    req.end();
+  });
+}
+
+// ==================== 提醒调度器 ====================
+
+/** 提醒调度器定时器引用 */
+let reminderTimer = null;
+
+/**
+ * 弹出系统原生通知（Windows 使用 node-notifier，macOS 使用 Electron Notification）。
+ * @param {string} title - 通知标题
+ * @param {string} body - 通知正文
+ */
+function showNotification(title, body) {
+  return new Promise((resolve) => {
+    const { screen } = require('electron');
+    const display = screen.getPrimaryDisplay();
+    const { width, height } = display.workAreaSize;
+
+    const toastWidth = 380;
+    const toastHeight = 160;
+    const margin = 24;
+
+    const toastWin = new BrowserWindow({
+      width: toastWidth,
+      height: toastHeight,
+      x: width - toastWidth - margin,
+      y: height - toastHeight - margin,
+      frame: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      transparent: true,
+      focusable: false,
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+
+    const safeTitle = (title || 'Todo Reminder').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const safeBody = (body || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+  body {
+    background: transparent;
+    height: 100vh;
+    overflow: hidden;
+    font-family: 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+  }
+  .card {
+    background: linear-gradient(135deg, rgba(28, 28, 34, 0.97), rgba(20, 20, 26, 0.97));
+    backdrop-filter: blur(20px);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.03);
+    height: 100%;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+    animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .accent-bar {
+    width: 4px;
+    background: linear-gradient(180deg, #f0a030, #ff6b3a);
+    flex-shrink: 0;
+  }
+  .content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 18px 20px 16px 18px;
+    min-width: 0;
+  }
+  .header-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .bell-icon {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(240, 160, 48, 0.25), rgba(255, 107, 58, 0.15));
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .bell-icon svg {
+    width: 16px; height: 16px;
+    stroke: #f0a030;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .title {
+    font-size: 12px;
+    font-weight: 500;
+    color: #f0a030;
+    letter-spacing: 0.5px;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .close-btn {
+    width: 24px; height: 24px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.3);
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .close-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.8);
+  }
+  .close-btn svg { width: 12px; height: 12px; }
+  .body-text {
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.95);
+    line-height: 1.4;
+    flex: 1;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .meta-text {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.4);
+    margin-top: 6px;
+  }
+  @keyframes slideIn {
+    from { transform: translateX(420px) scale(0.95); opacity: 0; }
+    to { transform: translateX(0) scale(1); opacity: 1; }
+  }
+  .card.closing {
+    animation: slideOut 0.3s cubic-bezier(0.4, 0, 1, 1) forwards;
+  }
+  @keyframes slideOut {
+    to { transform: translateX(420px); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="accent-bar"></div>
+    <div class="content">
+      <div class="header-row">
+        <div class="bell-icon">
+          <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        </div>
+        <div class="title">${safeTitle}</div>
+        <div class="close-btn" id="closeBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </div>
+      </div>
+      <div class="body-text">${safeBody}</div>
+      <div class="meta-text">Click the close button to dismiss</div>
+    </div>
+  </div>
+  <script>
+    document.getElementById('closeBtn').addEventListener('click', function() {
+      var card = document.getElementById('card');
+      card.classList.add('closing');
+      setTimeout(function() { window.close(); }, 300);
+    });
+  </script>
+</body>
+</html>`;
+
+    toastWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+
+    toastWin.once('ready-to-show', () => {
+      toastWin.show();
+      console.log('[Reminder] Toast window shown');
+    });
+
+    toastWin.on('closed', () => {
+      resolve();
+    });
+  });
+}
+
+/**
+ * 启动待办提醒调度器。
+ * 每 30 秒轮询后端 /api/todo/due-reminders 接口，
+ * 对到期的提醒通过 Electron Notification API 弹出系统原生通知，
+ * 然后标记 reminderFired=true 防止重复弹出。
+ */
+function startReminderScheduler() {
+  console.log('[Reminder] >>> startReminderScheduler() called, reminderTimer=', !!reminderTimer);
+  if (reminderTimer) {
+    console.log('[Reminder] Scheduler already running, skipping');
+    return;
+  }
+
+  const config = loadConfig();
+  const baseUrl = `http://127.0.0.1:${config.backendPort}`;
+
+  console.log('[Reminder] Scheduler started (interval: 30s)');
+
+  const checkReminders = async () => {
+    try {
+      const url = `${baseUrl}/api/todo/due-reminders`;
+      console.log('[Reminder] Polling ' + url + ' ...');
+      const body = await httpGet(url);
+      const reminders = JSON.parse(body);
+      console.log('[Reminder] Polled ' + reminders.length + ' due reminders');
+
+      if (!Array.isArray(reminders) || reminders.length === 0) return;
+
+      for (const todo of reminders) {
+        console.log('[Reminder] Found due: #' + todo.id + ' "' + (todo.title || '') + '" deadline=' + todo.deadline + ' ' + (todo.deadlineTime || '') + ' reminderMinutes=' + todo.reminderMinutes);
+        try {
+          // 使用 node-notifier 弹出系统原生通知
+          await showNotification(todo.title || 'Todo Reminder', 'Deadline: ' + todo.deadline + ' ' + (todo.deadlineTime || ''));
+          console.log('[Reminder] Notification sent for todo #' + todo.id + ': ' + (todo.title || ''));
+
+          // 标记已触发，防止重复通知
+          await httpPut(`${baseUrl}/api/todo/${todo.id}/reminder-fired`);
+        } catch (e) {
+          console.error('[Reminder] Failed to send notification for todo #' + todo.id + ':', e.message);
+        }
+      }
+    } catch (e) {
+      console.error('[Reminder] Poll failed:', e.message);
+    }
+  };
+
+  // 立即执行一次，然后每 30 秒轮询
+  checkReminders();
+  reminderTimer = setInterval(checkReminders, 30000);
+}
+
+/**
+ * 停止提醒调度器
+ */
+function stopReminderScheduler() {
+  if (reminderTimer) {
+    clearInterval(reminderTimer);
+    reminderTimer = null;
+    console.log('[Reminder] Scheduler stopped');
+  }
+}
+
 // ==================== 应用生命周期 ====================
 
 app.whenReady().then(async () => {
+  // Fix console Chinese encoding on Windows
+  if (process.platform === 'win32') {
+    try { require('child_process').execSync('chcp 65001', { stdio: 'ignore' }); } catch {}
+  }
+
   setupIPC();
 
   // 预创建系统托盘图标（不等窗口创建）
@@ -1483,6 +1820,8 @@ app.whenReady().then(async () => {
           updateManager.startAutoCheck(async () => {
             await checkForUpdates(true);
           });
+          // 启动提醒调度器
+          startReminderScheduler();
         }).catch(e => {
           console.error('Startup failed:', e);
           if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1513,6 +1852,9 @@ app.whenReady().then(async () => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('backend-ready');
         }
+        // 后端就绪后才启动提醒调度器
+        console.log('[Reminder] Backend ready (configured path), about to start scheduler');
+        startReminderScheduler();
       }).catch(e => {
         console.error('Backend start failed:', e);
         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1567,6 +1909,7 @@ app.on('window-all-closed', (e) => {
 // 应用即将退出前：标记退出状态并清理服务
 app.on('before-quit', () => {
   isQuitting = true;
+  stopReminderScheduler();
   stopBackend();
   stopFrontendServer();
 });

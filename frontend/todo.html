@@ -368,6 +368,53 @@
             stroke: var(--danger);
         }
 
+        /* ── 即将到期状态 ── */
+        .timeline-item.approaching .todo-card {
+            border-color: var(--priority-medium);
+            box-shadow: 0 0 0 1px rgba(244,180,0,0.15);
+        }
+        .timeline-item.approaching .todo-card::before {
+            background: var(--priority-medium);
+        }
+        .timeline-item.approaching .timeline-dot {
+            background: var(--priority-medium);
+            box-shadow: 0 0 0 3px rgba(244,180,0,0.15);
+            animation: pulseApproaching 2s ease-in-out infinite;
+        }
+        .todo-date.approaching {
+            color: var(--priority-medium);
+            font-weight: 600;
+        }
+        .todo-date.approaching svg {
+            stroke: var(--priority-medium);
+        }
+        @keyframes pulseApproaching {
+            0%, 100% { box-shadow: 0 0 0 3px rgba(244,180,0,0.12); }
+            50% { box-shadow: 0 0 0 6px rgba(244,180,0,0.06); }
+        }
+
+        /* ── 已过期状态 ── */
+        .timeline-item.overdue .todo-card {
+            opacity: 0.65;
+            background: var(--bg);
+        }
+        .timeline-item.overdue .todo-card:hover {
+            opacity: 0.85;
+        }
+        .timeline-item.overdue .todo-card::before {
+            background: var(--danger);
+        }
+        .timeline-item.overdue .timeline-dot {
+            background: var(--danger);
+        }
+        .todo-date.overdue {
+            color: var(--danger);
+            font-weight: 500;
+        }
+        .todo-date.overdue svg {
+            stroke: var(--danger);
+        }
+
         /* Actions */
         .todo-actions {
             display: flex;
@@ -628,6 +675,161 @@
             color: var(--fg);
         }
 
+        /* ── 时间选择器 ── */
+        .modal-time-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            background: var(--bg);
+            border-radius: var(--radius-sm);
+            border: 1.5px solid var(--border);
+        }
+        .modal-time-label {
+            font-size: 0.78rem;
+            color: var(--fg-muted);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .time-selects {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            flex: 1;
+            justify-content: flex-end;
+        }
+        .time-selects select {
+            background: var(--card);
+            border: 1.5px solid var(--border);
+            border-radius: 6px;
+            padding: 5px 4px;
+            color: var(--fg);
+            font-family: var(--font-body);
+            font-size: 0.82rem;
+            font-weight: 600;
+            text-align: center;
+            width: 52px;
+            outline: none;
+            cursor: pointer;
+            transition: var(--transition);
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        .time-selects select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px var(--primary-glow);
+        }
+        .time-sep {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--fg-muted);
+            padding: 0 2px;
+            user-select: none;
+        }
+        .time-selects select option {
+            background: var(--card);
+            color: var(--fg);
+            text-align: center;
+        }
+
+        /* ── 提醒开关 ── */
+        .modal-reminder-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+            padding: 8px 12px;
+            background: var(--bg);
+            border-radius: var(--radius-sm);
+            border: 1.5px solid var(--border);
+        }
+        .modal-reminder-label {
+            font-size: 0.78rem;
+            color: var(--fg-muted);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .toggle-switch {
+            position: relative;
+            width: 40px;
+            height: 22px;
+            flex-shrink: 0;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            inset: 0;
+            background: var(--border);
+            border-radius: 22px;
+            cursor: pointer;
+            transition: background 0.25s ease;
+        }
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            left: 3px;
+            bottom: 3px;
+            background: #fff;
+            border-radius: 50%;
+            transition: transform 0.25s ease;
+        }
+        .toggle-switch input:checked + .toggle-slider {
+            background: var(--primary);
+        }
+        .toggle-switch input:checked + .toggle-slider::before {
+            transform: translateX(18px);
+        }
+        .modal-reminder-row select {
+            flex: 1;
+            background: var(--card);
+            border: 1.5px solid var(--border);
+            border-radius: 6px;
+            padding: 5px 8px;
+            color: var(--fg);
+            font-family: var(--font-body);
+            font-size: 0.78rem;
+            outline: none;
+            cursor: pointer;
+            transition: var(--transition);
+            opacity: 0.5;
+        }
+        .modal-reminder-row select:enabled {
+            opacity: 1;
+        }
+        .modal-reminder-row select:focus {
+            border-color: var(--primary);
+        }
+
+        /* ── 卡片提醒徽章 ── */
+        .todo-reminder-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 0.65rem;
+            color: var(--primary);
+            background: var(--primary-glow);
+            padding: 1px 7px;
+            border-radius: 10px;
+            margin-left: 6px;
+            white-space: nowrap;
+        }
+        .todo-time {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 0.7rem;
+            color: var(--fg-muted);
+            margin-left: 6px;
+            white-space: nowrap;
+        }
+
         .modal-submit {
             width: 100%;
             background: var(--primary);
@@ -829,6 +1031,13 @@
         html[data-theme="dark"] input, html[data-theme="dark"] textarea, html[data-theme="dark"] select {
             background: #3a3a3a; border-color: #4a4a4a; color: #d4d4d4;
         }
+        html[data-theme="dark"] .timeline-item.approaching .todo-card {
+            border-color: #f0a030;
+            box-shadow: 0 0 0 1px rgba(240,160,48,0.2);
+        }
+        html[data-theme="dark"] .timeline-item.overdue .todo-card {
+            background: #252525;
+        }
     </style>
     <link id="themeRegular" rel="stylesheet" href="./styles/theme-regular.css" disabled>
     <link id="themeNotion" rel="stylesheet" href="./styles/theme-notion.css">
@@ -890,6 +1099,31 @@
       </select>
       <input type="date" id="inputDate" />
     </div>
+    <div class="modal-time-row">
+      <span class="modal-time-label">⏰ 截止时间</span>
+      <div class="time-selects">
+        <select id="inputHour"></select>
+        <span class="time-sep">:</span>
+        <select id="inputMinute"></select>
+        <span class="time-sep">:</span>
+        <select id="inputSecond"></select>
+      </div>
+    </div>
+    <div class="modal-reminder-row">
+      <span class="modal-reminder-label">🔔 系统提醒</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="inputReminder" />
+        <span class="toggle-slider"></span>
+      </label>
+      <select id="inputReminderMinutes" disabled>
+        <option value="1">提前 1 分钟</option>
+        <option value="5">提前 5 分钟</option>
+        <option value="10">提前 10 分钟</option>
+        <option value="15" selected>提前 15 分钟</option>
+        <option value="30">提前 30 分钟</option>
+        <option value="60">提前 1 小时</option>
+      </select>
+    </div>
     <button class="modal-submit" id="btnAdd">添加待办</button>
   </div>
 </div>
@@ -923,6 +1157,11 @@
   const inputTitle = document.getElementById('inputTitle');
   const inputPriority = document.getElementById('inputPriority');
   const inputDate = document.getElementById('inputDate');
+  const inputHour = document.getElementById('inputHour');
+  const inputMinute = document.getElementById('inputMinute');
+  const inputSecond = document.getElementById('inputSecond');
+  const inputReminder = document.getElementById('inputReminder');
+  const inputReminderMinutes = document.getElementById('inputReminderMinutes');
   const btnAdd = document.getElementById('btnAdd');
   const fabAdd = document.getElementById('fabAdd');
   const addModal = document.getElementById('addModal');
@@ -1042,7 +1281,7 @@
     if (days < 30) return days + '天前';
     return new Date(ts).toLocaleDateString('zh-CN');
   }
-  function formatDate(str) {
+  function formatDate(str, showOverdueDays) {
     if (!str) return '';
     const d = new Date(str + 'T00:00:00');
     const today = new Date();
@@ -1051,6 +1290,9 @@
     if (diff === 0) return '今天';
     if (diff === 1) return '明天';
     if (diff === -1) return '昨天';
+    if (showOverdueDays && diff < -1) {
+      return Math.abs(diff) + '天前';
+    }
     return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
   }
   function isOverdue(dateStr) {
@@ -1058,10 +1300,64 @@
     return dateStr < todayStr();
   }
 
+  /**
+   * 判断截止日期是否即将到期（今天或明天）。
+   * @param {string} dateStr - 截止日期 (yyyy-MM-dd)
+   * @returns {boolean}
+   */
+  function isApproaching(dateStr) {
+    if (!dateStr) return false;
+    const today = todayStr();
+    const tomorrow = futureDateStr(1);
+    return dateStr === today || dateStr === tomorrow;
+  }
+
+  /**
+   * 获取截止日期已过期天数。
+   * @param {string} dateStr - 截止日期 (yyyy-MM-dd)
+   * @returns {number} 过期天数，未过期返回 0
+   */
+  function getDaysOverdue(dateStr) {
+    if (!dateStr) return 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const deadline = new Date(dateStr + 'T00:00:00');
+    const diff = Math.floor((today - deadline) / 86400000);
+    return diff > 0 ? diff : 0;
+  }
+
   // ── Modal ──
+  function populateTimeSelects() {
+    // 填充时/分/秒下拉框
+    const selHour = inputHour, selMin = inputMinute, selSec = inputSecond;
+    if (selHour.options.length === 0) {
+      for (let h = 0; h <= 23; h++) {
+        selHour.add(new Option(String(h).padStart(2, '0'), String(h).padStart(2, '0')));
+      }
+      for (let m = 0; m <= 59; m++) {
+        selMin.add(new Option(String(m).padStart(2, '0'), String(m).padStart(2, '0')));
+      }
+      for (let s = 0; s <= 59; s++) {
+        selSec.add(new Option(String(s).padStart(2, '0'), String(s).padStart(2, '0')));
+      }
+    }
+  }
+  function setTimeSelects(hh, mm, ss) {
+    inputHour.value = String(hh).padStart(2, '0');
+    inputMinute.value = String(mm).padStart(2, '0');
+    inputSecond.value = String(ss).padStart(2, '0');
+  }
+  function getTimeSelectsValue() {
+    return inputHour.value + ':' + inputMinute.value + ':' + inputSecond.value;
+  }
   function openModal() {
+    populateTimeSelects();
     inputDate.value = todayStr();
+    setTimeSelects(23, 59, 59);
     inputPriority.value = 'medium';
+    inputReminder.checked = false;
+    inputReminderMinutes.disabled = true;
+    inputReminderMinutes.value = '15';
     addModal.classList.add('active');
     setTimeout(() => inputTitle.focus(), 100);
   }
@@ -1069,6 +1365,11 @@
     addModal.classList.remove('active');
     inputTitle.value = '';
   }
+
+  // 提醒开关联动
+  inputReminder.addEventListener('change', () => {
+    inputReminderMinutes.disabled = !inputReminder.checked;
+  });
 
   // ── Toast ──
   function showToast(message, icon = '✓') {
@@ -1103,19 +1404,28 @@
     list.sort((a, b) => {
       // 首先按完成状态排序（未完成的在前）
       if (a.completed !== b.completed) return a.completed ? 1 : -1;
-      
-      // 然后按截止日期升序排序（有截止日期的在前，截止日期早的在前）
-      if (a.deadline && b.deadline) {
-        return a.deadline.localeCompare(b.deadline);
-      } else if (a.deadline) {
-        return -1; // 有截止日期的排在前面
-      } else if (b.deadline) {
-        return 1; // 没有截止日期的排在后面
+
+      // 按截止日期状态排序（未完成组内）：今天 > 明天 > 将来 > 无日期 > 已过期
+      const today = todayStr();
+      const tomorrow = futureDateStr(1);
+      function deadlineWeight(d) {
+        if (!d) return 3;
+        if (d === today) return 0;
+        if (d === tomorrow) return 1;
+        if (d < today) return 4;
+        return 2;
       }
-      
+      const wA = deadlineWeight(a.deadline);
+      const wB = deadlineWeight(b.deadline);
+      if (wA !== wB) return wA - wB;
+
+      // 同组内：将来按日期升序，已过期按日期降序（最近过期排前面）
+      if (wA === 2 && a.deadline && b.deadline) return a.deadline.localeCompare(b.deadline);
+      if (wA === 4 && a.deadline && b.deadline) return b.deadline.localeCompare(a.deadline);
+
       // 然后按优先级排序（高优先级在前）
       if (priorityOrder[a.priority] !== priorityOrder[b.priority]) return priorityOrder[a.priority] - priorityOrder[b.priority];
-      
+
       // 最后按创建时间排序（最新的在前）
       return b.createdAt - a.createdAt;
     });
@@ -1137,11 +1447,27 @@
     timeline.innerHTML = filtered.map(todo => {
       const priorityLabels = { high: '高', medium: '中', low: '低' };
       const tagClass = { high: 'tag-high', medium: 'tag-medium', low: 'tag-low' };
+      const approaching = !todo.completed && isApproaching(todo.deadline);
       const overdue = !todo.completed && isOverdue(todo.deadline);
-      const dateDisplay = todo.deadline ? formatDate(todo.deadline) : '';
+      const daysOverdue = overdue ? getDaysOverdue(todo.deadline) : 0;
+
+      let dateDisplay = '';
+      if (todo.deadline) {
+        if (approaching) {
+          dateDisplay = formatDate(todo.deadline) + ' \u00B7 即将到期';
+        } else if (overdue) {
+          dateDisplay = formatDate(todo.deadline, true) + ' \u00B7 已过期' + (daysOverdue > 1 ? daysOverdue + '天' : '');
+        } else {
+          dateDisplay = formatDate(todo.deadline);
+        }
+      }
+      const timeDisplay = todo.deadlineTime || '';
+      const reminderBadge = todo.reminderEnabled && !todo.completed
+        ? `<span class="todo-reminder-badge">\uD83D\uDD14 提前${todo.reminderMinutes || 15}分钟</span>`
+        : '';
 
       return `
-        <div class="timeline-item priority-${todo.priority} ${todo.completed ? 'completed' : ''}" data-id="${todo.id}">
+        <div class="timeline-item priority-${todo.priority} ${todo.completed ? 'completed' : ''} ${approaching ? 'approaching' : ''} ${overdue ? 'overdue' : ''}" data-id="${todo.id}">
           <div class="timeline-dot"></div>
           <div class="todo-card">
             <div class="todo-top-row">
@@ -1157,10 +1483,12 @@
                   <span class="todo-tag ${tagClass[todo.priority]}">${priorityLabels[todo.priority]}</span>
                   ${todo.category ? `<span class="todo-tag tag-low" style="margin-left: 6px;">${escapeHtml(todo.category)}</span>` : ''}
                   ${todo.sourceClipId ? `<span class="todo-tag tag-low" style="margin-left: 6px;" title="来源剪藏ID">剪藏#${todo.sourceClipId}</span>` : ''}
-                  ${dateDisplay ? `<span class="todo-date ${overdue ? 'overdue' : ''}">
+                  ${dateDisplay ? `<span class="todo-date ${approaching ? 'approaching' : ''} ${overdue ? 'overdue' : ''}">
                     <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                    ${dateDisplay}${overdue ? ' 已过期' : ''}
+                    ${dateDisplay}
                   </span>` : ''}
+                  ${timeDisplay ? `<span class="todo-time">🕐 ${timeDisplay}</span>` : ''}
+                  ${reminderBadge}
                   <span style="font-size:0.6rem;color:var(--fg-muted);opacity:0.5;margin-left:auto">${formatRelativeTime(todo.createdAt)}</span>
                 </div>
               </div>
@@ -1181,6 +1509,29 @@
                 <option value="low" ${todo.priority === 'low' ? 'selected' : ''}>🔵 低优先级</option>
               </select>
               <input type="date" id="editDate-${todo.id}" value="${todo.deadline || ''}" />
+              <div class="edit-time-row" style="display:flex;align-items:center;gap:4px;margin-bottom:8px;">
+                <span style="font-size:0.72rem;color:var(--fg-muted);white-space:nowrap;">⏰</span>
+                <select id="editHour-${todo.id}" style="flex:1;background:var(--bg);border:1.5px solid var(--border);border-radius:6px;padding:4px 2px;color:var(--fg);font-size:0.75rem;text-align:center;outline:none;cursor:pointer;">${buildTimeOptions('hour', todo.deadlineTime)}</select>
+                <span style="font-size:0.75rem;color:var(--fg-muted);">:</span>
+                <select id="editMin-${todo.id}" style="flex:1;background:var(--bg);border:1.5px solid var(--border);border-radius:6px;padding:4px 2px;color:var(--fg);font-size:0.75rem;text-align:center;outline:none;cursor:pointer;">${buildTimeOptions('minute', todo.deadlineTime)}</select>
+                <span style="font-size:0.75rem;color:var(--fg-muted);">:</span>
+                <select id="editSec-${todo.id}" style="flex:1;background:var(--bg);border:1.5px solid var(--border);border-radius:6px;padding:4px 2px;color:var(--fg);font-size:0.75rem;text-align:center;outline:none;cursor:pointer;">${buildTimeOptions('second', todo.deadlineTime)}</select>
+              </div>
+              <div class="edit-reminder-row" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:4px 8px;background:var(--bg);border-radius:6px;border:1.5px solid var(--border);">
+                <span style="font-size:0.72rem;color:var(--fg-muted);white-space:nowrap;">🔔 提醒</span>
+                <label class="toggle-switch" style="width:34px;height:18px;">
+                  <input type="checkbox" id="editReminder-${todo.id}" ${todo.reminderEnabled ? 'checked' : ''} onchange="document.getElementById('editReminderMin-${todo.id}').disabled=!this.checked" />
+                  <span class="toggle-slider" style="border-radius:18px;"></span>
+                </label>
+                <select id="editReminderMin-${todo.id}" ${todo.reminderEnabled ? '' : 'disabled'} style="flex:1;background:var(--card);border:1.5px solid var(--border);border-radius:6px;padding:3px 6px;color:var(--fg);font-size:0.72rem;outline:none;cursor:pointer;${todo.reminderEnabled ? '' : 'opacity:0.5;'}">
+                  <option value="1" ${todo.reminderMinutes === 1 ? 'selected' : ''}>提前 1 分钟</option>
+                  <option value="5" ${todo.reminderMinutes === 5 ? 'selected' : ''}>提前 5 分钟</option>
+                  <option value="10" ${todo.reminderMinutes === 10 ? 'selected' : ''}>提前 10 分钟</option>
+                  <option value="15" ${(!todo.reminderMinutes || todo.reminderMinutes === 15) ? 'selected' : ''}>提前 15 分钟</option>
+                  <option value="30" ${todo.reminderMinutes === 30 ? 'selected' : ''}>提前 30 分钟</option>
+                  <option value="60" ${todo.reminderMinutes === 60 ? 'selected' : ''}>提前 1 小时</option>
+                </select>
+              </div>
               <div class="edit-actions">
                 <button class="btn-cancel" onclick="app.cancelEdit(${todo.id})">取消</button>
                 <button class="btn-save" onclick="app.saveEdit(${todo.id})">保存</button>
@@ -1200,6 +1551,25 @@
     return str.replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
+  /**
+   * 生成时间选择器的 option 列表（用于编辑表单）。
+   * @param {'hour'|'minute'|'second'} type - 时间类型
+   * @param {string} timeStr - 当前时间值 (HH:mm:ss)
+   * @returns {string} HTML option 字符串
+   */
+  function buildTimeOptions(type, timeStr) {
+    const parts = (timeStr || '00:00:00').split(':');
+    const current = { hour: parts[0], minute: parts[1], second: parts[2] };
+    const ranges = { hour: 24, minute: 60, second: 60 };
+    let html = '';
+    for (let i = 0; i < ranges[type]; i++) {
+      const val = String(i).padStart(2, '0');
+      const sel = val === current[type] ? ' selected' : '';
+      html += `<option value="${val}"${sel}>${val}</option>`;
+    }
+    return html;
+  }
+
   // ── Actions ──
   async function addTodo() {
     const title = inputTitle.value.trim();
@@ -1214,6 +1584,9 @@
       title,
       priority: inputPriority.value,
       deadline: inputDate.value || '',
+      deadlineTime: getTimeSelectsValue(),
+      reminderEnabled: inputReminder.checked,
+      reminderMinutes: inputReminder.checked ? parseInt(inputReminderMinutes.value) : 0,
       completed: false,
       category: '默认'
     };
@@ -1282,6 +1655,16 @@
     todo.title = newTitle;
     todo.priority = document.getElementById('editPriority-' + id).value;
     todo.deadline = document.getElementById('editDate-' + id).value;
+    const editHour = document.getElementById('editHour-' + id);
+    const editMin = document.getElementById('editMin-' + id);
+    const editSec = document.getElementById('editSec-' + id);
+    const editReminder = document.getElementById('editReminder-' + id);
+    const editReminderMin = document.getElementById('editReminderMin-' + id);
+    if (editHour) { todo.deadlineTime = editHour.value + ':' + editMin.value + ':' + editSec.value; }
+    if (editReminder) {
+      todo.reminderEnabled = editReminder.checked;
+      todo.reminderMinutes = editReminder.checked ? parseInt(editReminderMin.value) : 0;
+    }
     try {
       // 创建一个副本，包含 createdAtTimestamp 以保留原始时间
       const updateTodo = {
@@ -1289,6 +1672,9 @@
         title: todo.title,
         priority: todo.priority,
         deadline: todo.deadline,
+        deadlineTime: todo.deadlineTime || '',
+        reminderEnabled: todo.reminderEnabled || false,
+        reminderMinutes: todo.reminderMinutes || 0,
         completed: todo.completed,
         category: todo.category,
         sourceClipId: todo.sourceClipId,

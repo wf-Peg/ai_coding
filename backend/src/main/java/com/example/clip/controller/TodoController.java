@@ -7,6 +7,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -161,5 +166,93 @@ public class TodoController {
         } else {
             return ResponseEntity.notFound().build();
         }
+    }
+
+    /**
+     * 获取所有到期的待办提醒。
+     * <p>
+     * GET /api/todo/due-reminders
+     * <p>
+     * 返回所有满足条件的待办：reminderEnabled=true、reminderFired=false、
+     * completed=false，且当前时间已到达提醒时刻（deadline + deadlineTime - reminderMinutes）。
+     *
+     * @return 到期的提醒待办列表
+     */
+    @GetMapping("/due-reminders")
+    public ResponseEntity<List<TodoContent>> getDueReminders() {
+        List<TodoContent> allTodos = todoService.getAllTodos();
+        List<TodoContent> dueReminders = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
+
+        log.info("[Reminder] /due-reminders called, total todos={}, now={}", allTodos.size(), now);
+
+        int skippedNotEnabled = 0, skippedFired = 0, skippedNoDateTime = 0, skippedNotDue = 0;
+
+        for (TodoContent todo : allTodos) {
+            if (!todo.isReminderEnabled()) {
+                skippedNotEnabled++;
+                continue;
+            }
+            if (todo.isReminderFired()) {
+                skippedFired++;
+                log.info("[Reminder] Todo #{} already fired, skipping", todo.getId());
+                continue;
+            }
+            if (todo.isCompleted()) {
+                continue;
+            }
+            try {
+                String dateStr = todo.getDeadline();
+                String timeStr = todo.getDeadlineTime();
+                if (dateStr == null || dateStr.isEmpty() || timeStr == null || timeStr.isEmpty()) {
+                    skippedNoDateTime++;
+                    log.info("[Reminder] Todo #{} has no deadline/time, skipping (deadline={}, time={})",
+                        todo.getId(), dateStr, timeStr);
+                    continue;
+                }
+                LocalDate deadlineDate = LocalDate.parse(dateStr, DateTimeFormatter.ISO_LOCAL_DATE);
+                LocalTime deadlineTime = LocalTime.parse(timeStr, DateTimeFormatter.ofPattern("HH:mm:ss"));
+                LocalDateTime reminderTime = LocalDateTime.of(deadlineDate, deadlineTime)
+                        .minusMinutes(todo.getReminderMinutes());
+
+                log.info("[Reminder] Todo #{} deadline={} {} reminderMinutes={} reminderTime={} now={}",
+                    todo.getId(), dateStr, timeStr, todo.getReminderMinutes(), reminderTime, now);
+
+                if (!now.isBefore(reminderTime)) {
+                    dueReminders.add(todo);
+                    log.info("[Reminder] Todo #{} IS DUE! title={}", todo.getId(), todo.getTitle());
+                } else {
+                    skippedNotDue++;
+                }
+            } catch (Exception e) {
+                log.warn("[Reminder] Failed to parse reminder for todo #{}: {}", todo.getId(), e.getMessage());
+            }
+        }
+
+        log.info("[Reminder] Result: {} due, skipped: notEnabled={} fired={} noDateTime={} notDue={}",
+            dueReminders.size(), skippedNotEnabled, skippedFired, skippedNoDateTime, skippedNotDue);
+
+        return ResponseEntity.ok(dueReminders);
+    }
+
+    /**
+     * 标记待办提醒已触发。
+     * <p>
+     * PUT /api/todo/{id}/reminder-fired
+     * <p>
+     * 将指定待办的 reminderFired 设为 true，防止重复弹出通知。
+     *
+     * @param id 待办事项 ID
+     * @return 200 OK 或 404
+     */
+    @PutMapping("/{id}/reminder-fired")
+    public ResponseEntity<?> markReminderFired(@PathVariable Long id) {
+        TodoContent todo = todoService.getTodoById(id);
+        if (todo == null) {
+            return ResponseEntity.notFound().build();
+        }
+        todo.setReminderFired(true);
+        todoService.updateTodo(todo);
+        return ResponseEntity.ok().build();
     }
 }
