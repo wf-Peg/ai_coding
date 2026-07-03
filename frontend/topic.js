@@ -126,3 +126,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   observer.observe(sentinel);
 });
+
+// ====== 接收主框架消息：滚动到顶部 / 刷新 ======
+window.addEventListener('message', (e) => {
+  if (e.data.action === 'scrollToTop') {
+    document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
+  } else if (e.data.action === 'refresh') {
+    location.reload();
+  } else if (e.data.action === 'themeChange') {
+    if (typeof window.applyTheme === 'function') window.applyTheme();
+  }
+});

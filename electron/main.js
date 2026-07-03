@@ -782,6 +782,38 @@ function startFrontendServer(config) {
     const serve = serveStatic(frontendDir, { index: ['index.html'], fallthrough: false });
 
     const server = http.createServer((req, res) => {
+      // 代理 /api/* 请求到后端
+      const urlPath = req.url || '';
+      if (urlPath.startsWith('/api/')) {
+        const proxyReq = http.request({
+          hostname: '127.0.0.1',
+          port: config.backendPort,
+          path: urlPath,
+          method: req.method,
+          headers: req.headers,
+          timeout: 30000
+        }, (proxyRes) => {
+          res.writeHead(proxyRes.statusCode, proxyRes.headers);
+          proxyRes.pipe(res);
+        });
+        proxyReq.on('error', (e) => {
+          console.error('[Frontend] Proxy error:', e.message);
+          if (!res.headersSent) {
+            res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({ error: 'Backend service unavailable' }));
+          }
+        });
+        proxyReq.on('timeout', () => {
+          proxyReq.destroy();
+          if (!res.headersSent) {
+            res.writeHead(504, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({ error: 'Backend request timeout' }));
+          }
+        });
+        req.pipe(proxyReq);
+        return;
+      }
+
       serve(req, res, finalhandler(req, res, {
         // 当静态文件不存在时：SPA 回退到 index.html
         onerror: () => {
@@ -916,37 +948,173 @@ function createTray() {
  * @param {BrowserWindow} win - 触发关闭的窗口实例
  */
 function showCloseDialog(win) {
-  const options = {
-    type: 'question',
-    buttons: ['最小化到系统托盘', '退出程序'],
-    defaultId: 0,   // 默认选中第一个按钮（最小化到托盘）
-    cancelId: 0,    // 按 ESC 等同于点击第一个按钮
-    title: '关闭确认',
-    message: '请选择关闭方式',
-    detail: '您希望最小化到系统托盘还是退出程序？',
-    checkboxLabel: '记住我的选择',
-    checkboxChecked: false
-  };
-
-  // 获取父窗口：优先使用传入的窗口，否则使用当前聚焦窗口
   const parent = win || BrowserWindow.getFocusedWindow();
-  dialog.showMessageBox(parent, options).then((result) => {
-    const { response, checkboxChecked } = result;
+  if (!parent) return;
 
-    // 如果用户勾选了"记住我的选择"，持久化偏好
-    if (checkboxChecked) {
-      closeToTray = response === 0;   // 按钮 0 = 最小化到托盘
+  const dialogWidth = 420;
+  const dialogHeight = 280;
+  const parentBounds = parent.getBounds();
+  const x = parentBounds.x + Math.round((parentBounds.width - dialogWidth) / 2);
+  const y = parentBounds.y + Math.round((parentBounds.height - dialogHeight) / 2);
+
+  const closeDialog = new BrowserWindow({
+    width: dialogWidth,
+    height: dialogHeight,
+    x, y,
+    parent,
+    modal: true,
+    frame: false,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    show: false,
+    transparent: true,
+    webPreferences: { nodeIntegration: true, contextIsolation: false }
+  });
+
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+  body {
+    background: transparent; height: 100vh; overflow: hidden;
+    font-family: "IBM Plex Sans", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card {
+    width: 100%; height: 100%;
+    background: var(--card-bg); border-radius: 12px;
+    border: 1px solid var(--border);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px 10px;
+    -webkit-app-region: drag;
+  }
+  .title {
+    font-size: 14px; font-weight: 600; color: var(--fg);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .title svg { width: 18px; height: 18px; stroke: var(--accent); }
+  .close-btn {
+    width: 28px; height: 28px; border-radius: 6px; border: none;
+    background: transparent; cursor: pointer; color: var(--fg-muted);
+    display: flex; align-items: center; justify-content: center;
+    -webkit-app-region: no-drag; transition: all 0.15s;
+  }
+  .close-btn:hover { background: rgba(255,255,255,0.1); color: var(--fg); }
+  .close-btn svg { width: 14px; height: 14px; }
+  .body {
+    padding: 6px 20px 18px; flex: 1;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .body p { font-size: 13px; color: var(--fg-muted); line-height: 1.6; }
+  .body p strong { color: var(--fg); }
+  .footer {
+    padding: 0 20px 16px; display: flex; gap: 10px; justify-content: flex-end;
+  }
+  .btn {
+    font-size: 13px; padding: 8px 20px; border-radius: 8px; border: 1px solid transparent;
+    cursor: pointer; font-family: inherit; transition: all 0.15s; font-weight: 500;
+  }
+  .btn-secondary {
+    background: transparent; border-color: var(--border); color: var(--fg-muted);
+  }
+  .btn-secondary:hover { border-color: var(--fg-muted); color: var(--fg); }
+  .btn-primary {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+  .btn-primary:hover { opacity: 0.9; }
+  .btn-danger {
+    background: transparent; border-color: rgba(239,68,68,0.3); color: #ef4444;
+  }
+  .btn-danger:hover { background: rgba(239,68,68,0.1); border-color: #ef4444; }
+  .checkbox-row {
+    display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 12px; color: var(--fg-muted);
+  }
+  .checkbox-row input { accent-color: var(--accent); }
+</style></head>
+<body>
+<div class="card">
+  <div class="header">
+    <div class="title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      关闭 CutShelter
+    </div>
+    <button class="close-btn" onclick="window.close()" title="取消">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+      </svg>
+    </button>
+  </div>
+  <div class="body">
+    <p>是否<strong>退出</strong> CutShelter，还是<strong>最小化</strong>到系统托盘继续在后台运行？</p>
+    <div class="checkbox-row">
+      <input type="checkbox" id="remember">
+      <label for="remember">记住我的选择，下次不再询问</label>
+    </div>
+  </div>
+  <div class="footer">
+    <button class="btn btn-secondary" onclick="choose('tray')">最小化到托盘</button>
+    <button class="btn btn-danger" onclick="choose('quit')">退出程序</button>
+  </div>
+</div>
+<script>
+  const { ipcRenderer } = require('electron');
+  function choose(action) {
+    ipcRenderer.send('close-dialog-result', { action: action, remember: document.getElementById('remember').checked });
+    window.close();
+  }
+</script>
+</body></html>`;
+
+  // Inject CSS variables matching the app theme
+  const isDark = true; // default to dark
+  const cssVars = `
+    :root {
+      --card-bg: ${isDark ? '#1e1e1e' : '#ffffff'};
+      --border: ${isDark ? '#3e3e3e' : '#e0e0dc'};
+      --fg: ${isDark ? '#d4d4d4' : '#1e1e1e'};
+      --fg-muted: ${isDark ? '#9a9a9a' : '#6b6b6b'};
+      --accent: #569cff;
     }
+  `;
+  const fullHtml = html.replace('</style>', cssVars + '</style>');
 
-    if (response === 0) {
-      // 选择"最小化到系统托盘"：隐藏窗口但不退出
-      if (win) {
-        win.hide();
+  let dialogResult = null;
+
+  closeDialog.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(fullHtml));
+
+  closeDialog.once('ready-to-show', () => closeDialog.show());
+
+  // Capture result via IPC before window closes
+  closeDialog.webContents.on('ipc-message', (event, channel, ...args) => {
+    if (channel === 'close-dialog-result') {
+      dialogResult = args[0];
+    }
+  });
+
+  closeDialog.on('closed', () => {
+    try {
+      if (dialogResult) {
+        if (dialogResult.remember) {
+          closeToTray = dialogResult.action === 'tray';
+        }
+        if (dialogResult.action === 'tray') {
+          if (parent) parent.hide();
+        } else {
+          isQuitting = true;
+          quitApp();
+        }
       }
-    } else {
-      // 选择"退出程序"：完整退出应用
-      isQuitting = true;
-      quitApp();
+      // dialogResult is null → dismissed via X (cancel) — do nothing
+    } catch (e) {
+      // safety
     }
   });
 }

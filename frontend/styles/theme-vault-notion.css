@@ -1,0 +1,485 @@
+/* ================================================================
+   CutShelter Vault — Notion 主题适配
+   Notion 风格密码管理模块，使用 Notion 蓝色系，支持明暗主题无缝切换
+   ================================================================ */
+
+/* ── 基础变量 ── */
+:root {
+  --vault-radius: 10px;
+  --vault-radius-sm: 8px;
+  --vault-transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --vault-shadow-card: 0 1px 0 rgba(15, 23, 42, 0.02), 0 4px 12px rgba(15, 23, 42, 0.04);
+  --vault-shadow-popup: 0 1px 0 rgba(15, 23, 42, 0.04), 0 12px 28px rgba(15, 23, 42, 0.1);
+  --vault-accent: var(--fg);
+  --vault-accent-dark: #1e2124;
+  --vault-accent-light: var(--accent-light);
+  --vault-glow: rgba(47, 52, 55, 0.1);
+  --vault-amber: #f59e0b;
+  --vault-green: #10b981;
+  --vault-red: #ef4444;
+}
+
+/* ── 锁屏页 ── */
+.lock-screen { background: var(--bg); }
+.lock-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--vault-shadow-card);
+}
+.lock-icon {
+  background: var(--vault-accent);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px var(--vault-glow);
+}
+.lock-input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--vault-radius-sm);
+  font-size: 14px;
+  transition: var(--vault-transition);
+  box-shadow: none;
+}
+.lock-input:focus {
+  border-color: var(--vault-accent);
+  box-shadow: 0 0 0 3px var(--vault-glow);
+}
+.lock-btn {
+  border-radius: var(--vault-radius-sm);
+  background: var(--vault-accent);
+  font-weight: 500;
+  transition: var(--vault-transition);
+}
+.lock-btn:hover { opacity: 0.92; }
+.lock-error { color: var(--vault-red); }
+
+/* ── 主界面侧边栏 ── */
+.vault-sidebar {
+  background: var(--bg-elevated);
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+}
+.sidebar-item {
+  border-radius: 8px;
+  transition: var(--vault-transition);
+}
+.sidebar-item:hover { background: var(--accent-light); }
+.sidebar-item.active {
+  background: var(--vault-accent-light);
+  color: var(--vault-accent);
+  font-weight: 500;
+}
+.sidebar-search {
+  background: var(--accent-light);
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: var(--vault-transition);
+}
+.sidebar-search:focus-within {
+  border-color: var(--border);
+  background: var(--card);
+}
+
+/* ── 密码列表 ── */
+.vault-list {
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+}
+.vault-card {
+  border-radius: var(--vault-radius-sm);
+  border: 1px solid transparent;
+  transition: var(--vault-transition);
+}
+.vault-card:hover { background: var(--card-hover); }
+.vault-card.selected {
+  background: var(--vault-accent-light);
+  border-color: var(--vault-accent);
+}
+.card-icon {
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+/* ── 详情面板 ── */
+.vault-detail { background: var(--bg-elevated); }
+.detail-icon {
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+.detail-btn {
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  transition: var(--vault-transition);
+}
+.detail-btn:hover {
+  border-color: var(--vault-accent);
+  color: var(--vault-accent);
+  background: var(--vault-accent-light);
+}
+.detail-btn.danger:hover { border-color: var(--vault-red); color: var(--vault-red); background: #fef2f2; }
+.detail-field { border-bottom: 1px solid var(--border); }
+.copy-btn {
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  transition: var(--vault-transition);
+}
+.copy-btn:hover {
+  border-color: var(--vault-accent);
+  color: var(--vault-accent);
+  background: var(--vault-accent-light);
+}
+.tag-chip {
+  border-radius: 6px;
+  background: var(--accent-light);
+  border: 1px solid var(--border);
+}
+
+/* ── 模态框 ── */
+.modal-overlay {
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(2px);
+}
+.modal-card {
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  box-shadow: var(--vault-shadow-popup);
+}
+.modal-header { font-size: 16px; font-weight: 600; }
+.modal-footer {
+  border-top: 1px solid var(--border);
+  padding: 16px 24px 20px;
+}
+
+/* ── 表单控件 ── */
+.form-input, .form-select {
+  border-radius: var(--vault-radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  transition: var(--vault-transition);
+  box-shadow: none;
+}
+.form-input:focus, .form-select:focus {
+  border-color: var(--vault-accent);
+  box-shadow: 0 0 0 3px var(--vault-glow);
+}
+
+/* ── 按钮 ── */
+.btn-primary {
+  border-radius: var(--vault-radius-sm);
+  background: var(--vault-accent);
+  font-weight: 500;
+  transition: var(--vault-transition);
+}
+.btn-primary:hover { opacity: 0.92; }
+.btn-secondary {
+  border-radius: var(--vault-radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card);
+  transition: var(--vault-transition);
+}
+.btn-secondary:hover {
+  background: var(--accent-light);
+  border-color: var(--border-light);
+}
+.modal-submit {
+  border-radius: var(--vault-radius-sm);
+  background: var(--vault-accent);
+  font-weight: 500;
+  transition: var(--vault-transition);
+}
+.modal-submit:hover { opacity: 0.92; }
+
+/* ── 密码库管理卡片 ── */
+.vault-mgr-card {
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: var(--vault-shadow-card);
+  transition: var(--vault-transition);
+}
+.vault-mgr-card:hover {
+  border-color: var(--vault-accent);
+  box-shadow: 0 2px 12px var(--vault-glow);
+}
+.vault-mgr-icon {
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.vault-mgr-badge {
+  border-radius: 8px;
+  background: var(--vault-accent-light);
+  color: var(--vault-accent);
+  font-weight: 500;
+}
+
+/* ── 导入向导 ── */
+#csvDropZone {
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  transition: var(--vault-transition);
+  cursor: pointer;
+}
+#csvDropZone:hover {
+  border-color: var(--vault-accent);
+  background: var(--vault-accent-light);
+}
+#importStepIndicator {
+  font-size: 12px;
+  color: var(--fg-muted);
+  background: var(--accent-light);
+  padding: 3px 12px;
+  border-radius: 20px;
+  font-weight: 500;
+}
+#importStats {
+  border-radius: 8px;
+  background: var(--accent-light);
+  border: 1px solid var(--border);
+}
+#importPreviewBody td {
+  border-bottom: 1px solid var(--border);
+  padding: 8px;
+  font-size: 12px;
+}
+#importPreviewBody th { border-bottom: 1px solid var(--border); }
+#importResult {
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 12px 12px;
+}
+#importSkippedList {
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+/* ── 审计面板 ── */
+.audit-bar {
+  border-radius: 4px;
+  background: var(--accent);
+  overflow: hidden;
+}
+.audit-item {
+  border-radius: 8px;
+  background: var(--accent-light);
+  border: 1px solid var(--border);
+  transition: var(--vault-transition);
+}
+.audit-item:hover { background: var(--card-hover); }
+
+/* ── 密码生成器 ── */
+.gen-password-display {
+  border-radius: var(--vault-radius-sm);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  font-family: 'SF Mono', 'JetBrains Mono', 'Consolas', monospace;
+}
+.gen-strength {
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+/* ── Toast ── */
+.toast {
+  border-radius: 10px;
+  background: var(--fg);
+  color: var(--bg-elevated);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  font-weight: 500;
+}
+
+/* ── 确认弹窗 ── */
+#confirmDialog .modal-card {
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+#confirmDialog .modal-header { font-size: 15px; }
+#confirmDialog .modal-body {
+  font-size: 13px;
+  color: var(--fg-secondary);
+  line-height: 1.6;
+}
+
+/* ── 滚动条细化 ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
+* { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+
+/* ══════════════════════════════════════════════════════════════
+   深色主题
+   ══════════════════════════════════════════════════════════════ */
+html[data-theme="dark"] {
+  --vault-amber: #fbbf24;
+  --vault-green: #34d399;
+  --vault-red: #f87171;
+  --vault-shadow-card: 0 1px 0 rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.3);
+  --vault-shadow-popup: 0 1px 0 rgba(0,0,0,0.2), 0 12px 28px rgba(0,0,0,0.5);
+}
+
+/* 深色：锁屏 */
+html[data-theme="dark"] .lock-card { background: var(--card); border-color: var(--border); }
+html[data-theme="dark"] .lock-icon { box-shadow: 0 8px 24px var(--vault-glow); }
+html[data-theme="dark"] .lock-input {
+  background: #252525;
+  border-color: var(--border);
+}
+html[data-theme="dark"] .lock-input:focus {
+  border-color: var(--vault-accent);
+  box-shadow: 0 0 0 3px var(--vault-glow);
+}
+html[data-theme="dark"] .lock-btn { background: var(--vault-accent); }
+
+/* 深色：侧边栏 */
+html[data-theme="dark"] .sidebar-item.active {
+  background: var(--vault-accent-light);
+  color: var(--vault-accent);
+}
+html[data-theme="dark"] .sidebar-search { background: #252525; }
+html[data-theme="dark"] .sidebar-search:focus-within {
+  background: var(--card);
+  border-color: var(--border);
+}
+
+/* 深色：密码列表 */
+html[data-theme="dark"] .vault-card.selected {
+  background: var(--vault-accent-light);
+  border-color: var(--vault-accent);
+}
+html[data-theme="dark"] .card-icon { box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+
+/* 深色：详情面板 */
+html[data-theme="dark"] .detail-icon { box-shadow: 0 4px 14px rgba(0,0,0,0.3); }
+html[data-theme="dark"] .detail-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: var(--vault-red);
+  color: var(--vault-red);
+}
+html[data-theme="dark"] .copy-btn:hover {
+  background: var(--vault-accent-light);
+  border-color: var(--vault-accent);
+  color: var(--vault-accent);
+}
+html[data-theme="dark"] .tag-chip {
+  background: #252525;
+  border-color: var(--border);
+}
+
+/* 深色：模态框 */
+html[data-theme="dark"] .modal-overlay {
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+}
+html[data-theme="dark"] .modal-card { background: var(--card); border-color: var(--border); }
+html[data-theme="dark"] .modal-footer { border-top-color: var(--border); }
+
+/* 深色：表单 */
+html[data-theme="dark"] .form-input,
+html[data-theme="dark"] .form-select {
+  background: #252525;
+  border-color: var(--border);
+  color: var(--fg);
+}
+html[data-theme="dark"] .form-input:focus,
+html[data-theme="dark"] .form-select:focus {
+  border-color: var(--vault-accent);
+  box-shadow: 0 0 0 3px var(--vault-glow);
+}
+
+/* 深色：按钮 */
+html[data-theme="dark"] .btn-primary { background: var(--vault-accent); }
+html[data-theme="dark"] .btn-secondary {
+  background: var(--card);
+  border-color: var(--border);
+}
+html[data-theme="dark"] .btn-secondary:hover {
+  background: var(--accent-light);
+  border-color: var(--border-light);
+}
+html[data-theme="dark"] .modal-submit { background: var(--vault-accent); }
+
+/* 深色：密码库管理卡片 */
+html[data-theme="dark"] .vault-mgr-card { background: var(--card); border-color: var(--border); }
+html[data-theme="dark"] .vault-mgr-card:hover {
+  border-color: var(--vault-accent);
+  box-shadow: 0 2px 12px var(--vault-glow);
+}
+html[data-theme="dark"] .vault-mgr-icon { box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+html[data-theme="dark"] .vault-mgr-badge {
+  background: var(--vault-accent-light);
+  color: var(--vault-accent);
+}
+
+/* 深色：导入向导 */
+html[data-theme="dark"] #csvDropZone {
+  background: #252525;
+  border-color: var(--border);
+}
+html[data-theme="dark"] #csvDropZone:hover {
+  border-color: var(--vault-accent);
+  background: var(--vault-accent-light);
+}
+html[data-theme="dark"] #importStepIndicator { background: #252525; }
+html[data-theme="dark"] #importStats {
+  background: #252525;
+  border-color: var(--border);
+}
+html[data-theme="dark"] #importPreviewBody td { border-bottom-color: var(--border); }
+html[data-theme="dark"] #importSkippedList {
+  background: #252525;
+  border-color: var(--border);
+}
+
+/* 深色：审计面板 */
+html[data-theme="dark"] .audit-item {
+  background: #252525;
+  border-color: var(--border);
+}
+html[data-theme="dark"] .audit-item:hover { background: var(--card-hover); }
+
+/* 深色：密码生成器 */
+html[data-theme="dark"] .gen-password-display {
+  background: #252525;
+  border-color: var(--border);
+}
+
+/* 深色：Toast */
+html[data-theme="dark"] .toast {
+  background: #e0e0e0;
+  color: #1e1e1e;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+/* 深色：确认弹窗 */
+html[data-theme="dark"] #confirmDialog .modal-card {
+  background: var(--card);
+  border-color: var(--border);
+}
+
+/* 深色：初始化提示 */
+html[data-theme="dark"] .init-warning {
+  background: #3d2e00;
+  border-color: #7c5e00;
+  color: #fcd34d;
+}
+html[data-theme="dark"] .init-save-hint {
+  background: #052e16;
+  border-color: #166534;
+  color: #86efac;
+}
+html[data-theme="dark"] .init-save-hint div:first-child { color: #4ade80; }
+html[data-theme="dark"] .init-save-hint div:last-child { color: #86efac; }
+
+/* 深色：chromeExportHelp */
+html[data-theme="dark"] #chromeExportHelp { background: #252525; }
+
+/* 深色：滚动条 */
+html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: var(--border); }
+html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
+html[data-theme="dark"] * { scrollbar-color: var(--border) transparent; }

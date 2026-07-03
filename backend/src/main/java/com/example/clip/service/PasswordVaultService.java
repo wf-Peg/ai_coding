@@ -437,8 +437,17 @@ public class PasswordVaultService {
                 if (storedHash != null) {
                     String inputHash = DesEncryptionUtil.getKeyCheckHash(desKey);
                     if (!storedHash.equals(inputHash)) {
-                        log.warn("Unlock failed: wrong DES key for vault '{}'", vaultName);
-                        throw new RuntimeException("DES Key 不正确，请检查后重试");
+                        // 兼容旧版 hash：使用 deriveKeyBytes 计算 hash
+                        String legacyHash = DesEncryptionUtil.getLegacyKeyCheckHash(desKey);
+                        if (storedHash.equals(legacyHash)) {
+                            // 迁移到新版 hash 格式
+                            meta.put("keyCheckHash", inputHash);
+                            Files.writeString(metaFile, objectMapper.writeValueAsString(meta));
+                            log.info("Vault '{}' key hash migrated to new format", vaultName);
+                        } else {
+                            log.warn("Unlock failed: wrong DES key for vault '{}'", vaultName);
+                            throw new RuntimeException("DES Key 不正确，请检查后重试");
+                        }
                     }
                 }
             }
@@ -721,6 +730,24 @@ public class PasswordVaultService {
     }
 
     /**
+     * 切换收藏状态
+     */
+    public Map<String, Object> toggleFavorite(Long id) {
+        ensureUnlocked();
+        PasswordEntry entry = cachedVault.getEntries().stream()
+                .filter(e -> e.getId().equals(id))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("密码条目不存在: id=" + id));
+        entry.setFavorite(!entry.isFavorite());
+        saveVault();
+        log.info("Toggled favorite for entry id={}: favorite={}", id, entry.isFavorite());
+        Map<String, Object> result = new HashMap<>();
+        result.put("favorite", entry.isFavorite());
+        result.put("id", entry.getId());
+        return result;
+    }
+
+    /**
      * 搜索密码条目
      */
     public List<PasswordEntry> search(String keyword) {
@@ -894,7 +921,6 @@ public class PasswordVaultService {
                 tags = new ArrayList<>();
             }
             if (!tags.contains("imported")) tags.add("imported");
-            if (!tags.contains("chrome")) tags.add("chrome");
             entry.setTags(tags);
             if (entry.getIconColor() == null || entry.getIconColor().isEmpty()) {
                 entry.setIconColor("#6366f1");

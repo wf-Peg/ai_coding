@@ -174,8 +174,23 @@
 
         .main-content {
             flex: 1;
-            display: flex;
+            position: relative;
             overflow: hidden;
+        }
+        .view-panel {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        .view-panel-hidden {
+            visibility: hidden;
+            pointer-events: none;
+        }
+        .view-panel > iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
         }
 
         .container {
@@ -187,12 +202,6 @@
 
         .todo-section {
             border-right: 1px solid var(--panel-border);
-        }
-
-        iframe {
-            width: 100%;
-            height: 100%;
-            border: none;
         }
 
         /* 响应式设计 */
@@ -287,6 +296,20 @@
         transition: opacity 0.2s;
     }
     .startup-error .retry-btn:hover { opacity: 0.85; }
+
+    /* ====== 浮动滚动工具 ====== */
+    .scroll-tools {
+        position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+        display: flex; flex-direction: column; gap: 8px;
+    }
+    .scroll-tool-btn {
+        width: 40px; height: 40px; border-radius: 10px;
+        border: 1px solid var(--panel-border); background: var(--bg);
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        transition: all 0.15s; opacity: 0.55; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        color: var(--text-secondary);
+    }
+    .scroll-tool-btn:hover { opacity: 1; border-color: var(--primary); color: var(--primary); }
 </style>
 </head>
 <body>
@@ -364,7 +387,8 @@
 
 <div class="app-layout">
     <div class="main-content" id="mainContent">
-        <div class="container" id="homeView">
+        <!-- 首页 -->
+        <div class="container view-panel" id="homeView">
             <div class="todo-section">
                 <iframe id="todoFrame" data-src="todo.html" style="width:100%;height:100%;border:none;"></iframe>
             </div>
@@ -372,7 +396,34 @@
                 <iframe id="clipFrame" data-src="clip.html" style="width:100%;height:100%;border:none;"></iframe>
             </div>
         </div>
+        <!-- 话题 -->
+        <div class="view-panel view-panel-hidden" id="topicView">
+            <iframe id="topicFrame" data-src="topic.html" style="width:100%;height:100%;border:none;"></iframe>
+        </div>
+        <!-- 密码 -->
+        <div class="view-panel view-panel-hidden" id="vaultView">
+            <iframe id="vaultFrame" data-src="vault.html" style="width:100%;height:100%;border:none;"></iframe>
+        </div>
+        <!-- 设置 -->
+        <div class="view-panel view-panel-hidden" id="settingsView">
+            <iframe id="settingsFrame" data-src="settings.html" style="width:100%;height:100%;border:none;"></iframe>
+        </div>
     </div>
+</div>
+
+<!-- 浮动滚动工具 -->
+<div class="scroll-tools" id="scrollTools">
+    <button class="scroll-tool-btn" id="btnScrollTop" title="回到顶部">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="18 15 12 9 6 15"/>
+        </svg>
+    </button>
+    <button class="scroll-tool-btn" id="btnRefresh" title="刷新页面">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10"/>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+    </button>
 </div>
 <script>
   (function() {
@@ -395,6 +446,14 @@
         if (persist) {
           localStorage.setItem(THEME_KEY, dataTheme);
         }
+        // 广播主题变更到所有 iframe 子页面
+        broadcastThemeChange();
+      }
+
+      function broadcastThemeChange() {
+        [todoFrame, clipFrame, topicFrame, vaultFrame, settingsFrame].forEach(frame => {
+          try { if (frame && frame.contentWindow) frame.contentWindow.postMessage({ action: 'themeChange' }, '*'); } catch(e) {}
+        });
       }
 
       // 监听系统主题变化
@@ -411,8 +470,6 @@
         }
       });
 
-      applyTheme(null, false);
-
       // 监听 iframe 子页面的主题变更消息
       window.addEventListener('message', event => {
         if (event.data && event.data.type === 'themeChanged') {
@@ -423,21 +480,53 @@
         }
       });
 
-      // ====== 导航切换（SPA 路由） ======
+      // ====== 导航切换（SPA 路由 + 页面缓存） ======
       const navBtns = document.querySelectorAll('.titlebar-nav .nav-btn');
-      const mainContent = document.getElementById('mainContent');
       const homeView = document.getElementById('homeView');
-      const VIEW_IFRAME = { topic: 'topic.html', settings: 'settings.html', vault: 'vault.html' };
+      const topicView = document.getElementById('topicView');
+      const vaultView = document.getElementById('vaultView');
+      const settingsView = document.getElementById('settingsView');
+      const topicFrame = document.getElementById('topicFrame');
+      const vaultFrame = document.getElementById('vaultFrame');
+      const settingsFrame = document.getElementById('settingsFrame');
+      const scrollTools = document.getElementById('scrollTools');
+
+      let activeIframe = null;
+      const todoFrame = document.getElementById('todoFrame');
+      const clipFrame = document.getElementById('clipFrame');
+
+      applyTheme(null, false);
+
+      const viewMap = { topic: topicView, vault: vaultView, settings: settingsView };
+      const frameMap = { topic: topicFrame, vault: vaultFrame, settings: settingsFrame };
+      const allPanels = [homeView, topicView, vaultView, settingsView];
 
       function renderView(view) {
         navBtns.forEach(n => n.classList.remove('active'));
         const targetBtn = document.querySelector(`.nav-btn[data-view="${view}"]`);
         if (targetBtn) targetBtn.classList.add('active');
+
+        // 隐藏所有 view panel（用 visibility 而非 display，避免 iframe 重新加载）
+        allPanels.forEach(p => p.classList.add('view-panel-hidden'));
+
+        // 始终显示滚动工具
+        scrollTools.style.display = 'flex';
+
         if (view === 'home') {
-          mainContent.innerHTML = '';
-          mainContent.appendChild(homeView);
-        } else if (VIEW_IFRAME[view]) {
-          mainContent.innerHTML = `<iframe src="${VIEW_IFRAME[view]}" style="width:100%;height:100%;border:none;"></iframe>`;
+          homeView.classList.remove('view-panel-hidden');
+          activeIframe = null; // 首页有两个 iframe，按钮会同时发送到两者
+        } else {
+          const panel = viewMap[view];
+          const frame = frameMap[view];
+          if (panel && frame) {
+            // 懒加载：首次访问时才加载 iframe src
+            if (frame.dataset.src) {
+              frame.src = frame.dataset.src;
+              delete frame.dataset.src;
+            }
+            panel.classList.remove('view-panel-hidden');
+            activeIframe = frame;
+          }
         }
       }
 
@@ -461,6 +550,25 @@
 
       window.addEventListener('popstate', () => {
         renderView(pathToView(window.location.pathname));
+      });
+
+      // 滚动工具按钮事件
+      document.getElementById('btnScrollTop').addEventListener('click', () => {
+        if (activeIframe) {
+          activeIframe.contentWindow.postMessage({action: 'scrollToTop'}, '*');
+        } else {
+          // 首页：同时发送到 todo 和 clip 两个 iframe
+          if (todoFrame && todoFrame.contentWindow) todoFrame.contentWindow.postMessage({action: 'scrollToTop'}, '*');
+          if (clipFrame && clipFrame.contentWindow) clipFrame.contentWindow.postMessage({action: 'scrollToTop'}, '*');
+        }
+      });
+      document.getElementById('btnRefresh').addEventListener('click', () => {
+        if (activeIframe) {
+          activeIframe.contentWindow.postMessage({action: 'refresh'}, '*');
+        } else {
+          if (todoFrame && todoFrame.contentWindow) todoFrame.contentWindow.postMessage({action: 'refresh'}, '*');
+          if (clipFrame && clipFrame.contentWindow) clipFrame.contentWindow.postMessage({action: 'refresh'}, '*');
+        }
       });
 
       // 初始路由

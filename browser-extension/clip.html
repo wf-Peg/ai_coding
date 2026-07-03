@@ -1678,7 +1678,10 @@
                 min-width: auto;
             }
         }
-    </style>
+
+    @keyframes extSlideIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes extSlideOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(30px); } }
+</style>
     <link id="clipThemeNotion" rel="stylesheet" href="./styles/clip-theme-notion.css" disabled>
 </head>
 <body>

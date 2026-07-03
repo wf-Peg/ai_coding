@@ -133,14 +133,15 @@ async function exportScreenshot() {
 
 // 删除话题
 async function deleteTopic() {
-  if (!confirm('确定要删除这个话题吗？')) return;
-  try {
-    await fetch(`${API_BASE}/${topicId}`, { method: 'DELETE' });
-    location.href = 'topic.html';
-  } catch (error) {
-    console.error('删除失败:', error);
-    alert('删除失败，请稍后重试');
-  }
+  showConfirm('确定要删除这个话题吗？', async () => {
+    try {
+      await fetch(`${API_BASE}/${topicId}`, { method: 'DELETE' });
+      location.href = 'topic.html';
+    } catch (error) {
+      console.error('删除失败:', error);
+      showToast('删除失败，请稍后重试');
+    }
+  });
 }
 
 // 工具函数
@@ -157,17 +158,30 @@ function showToast(message) {
   const toast = document.createElement('div');
   toast.className = 'toast';
   toast.textContent = message;
-  toast.style.cssText = `
-    position: fixed; top: 20px; right: 20px;
-    background: #333; color: white;
-    padding: 12px 24px; border-radius: 8px;
-    z-index: 1000; animation: slideIn 0.3s ease-out;
-  `;
   document.body.appendChild(toast);
   setTimeout(() => {
-    toast.style.animation = 'slideOut 0.3s ease-in forwards';
+    toast.style.animation = 'toastSlideOut 0.3s ease-in forwards';
     setTimeout(() => toast.remove(), 300);
   }, 2000);
+}
+
+function showConfirm(message, onConfirm) {
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-overlay';
+  overlay.innerHTML = `
+    <div class="confirm-dialog">
+      <p>${message}</p>
+      <div class="confirm-actions">
+        <button class="confirm-btn" id="confirmCancelBtn">取消</button>
+        <button class="confirm-btn danger" id="confirmOkBtn">确定</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('#confirmCancelBtn').addEventListener('click', close);
+  overlay.querySelector('#confirmOkBtn').addEventListener('click', () => { close(); onConfirm(); });
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 }
 
 // 初始化
@@ -186,4 +200,15 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('deleteBtn').addEventListener('click', deleteTopic);
   document.getElementById('openFolderBtn').addEventListener('click', openStorageFolder);
   document.getElementById('exportPdfBtn').addEventListener('click', exportScreenshot);
+});
+
+// ====== 接收主框架消息：滚动到顶部 / 刷新 / 主题切换 ======
+window.addEventListener('message', (e) => {
+  if (e.data.action === 'scrollToTop') {
+    document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
+  } else if (e.data.action === 'refresh') {
+    location.reload();
+  } else if (e.data.action === 'themeChange') {
+    if (typeof window.applyTheme === 'function') window.applyTheme();
+  }
 });

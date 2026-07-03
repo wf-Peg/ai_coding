@@ -6,6 +6,7 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.DESKeySpec;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Base64;
 
 /**
@@ -33,6 +34,35 @@ public class DesEncryptionUtil {
     }
 
     /**
+     * 从任意字符串推导出 8 字节 DES 密钥。
+     * <p>
+     * 兼容两种输入：(1) 前端的 generateKey() 生成的 Base64 编码 8 字节密钥；
+     * (2) 用户直接输入的任意密码字符串（通过 MD5 取前 8 字节）。
+     * </p>
+     *
+     * @param input 用户输入的密钥字符串
+     * @return 8 字节密钥
+     */
+    private static byte[] deriveKeyBytes(String input) {
+        try {
+            byte[] decoded = Base64.getDecoder().decode(input);
+            if (decoded.length == 8) {
+                return decoded;
+            }
+        } catch (IllegalArgumentException ignored) {
+            // 不是合法的 Base64 → 作为普通密码处理
+        }
+        // 用户输入的是普通密码字符串 → MD5 取前 8 字节
+        try {
+            MessageDigest md5 = MessageDigest.getInstance("MD5");
+            byte[] hash = md5.digest(input.getBytes("UTF-8"));
+            return Arrays.copyOf(hash, 8);
+        } catch (Exception e) {
+            throw new RuntimeException("无法从输入推导 DES 密钥", e);
+        }
+    }
+
+    /**
      * DES 加密
      *
      * @param plaintext 明文字符串
@@ -41,7 +71,8 @@ public class DesEncryptionUtil {
      */
     public static String encrypt(String plaintext, String keyBase64) {
         try {
-            DESKeySpec desKey = new DESKeySpec(Base64.getDecoder().decode(keyBase64));
+            byte[] keyBytes = deriveKeyBytes(keyBase64);
+            DESKeySpec desKey = new DESKeySpec(keyBytes);
             SecretKeyFactory keyFactory = SecretKeyFactory.getInstance(KEY_ALGORITHM);
             SecretKey secureKey = keyFactory.generateSecret(desKey);
             Cipher cipher = Cipher.getInstance(ALGORITHM);
@@ -62,7 +93,8 @@ public class DesEncryptionUtil {
      */
     public static String decrypt(String ciphertextBase64, String keyBase64) {
         try {
-            DESKeySpec desKey = new DESKeySpec(Base64.getDecoder().decode(keyBase64));
+            byte[] keyBytes = deriveKeyBytes(keyBase64);
+            DESKeySpec desKey = new DESKeySpec(keyBytes);
             SecretKeyFactory keyFactory = SecretKeyFactory.getInstance(KEY_ALGORITHM);
             SecretKey secureKey = keyFactory.generateSecret(desKey);
             Cipher cipher = Cipher.getInstance(ALGORITHM);
@@ -87,6 +119,23 @@ public class DesEncryptionUtil {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(keyBase64.getBytes("UTF-8"));
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < 4; i++) {
+                sb.append(String.format("%02x", hash[i]));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            throw new RuntimeException("生成 Key 校验哈希失败", e);
+        }
+    }
+
+    /**
+     * 旧版 Key 校验哈希（使用 deriveKeyBytes），用于兼容迁移。
+     */
+    public static String getLegacyKeyCheckHash(String keyBase64) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(deriveKeyBytes(keyBase64));
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < 4; i++) {
                 sb.append(String.format("%02x", hash[i]));

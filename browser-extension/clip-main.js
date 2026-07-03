@@ -85,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (type === 'doc-ai') {
             if (!uploadedFileBase64) {
-                alert('请上传文件');
+                showToast('请上传文件');
                 return;
             }
             requestBody.content = uploadedFileName;
@@ -446,10 +446,10 @@ function escapeJs(text) {
 
 function copyToClipboard(text) {
     navigator.clipboard.writeText(text).then(() => {
-        alert('已复制到剪贴板！');
+        showToast('已复制到剪贴板！');
     }).catch(err => {
         console.error('复制失败:', err);
-        alert('复制失败，请手动复制');
+        showToast('复制失败，请手动复制');
     });
 }
 
@@ -638,7 +638,7 @@ async function deleteClip(id) {
         }
     } catch (error) {
         console.error('删除剪藏失败:', error);
-        alert('删除失败，请稍后重试');
+        showToast('删除失败，请稍后重试');
     }
 }
 
@@ -702,6 +702,17 @@ async function generateWeeklyReport() {
         reportBtn.classList.remove('btn-loading');
         reportBtn.textContent = originalText;
     }
+}
+
+function showToast(msg) {
+  const existing = document.querySelector('.ext-toast');
+  if (existing) existing.remove();
+  const t = document.createElement('div');
+  t.className = 'ext-toast';
+  t.textContent = msg;
+  t.style.cssText = 'position:fixed;top:20px;right:20px;background:var(--card,#1e1e1e);color:var(--fg,#d4d4d4);padding:10px 20px;border-radius:10px;border:1px solid var(--border,#3e3e3e);z-index:9999;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,0.3);animation:extSlideIn 0.3s ease-out;';
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.animation = 'extSlideOut 0.3s ease-in forwards'; setTimeout(() => t.remove(), 300); }, 2000);
 }
 
 function showNotification(message, showOpenButton = false) {

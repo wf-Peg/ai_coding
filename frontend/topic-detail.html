@@ -309,7 +309,22 @@
         html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: var(--border); }
         html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
         html[data-theme="dark"] * { scrollbar-color: var(--border) transparent; }
-    </style>
+
+    /* confirm dialog */
+    .confirm-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.35); z-index: 2000; display: flex; align-items: center; justify-content: center; }
+    .confirm-dialog { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; max-width: 380px; width: 90%; box-shadow: 0 8px 30px rgba(0,0,0,0.15); }
+    .confirm-dialog p { font-size: 14px; color: var(--fg); margin-bottom: 20px; line-height: 1.5; }
+    .confirm-actions { display: flex; justify-content: flex-end; gap: 10px; }
+    .confirm-btn { padding: 8px 20px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; font-size: 13px; background: var(--card); color: var(--fg-muted); transition: all 0.15s; }
+    .confirm-btn:hover { border-color: var(--fg-muted); color: var(--fg); }
+    .confirm-btn.danger { background: #ef4444; color: #fff; border-color: #ef4444; }
+    .confirm-btn.danger:hover { background: #dc2626; }
+
+    /* toast */
+    .toast { position: fixed; top: 20px; right: 20px; background: var(--card); color: var(--fg); padding: 10px 20px; border-radius: 10px; border: 1px solid var(--border); z-index: 3000; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,0.15); animation: toastSlideIn 0.3s ease-out; }
+    @keyframes toastSlideIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes toastSlideOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(30px); } }
+</style>
 </head>
 <body>
     <nav class="nav">
@@ -346,6 +361,7 @@
           const t = getEffective();
           document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : (t === 'regular' ? 'regular' : 'notion'));
         }
+        window.applyTheme = apply;
         apply();
         window.addEventListener('storage', function(e) {
           if (e.key === THEME_KEY || e.key === APPEARANCE_KEY) apply();

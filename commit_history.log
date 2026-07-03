@@ -2,6 +2,18 @@
 # 格式: 日期 时间 | 提交说明
 # 每次提交代码后自动追加到此文件
 
+2026-07-03 03:30 | 密码模块Notion灰色主题适配 + 全局主题同步 + 导入/删除bug修复 + 原生弹窗替换
+  - 密码模块theme-vault-notion.css：accent改为Notion深灰(var(--fg))，移除蓝/紫色系
+  - 全局主题广播：index.html applyTheme()广播themeChange到所有iframe子页面
+  - 子页面主题同步：todo/clip/topic/settings/topic-detail全部添加themeChange监听
+  - 密码模块导入流程：精简为2步，修复按钮样式缺失(.modal-submit)，修复importNext()跳转错误
+  - 修复删除/切换功能无响应：confirmDialog改用classList add/remove('show')
+  - 修复切换密码库后输入框无法聚焦：await init() + requestAnimationFrame
+  - 修复应用启动卡死：applyTheme()移到iframe变量初始化之后
+  - 全局替换原生alert/confirm为自定义弹窗：vault.html/topic-detail.js/clip.html/browser-extension
+  - 后端PasswordVaultService：修复导入时硬编码"chrome"标签
+  - 统一HTTP响应检查：deleteEntry/deleteVaultAction/switchToVault添加!res.ok检查
+
 2026-07-02 06:30 | 修复后端启动超时：添加/health端点 + checkPort增强TCP回退 + 移除lazy-initialization
 2026-07-01 15:30 | 修复更新通知vundefined + 折叠长文本 + 构建更新ZIP + EXE回退
 2026-07-01 15:00 | CutShelter品牌统一 + 前端标题加英文名 + 后端日志同步到AppData\Local\CutShelter\logs

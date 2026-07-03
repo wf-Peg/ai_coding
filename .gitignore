@@ -1,6 +1,11 @@
 # 剪藏Demo项目Git忽略文件配置
 # 参考阿里巴巴Java开发手册，添加详细注释
 
+# JDK 运行时目录（超大文件）
+jdk/
+jre/
+win-unpacked/
+
 # 编译生成的class文件
 *.class
 

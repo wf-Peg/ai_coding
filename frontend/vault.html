@@ -5,23 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>密码管理</title>
 <link rel="stylesheet" href="styles/theme-notion.css">
+<link rel="stylesheet" href="styles/theme-vault-notion.css">
 <style>
-:root {
-  --vault-purple: #6366f1;
-  --vault-purple-dark: #5b5bd6;
-  --vault-purple-light: #eef0ff;
-  --vault-amber: #f59e0b;
-  --vault-green: #10b981;
-  --vault-red: #ef4444;
-}
-html[data-theme="dark"] {
-  --vault-purple-light: #1e1b4b;
-  --vault-purple: #818cf8;
-  --vault-purple-dark: #6366f1;
-  --vault-amber: #fbbf24;
-  --vault-green: #34d399;
-  --vault-red: #f87171;
-}
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: var(--font-body); background: var(--bg); color: var(--fg); overflow: hidden; height: 100vh; }
 
@@ -37,7 +22,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
 }
 .lock-icon {
   width: 56px; height: 56px;
-  background: linear-gradient(135deg, var(--vault-purple), #8b5cf6);
+  background: linear-gradient(135deg, var(--vault-accent), var(--vault-accent));
   border-radius: 16px; margin: 0 auto 20px;
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
@@ -51,22 +36,16 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
   background: var(--bg-elevated); color: var(--fg); outline: none; transition: var(--transition);
   margin-bottom: 12px;
 }
-.lock-input:focus { border-color: var(--vault-purple); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+.lock-input:focus { border-color: var(--vault-accent); box-shadow: 0 0 0 3px var(--vault-glow); }
 .lock-btn {
   width: 100%; padding: 10px; border: none; border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, var(--vault-purple), #8b5cf6); color: white;
+  background: linear-gradient(135deg, var(--vault-accent), var(--vault-accent)); color: white;
   font-size: 14px; font-weight: 500; cursor: pointer; transition: var(--transition);
 }
 .lock-btn:hover { opacity: 0.9; }
 .lock-link { margin-top: 16px; font-size: 12px; color: var(--fg-muted); }
-.lock-link a { color: var(--vault-purple); cursor: pointer; text-decoration: none; }
+.lock-link a { color: var(--vault-accent); cursor: pointer; text-decoration: none; }
 .lock-error { color: var(--vault-red); font-size: 12px; margin-top: 8px; display: none; }
-
-/* 深色主题下提示框颜色适配 */
-html[data-theme="dark"] .init-warning { background: #3d2e00; border-color: #7c5e00; color: #fcd34d; }
-html[data-theme="dark"] .init-save-hint { background: #052e16; border-color: #166534; color: #86efac; }
-html[data-theme="dark"] .init-save-hint div:first-child { color: #4ade80; }
-html[data-theme="dark"] .init-save-hint div:last-child { color: #86efac; }
 
 /* ====== 主界面 ====== */
 .vault-app { display: flex; height: 100vh; }
@@ -87,7 +66,7 @@ html[data-theme="dark"] .init-save-hint div:last-child { color: #86efac; }
   display: flex; align-items: center; gap: 8px;
 }
 .sidebar-item:hover { background: var(--accent-light); }
-.sidebar-item.active { background: var(--vault-purple-light); color: var(--vault-purple); font-weight: 500; }
+.sidebar-item.active { background: var(--vault-accent-light); color: var(--vault-accent); font-weight: 500; }
 .sidebar-item .count { margin-left: auto; font-size: 11px; color: var(--fg-muted); }
 .sidebar-item svg { width: 16px; height: 16px; flex-shrink: 0; }
 .sidebar-divider { height: 1px; background: var(--border); margin: 8px 12px; }
@@ -114,13 +93,13 @@ html[data-theme="dark"] .init-save-hint div:last-child { color: #86efac; }
   background: var(--card); cursor: pointer; display: flex; align-items: center; justify-content: center;
   transition: var(--transition); color: var(--fg-secondary);
 }
-.add-btn:hover { border-color: var(--vault-purple); color: var(--vault-purple); background: var(--vault-purple-light); }
+.add-btn:hover { border-color: var(--vault-accent); color: var(--vault-accent); background: var(--vault-accent-light); }
 .vault-card {
   margin: 0 12px 4px; padding: 12px 14px; border: 1px solid transparent; border-radius: var(--radius-sm);
   cursor: pointer; transition: var(--transition); display: flex; align-items: center; gap: 12px;
 }
 .vault-card:hover { background: var(--card-hover); }
-.vault-card.selected { background: var(--vault-purple-light); border-color: var(--vault-purple); }
+.vault-card.selected { background: var(--vault-accent-light); border-color: var(--vault-accent); }
 .card-icon {
   width: 32px; height: 32px; border-radius: 7px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
@@ -149,7 +128,7 @@ html[data-theme="dark"] .init-save-hint div:last-child { color: #86efac; }
   background: var(--card); cursor: pointer; font-size: 12px; font-family: inherit;
   color: var(--fg-secondary); transition: var(--transition);
 }
-.detail-btn:hover { border-color: var(--vault-purple); color: var(--vault-purple); }
+.detail-btn:hover { border-color: var(--vault-accent); color: var(--vault-accent); }
 .detail-btn.danger:hover { border-color: var(--vault-red); color: var(--vault-red); }
 
 .detail-field {
@@ -167,7 +146,7 @@ html[data-theme="dark"] .init-save-hint div:last-child { color: #86efac; }
   background: var(--card); cursor: pointer; font-size: 11px; font-family: inherit;
   color: var(--fg-muted); transition: var(--transition);
 }
-.copy-btn:hover { border-color: var(--vault-purple); color: var(--vault-purple); }
+.copy-btn:hover { border-color: var(--vault-accent); color: var(--vault-accent); }
 .tags-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .tag-chip {
   padding: 2px 10px; border-radius: 4px; font-size: 11px;
@@ -198,7 +177,7 @@ html[data-theme="dark"] .init-save-hint div:last-child { color: #86efac; }
   border-radius: 6px; font-size: 13px; font-family: inherit;
   background: var(--bg-elevated); color: var(--fg); outline: none; transition: var(--transition);
 }
-.form-input:focus { border-color: var(--vault-purple); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+.form-input:focus { border-color: var(--vault-accent); box-shadow: 0 0 0 3px var(--vault-glow); }
 .form-select {
   width: 100%; padding: 8px 12px; border: 1px solid var(--border-light);
   border-radius: 6px; font-size: 13px; font-family: inherit;
@@ -208,7 +187,7 @@ html[data-theme="dark"] .init-save-hint div:last-child { color: #86efac; }
 .form-row .form-group { flex: 1; }
 .btn-primary {
   padding: 8px 20px; border: none; border-radius: 6px;
-  background: linear-gradient(135deg, var(--vault-purple), #8b5cf6); color: white;
+  background: linear-gradient(135deg, var(--vault-accent), var(--vault-accent)); color: white;
   font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; transition: var(--transition);
 }
 .btn-primary:hover { opacity: 0.9; }
@@ -218,6 +197,13 @@ html[data-theme="dark"] .init-save-hint div:last-child { color: #86efac; }
   cursor: pointer; font-family: inherit; transition: var(--transition);
 }
 .btn-secondary:hover { background: var(--accent-light); }
+.modal-submit {
+  padding: 8px 20px; border: none; border-radius: 8px;
+  background: var(--vault-accent); color: #fff;
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  font-family: inherit; transition: all 0.15s;
+}
+.modal-submit:hover { opacity: 0.9; }
 
 /* 密码生成器 */
 .gen-password-display {
@@ -232,7 +218,7 @@ html[data-theme="dark"] .init-save-hint div:last-child { color: #86efac; }
   display: flex; align-items: center; gap: 8px; padding: 6px 0;
   font-size: 13px; color: var(--fg-secondary); cursor: pointer;
 }
-.checkbox-row input { accent-color: var(--vault-purple); }
+.checkbox-row input { accent-color: var(--vault-accent); }
 
 /* 审计面板 */
 .audit-section { margin-bottom: 20px; }
@@ -249,6 +235,30 @@ html[data-theme="dark"] .init-save-hint div:last-child { color: #86efac; }
   transition: transform 0.3s; z-index: 2000; pointer-events: none;
 }
 .toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ====== 密码库管理卡片 ====== */
+.vault-mgr-card {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; margin-bottom: 10px;
+  background: var(--card); border-radius: 10px;
+  border: 1px solid var(--border-light);
+  transition: all 0.15s;
+}
+.vault-mgr-card:hover { border-color: var(--vault-accent); background: var(--card-hover); }
+.vault-mgr-main { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+.vault-mgr-icon {
+  width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 600; color: white;
+}
+.vault-mgr-info { flex: 1; min-width: 0; }
+.vault-mgr-name { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.vault-mgr-badge {
+  font-size: 10px; font-weight: 500; padding: 1px 8px; border-radius: 10px;
+  background: var(--vault-accent-light); color: var(--vault-accent);
+}
+.vault-mgr-meta { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
+.vault-mgr-actions { display: flex; gap: 8px; flex-shrink: 0; }
 
 /* 滚动条 */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -487,7 +497,7 @@ html[data-theme="dark"] .init-save-hint div:last-child { color: #86efac; }
   <div class="modal-card" style="width:600px;max-height:80vh;display:flex;flex-direction:column;">
     <div class="modal-header">
       <span>导入密码</span>
-      <span id="importStepIndicator" style="font-size:12px;color:var(--fg-muted);font-weight:400;">步骤 1 / 3</span>
+      <span id="importStepIndicator" style="font-size:12px;color:var(--fg-muted);font-weight:400;">步骤 1 / 2</span>
     </div>
     <div class="modal-body" id="importBody" style="overflow-y:auto;flex:1;">
 
@@ -542,23 +552,18 @@ html[data-theme="dark"] .init-save-hint div:last-child { color: #86efac; }
         </div>
       </div>
 
-      <!-- 步骤 3：导入结果 -->
-      <div id="importStep3" style="display:none;text-align:center;padding:20px 0;">
-        <div id="importResultIcon" style="width:48px;height:48px;margin:0 auto 12px;border-radius:50%;background:var(--success-light,#dcfce7);display:flex;align-items:center;justify-content:center;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="var(--success,#16a34a)" stroke-width="2" style="width:24px;height:24px;"><polyline points="20 6 9 17 4 12"/></svg>
-        </div>
-        <div id="importResultSummary" style="font-size:16px;font-weight:600;margin-bottom:8px;"></div>
-        <div id="importResultDetails" style="font-size:13px;color:var(--fg-secondary);margin-bottom:16px;"></div>
-        <div id="importSkippedList" style="max-height:200px;overflow:auto;text-align:left;border:1px solid var(--border);border-radius:8px;padding:8px;display:none;font-size:12px;"></div>
+      <!-- 导入结果（内联显示在步骤 2 下方） -->
+      <div id="importResult" style="display:none; text-align:center; padding:16px 0 0; border-top:1px solid var(--border); margin-top:16px;">
+        <div id="importResultSummary" style="font-size:16px; font-weight:600; margin-bottom:8px;"></div>
+        <div id="importResultDetails" style="font-size:13px; color:var(--fg-secondary); margin-bottom:12px;"></div>
+        <div id="importSkippedList" style="max-height:160px; overflow:auto; text-align:left; border:1px solid var(--border); border-radius:8px; padding:8px; display:none; font-size:12px;"></div>
       </div>
 
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeImportModal()">关闭</button>
       <button id="importPrevBtn" class="btn-secondary" style="display:none;" onclick="importPrev()">上一步</button>
-      <button id="importNextBtn" class="modal-submit" style="display:none;" onclick="importNext()">下一步</button>
       <button id="importDoBtn" class="modal-submit" style="display:none;" onclick="doImport()">确认导入</button>
-      <button id="importDoneBtn" class="modal-submit" style="display:none;" onclick="closeImportModal();refreshEntries();">完成</button>
     </div>
   </div>
 </div>
@@ -640,15 +645,21 @@ html[data-theme="dark"] .init-save-hint div:last-child { color: #86efac; }
 
 <!-- ====== 密码库管理模态框 ====== -->
 <div class="modal-overlay" id="vaultManagerModal">
-  <div class="modal-card" style="width:500px; max-height:70vh; display:flex; flex-direction:column;">
-    <div class="modal-header">密码库管理</div>
-    <div class="modal-body" style="overflow-y:auto; flex:1;">
-      <div id="vaultManagerList"></div>
-      <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
-        <button class="btn-primary" onclick="closeModal('vaultManagerModal'); showInitModal()" style="width:100%;">+ 新建密码库</button>
-      </div>
+  <div class="modal-card" style="width:520px; max-height:85vh; display:flex; flex-direction:column;">
+    <div class="modal-header" style="display:flex; align-items:center; justify-content:space-between;">
+      <span style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size:20px;">🔐</span>
+        <span>密码库管理</span>
+      </span>
+      <span style="font-size:12px; color:var(--fg-muted);" id="vaultCount"></span>
     </div>
-    <div class="modal-footer">
+    <div class="modal-body" style="overflow-y:auto; flex:1; padding:4px 24px 16px;">
+      <div id="vaultManagerList"></div>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between;">
+      <button class="btn-secondary" onclick="closeModal('vaultManagerModal'); showInitModal()" style="font-size:13px; display:flex; align-items:center; gap:6px;">
+        <span style="font-size:16px; line-height:1;">+</span> 新建密码库
+      </button>
       <button class="btn-secondary" onclick="closeModal('vaultManagerModal')">关闭</button>
     </div>
   </div>
@@ -656,6 +667,23 @@ html[data-theme="dark"] .init-save-hint div:last-child { color: #86efac; }
 
 <!-- Toast -->
 <div class="toast" id="toast"></div>
+
+<!-- ====== 自定义确认弹窗 ====== -->
+<div class="modal-overlay" id="confirmDialog" style="z-index:10001;">
+  <div class="modal-card" style="width:400px;">
+    <div class="modal-header" style="display:flex; align-items:center; gap:10px;">
+      <span style="font-size:20px;">⚠️</span>
+      <span id="confirmTitle">确认操作</span>
+    </div>
+    <div class="modal-body" style="padding: 8px 24px 12px; font-size:13px; color:var(--fg-muted); line-height:1.6;">
+      <p id="confirmMessage">确定要执行此操作吗？</p>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end; gap:10px;">
+      <button class="btn-secondary" onclick="closeConfirmDialog(false)">取消</button>
+      <button class="btn-primary" id="confirmDangerBtn" onclick="closeConfirmDialog(true)" style="background:var(--vault-red); border-color:var(--vault-red);">确认</button>
+    </div>
+  </div>
+</div>
 
 <script src="libs/marked.min.js"></script>
 <script src="js/logger.js"></script>
@@ -730,7 +758,7 @@ async function init() {
       document.getElementById('noKeyHint').style.display = 'none';
     }
   } catch (e) {
-    console.error('Status check failed', e);
+    // 静默处理：init 阶段失败由 UI 状态自然展示
   }
 }
 
@@ -899,6 +927,7 @@ function renderDetail() {
       <div class="detail-icon" style="background:${e.iconColor || '#6366f1'};">${(e.title || '?')[0].toUpperCase()}</div>
       <div class="detail-title">${escapeHtml(e.title)}</div>
       <div class="detail-actions">
+        <button class="detail-btn" id="detailFavBtn" onclick="toggleFavorite(${e.id})" style="font-size:18px; line-height:1; padding:4px 8px;" title="收藏">${e.favorite ? '★' : '☆'}</button>
         <button class="detail-btn" onclick="showEditModal(${e.id})">编辑</button>
         <button class="detail-btn danger" onclick="deleteEntry(${e.id})">删除</button>
       </div>
@@ -1029,7 +1058,7 @@ async function saveEntry() {
       body: JSON.stringify(entry)
     });
     const data = await res.json();
-    if (data.error) { showToast(data.error); return; }
+    if (!res.ok || data.error) { showToast(data.error || '保存失败'); return; }
     if (editingId) {
       const idx = allEntries.findIndex(e => e.id === editingId);
       if (idx >= 0) allEntries[idx] = data;
@@ -1047,12 +1076,15 @@ async function saveEntry() {
   }
 }
 
-async function deleteEntry(id) {
-  if (!confirm('确认删除此密码条目？')) return;
+async function deleteEntry(entryId) {
+  const ok = await showConfirmDialog('删除密码条目', '确认删除此密码条目？此操作不可恢复。', true);
+  if (!ok) return;
   try {
-    await fetch(API + '/entry/' + id, {method: 'DELETE'});
-    allEntries = allEntries.filter(e => e.id !== id);
-    if (selectedEntry && selectedEntry.id === id) selectedEntry = null;
+    const res = await fetch(API + '/entry/' + entryId, {method: 'DELETE'});
+    const data = await res.json();
+    if (!res.ok || data.error) { showToast(data.error || '删除失败'); return; }
+    allEntries = allEntries.filter(e => e.id !== entryId);
+    if (selectedEntry && selectedEntry.id === entryId) selectedEntry = null;
     applyFilter();
     updateCounts();
     renderDetail();
@@ -1154,21 +1186,32 @@ async function showVaultManager() {
 
 function renderVaultManagerList(vaults) {
   const container = document.getElementById('vaultManagerList');
-  container.innerHTML = vaults.map(v => {
+  document.getElementById('vaultCount').textContent = vaults.length + ' 个密码库';
+  container.innerHTML = vaults.map((v, i) => {
     const date = v.createdAt ? new Date(v.createdAt).toLocaleDateString('zh-CN') : '-';
     const isActive = v.isActive;
     const isCurrent = isActive && v.name === currentVaultName;
+    const colors = ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6'];
+    const bg = colors[i % colors.length];
     return `
-      <div style="padding:14px; border:1px solid ${isActive ? 'var(--vault-purple)' : 'var(--border)'}; border-radius:10px; margin-bottom:8px;${isActive ? 'background:var(--vault-purple-light);' : ''}">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-          <div>
-            <div style="font-weight:600; font-size:14px;">${escapeHtml(v.label)} ${isActive ? '<span style="font-size:11px;color:var(--vault-purple);">（当前）</span>' : ''}</div>
-            <div style="font-size:11px; color:var(--fg-muted);">${v.entryCount} 条 · 创建于 ${date}</div>
+      <div class="vault-mgr-card" style="border-left:3px solid ${isActive ? bg : 'var(--border)'};">
+        <div class="vault-mgr-main">
+          <div class="vault-mgr-icon" style="background:${bg};">
+            ${(v.label || 'V')[0].toUpperCase()}
+          </div>
+          <div class="vault-mgr-info">
+            <div class="vault-mgr-name">
+              ${escapeHtml(v.label)}
+              ${isActive ? '<span class="vault-mgr-badge">当前</span>' : ''}
+            </div>
+            <div class="vault-mgr-meta">
+              ${v.entryCount} 条密码 · ${v.unlocked ? '已解锁' : '已锁定'} · ${date}
+            </div>
           </div>
         </div>
-        <div style="display:flex; gap:8px;">
-          ${!isActive ? `<button class="btn-secondary" onclick="switchToVault('${v.name}')" style="font-size:11px; padding:4px 12px;">切换到此密码库</button>` : ''}
-          ${!isCurrent ? `<button class="btn-secondary" onclick="deleteVaultAction('${v.name}', '${escapeHtml(v.label)}')" style="font-size:11px; padding:4px 12px; color:var(--vault-red); border-color:var(--vault-red);">删除</button>` : ''}
+        <div class="vault-mgr-actions">
+          ${!isActive ? `<button class="btn-secondary" onclick="switchToVault('${v.name}')" style="font-size:12px; padding:5px 14px;">切换</button>` : ''}
+          ${!isCurrent ? `<button class="btn-secondary" onclick="deleteVaultAction('${v.name}', '${escapeHtml(v.label)}')" style="font-size:12px; padding:5px 14px; color:var(--vault-red); border-color:rgba(239,68,68,0.3);">删除</button>` : ''}
         </div>
       </div>
     `;
@@ -1176,22 +1219,35 @@ function renderVaultManagerList(vaults) {
 }
 
 async function switchToVault(vaultName) {
-  if (!confirm('切换后将锁定当前密码库，确认切换？')) return;
+  const ok = await showConfirmDialog('切换密码库', '切换后将锁定当前密码库，确认切换？');
+  if (!ok) return;
   try {
     const res = await fetch(API + '/vaults/active', {
       method: 'PUT', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({vaultName: vaultName})
     });
     const data = await res.json();
-    if (data.error) { showToast(data.error); return; }
+    if (!res.ok || data.error) { showToast(data.error || '切换失败'); return; }
     closeModal('vaultManagerModal');
     sessionKey = '';
     allEntries = [];
+    selectedEntry = null;
+    renderDetail();
     currentVaultName = vaultName;
     document.getElementById('vaultApp').style.display = 'none';
     document.getElementById('lockScreen').style.display = 'flex';
     document.getElementById('keyInput').value = '';
-    init();
+    await init();
+    // 修复焦点：先等一帧确保 DOM 渲染完成，再聚焦输入框
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const input = document.getElementById('keyInput');
+        if (input) {
+          input.focus();
+          input.click();
+        }
+      });
+    });
     showToast('已切换到「' + (data.label || vaultName) + '」，请输入 DES Key 解锁');
   } catch (e) {
     showToast('切换失败');
@@ -1199,16 +1255,38 @@ async function switchToVault(vaultName) {
 }
 
 async function deleteVaultAction(vaultName, label) {
-  if (!confirm('确认删除密码库「' + label + '」？\n\n此操作将删除该密码库的所有文件，且不可恢复。')) return;
+  const ok = await showConfirmDialog('删除密码库', '确认删除密码库「' + label + '」？\n\n此操作将删除该密码库的所有文件，且不可恢复。', true);
+  if (!ok) return;
   try {
     const res = await fetch(API + '/vaults/' + encodeURIComponent(vaultName), {method: 'DELETE'});
     const data = await res.json();
-    if (data.error) { showToast(data.error); return; }
+    if (!res.ok || data.error) { showToast(data.error || '删除失败'); return; }
     showToast('已删除密码库「' + (data.deletedLabel || vaultName) + '」');
     // 重新加载列表
     showVaultManager();
   } catch (e) {
     showToast('删除失败');
+  }
+}
+
+// ====== 收藏切换 ======
+async function toggleFavorite(entryId) {
+  try {
+    const res = await fetch(API + '/entry/' + entryId + '/favorite', {method: 'PUT'});
+    const data = await res.json();
+    if (data.error) { showToast(data.error); return; }
+    // 更新本地数据
+    const idx = allEntries.findIndex(e => e.id === entryId);
+    if (idx >= 0) allEntries[idx].favorite = data.favorite;
+    if (selectedEntry && selectedEntry.id === entryId) {
+      selectedEntry.favorite = data.favorite;
+    }
+    applyFilter();
+    updateCounts();
+    renderDetail();
+    showToast(data.favorite ? '已收藏' : '已取消收藏');
+  } catch (e) {
+    showToast('操作失败');
   }
 }
 
@@ -1234,20 +1312,25 @@ function showChromeExportHelp() {
 
 function closeImportModal() {
   closeModal('importModal');
-  importState.parsed = [];
+  importState = { step: 1, source: 'chrome', parsed: [], existing: [], result: null };
 }
 
 function showImportStep(step) {
   importState.step = step;
-  document.getElementById('importStepIndicator').textContent = `步骤 ${step} / 3`;
+  document.getElementById('importStepIndicator').textContent = `步骤 ${step} / 2`;
   document.getElementById('importStep1').style.display = step === 1 ? 'block' : 'none';
   document.getElementById('importStep2').style.display = step === 2 ? 'block' : 'none';
-  document.getElementById('importStep3').style.display = step === 3 ? 'block' : 'none';
 
   document.getElementById('importPrevBtn').style.display = step === 2 ? 'inline-block' : 'none';
-  document.getElementById('importNextBtn').style.display = step === 2 ? 'inline-block' : 'none';
   document.getElementById('importDoBtn').style.display = step === 2 ? 'inline-block' : 'none';
-  document.getElementById('importDoneBtn').style.display = step === 3 ? 'inline-block' : 'none';
+
+  if (step === 2) {
+    // 重置结果区和按钮状态
+    document.getElementById('importResult').style.display = 'none';
+    const btn = document.getElementById('importDoBtn');
+    btn.textContent = '确认导入';
+    btn.onclick = doImport;
+  }
 }
 
 // 文件选择与拖拽
@@ -1263,7 +1346,7 @@ document.addEventListener('DOMContentLoaded', () => {
   dropZone.addEventListener('dragover', (e) => {
     e.preventDefault();
     dropZone.style.borderColor = 'var(--primary)';
-    dropZone.style.background = 'var(--primary-glow)';
+    dropZone.style.background = 'var(--vault-glow)';
   });
   dropZone.addEventListener('dragleave', () => {
     dropZone.style.borderColor = 'var(--border)';
@@ -1460,8 +1543,11 @@ function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-function importPrev() { showImportStep(1); }
-function importNext() { showImportStep(1); }
+function importPrev() {
+  document.getElementById('csvFileInput').value = '';
+  document.getElementById('importResult').style.display = 'none';
+  showImportStep(1);
+}
 
 // 导入完成后刷新列表
 async function refreshEntries() {
@@ -1473,7 +1559,7 @@ async function refreshEntries() {
       renderList();
       updateCounts();
     }
-  } catch (e) { console.error('refresh failed', e); }
+  } catch (e) { /* 静默处理 */ }
 }
 
 async function doImport() {
@@ -1501,12 +1587,14 @@ async function doImport() {
 
     importState.result = data;
     showImportResult(data);
-    showImportStep(3);
+    // 切换到结果视图：隐藏预览表，显示结果，按钮变为"完成"
+    document.getElementById('importResult').style.display = 'block';
+    btn.textContent = '完成';
+    btn.onclick = () => { closeImportModal(); refreshEntries(); };
   } catch (err) {
     showToast(err.message, 'error');
   } finally {
     btn.disabled = false;
-    btn.textContent = '确认导入';
   }
 }
 
@@ -1594,8 +1682,37 @@ function escapeHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ====== 自定义确认弹窗 ======
+let confirmResolve = null;
+function showConfirmDialog(title, message, isDanger = false) {
+  return new Promise((resolve) => {
+    confirmResolve = resolve;
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmMessage').textContent = message;
+    const btn = document.getElementById('confirmDangerBtn');
+    btn.style.background = isDanger ? 'var(--vault-red)' : 'var(--vault-accent)';
+    btn.style.borderColor = isDanger ? 'var(--vault-red)' : 'var(--vault-accent)';
+    document.getElementById('confirmDialog').classList.add('show');
+  });
+}
+function closeConfirmDialog(result) {
+  if (document.activeElement) document.activeElement.blur();
+  document.getElementById('confirmDialog').classList.remove('show');
+  if (confirmResolve) { confirmResolve(result); confirmResolve = null; }
+}
+
 // 启动
 init();
+// ====== 接收主框架消息：滚动到顶部 / 刷新 ======
+window.addEventListener('message', (e) => {
+  if (e.data.action === 'scrollToTop') {
+    document.querySelectorAll('.vault-sidebar, .vault-list, .vault-detail').forEach(el => el.scrollTo({ top: 0, behavior: 'smooth' }));
+  } else if (e.data.action === 'refresh') {
+    location.reload();
+  } else if (e.data.action === 'themeChange') {
+    applyTheme();
+  }
+});
 </script>
 </body>
 </html>

@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>剪藏</title>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
-    <script>
+     <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+     <script>
         marked.setOptions({
             breaks: true,
             gfm: true
@@ -2427,7 +2427,7 @@
 
             if (type === 'doc-ai') {
                 if (!uploadedFileBase64) {
-                    alert('请上传文件');
+                    showToast('请上传文件');
                     return;
                 }
                 requestBody.content = uploadedFileName;
@@ -2435,7 +2435,7 @@
                 requestBody.fileName = uploadedFileName;
             } else {
                 if (!content) {
-                    alert(type === 'link-ai' ? '请输入链接URL' : '请输入内容');
+                    showToast(type === 'link-ai' ? '请输入链接URL' : '请输入内容');
                     return;
                 }
                 requestBody.content = content;
@@ -2606,7 +2606,7 @@
         const ext = '.' + file.name.split('.').pop().toLowerCase();
 
         if (!allowedExts.includes(ext)) {
-            alert('不支持的文件格式，请上传 PDF、DOCX 或 TXT 文件');
+            showToast('不支持的文件格式，请上传 PDF、DOCX 或 TXT 文件');
             return;
         }
 
@@ -2761,7 +2761,7 @@
         if (!tag || !tag.trim()) return;
         if (currentTags.includes(tag.trim())) return;
         if (currentTags.length >= MAX_TAGS) {
-            alert(`最多只能添加 ${MAX_TAGS} 个标签`);
+            showToast(`最多只能添加 ${MAX_TAGS} 个标签`);
             return;
         }
 
@@ -2809,7 +2809,7 @@
             recognition.interimResults = false;
 
             recognition.onstart = function() {
-                alert('语音识别已启动，请开始说话...');
+                showToast('语音识别已启动，请开始说话...');
             };
 
             recognition.onresult = function(event) {
@@ -2819,7 +2819,7 @@
 
             recognition.onerror = function(event) {
                 console.error('语音识别错误:', event.error);
-                alert('语音识别失败，请重试');
+                showToast('语音识别失败，请重试');
             };
 
             recognition.onend = function() {
@@ -2828,7 +2828,7 @@
 
             recognition.start();
         } else {
-            alert('您的浏览器不支持语音识别功能');
+            showToast('您的浏览器不支持语音识别功能');
         }
     }
 
@@ -2878,7 +2878,7 @@
         const category = document.getElementById('search-category').value;
 
         if (!query) {
-            alert('请输入搜索关键词');
+            showToast('请输入搜索关键词');
             return;
         }
 
@@ -2905,7 +2905,7 @@
             displaySearchResults(results);
         } catch (error) {
             console.error('搜索失败:', error);
-            alert('搜索失败，请稍后重试');
+            showToast('搜索失败，请稍后重试');
         }
     });
 
@@ -3291,10 +3291,10 @@
 
     function copyToClipboard(text) {
         navigator.clipboard.writeText(text).then(() => {
-            alert('已复制到剪贴板！');
+            showToast('已复制到剪贴板！');
         }).catch(err => {
             console.error('复制失败:', err);
-            alert('复制失败，请手动复制');
+            showToast('复制失败，请手动复制');
         });
     }
 
@@ -3560,7 +3560,7 @@
             }
         } catch (error) {
             console.error('删除剪藏失败:', error);
-            alert('删除失败，请稍后重试');
+            showToast('删除失败，请稍后重试');
         }
     }
 
@@ -4030,6 +4030,28 @@
             });
     }
 
+// ====== 接收主框架消息：滚动到顶部 / 刷新 ======
+window.addEventListener('message', (e) => {
+  if (e.data.action === 'scrollToTop') {
+    document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
+  } else if (e.data.action === 'refresh') {
+    location.reload();
+  } else if (e.data.action === 'themeChange') {
+    applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME, false);
+  }
+});
+
+// ====== Toast ======
+function showToast(msg) {
+  const existing = document.querySelector('.clip-toast');
+  if (existing) existing.remove();
+  const t = document.createElement('div');
+  t.className = 'clip-toast';
+  t.textContent = msg;
+  t.style.cssText = 'position:fixed;top:20px;right:20px;background:var(--card);color:var(--fg);padding:10px 20px;border-radius:10px;border:1px solid var(--border);z-index:9999;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,0.15);animation:slideIn 0.3s ease-out;';
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.animation = 'slideOut 0.3s ease-in forwards'; setTimeout(() => t.remove(), 300); }, 2000);
+}
 </script>
 
 <!-- Git配置弹窗 -->

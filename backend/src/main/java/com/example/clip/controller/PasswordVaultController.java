@@ -205,6 +205,18 @@ public class PasswordVaultController {
         }
     }
 
+    /** 切换收藏状态 */
+    @PutMapping("/entry/{id}/favorite")
+    public ResponseEntity<?> toggleFavorite(@PathVariable Long id) {
+        log.debug("Toggle favorite requested: id={}", id);
+        try {
+            return ResponseEntity.ok(vaultService.toggleFavorite(id));
+        } catch (RuntimeException e) {
+            log.error("Toggle favorite failed: id={}, error={}", id, e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     /** 搜索密码条目 */
     @GetMapping("/search")
     public ResponseEntity<?> search(@RequestParam(required = false, defaultValue = "") String keyword) {

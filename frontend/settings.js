@@ -25,6 +25,13 @@ function onAppearanceChange() {
   applyAppearance(document.getElementById('appearanceSelect').value);
 }
 
+function applyTheme() {
+  const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+  const theme = getEffectiveTheme();
+  const dataTheme = theme === 'dark' ? 'dark' : (theme === 'regular' ? 'regular' : 'notion');
+  document.documentElement.setAttribute('data-theme', dataTheme);
+}
+
 // 初始化外观
 (function initAppearance() {
   const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
@@ -512,3 +519,14 @@ function cancelUpdate() {
   document.getElementById('cancelUpdateBtn').style.display = 'none';
   document.getElementById('updateProgressBar').style.display = 'none';
 }
+
+// ====== 接收主框架消息：滚动到顶部 / 刷新 ======
+window.addEventListener('message', (e) => {
+  if (e.data.action === 'scrollToTop') {
+    document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
+  } else if (e.data.action === 'refresh') {
+    location.reload();
+  } else if (e.data.action === 'themeChange') {
+    applyTheme();
+  }
+});

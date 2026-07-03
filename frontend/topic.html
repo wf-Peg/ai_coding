@@ -398,6 +398,7 @@
           const t = getEffective();
           document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : (t === 'regular' ? 'regular' : 'notion'));
         }
+        window.applyTheme = apply;
         apply();
         window.addEventListener('storage', function(e) {
           if (e.key === THEME_KEY || e.key === APPEARANCE_KEY) apply();
