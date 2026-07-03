@@ -141,8 +141,92 @@ function bindEvents() {
     window.close();
   });
 
+  // 生成随机用户名
+  document.getElementById('genUserBtn').addEventListener('click', generateUsername);
+
+  // 生成随机密码
+  document.getElementById('genPwdBtn').addEventListener('click', generatePassword);
+
   // 保存按钮
   document.getElementById('saveBtn').addEventListener('click', savePassword);
+}
+
+/**
+ * 生成随机密码。
+ * 优先调用后端 /api/vault/generate-password；若后端不可用则本地生成。
+ * 生成后自动填入密码框并切换为明文显示。
+ */
+async function generatePassword() {
+  const length = parseInt(document.getElementById('pwdLength').value) || 16;
+  const useSpecial = document.getElementById('useSpecial').checked;
+  const useDigits = document.getElementById('useDigits').checked;
+
+  let password;
+  try {
+    const res = await fetch(`${API_BASE}/api/vault/generate-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        length,
+        useUpper: true,
+        useLower: true,
+        useDigits,
+        useSpecial,
+        excludeAmbiguous: true
+      })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      password = data.password;
+    } else {
+      password = generatePasswordLocal(length, useSpecial, useDigits);
+    }
+  } catch (e) {
+    // 后端不可用时使用本地生成（crypto.getRandomValues）
+    password = generatePasswordLocal(length, useSpecial, useDigits);
+  }
+
+  const pwdInput = document.getElementById('passwordInput');
+  pwdInput.value = password;
+  pwdInput.type = 'text'; // 生成后自动显示明文，方便用户查看
+}
+
+/**
+ * 本地生成随机密码（后端不可用时的 fallback）。
+ * 使用 crypto.getRandomValues 保证密码学安全随机。
+ * 排除易混淆字符（0/O/o/1/I/l）。
+ */
+function generatePasswordLocal(length, useSpecial, useDigits) {
+  const lower = 'abcdefghijkmnpqrstuvwxyz';
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const digits = '23456789';
+  const special = '!@#$%^&*()-_=+';
+  let pool = lower + upper;
+  if (useDigits) pool += digits;
+  if (useSpecial) pool += special;
+
+  const random = new Uint32Array(length);
+  crypto.getRandomValues(random);
+  let pwd = '';
+  for (let i = 0; i < length; i++) {
+    pwd += pool[random[i] % pool.length];
+  }
+  return pwd;
+}
+
+/**
+ * 生成随机用户名：user_ + 8位随机字符（小写字母+数字）。
+ * 直接填入用户名输入框。
+ */
+function generateUsername() {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const random = new Uint32Array(8);
+  crypto.getRandomValues(random);
+  let suffix = '';
+  for (let i = 0; i < 8; i++) {
+    suffix += chars[random[i] % chars.length];
+  }
+  document.getElementById('usernameInput').value = 'user_' + suffix;
 }
 
 async function savePassword() {
