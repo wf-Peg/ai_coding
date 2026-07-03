@@ -1678,7 +1678,21 @@ function showNotification(title, body) {
       console.log('[Reminder] Toast window shown');
     });
 
+    // 8 秒后自动关闭（用户不点关闭也会自动消失）
+    const autoCloseTimer = setTimeout(() => {
+      if (!toastWin.isDestroyed()) {
+        try {
+          toastWin.webContents.executeJavaScript(
+            "var c=document.getElementById('card');if(c){c.classList.add('closing');}setTimeout(function(){window.close();},300);"
+          );
+        } catch (e) {
+          toastWin.close();
+        }
+      }
+    }, 8000);
+
     toastWin.on('closed', () => {
+      clearTimeout(autoCloseTimer);
       resolve();
     });
   });
@@ -1715,12 +1729,13 @@ function startReminderScheduler() {
       for (const todo of reminders) {
         console.log('[Reminder] Found due: #' + todo.id + ' "' + (todo.title || '') + '" deadline=' + todo.deadline + ' ' + (todo.deadlineTime || '') + ' reminderMinutes=' + todo.reminderMinutes);
         try {
-          // 使用 node-notifier 弹出系统原生通知
-          await showNotification(todo.title || 'Todo Reminder', 'Deadline: ' + todo.deadline + ' ' + (todo.deadlineTime || ''));
-          console.log('[Reminder] Notification sent for todo #' + todo.id + ': ' + (todo.title || ''));
-
-          // 标记已触发，防止重复通知
+          // 先标记已触发，防止重复通知（在弹窗之前标记，避免轮询间隔内重复弹出）
           await httpPut(`${baseUrl}/api/todo/${todo.id}/reminder-fired`);
+          console.log('[Reminder] Marked todo #' + todo.id + ' as fired');
+
+          // 弹出通知（无需等待关闭即可继续下一次轮询）
+          showNotification(todo.title || 'Todo Reminder', 'Deadline: ' + todo.deadline + ' ' + (todo.deadlineTime || ''));
+          console.log('[Reminder] Notification sent for todo #' + todo.id + ': ' + (todo.title || ''));
         } catch (e) {
           console.error('[Reminder] Failed to send notification for todo #' + todo.id + ':', e.message);
         }
