@@ -39,14 +39,26 @@ public class PasswordVaultController {
     /** 生成随机 DES Key */
     @PostMapping("/generate-key")
     public ResponseEntity<Map<String, Object>> generateKey() {
-        String key = vaultService.generateKey();
-        return ResponseEntity.ok(Map.of("key", key));
+        log.info("generate-key requested");
+        try {
+            String key = vaultService.generateKey();
+            return ResponseEntity.ok(Map.of("key", key));
+        } catch (RuntimeException e) {
+            log.error("generate-key failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     /** 查询密码库状态（包含所有 vault 信息） */
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getStatus() {
-        return ResponseEntity.ok(vaultService.getStatus());
+        log.debug("status requested");
+        try {
+            return ResponseEntity.ok(vaultService.getStatus());
+        } catch (RuntimeException e) {
+            log.error("status failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     /** 初始化密码库 */
@@ -54,11 +66,20 @@ public class PasswordVaultController {
     public ResponseEntity<Map<String, Object>> init(@RequestBody Map<String, String> body) {
         String desKey = body.get("desKey");
         if (desKey == null || desKey.trim().isEmpty()) {
+            log.warn("Init failed: DES Key is empty");
             return ResponseEntity.badRequest().body(Map.of("error", "DES Key 不能为空"));
         }
         String vaultName = body.getOrDefault("vaultName", "default");
         String label = body.getOrDefault("label", "主密码库");
-        return ResponseEntity.ok(vaultService.init(desKey, vaultName, label));
+        log.info("Init vault request: vaultName={}, label={}", vaultName, label);
+        try {
+            Map<String, Object> result = vaultService.init(desKey, vaultName, label);
+            log.info("Init vault success: vaultName={}", vaultName);
+            return ResponseEntity.ok(result);
+        } catch (RuntimeException e) {
+            log.error("Init vault failed: vaultName={}, error={}", vaultName, e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     /** 解锁密码库 */
@@ -66,22 +87,41 @@ public class PasswordVaultController {
     public ResponseEntity<Map<String, Object>> unlock(@RequestBody Map<String, String> body) {
         String desKey = body.get("desKey");
         if (desKey == null || desKey.trim().isEmpty()) {
+            log.warn("Unlock failed: DES Key is empty");
             return ResponseEntity.badRequest().body(Map.of("error", "DES Key 不能为空"));
         }
         String vaultName = body.getOrDefault("vaultName", null);
-        return ResponseEntity.ok(vaultService.unlock(desKey, vaultName));
+        log.info("Unlock vault request: vaultName={}", vaultName);
+        try {
+            return ResponseEntity.ok(vaultService.unlock(desKey, vaultName));
+        } catch (RuntimeException e) {
+            log.error("Unlock vault failed: vaultName={}, error={}", vaultName, e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     /** 锁定密码库 */
     @PostMapping("/lock")
     public ResponseEntity<Map<String, Object>> lock() {
-        return ResponseEntity.ok(vaultService.lock());
+        log.info("Lock requested");
+        try {
+            return ResponseEntity.ok(vaultService.lock());
+        } catch (RuntimeException e) {
+            log.error("Lock failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     /** 列出所有密码库 */
     @GetMapping("/vaults")
     public ResponseEntity<List<Map<String, Object>>> listVaults() {
-        return ResponseEntity.ok(vaultService.listVaults());
+        log.debug("List vaults requested");
+        try {
+            return ResponseEntity.ok(vaultService.listVaults());
+        } catch (RuntimeException e) {
+            log.error("List vaults failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        }
     }
 
     /** 切换激活密码库 */
@@ -91,13 +131,25 @@ public class PasswordVaultController {
         if (vaultName == null || vaultName.trim().isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "vaultName 不能为空"));
         }
-        return ResponseEntity.ok(vaultService.switchVault(vaultName));
+        log.info("Switch vault requested: vaultName={}", vaultName);
+        try {
+            return ResponseEntity.ok(vaultService.switchVault(vaultName));
+        } catch (RuntimeException e) {
+            log.error("Switch vault failed: vaultName={}, error={}", vaultName, e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     /** 删除密码库 */
     @DeleteMapping("/vaults/{name}")
     public ResponseEntity<Map<String, Object>> deleteVault(@PathVariable String name) {
-        return ResponseEntity.ok(vaultService.deleteVault(name));
+        log.info("Delete vault requested: name={}", name);
+        try {
+            return ResponseEntity.ok(vaultService.deleteVault(name));
+        } catch (RuntimeException e) {
+            log.error("Delete vault failed: name={}, error={}", name, e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     /** 验证 Key 是否正确 */
@@ -108,15 +160,23 @@ public class PasswordVaultController {
         if (desKey == null || desKey.trim().isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("valid", false, "error", "DES Key 不能为空"));
         }
-        return ResponseEntity.ok(vaultService.checkKey(vaultName, desKey));
+        log.debug("Check key requested: vaultName={}", vaultName);
+        try {
+            return ResponseEntity.ok(vaultService.checkKey(vaultName, desKey));
+        } catch (RuntimeException e) {
+            log.error("Check key failed: vaultName={}, error={}", vaultName, e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("valid", false, "error", e.getMessage()));
+        }
     }
 
     /** 新增密码条目 */
     @PostMapping("/entry")
     public ResponseEntity<?> addEntry(@RequestBody PasswordEntry entry) {
+        log.debug("Add entry requested: title={}", entry.getTitle());
         try {
             return ResponseEntity.ok(vaultService.addEntry(entry));
         } catch (RuntimeException e) {
+            log.error("Add entry failed: error={}", e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
@@ -124,9 +184,11 @@ public class PasswordVaultController {
     /** 更新密码条目 */
     @PutMapping("/entry/{id}")
     public ResponseEntity<?> updateEntry(@PathVariable Long id, @RequestBody PasswordEntry entry) {
+        log.debug("Update entry requested: id={}", id);
         try {
             return ResponseEntity.ok(vaultService.updateEntry(id, entry));
         } catch (RuntimeException e) {
+            log.error("Update entry failed: id={}, error={}", id, e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
@@ -134,9 +196,11 @@ public class PasswordVaultController {
     /** 删除密码条目 */
     @DeleteMapping("/entry/{id}")
     public ResponseEntity<?> deleteEntry(@PathVariable Long id) {
+        log.debug("Delete entry requested: id={}", id);
         try {
             return ResponseEntity.ok(vaultService.deleteEntry(id));
         } catch (RuntimeException e) {
+            log.error("Delete entry failed: id={}, error={}", id, e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
@@ -144,9 +208,11 @@ public class PasswordVaultController {
     /** 搜索密码条目 */
     @GetMapping("/search")
     public ResponseEntity<?> search(@RequestParam(required = false, defaultValue = "") String keyword) {
+        log.debug("Search requested: keyword={}", keyword);
         try {
             return ResponseEntity.ok(vaultService.search(keyword));
         } catch (RuntimeException e) {
+            log.error("Search failed: keyword={}, error={}", keyword, e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
@@ -154,9 +220,11 @@ public class PasswordVaultController {
     /** 安全审计 */
     @GetMapping("/audit")
     public ResponseEntity<?> audit() {
+        log.debug("Audit requested");
         try {
             return ResponseEntity.ok(vaultService.audit());
         } catch (RuntimeException e) {
+            log.error("Audit failed: error={}", e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
@@ -178,8 +246,10 @@ public class PasswordVaultController {
                     }
                 }
             }
+            log.info("Import entries requested: count={}", entries.size());
             return ResponseEntity.ok(vaultService.importEntries(entries));
         } catch (RuntimeException e) {
+            log.error("Import failed: error={}", e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
@@ -194,7 +264,13 @@ public class PasswordVaultController {
         boolean useSpecial = params.containsKey("useSpecial") && (boolean) params.get("useSpecial");
         boolean excludeAmbiguous = params.containsKey("excludeAmbiguous") && (boolean) params.get("excludeAmbiguous");
 
-        String password = vaultService.generatePassword(length, useUpper, useLower, useDigits, useSpecial, excludeAmbiguous);
-        return ResponseEntity.ok(Map.of("password", password));
+        log.debug("Generate password requested: length={}", length);
+        try {
+            String password = vaultService.generatePassword(length, useUpper, useLower, useDigits, useSpecial, excludeAmbiguous);
+            return ResponseEntity.ok(Map.of("password", password));
+        } catch (RuntimeException e) {
+            log.error("Generate password failed: error={}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 }

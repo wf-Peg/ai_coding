@@ -19,6 +19,9 @@ const yaml = require('js-yaml');
 // 更新管理器（自动更新 + 手动检查）
 const updateManager = require('./update-manager');
 
+// 日志模块
+const log = require('./logger');
+
 // 懒加载的模块（避免阻塞启动）
 let finalhandler, serveStatic;
 
@@ -43,10 +46,10 @@ const APP_DIR = isPackaged ? path.dirname(app.getPath('exe')) : app.getAppPath()
 /** 日志输出目录（与应用根目录相同） */
 const LOG_DIR = APP_DIR;
 
-console.log('=== App Startup ===');
-console.log('isPackaged:', isPackaged);
-console.log('resourcesPath:', resourcesPath);
-console.log('APP_DIR:', APP_DIR);
+log.info('=== App Startup ===');
+log.info('isPackaged:', isPackaged);
+log.info('resourcesPath:', resourcesPath);
+log.info('APP_DIR:', APP_DIR);
 
 // Windows 通知要求：必须设置 AppUserModelId 且有 Start Menu 快捷方式
 if (process.platform === 'win32') {
@@ -67,17 +70,17 @@ if (process.platform === 'win32') {
         icon: process.execPath,
         iconIndex: 0
       });
-      console.log('[Startup] Created Start Menu shortcut for notifications');
+      log.info('[Startup] Created Start Menu shortcut for notifications');
     }
   } catch (e) {
-    console.warn('[Startup] Failed to create Start Menu shortcut:', e.message);
+    log.warn('[Startup] Failed to create Start Menu shortcut:', e.message);
   }
 }
 
 // 将 userData 目录重定向到 AppData\Local\CutShelter
 // 避免配置文件随 Windows 账户漫游，且更新应用后配置不丢失
 app.setPath('userData', path.join(os.homedir(), 'AppData', 'Local', 'CutShelter'));
-console.log('userData:', app.getPath('userData'));
+log.info('userData:', app.getPath('userData'));
 
 // ==================== 配置管理 ====================
 // 配置文件存储在 Electron 的 userData 目录下，与安装目录分离
@@ -133,7 +136,7 @@ function loadConfig() {
       return { ...DEFAULT_CONFIG, ...JSON.parse(data) };
     }
   } catch (e) {
-    console.error('Load config failed:', e);
+    log.error('Load config failed:', e);
   }
   return { ...DEFAULT_CONFIG };
 }
@@ -206,7 +209,7 @@ function getJavaCommand() {
     if (fs.existsSync(p)) {
       // 验证可执行文件格式是否匹配当前平台（避免将 Windows exe 用于 macOS）
       if (!isExecutableForCurrentPlatform(p)) {
-        console.warn(`Skipping incompatible bundled Java for ${process.platform}: ${p}`);
+        log.warn(`Skipping incompatible bundled Java for ${process.platform}: ${p}`);
         continue;
       }
 
@@ -229,17 +232,17 @@ function getJavaCommand() {
             fixPermissionsRecursive(serverPath);
           }
         } catch (e) {
-          console.log('Failed to fix JRE permissions:', e.message);
+          log.info('Failed to fix JRE permissions:', e.message);
         }
       }
 
-      console.log('Found Java at:', p);
+      log.info('Found Java at:', p);
       return p;
     }
   }
 
   // 未找到嵌入式 JRE，回退到系统安装的 Java
-  console.log('No embedded JRE found, using system java');
+  log.info('No embedded JRE found, using system java');
   return 'java';
 }
 
@@ -282,7 +285,7 @@ function isExecutableForCurrentPlatform(filePath) {
     if (process.platform === 'win32') return isWindowsExe;
     if (process.platform === 'linux') return isElf;
   } catch (e) {
-    console.warn(`Could not inspect Java executable ${filePath}: ${e.message}`);
+    log.warn(`Could not inspect Java executable ${filePath}: ${e.message}`);
   }
   // 无法判断时默认允许（避免误拦）
   return true;
@@ -310,7 +313,7 @@ function fixPermissionsRecursive(dir) {
       }
     }
   } catch (e) {
-    console.log('Failed to fix permissions in', dir, ':', e.message);
+    log.info('Failed to fix permissions in', dir, ':', e.message);
   }
 }
 
@@ -332,7 +335,7 @@ function getJarPath() {
   ];
   for (const p of possiblePaths) {
     if (fs.existsSync(p)) {
-      console.log('Found JAR at:', p);
+      log.info('Found JAR at:', p);
       return p;
     }
   }
@@ -353,7 +356,7 @@ function getFrontendDir() {
   ];
   for (const p of possiblePaths) {
     if (fs.existsSync(path.join(p, 'index.html'))) {
-      console.log('Found frontend at:', p);
+      log.info('Found frontend at:', p);
       return p;
     }
   }
@@ -446,9 +449,9 @@ function killPortProcess(port) {
       for (const pid of pids) {
         try {
           execSync(`taskkill /F /PID ${pid}`, { encoding: 'utf-8', timeout: 5000 });
-          console.log(`Killed process ${pid} on port ${port}`);
+          log.info(`Killed process ${pid} on port ${port}`);
         } catch (e) {
-          console.log(`Failed to kill PID ${pid}: ${e.message}`);
+          log.info(`Failed to kill PID ${pid}: ${e.message}`);
         }
       }
     } else {
@@ -460,9 +463,9 @@ function killPortProcess(port) {
           try {
             // SIGKILL (9) 强制终止，进程无法捕获或忽略
             process.kill(parseInt(pid), 'SIGKILL');
-            console.log(`Killed process ${pid} on port ${port}`);
+            log.info(`Killed process ${pid} on port ${port}`);
           } catch (e) {
-            console.log(`Failed to kill PID ${pid}: ${e.message}`);
+            log.info(`Failed to kill PID ${pid}: ${e.message}`);
           }
         }
       } catch (e) {
@@ -471,7 +474,7 @@ function killPortProcess(port) {
     }
   } catch (e) {
     // netstat/findstr 在无匹配时也会返回非零退出码，正常情况
-    console.log(`No process found on port ${port}`);
+    log.info(`No process found on port ${port}`);
   }
 }
 
@@ -518,9 +521,9 @@ function startBackend(config) {
     const logFile = path.join(LOG_DIR, 'backend.log');
     const logStream = fs.openSync(logFile, 'a');
 
-    console.log(`Starting backend: ${javaCmd} -jar ${jarPath}`);
-    console.log(`Working dir: ${jarDir}`);
-    console.log(`Log file: ${logFile}`);
+    log.info(`Starting backend: ${javaCmd} -jar ${jarPath}`);
+    log.info(`Working dir: ${jarDir}`);
+    log.info(`Log file: ${logFile}`);
 
     // 启动 Java 子进程
     // stdio: ['pipe', logStream, logStream] 表示 stdin 管道，stdout/stderr 重定向到日志文件
@@ -548,7 +551,7 @@ function startBackend(config) {
         if (!resolved && open) {
           resolved = true;
           clearInterval(pollInterval);
-          console.log(`Backend started successfully on port ${config.backendPort}`);
+          log.info(`Backend started successfully on port ${config.backendPort}`);
           resolve(true);
         } else if (!resolved) {
           // 推送启动进度到渲染进程
@@ -576,13 +579,13 @@ function startBackend(config) {
 
     // 监听子进程退出事件（非正常退出时记录日志）
     backendProcess.on('close', (code) => {
-      console.log(`Backend exited with code: ${code}`);
+      log.info(`Backend exited with code: ${code}`);
       backendProcess = null;
     });
 
     // 监听子进程启动错误（如找不到 Java、权限不足等）
     backendProcess.on('error', (err) => {
-      console.error(`Backend start error: ${err.message}`);
+      log.error(`Backend start error: ${err.message}`);
       if (!resolved) {
         resolved = true;
         clearInterval(pollInterval);
@@ -604,7 +607,7 @@ function stopBackend() {
   const config = loadConfig();
 
   if (backendProcess) {
-    console.log('Stopping backend...');
+    log.info('Stopping backend...');
 
     // 第一步：发送 SIGTERM（优雅关闭，Spring Boot 会执行 shutdown hook）
     try {
@@ -661,7 +664,7 @@ function checkPort(port) {
         }
         // HTTP 返回了非 200（如 404），说明端口已监听但 /health 可能不存在
         // 回退到 TCP 连接检测：只要端口能通就算就绪
-        console.log(`[Startup] /health returned ${res.statusCode}, falling back to TCP check`);
+        log.info(`[Startup] /health returned ${res.statusCode}, falling back to TCP check`);
         resolve(true);  // 端口已监听 = 服务已启动
       });
     });
@@ -672,7 +675,7 @@ function checkPort(port) {
       sock.setTimeout(2000);
       sock.on('connect', () => {
         sock.destroy();
-        console.log(`[Startup] TCP port ${port} is open (server starting)`);
+        log.info(`[Startup] TCP port ${port} is open (server starting)`);
         resolve(true);
       });
       sock.on('error', () => resolve(false));
@@ -804,7 +807,7 @@ function startFrontendServer(config) {
     // 绑定到 127.0.0.1 仅监听本地回环，不对外暴露
     server.listen(config.frontendPort, '127.0.0.1', () => {
       frontendServer = server;
-      console.log(`Frontend server: http://127.0.0.1:${config.frontendPort}`);
+      log.info(`Frontend server: http://127.0.0.1:${config.frontendPort}`);
       resolve(true);
     });
 
@@ -877,7 +880,7 @@ function createTray() {
           // 通过 URL hash 触发前端跳转到 vault 视图
           mainWindow.webContents.executeJavaScript(
             "if (window.location.hash !== '#/vault') { window.history.pushState({view:'vault'}, '', '/vault'); window.dispatchEvent(new PopStateEvent('popstate')); }"
-          ).catch(err => console.warn('[Tray] navigate to vault failed:', err));
+          ).catch(err => log.warn('[Tray] navigate to vault failed:', err));
         } else {
           const config = loadConfig();
           createMainWindow(config);
@@ -1269,6 +1272,14 @@ function setupIPC() {
   // 查询当前窗口是否最大化（前端用于显示对应图标）
   ipcMain.handle('window-is-maximized', () => mainWindow?.isMaximized() ?? false);
 
+  // ===== 日志 =====
+  ipcMain.handle('log-to-file', async (event, payload) => {
+    const { level, message } = payload;
+    if (level === 'error') log.error('[Frontend]', message);
+    else if (level === 'warn') log.warn('[Frontend]', message);
+    else log.info('[Frontend]', message);
+  });
+
   // ===== 更新管理 =====
 
   // 获取当前版本号
@@ -1311,7 +1322,7 @@ function setupIPC() {
 
       if (isExe) {
         // EXE 安装包：下载后打开，提示用户手动安装
-        console.log('[Update] Downloading EXE installer:', downloadUrl);
+        log.info('[Update] Downloading EXE installer:', downloadUrl);
         sendProgress('正在下载安装包...', 0);
         const exePath = await updateManager.downloadUpdate(downloadUrl, (received, total, percent) => {
           const sizeMB = (received / 1024 / 1024).toFixed(1);
@@ -1358,7 +1369,7 @@ function setupIPC() {
 
       return { success: true };
     } catch (e) {
-      console.error('[Update] Download and apply failed:', e.message);
+      log.error('[Update] Download and apply failed:', e.message);
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('update-error', e.message);
       }
@@ -1380,7 +1391,7 @@ function setupIPC() {
  */
 async function checkForUpdates(silent = true) {
   const currentVersion = updateManager.getCurrentVersion();
-  console.log(`[Update] Checking for updates via backend (current: ${currentVersion}, silent: ${silent})`);
+  log.info(`[Update] Checking for updates via backend (current: ${currentVersion}, silent: ${silent})`);
 
   try {
     const config = loadConfig();
@@ -1390,7 +1401,7 @@ async function checkForUpdates(silent = true) {
 
     if (result.hasUpdate) {
       updateManager.recordCheckTime();
-      console.log(`[Update] New version available: ${result.latestVersion}`);
+      log.info(`[Update] New version available: ${result.latestVersion}`);
       // 自动检查（silent）时发送事件通知用户；手动检查靠返回值驱动 UI
       if (silent && mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('update-available', {
@@ -1421,7 +1432,7 @@ async function checkForUpdates(silent = true) {
       message: result.message || '已是最新版本'
     };
   } catch (e) {
-    console.error('[Update] Backend check failed:', e.message);
+    log.error('[Update] Backend check failed:', e.message);
     if (!silent) {
       return { hasUpdate: false, currentVersion, message: '无法连接到后端服务，请确认后端已启动' };
     }
@@ -1675,7 +1686,7 @@ function showNotification(title, body) {
 
     toastWin.once('ready-to-show', () => {
       toastWin.show();
-      console.log('[Reminder] Toast window shown');
+      log.info('[Reminder] Toast window shown');
     });
 
     toastWin.on('closed', () => {
@@ -1691,43 +1702,43 @@ function showNotification(title, body) {
  * 然后标记 reminderFired=true 防止重复弹出。
  */
 function startReminderScheduler() {
-  console.log('[Reminder] >>> startReminderScheduler() called, reminderTimer=', !!reminderTimer);
+  log.info('[Reminder] >>> startReminderScheduler() called, reminderTimer=', !!reminderTimer);
   if (reminderTimer) {
-    console.log('[Reminder] Scheduler already running, skipping');
+    log.info('[Reminder] Scheduler already running, skipping');
     return;
   }
 
   const config = loadConfig();
   const baseUrl = `http://127.0.0.1:${config.backendPort}`;
 
-  console.log('[Reminder] Scheduler started (interval: 30s)');
+  log.info('[Reminder] Scheduler started (interval: 30s)');
 
   const checkReminders = async () => {
     try {
       const url = `${baseUrl}/api/todo/due-reminders`;
-      console.log('[Reminder] Polling ' + url + ' ...');
+      log.info('[Reminder] Polling ' + url + ' ...');
       const body = await httpGet(url);
       const reminders = JSON.parse(body);
-      console.log('[Reminder] Polled ' + reminders.length + ' due reminders');
+      log.info('[Reminder] Polled ' + reminders.length + ' due reminders');
 
       if (!Array.isArray(reminders) || reminders.length === 0) return;
 
       for (const todo of reminders) {
-        console.log('[Reminder] Found due: #' + todo.id + ' "' + (todo.title || '') + '" deadline=' + todo.deadline + ' ' + (todo.deadlineTime || '') + ' reminderMinutes=' + todo.reminderMinutes);
+        log.info('[Reminder] Found due: #' + todo.id + ' "' + (todo.title || '') + '" deadline=' + todo.deadline + ' ' + (todo.deadlineTime || '') + ' reminderMinutes=' + todo.reminderMinutes);
         try {
           // 先标记已触发，防止重复通知（在弹窗之前标记，避免轮询间隔内重复弹出）
           await httpPut(`${baseUrl}/api/todo/${todo.id}/reminder-fired`);
-          console.log('[Reminder] Marked todo #' + todo.id + ' as fired');
+          log.info('[Reminder] Marked todo #' + todo.id + ' as fired');
 
           // 弹出通知（无需等待关闭即可继续下一次轮询）
           showNotification(todo.title || 'Todo Reminder', 'Deadline: ' + todo.deadline + ' ' + (todo.deadlineTime || ''));
-          console.log('[Reminder] Notification sent for todo #' + todo.id + ': ' + (todo.title || ''));
+          log.info('[Reminder] Notification sent for todo #' + todo.id + ': ' + (todo.title || ''));
         } catch (e) {
-          console.error('[Reminder] Failed to send notification for todo #' + todo.id + ':', e.message);
+          log.error('[Reminder] Failed to send notification for todo #' + todo.id + ':', e.message);
         }
       }
     } catch (e) {
-      console.error('[Reminder] Poll failed:', e.message);
+      log.error('[Reminder] Poll failed:', e.message);
     }
   };
 
@@ -1743,7 +1754,7 @@ function stopReminderScheduler() {
   if (reminderTimer) {
     clearInterval(reminderTimer);
     reminderTimer = null;
-    console.log('[Reminder] Scheduler stopped');
+    log.info('[Reminder] Scheduler stopped');
   }
 }
 
@@ -1754,6 +1765,9 @@ app.whenReady().then(async () => {
   if (process.platform === 'win32') {
     try { require('child_process').execSync('chcp 65001', { stdio: 'ignore' }); } catch {}
   }
+
+  // 清理 30 天前的旧日志
+  log.cleanupOldLogs();
 
   setupIPC();
 
@@ -1771,14 +1785,14 @@ app.whenReady().then(async () => {
       for (const f of fs.readdirSync(oldConfigDir)) {
         fs.copyFileSync(path.join(oldConfigDir, f), path.join(newConfigDir, f));
       }
-      console.log('[Config] Migrated from old location:', oldConfigDir);
+      log.info('[Config] Migrated from old location:', oldConfigDir);
     } catch (e) {
-      console.error('[Config] Migration failed:', e.message);
+      log.error('[Config] Migration failed:', e.message);
     }
   }
 
   const config = loadConfig();
-  console.log('Config loaded:', JSON.stringify(config, null, 2));
+  log.info('Config loaded:', JSON.stringify(config, null, 2));
 
   // 启动前清理端口上残留的旧进程（如上次崩溃未清理的）
   killPortProcess(config.backendPort);
@@ -1786,7 +1800,7 @@ app.whenReady().then(async () => {
 
   if (!config.configured || !config.apiKey) {
     // ===== 首次运行：显示配置引导窗口 =====
-    console.log('First run - showing config window');
+    log.info('First run - showing config window');
 
     // 复用 mainWindow 变量指向配置窗口
     mainWindow = new BrowserWindow({
@@ -1807,7 +1821,7 @@ app.whenReady().then(async () => {
 
     // 监听配置完成事件（由前端 config.html 发送）
     ipcMain.on('config-done', async (event, newConfig) => {
-      console.log('Config done received:', JSON.stringify(newConfig, null, 2));
+      log.info('Config done received:', JSON.stringify(newConfig, null, 2));
       saveConfig({ ...newConfig, configured: true });
 
       // 向配置窗口发送启动进度提示
@@ -1824,7 +1838,7 @@ app.whenReady().then(async () => {
 
         // 后端异步启动，不阻塞窗口创建
         startBackend(newConfig).then(() => {
-          console.log('Backend ready, closing config window');
+          log.info('Backend ready, closing config window');
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('startup-progress', '启动成功！');
             setTimeout(() => {
@@ -1841,7 +1855,7 @@ app.whenReady().then(async () => {
           // 启动提醒调度器
           startReminderScheduler();
         }).catch(e => {
-          console.error('Startup failed:', e);
+          log.error('Startup failed:', e);
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('startup-error', e.message);
           } else {
@@ -1850,7 +1864,7 @@ app.whenReady().then(async () => {
           }
         });
       } catch (e) {
-        console.error('Frontend start failed:', e);
+        log.error('Frontend start failed:', e);
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('startup-error', e.message);
         } else {
@@ -1866,15 +1880,15 @@ app.whenReady().then(async () => {
 
       // 后端异步启动，不阻塞窗口创建
       startBackend(config).then(() => {
-        console.log('Backend ready, notifying renderer');
+        log.info('Backend ready, notifying renderer');
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('backend-ready');
         }
         // 后端就绪后才启动提醒调度器
-        console.log('[Reminder] Backend ready (configured path), about to start scheduler');
+        log.info('[Reminder] Backend ready (configured path), about to start scheduler');
         startReminderScheduler();
       }).catch(e => {
-        console.error('Backend start failed:', e);
+        log.error('Backend start failed:', e);
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('backend-error', e.message);
         }
@@ -1887,7 +1901,7 @@ app.whenReady().then(async () => {
         await checkForUpdates(true);
       });
     } catch (e) {
-      console.error('Startup failed:', e);
+      log.error('Startup failed:', e);
       dialog.showErrorBox('Startup Failed',
         `Failed to start: ${e.message}\n\n` +
         `Java: ${getJavaCommand()}\n` +

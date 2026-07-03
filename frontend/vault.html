@@ -14,6 +14,14 @@
   --vault-green: #10b981;
   --vault-red: #ef4444;
 }
+html[data-theme="dark"] {
+  --vault-purple-light: #1e1b4b;
+  --vault-purple: #818cf8;
+  --vault-purple-dark: #6366f1;
+  --vault-amber: #fbbf24;
+  --vault-green: #34d399;
+  --vault-red: #f87171;
+}
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: var(--font-body); background: var(--bg); color: var(--fg); overflow: hidden; height: 100vh; }
 
@@ -53,6 +61,12 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
 .lock-link { margin-top: 16px; font-size: 12px; color: var(--fg-muted); }
 .lock-link a { color: var(--vault-purple); cursor: pointer; text-decoration: none; }
 .lock-error { color: var(--vault-red); font-size: 12px; margin-top: 8px; display: none; }
+
+/* 深色主题下提示框颜色适配 */
+html[data-theme="dark"] .init-warning { background: #3d2e00; border-color: #7c5e00; color: #fcd34d; }
+html[data-theme="dark"] .init-save-hint { background: #052e16; border-color: #166534; color: #86efac; }
+html[data-theme="dark"] .init-save-hint div:first-child { color: #4ade80; }
+html[data-theme="dark"] .init-save-hint div:last-child { color: #86efac; }
 
 /* ====== 主界面 ====== */
 .vault-app { display: flex; height: 100vh; }
@@ -572,7 +586,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
         <input type="text" class="form-input" id="initVaultName" placeholder="如：主密码库、工作密码库" value="主密码库">
       </div>
 
-      <div style="padding:12px 14px; background:#fef3c7; border:1px solid #fcd34d; border-radius:10px; font-size:12px; color:#92400e; line-height:1.7; margin-bottom:16px;">
+      <div style="padding:12px 14px; background:#fef3c7; border:1px solid #fcd34d; border-radius:10px; font-size:12px; color:#92400e; line-height:1.7; margin-bottom:16px;" class="init-warning">
         <strong>重要提示</strong><br>
         DES Key 是密码库的唯一解密凭证，<strong>丢失后无法恢复</strong>。<br>
         请务必在生成后立即保存到安全位置。
@@ -587,7 +601,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
         <div style="font-size:11px; color:var(--fg-muted);">支持自定义 Base64 字符串或自动生成</div>
       </div>
 
-      <div id="initKeySaveHint" style="display:none; padding:12px; background:#dcfce7; border:1px solid #86efac; border-radius:10px; margin-top:8px;">
+      <div id="initKeySaveHint" style="display:none; padding:12px; background:#dcfce7; border:1px solid #86efac; border-radius:10px; margin-top:8px;" class="init-save-hint">
         <div style="font-size:12px; color:#166534; font-weight:500; margin-bottom:6px;">Key 已生成</div>
         <div style="font-size:11px; color:#15803d; line-height:1.5; margin-bottom:8px;">
           请立即复制并保存此 Key。丢失后密码库数据将无法恢复。
@@ -607,7 +621,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
   <div class="modal-card" style="width:400px;">
     <div class="modal-header">忘记 DES Key</div>
     <div class="modal-body">
-      <div style="padding:12px; background:#fef3c7; border:1px solid #fcd34d; border-radius:10px; font-size:12px; color:#92400e; line-height:1.7; margin-bottom:16px;">
+      <div style="padding:12px; background:#fef3c7; border:1px solid #fcd34d; border-radius:10px; font-size:12px; color:#92400e; line-height:1.7; margin-bottom:16px;" class="init-warning">
         DES Key 丢失后<strong>无法恢复</strong>旧密码库数据。<br>
         但你可以创建新密码库继续使用，旧密码库数据将保留。<br>
         如果日后记起旧 Key，可以切换回来读取。
@@ -644,7 +658,42 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
 <div class="toast" id="toast"></div>
 
 <script src="libs/marked.min.js"></script>
+<script src="js/logger.js"></script>
 <script>
+// ====== 主题初始化 ======
+const THEME_KEY = 'app_theme_v1';
+const APPEARANCE_KEY = 'app_appearance_v1';
+
+function getEffectiveTheme() {
+  const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+  if (appearance === 'system') {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'notion';
+  }
+  return appearance;
+}
+
+function applyTheme() {
+  const theme = getEffectiveTheme();
+  if (theme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
+}
+
+// 监听系统主题变化
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+  if (appearance === 'system') applyTheme();
+});
+
+// 监听其他页面的主题切换
+window.addEventListener('storage', event => {
+  if (event.key === THEME_KEY || event.key === APPEARANCE_KEY) applyTheme();
+});
+
+applyTheme();
+
 const API = '/api/vault';
 let allEntries = [];
 let filteredEntries = [];
@@ -773,7 +822,10 @@ async function doInit() {
       body: JSON.stringify({desKey: key, vaultName: vaultName, label: label})
     });
     const data = await res.json();
-    if (data.error) { showToast(data.error); return; }
+    if (!res.ok || data.error) {
+      showToast(data.error || '初始化失败');
+      return;
+    }
     sessionKey = key;
     currentVaultName = data.vaultName || vaultName;
     allEntries = data.entries || [];

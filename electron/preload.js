@@ -248,5 +248,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * 监听后端启动进度事件
    * @param {Function} callback - 接收 { message, elapsed } 的回调
    */
-  onBackendProgress: (callback) => ipcRenderer.on('backend-progress', (event, data) => callback(data))
+  onBackendProgress: (callback) => ipcRenderer.on('backend-progress', (event, data) => callback(data)),
+
+  // ===================== 日志 =====================
+
+  /**
+   * 将前端日志写入文件（通过主进程）
+   * @param {string} level - 日志级别：'info' | 'warn' | 'error'
+   * @param {string} message - 日志内容
+   * @returns {Promise<void>}
+   */
+  logToFile: (level, message) => ipcRenderer.invoke('log-to-file', { level, message })
 });

@@ -335,9 +335,12 @@ public class PasswordVaultService {
             label = "主密码库";
         }
 
+        log.info("Initializing vault: vaultName={}, label={}, storagePath={}", vaultName, label, storagePath);
+
         // 检查 vaultName 是否已存在
         if (vaultRegistry.containsKey(vaultName)) {
             VaultMeta existing = vaultRegistry.get(vaultName);
+            log.warn("Init failed: vault name '{}' already exists", vaultName);
             throw new RuntimeException("密码库名称「" + existing.getLabel() + "」已存在，请使用其他名称");
         }
 
@@ -345,6 +348,7 @@ public class PasswordVaultService {
             Path vaultDir = getVaultDir(vaultName);
             if (!Files.exists(vaultDir)) {
                 Files.createDirectories(vaultDir);
+                log.debug("Created vault directory: {}", vaultDir);
             }
 
             // 创建空密码库
@@ -357,6 +361,7 @@ public class PasswordVaultService {
             String json = objectMapper.writeValueAsString(vault);
             String encrypted = DesEncryptionUtil.encrypt(json, desKey);
             Files.writeString(getVaultFile(vaultName), encrypted);
+            log.debug("Vault data encrypted and written to {}", getVaultFile(vaultName));
 
             // 写入元数据
             String keyCheckHash = DesEncryptionUtil.getKeyCheckHash(desKey);
@@ -407,7 +412,10 @@ public class PasswordVaultService {
             vaultName = activeVaultName;
         }
 
+        log.info("Unlocking vault: vaultName={}", vaultName);
+
         if (!vaultRegistry.containsKey(vaultName)) {
+            log.warn("Unlock failed: vault '{}' not in registry", vaultName);
             throw new RuntimeException("密码库「" + vaultName + "」不存在，请先初始化");
         }
 
@@ -429,6 +437,7 @@ public class PasswordVaultService {
                 if (storedHash != null) {
                     String inputHash = DesEncryptionUtil.getKeyCheckHash(desKey);
                     if (!storedHash.equals(inputHash)) {
+                        log.warn("Unlock failed: wrong DES key for vault '{}'", vaultName);
                         throw new RuntimeException("DES Key 不正确，请检查后重试");
                     }
                 }
@@ -605,6 +614,7 @@ public class PasswordVaultService {
             }
             String inputHash = DesEncryptionUtil.getKeyCheckHash(desKey);
             boolean valid = storedHash.equals(inputHash);
+            log.debug("Key check for vault '{}': valid={}", vaultName, valid);
             return Map.of("valid", valid);
         } catch (Exception e) {
             log.error("Failed to check key for vault '{}'", vaultName, e);
@@ -632,6 +642,7 @@ public class PasswordVaultService {
             String json = objectMapper.writeValueAsString(cachedVault);
             String encrypted = DesEncryptionUtil.encrypt(json, sessionDesKey);
             Files.writeString(getVaultFile(activeVaultName), encrypted);
+            log.debug("Vault '{}' saved: {} entries", activeVaultName, cachedVault.getEntries().size());
 
             // 更新元数据中的条目数
             Path metaFile = getMetaFile(activeVaultName);
