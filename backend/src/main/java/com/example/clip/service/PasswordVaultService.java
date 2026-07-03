@@ -414,6 +414,150 @@ public class PasswordVaultService {
     }
 
     /**
+     * 批量导入密码条目（去重）。
+     * <p>
+     * 唯一键为 url + username（url 归一化：去除末尾斜杠、查询参数、hash）。
+     * 已存在的相同唯一键条目跳过，同批次内重复只保留第一条。
+     * 导入的条目统一标记 tags=[imported, chrome]，category=login。
+     * 单次最多 2000 条，超出拒绝。
+     * </p>
+     *
+     * @param entries 待导入的条目列表
+     * @return 导入结果统计 {imported, skipped, duplicates, errors, details}
+     */
+    public Map<String, Object> importEntries(List<PasswordEntry> entries) {
+        ensureUnlocked();
+
+        Map<String, Object> result = new HashMap<>();
+        if (entries == null || entries.isEmpty()) {
+            result.put("imported", 0);
+            result.put("skipped", 0);
+            result.put("duplicates", 0);
+            result.put("errors", 0);
+            result.put("details", new ArrayList<>());
+            return result;
+        }
+
+        if (entries.size() > 2000) {
+            throw new RuntimeException("单次导入不能超过 2000 条，当前: " + entries.size());
+        }
+
+        // 构建现有条目的唯一键集合
+        java.util.Set<String> existingKeys = cachedVault.getEntries().stream()
+                .map(PasswordVaultService::buildDedupeKey)
+                .collect(Collectors.toSet());
+
+        int imported = 0, skipped = 0, duplicates = 0, errors = 0;
+        long now = System.currentTimeMillis();
+        java.util.Set<String> batchKeys = new java.util.HashSet<>();
+        List<Map<String, Object>> details = new ArrayList<>();
+
+        for (PasswordEntry entry : entries) {
+            Map<String, Object> detail = new HashMap<>();
+            detail.put("title", entry.getTitle());
+            detail.put("url", entry.getUrl());
+            detail.put("username", entry.getUsername());
+
+            // 数据校验
+            if (entry.getPassword() == null || entry.getPassword().isEmpty()) {
+                errors++;
+                detail.put("status", "error");
+                detail.put("reason", "密码为空");
+                details.add(detail);
+                continue;
+            }
+
+            String key = buildDedupeKey(entry);
+
+            // 跨批次去重
+            if (existingKeys.contains(key)) {
+                skipped++;
+                detail.put("status", "skipped");
+                detail.put("reason", "已存在相同 url+username");
+                details.add(detail);
+                continue;
+            }
+
+            // 同批次去重
+            if (!batchKeys.add(key)) {
+                duplicates++;
+                detail.put("status", "duplicate");
+                detail.put("reason", "同批次内重复");
+                details.add(detail);
+                continue;
+            }
+
+            // 字段长度限制
+            if (entry.getTitle() != null && entry.getTitle().length() > 500) {
+                entry.setTitle(entry.getTitle().substring(0, 500));
+            }
+            if (entry.getUrl() != null && entry.getUrl().length() > 500) {
+                entry.setUrl(entry.getUrl().substring(0, 500));
+            }
+            if (entry.getUsername() != null && entry.getUsername().length() > 500) {
+                entry.setUsername(entry.getUsername().substring(0, 500));
+            }
+
+            // 规范化字段
+            entry.setId(idGenerator.getAndIncrement());
+            entry.setCategory("login");
+            List<String> tags = entry.getTags();
+            if (tags == null) {
+                tags = new ArrayList<>();
+            }
+            if (!tags.contains("imported")) tags.add("imported");
+            if (!tags.contains("chrome")) tags.add("chrome");
+            entry.setTags(tags);
+            if (entry.getIconColor() == null || entry.getIconColor().isEmpty()) {
+                entry.setIconColor("#6366f1");
+            }
+            entry.setCreatedAt(now);
+            entry.setUpdatedAt(now);
+
+            cachedVault.getEntries().add(entry);
+            existingKeys.add(key);
+            imported++;
+
+            detail.put("status", "imported");
+            details.add(detail);
+        }
+
+        // 一次性加密落盘
+        if (imported > 0) {
+            saveVault();
+        }
+
+        log.info("Imported {} entries (skipped={}, duplicates={}, errors={})",
+                imported, skipped, duplicates, errors);
+
+        result.put("imported", imported);
+        result.put("skipped", skipped);
+        result.put("duplicates", duplicates);
+        result.put("errors", errors);
+        result.put("details", details);
+        return result;
+    }
+
+    /**
+     * 构建去重唯一键：url(归一化) + username(小写)。
+     * url 归一化：去除末尾斜杠、查询参数、hash，保留 protocol + host + path。
+     */
+    private static String buildDedupeKey(PasswordEntry entry) {
+        String url = entry.getUrl() == null ? "" : entry.getUrl().trim();
+        // 去除 query 和 hash
+        int q = url.indexOf('?');
+        if (q >= 0) url = url.substring(0, q);
+        int h = url.indexOf('#');
+        if (h >= 0) url = url.substring(0, h);
+        // 去除末尾斜杠
+        while (url.endsWith("/")) {
+            url = url.substring(0, url.length() - 1);
+        }
+        String username = entry.getUsername() == null ? "" : entry.getUsername().trim().toLowerCase();
+        return url + "|" + username;
+    }
+
+    /**
      * 生成随机密码
      */
     public String generatePassword(int length, boolean useUpper, boolean useLower,

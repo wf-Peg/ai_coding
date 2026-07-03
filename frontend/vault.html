@@ -309,6 +309,10 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3"/></svg>
       DES Key 管理
     </div>
+    <div class="sidebar-item" onclick="showImportModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      导入密码
+    </div>
     <div class="sidebar-item" onclick="showAuditModal()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11H1v12h8V11zM23 1h-8v22h8V1zM16 8h2M16 16h2M5 16h2M5 19h2"/></svg>
       安全审计
@@ -450,6 +454,87 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal('keyModal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 导入密码模态框 ====== -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal-card" style="width:600px;max-height:80vh;display:flex;flex-direction:column;">
+    <div class="modal-header">
+      <span>导入密码</span>
+      <span id="importStepIndicator" style="font-size:12px;color:var(--fg-muted);font-weight:400;">步骤 1 / 3</span>
+    </div>
+    <div class="modal-body" id="importBody" style="overflow-y:auto;flex:1;">
+
+      <!-- 步骤 1：选择来源 -->
+      <div id="importStep1">
+        <div style="padding:10px 12px;background:var(--vault-warning-bg,#fef3c7);border-radius:8px;margin-bottom:16px;font-size:12px;color:#92400e;border:1px solid #fde68a;">
+          ⚠️ CSV 文件包含明文密码，导入完成后请立即删除原始文件并清空回收站。
+        </div>
+        <div style="margin-bottom:16px;">
+          <div style="font-size:13px;font-weight:500;margin-bottom:8px;">选择 CSV 来源</div>
+          <select id="importSource" class="modal-input" style="width:100%;padding:8px;">
+            <option value="chrome">Chrome 浏览器</option>
+            <option value="bitwarden">Bitwarden</option>
+            <option value="1password">1Password</option>
+            <option value="lastpass">LastPass</option>
+          </select>
+        </div>
+        <div id="csvDropZone" style="border:2px dashed var(--border);border-radius:10px;padding:32px;text-align:center;cursor:pointer;transition:all 0.2s;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--fg-muted)" stroke-width="1.5" style="width:32px;height:32px;margin-bottom:8px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <div style="font-size:13px;color:var(--fg-secondary);">点击选择 CSV 文件，或拖拽到此处</div>
+          <div style="font-size:11px;color:var(--fg-muted);margin-top:4px;">支持 .csv 格式</div>
+          <input type="file" id="csvFileInput" accept=".csv" style="display:none;">
+        </div>
+        <div style="margin-top:12px;font-size:12px;color:var(--fg-muted);">
+          <span style="cursor:pointer;color:var(--primary);text-decoration:underline;" onclick="showChromeExportHelp()">如何从 Chrome 导出密码？</span>
+        </div>
+        <div id="chromeExportHelp" style="display:none;margin-top:8px;padding:12px;background:var(--bg);border-radius:8px;font-size:12px;color:var(--fg-secondary);line-height:1.6;">
+          1. 打开 Chrome → 右上角 ⋮ → 设置<br>
+          2. 自动填充 → 密码管理器<br>
+          3. 在「已保存的密码」右侧点击 ⋮ → 导出密码<br>
+          4. 输入系统密码确认 → 保存为 CSV 文件
+        </div>
+      </div>
+
+      <!-- 步骤 2：预览与去重 -->
+      <div id="importStep2" style="display:none;">
+        <div id="importStats" style="padding:8px 12px;background:var(--bg);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--fg-secondary);"></div>
+        <div style="max-height:320px;overflow:auto;border:1px solid var(--border);border-radius:8px;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead style="position:sticky;top:0;background:var(--bg-elevated);z-index:1;">
+              <tr>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);width:32px;"><input type="checkbox" id="importSelectAll" checked></th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">名称</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">网址</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">用户名</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">密码</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">状态</th>
+              </tr>
+            </thead>
+            <tbody id="importPreviewBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 步骤 3：导入结果 -->
+      <div id="importStep3" style="display:none;text-align:center;padding:20px 0;">
+        <div id="importResultIcon" style="width:48px;height:48px;margin:0 auto 12px;border-radius:50%;background:var(--success-light,#dcfce7);display:flex;align-items:center;justify-content:center;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--success,#16a34a)" stroke-width="2" style="width:24px;height:24px;"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div id="importResultSummary" style="font-size:16px;font-weight:600;margin-bottom:8px;"></div>
+        <div id="importResultDetails" style="font-size:13px;color:var(--fg-secondary);margin-bottom:16px;"></div>
+        <div id="importSkippedList" style="max-height:200px;overflow:auto;text-align:left;border:1px solid var(--border);border-radius:8px;padding:8px;display:none;font-size:12px;"></div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeImportModal()">关闭</button>
+      <button id="importPrevBtn" class="btn-secondary" style="display:none;" onclick="importPrev()">上一步</button>
+      <button id="importNextBtn" class="modal-submit" style="display:none;" onclick="importNext()">下一步</button>
+      <button id="importDoBtn" class="modal-submit" style="display:none;" onclick="doImport()">确认导入</button>
+      <button id="importDoneBtn" class="modal-submit" style="display:none;" onclick="closeImportModal();refreshEntries();">完成</button>
     </div>
   </div>
 </div>
@@ -885,6 +970,320 @@ function toggleKeyVisibility() {
   else { el.type = 'password'; btn.textContent = '显示'; }
 }
 function copyKey() { copyToClipboard(sessionKey); showToast('Key 已复制'); }
+
+// ====== 导入密码 ======
+let importState = { step: 1, source: 'chrome', parsed: [], existing: [], result: null };
+
+function showImportModal() {
+  if (!sessionKey) {
+    showToast('请先解锁密码库', 'error');
+    return;
+  }
+  importState = { step: 1, source: 'chrome', parsed: [], existing: [], result: null };
+  document.getElementById('csvFileInput').value = '';
+  document.getElementById('chromeExportHelp').style.display = 'none';
+  showImportStep(1);
+  openModal('importModal');
+}
+
+function showChromeExportHelp() {
+  const el = document.getElementById('chromeExportHelp');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function closeImportModal() {
+  closeModal('importModal');
+  importState.parsed = [];
+}
+
+function showImportStep(step) {
+  importState.step = step;
+  document.getElementById('importStepIndicator').textContent = `步骤 ${step} / 3`;
+  document.getElementById('importStep1').style.display = step === 1 ? 'block' : 'none';
+  document.getElementById('importStep2').style.display = step === 2 ? 'block' : 'none';
+  document.getElementById('importStep3').style.display = step === 3 ? 'block' : 'none';
+
+  document.getElementById('importPrevBtn').style.display = step === 2 ? 'inline-block' : 'none';
+  document.getElementById('importNextBtn').style.display = step === 2 ? 'inline-block' : 'none';
+  document.getElementById('importDoBtn').style.display = step === 2 ? 'inline-block' : 'none';
+  document.getElementById('importDoneBtn').style.display = step === 3 ? 'inline-block' : 'none';
+}
+
+// 文件选择与拖拽
+document.addEventListener('DOMContentLoaded', () => {
+  const dropZone = document.getElementById('csvDropZone');
+  const fileInput = document.getElementById('csvFileInput');
+  if (!dropZone || !fileInput) return;
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files[0]) handleCsvFile(e.target.files[0]);
+  });
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.style.borderColor = 'var(--primary)';
+    dropZone.style.background = 'var(--primary-glow)';
+  });
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.style.borderColor = 'var(--border)';
+    dropZone.style.background = '';
+  });
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.style.borderColor = 'var(--border)';
+    dropZone.style.background = '';
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith('.csv')) handleCsvFile(file);
+    else showToast('请选择 .csv 文件', 'error');
+  });
+
+  const selectAll = document.getElementById('importSelectAll');
+  if (selectAll) {
+    selectAll.addEventListener('change', (e) => {
+      document.querySelectorAll('.import-row-cb').forEach(cb => {
+        if (!cb.disabled) cb.checked = e.target.checked;
+      });
+    });
+  }
+});
+
+async function handleCsvFile(file) {
+  try {
+    const text = await file.text();
+    importState.source = document.getElementById('importSource').value;
+    importState.parsed = parseCsv(text, importState.source);
+
+    if (importState.parsed.length === 0) {
+      showToast('CSV 文件为空或格式不正确', 'error');
+      return;
+    }
+
+    // 获取现有条目用于去重
+    const res = await fetch(`${API}/search`);
+    if (res.ok) {
+      importState.existing = await res.json();
+    }
+    markDuplicates();
+    renderImportPreview();
+    showImportStep(2);
+  } catch (err) {
+    showToast('解析 CSV 失败: ' + err.message, 'error');
+  }
+}
+
+// CSV 解析（支持引号转义、字段内逗号、字段内换行）
+function parseCsv(text, source) {
+  const rows = csvToRows(text);
+  if (rows.length < 2) return [];
+
+  const headers = rows[0].map(h => h.trim().toLowerCase());
+  const colMap = buildColumnMap(headers, source);
+  const entries = [];
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (row.length === 0) continue;
+    const name = colMap.nameIdx >= 0 ? (row[colMap.nameIdx] || '').trim() : '';
+    const url = colMap.urlIdx >= 0 ? (row[colMap.urlIdx] || '').trim() : '';
+    const username = colMap.usernameIdx >= 0 ? (row[colMap.usernameIdx] || '').trim() : '';
+    const password = colMap.passwordIdx >= 0 ? (row[colMap.passwordIdx] || '').trim() : '';
+
+    // 跳过 username 和 password 均为空的行
+    if (!username && !password) continue;
+
+    entries.push({
+      title: name || extractDomain(url) || '未命名',
+      url: url,
+      username: username,
+      password: password,
+      category: 'login',
+      tags: ['imported', source],
+      iconColor: hashColor(url || name)
+    });
+  }
+  return entries;
+}
+
+// 标准 CSV 行解析（处理引号转义）
+function csvToRows(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else { field += c; }
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else field += c;
+    }
+  }
+  if (field || row.length > 0) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+function buildColumnMap(headers, source) {
+  const find = (...names) => {
+    for (const n of names) {
+      const idx = headers.indexOf(n.toLowerCase());
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  };
+  if (source === 'bitwarden') {
+    return { nameIdx: find('folder', 'name'), urlIdx: find('login_uri'), usernameIdx: find('login_username'), passwordIdx: find('login_password') };
+  }
+  if (source === '1password') {
+    return { nameIdx: find('title'), urlIdx: find('urls', 'url'), usernameIdx: find('username'), passwordIdx: find('password') };
+  }
+  // chrome / lastpass 默认
+  return { nameIdx: find('name'), urlIdx: find('url'), usernameIdx: find('username'), passwordIdx: find('password') };
+}
+
+function extractDomain(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); }
+  catch { return ''; }
+}
+
+function hashColor(str) {
+  const colors = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6'];
+  let hash = 0;
+  for (let i = 0; i < (str || '').length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
+}
+
+function normalizeKey(entry) {
+  let url = (entry.url || '').trim();
+  const q = url.indexOf('?'); if (q >= 0) url = url.substring(0, q);
+  const h = url.indexOf('#'); if (h >= 0) url = url.substring(0, h);
+  while (url.endsWith('/')) url = url.slice(0, -1);
+  return url + '|' + (entry.username || '').trim().toLowerCase();
+}
+
+function markDuplicates() {
+  const existingKeys = new Set(importState.existing.map(normalizeKey));
+  const batchKeys = new Set();
+  importState.parsed.forEach(e => {
+    const key = normalizeKey(e);
+    if (existingKeys.has(key)) {
+      e._status = 'skipped';
+    } else if (!batchKeys.add(key)) {
+      e._status = 'duplicate';
+    } else if (!e.password) {
+      e._status = 'error';
+    } else {
+      e._status = 'new';
+    }
+  });
+}
+
+function statusLabel(status) {
+  return { new: '新增', skipped: '重复', duplicate: '同批重复', error: '数据不全' }[status] || status;
+}
+
+function statusColor(status) {
+  return { new: 'var(--success,#16a34a)', skipped: 'var(--fg-muted)', duplicate: 'var(--priority-medium,#b8860b)', error: 'var(--danger,#e03e3e)' }[status];
+}
+
+function renderImportPreview() {
+  const tbody = document.getElementById('importPreviewBody');
+  const stats = document.getElementById('importStats');
+  const counts = { new: 0, skipped: 0, duplicate: 0, error: 0 };
+  importState.parsed.forEach(e => counts[e._status] = (counts[e._status] || 0) + 1);
+
+  stats.innerHTML = `共 <b>${importState.parsed.length}</b> 条，新增 <b style="color:var(--success,#16a34a)">${counts.new}</b>，重复 <b>${counts.skipped}</b>，同批重复 <b>${counts.duplicate}</b>，数据不全 <b>${counts.error}</b>`;
+
+  tbody.innerHTML = importState.parsed.map((e, i) => {
+    const mask = e.password ? '••••••' : '-';
+    const checked = e._status === 'new' ? 'checked' : '';
+    const disabled = e._status !== 'new' ? 'disabled' : '';
+    return `<tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:6px 8px;"><input type="checkbox" class="import-row-cb" data-idx="${i}" ${checked} ${disabled}></td>
+      <td style="padding:6px 8px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(e.title)}">${escapeHtml(e.title)}</td>
+      <td style="padding:6px 8px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(e.url)}">${escapeHtml(e.url)}</td>
+      <td style="padding:6px 8px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(e.username)}</td>
+      <td style="padding:6px 8px;color:var(--fg-muted);">${mask}</td>
+      <td style="padding:6px 8px;color:${statusColor(e._status)};font-size:11px;">${statusLabel(e._status)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function importPrev() { showImportStep(1); }
+function importNext() { showImportStep(1); }
+
+// 导入完成后刷新列表
+async function refreshEntries() {
+  try {
+    const res = await fetch(API + '/search');
+    if (res.ok) {
+      allEntries = await res.json();
+      filteredEntries = allEntries;
+      renderList();
+      updateCounts();
+    }
+  } catch (e) { console.error('refresh failed', e); }
+}
+
+async function doImport() {
+  const selected = [];
+  document.querySelectorAll('.import-row-cb:checked').forEach(cb => {
+    selected.push(importState.parsed[parseInt(cb.dataset.idx)]);
+  });
+  if (selected.length === 0) {
+    showToast('请至少选择一条要导入的条目', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('importDoBtn');
+  btn.disabled = true;
+  btn.textContent = '导入中...';
+
+  try {
+    const res = await fetch(`${API}/import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries: selected })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '导入失败');
+
+    importState.result = data;
+    showImportResult(data);
+    showImportStep(3);
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '确认导入';
+  }
+}
+
+function showImportResult(data) {
+  document.getElementById('importResultSummary').textContent = `成功导入 ${data.imported} 条密码`;
+  document.getElementById('importResultDetails').innerHTML =
+    `新增 <b style="color:var(--success,#16a34a)">${data.imported}</b>，跳过(重复) <b>${data.skipped}</b>，同批重复 <b>${data.duplicates}</b>，错误 <b>${data.errors}</b>`;
+
+  const skippedList = document.getElementById('importSkippedList');
+  const skipped = (data.details || []).filter(d => d.status === 'skipped' || d.status === 'duplicate');
+  if (skipped.length > 0) {
+    skippedList.style.display = 'block';
+    skippedList.innerHTML = '<div style="font-weight:500;margin-bottom:4px;">跳过的条目：</div>' +
+      skipped.map(d => `<div style="padding:2px 0;color:var(--fg-secondary);">• ${escapeHtml(d.title || '未命名')} — ${escapeHtml(d.username || '')} <span style="color:var(--fg-muted);">(${d.reason})</span></div>`).join('');
+  } else {
+    skippedList.style.display = 'none';
+  }
+}
 
 // ====== 安全审计 ======
 async function showAuditModal() {

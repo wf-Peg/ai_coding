@@ -2,30 +2,37 @@ package com.example.clip.controller;
 
 import com.example.clip.model.PasswordEntry;
 import com.example.clip.service.PasswordVaultService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
  * 密码库 REST API 控制器。
  * <p>
- * 提供密码库的初始化、解锁/锁定、CRUD、搜索、审计和密码生成接口。
+ * 提供密码库的初始化、解锁/锁定、CRUD、搜索、审计、导入和密码生成接口。
  * 前端通过 axios 调用这些端点，DES Key 在请求体中传递，不持久化存储。
+ * 允许所有来源的跨域请求，包括浏览器扩展。
  * </p>
  */
 @RestController
 @RequestMapping("/api/vault")
+@CrossOrigin(origins = "*")
 public class PasswordVaultController {
 
     private static final Logger log = LoggerFactory.getLogger(PasswordVaultController.class);
 
     private final PasswordVaultService vaultService;
+    private final ObjectMapper objectMapper;
 
-    public PasswordVaultController(PasswordVaultService vaultService) {
+    public PasswordVaultController(PasswordVaultService vaultService, ObjectMapper objectMapper) {
         this.vaultService = vaultService;
+        this.objectMapper = objectMapper;
     }
 
     /** 生成随机 DES Key */
@@ -112,6 +119,29 @@ public class PasswordVaultController {
     public ResponseEntity<?> audit() {
         try {
             return ResponseEntity.ok(vaultService.audit());
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /** 批量导入密码条目（CSV 来源由前端解析为 JSON 数组） */
+    @SuppressWarnings("unchecked")
+    @PostMapping("/import")
+    public ResponseEntity<?> importEntries(@RequestBody Map<String, Object> body) {
+        try {
+            Object entriesObj = body.get("entries");
+            if (entriesObj == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "entries 字段不能为空"));
+            }
+            List<PasswordEntry> entries = new ArrayList<>();
+            if (entriesObj instanceof List) {
+                for (Object item : (List<Object>) entriesObj) {
+                    if (item instanceof Map) {
+                        entries.add(objectMapper.convertValue(item, PasswordEntry.class));
+                    }
+                }
+            }
+            return ResponseEntity.ok(vaultService.importEntries(entries));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }

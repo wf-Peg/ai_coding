@@ -62,7 +62,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["index.html", "clip.html", "todo.html", "topic.html", "topic-detail.html", "topic-editor.html", "settings.html", "styles/*.css", "libs/*.js", "*.js"],
+      "resources": ["index.html", "clip.html", "todo.html", "topic.html", "topic-detail.html", "topic-editor.html", "settings.html", "import-password.html", "styles/*.css", "libs/*.js", "*.js"],
       "matches": ["<all_urls>"]
     }
   ]

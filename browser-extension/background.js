@@ -106,6 +106,27 @@ function createContextMenus() {
     title: '设置',
     contexts: ['page', 'selection', 'image']
   });
+
+  // ====== 密码管理菜单（独立根菜单） ======
+  chrome.contextMenus.create({
+    id: 'vault-main',
+    title: '密码管理',
+    contexts: ['page']
+  });
+
+  chrome.contextMenus.create({
+    id: 'vault-import-current',
+    parentId: 'vault-main',
+    title: '保存当前网站密码',
+    contexts: ['page']
+  });
+
+  chrome.contextMenus.create({
+    id: 'vault-open',
+    parentId: 'vault-main',
+    title: '打开密码库',
+    contexts: ['page']
+  });
 }
 
 async function handleContextMenuClick(info, tab) {
@@ -132,11 +153,32 @@ async function handleContextMenuClick(info, tab) {
       case 'clip-settings':
         openOptions();
         break;
+      case 'vault-import-current':
+        await openImportPasswordWindow(tab);
+        break;
+      case 'vault-open':
+        chrome.tabs.create({ url: chrome.runtime.getURL('index.html#/vault') });
+        break;
     }
   } catch (error) {
     // 上下文菜单操作的兜底 error 提示
     showNotification(error?.message || '剪藏操作失败，请重试', 'error');
   }
+}
+
+// 打开「保存当前网站密码」弹窗，并通过 URL 参数传递当前标签页信息
+async function openImportPasswordWindow(tab) {
+  tab = await ensureTab(tab);
+  const params = new URLSearchParams({
+    url: tab.url || '',
+    title: tab.title || ''
+  });
+  chrome.windows.create({
+    url: chrome.runtime.getURL('import-password.html?' + params.toString()),
+    type: 'popup',
+    width: 440,
+    height: 560
+  });
 }
 
 async function handleCommand(command, tab) {
