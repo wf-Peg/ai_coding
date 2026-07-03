@@ -15,7 +15,8 @@ import java.util.Map;
 /**
  * 密码库 REST API 控制器。
  * <p>
- * 提供密码库的初始化、解锁/锁定、CRUD、搜索、审计、导入和密码生成接口。
+ * 提供密码库的初始化、解锁/锁定、CRUD、搜索、审计、导入和密码生成接口，
+ * 以及多密码库管理（列出、切换、删除、验证 Key）。
  * 前端通过 axios 调用这些端点，DES Key 在请求体中传递，不持久化存储。
  * 允许所有来源的跨域请求，包括浏览器扩展。
  * </p>
@@ -42,7 +43,7 @@ public class PasswordVaultController {
         return ResponseEntity.ok(Map.of("key", key));
     }
 
-    /** 查询密码库状态 */
+    /** 查询密码库状态（包含所有 vault 信息） */
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getStatus() {
         return ResponseEntity.ok(vaultService.getStatus());
@@ -55,7 +56,9 @@ public class PasswordVaultController {
         if (desKey == null || desKey.trim().isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "DES Key 不能为空"));
         }
-        return ResponseEntity.ok(vaultService.init(desKey));
+        String vaultName = body.getOrDefault("vaultName", "default");
+        String label = body.getOrDefault("label", "主密码库");
+        return ResponseEntity.ok(vaultService.init(desKey, vaultName, label));
     }
 
     /** 解锁密码库 */
@@ -65,13 +68,47 @@ public class PasswordVaultController {
         if (desKey == null || desKey.trim().isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "DES Key 不能为空"));
         }
-        return ResponseEntity.ok(vaultService.unlock(desKey));
+        String vaultName = body.getOrDefault("vaultName", null);
+        return ResponseEntity.ok(vaultService.unlock(desKey, vaultName));
     }
 
     /** 锁定密码库 */
     @PostMapping("/lock")
     public ResponseEntity<Map<String, Object>> lock() {
         return ResponseEntity.ok(vaultService.lock());
+    }
+
+    /** 列出所有密码库 */
+    @GetMapping("/vaults")
+    public ResponseEntity<List<Map<String, Object>>> listVaults() {
+        return ResponseEntity.ok(vaultService.listVaults());
+    }
+
+    /** 切换激活密码库 */
+    @PutMapping("/vaults/active")
+    public ResponseEntity<Map<String, Object>> switchVault(@RequestBody Map<String, String> body) {
+        String vaultName = body.get("vaultName");
+        if (vaultName == null || vaultName.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "vaultName 不能为空"));
+        }
+        return ResponseEntity.ok(vaultService.switchVault(vaultName));
+    }
+
+    /** 删除密码库 */
+    @DeleteMapping("/vaults/{name}")
+    public ResponseEntity<Map<String, Object>> deleteVault(@PathVariable String name) {
+        return ResponseEntity.ok(vaultService.deleteVault(name));
+    }
+
+    /** 验证 Key 是否正确 */
+    @PostMapping("/check-key")
+    public ResponseEntity<Map<String, Object>> checkKey(@RequestBody Map<String, String> body) {
+        String desKey = body.get("desKey");
+        String vaultName = body.getOrDefault("vaultName", null);
+        if (desKey == null || desKey.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("valid", false, "error", "DES Key 不能为空"));
+        }
+        return ResponseEntity.ok(vaultService.checkKey(vaultName, desKey));
     }
 
     /** 新增密码条目 */
@@ -124,7 +161,7 @@ public class PasswordVaultController {
         }
     }
 
-    /** 批量导入密码条目（CSV 来源由前端解析为 JSON 数组） */
+    /** 批量导入密码条目 */
     @SuppressWarnings("unchecked")
     @PostMapping("/import")
     public ResponseEntity<?> importEntries(@RequestBody Map<String, Object> body) {

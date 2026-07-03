@@ -255,16 +255,22 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
         <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
       </svg>
     </div>
-    <div class="lock-title">密码库</div>
+    <div class="lock-title" id="lockTitle">密码库</div>
     <div class="lock-subtitle" id="lockSubtitle">输入 DES Key 解锁密码库</div>
+
+    <!-- 密码库选择器（多 vault 时显示） -->
+    <div class="lock-vault-selector" id="lockVaultSelector" style="display:none; margin-bottom:12px;">
+      <select class="lock-input" id="lockVaultSelect" onchange="onLockVaultChange()" style="margin-bottom:0;"></select>
+    </div>
+
     <input type="password" class="lock-input" id="keyInput" placeholder="粘贴或输入 DES Key..." onkeydown="if(event.key==='Enter')doUnlock()">
     <button class="lock-btn" onclick="doUnlock()">解锁</button>
     <div class="lock-error" id="lockError"></div>
     <div class="lock-link">
       <span id="firstTimeHint" style="display:none;">还没有密码库？</span>
       <a id="initLink" onclick="showInitModal()" style="display:none;">初始化新密码库</a>
-      <span id="noKeyHint">没有 Key？</span>
-      <a onclick="showGenerateKeyModal()">生成新 Key</a>
+      <span id="noKeyHint">我忘记了 Key？</span>
+      <a onclick="showForgotKeyGuide()">创建新密码库</a>
     </div>
   </div>
 </div>
@@ -305,6 +311,10 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
       收藏
     </div>
     <div class="sidebar-divider"></div>
+    <div class="sidebar-item" onclick="showVaultManager()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      密码库管理
+    </div>
     <div class="sidebar-item" onclick="showKeyModal()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3"/></svg>
       DES Key 管理
@@ -554,23 +564,78 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
 
 <!-- ====== 初始化密码库模态框 ====== -->
 <div class="modal-overlay" id="initModal">
-  <div class="modal-card">
+  <div class="modal-card" style="width:440px;">
     <div class="modal-header">初始化密码库</div>
     <div class="modal-body">
-      <div style="padding:14px; background:var(--vault-purple-light); border:1px solid var(--vault-purple); border-radius:8px; font-size:12px; color:var(--vault-purple); line-height:1.6; margin-bottom:16px;">
-        将使用以下 DES Key 创建一个新的空密码库。请务必妥善保存 Key。
+      <div class="form-group">
+        <label class="form-label">密码库名称</label>
+        <input type="text" class="form-input" id="initVaultName" placeholder="如：主密码库、工作密码库" value="主密码库">
       </div>
+
+      <div style="padding:12px 14px; background:#fef3c7; border:1px solid #fcd34d; border-radius:10px; font-size:12px; color:#92400e; line-height:1.7; margin-bottom:16px;">
+        <strong>重要提示</strong><br>
+        DES Key 是密码库的唯一解密凭证，<strong>丢失后无法恢复</strong>。<br>
+        请务必在生成后立即保存到安全位置。
+      </div>
+
       <div class="form-group">
         <label class="form-label">DES Key</label>
-        <div style="display:flex; gap:8px;">
-          <input type="text" class="form-input" id="initKeyInput" placeholder="输入或粘贴 DES Key" style="flex:1;">
-          <button class="btn-secondary" onclick="generateInitKey()" style="white-space:nowrap;">生成</button>
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+          <input type="text" class="form-input" id="initKeyInput" placeholder="自定义 Key 或点击自动生成" style="flex:1;">
+          <button class="btn-secondary" onclick="generateInitKey()" style="white-space:nowrap;">自动生成</button>
         </div>
+        <div style="font-size:11px; color:var(--fg-muted);">支持自定义 Base64 字符串或自动生成</div>
+      </div>
+
+      <div id="initKeySaveHint" style="display:none; padding:12px; background:#dcfce7; border:1px solid #86efac; border-radius:10px; margin-top:8px;">
+        <div style="font-size:12px; color:#166534; font-weight:500; margin-bottom:6px;">Key 已生成</div>
+        <div style="font-size:11px; color:#15803d; line-height:1.5; margin-bottom:8px;">
+          请立即复制并保存此 Key。丢失后密码库数据将无法恢复。
+        </div>
+        <button class="btn-secondary" onclick="copyInitKey()" style="font-size:11px; padding:5px 12px;">复制 Key</button>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal('initModal')">取消</button>
       <button class="btn-primary" onclick="doInit()">创建密码库</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 忘记 Key 引导模态框 ====== -->
+<div class="modal-overlay" id="forgotKeyModal">
+  <div class="modal-card" style="width:400px;">
+    <div class="modal-header">忘记 DES Key</div>
+    <div class="modal-body">
+      <div style="padding:12px; background:#fef3c7; border:1px solid #fcd34d; border-radius:10px; font-size:12px; color:#92400e; line-height:1.7; margin-bottom:16px;">
+        DES Key 丢失后<strong>无法恢复</strong>旧密码库数据。<br>
+        但你可以创建新密码库继续使用，旧密码库数据将保留。<br>
+        如果日后记起旧 Key，可以切换回来读取。
+      </div>
+      <div style="font-size:13px; color:var(--fg-secondary); line-height:1.6;">
+        当前密码库：<strong id="forgotKeyVaultName">-</strong><br>
+        创建新密码库后，旧密码库文件不会删除。
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('forgotKeyModal')">取消</button>
+      <button class="btn-primary" onclick="closeModal('forgotKeyModal'); showInitModal()">创建新密码库</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 密码库管理模态框 ====== -->
+<div class="modal-overlay" id="vaultManagerModal">
+  <div class="modal-card" style="width:500px; max-height:70vh; display:flex; flex-direction:column;">
+    <div class="modal-header">密码库管理</div>
+    <div class="modal-body" style="overflow-y:auto; flex:1;">
+      <div id="vaultManagerList"></div>
+      <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
+        <button class="btn-primary" onclick="closeModal('vaultManagerModal'); showInitModal()" style="width:100%;">+ 新建密码库</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('vaultManagerModal')">关闭</button>
     </div>
   </div>
 </div>
@@ -587,6 +652,7 @@ let currentCategory = 'all';
 let selectedEntry = null;
 let editingId = null;
 let sessionKey = '';
+let currentVaultName = 'default';
 let generatedPassword = '';
 
 // ====== 初始化 ======
@@ -594,11 +660,20 @@ async function init() {
   try {
     const res = await fetch(API + '/status');
     const data = await res.json();
-    if (data.exists) {
+    const vaults = data.vaults || [];
+    const hasVault = data.exists && vaults.length > 0;
+
+    if (hasVault) {
+      currentVaultName = data.active || 'default';
       document.getElementById('lockSubtitle').textContent = '输入 DES Key 解锁密码库';
       document.getElementById('firstTimeHint').style.display = 'none';
       document.getElementById('initLink').style.display = 'none';
       document.getElementById('noKeyHint').style.display = 'inline';
+
+      // 渲染密码库选择器
+      if (vaults.length > 1) {
+        renderVaultSelector(vaults);
+      }
     } else {
       document.getElementById('lockSubtitle').textContent = '首次使用，请初始化密码库';
       document.getElementById('firstTimeHint').style.display = 'inline';
@@ -610,24 +685,44 @@ async function init() {
   }
 }
 
+function renderVaultSelector(vaults) {
+  const sel = document.getElementById('lockVaultSelect');
+  const container = document.getElementById('lockVaultSelector');
+  sel.innerHTML = vaults.map(v => {
+    const selected = v.isActive ? ' selected' : '';
+    return `<option value="${v.name}"${selected}>${escapeHtml(v.label)} (${v.entryCount}条)</option>`;
+  }).join('');
+  container.style.display = 'block';
+  currentVaultName = vaults.find(v => v.isActive)?.name || vaults[0].name;
+}
+
+function onLockVaultChange() {
+  currentVaultName = document.getElementById('lockVaultSelect').value;
+  const sel = document.getElementById('lockVaultSelect');
+  const label = sel.options[sel.selectedIndex].text;
+  document.getElementById('lockSubtitle').textContent = '输入「' + label + '」的 DES Key';
+}
+
 // ====== 解锁 ======
 async function doUnlock() {
   const key = document.getElementById('keyInput').value.trim();
   if (!key) return;
+  const vaultName = document.getElementById('lockVaultSelect')?.value || currentVaultName || 'default';
   const errEl = document.getElementById('lockError');
   errEl.style.display = 'none';
   try {
     const res = await fetch(API + '/unlock', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({desKey: key})
+      body: JSON.stringify({desKey: key, vaultName: vaultName})
     });
     const data = await res.json();
-    if (data.error) {
-      errEl.textContent = data.error;
+    if (!res.ok || data.error) {
+      errEl.textContent = data.error || '无法连接后端服务，请确认应用已启动';
       errEl.style.display = 'block';
       return;
     }
     sessionKey = key;
+    currentVaultName = data.vaultName || vaultName;
     allEntries = data.entries || [];
     filteredEntries = allEntries;
     document.getElementById('lockScreen').style.display = 'none';
@@ -635,7 +730,7 @@ async function doUnlock() {
     renderList();
     updateCounts();
   } catch (e) {
-    errEl.textContent = '解锁失败，请检查后端服务是否运行';
+    errEl.textContent = '无法连接后端服务，请确认应用已启动';
     errEl.style.display = 'block';
   }
 }
@@ -654,22 +749,33 @@ async function lockVault() {
 // ====== 初始化密码库 ======
 function showInitModal() {
   document.getElementById('initKeyInput').value = '';
+  document.getElementById('initVaultName').value = '主密码库';
+  document.getElementById('initKeySaveHint').style.display = 'none';
   openModal('initModal');
 }
 function generateInitKey() {
   document.getElementById('initKeyInput').value = generateKeyLocal();
+  document.getElementById('initKeySaveHint').style.display = 'block';
+}
+function copyInitKey() {
+  const key = document.getElementById('initKeyInput').value;
+  copyToClipboard(key);
+  showToast('Key 已复制，请保存到安全位置');
 }
 async function doInit() {
   const key = document.getElementById('initKeyInput').value.trim();
   if (!key) { showToast('请输入或生成 DES Key'); return; }
+  const vaultName = document.getElementById('initVaultName').value.trim() || '主密码库';
+  const label = vaultName;
   try {
     const res = await fetch(API + '/init', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({desKey: key})
+      body: JSON.stringify({desKey: key, vaultName: vaultName, label: label})
     });
     const data = await res.json();
     if (data.error) { showToast(data.error); return; }
     sessionKey = key;
+    currentVaultName = data.vaultName || vaultName;
     allEntries = data.entries || [];
     filteredEntries = allEntries;
     closeModal('initModal');
@@ -677,9 +783,9 @@ async function doInit() {
     document.getElementById('vaultApp').style.display = 'flex';
     renderList();
     updateCounts();
-    showToast('密码库创建成功');
+    showToast('密码库创建成功，请妥善保存 DES Key');
   } catch (e) {
-    showToast('初始化失败');
+    showToast('初始化失败，请检查后端服务是否运行');
   }
 }
 
@@ -970,6 +1076,89 @@ function toggleKeyVisibility() {
   else { el.type = 'password'; btn.textContent = '显示'; }
 }
 function copyKey() { copyToClipboard(sessionKey); showToast('Key 已复制'); }
+
+// ====== 忘记 Key 引导 ======
+function showForgotKeyGuide() {
+  document.getElementById('forgotKeyVaultName').textContent = currentVaultName;
+  openModal('forgotKeyModal');
+}
+
+// ====== 密码库管理 ======
+async function showVaultManager() {
+  openModal('vaultManagerModal');
+  document.getElementById('vaultManagerList').innerHTML = '<div style="text-align:center; padding:20px; color:var(--fg-muted);">加载中...</div>';
+  try {
+    const res = await fetch(API + '/vaults');
+    const vaults = await res.json();
+    if (!Array.isArray(vaults) || vaults.length === 0) {
+      document.getElementById('vaultManagerList').innerHTML = '<div style="text-align:center; padding:20px; color:var(--fg-muted);">暂无密码库</div>';
+      return;
+    }
+    renderVaultManagerList(vaults);
+  } catch (e) {
+    document.getElementById('vaultManagerList').innerHTML = '<div style="color:var(--vault-red);">加载失败</div>';
+  }
+}
+
+function renderVaultManagerList(vaults) {
+  const container = document.getElementById('vaultManagerList');
+  container.innerHTML = vaults.map(v => {
+    const date = v.createdAt ? new Date(v.createdAt).toLocaleDateString('zh-CN') : '-';
+    const isActive = v.isActive;
+    const isCurrent = isActive && v.name === currentVaultName;
+    return `
+      <div style="padding:14px; border:1px solid ${isActive ? 'var(--vault-purple)' : 'var(--border)'}; border-radius:10px; margin-bottom:8px;${isActive ? 'background:var(--vault-purple-light);' : ''}">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+          <div>
+            <div style="font-weight:600; font-size:14px;">${escapeHtml(v.label)} ${isActive ? '<span style="font-size:11px;color:var(--vault-purple);">（当前）</span>' : ''}</div>
+            <div style="font-size:11px; color:var(--fg-muted);">${v.entryCount} 条 · 创建于 ${date}</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          ${!isActive ? `<button class="btn-secondary" onclick="switchToVault('${v.name}')" style="font-size:11px; padding:4px 12px;">切换到此密码库</button>` : ''}
+          ${!isCurrent ? `<button class="btn-secondary" onclick="deleteVaultAction('${v.name}', '${escapeHtml(v.label)}')" style="font-size:11px; padding:4px 12px; color:var(--vault-red); border-color:var(--vault-red);">删除</button>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function switchToVault(vaultName) {
+  if (!confirm('切换后将锁定当前密码库，确认切换？')) return;
+  try {
+    const res = await fetch(API + '/vaults/active', {
+      method: 'PUT', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({vaultName: vaultName})
+    });
+    const data = await res.json();
+    if (data.error) { showToast(data.error); return; }
+    closeModal('vaultManagerModal');
+    sessionKey = '';
+    allEntries = [];
+    currentVaultName = vaultName;
+    document.getElementById('vaultApp').style.display = 'none';
+    document.getElementById('lockScreen').style.display = 'flex';
+    document.getElementById('keyInput').value = '';
+    init();
+    showToast('已切换到「' + (data.label || vaultName) + '」，请输入 DES Key 解锁');
+  } catch (e) {
+    showToast('切换失败');
+  }
+}
+
+async function deleteVaultAction(vaultName, label) {
+  if (!confirm('确认删除密码库「' + label + '」？\n\n此操作将删除该密码库的所有文件，且不可恢复。')) return;
+  try {
+    const res = await fetch(API + '/vaults/' + encodeURIComponent(vaultName), {method: 'DELETE'});
+    const data = await res.json();
+    if (data.error) { showToast(data.error); return; }
+    showToast('已删除密码库「' + (data.deletedLabel || vaultName) + '」');
+    // 重新加载列表
+    showVaultManager();
+  } catch (e) {
+    showToast('删除失败');
+  }
+}
 
 // ====== 导入密码 ======
 let importState = { step: 1, source: 'chrome', parsed: [], existing: [], result: null };

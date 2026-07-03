@@ -13,10 +13,7 @@ import org.springframework.stereotype.Service;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -24,8 +21,8 @@ import java.util.stream.Collectors;
  * 密码库业务服务。
  * <p>
  * 负责密码库的初始化、解锁、锁定、CRUD 操作、搜索和安全审计。
- * 密码库文件 (vault.enc) 使用 DES 加密，DES Key 仅在解锁时传入，
- * 不持久化存储。解锁后 VaultData 缓存在内存中，锁定时清除。
+ * 支持多密码库（multi-vault），每个密码库有独立的 DES Key 和加密文件。
+ * DES Key 仅在解锁时传入，不持久化存储。解锁后 VaultData 缓存在内存中，锁定时清除。
  * </p>
  */
 @Service
@@ -50,31 +47,211 @@ public class PasswordVaultService {
     /** ID 生成器 */
     private final AtomicLong idGenerator = new AtomicLong(1);
 
+    /** 密码库注册表缓存 */
+    private Map<String, VaultMeta> vaultRegistry = new LinkedHashMap<>();
+
+    /** 当前激活的密码库名称 */
+    private String activeVaultName = "default";
+
     public PasswordVaultService() {
         this.objectMapper = new ObjectMapper();
         this.objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
     }
 
+    // ========== 内部类 ==========
+
     /**
-     * 获取密码库存储目录
+     * 密码库元数据，存储在 vaults.json 注册表中。
      */
-    private Path getVaultDir() {
-        return Paths.get(storagePath, "vault");
+    public static class VaultMeta {
+        private String name;
+        private String label;
+        private String keyCheckHash;
+        private String algorithm = "DES/ECB/PKCS5Padding";
+        private long createdAt;
+        private int entryCount;
+
+        public VaultMeta() {}
+
+        public VaultMeta(String name, String label, String keyCheckHash) {
+            this.name = name;
+            this.label = label;
+            this.keyCheckHash = keyCheckHash;
+            this.createdAt = System.currentTimeMillis();
+        }
+
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+
+        public String getLabel() { return label; }
+        public void setLabel(String label) { this.label = label; }
+
+        public String getKeyCheckHash() { return keyCheckHash; }
+        public void setKeyCheckHash(String keyCheckHash) { this.keyCheckHash = keyCheckHash; }
+
+        public String getAlgorithm() { return algorithm; }
+        public void setAlgorithm(String algorithm) { this.algorithm = algorithm; }
+
+        public long getCreatedAt() { return createdAt; }
+        public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }
+
+        public int getEntryCount() { return entryCount; }
+        public void setEntryCount(int entryCount) { this.entryCount = entryCount; }
+    }
+
+    // ========== 路径方法 ==========
+
+    /**
+     * 获取指定密码库的存储目录
+     */
+    private Path getVaultDir(String vaultName) {
+        return Paths.get(storagePath, "vault", vaultName);
     }
 
     /**
-     * 获取密码库文件路径
+     * 获取指定密码库的加密文件路径
      */
-    private Path getVaultFile() {
-        return getVaultDir().resolve("vault.enc");
+    private Path getVaultFile(String vaultName) {
+        return getVaultDir(vaultName).resolve("vault.enc");
     }
 
     /**
-     * 获取元数据文件路径
+     * 获取指定密码库的元数据文件路径
      */
-    private Path getMetaFile() {
-        return getVaultDir().resolve("vault-meta.json");
+    private Path getMetaFile(String vaultName) {
+        return getVaultDir(vaultName).resolve("vault-meta.json");
     }
+
+    /**
+     * 获取密码库注册表文件路径
+     */
+    private Path getVaultsFile() {
+        return Paths.get(storagePath, "vault", "vaults.json");
+    }
+
+    // ========== 注册表管理 ==========
+
+    /**
+     * 加载密码库注册表，并在首次加载时执行向后兼容迁移。
+     */
+    private synchronized void loadVaultsRegistry() {
+        Path vaultsFile = getVaultsFile();
+
+        // 如果注册表不存在，先尝试迁移旧版文件
+        if (!Files.exists(vaultsFile)) {
+            migrateLegacyVault();
+        }
+
+        // 读取注册表
+        if (Files.exists(vaultsFile)) {
+            try {
+                String json = Files.readString(vaultsFile);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> registry = objectMapper.readValue(json, Map.class);
+                activeVaultName = (String) registry.getOrDefault("active", "default");
+
+                @SuppressWarnings("unchecked")
+                Map<String, Object> vaultsMap = (Map<String, Object>) registry.get("vaults");
+                vaultRegistry = new LinkedHashMap<>();
+                if (vaultsMap != null) {
+                    for (Map.Entry<String, Object> entry : vaultsMap.entrySet()) {
+                        VaultMeta meta = objectMapper.convertValue(entry.getValue(), VaultMeta.class);
+                        vaultRegistry.put(entry.getKey(), meta);
+                    }
+                }
+                log.info("Loaded vaults registry: active={}, vaults={}", activeVaultName, vaultRegistry.keySet());
+            } catch (Exception e) {
+                log.error("Failed to load vaults registry", e);
+                vaultRegistry = new LinkedHashMap<>();
+                activeVaultName = "default";
+            }
+        }
+    }
+
+    /**
+     * 保存密码库注册表到文件。
+     */
+    private void saveVaultsRegistry() {
+        try {
+            Map<String, Object> registry = new LinkedHashMap<>();
+            registry.put("active", activeVaultName);
+            registry.put("vaults", vaultRegistry);
+            String json = objectMapper.writeValueAsString(registry);
+            Files.writeString(getVaultsFile(), json);
+        } catch (Exception e) {
+            log.error("Failed to save vaults registry", e);
+            throw new RuntimeException("保存密码库注册表失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 向后兼容迁移：旧版 vault.enc 在 vault/ 根目录，迁移到 vault/default/ 子目录。
+     */
+    private void migrateLegacyVault() {
+        Path vaultsFile = getVaultsFile();
+        if (Files.exists(vaultsFile)) return; // 已经迁移过
+
+        Path oldVaultFile = Paths.get(storagePath, "vault", "vault.enc");
+        Path oldMetaFile = Paths.get(storagePath, "vault", "vault-meta.json");
+
+        if (!Files.exists(oldVaultFile)) return; // 没有旧版文件，无需迁移
+
+        log.info("Migrating legacy vault to vault/default/");
+
+        try {
+            // 创建 default 目录
+            Path defaultDir = getVaultDir("default");
+            Files.createDirectories(defaultDir);
+
+            // 移动文件
+            Files.move(oldVaultFile, getVaultFile("default"));
+            if (Files.exists(oldMetaFile)) {
+                Files.move(oldMetaFile, getMetaFile("default"));
+            }
+
+            // 读取旧元数据获取 keyCheckHash 和 entryCount
+            String keyCheckHash = "";
+            int entryCount = 0;
+            Path migratedMetaFile = getMetaFile("default");
+            if (Files.exists(migratedMetaFile)) {
+                try {
+                    String metaContent = Files.readString(migratedMetaFile);
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> meta = objectMapper.readValue(metaContent, Map.class);
+                    keyCheckHash = (String) meta.getOrDefault("keyCheckHash", "");
+                    entryCount = ((Number) meta.getOrDefault("entryCount", 0)).intValue();
+                } catch (Exception e) {
+                    log.warn("Failed to read migrated meta file: {}", e.getMessage());
+                }
+            }
+
+            // 创建 vaults.json 注册表
+            vaultRegistry = new LinkedHashMap<>();
+            VaultMeta meta = new VaultMeta("default", "主密码库", keyCheckHash);
+            meta.setEntryCount(entryCount);
+            vaultRegistry.put("default", meta);
+            activeVaultName = "default";
+            saveVaultsRegistry();
+
+            log.info("Legacy vault migrated successfully");
+        } catch (Exception e) {
+            log.error("Failed to migrate legacy vault", e);
+        }
+    }
+
+    /**
+     * 确保注册表已加载
+     */
+    private void ensureRegistryLoaded() {
+        if (vaultRegistry.isEmpty() && !Files.exists(getVaultsFile())) {
+            loadVaultsRegistry();
+        }
+        if (vaultRegistry.isEmpty()) {
+            loadVaultsRegistry();
+        }
+    }
+
+    // ========== 公开 API ==========
 
     /**
      * 生成随机 DES Key
@@ -84,18 +261,38 @@ public class PasswordVaultService {
     }
 
     /**
-     * 查询密码库状态
+     * 查询密码库状态（包含所有 vault 信息）
      */
     public Map<String, Object> getStatus() {
+        ensureRegistryLoaded();
+
         Map<String, Object> status = new HashMap<>();
-        status.put("exists", Files.exists(getVaultFile()));
+        status.put("active", activeVaultName);
+
+        // 构建 vaults 列表
+        List<Map<String, Object>> vaultsList = new ArrayList<>();
+        for (VaultMeta meta : vaultRegistry.values()) {
+            Map<String, Object> vaultInfo = new HashMap<>();
+            vaultInfo.put("name", meta.getName());
+            vaultInfo.put("label", meta.getLabel());
+            vaultInfo.put("entryCount", meta.getEntryCount());
+            vaultInfo.put("createdAt", meta.getCreatedAt());
+            vaultInfo.put("isActive", meta.getName().equals(activeVaultName));
+            vaultsList.add(vaultInfo);
+        }
+        status.put("vaults", vaultsList);
+
+        // 当前 active vault 的状态
+        Path activeVaultFile = getVaultFile(activeVaultName);
+        status.put("exists", Files.exists(activeVaultFile));
         status.put("unlocked", unlocked);
         status.put("entryCount", cachedVault != null ? cachedVault.getEntries().size() : 0);
 
-        // 读取元数据
-        if (Files.exists(getMetaFile())) {
+        // 读取当前 active vault 的元数据
+        Path metaFile = getMetaFile(activeVaultName);
+        if (Files.exists(metaFile)) {
             try {
-                String metaContent = Files.readString(getMetaFile());
+                String metaContent = Files.readString(metaFile);
                 @SuppressWarnings("unchecked")
                 Map<String, Object> meta = objectMapper.readValue(metaContent, Map.class);
                 status.put("meta", meta);
@@ -107,11 +304,45 @@ public class PasswordVaultService {
     }
 
     /**
+     * 列出所有密码库
+     */
+    public List<Map<String, Object>> listVaults() {
+        ensureRegistryLoaded();
+        List<Map<String, Object>> list = new ArrayList<>();
+        for (VaultMeta meta : vaultRegistry.values()) {
+            Map<String, Object> info = new HashMap<>();
+            info.put("name", meta.getName());
+            info.put("label", meta.getLabel());
+            info.put("entryCount", meta.getEntryCount());
+            info.put("createdAt", meta.getCreatedAt());
+            info.put("isActive", meta.getName().equals(activeVaultName));
+            info.put("keyCheckHash", meta.getKeyCheckHash());
+            list.add(info);
+        }
+        return list;
+    }
+
+    /**
      * 初始化密码库
      */
-    public Map<String, Object> init(String desKey) {
+    public Map<String, Object> init(String desKey, String vaultName, String label) {
+        ensureRegistryLoaded();
+
+        if (vaultName == null || vaultName.trim().isEmpty()) {
+            vaultName = "default";
+        }
+        if (label == null || label.trim().isEmpty()) {
+            label = "主密码库";
+        }
+
+        // 检查 vaultName 是否已存在
+        if (vaultRegistry.containsKey(vaultName)) {
+            VaultMeta existing = vaultRegistry.get(vaultName);
+            throw new RuntimeException("密码库名称「" + existing.getLabel() + "」已存在，请使用其他名称");
+        }
+
         try {
-            Path vaultDir = getVaultDir();
+            Path vaultDir = getVaultDir(vaultName);
             if (!Files.exists(vaultDir)) {
                 Files.createDirectories(vaultDir);
             }
@@ -125,16 +356,24 @@ public class PasswordVaultService {
             // DES 加密并写入
             String json = objectMapper.writeValueAsString(vault);
             String encrypted = DesEncryptionUtil.encrypt(json, desKey);
-            Files.writeString(getVaultFile(), encrypted);
+            Files.writeString(getVaultFile(vaultName), encrypted);
 
             // 写入元数据
+            String keyCheckHash = DesEncryptionUtil.getKeyCheckHash(desKey);
             Map<String, Object> meta = new HashMap<>();
             meta.put("version", 1);
             meta.put("algorithm", "DES/ECB/PKCS5Padding");
-            meta.put("keyCheckHash", DesEncryptionUtil.getKeyCheckHash(desKey));
+            meta.put("keyCheckHash", keyCheckHash);
             meta.put("createdAt", System.currentTimeMillis());
             meta.put("entryCount", 0);
-            Files.writeString(getMetaFile(), objectMapper.writeValueAsString(meta));
+            Files.writeString(getMetaFile(vaultName), objectMapper.writeValueAsString(meta));
+
+            // 注册到 vaults.json
+            VaultMeta vaultMeta = new VaultMeta(vaultName, label, keyCheckHash);
+            vaultMeta.setEntryCount(0);
+            vaultRegistry.put(vaultName, vaultMeta);
+            activeVaultName = vaultName;
+            saveVaultsRegistry();
 
             // 缓存到内存
             cachedVault = vault;
@@ -142,12 +381,16 @@ public class PasswordVaultService {
             unlocked = true;
             idGenerator.set(1);
 
-            log.info("Vault initialized successfully at {}", getVaultFile());
+            log.info("Vault '{}' initialized successfully at {}", label, getVaultFile(vaultName));
 
             Map<String, Object> result = new HashMap<>();
             result.put("success", true);
+            result.put("vaultName", vaultName);
+            result.put("label", label);
             result.put("entries", vault.getEntries());
             return result;
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Failed to init vault", e);
             throw new RuntimeException("密码库初始化失败: " + e.getMessage(), e);
@@ -157,15 +400,27 @@ public class PasswordVaultService {
     /**
      * 解锁密码库
      */
-    public Map<String, Object> unlock(String desKey) {
+    public Map<String, Object> unlock(String desKey, String vaultName) {
+        ensureRegistryLoaded();
+
+        if (vaultName == null || vaultName.trim().isEmpty()) {
+            vaultName = activeVaultName;
+        }
+
+        if (!vaultRegistry.containsKey(vaultName)) {
+            throw new RuntimeException("密码库「" + vaultName + "」不存在，请先初始化");
+        }
+
         try {
-            Path vaultFile = getVaultFile();
+            Path vaultFile = getVaultFile(vaultName);
             if (!Files.exists(vaultFile)) {
-                throw new RuntimeException("密码库不存在，请先初始化");
+                VaultMeta meta = vaultRegistry.get(vaultName);
+                String label = meta != null ? meta.getLabel() : vaultName;
+                throw new RuntimeException("密码库「" + label + "」不存在，请先初始化");
             }
 
             // 验证 Key
-            Path metaFile = getMetaFile();
+            Path metaFile = getMetaFile(vaultName);
             if (Files.exists(metaFile)) {
                 String metaContent = Files.readString(metaFile);
                 @SuppressWarnings("unchecked")
@@ -174,7 +429,7 @@ public class PasswordVaultService {
                 if (storedHash != null) {
                     String inputHash = DesEncryptionUtil.getKeyCheckHash(desKey);
                     if (!storedHash.equals(inputHash)) {
-                        throw new RuntimeException("DES Key 不正确");
+                        throw new RuntimeException("DES Key 不正确，请检查后重试");
                     }
                 }
             }
@@ -188,6 +443,7 @@ public class PasswordVaultService {
             cachedVault = vault;
             sessionDesKey = desKey;
             unlocked = true;
+            activeVaultName = vaultName;
 
             // 初始化 ID 生成器
             long maxId = vault.getEntries().stream()
@@ -195,16 +451,17 @@ public class PasswordVaultService {
                     .max().orElse(0);
             idGenerator.set(maxId + 1);
 
-            log.info("Vault unlocked successfully, {} entries", vault.getEntries().size());
+            log.info("Vault '{}' unlocked successfully, {} entries", vaultName, vault.getEntries().size());
 
             Map<String, Object> result = new HashMap<>();
             result.put("success", true);
+            result.put("vaultName", vaultName);
             result.put("entries", vault.getEntries());
             return result;
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Failed to unlock vault", e);
+            log.error("Failed to unlock vault '{}'", vaultName, e);
             throw new RuntimeException("解锁失败: " + e.getMessage(), e);
         }
     }
@@ -225,6 +482,139 @@ public class PasswordVaultService {
     }
 
     /**
+     * 切换激活密码库（锁定当前，切换到新 vault）
+     */
+    public Map<String, Object> switchVault(String vaultName) {
+        ensureRegistryLoaded();
+
+        if (vaultName == null || vaultName.trim().isEmpty()) {
+            throw new RuntimeException("密码库名称不能为空");
+        }
+
+        if (!vaultRegistry.containsKey(vaultName)) {
+            throw new RuntimeException("密码库「" + vaultName + "」不存在");
+        }
+
+        // 锁定当前
+        if (unlocked) {
+            lock();
+        }
+
+        // 切换 active
+        activeVaultName = vaultName;
+        saveVaultsRegistry();
+
+        VaultMeta meta = vaultRegistry.get(vaultName);
+        log.info("Switched active vault to '{}'", vaultName);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", true);
+        result.put("vaultName", vaultName);
+        result.put("label", meta != null ? meta.getLabel() : vaultName);
+        return result;
+    }
+
+    /**
+     * 删除密码库
+     */
+    public Map<String, Object> deleteVault(String vaultName) {
+        ensureRegistryLoaded();
+
+        if (vaultName == null || vaultName.trim().isEmpty()) {
+            throw new RuntimeException("密码库名称不能为空");
+        }
+
+        if (!vaultRegistry.containsKey(vaultName)) {
+            throw new RuntimeException("密码库「" + vaultName + "」不存在");
+        }
+
+        if (vaultName.equals(activeVaultName) && unlocked) {
+            throw new RuntimeException("无法删除正在使用的密码库，请先切换到其他密码库");
+        }
+
+        VaultMeta meta = vaultRegistry.get(vaultName);
+
+        // 删除文件目录
+        Path vaultDir = getVaultDir(vaultName);
+        try {
+            if (Files.exists(vaultDir)) {
+                Files.walk(vaultDir)
+                        .sorted(Comparator.reverseOrder())
+                        .forEach(path -> {
+                            try {
+                                Files.deleteIfExists(path);
+                            } catch (Exception e) {
+                                log.warn("Failed to delete file: {}", path, e);
+                            }
+                        });
+            }
+        } catch (Exception e) {
+            log.error("Failed to delete vault directory: {}", vaultName, e);
+            throw new RuntimeException("删除密码库文件失败: " + e.getMessage(), e);
+        }
+
+        // 从注册表移除
+        vaultRegistry.remove(vaultName);
+
+        // 如果删除的是当前 active，切换到第一个可用 vault
+        if (vaultName.equals(activeVaultName)) {
+            if (!vaultRegistry.isEmpty()) {
+                activeVaultName = vaultRegistry.keySet().iterator().next();
+            } else {
+                activeVaultName = "default";
+            }
+        }
+        saveVaultsRegistry();
+
+        log.info("Deleted vault '{}'", vaultName);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", true);
+        result.put("deletedName", vaultName);
+        result.put("deletedLabel", meta != null ? meta.getLabel() : vaultName);
+        result.put("newActive", activeVaultName);
+        return result;
+    }
+
+    /**
+     * 验证 Key 是否正确（不解密全部数据）
+     */
+    public Map<String, Object> checkKey(String vaultName, String desKey) {
+        ensureRegistryLoaded();
+
+        if (vaultName == null || vaultName.trim().isEmpty()) {
+            vaultName = activeVaultName;
+        }
+
+        if (!vaultRegistry.containsKey(vaultName)) {
+            return Map.of("valid", false, "error", "密码库不存在");
+        }
+
+        Path metaFile = getMetaFile(vaultName);
+        if (!Files.exists(metaFile)) {
+            return Map.of("valid", false, "error", "元数据不存在");
+        }
+
+        try {
+            String metaContent = Files.readString(metaFile);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> meta = objectMapper.readValue(metaContent, Map.class);
+            String storedHash = (String) meta.get("keyCheckHash");
+            if (storedHash == null) {
+                return Map.of("valid", false, "error", "元数据中没有 keyCheckHash");
+            }
+            String inputHash = DesEncryptionUtil.getKeyCheckHash(desKey);
+            boolean valid = storedHash.equals(inputHash);
+            return Map.of("valid", valid);
+        } catch (Exception e) {
+            log.error("Failed to check key for vault '{}'", vaultName, e);
+            return Map.of("valid", false, "error", e.getMessage());
+        }
+    }
+
+    // ========== 内部辅助 ==========
+
+    /**
      * 确保已解锁
      */
     private void ensureUnlocked() {
@@ -241,22 +631,32 @@ public class PasswordVaultService {
             cachedVault.setLastModified(System.currentTimeMillis());
             String json = objectMapper.writeValueAsString(cachedVault);
             String encrypted = DesEncryptionUtil.encrypt(json, sessionDesKey);
-            Files.writeString(getVaultFile(), encrypted);
+            Files.writeString(getVaultFile(activeVaultName), encrypted);
 
             // 更新元数据中的条目数
-            if (Files.exists(getMetaFile())) {
-                String metaContent = Files.readString(getMetaFile());
+            Path metaFile = getMetaFile(activeVaultName);
+            if (Files.exists(metaFile)) {
+                String metaContent = Files.readString(metaFile);
                 @SuppressWarnings("unchecked")
                 Map<String, Object> meta = objectMapper.readValue(metaContent, Map.class);
                 meta.put("entryCount", cachedVault.getEntries().size());
                 meta.put("lastModified", cachedVault.getLastModified());
-                Files.writeString(getMetaFile(), objectMapper.writeValueAsString(meta));
+                Files.writeString(metaFile, objectMapper.writeValueAsString(meta));
+            }
+
+            // 更新注册表中的 entryCount
+            VaultMeta vm = vaultRegistry.get(activeVaultName);
+            if (vm != null) {
+                vm.setEntryCount(cachedVault.getEntries().size());
+                saveVaultsRegistry();
             }
         } catch (Exception e) {
             log.error("Failed to save vault", e);
             throw new RuntimeException("保存密码库失败: " + e.getMessage(), e);
         }
     }
+
+    // ========== CRUD ==========
 
     /**
      * 新增密码条目
@@ -391,15 +791,6 @@ public class PasswordVaultService {
 
     /**
      * 密码强度检测
-     * <p>
-     * 返回 0-5 的分数：
-     * 0: 极弱（<6 字符）
-     * 1: 弱（仅一种字符类型）
-     * 2: 中等（两种字符类型）
-     * 3: 较强（三种字符类型）
-     * 4: 强（四种字符类型 + 12 字符以上）
-     * 5: 很强（四种字符类型 + 16 字符以上）
-     * </p>
      */
     private int checkPasswordStrength(String password) {
         int score = 0;
@@ -414,16 +805,7 @@ public class PasswordVaultService {
     }
 
     /**
-     * 批量导入密码条目（去重）。
-     * <p>
-     * 唯一键为 url + username（url 归一化：去除末尾斜杠、查询参数、hash）。
-     * 已存在的相同唯一键条目跳过，同批次内重复只保留第一条。
-     * 导入的条目统一标记 tags=[imported, chrome]，category=login。
-     * 单次最多 2000 条，超出拒绝。
-     * </p>
-     *
-     * @param entries 待导入的条目列表
-     * @return 导入结果统计 {imported, skipped, duplicates, errors, details}
+     * 批量导入密码条目（去重）
      */
     public Map<String, Object> importEntries(List<PasswordEntry> entries) {
         ensureUnlocked();
@@ -458,7 +840,6 @@ public class PasswordVaultService {
             detail.put("url", entry.getUrl());
             detail.put("username", entry.getUsername());
 
-            // 数据校验
             if (entry.getPassword() == null || entry.getPassword().isEmpty()) {
                 errors++;
                 detail.put("status", "error");
@@ -469,7 +850,6 @@ public class PasswordVaultService {
 
             String key = buildDedupeKey(entry);
 
-            // 跨批次去重
             if (existingKeys.contains(key)) {
                 skipped++;
                 detail.put("status", "skipped");
@@ -478,7 +858,6 @@ public class PasswordVaultService {
                 continue;
             }
 
-            // 同批次去重
             if (!batchKeys.add(key)) {
                 duplicates++;
                 detail.put("status", "duplicate");
@@ -487,7 +866,6 @@ public class PasswordVaultService {
                 continue;
             }
 
-            // 字段长度限制
             if (entry.getTitle() != null && entry.getTitle().length() > 500) {
                 entry.setTitle(entry.getTitle().substring(0, 500));
             }
@@ -498,7 +876,6 @@ public class PasswordVaultService {
                 entry.setUsername(entry.getUsername().substring(0, 500));
             }
 
-            // 规范化字段
             entry.setId(idGenerator.getAndIncrement());
             entry.setCategory("login");
             List<String> tags = entry.getTags();
@@ -522,7 +899,6 @@ public class PasswordVaultService {
             details.add(detail);
         }
 
-        // 一次性加密落盘
         if (imported > 0) {
             saveVault();
         }
@@ -538,18 +914,12 @@ public class PasswordVaultService {
         return result;
     }
 
-    /**
-     * 构建去重唯一键：url(归一化) + username(小写)。
-     * url 归一化：去除末尾斜杠、查询参数、hash，保留 protocol + host + path。
-     */
     private static String buildDedupeKey(PasswordEntry entry) {
         String url = entry.getUrl() == null ? "" : entry.getUrl().trim();
-        // 去除 query 和 hash
         int q = url.indexOf('?');
         if (q >= 0) url = url.substring(0, q);
         int h = url.indexOf('#');
         if (h >= 0) url = url.substring(0, h);
-        // 去除末尾斜杠
         while (url.endsWith("/")) {
             url = url.substring(0, url.length() - 1);
         }
