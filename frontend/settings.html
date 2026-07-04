@@ -40,6 +40,17 @@
             font-weight: 700;
             margin-bottom: 24px;
         }
+        .backend-error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: var(--radius);
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #991b1b;
+            line-height: 1.6;
+        }
+        .backend-error strong { font-weight: 600; }
         .section {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -152,6 +163,64 @@
         }
         .toggle-switch input:checked + .toggle-slider { background: var(--primary); }
         .toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
+
+        .shortcut-input {
+          padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px;
+          background: var(--surface); color: var(--text); font-family: 'SF Mono', 'Consolas', monospace;
+          font-size: 13px; text-align: center; outline: none; cursor: pointer;
+        }
+        .shortcut-input:focus { border-color: var(--text); }
+
+        .setting-row {
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 12px 0; border-bottom: 1px solid var(--border);
+        }
+        .setting-row:last-child { border-bottom: none; }
+        .setting-label { flex: 1; }
+        .setting-title { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 2px; }
+        .setting-desc { font-size: 12px; color: var(--text-secondary); }
+        .setting-control { flex-shrink: 0; margin-left: 16px; }
+
+        /* ── 设置分组标签 ── */
+        .section-badge {
+          display: inline-block; font-size: 10px; font-weight: 600;
+          padding: 2px 8px; border-radius: 10px; margin-left: 8px;
+          vertical-align: middle; letter-spacing: 0.3px;
+        }
+        .section-badge.immediate {
+          background: #d1fae5; color: #065f46;
+        }
+        .section-badge.needs-save {
+          background: #fef3c7; color: #92400e;
+        }
+        html[data-theme="dark"] .section-badge.immediate {
+          background: #064e3b; color: #6ee7b7;
+        }
+        html[data-theme="dark"] .section-badge.needs-save {
+          background: #78350f; color: #fcd34d;
+        }
+
+        /* ── 需保存区的左边框提示 ── */
+        .section.save-section {
+          border-left: 3px solid var(--border);
+          padding-left: 16px;
+        }
+        .section.save-section.needs-attention {
+          border-left-color: #f59e0b;
+        }
+        html[data-theme="dark"] .section.save-section.needs-attention {
+          border-left-color: #f59e0b;
+        }
+
+        /* ── 需保存区内的保存按钮行 ── */
+        .save-section-actions {
+          display: flex; align-items: center; justify-content: flex-end;
+          gap: 12px; margin-top: 12px; padding-top: 12px;
+          border-top: 1px solid var(--border);
+        }
+        .save-section-actions .save-hint {
+          font-size: 12px; color: var(--text-secondary); flex: 1;
+        }
 
         /* Update status styles */
         .update-available { color: #10b981; font-weight: 500; }
@@ -322,7 +391,10 @@
         <h1 class="page-title">AI 模型设置</h1>
 
         <div class="section">
-            <div class="section-title">外观设置</div>
+            <div class="section-title">
+                外观设置
+                <span class="section-badge immediate">即时生效</span>
+            </div>
             <div class="form-group">
                 <label class="form-label">界面主题</label>
                 <select id="appearanceSelect" onchange="onAppearanceChange()">
@@ -334,56 +406,92 @@
             </div>
         </div>
 
-        <div class="section">
-            <div class="section-title">当前使用模型</div>
+        <div class="section" id="shortcutSection">
+            <div class="section-title">
+                快捷键设置
+                <span class="section-badge immediate">即时生效</span>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">全局快捷键</div>
+                    <div class="setting-desc">唤起 / 隐藏应用窗口</div>
+                </div>
+                <div class="setting-control">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="shortcutEnabled" onchange="onShortcutChange()" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+            <div class="setting-row" id="shortcutKeyRow">
+                <div class="setting-label">
+                    <div class="setting-title">快捷键组合</div>
+                    <div class="setting-desc">支持 Ctrl / Alt / Shift + 字母键</div>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="shortcutKey" class="shortcut-input" 
+                           placeholder="Ctrl+Shift+Z" onclick="startShortcutRecording()"
+                           style="width:180px;text-align:center;" readonly>
+                </div>
+            </div>
+        </div>
+
+        <div class="section save-section needs-attention" id="aiModelSection">
+            <div class="section-title">
+                AI 模型配置
+                <span class="section-badge needs-save">保存后生效</span>
+            </div>
             <div class="form-group">
+                <label class="form-label">当前使用模型</label>
                 <select id="activeProvider" onchange="onProviderChange()">
                     <option value="dashscope">阿里云 DashScope</option>
                     <option value="deepseek">DeepSeek</option>
                 </select>
             </div>
-        </div>
-
-        <!-- DashScope 配置 -->
-        <div class="section" id="dashscopeSection">
-            <div class="section-title">
-                阿里云 DashScope
-                <span class="badge badge-active" id="dashscopeBadge">当前</span>
-            </div>
-            <div class="form-group">
-                <label class="form-label">API Key</label>
-                <div class="input-row">
-                    <input type="password" id="dashscopeApiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" />
-                    <button class="btn btn-outline" onclick="toggleVisibility('dashscopeApiKey')">显示</button>
+            <div style="margin-top:16px;">
+                <div id="dashscopeSection" style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                        <span style="font-weight:600;font-size:13px;">阿里云 DashScope</span>
+                        <span class="badge badge-active" id="dashscopeBadge">当前</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">API Key</label>
+                        <div class="input-row">
+                            <input type="password" id="dashscopeApiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" />
+                            <button class="btn btn-outline" onclick="toggleVisibility('dashscopeApiKey')">显示</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">模型名称</label>
+                        <input type="text" id="dashscopeModel" placeholder="qwen-plus" />
+                    </div>
+                    <div class="test-result" id="dashscopeTestResult"></div>
+                    <button class="btn btn-outline" id="testDashscopeBtn" onclick="testDashscope()">测试连接</button>
+                </div>
+                <div id="deepseekSection" style="border:1px solid var(--border);border-radius:8px;padding:14px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                        <span style="font-weight:600;font-size:13px;">DeepSeek</span>
+                        <span class="badge badge-inactive" id="deepseekBadge">未激活</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">API Key</label>
+                        <div class="input-row">
+                            <input type="password" id="deepseekApiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" />
+                            <button class="btn btn-outline" onclick="toggleVisibility('deepseekApiKey')">显示</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">模型名称</label>
+                        <input type="text" id="deepseekModel" placeholder="deepseek-chat" />
+                    </div>
+                    <div class="test-result" id="deepseekTestResult"></div>
+                    <button class="btn btn-outline" id="testDeepseekBtn" onclick="testDeepseek()">测试连接</button>
                 </div>
             </div>
-            <div class="form-group">
-                <label class="form-label">模型名称</label>
-                <input type="text" id="dashscopeModel" placeholder="qwen-plus" />
+            <div class="save-section-actions">
+                <div class="save-hint">修改后需点击保存方可生效</div>
+                <button class="btn btn-primary" id="saveBtn" onclick="saveConfig()">保存设置</button>
             </div>
-            <div class="test-result" id="dashscopeTestResult"></div>
-            <button class="btn btn-outline" id="testDashscopeBtn" onclick="testDashscope()">测试连接</button>
-        </div>
-
-        <!-- DeepSeek 配置 -->
-        <div class="section" id="deepseekSection">
-            <div class="section-title">
-                DeepSeek
-                <span class="badge badge-inactive" id="deepseekBadge">未激活</span>
-            </div>
-            <div class="form-group">
-                <label class="form-label">API Key</label>
-                <div class="input-row">
-                    <input type="password" id="deepseekApiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" />
-                    <button class="btn btn-outline" onclick="toggleVisibility('deepseekApiKey')">显示</button>
-                </div>
-            </div>
-            <div class="form-group">
-                <label class="form-label">模型名称</label>
-                <input type="text" id="deepseekModel" placeholder="deepseek-chat" />
-            </div>
-            <div class="test-result" id="deepseekTestResult"></div>
-            <button class="btn btn-outline" id="testDeepseekBtn" onclick="testDeepseek()">测试连接</button>
         </div>
 
         <!-- 更新管理 -->
@@ -413,7 +521,7 @@
 
             <div class="form-group" id="frequencyGroup" style="display: none;">
                 <label class="form-label">检查频率</label>
-                <select id="updateFrequency">
+                <select id="updateFrequency" onchange="onUpdateFrequencyChange()">
                     <option value="daily">每天</option>
                     <option value="weekly">每周</option>
                     <option value="monthly">每月</option>
@@ -435,12 +543,6 @@
                     </button>
                 </div>
             </div>
-        </div>
-
-        <hr class="section-divider" />
-
-        <div class="actions">
-            <button class="btn btn-primary" id="saveBtn" onclick="saveConfig()">保存设置</button>
         </div>
     </div>
 

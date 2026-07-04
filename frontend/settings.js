@@ -64,6 +64,9 @@ function applyTheme() {
 async function loadConfig() {
   try {
     const response = await fetch(API_BASE);
+    if (!response.ok) {
+      throw new Error('后端返回状态码: ' + response.status);
+    }
     const config = await response.json();
     document.getElementById('activeProvider').value = config.activeProvider || 'dashscope';
     document.getElementById('dashscopeApiKey').value = config.dashscopeApiKey || '';
@@ -71,8 +74,15 @@ async function loadConfig() {
     document.getElementById('deepseekApiKey').value = config.deepseekApiKey || '';
     document.getElementById('deepseekModel').value = config.deepseekModel || 'deepseek-chat';
     onProviderChange();
+    showToast('配置加载成功');
   } catch (error) {
     console.error('加载配置失败:', error);
+    const errDiv = document.createElement('div');
+    errDiv.className = 'backend-error';
+    errDiv.innerHTML = '<strong>⚠️ 无法连接后端服务</strong><br>请确保 Spring Boot 后端已在 <strong>http://127.0.0.1:8080</strong> 启动';
+    const existing = document.querySelector('.backend-error');
+    if (existing) existing.remove();
+    document.querySelector('.page-title').after(errDiv);
     showToast('加载配置失败，请检查后端服务');
   }
 }
@@ -98,7 +108,7 @@ async function saveConfig() {
       body: JSON.stringify(config)
     });
     if (response.ok) {
-      showToast('设置已保存');
+      showToast('AI 模型配置已保存');
       onProviderChange();
       // 同步保存更新配置
       saveUpdateConfig();
@@ -245,8 +255,77 @@ document.addEventListener('DOMContentLoaded', () => {
   const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
   document.getElementById('appearanceSelect').value = appearance;
   loadConfig();
+  loadShortcutConfig();
   initUpdateUI();
 });
+
+// ==================== 快捷键设置 ====================
+
+let recordingShortcut = false;
+
+async function loadShortcutConfig() {
+  const api = getElectronAPI();
+  if (!api || !api.getShortcutConfig) return;
+  try {
+    const config = await api.getShortcutConfig();
+    document.getElementById('shortcutEnabled').checked = config.enabled;
+    document.getElementById('shortcutKey').value = config.accelerator || 'Ctrl+Shift+Z';
+    document.getElementById('shortcutKeyRow').style.display = config.enabled ? '' : 'none';
+  } catch (e) {}
+}
+
+function startShortcutRecording() {
+  const input = document.getElementById('shortcutKey');
+  recordingShortcut = true;
+  input.value = '按下组合键...';
+  input.style.borderColor = 'var(--text)';
+  input.style.background = 'var(--primary-light)';
+}
+
+function cancelShortcutRecording() {
+  const input = document.getElementById('shortcutKey');
+  recordingShortcut = false;
+  input.style.borderColor = '';
+  input.style.background = '';
+}
+
+// keydown 监听 — 录制组合键
+document.addEventListener('keydown', (e) => {
+  if (!recordingShortcut) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const parts = [];
+  if (e.ctrlKey || e.metaKey) parts.push('Ctrl');
+  if (e.altKey) parts.push('Alt');
+  if (e.shiftKey) parts.push('Shift');
+  const key = e.key;
+  if (key === 'Control' || key === 'Alt' || key === 'Shift' || key === 'Meta') return;
+  if (parts.length === 0) parts.push('Ctrl');
+  parts.push(key.length === 1 ? key.toUpperCase() : key);
+  const accelerator = parts.join('+');
+  const input = document.getElementById('shortcutKey');
+  input.value = accelerator;
+  cancelShortcutRecording();
+  onShortcutChange();
+});
+
+// 点击其他地方取消录制
+document.addEventListener('click', (e) => {
+  if (recordingShortcut && e.target.id !== 'shortcutKey') {
+    cancelShortcutRecording();
+    loadShortcutConfig(); // 恢复原值
+  }
+});
+
+async function onShortcutChange() {
+  const enabled = document.getElementById('shortcutEnabled').checked;
+  const accelerator = document.getElementById('shortcutKey').value.trim() || 'Ctrl+Shift+Z';
+  document.getElementById('shortcutKeyRow').style.display = enabled ? '' : 'none';
+  const api = getElectronAPI();
+  if (!api || !api.setShortcutConfig) return;
+  await api.setShortcutConfig({ enabled, accelerator });
+  showToast('快捷键已更新');
+}
 
 // ==================== 更新管理 ====================
 
@@ -357,6 +436,13 @@ function onAutoUpdateToggle() {
  * 保存更新配置到主进程。
  * 由"保存设置"按钮统一调用，不在 toggle/select 切换时自动保存。
  */
+
+/** 检查频率即时生效 */
+async function onUpdateFrequencyChange() {
+  await saveUpdateConfig();
+  showToast('检查频率已更新');
+}
+
 async function saveUpdateConfig() {
   const electronAPI = getElectronAPI();
   if (!electronAPI) return;
