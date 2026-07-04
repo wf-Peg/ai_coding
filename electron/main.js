@@ -8,7 +8,7 @@
  * 4. 提供 IPC 通道供渲染进程调用
  */
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, Notification, globalShortcut, clipboard } = require('electron');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -1546,6 +1546,73 @@ function setupIPC() {
   });
 }
 
+// ==================== 剪贴板 & 全局快捷键 ====================
+
+// 全局快捷键状态
+let shortcutAccelerator = 'CommandOrControl+Shift+Z';
+let shortcutEnabled = true;
+
+/** 注册全局快捷键 */
+function registerGlobalShortcut() {
+  if (!shortcutEnabled) return;
+  globalShortcut.unregisterAll();
+  try {
+    const ret = globalShortcut.register(shortcutAccelerator, () => {
+      if (mainWindow) {
+        if (mainWindow.isVisible() && !mainWindow.isMinimized()) {
+          mainWindow.hide();
+        } else {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      }
+    });
+    if (!ret) log.warn('[Shortcut] Registration failed:', shortcutAccelerator);
+  } catch (e) { log.warn('[Shortcut] Error:', e.message); }
+}
+
+/** 注销全局快捷键 */
+function unregisterGlobalShortcut() {
+  globalShortcut.unregisterAll();
+}
+
+/** 从 config.json 加载快捷键配置 */
+function loadShortcutFromConfig() {
+  try {
+    if (fs.existsSync(CONFIG_FILE)) {
+      const config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+      if (config.shortcut) {
+        shortcutEnabled = config.shortcut.enabled !== false;
+        shortcutAccelerator = config.shortcut.accelerator || 'CommandOrControl+Shift+Z';
+      }
+    }
+  } catch (e) { log.warn('[Shortcut] Failed to load config:', e.message); }
+}
+
+// 剪贴板读取
+ipcMain.handle('read-clipboard', () => clipboard.readText());
+
+// 快捷键配置
+ipcMain.handle('get-shortcut-config', () => {
+  return { enabled: shortcutEnabled, accelerator: shortcutAccelerator };
+});
+ipcMain.handle('set-shortcut-config', (event, config) => {
+  shortcutEnabled = config.enabled !== false;
+  if (config.accelerator) shortcutAccelerator = config.accelerator;
+  // 持久化到 config.json
+  try {
+    const existingConfig = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+    existingConfig.shortcut = { enabled: shortcutEnabled, accelerator: shortcutAccelerator };
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(existingConfig, null, 2));
+  } catch (e) { log.warn('[Shortcut] Failed to persist config:', e.message); }
+  if (shortcutEnabled) {
+    registerGlobalShortcut();
+  } else {
+    unregisterGlobalShortcut();
+  }
+  return { success: true };
+});
+
 // ==================== 更新检查逻辑 ====================
 
 /**
@@ -2016,6 +2083,9 @@ app.whenReady().then(async () => {
           }
           // 创建主窗口
           createMainWindow(newConfig);
+          // 注册全局快捷键
+          loadShortcutFromConfig();
+          registerGlobalShortcut();
           // 启动自动更新检查
           updateManager.startAutoCheck(async () => {
             await checkForUpdates(true);
@@ -2063,7 +2133,9 @@ app.whenReady().then(async () => {
       });
 
       createMainWindow(config);
-
+      // 注册全局快捷键
+      loadShortcutFromConfig();
+      registerGlobalShortcut();
       // 启动自动更新检查
       updateManager.startAutoCheck(async () => {
         await checkForUpdates(true);
@@ -2116,6 +2188,7 @@ app.on('before-quit', () => {
 
 // 应用退出时：确保清理所有服务进程
 app.on('will-quit', () => {
+  unregisterGlobalShortcut();
   stopBackend();
   stopFrontendServer();
 });

@@ -223,6 +223,7 @@ public class FileStorageService {
                 .filter(path -> !path.toString().contains("todoList")) // 过滤待办事项目录
                 .filter(path -> !path.toString().contains("knowledge")) // 过滤知识条目目录
                 .filter(path -> !path.toString().contains("topic"))     // 过滤话题目录
+                .filter(path -> !path.toString().contains("vault"))     // 过滤话题目录
                 .forEach(files::add);
         return files;
     }

@@ -1,5 +1,6 @@
 package com.example.clip.service;
 
+import com.example.clip.core.AiService;
 import com.example.clip.model.PasswordEntry;
 import com.example.clip.model.VaultData;
 import com.example.clip.util.DesEncryptionUtil;
@@ -34,6 +35,7 @@ public class PasswordVaultService {
     private String storagePath;
 
     private final ObjectMapper objectMapper;
+    private final AiService aiService;
 
     /** 解锁后缓存在内存中的密码库数据 */
     private VaultData cachedVault;
@@ -53,8 +55,9 @@ public class PasswordVaultService {
     /** 当前激活的密码库名称 */
     private String activeVaultName = "default";
 
-    public PasswordVaultService() {
+    public PasswordVaultService(AiService aiService) {
         this.objectMapper = new ObjectMapper();
+        this.aiService = aiService;
         this.objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
     }
 
@@ -1004,5 +1007,21 @@ public class PasswordVaultService {
             password.append(charPool.charAt(random.nextInt(charPool.length())));
         }
         return password.toString();
+    }
+
+    // ==================== AI 自动填充 ====================
+
+    /**
+     * 从剪贴板文本中智能提取密码条目字段。
+     * 调用 AiService 解析用户复制的账号密码信息，去除噪声，返回结构化字段。
+     *
+     * @param rawText 用户复制的原始文本
+     * @return 提取的条目列表（name/url/username/password/notes）
+     */
+    public List<Map<String, String>> autoFill(String rawText) {
+        if (rawText == null || rawText.isBlank()) {
+            return List.of();
+        }
+        return aiService.parsePasswordInfo(rawText);
     }
 }

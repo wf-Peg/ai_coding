@@ -285,4 +285,22 @@ public class PasswordVaultController {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
+
+    /**
+     * AI 自动填充：从剪贴板文本中智能提取密码条目字段。
+     */
+    @PostMapping("/auto-fill")
+    public Map<String, Object> autoFill(@RequestBody Map<String, String> body) {
+        String rawText = body.get("text");
+        if (rawText == null || rawText.isBlank()) {
+            return Map.of("error", "文本不能为空");
+        }
+        try {
+            List<Map<String, String>> entries = vaultService.autoFill(rawText);
+            return Map.of("success", true, "entries", entries);
+        } catch (Exception e) {
+            log.error("Auto-fill failed: error={}", e.getMessage());
+            return Map.of("error", "AI 解析失败: " + e.getMessage());
+        }
+    }
 }

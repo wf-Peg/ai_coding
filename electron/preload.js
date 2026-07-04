@@ -258,5 +258,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * @param {string} message - 日志内容
    * @returns {Promise<void>}
    */
-  logToFile: (level, message) => ipcRenderer.invoke('log-to-file', { level, message })
+  logToFile: (level, message) => ipcRenderer.invoke('log-to-file', { level, message }),
+
+  // ===================== 剪贴板 & 快捷键 =====================
+
+  readClipboard: () => ipcRenderer.invoke('read-clipboard'),
+  getShortcutConfig: () => ipcRenderer.invoke('get-shortcut-config'),
+  setShortcutConfig: (config) => ipcRenderer.invoke('set-shortcut-config', config),
 });
