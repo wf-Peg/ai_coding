@@ -73,10 +73,11 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
 .sidebar-search {
   padding: 6px 12px; display: flex; align-items: center; gap: 6px;
   background: var(--accent-light); border-radius: 6px; margin: 4px 8px 8px;
+  overflow: hidden;
 }
 .sidebar-search input {
   border: none; background: none; outline: none; font-size: 12px;
-  color: var(--fg); flex: 1; font-family: inherit;
+  color: var(--fg); flex: 1; font-family: inherit; min-width: 0;
 }
 
 /* 列表 */
@@ -347,6 +348,10 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       导入密码
     </div>
+    <div class="sidebar-item" onclick="showAiImportModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M16 14H8a4 4 0 0 0-4 4v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2a4 4 0 0 0-4-4z"/><circle cx="12" cy="19" r="1" fill="currentColor"/></svg>
+      AI 识别导入
+    </div>
     <div class="sidebar-item" onclick="showAuditModal()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11H1v12h8V11zM23 1h-8v22h8V1zM16 8h2M16 16h2M5 16h2M5 19h2"/></svg>
       安全审计
@@ -522,7 +527,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
           <input type="file" id="csvFileInput" accept=".csv" style="display:none;">
         </div>
         <div style="margin-top:12px;font-size:12px;color:var(--fg-muted);">
-          <span style="cursor:pointer;color:var(--primary);text-decoration:underline;" onclick="showChromeExportHelp()">如何从 Chrome 导出密码？</span>
+          <span style="cursor:pointer;color:var(--vault-accent);text-decoration:underline;" onclick="showChromeExportHelp()">如何从 Chrome 导出密码？</span>
         </div>
         <div id="chromeExportHelp" style="display:none;margin-top:8px;padding:12px;background:var(--bg);border-radius:8px;font-size:12px;color:var(--fg-secondary);line-height:1.6;">
           1. 打开 Chrome → 右上角 ⋮ → 设置<br>
@@ -564,6 +569,59 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
       <button class="btn-secondary" onclick="closeImportModal()">关闭</button>
       <button id="importPrevBtn" class="btn-secondary" style="display:none;" onclick="importPrev()">上一步</button>
       <button id="importDoBtn" class="modal-submit" style="display:none;" onclick="doImport()">确认导入</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== AI 识别导入模态框 ====== -->
+<div class="modal-overlay" id="aiImportModal">
+  <div class="modal-card" style="width:620px;max-height:85vh;display:flex;flex-direction:column;">
+    <div class="modal-header">
+      <span>AI 识别导入密码</span>
+    </div>
+    <div class="modal-body" style="overflow-y:auto;flex:1;">
+
+      <!-- 步骤 1：输入/粘贴 -->
+      <div id="aiImportStep1">
+        <div class="form-group">
+          <label class="form-label">粘贴账号密码信息</label>
+          <div style="font-size:12px;color:var(--fg-muted);margin-bottom:6px;">
+            支持多条账号密码，不限格式。AI 会自动识别提取字段并去除噪声。
+          </div>
+          <textarea id="aiImportText" class="form-input" rows="8"
+            placeholder="在此粘贴复制的账号密码信息，或等待自动读取剪贴板..."
+            style="width:100%;resize:vertical;font-size:13px;line-height:1.5;"></textarea>
+        </div>
+      </div>
+
+      <!-- 步骤 2：解析结果预览 -->
+      <div id="aiImportStep2" style="display:none;">
+        <div id="aiParseStats" style="padding:8px 12px;background:var(--accent-light);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--fg);"></div>
+        <div style="max-height:320px;overflow:auto;border:1px solid var(--border);border-radius:8px;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead style="position:sticky;top:0;background:var(--bg-elevated, var(--card));z-index:1;">
+              <tr>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);width:32px;"><input type="checkbox" id="aiImportSelectAll" checked onchange="toggleAiImportAll()"></th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">名称</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">网址</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">用户名</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">密码</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">备注</th>
+              </tr>
+            </thead>
+            <tbody id="aiImportPreviewBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 错误提示（始终可见，不依赖步骤切换） -->
+      <div id="aiImportError" style="display:none;padding:12px;margin-top:12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:13px;color:#b91c1c;"></div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeAiImportModal()">关闭</button>
+      <button id="aiParseBtn" class="btn-primary" onclick="aiParseAndPreview()">AI 解析</button>
+      <button id="aiImportBtn" class="modal-submit" style="display:none;" onclick="doAiImport()">确认导入</button>
     </div>
   </div>
 </div>
@@ -704,8 +762,10 @@ function applyTheme() {
   const theme = getEffectiveTheme();
   if (theme === 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
+  } else if (theme === 'regular') {
+    document.documentElement.setAttribute('data-theme', 'regular');
   } else {
-    document.documentElement.removeAttribute('data-theme');
+    document.documentElement.setAttribute('data-theme', 'notion');
   }
 }
 
@@ -722,7 +782,7 @@ window.addEventListener('storage', event => {
 
 applyTheme();
 
-const API = '/api/vault';
+const API = 'http://127.0.0.1:8080/api/vault';
 let allEntries = [];
 let filteredEntries = [];
 let currentCategory = 'all';
@@ -1035,6 +1095,192 @@ function showEditModal(id) {
   openModal('entryModal');
 }
 
+// ==================== AI 识别导入 ====================
+
+let aiParsedEntries = [];
+
+async function showAiImportModal() {
+  document.getElementById('aiImportStep1').style.display = '';
+  document.getElementById('aiImportStep2').style.display = 'none';
+  document.getElementById('aiParseBtn').style.display = '';
+  document.getElementById('aiImportBtn').style.display = 'none';
+  document.getElementById('aiImportError').style.display = 'none';
+  const textarea = document.getElementById('aiImportText');
+  textarea.value = '';
+  textarea.placeholder = '正在读取剪贴板...';
+  try {
+    let clipboardText = '';
+    if (window.electronAPI && window.electronAPI.readClipboard) {
+      console.log('尝试使用 Electron API 读取剪贴板...');
+      clipboardText = await window.electronAPI.readClipboard();
+      console.log('Electron API 读取结果:', clipboardText);
+    } else if (navigator.clipboard && navigator.clipboard.readText) {
+      console.log('尝试使用 navigator.clipboard.readText 读取剪贴板...');
+      clipboardText = await navigator.clipboard.readText();
+      console.log('navigator.clipboard.readText 读取结果:', clipboardText);
+    } else {
+      console.log('无法使用剪贴板读取功能');
+      // 降级方案：使用传统的 clipboardData 方式
+      try {
+        const text = await new Promise((resolve) => {
+          document.addEventListener('paste', function handler(e) {
+            const text = (e.clipboardData || window.clipboardData).getData('text');
+            resolve(text);
+            document.removeEventListener('paste', handler);
+          });
+          // 为了防止无限等待，设置超时
+          setTimeout(() => resolve(''), 3000);
+        });
+        clipboardText = text;
+        console.log('传统 paste 事件读取结果:', clipboardText);
+      } catch (fallbackError) {
+        console.warn('传统粘贴事件方式也失败:', fallbackError);
+      }
+    }
+    if (clipboardText && clipboardText.trim()) {
+      textarea.value = clipboardText;
+      textarea.placeholder = '已读取剪贴板内容，点击"AI 解析"开始识别';
+    } else {
+      textarea.placeholder = '剪贴板为空，请手动复制账号密码信息后粘贴到此';
+    }
+  } catch (e) {
+    console.error('剪贴板读取失败:', e);
+    textarea.placeholder = '无法读取剪贴板，请手动复制后粘贴到此';
+  }
+  openModal('aiImportModal');
+}
+
+async function aiParseAndPreview() {
+  const text = document.getElementById('aiImportText').value.trim();
+  if (!text) { showToast('请先输入或粘贴要解析的内容'); return; }
+  const btn = document.getElementById('aiParseBtn');
+  btn.disabled = true;
+  btn.textContent = 'AI 解析中...';
+  // 每次点击解析时先清除上次的错误提示
+  document.getElementById('aiImportError').style.display = 'none';
+  try {
+    console.log('开始调用 AI 解析接口，输入文本长度:', text.length);
+    const res = await fetch(`${API}/auto-fill`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+    console.log('API 响应状态:', res.status);
+    const data = await res.json();
+    console.log('API 返回数据:', data);
+    if (data.error) {
+      showToast('解析失败：' + data.error);
+      document.getElementById('aiImportError').textContent = '解析失败：' + data.error;
+      document.getElementById('aiImportError').style.display = '';
+      return;
+    }
+    let entries = [];
+    if (Array.isArray(data.entries)) {
+      entries = data.entries;
+    } else if (data.fields) {
+      entries = [data.fields];
+    }
+    if (entries.length === 0) {
+      showToast('未能识别出任何密码条目，请确认粘贴内容包含账号密码信息');
+      document.getElementById('aiImportError').textContent = '未能识别出任何密码条目，请确认粘贴内容包含账号密码信息';
+      document.getElementById('aiImportError').style.display = '';
+      return;
+    }
+    // 清洗字段：去除反引号包裹、多余空格、去除前后引号等
+    entries = entries.map(e => ({
+      name: (e.name || '').trim(),
+      url: (e.url || '').trim().replace(/^[`'""'\s]+|[`'""'\s]+$/g, ''),
+      username: (e.username || '').trim(),
+      password: (e.password || '').trim(),
+      notes: (e.notes || '').trim()
+    }));
+    aiParsedEntries = entries;
+    renderAiImportPreview(entries);
+    document.getElementById('aiImportStep1').style.display = 'none';
+    document.getElementById('aiImportStep2').style.display = '';
+    document.getElementById('aiParseBtn').style.display = 'none';
+    document.getElementById('aiImportBtn').style.display = '';
+    document.getElementById('aiParseStats').textContent = 'AI 识别到 ' + entries.length + ' 条密码条目，请勾选后确认导入';
+  } catch (e) {
+    console.error('AI 解析过程发生错误:', e);
+    showToast('解析失败，请检查网络连接后重试');
+    document.getElementById('aiImportError').textContent = '解析失败：' + e.message;
+    document.getElementById('aiImportError').style.display = '';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'AI 解析';
+  }
+}
+
+function renderAiImportPreview(entries) {
+  const tbody = document.getElementById('aiImportPreviewBody');
+  tbody.innerHTML = '';
+  entries.forEach((entry, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td style="padding:6px 8px;border-bottom:1px solid var(--border);"><input type="checkbox" class="ai-import-check" data-idx="' + i + '" checked></td>'
+      + '<td style="padding:6px 8px;border-bottom:1px solid var(--border);">' + escapeHtml(entry.name || '') + '</td>'
+      + '<td style="padding:6px 8px;border-bottom:1px solid var(--border);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(entry.url || '') + '</td>'
+      + '<td style="padding:6px 8px;border-bottom:1px solid var(--border);">' + escapeHtml(entry.username || '') + '</td>'
+      + '<td style="padding:6px 8px;border-bottom:1px solid var(--border);font-family:monospace;">' + escapeHtml(entry.password || '') + '</td>'
+      + '<td style="padding:6px 8px;border-bottom:1px solid var(--border);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(entry.notes || '') + '</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function toggleAiImportAll() {
+  const checked = document.getElementById('aiImportSelectAll').checked;
+  document.querySelectorAll('.ai-import-check').forEach(cb => cb.checked = checked);
+}
+
+async function doAiImport() {
+  const checkboxes = document.querySelectorAll('.ai-import-check:checked');
+  if (checkboxes.length === 0) { showToast('请至少选择一条要导入的密码'); return; }
+  const btn = document.getElementById('aiImportBtn');
+  btn.disabled = true;
+  btn.textContent = '导入中...';
+  let imported = 0, failed = 0;
+  for (const cb of checkboxes) {
+    const entry = aiParsedEntries[parseInt(cb.dataset.idx)];
+    console.log('开始导入条目:', entry);
+    try {
+      const res = await fetch(API + '/entry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: entry.name || entry.url || 'AI 导入',
+          url: entry.url || '',
+          username: entry.username || '',
+          password: entry.password || '',
+          notes: entry.notes || '',
+          category: 'login',
+          tags: [],
+          iconColor: '#6366f1'
+        })
+      });
+      console.log('导入请求响应:', res.status);
+      if (res.ok) imported++; else failed++;
+    } catch (e) {
+      console.error('导入过程出错:', e);
+      failed++;
+    }
+  }
+  showToast('导入完成：成功 ' + imported + ' 条' + (failed ? '，失败 ' + failed + ' 条' : ''));
+  closeAiImportModal();
+  refreshEntries();
+}
+
+function closeAiImportModal() {
+  closeModal('aiImportModal');
+  aiParsedEntries = [];
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  var d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
 async function saveEntry() {
   const title = document.getElementById('entryTitle').value.trim();
   if (!title) { showToast('请输入名称'); return; }
@@ -1345,7 +1591,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   dropZone.addEventListener('dragover', (e) => {
     e.preventDefault();
-    dropZone.style.borderColor = 'var(--primary)';
+    dropZone.style.borderColor = 'var(--vault-accent)';
     dropZone.style.background = 'var(--vault-glow)';
   });
   dropZone.addEventListener('dragleave', () => {
@@ -1539,10 +1785,6 @@ function renderImportPreview() {
   }).join('');
 }
 
-function escapeHtml(s) {
-  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
 function importPrev() {
   document.getElementById('csvFileInput').value = '';
   document.getElementById('importResult').style.display = 'none';
@@ -1676,10 +1918,6 @@ function copyToClipboard(text) {
     ta.value = text; document.body.appendChild(ta); ta.select();
     document.execCommand('copy'); document.body.removeChild(ta);
   });
-}
-function escapeHtml(str) {
-  if (!str) return '';
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ====== 自定义确认弹窗 ======

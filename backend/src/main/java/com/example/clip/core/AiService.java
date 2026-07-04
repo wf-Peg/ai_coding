@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -817,5 +819,130 @@ public class AiService {
      */
     private String getCategoryName(String category) {
         return category != null ? category : "未分类";
+    }
+
+    // ==================== 密码库 AI 自动填充 ====================
+
+    /**
+     * 从文本中智能提取密码条目列表（支持多条）。
+     * LLM 返回 JSON 数组，每个元素包含 name/url/username/password/notes 字段。
+     *
+     * @param rawText 用户粘贴的原始文本
+     * @return 提取的条目列表
+     */
+    public List<Map<String, String>> parsePasswordInfo(String rawText) {
+        List<Map<String, String>> result = new ArrayList<>();
+
+        // ---- 1. 脱敏：替换疑似密码内容为占位符 ----
+        // 使用正则匹配常见的密码标识行，例如：
+        // "密码：123456", "password: abc123", "pass = 123"
+        // 同时保留占位符映射
+        Map<String, String> placeholderToReal = new LinkedHashMap<>();
+        String sanitizedText = sanitizePasswords(rawText, placeholderToReal);
+
+        // 构建 system prompt（注意：不要求 AI 返回密码，但保留 password 字段占位）
+        String systemPrompt = "你是一个密码管理器助手。请从以下文本中提取所有密码条目信息。"
+                + "这些文本可能包含多条账号密码。返回 JSON 数组（不要 markdown 代码块）。\n\n"
+                + "要求：\n"
+                + "1. 每条提取字段：name（条目名称）、url（网址）、username（用户名）、password（密码）、notes（备注）\n"
+                + "2. 去除噪声：忽略时间戳、无关文本、广告、UI 标签等非密码信息\n"
+                + "3. 智能推断：如果用户名是邮箱格式（如 user@example.com），且没有明确网址，搜索关键字找到官方网站，找不到的则将 example.com 作为 url\n"
+                + "4. 如果某字段确实无法提取，设为空字符串 \"\"\n"
+                + "5. 注意：一条信息中可能同时包含多个账号，每条都是一个独立对象\n"
+                + "6. 只返回 JSON 数组，不要任何额外文字\n\n"
+                + "示例返回格式：\n"
+                + "[\n"
+                + "  {\"name\":\"GitHub\",\"url\":\"https://github.com\",\"username\":\"user1\",\"password\":\"<PASSWORD_1>\",\"notes\":\"\"},\n"
+                + "  {\"name\":\"Google\",\"url\":\"https://google.com\",\"username\":\"user2@gmail.com\",\"password\":\"<PASSWORD_2>\",\"notes\":\"工作账号\"}\n"
+                + "]";
+
+        String response = null;
+        try {
+            // 调用 AI，传入脱敏后的文本
+            response = llmProvider.chat(systemPrompt, sanitizedText);
+            String cleaned = cleanJsonWrapper(response);
+            ObjectMapper mapper = new ObjectMapper()
+                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+            // 尝试解析为数组
+            List<Map<String, Object>> parsed = mapper.readValue(cleaned, new TypeReference<List<Map<String, Object>>>() {});
+            for (Map<String, Object> item : parsed) {
+                Map<String, String> entry = new LinkedHashMap<>();
+                for (String key : new String[]{"name", "url", "username", "password", "notes"}) {
+                    Object val = item.get(key);
+                    String strVal = val != null ? val.toString() : "";
+                    // ---- 2. 恢复密码占位符 ----
+                    if (key.equals("password") && placeholderToReal.containsKey(strVal)) {
+                        strVal = placeholderToReal.get(strVal);
+                    }
+                    entry.put(key, strVal);
+                }
+                result.add(entry);
+            }
+        } catch (Exception e) {
+            // 兼容单对象格式
+            logger.warn("[AI] parsePasswordInfo array parse failed, trying single object: {}", e.getMessage());
+            try {
+                ObjectMapper mapper = new ObjectMapper()
+                        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                Map<String, Object> single = mapper.readValue(cleanJsonWrapper(response), new TypeReference<Map<String, Object>>() {});
+                Map<String, String> entry = new LinkedHashMap<>();
+                for (String key : new String[]{"name", "url", "username", "password", "notes"}) {
+                    Object val = single.get(key);
+                    String strVal = val != null ? val.toString() : "";
+                    if (key.equals("password") && placeholderToReal.containsKey(strVal)) {
+                        strVal = placeholderToReal.get(strVal);
+                    }
+                    entry.put(key, strVal);
+                }
+                result.add(entry);
+            } catch (Exception e2) {
+                logger.error("[AI] parsePasswordInfo failed completely: {}", e2.getMessage(), e2);
+                String snippet = (response != null && response.length() > 200) ? response.substring(0, 200) + "..." : response;
+                throw new RuntimeException("AI 模型返回结果解析失败，请检查 AI 模型配置是否正确。原始响应：" + snippet);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 脱敏函数：将 rawText 中疑似密码的值替换为 <PASSWORD_N> 占位符。
+     * 支持常见格式：password: xxx, 密码：xxx, pass = xxx, pwd=xxx 等。
+     * 同时也支持行内直接出现密码字符串（如 csv 中 password 列）。
+     *
+     * @param rawText 原始文本
+     * @param placeholderMap 输出映射（占位符 -> 真实密码）
+     * @return 脱敏后的文本
+     */
+    private String sanitizePasswords(String rawText, Map<String, String> placeholderMap) {
+        // 使用正则匹配：密码关键词 + 分隔符 + 非空密码值（不包含换行）
+        // 关键词：password|pass|pwd|密码
+        // 分隔符：[:：=]\s*
+        // 密码值：非空白字符序列（或直到行末）
+        Pattern pattern = Pattern.compile(
+                "(?i)(password|pass|pwd|密码)\\s*[:：=]\\s*([^\\s,;，；]+)",
+                Pattern.MULTILINE
+        );
+        Matcher matcher = pattern.matcher(rawText);
+        StringBuffer sb = new StringBuffer();
+        int counter = 1;
+        while (matcher.find()) {
+            String passwordValue = matcher.group(2);
+            // 避免替换空串或明显不是密码的（如 "null", "none"）
+            if (passwordValue != null && !passwordValue.isEmpty()
+                    && !passwordValue.equalsIgnoreCase("null")
+                    && !passwordValue.equalsIgnoreCase("none")) {
+                String placeholder = "<PASSWORD_" + counter + ">";
+                placeholderMap.put(placeholder, passwordValue);
+                // 替换整个匹配组，保留前缀（关键词+分隔符）并插入占位符
+                matcher.appendReplacement(sb, matcher.group(1) + " " + placeholder);
+                counter++;
+            } else {
+                // 不替换，保留原文
+                matcher.appendReplacement(sb, matcher.group(0));
+            }
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
     }
 }

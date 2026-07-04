@@ -443,6 +443,33 @@ html[data-theme="dark"] .audit-item {
 }
 html[data-theme="dark"] .audit-item:hover { background: var(--card-hover); }
 
+/* Regular：导入向导 */
+html[data-theme="regular"] #csvDropZone {
+  background: #fff;
+  border-color: #d1d5db;
+}
+html[data-theme="regular"] #csvDropZone:hover {
+  border-color: #3b82f6;
+  background: #dbeafe;
+}
+html[data-theme="regular"] #importStepIndicator { background: #fff; }
+html[data-theme="regular"] #importStats {
+  background: #fff;
+  border-color: #e5e7eb;
+}
+html[data-theme="regular"] #importPreviewBody td { border-bottom-color: #e5e7eb; }
+html[data-theme="regular"] #importSkippedList {
+  background: #fff;
+  border-color: #e5e7eb;
+}
+
+/* Regular：审计面板 */
+html[data-theme="regular"] .audit-item {
+  background: #fff;
+  border-color: #e5e7eb;
+}
+html[data-theme="regular"] .audit-item:hover { background: #f0f5ff; }
+
 /* 深色：密码生成器 */
 html[data-theme="dark"] .gen-password-display {
   background: #252525;
@@ -483,3 +510,101 @@ html[data-theme="dark"] #chromeExportHelp { background: #252525; }
 html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: var(--border); }
 html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
 html[data-theme="dark"] * { scrollbar-color: var(--border) transparent; }
+
+/* ══════════════════════════════════════════════════════════════
+   Regular（蓝白经典）主题
+   ══════════════════════════════════════════════════════════════ */
+html[data-theme="regular"] {
+  --vault-amber: #d97706;
+  --vault-green: #059669;
+  --vault-red: #dc2626;
+  --vault-shadow-card: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+  --vault-shadow-popup: 0 4px 16px rgba(0,0,0,0.12);
+}
+
+/* 锁屏页 */
+html[data-theme="regular"] .vault-lock { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); }
+html[data-theme="regular"] .lock-icon { background: linear-gradient(135deg, #3b82f6, #6366f1); }
+html[data-theme="regular"] .lock-title { color: #1e3a5f; }
+html[data-theme="regular"] .lock-desc { color: #6b7280; }
+html[data-theme="regular"] .lock-input { background: #fff; border-color: #d1d5db; color: #1f2937; }
+html[data-theme="regular"] .lock-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+html[data-theme="regular"] .lock-btn { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; border: none; }
+html[data-theme="regular"] .lock-btn:hover { background: linear-gradient(135deg, #2563eb, #1d4ed8); }
+
+/* 侧边栏 */
+html[data-theme="regular"] .vault-sidebar { background: #f0f5ff; border-right: 1px solid #dbeafe; }
+html[data-theme="regular"] .sidebar-item { color: #4b5563; }
+html[data-theme="regular"] .sidebar-item:hover { background: #dbeafe; color: #1e40af; }
+html[data-theme="regular"] .sidebar-item.active { background: #bfdbfe; color: #1e40af; font-weight: 600; }
+html[data-theme="regular"] .sidebar-item svg { stroke: #6b7280; }
+html[data-theme="regular"] .sidebar-item:hover svg, html[data-theme="regular"] .sidebar-item.active svg { stroke: #1e40af; }
+html[data-theme="regular"] .sidebar-search input { background: #fff; border-color: #d1d5db; }
+html[data-theme="regular"] .sidebar-divider { border-color: #dbeafe; }
+
+/* 列表 */
+html[data-theme="regular"] .vault-list { background: #f8faff; }
+html[data-theme="regular"] .list-header { border-bottom: 1px solid #e0e7ff; }
+html[data-theme="regular"] .list-title { color: #1e3a5f; }
+html[data-theme="regular"] .add-btn { background: #3b82f6; color: #fff; border: none; }
+html[data-theme="regular"] .add-btn:hover { background: #2563eb; }
+html[data-theme="regular"] .entry-item { background: #fff; border: 1px solid #e5e7eb; }
+html[data-theme="regular"] .entry-item:hover { background: #f0f5ff; border-color: #bfdbfe; }
+html[data-theme="regular"] .entry-item.selected { background: #dbeafe; border-color: #3b82f6; }
+html[data-theme="regular"] .entry-title { color: #1f2937; }
+html[data-theme="regular"] .entry-subtitle { color: #6b7280; }
+html[data-theme="regular"] .count { background: #dbeafe; color: #1e40af; }
+
+/* 详情面板 */
+html[data-theme="regular"] .detail-panel { background: #f8faff; border-left: 1px solid #dbeafe; }
+html[data-theme="regular"] .detail-field-title { color: #6b7280; }
+html[data-theme="regular"] .detail-field-value { color: #1f2937; }
+html[data-theme="regular"] .detail-field-value.copyable:hover { background: #dbeafe; }
+
+/* 模态框 */
+html[data-theme="regular"] .modal-overlay { background: rgba(0,0,0,0.4); }
+html[data-theme="regular"] .modal-card { background: #fff; border: 1px solid #e5e7eb; }
+html[data-theme="regular"] .modal-header { background: #f8faff; border-bottom: 1px solid #dbeafe; color: #1e3a5f; }
+html[data-theme="regular"] .modal-footer { border-top: 1px solid #e5e7eb; }
+html[data-theme="regular"] .form-input { background: #fff; border: 1px solid #d1d5db; color: #1f2937; }
+html[data-theme="regular"] .form-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+html[data-theme="regular"] .form-select { background: #fff; border-color: #d1d5db; color: #1f2937; }
+html[data-theme="regular"] .form-select:focus { border-color: #3b82f6; }
+
+/* 按钮 */
+html[data-theme="regular"] .btn-primary { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; border: none; }
+html[data-theme="regular"] .btn-primary:hover { background: linear-gradient(135deg, #2563eb, #1d4ed8); }
+html[data-theme="regular"] .btn-secondary { background: #fff; border: 1px solid #d1d5db; color: #374151; }
+html[data-theme="regular"] .btn-secondary:hover { background: #f3f4f6; }
+html[data-theme="regular"] .modal-submit { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; border: none; }
+html[data-theme="regular"] .modal-submit:hover { background: linear-gradient(135deg, #2563eb, #1d4ed8); }
+html[data-theme="regular"] .btn-secondary.danger { color: #dc2626; border-color: #fca5a5; }
+html[data-theme="regular"] .btn-secondary.danger:hover { background: #fef2f2; }
+
+/* 密码库管理 */
+html[data-theme="regular"] .vault-mgr-card { background: #fff; border: 1px solid #e5e7eb; }
+html[data-theme="regular"] .vault-mgr-card:hover { border-color: #3b82f6; }
+html[data-theme="regular"] .vault-mgr-name { color: #1f2937; }
+html[data-theme="regular"] .vault-mgr-desc { color: #6b7280; }
+
+/* Toast 和确认弹窗 */
+html[data-theme="regular"] .toast { background: #1f2937; color: #f9fafb; }
+html[data-theme="regular"] .confirm-dialog { background: #fff; border: 1px solid #e5e7eb; }
+html[data-theme="regular"] .confirm-dialog .confirm-buttons .confirm-cancel { background: #fff; border: 1px solid #d1d5db; color: #374151; }
+html[data-theme="regular"] .confirm-dialog .confirm-buttons .confirm-cancel:hover { background: #f3f4f6; }
+html[data-theme="regular"] .confirm-dialog .confirm-buttons .confirm-ok { background: #dc2626; color: #fff; border: none; }
+html[data-theme="regular"] .confirm-dialog .confirm-buttons .confirm-ok:hover { background: #b91c1c; }
+
+/* Regular：搜索框 */
+html[data-theme="regular"] .sidebar-search {
+  background: #fff;
+  border: 1px solid #d1d5db;
+}
+html[data-theme="regular"] .sidebar-search:focus-within {
+  border-color: #3b82f6;
+  background: #f0f5ff;
+}
+html[data-theme="regular"] .sidebar-search input {
+  background: transparent;
+  color: #1f2937;
+}
