@@ -27,15 +27,48 @@ try {
 
 ---
 
-### Bug 2：剪藏列表第一次打开自动展开
+### Bug 2：剪藏详情展开后自动收起
 
-**现象**：打开剪藏列表后，第一条剪藏详情隔几秒自动展开。
+**现象**：打开剪藏列表后，选中一条剪藏详情展开，隔一会详情页又自动合上了（回到未展开模式）。
 
-**根因**：`renderClipList` 渲染完后，`createClipItem` 中 `toggleDetail` 无自动展开逻辑。但 `refineClipOnLoad` 可能在后台运行整理流程，完成后触发了重新渲染。需要确认 `clip.html` 中是否有 `DOMContentLoaded` 时的自动展开逻辑。
+**根因**：[clip.html#L2969](file:///workspace/frontend/clip.html#L2969) — `fetchClips()` 每次调用都执行 `clipItemsContainer.innerHTML = ''`，销毁所有 DOM 元素后重建剪藏列表，导致已展开的 `.clip-detail` 丢失 `.expanded` 状态。`fetchClips()` 有多个触发路径：
+- 初始加载（`DOMContentLoaded`）
+- 添加/删除剪藏后
+- AI 整理完成后
+- 工作流筛选器切换
+- `startRefreshCheck()` 定时器（添加剪藏后 5 秒触发）
 
-**修复**：检查 `clip.html` 中 `loadClips()` 调用后是否有 `setTimeout` 或异步操作触发了 `toggleDetail`。如果没有明显的自动展开代码，则检查 `index.html` 的 iframe 加载时机。
+**修复**：在 `fetchClips()` 中，清空 `innerHTML` 前记录已展开的剪藏 ID 集合，重建 DOM 后恢复展开状态：
 
-**文件**：[clip.html](file:///workspace/frontend/clip.html) - 查找 `loadClips` 后的自动展开逻辑
+```javascript
+// 在 fetchClips() 中，innerHTML = '' 之前：
+const expandedIds = new Set();
+document.querySelectorAll('.clip-detail.expanded').forEach(detail => {
+  const clipItem = detail.closest('.clip-item');
+  const idEl = clipItem?.querySelector('[data-clip-id]');
+  if (idEl) expandedIds.add(idEl.dataset.clipId);
+});
+
+// ... innerHTML = '' 并重建列表 ...
+
+// 重建后恢复展开状态：
+expandedIds.forEach(id => {
+  const detail = document.querySelector(`.clip-detail[data-clip-id="${id}"]`);
+  if (detail) {
+    detail.classList.add('expanded');
+    const btn = detail.closest('.clip-item')?.querySelector('.expand-btn');
+    if (btn) {
+      btn.classList.add('expanded');
+      const text = btn.querySelector('.text');
+      if (text) text.textContent = '收起';
+    }
+  }
+});
+```
+
+**注意**：需要在 `createClipItem()` 中给 `.clip-detail` 和展开按钮添加 `data-clip-id` 属性以便定位。
+
+**文件**：[clip.html](file:///workspace/frontend/clip.html) — `fetchClips()` (L2938-L2999) 和 `createClipItem()` (L3001-L3162)
 
 ---
 
@@ -204,7 +237,7 @@ if (vaultLink) {
 ## 三、验证步骤
 
 1. **Ctrl+R 刷新**：桌面应用任意页面按 Ctrl+R → 正常刷新不报错
-2. **剪藏展开**：打开剪藏列表 → 第一条不自动展开 → 手动点击展开正常
+2. **剪藏展开**：打开剪藏列表 → 手动展开一条详情 → 切换筛选器/添加剪藏后 → 已展开的详情保持展开状态不自动收起
 3. **divergentSummary**：已有 divergentSummary 的剪藏 → 展开 → 看到发散性总结内容
 4. **思考输入框**：编辑剪藏 → 思考框高度充足可拖动
 5. **删除确认弹窗**：话题详情 → 点删除 → 弹窗背景不透明，文字可见
