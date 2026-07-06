@@ -3134,15 +3134,17 @@
                         </div>
                     </div>
                     `}
-                    <div class="content-section" id="divergent-summary-${clip.id}" style="display: none;">
+                    ${clip.divergentSummary ? `
+                    <div class="content-section" id="divergent-summary-${clip.id}" style="display: block;">
                         <h4>发散性总结</h4>
                         <div class="divergent-content markdown-content" id="divergent-content-${clip.id}">
-                            <p>生成中...</p>
+                            <p>加载中...</p>
                         </div>
                         <button class="copy-btn" onclick="copyToClipboard(document.getElementById('divergent-content-${clip.id}').textContent)">
                             📋 复制总结
                         </button>
                     </div>
+                    ` : ''}
                     ` : ''}
                 </div>
             `;
@@ -3181,12 +3183,10 @@
             }
         }
 
-        // 如果已有 divergentSummary，直接渲染（不需要重新生成）
+        // 渲染已有 divergentSummary 内容
         if (clip.divergentSummary) {
-            const dsDiv = clipItem.querySelector(`#divergent-summary-${clip.id}`);
             const dsContent = clipItem.querySelector(`#divergent-content-${clip.id}`);
-            if (dsDiv && dsContent) {
-                dsDiv.style.display = 'block';
+            if (dsContent) {
                 try {
                     dsContent.innerHTML = marked.parse(clip.divergentSummary);
                 } catch (e) {
