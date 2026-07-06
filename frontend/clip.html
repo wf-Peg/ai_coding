@@ -3116,21 +3116,13 @@
                         </button>
                     </div>
                     ` : ''}
-                    ${!isStoreOnly ? (analysisContent ? `
+                    ${!isStoreOnly ? `
+                    ${analysisContent ? `
                     <div class="content-section">
                         <h4>AI分析</h4>
                         <div class="markdown-content" id="analysis-content-${clip.id}"></div>
                         <button class="btn-secondary" style="margin-top: 12px;" onclick="generateDivergentSummary(${clip.id})">
                             🔄 发散性总结
-                        </button>
-                    </div>
-                    <div class="content-section" id="divergent-summary-${clip.id}" style="display: none;">
-                        <h4>发散性总结</h4>
-                        <div class="divergent-content markdown-content" id="divergent-content-${clip.id}">
-                            <p>生成中...</p>
-                        </div>
-                        <button class="copy-btn" onclick="copyToClipboard(document.getElementById('divergent-content-${clip.id}').textContent)">
-                            📋 复制总结
                         </button>
                     </div>
                     ` : `
@@ -3141,7 +3133,17 @@
                             <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 10px;">AI正在分析内容，请稍候</p>
                         </div>
                     </div>
-                    `) : ''}
+                    `}
+                    <div class="content-section" id="divergent-summary-${clip.id}" style="display: none;">
+                        <h4>发散性总结</h4>
+                        <div class="divergent-content markdown-content" id="divergent-content-${clip.id}">
+                            <p>生成中...</p>
+                        </div>
+                        <button class="copy-btn" onclick="copyToClipboard(document.getElementById('divergent-content-${clip.id}').textContent)">
+                            📋 复制总结
+                        </button>
+                    </div>
+                    ` : ''}
                 </div>
             `;
 
