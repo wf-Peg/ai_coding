@@ -155,6 +155,7 @@ function saveConfig(config) {
 
 /** 后端 Java 进程引用 */
 let backendProcess = null;
+let backendStarted = false;
 
 /** 主窗口引用 */
 let mainWindow = null;
@@ -1174,6 +1175,14 @@ function createMainWindow(config) {
     }
   });
 
+  // 页面加载完成时（含 Ctrl+R 刷新），若后端已启动则重新发送就绪事件
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (backendStarted && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('backend-ready');
+      mainWindow.webContents.send('load-config', config);
+    }
+  });
+
   // 开始加载页面，最多重试 5 次（共 10 秒）
   loadWithRetry(5);
 
@@ -2128,6 +2137,7 @@ app.whenReady().then(async () => {
       // 后端异步启动，不阻塞窗口创建
       startBackend(config).then(() => {
         log.info('Backend ready, notifying renderer');
+        backendStarted = true;
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('backend-ready');
         }
