@@ -63,6 +63,10 @@ function renderDetail(topic) {
 
     <div class="section-title">AI对话内容</div>
     <div class="topic-content">${contentHtml}</div>
+    ${topic.myThoughts ? `
+    <div class="section-title" style="margin-top: 32px;">我的思考</div>
+    <div class="topic-content thoughts-content">${typeof marked !== 'undefined' ? marked.parse(topic.myThoughts) : `<pre>${escapeHtml(topic.myThoughts)}</pre>`}</div>
+    ` : ''}
   `;
 }
 
@@ -184,6 +188,97 @@ function showConfirm(message, onConfirm) {
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 }
 
+// ==================== 评论功能 ====================
+
+/**
+ * 加载评论列表
+ */
+async function loadComments() {
+  const listEl = document.getElementById('commentsList');
+  const countEl = document.getElementById('commentCount');
+  if (!listEl || !countEl) return;
+  try {
+    const response = await fetch(`${API_BASE}/${topicId}/comments`);
+    const comments = await response.json();
+    countEl.textContent = comments.length;
+
+    if (comments.length === 0) {
+      listEl.innerHTML = '<div class="comment-empty">暂无评论，来说点什么吧</div>';
+      return;
+    }
+
+    listEl.innerHTML = comments.map(c => `
+      <div class="comment-item">
+        <div class="comment-header">
+          <span class="comment-author">${escapeHtml(c.author || '匿名')}</span>
+          <span class="comment-time">${formatTime(c.createdAt)}</span>
+        </div>
+        <div class="comment-body">${escapeHtml(c.content)}</div>
+      </div>
+    `).join('');
+  } catch (error) {
+    console.error('加载评论失败:', error);
+    if (listEl) listEl.innerHTML = '<div class="comment-empty">加载评论失败</div>';
+  }
+}
+
+/**
+ * 提交评论
+ */
+async function submitComment() {
+  const authorInput = document.getElementById('commentAuthor');
+  const contentInput = document.getElementById('commentContent');
+  const btn = document.getElementById('submitCommentBtn');
+
+  const author = authorInput ? authorInput.value.trim() : '';
+  const content = contentInput ? contentInput.value.trim() : '';
+
+  if (!content) {
+    showToast('请输入评论内容');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '发布中...';
+
+  try {
+    const response = await fetch(`${API_BASE}/${topicId}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ author: author || '匿名', content })
+    });
+    if (response.ok) {
+      if (contentInput) contentInput.value = '';
+      await loadComments();
+      showToast('评论发布成功');
+    } else {
+      const errorText = await response.text().catch(() => '');
+      showToast('评论发布失败 (HTTP ' + response.status + ')' + (errorText ? ': ' + errorText : ''));
+    }
+  } catch (error) {
+    console.error('发布评论失败:', error);
+    showToast('发布失败: ' + (error.message || '请检查网络'));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '发布评论';
+  }
+}
+
+/**
+ * 格式化时间（相对时间）
+ */
+function formatTime(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diff = now - d;
+  if (diff < 60000) return '刚刚';
+  if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前';
+  if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前';
+  if (diff < 604800000) return Math.floor(diff / 86400000) + '天前';
+  return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
   topicId = getTopicId();
@@ -192,6 +287,8 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
   fetchTopicDetail();
+  // 加载评论
+  loadComments();
 
   document.getElementById('editBtn').addEventListener('click', () => {
     location.href = `topic-editor.html?id=${topicId}`;
@@ -200,6 +297,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('deleteBtn').addEventListener('click', deleteTopic);
   document.getElementById('openFolderBtn').addEventListener('click', openStorageFolder);
   document.getElementById('exportPdfBtn').addEventListener('click', exportScreenshot);
+
+  // 绑定评论提交按钮
+  const submitBtn = document.getElementById('submitCommentBtn');
+  if (submitBtn) {
+    submitBtn.addEventListener('click', submitComment);
+  }
 });
 
 // ====== 接收主框架消息：滚动到顶部 / 刷新 / 主题切换 ======

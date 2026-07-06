@@ -79,6 +79,15 @@ public class FileStorageService {
     }
 
     /**
+     * 生成全局唯一 ID，供外部服务（如 Comment）使用。
+     *
+     * @return 自增 ID
+     */
+    public long generateId() {
+        return idGenerator.getAndIncrement();
+    }
+
+    /**
      * 初始化存储目录结构
      * <p>
      * 创建根目录、所有一级分类目录、inbox/default/todoList/knowledge/topic 等子目录。

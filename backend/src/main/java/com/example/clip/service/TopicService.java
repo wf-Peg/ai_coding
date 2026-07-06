@@ -1,9 +1,11 @@
 package com.example.clip.service;
 
 import com.example.clip.model.ClipContent;
+import com.example.clip.model.Comment;
 import com.example.clip.model.Topic;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -73,6 +75,7 @@ public class TopicService {
         existing.setContent(topic.getContent());
         existing.setCategory(topic.getCategory());
         existing.setTags(topic.getTags());
+        existing.setMyThoughts(topic.getMyThoughts());
         existing.setPublished(topic.isPublished());
         existing.setUpdatedAt(java.time.LocalDateTime.now());
         return storageService.saveTopic(existing);
@@ -152,6 +155,14 @@ public class TopicService {
         topic.setSourceClipId(clipId);
         topic.setPublished(false);
         topic.setLikeCount(0);
+
+        // 回填我的思考：优先使用剪藏的 myThoughts，其次使用 divergentSummary
+        String thoughts = clip.getMyThoughts();
+        if (thoughts == null || thoughts.isEmpty()) {
+            thoughts = clip.getDivergentSummary();
+        }
+        topic.setMyThoughts(thoughts);
+
         return storageService.saveTopic(topic);
     }
 
@@ -186,5 +197,43 @@ public class TopicService {
                     return match;
                 })
                 .toList();
+    }
+
+    /**
+     * 获取话题评论列表
+     *
+     * @param topicId 话题 ID
+     * @return 评论列表（按时间正序）
+     */
+    public List<Comment> getComments(Long topicId) {
+        Topic topic = storageService.getTopicById(topicId);
+        if (topic == null || topic.getComments() == null) return List.of();
+        return topic.getComments();
+    }
+
+    /**
+     * 添加评论
+     * <p>
+     * 评论无需审核，直接追加到话题的 comments 列表并持久化。
+     * </p>
+     *
+     * @param topicId 话题 ID
+     * @param comment 评论对象（需包含 author 和 content）
+     * @return 保存后的评论；若话题不存在则返回 null
+     */
+    public Comment addComment(Long topicId, Comment comment) {
+        Topic topic = storageService.getTopicById(topicId);
+        if (topic == null) return null;
+
+        comment.setId(storageService.generateId());
+        comment.setTopicId(topicId);
+        comment.setCreatedAt(java.time.LocalDateTime.now());
+
+        if (topic.getComments() == null) {
+            topic.setComments(new ArrayList<>());
+        }
+        topic.getComments().add(comment);
+        storageService.saveTopic(topic);
+        return comment;
     }
 }

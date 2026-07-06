@@ -20,6 +20,7 @@ async function loadTopic(id) {
     document.getElementById('titleInput').value = topic.title || '';
     document.getElementById('summaryInput').value = topic.summary || '';
     document.getElementById('contentInput').value = topic.content || '';
+    document.getElementById('myThoughtsInput').value = topic.myThoughts || '';
     document.getElementById('categorySelect').value = topic.category || 'other';
 
     tags = topic.tags || [];
@@ -107,6 +108,8 @@ async function importFromClip() {
     }
     document.getElementById('contentInput').value = content;
     document.getElementById('categorySelect').value = clip.category || 'other';
+    const thoughts = clip.myThoughts || clip.divergentSummary || '';
+    document.getElementById('myThoughtsInput').value = thoughts;
     tags = clip.tags || [];
     renderTags();
     showToast('已导入剪藏数据，请编辑后点击发布');
@@ -147,6 +150,7 @@ async function saveTopic(published) {
     content: content,
     category: document.getElementById('categorySelect').value,
     tags: tags,
+    myThoughts: document.getElementById('myThoughtsInput').value.trim(),
     published: published
   };
 
@@ -214,8 +218,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const clipTitle = params.get('title');
     const clipContent = params.get('content');
     const clipSource = params.get('source');
+    const clipMyThoughts = params.get('myThoughts');
     if (clipTitle) document.getElementById('titleInput').value = clipTitle;
     if (clipContent) document.getElementById('contentInput').value = clipContent;
+    if (clipMyThoughts) document.getElementById('myThoughtsInput').value = clipMyThoughts;
   }
 
   loadClips();

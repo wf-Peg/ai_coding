@@ -321,9 +321,115 @@
     .confirm-btn.danger:hover { background: #dc2626; }
 
     /* toast */
-    .toast { position: fixed; top: 20px; right: 20px; background: var(--card); color: var(--fg); padding: 10px 20px; border-radius: 10px; border: 1px solid var(--border); z-index: 3000; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,0.15); animation: toastSlideIn 0.3s ease-out; }
+    .toast { position: fixed; top: 20px; right: 20px; background: var(--surface); color: var(--text); padding: 10px 20px; border-radius: 10px; border: 1px solid var(--border); z-index: 3000; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,0.15); animation: toastSlideIn 0.3s ease-out; }
     @keyframes toastSlideIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
     @keyframes toastSlideOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(30px); } }
+
+    /* ===== 评论区域 ===== */
+    .comments-section {
+        max-width: 800px;
+        margin: 40px auto 0;
+        padding: 24px;
+    }
+    .comments-section .section-title {
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 16px;
+        color: var(--text);
+    }
+    .comments-list {
+        margin-bottom: 24px;
+    }
+    .comment-item {
+        padding: 16px 0;
+        border-bottom: 1px solid var(--border);
+    }
+    .comment-item:last-child {
+        border-bottom: none;
+    }
+    .comment-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 8px;
+    }
+    .comment-author {
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: var(--text);
+    }
+    .comment-time {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+    .comment-body {
+        font-size: 0.95rem;
+        line-height: 1.6;
+        color: var(--text);
+        word-break: break-word;
+    }
+    .comment-form {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 20px;
+    }
+    .comment-form input,
+    .comment-form textarea {
+        width: 100%;
+        padding: 10px 14px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 0.9rem;
+        font-family: inherit;
+        background: var(--background);
+        color: var(--text);
+        margin-bottom: 12px;
+        outline: none;
+        transition: var(--transition);
+        box-sizing: border-box;
+    }
+    .comment-form input:focus,
+    .comment-form textarea:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(63,140,255,0.1);
+    }
+    .comment-form textarea {
+        resize: vertical;
+        min-height: 80px;
+    }
+    .comment-form .submit-btn {
+        background: var(--primary);
+        color: white;
+        border: none;
+        padding: 10px 24px;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: var(--transition);
+    }
+    .comment-form .submit-btn:hover {
+        background: var(--primary-dark);
+    }
+    .comment-form .submit-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    .comment-empty {
+        text-align: center;
+        color: var(--text-muted);
+        padding: 32px 0;
+        font-size: 0.9rem;
+    }
+
+    /* 深色主题 - 评论 */
+    html[data-theme="dark"] .comments-section .section-title { color: var(--text); }
+    html[data-theme="dark"] .comment-item { border-color: var(--border); }
+    html[data-theme="dark"] .comment-time { color: #888; }
+    html[data-theme="dark"] .comment-form { background: var(--surface); border-color: var(--border); }
+    html[data-theme="dark"] .comment-form input,
+    html[data-theme="dark"] .comment-form textarea { background: var(--background); color: var(--text); border-color: var(--border); }
+    html[data-theme="dark"] .comment-empty { color: #888; }
 </style>
 </head>
 <body>
@@ -342,6 +448,17 @@
         <div class="loading">
             <div class="spinner"></div>
             <p>加载中...</p>
+        </div>
+    </div>
+
+    <!-- 评论区域 -->
+    <div class="comments-section" id="commentsSection">
+        <div class="section-title">评论 (<span id="commentCount">0</span>)</div>
+        <div class="comments-list" id="commentsList"></div>
+        <div class="comment-form">
+            <input type="text" id="commentAuthor" placeholder="你的昵称（选填）" maxlength="30" />
+            <textarea id="commentContent" placeholder="写下你的评论..." rows="3"></textarea>
+            <button id="submitCommentBtn" class="submit-btn">发布评论</button>
         </div>
     </div>
 

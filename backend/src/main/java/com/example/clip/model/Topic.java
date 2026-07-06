@@ -50,6 +50,12 @@ public class Topic {
     /** 是否已发布，true 表示对外可见 */
     private boolean published;
 
+    /** 我的思考，Markdown 格式，记录用户对话题内容的个人观点、反思或总结 */
+    private String myThoughts;
+
+    /** 评论列表 */
+    private List<Comment> comments = new ArrayList<>();
+
     /** 点赞数，用于热门排序和社交互动 */
     private int likeCount;
 
@@ -94,6 +100,12 @@ public class Topic {
 
     public boolean isPublished() { return published; }
     public void setPublished(boolean published) { this.published = published; }
+
+    public String getMyThoughts() { return myThoughts; }
+    public void setMyThoughts(String myThoughts) { this.myThoughts = myThoughts; }
+
+    public List<Comment> getComments() { return comments; }
+    public void setComments(List<Comment> comments) { this.comments = comments; }
 
     public int getLikeCount() { return likeCount; }
     public void setLikeCount(int likeCount) { this.likeCount = likeCount; }

@@ -300,6 +300,9 @@ async function clipToTopic(tab, info) {
     if (extraction.sourceUrl || tab.url) {
       params.set('source', extraction.sourceUrl || tab.url);
     }
+    if (extraction.myThoughts) {
+      params.set('myThoughts', extraction.myThoughts);
+    }
 
     const editorUrl = chrome.runtime.getURL('topic-editor.html') + '?' + params.toString();
     await chrome.tabs.create({ url: editorUrl });

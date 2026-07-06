@@ -2,6 +2,7 @@ package com.example.clip.controller;
 
 import com.example.clip.dto.TopicRequest;
 import com.example.clip.dto.TopicResponse;
+import com.example.clip.model.Comment;
 import com.example.clip.model.Topic;
 import com.example.clip.service.FileStorageService;
 import com.example.clip.service.TopicService;
@@ -73,6 +74,7 @@ public class TopicController {
         topic.setTags(request.getTags());
         topic.setSourceClipId(request.getSourceClipId());
         topic.setPublished(request.isPublished());
+        topic.setMyThoughts(request.getMyThoughts());
 
         Topic saved = topicService.createTopic(topic);
         if (saved == null) {
@@ -107,6 +109,7 @@ public class TopicController {
         topic.setCategory(request.getCategory());
         topic.setTags(request.getTags());
         topic.setPublished(request.isPublished());
+        topic.setMyThoughts(request.getMyThoughts());
 
         Topic updated = topicService.updateTopic(topic);
         return ResponseEntity.ok(toResponse(updated));
@@ -282,6 +285,40 @@ public class TopicController {
     }
 
     /**
+     * 获取话题评论列表
+     * <p>
+     * GET /api/topic/{id}/comments
+     *
+     * @param id 话题 ID
+     * @return 评论列表（按时间正序）
+     */
+    @GetMapping("/{id}/comments")
+    public ResponseEntity<List<Comment>> getComments(@PathVariable Long id) {
+        List<Comment> comments = topicService.getComments(id);
+        return ResponseEntity.ok(comments);
+    }
+
+    /**
+     * 添加评论
+     * <p>
+     * POST /api/topic/{id}/comments
+     * <p>
+     * 评论无需审核，直接发布可见。
+     *
+     * @param id      话题 ID
+     * @param comment 评论对象（至少包含 content）
+     * @return 保存后的评论；若话题不存在则返回 404
+     */
+    @PostMapping("/{id}/comments")
+    public ResponseEntity<Comment> addComment(@PathVariable Long id, @RequestBody Comment comment) {
+        Comment saved = topicService.addComment(id, comment);
+        if (saved == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(saved);
+    }
+
+    /**
      * 将 Topic 实体转换为 TopicResponse DTO
      * <p>
      * 提取实体中的关键字段，构建前端所需的响应对象。
@@ -300,6 +337,7 @@ public class TopicController {
         response.setTags(topic.getTags());
         response.setSourceClipId(topic.getSourceClipId());
         response.setPublished(topic.isPublished());
+        response.setMyThoughts(topic.getMyThoughts());
         response.setLikeCount(topic.getLikeCount());
         response.setCreatedAt(topic.getCreatedAt());
         response.setUpdatedAt(topic.getUpdatedAt());

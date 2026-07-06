@@ -101,9 +101,7 @@ const DEFAULT_CONFIG = {
   deepseekApiKey: '',           // DeepSeek API Key
   deepseekModel: 'deepseek-chat',
   dashscopeModel: 'qwen-plus',
-  storagePath: path.join(APP_DIR, 'clip-storage'),         // 剪藏存储路径
-  organizedPath: path.join(APP_DIR, 'clip-organized'),     // 整理后存储路径
-  weeklyReportPath: path.join(APP_DIR, 'weeklyReport'),    // 周报存储路径
+  storagePath: APP_DIR,           // Clip_Bed 父目录，clip-storage/clip-organized/weekly-report 为固定子目录
   configured: false,            // 是否已完成首次配置
   mailEnabled: false,           // 邮件功能是否启用
   mailHost: '',
@@ -366,12 +364,17 @@ function getFrontendDir() {
 
 /**
  * 生成 Spring Boot 的 application.yml 配置内容
- * 根据用户配置动态生成 YAML，支持 AI 提供商切换和邮件配置
+ * 根据用户配置动态生成 YAML，支持 AI 提供商切换
  * 
  * @param {Object} config - 用户配置对象
  * @returns {string} YAML 格式的配置字符串
  */
 function generateApplicationYml(config) {
+  // 兼容旧格式：如果 storagePath 末尾已是 clip-storage，直接使用；否则拼接（新语义：storagePath 为 Clip_Bed 父目录）
+  const clipStoragePath = config.storagePath.endsWith('clip-storage') || config.storagePath.endsWith('clip-storage\\')
+    ? config.storagePath
+    : path.join(config.storagePath, 'clip-storage');
+  
   const ymlConfig = {
     spring: {
       application: { name: 'clip-demo' },
@@ -391,26 +394,11 @@ function generateApplicationYml(config) {
     },
     server: { port: config.backendPort },
     clip: {
-      storage: { path: config.storagePath },
-      'organized-storage': { path: config.organizedPath },
-      'clip-weekly-report': { path: config.weeklyReportPath }
+      storage: { path: clipStoragePath },
+      'organized-storage': { path: path.join(config.storagePath, 'clip-organized') },
+      'clip-weekly-report': { path: path.join(config.storagePath, 'weekly-report') }
     }
   };
-
-  // 仅在邮件功能启用且配置了主机时添加邮件配置
-  if (config.mailEnabled && config.mailHost) {
-    ymlConfig.spring.mail = {
-      host: config.mailHost,
-      port: config.mailPort || 465,
-      username: config.mailUsername,
-      password: config.mailPassword,
-      properties: {
-        'mail.smtp.ssl.enable': true,
-        'mail.smtp.auth': true,
-        'mail.smtp.socketFactory.class': 'javax.net.ssl.SSLSocketFactory'
-      }
-    };
-  }
 
   return yaml.dump(ymlConfig, { lineWidth: -1, quotingType: '"' });
 }
@@ -502,16 +490,17 @@ function startBackend(config) {
     }
     const javaCmd = getJavaCommand();
 
-    // 确保所有存储目录存在
+    // 确保 Clip_Bed 父目录及三个固定子目录存在
     if (!fs.existsSync(config.storagePath)) {
       fs.mkdirSync(config.storagePath, { recursive: true });
     }
-    if (!fs.existsSync(config.organizedPath)) {
-      fs.mkdirSync(config.organizedPath, { recursive: true });
-    }
-    if (!fs.existsSync(config.weeklyReportPath)) {
-      fs.mkdirSync(config.weeklyReportPath, { recursive: true });
-    }
+    const subDirs = ['clip-storage', 'clip-organized', 'weekly-report'];
+    subDirs.forEach(sub => {
+      const subPath = path.join(config.storagePath, sub);
+      if (!fs.existsSync(subPath)) {
+        fs.mkdirSync(subPath, { recursive: true });
+      }
+    });
 
     // 在 JAR 包同级目录生成 application.yml（Spring Boot 自动读取）
     const jarDir = path.dirname(jarPath);
@@ -815,35 +804,28 @@ function startFrontendServer(config) {
         return;
       }
 
-      serve(req, res, finalhandler(req, res, {
-        // 当静态文件不存在时：SPA 回退到 index.html
-        onerror: () => {
-          // 解析请求路径，判断是否为非文件路径（如 /about, /settings）
-          const urlPath = new URL(req.url, `http://127.0.0.1:${config.frontendPort}`).pathname;
-          const fp = path.join(frontendDir, urlPath);
+      // ── SPA 路由回退：先检查文件是否存在，不存在则直接返回 index.html ──
+      // 避免 serve-static 内部对 /topic /vault /settings 等 SPA 路由路径
+      // 执行 fs.stat 抛出 ENOENT 导致刷新报错
+      const reqPath = new URL(req.url, `http://127.0.0.1:${config.frontendPort}`).pathname;
+      const filePath = path.join(frontendDir, reqPath);
 
-          // 如果路径对应的是目录或不存在文件，回退到 index.html（SPA 前端路由处理）
-          try {
-            if (!fs.existsSync(fp) || fs.statSync(fp).isDirectory()) {
-              fs.readFile(path.join(frontendDir, 'index.html'), (e, d) => {
-                if (res.headersSent) return;
-                if (e) { res.writeHead(500); res.end('Error'); return; }
-                res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(d);
-              });
-            } else {
-              if (!res.headersSent) { res.writeHead(500); res.end('Error'); }
-            }
-          } catch (statErr) {
-            // 路径不存在（如 /topic 对应 frontend/topic 而非 frontend/topic.html）
-            fs.readFile(path.join(frontendDir, 'index.html'), (e, d) => {
-              if (res.headersSent) return;
-              if (e) { res.writeHead(500); res.end('Error'); return; }
-              res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(d);
-            });
-          }
+      try {
+        if (fs.existsSync(filePath) && !fs.statSync(filePath).isDirectory()) {
+          // 文件存在 → 用 serve-static 正常托管
+          return serve(req, res, finalhandler(req, res));
         }
+      } catch (_) {
+        // stat 异常 → 视为文件不存在，走 SPA 回退
       }
-      ));
+
+      // 文件不存在或为目录 → SPA 前端路由回退，返回 index.html
+      fs.readFile(path.join(frontendDir, 'index.html'), (e, d) => {
+        if (res.headersSent) return;
+        if (e) { res.writeHead(500); res.end('Internal Server Error'); return; }
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(d);
+      });
     });
 
     // 绑定到 127.0.0.1 仅监听本地回环，不对外暴露
@@ -1344,6 +1326,13 @@ function setupIPC() {
   ipcMain.handle('save-config', async (event, newConfig) => {
     try {
       saveConfig(newConfig);
+      // 同步更新 application.yml，确保重启后 storagePath 等配置生效
+      const jarPath = getJarPath();
+      if (jarPath) {
+        const ymlPath = path.join(path.dirname(jarPath), 'application.yml');
+        fs.writeFileSync(ymlPath, generateApplicationYml(newConfig), 'utf-8');
+        log.info('application.yml updated via save-config');
+      }
       return { success: true, message: 'Config saved.' };
     } catch (e) {
       return { success: false, message: `Save failed: ${e.message}` };

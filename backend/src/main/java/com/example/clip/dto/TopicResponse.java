@@ -36,6 +36,9 @@ public class TopicResponse {
     /** 是否已发布 */
     private boolean published;
 
+    /** 我的思考 */
+    private String myThoughts;
+
     /** 点赞数 */
     private int likeCount;
 
@@ -68,6 +71,9 @@ public class TopicResponse {
 
     public boolean isPublished() { return published; }
     public void setPublished(boolean published) { this.published = published; }
+
+    public String getMyThoughts() { return myThoughts; }
+    public void setMyThoughts(String myThoughts) { this.myThoughts = myThoughts; }
 
     public int getLikeCount() { return likeCount; }
     public void setLikeCount(int likeCount) { this.likeCount = likeCount; }

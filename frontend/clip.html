@@ -3144,7 +3144,16 @@
                             📋 复制总结
                         </button>
                     </div>
-                    ` : ''}
+                    ` : `
+                    <div class="content-section" id="divergent-summary-${clip.id}" style="display: none;">
+                        <h4>发散性总结</h4>
+                        <div class="divergent-content markdown-content" id="divergent-content-${clip.id}">
+                        </div>
+                        <button class="copy-btn" onclick="copyToClipboard(document.getElementById('divergent-content-${clip.id}').textContent)" style="display:none;">
+                            📋 复制总结
+                        </button>
+                    </div>
+                    `}
                     ` : ''}
                 </div>
             `;
@@ -3339,6 +3348,11 @@
         const divergentSection = document.getElementById(`divergent-summary-${clipId}`);
         const divergentContent = document.getElementById(`divergent-content-${clipId}`);
 
+        if (!divergentSection || !divergentContent) {
+            showToast('页面结构异常，请刷新重试');
+            return;
+        }
+
         divergentSection.style.display = 'block';
         divergentContent.innerHTML = '<p>生成中...</p>';
 
@@ -3348,6 +3362,9 @@
 
             const markdownHtml = marked.parse(summary);
             typeWriterEffect(divergentContent, markdownHtml);
+            // 显示复制按钮
+            const copyBtn = divergentSection.querySelector('.copy-btn');
+            if (copyBtn) copyBtn.style.display = '';
         } catch (error) {
             console.error('生成发散性总结失败:', error);
             divergentContent.innerHTML = '<p style="color: var(--secondary);">生成失败，请稍后重试</p>';

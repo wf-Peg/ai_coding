@@ -105,6 +105,15 @@
             border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(63,140,255,0.15);
         }
+        .port-input {
+            max-width: 120px;
+            -moz-appearance: textfield;
+        }
+        .port-input::-webkit-outer-spin-button,
+        .port-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
         select {
             cursor: pointer;
             appearance: none;
@@ -214,12 +223,36 @@
 
         /* ── 需保存区内的保存按钮行 ── */
         .save-section-actions {
-          display: flex; align-items: center; justify-content: flex-end;
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
           gap: 12px; margin-top: 12px; padding-top: 12px;
           border-top: 1px solid var(--border);
         }
         .save-section-actions .save-hint {
           font-size: 12px; color: var(--text-secondary); flex: 1;
+        }
+        .config-subsection {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            margin-bottom: 16px;
+            background: var(--background);
+        }
+        .config-subsection-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+        }
+        .subsection-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
         }
 
         /* Update status styles */
@@ -275,6 +308,51 @@
         .test-result.success { background: #d1fae5; color: #065f46; }
         .test-result.error { background: #fee2e2; color: #991b1b; }
 
+        /* ── 归档迁移模态框 ── */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 9999; animation: fadeIn 0.2s ease;
+        }
+        html[data-theme="dark"] .modal-overlay { background: rgba(0,0,0,0.7); }
+        .modal {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 24px;
+            max-width: 480px; width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+            animation: modalSlideIn 0.25s ease;
+        }
+        @keyframes modalSlideIn {
+            from { opacity: 0; transform: translateY(-20px) scale(0.97); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .modal h3 {
+            font-size: 1.1rem; margin: 0 0 16px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .modal .path-display {
+            padding: 10px 14px; background: var(--background);
+            border: 1px solid var(--border); border-radius: 6px;
+            font-size: 12px; font-family: 'SF Mono', 'Consolas', monospace;
+            word-break: break-all; margin: 4px 0 12px; color: var(--text);
+        }
+        .modal .modal-label {
+            font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;
+        }
+        .modal .modal-info {
+            padding: 10px 14px; background: #fef3c7; border-radius: 6px;
+            font-size: 13px; color: #92400e; margin: 12px 0; line-height: 1.5;
+        }
+        html[data-theme="dark"] .modal .modal-info {
+            background: #78350f; color: #fcd34d;
+        }
+        .modal .modal-actions {
+            display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;
+        }
+        .modal .modal-actions .btn {
+            padding: 8px 20px; font-size: 14px;
+        }
+
         .toast {
             position: fixed;
             top: 20px;
@@ -285,6 +363,41 @@
             border-radius: 8px;
             z-index: 1000;
             animation: slideIn 0.3s ease-out;
+        }
+        .path-group {
+            display: flex; gap: 8px; align-items: center;
+        }
+        .path-group input { flex: 1; }
+        .path-desc {
+            font-size: 12px; color: var(--text-muted); margin-top: 4px;
+        }
+        .sub-paths {
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--background);
+        }
+        .sub-path-item {
+            display: flex; align-items: center; gap: 8px;
+            padding: 4px 0; font-size: 13px;
+        }
+        .sub-path-item + .sub-path-item { border-top: 1px solid var(--border); }
+        .sub-path-icon { font-size: 14px; }
+        .sub-path-label { color: var(--text-secondary); min-width: 70px; }
+        .sub-path-value { color: var(--text); font-family: 'SF Mono', 'Consolas', monospace; font-size: 12px; word-break: break-all; }
+        .path-hint {
+            font-size: 12px; color: var(--text-secondary);
+            padding: 8px 12px; background: #fef3c7; border-radius: 6px; border-left: 3px solid #f59e0b;
+            margin-top: 12px;
+        }
+        .readonly-path {
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--background);
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-family: inherit;
         }
         @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
         @keyframes slideOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(20px); } }
@@ -436,61 +549,169 @@
             </div>
         </div>
 
-        <div class="section save-section needs-attention" id="aiModelSection">
+        <div class="section save-section needs-attention" id="unifiedConfigSection">
             <div class="section-title">
-                AI 模型配置
+                应用配置
                 <span class="section-badge needs-save">保存后生效</span>
             </div>
-            <div class="form-group">
-                <label class="form-label">当前使用模型</label>
-                <select id="activeProvider" onchange="onProviderChange()">
-                    <option value="dashscope">阿里云 DashScope</option>
-                    <option value="deepseek">DeepSeek</option>
-                </select>
-            </div>
-            <div style="margin-top:16px;">
-                <div id="dashscopeSection" style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px;">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-                        <span style="font-weight:600;font-size:13px;">阿里云 DashScope</span>
-                        <span class="badge badge-active" id="dashscopeBadge">当前</span>
+
+            <!-- AI 模型配置 -->
+            <div class="config-subsection">
+                <div class="config-subsection-title">AI 模型配置</div>
+                <div class="form-group">
+                    <label class="form-label">当前使用模型</label>
+                    <select id="activeProvider" onchange="onProviderChange()">
+                        <option value="dashscope">阿里云 DashScope</option>
+                        <option value="deepseek">DeepSeek</option>
+                    </select>
+                </div>
+                <div style="display:flex;gap:12px;margin-top:12px;">
+                    <div id="dashscopeSection" style="flex:1;border:1px solid var(--border);border-radius:8px;padding:14px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                            <span style="font-weight:600;font-size:13px;">阿里云 DashScope</span>
+                            <span class="badge badge-active" id="dashscopeBadge">当前</span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">API Key</label>
+                            <div class="input-row">
+                                <input type="password" id="dashscopeApiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" />
+                                <button class="btn btn-outline" onclick="toggleVisibility('dashscopeApiKey')">显示</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">模型名称</label>
+                            <input type="text" id="dashscopeModel" placeholder="qwen-plus" />
+                        </div>
+                        <div class="test-result" id="dashscopeTestResult"></div>
+                        <button class="btn btn-outline" id="testDashscopeBtn" onclick="testDashscope()">测试连接</button>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">API Key</label>
-                        <div class="input-row">
-                            <input type="password" id="dashscopeApiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" />
-                            <button class="btn btn-outline" onclick="toggleVisibility('dashscopeApiKey')">显示</button>
+                    <div id="deepseekSection" style="flex:1;border:1px solid var(--border);border-radius:8px;padding:14px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                            <span style="font-weight:600;font-size:13px;">DeepSeek</span>
+                            <span class="badge badge-inactive" id="deepseekBadge">未激活</span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">API Key</label>
+                            <div class="input-row">
+                                <input type="password" id="deepseekApiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" />
+                                <button class="btn btn-outline" onclick="toggleVisibility('deepseekApiKey')">显示</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">模型名称</label>
+                            <input type="text" id="deepseekModel" placeholder="deepseek-chat" />
+                        </div>
+                        <div class="test-result" id="deepseekTestResult"></div>
+                        <button class="btn btn-outline" id="testDeepseekBtn" onclick="testDeepseek()">测试连接</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 邮件通知 -->
+            <div class="config-subsection">
+                <div class="config-subsection-title">📧 邮件通知</div>
+                <div class="form-group">
+                    <label class="form-label">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <label class="toggle-switch" style="margin-bottom:0;">
+                                <input type="checkbox" id="mailEnabled" onchange="onMailToggle()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span>启用邮件通知</span>
+                        </div>
+                    </label>
+                </div>
+                <div class="form-group mail-field" style="display:none;">
+                    <label class="form-label">SMTP 服务器</label>
+                    <input type="text" id="mailHost" placeholder="smtp.qq.com" />
+                </div>
+                <div class="form-group mail-field" style="display:none;">
+                    <label class="form-label">端口</label>
+                    <input type="text" id="mailPort" placeholder="465" class="port-input" />
+                </div>
+                <div class="form-group mail-field" style="display:none;">
+                    <label class="form-label">发件邮箱</label>
+                    <input type="text" id="mailUsername" placeholder="your@email.com" />
+                </div>
+                <div class="form-group mail-field" style="display:none;">
+                    <label class="form-label">SMTP 授权码</label>
+                    <div class="input-row">
+                        <input type="password" id="mailPassword" placeholder="SMTP 授权码" />
+                        <button class="btn btn-outline" onclick="toggleVisibility('mailPassword')">显示</button>
+                    </div>
+                </div>
+                <div class="subsection-actions">
+                    <button class="btn btn-outline" id="testMailBtn" onclick="testMail()">测试连接</button>
+                </div>
+            </div>
+
+            <!-- Git 远程仓库 -->
+            <div class="config-subsection">
+                <div class="config-subsection-title">📡 Git 远程仓库</div>
+                <div class="form-group">
+                    <label class="form-label">远程仓库 URL</label>
+                    <input type="text" id="gitRemoteUrl" placeholder="https://github.com/user/repo.git" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">用户名</label>
+                    <input type="text" id="gitUsername" placeholder="Git 用户名" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">密码 / Token</label>
+                    <div class="input-row">
+                        <input type="password" id="gitPassword" placeholder="Git 密码或访问令牌" />
+                        <button class="btn btn-outline" onclick="toggleVisibility('gitPassword')">显示</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">分支</label>
+                    <input type="text" id="gitBranch" placeholder="main" style="max-width:200px;" />
+                </div>
+                <div class="subsection-actions">
+                    <button class="btn btn-outline" id="testGitBtn" onclick="testGit()">测试连接</button>
+                </div>
+            </div>
+
+            <!-- 存储路径 -->
+            <div class="config-subsection">
+                <div class="config-subsection-title">📁 存储路径</div>
+                <div class="form-group">
+                    <label class="form-label">存储根目录</label>
+                    <div class="path-group">
+                        <input type="text" id="storagePath" placeholder="选择数据存储根目录" oninput="updateDerivedPaths(this.value)" />
+                        <button class="btn btn-outline" onclick="browseDirectory('storagePath')">浏览</button>
+                    </div>
+                    <div class="path-desc">所有剪藏、整理、周报数据均存储在此目录下</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">子目录结构（自动派生）</label>
+                    <div class="sub-paths">
+                        <div class="sub-path-item">
+                            <span class="sub-path-icon">📋</span>
+                            <span class="sub-path-label">剪藏数据</span>
+                            <span class="sub-path-value" id="derivedClipPath">—</span>
+                        </div>
+                        <div class="sub-path-item">
+                            <span class="sub-path-icon">📊</span>
+                            <span class="sub-path-label">整理数据</span>
+                            <span class="sub-path-value" id="derivedOrganizedPath">—</span>
+                        </div>
+                        <div class="sub-path-item">
+                            <span class="sub-path-icon">📰</span>
+                            <span class="sub-path-label">周报数据</span>
+                            <span class="sub-path-value" id="derivedWeeklyPath">—</span>
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">模型名称</label>
-                        <input type="text" id="dashscopeModel" placeholder="qwen-plus" />
-                    </div>
-                    <div class="test-result" id="dashscopeTestResult"></div>
-                    <button class="btn btn-outline" id="testDashscopeBtn" onclick="testDashscope()">测试连接</button>
                 </div>
-                <div id="deepseekSection" style="border:1px solid var(--border);border-radius:8px;padding:14px;">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-                        <span style="font-weight:600;font-size:13px;">DeepSeek</span>
-                        <span class="badge badge-inactive" id="deepseekBadge">未激活</span>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">API Key</label>
-                        <div class="input-row">
-                            <input type="password" id="deepseekApiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" />
-                            <button class="btn btn-outline" onclick="toggleVisibility('deepseekApiKey')">显示</button>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">模型名称</label>
-                        <input type="text" id="deepseekModel" placeholder="deepseek-chat" />
-                    </div>
-                    <div class="test-result" id="deepseekTestResult"></div>
-                    <button class="btn btn-outline" id="testDeepseekBtn" onclick="testDeepseek()">测试连接</button>
+                <div class="path-hint" style="margin-top:8px;">
+                    ⚠️ 修改存储路径后需重启后端生效。保存时可将旧数据打包归档为 zip 文件。
                 </div>
             </div>
+
+            <!-- 统一保存按钮 -->
             <div class="save-section-actions">
-                <div class="save-hint">修改后需点击保存方可生效</div>
-                <button class="btn btn-primary" id="saveBtn" onclick="saveConfig()">保存设置</button>
+                <div class="save-hint">修改后需点击保存方可生效，存储路径变更需重启后端</div>
+                <button class="btn btn-primary" id="saveBtn" onclick="saveConfig()">保存所有配置</button>
             </div>
         </div>
 
@@ -542,6 +763,25 @@
                         取消
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 存储路径迁移归档模态框 -->
+    <div class="modal-overlay" id="migrateModal" style="display:none;" onclick="if(event.target===this) closeMigrateModal()">
+        <div class="modal">
+            <h3>📁 存储路径变更</h3>
+            <p style="font-size:14px;color:var(--text-secondary);margin:0 0 12px;">检测到存储路径已变更，是否将旧数据打包归档？</p>
+            <div class="modal-label">旧路径</div>
+            <div class="path-display" id="migrateOldPath">—</div>
+            <div class="modal-label">新路径</div>
+            <div class="path-display" id="migrateNewPath">—</div>
+            <div class="modal-info">
+                旧数据将打包为 zip 文件保存在旧路径旁，不删除原文件，可随时手动清理。
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-outline" onclick="closeMigrateModal(false)">跳过，不归档</button>
+                <button class="btn btn-primary" id="migrateArchiveBtn" onclick="closeMigrateModal(true)">归档旧数据</button>
             </div>
         </div>
     </div>

@@ -33,6 +33,9 @@ public class TopicRequest {
     /** 是否发布 */
     private boolean published;
 
+    /** 我的思考 */
+    private String myThoughts;
+
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
 
@@ -53,4 +56,7 @@ public class TopicRequest {
 
     public boolean isPublished() { return published; }
     public void setPublished(boolean published) { this.published = published; }
+
+    public String getMyThoughts() { return myThoughts; }
+    public void setMyThoughts(String myThoughts) { this.myThoughts = myThoughts; }
 }

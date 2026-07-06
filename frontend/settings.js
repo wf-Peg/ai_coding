@@ -1,6 +1,8 @@
-const API_BASE = 'http://127.0.0.1:8080/api/model-config';
+const API_BASE = 'http://127.0.0.1:8080/api/config';
+const MODEL_TEST_BASE = 'http://127.0.0.1:8080/api/model-config';
 const THEME_KEY = 'app_theme_v1';
 const APPEARANCE_KEY = 'app_appearance_v1'; // regular | dark | notion | system
+let currentStoragePath = ''; // 用于检测路径变更
 
 // ====== 外观管理 ======
 function getEffectiveTheme() {
@@ -65,15 +67,40 @@ async function loadConfig() {
   try {
     const response = await fetch(API_BASE);
     if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('后端未更新（返回 404），请重新编译后端后再试');
+      }
       throw new Error('后端返回状态码: ' + response.status);
     }
     const config = await response.json();
+    // AI 模型配置
     document.getElementById('activeProvider').value = config.activeProvider || 'dashscope';
     document.getElementById('dashscopeApiKey').value = config.dashscopeApiKey || '';
     document.getElementById('dashscopeModel').value = config.dashscopeModel || 'qwen-plus';
     document.getElementById('deepseekApiKey').value = config.deepseekApiKey || '';
     document.getElementById('deepseekModel').value = config.deepseekModel || 'deepseek-chat';
     onProviderChange();
+
+    // 邮件配置
+    document.getElementById('mailEnabled').checked = config.mailEnabled === true;
+    document.getElementById('mailHost').value = config.mailHost || '';
+    document.getElementById('mailPort').value = config.mailPort || 465;
+    document.getElementById('mailUsername').value = config.mailUsername || '';
+    document.getElementById('mailPassword').value = config.mailPassword || '';
+    onMailToggle();
+
+    // Git 配置
+    document.getElementById('gitRemoteUrl').value = config.gitRemoteUrl || '';
+    document.getElementById('gitUsername').value = config.gitUsername || '';
+    document.getElementById('gitPassword').value = config.gitPassword || '';
+    document.getElementById('gitBranch').value = config.gitBranch || 'main';
+
+    // 存储路径（可配置）
+    const rootPath = config.storagePath || '';
+    document.getElementById('storagePath').value = rootPath;
+    currentStoragePath = rootPath;
+    updateDerivedPaths(rootPath);
+
     showToast('配置加载成功');
   } catch (error) {
     console.error('加载配置失败:', error);
@@ -94,33 +121,93 @@ async function saveConfig() {
   saveBtn.textContent = '保存中...';
 
   const config = {
+    // AI 模型
     activeProvider: document.getElementById('activeProvider').value,
     dashscopeApiKey: document.getElementById('dashscopeApiKey').value,
     dashscopeModel: document.getElementById('dashscopeModel').value,
     deepseekApiKey: document.getElementById('deepseekApiKey').value,
-    deepseekModel: document.getElementById('deepseekModel').value
+    deepseekModel: document.getElementById('deepseekModel').value,
+    // 邮件
+    mailEnabled: document.getElementById('mailEnabled').checked,
+    mailHost: document.getElementById('mailHost').value,
+    mailPort: parseInt(document.getElementById('mailPort').value) || 465,
+    mailUsername: document.getElementById('mailUsername').value,
+    mailPassword: document.getElementById('mailPassword').value,
+    // Git
+    gitRemoteUrl: document.getElementById('gitRemoteUrl').value,
+    gitUsername: document.getElementById('gitUsername').value,
+    gitPassword: document.getElementById('gitPassword').value,
+    gitBranch: document.getElementById('gitBranch').value || 'main',
+    storagePath: document.getElementById('storagePath').value
   };
+
+  // 检测存储路径变更
+  const newStoragePath = config.storagePath;
+  const oldStoragePath = currentStoragePath;
+  let shouldArchive = false;
+
+  if (oldStoragePath && newStoragePath && oldStoragePath !== newStoragePath) {
+    shouldArchive = await showMigrateModal(oldStoragePath, newStoragePath);
+  }
+
+  // 执行归档
+  if (shouldArchive) {
+    try {
+      showToast('正在归档旧数据...');
+      const archiveResult = await fetch('http://127.0.0.1:8080/api/config/migrate-storage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oldPath: oldStoragePath, newPath: newStoragePath })
+      }).then(r => r.json());
+      if (archiveResult.success) {
+        showToast('归档完成：' + archiveResult.archiveSize + ' → ' + archiveResult.archivePath);
+      } else {
+        showToast('归档失败：' + (archiveResult.message || '未知错误'));
+      }
+    } catch (e) {
+      showToast('归档请求失败：' + e.message);
+    }
+  }
 
   try {
     const response = await fetch(API_BASE, {
-      method: 'POST',
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config)
     });
-    if (response.ok) {
-      showToast('AI 模型配置已保存');
+    const result = await response.json();
+    if (response.ok && result.success) {
+      currentStoragePath = newStoragePath; // 更新已记录路径
+
+      // 同步 storagePath 到 Electron config.json（触发 application.yml 更新）
+      if (newStoragePath !== oldStoragePath) {
+        const api = getElectronAPI();
+        if (api && api.getConfig && api.saveConfig) {
+          try {
+            const electronConfig = await api.getConfig();
+            electronConfig.storagePath = newStoragePath;
+            await api.saveConfig(electronConfig);
+          } catch (e) {
+            console.warn('同步 Electron 配置失败:', e);
+          }
+        }
+      }
+
+      const msg = (oldStoragePath && oldStoragePath !== newStoragePath)
+        ? '配置已保存，请重启后端使存储路径生效'
+        : '所有配置已保存';
+      showToast(msg);
       onProviderChange();
-      // 同步保存更新配置
       saveUpdateConfig();
     } else {
-      showToast('保存失败');
+      showToast(result.message || '保存失败');
     }
   } catch (error) {
     console.error('保存失败:', error);
     showToast('保存失败，请检查后端服务');
   } finally {
     saveBtn.disabled = false;
-    saveBtn.textContent = '保存设置';
+    saveBtn.textContent = '保存所有配置';
   }
 }
 
@@ -144,7 +231,7 @@ async function testDashscope() {
   resultEl.textContent = '正在测试连接...';
 
   try {
-    const response = await fetch(`${API_BASE}/test`, {
+    const response = await fetch(`${MODEL_TEST_BASE}/test`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ provider: 'dashscope', apiKey, model })
@@ -186,7 +273,7 @@ async function testDeepseek() {
   resultEl.textContent = '正在测试连接...';
 
   try {
-    const response = await fetch(`${API_BASE}/test`, {
+    const response = await fetch(`${MODEL_TEST_BASE}/test`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ provider: 'deepseek', apiKey, model })
@@ -629,6 +716,134 @@ function cancelUpdate() {
   document.getElementById('updateNowBtn').style.display = 'block';
   document.getElementById('cancelUpdateBtn').style.display = 'none';
   document.getElementById('updateProgressBar').style.display = 'none';
+}
+
+// ==================== 邮件配置 ====================
+
+function onMailToggle() {
+  const enabled = document.getElementById('mailEnabled').checked;
+  document.querySelectorAll('.mail-field').forEach(el => {
+    el.style.display = enabled ? '' : 'none';
+  });
+}
+
+async function testMail() {
+  const host = document.getElementById('mailHost').value;
+  const port = parseInt(document.getElementById('mailPort').value) || 465;
+  const username = document.getElementById('mailUsername').value;
+  const password = document.getElementById('mailPassword').value;
+
+  if (!host || !username || !password) {
+    showToast('请先完整填写 SMTP 配置');
+    return;
+  }
+
+  const btn = document.getElementById('testMailBtn');
+  btn.disabled = true;
+  btn.textContent = '测试中...';
+  try {
+    const response = await fetch('http://127.0.0.1:8080/api/config/test-mail', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host, port, username, password })
+    });
+    const result = await response.json();
+    if (response.ok && result.success) {
+      showToast('邮件连接测试成功！');
+    } else {
+      showToast('测试失败: ' + (result.message || '连接失败'));
+    }
+  } catch (e) {
+    showToast('测试请求失败: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '测试连接';
+  }
+}
+
+// ==================== Git 配置 ====================
+
+async function testGit() {
+  const remoteUrl = document.getElementById('gitRemoteUrl').value;
+  const username = document.getElementById('gitUsername').value;
+  const password = document.getElementById('gitPassword').value;
+
+  if (!remoteUrl) {
+    showToast('请先填写远程仓库 URL');
+    return;
+  }
+
+  const btn = document.getElementById('testGitBtn');
+  btn.disabled = true;
+  btn.textContent = '测试中...';
+  try {
+    const response = await fetch('http://127.0.0.1:8080/api/git/test-connection', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ remoteUrl, username, password })
+    });
+    const result = await response.json();
+    if (response.ok && result.success) {
+      showToast('Git 连接测试成功！');
+    } else {
+      showToast('测试失败: ' + (result.message || '连接失败'));
+    }
+  } catch (e) {
+    showToast('测试请求失败: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '测试连接';
+  }
+}
+
+// ==================== 存储路径 ====================
+
+// 模态框 resolve 回调
+let _migrateResolve = null;
+
+function showMigrateModal(oldPath, newPath) {
+  return new Promise((resolve) => {
+    _migrateResolve = resolve;
+    document.getElementById('migrateOldPath').textContent = oldPath;
+    document.getElementById('migrateNewPath').textContent = newPath;
+    document.getElementById('migrateModal').style.display = 'flex';
+    document.getElementById('migrateArchiveBtn').disabled = false;
+    document.getElementById('migrateArchiveBtn').textContent = '归档旧数据';
+  });
+}
+
+function closeMigrateModal(shouldArchive) {
+  document.getElementById('migrateModal').style.display = 'none';
+  if (_migrateResolve) {
+    _migrateResolve(shouldArchive === true);
+    _migrateResolve = null;
+  }
+}
+
+function updateDerivedPaths(rootPath) {
+  if (!rootPath) {
+    document.getElementById('derivedClipPath').textContent = '—';
+    document.getElementById('derivedOrganizedPath').textContent = '—';
+    document.getElementById('derivedWeeklyPath').textContent = '—';
+    return;
+  }
+  const normalized = rootPath.replace(/\\/g, '/');
+  document.getElementById('derivedClipPath').textContent = normalized + '/clip-storage';
+  document.getElementById('derivedOrganizedPath').textContent = normalized + '/clip-organized';
+  document.getElementById('derivedWeeklyPath').textContent = normalized + '/weekly-report';
+}
+
+async function browseDirectory(inputId) {
+  const api = getElectronAPI();
+  if (api && api.selectDirectory) {
+    const dir = await api.selectDirectory();
+    if (dir) {
+      document.getElementById(inputId).value = dir;
+      if (inputId === 'storagePath') updateDerivedPaths(dir);
+    }
+  } else {
+    showToast('目录浏览仅在桌面客户端中可用，请手动输入路径');
+  }
 }
 
 // ====== 接收主框架消息：滚动到顶部 / 刷新 ======
