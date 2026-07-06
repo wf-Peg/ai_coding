@@ -157,7 +157,7 @@ async function handleContextMenuClick(info, tab) {
         await openImportPasswordWindow(tab);
         break;
       case 'vault-open':
-        chrome.tabs.create({ url: chrome.runtime.getURL('index.html#/vault') });
+        chrome.tabs.create({ url: 'http://127.0.0.1:3000/#/vault' });
         break;
     }
   } catch (error) {

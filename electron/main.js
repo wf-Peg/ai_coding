@@ -822,14 +822,23 @@ function startFrontendServer(config) {
           const fp = path.join(frontendDir, urlPath);
 
           // 如果路径对应的是目录或不存在文件，回退到 index.html（SPA 前端路由处理）
-          if (!fs.existsSync(fp) || fs.statSync(fp).isDirectory()) {
+          try {
+            if (!fs.existsSync(fp) || fs.statSync(fp).isDirectory()) {
+              fs.readFile(path.join(frontendDir, 'index.html'), (e, d) => {
+                if (res.headersSent) return;
+                if (e) { res.writeHead(500); res.end('Error'); return; }
+                res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(d);
+              });
+            } else {
+              if (!res.headersSent) { res.writeHead(500); res.end('Error'); }
+            }
+          } catch (statErr) {
+            // 路径不存在（如 /topic 对应 frontend/topic 而非 frontend/topic.html）
             fs.readFile(path.join(frontendDir, 'index.html'), (e, d) => {
               if (res.headersSent) return;
               if (e) { res.writeHead(500); res.end('Error'); return; }
               res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(d);
             });
-          } else {
-            if (!res.headersSent) { res.writeHead(500); res.end('Error'); }
           }
         }
       }

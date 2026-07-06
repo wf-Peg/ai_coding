@@ -135,11 +135,14 @@ function bindEvents() {
   document.getElementById('cancelBtn').addEventListener('click', () => window.close());
 
   // 前往密码库
-  document.getElementById('openVaultLink').addEventListener('click', (e) => {
-    e.preventDefault();
-    chrome.tabs.create({ url: chrome.runtime.getURL('index.html#/vault') });
-    window.close();
-  });
+  const vaultLink = document.getElementById('openVaultLink');
+  if (vaultLink) {
+    vaultLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      chrome.tabs.create({ url: 'http://127.0.0.1:3000/#/vault' });
+      window.close();
+    });
+  }
 
   // 生成随机用户名
   document.getElementById('genUserBtn').addEventListener('click', generateUsername);
