@@ -139,7 +139,8 @@ function bindEvents() {
   if (vaultLink) {
     vaultLink.addEventListener('click', (e) => {
       e.preventDefault();
-      chrome.tabs.create({ url: 'http://127.0.0.1:3000/#/vault' });
+      const frontendUrl = API_BASE.replace(/:\d+/, ':3000');
+      chrome.tabs.create({ url: frontendUrl + '/#/vault' });
       window.close();
     });
   }
