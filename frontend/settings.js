@@ -262,6 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ==================== 快捷键设置 ====================
 
 let recordingShortcut = false;
+let recordingPreviousEnabled = false;
 
 async function loadShortcutConfig() {
   const api = getElectronAPI();
@@ -274,19 +275,40 @@ async function loadShortcutConfig() {
   } catch (e) {}
 }
 
-function startShortcutRecording() {
+async function startShortcutRecording() {
   const input = document.getElementById('shortcutKey');
+  const api = getElectronAPI();
+  // 录制前临时禁用全局快捷键，避免快捷键触发导致窗口隐藏
+  if (api && api.setShortcutConfig) {
+    try {
+      const config = await api.getShortcutConfig();
+      recordingPreviousEnabled = config.enabled;
+      if (config.enabled) {
+        await api.setShortcutConfig({ enabled: false, accelerator: config.accelerator });
+      }
+    } catch (e) {}
+  }
   recordingShortcut = true;
   input.value = '按下组合键...';
   input.style.borderColor = 'var(--text)';
   input.style.background = 'var(--primary-light)';
 }
 
-function cancelShortcutRecording() {
+async function cancelShortcutRecording() {
   const input = document.getElementById('shortcutKey');
   recordingShortcut = false;
   input.style.borderColor = '';
   input.style.background = '';
+  // 恢复全局快捷键（仅当之前是启用状态且有有效快捷键时）
+  const api = getElectronAPI();
+  if (api && api.setShortcutConfig && recordingPreviousEnabled) {
+    try {
+      const val = input.value.trim();
+      const accelerator = (val && val !== '按下组合键...') ? val : 'Ctrl+Shift+Z';
+      await api.setShortcutConfig({ enabled: true, accelerator });
+    } catch (e) {}
+  }
+  recordingPreviousEnabled = false;
 }
 
 // keydown 监听 — 录制组合键
@@ -305,7 +327,10 @@ document.addEventListener('keydown', (e) => {
   const accelerator = parts.join('+');
   const input = document.getElementById('shortcutKey');
   input.value = accelerator;
-  cancelShortcutRecording();
+  // 录制完成，直接重置状态，由 onShortcutChange 重新注册快捷键
+  recordingShortcut = false;
+  input.style.borderColor = '';
+  input.style.background = '';
   onShortcutChange();
 });
 
