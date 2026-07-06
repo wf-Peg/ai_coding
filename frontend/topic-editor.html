@@ -200,6 +200,18 @@
             font-size: 0.85rem;
             cursor: pointer;
         }
+        .clip-select-list .clip-option {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.15s;
+        }
+        .clip-select-list .clip-option:last-child { border-bottom: none; }
+        .clip-select-list .clip-option:hover { background: rgba(63,140,255,0.08); }
+        .clip-select-list .clip-option.selected { background: rgba(63,140,255,0.12); color: var(--primary); }
+        .clip-select-list .clip-option .clip-option-title { font-weight: 500; }
+        .clip-select-list .clip-option .clip-option-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
 
         /* Toast */
         .toast {
@@ -316,6 +328,11 @@
         html[data-theme="dark"] .import-section { background: #2a2d3a; border-color: var(--primary); }
         html[data-theme="dark"] .import-section h3 { color: var(--primary); }
         html[data-theme="dark"] .import-section .btn-import { background: var(--primary); color: #fff; }
+        html[data-theme="dark"] .import-section .btn-import:hover { background: var(--primary-dark); }
+        html[data-theme="dark"] .clip-select-list { background: #3a3a3a; border-color: #4a4a4a; }
+        html[data-theme="dark"] .clip-select-list .clip-option { border-bottom-color: #4a4a4a; color: #d4d4d4; }
+        html[data-theme="dark"] .clip-select-list .clip-option:hover { background: rgba(86,156,255,0.12); }
+        html[data-theme="dark"] .clip-select-list .clip-option.selected { background: rgba(86,156,255,0.2); color: var(--primary); }
         html[data-theme="dark"] .btn { background: #3a3a3a; color: #d4d4d4; border-color: #4a4a4a; }
         html[data-theme="dark"] .btn-primary { background: #569cff; color: #fff; border-color: #569cff; }
         html[data-theme="dark"] .tag { background: #3a3a3a; color: #d4d4d4; }
@@ -347,9 +364,8 @@
     <div class="container">
         <div class="import-section">
             <h3>从已有剪藏导入</h3>
-            <select id="clipSelect">
-                <option value="">-- 选择剪藏 --</option>
-            </select>
+            <input type="text" id="clipSearchInput" placeholder="搜索剪藏..." autocomplete="off" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 0.9rem; outline: none; margin-bottom: 8px; background: var(--surface); color: var(--text); transition: var(--transition);">
+            <div class="clip-select-list" id="clipSelectList" style="display: none; max-height: 200px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); margin-bottom: 8px;"></div>
             <button class="btn-import" id="importBtn">导入</button>
         </div>
 

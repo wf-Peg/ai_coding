@@ -2222,7 +2222,7 @@
                 </div>
                 <div class="form-group">
                     <label for="my-thoughts">💭 我的思考</label>
-                    <textarea id="my-thoughts" placeholder="记录你的想法、疑问、联想或反思...（可选）" style="min-height: 60px; padding: 10px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); font-size: 0.95rem; font-family: inherit; resize: vertical; transition: var(--transition); width: 100%; box-sizing: border-box;"></textarea>
+                    <textarea id="my-thoughts" placeholder="记录你的想法、疑问、联想或反思...（可选）" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'" style="min-height: 60px; padding: 10px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); font-size: 0.95rem; font-family: inherit; resize: none; overflow: hidden; transition: var(--transition); width: 100%; box-sizing: border-box;"></textarea>
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn-secondary" onclick="clearForm()">清空</button>
@@ -2965,6 +2965,13 @@
             const clipCountElement = document.getElementById('clip-count');
             clipCache.clear();
 
+            // 保存当前展开的剪藏 ID，重建后恢复
+            const expandedIds = new Set();
+            document.querySelectorAll('.clip-detail.expanded').forEach(detail => {
+              const cid = detail.dataset.clipId;
+              if (cid) expandedIds.add(cid);
+            });
+
             clipCountElement.textContent = filteredClips.length;
             clipItemsContainer.innerHTML = '';
 
@@ -2986,6 +2993,20 @@
                 }
                 const clipItem = createClipItem(clip, false);
                 clipItemsContainer.appendChild(clipItem);
+            });
+
+            // 恢复之前展开的剪藏详情
+            expandedIds.forEach(id => {
+              const detail = document.querySelector(`.clip-detail[data-clip-id="${id}"]`);
+              if (detail) {
+                detail.classList.add('expanded');
+                const btn = detail.closest('.clip-item')?.querySelector('.expand-btn[data-clip-id="${id}"]');
+                if (btn) {
+                  btn.classList.add('expanded');
+                  const text = btn.querySelector('.text');
+                  if (text) text.textContent = '收起';
+                }
+              }
             });
         } catch (error) {
             console.error('获取剪藏列表失败:', error);
@@ -3063,7 +3084,7 @@
                                 ${fanButtons.join('')}
                             </div>
                         </div>
-                        <button class="expand-btn" onclick="toggleDetail(this)">
+                        <button class="expand-btn" onclick="toggleDetail(this)" data-clip-id="${clip.id}">
                             <span class="icon">▼</span>
                             <span class="text">展开</span>
                         </button>
@@ -3078,7 +3099,7 @@
                     <span class="meta-item">创建时间: ${createdAt}</span>
                 </div>
                 ${tagsHtml}
-                <div class="clip-detail">
+                <div class="clip-detail" data-clip-id="${clip.id}">
                     <div class="content-section">
                         <h4>原文</h4>
                         <div class="content-text truncated">${escapeHtml(originalContent)}</div>
@@ -3154,6 +3175,20 @@
                 } catch (e) {
                     console.error('Markdown渲染失败:', e);
                     analysisContentDiv.textContent = analysisContent;
+                }
+            }
+        }
+
+        // 如果已有 divergentSummary，直接渲染（不需要重新生成）
+        if (clip.divergentSummary) {
+            const dsDiv = clipItem.querySelector(`#divergent-summary-${clip.id}`);
+            const dsContent = clipItem.querySelector(`#divergent-content-${clip.id}`);
+            if (dsDiv && dsContent) {
+                dsDiv.style.display = 'block';
+                try {
+                    dsContent.innerHTML = marked.parse(clip.divergentSummary);
+                } catch (e) {
+                    dsContent.textContent = clip.divergentSummary;
                 }
             }
         }

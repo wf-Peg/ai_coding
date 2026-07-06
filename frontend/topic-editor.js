@@ -29,36 +29,68 @@ async function loadTopic(id) {
   }
 }
 
+let allClips = [];
+let selectedClipId = null;
+
 // 加载剪藏列表
 async function loadClips() {
   try {
     const response = await fetch(`${CLIP_API}/list`);
-    const clips = await response.json();
-    const select = document.getElementById('clipSelect');
-    clips.forEach(clip => {
-      const option = document.createElement('option');
-      option.value = clip.id;
-      option.textContent = clip.title || clip.summary || `剪藏 #${clip.id}`;
-      select.appendChild(option);
-    });
+    allClips = await response.json();
   } catch (error) {
     console.error('加载剪藏列表失败:', error);
   }
 }
 
+// 过滤并渲染剪藏选择列表
+function filterClips(query) {
+  const listEl = document.getElementById('clipSelectList');
+  const q = query.trim().toLowerCase();
+  const filtered = q ? allClips.filter(c => {
+    const title = (c.title || c.summary || `剪藏 #${c.id}`).toLowerCase();
+    const content = (c.content || '').toLowerCase();
+    return title.includes(q) || content.includes(q);
+  }) : allClips;
+
+  if (filtered.length === 0) {
+    listEl.style.display = 'none';
+    return;
+  }
+
+  listEl.style.display = 'block';
+  listEl.innerHTML = filtered.map(clip => {
+    const title = clip.title || clip.summary || `剪藏 #${clip.id}`;
+    const meta = clip.source ? `来源: ${clip.source}` : '';
+    const cls = selectedClipId === String(clip.id) ? 'clip-option selected' : 'clip-option';
+    return `<div class="${cls}" data-clip-id="${clip.id}">
+      <div class="clip-option-title">${escapeHtml(title)}</div>
+      ${meta ? `<div class="clip-option-meta">${escapeHtml(meta)}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  // 绑定点击事件
+  listEl.querySelectorAll('.clip-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      selectedClipId = opt.dataset.clipId;
+      document.getElementById('clipSearchInput').value = opt.querySelector('.clip-option-title').textContent;
+      listEl.style.display = 'none';
+      // 更新选中样式
+      listEl.querySelectorAll('.clip-option').forEach(o => o.classList.remove('selected'));
+      opt.classList.add('selected');
+    });
+  });
+}
+
 // 从剪藏导入（仅数据回显，不创建话题）
 async function importFromClip() {
-  const clipId = document.getElementById('clipSelect').value;
-  if (!clipId) {
+  if (!selectedClipId) {
     showToast('请先选择一个剪藏');
     return;
   }
 
   try {
     // 直接从已加载的剪藏列表中获取数据，做数据回显
-    const response = await fetch(`${CLIP_API}/list`);
-    const clips = await response.json();
-    const clip = clips.find(c => String(c.id) === String(clipId));
+    const clip = allClips.find(c => String(c.id) === String(selectedClipId));
     if (!clip) {
       showToast('未找到该剪藏');
       return;
@@ -66,7 +98,14 @@ async function importFromClip() {
 
     document.getElementById('titleInput').value = clip.title || clip.summary || `剪藏 #${clip.id}`;
     document.getElementById('summaryInput').value = clip.summary || '';
-    document.getElementById('contentInput').value = clip.content || '';
+    let content = clip.content || '';
+    if (clip.analysis) {
+      content += '\n\n---\n\n## AI 分析\n\n' + clip.analysis;
+    }
+    if (clip.divergentSummary) {
+      content += '\n\n---\n\n## 发散性总结\n\n' + clip.divergentSummary;
+    }
+    document.getElementById('contentInput').value = content;
     document.getElementById('categorySelect').value = clip.category || 'other';
     tags = clip.tags || [];
     renderTags();
@@ -181,6 +220,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   loadClips();
 
+  // 剪藏搜索输入
+  const clipSearchInput = document.getElementById('clipSearchInput');
+  clipSearchInput.addEventListener('input', () => {
+    selectedClipId = null;
+    filterClips(clipSearchInput.value);
+  });
+  clipSearchInput.addEventListener('focus', () => {
+    if (allClips.length > 0) filterClips(clipSearchInput.value);
+  });
+  // 点击外部关闭下拉列表
+  document.addEventListener('click', (e) => {
+    const listEl = document.getElementById('clipSelectList');
+    if (listEl && !e.target.closest('#clipSelectList') && !e.target.closest('#clipSearchInput')) {
+      listEl.style.display = 'none';
+    }
+  });
+
   // 标签输入
   const tagInput = document.getElementById('tagInput');
   tagInput.addEventListener('keydown', (e) => {
@@ -196,7 +252,18 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // 发布按钮
-  document.getElementById('publishBtn').addEventListener('click', () => saveTopic(true));
+  document.getElementById('publishBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('publishBtn');
+    if (btn.disabled) return;
+    btn.disabled = true;
+    btn.textContent = '发布中...';
+    try {
+      await saveTopic(true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '发布';
+    }
+  });
 
   // 保存草稿按钮 - 已注释，统一使用发布
   // document.getElementById('saveDraftBtn').addEventListener('click', () => saveTopic(false));

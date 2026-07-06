@@ -312,11 +312,11 @@
 
     /* confirm dialog */
     .confirm-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.35); z-index: 2000; display: flex; align-items: center; justify-content: center; }
-    .confirm-dialog { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; max-width: 380px; width: 90%; box-shadow: 0 8px 30px rgba(0,0,0,0.15); }
-    .confirm-dialog p { font-size: 14px; color: var(--fg); margin-bottom: 20px; line-height: 1.5; }
+    .confirm-dialog { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; max-width: 380px; width: 90%; box-shadow: 0 8px 30px rgba(0,0,0,0.15); }
+    .confirm-dialog p { font-size: 14px; color: var(--text); margin-bottom: 20px; line-height: 1.5; }
     .confirm-actions { display: flex; justify-content: flex-end; gap: 10px; }
-    .confirm-btn { padding: 8px 20px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; font-size: 13px; background: var(--card); color: var(--fg-muted); transition: all 0.15s; }
-    .confirm-btn:hover { border-color: var(--fg-muted); color: var(--fg); }
+    .confirm-btn { padding: 8px 20px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; font-size: 13px; background: var(--surface); color: var(--text-secondary); transition: all 0.15s; }
+    .confirm-btn:hover { border-color: var(--text-secondary); color: var(--text); }
     .confirm-btn.danger { background: #ef4444; color: #fff; border-color: #ef4444; }
     .confirm-btn.danger:hover { background: #dc2626; }
 
@@ -328,7 +328,7 @@
 </head>
 <body>
     <nav class="nav">
-        <button class="back-btn" onclick="history.back()">← 返回</button>
+        <button class="back-btn" onclick="location.href='topic.html'">← 返回</button>
         <span class="title" id="navTitle">加载中...</span>
         <div class="actions">
             <button class="btn" id="openFolderBtn" title="打开文件存储目录">📂 打开目录</button>
