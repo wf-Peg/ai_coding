@@ -364,18 +364,18 @@
             </svg>
             密码
         </button>
-        <button class="nav-btn" data-view="settings">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-            </svg>
-            设置
-        </button>
         <button class="nav-btn" data-view="learning-plan">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 14l9-5-9-5-9 5 9 5z"/>
                 <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/>
             </svg>
             学习
+        </button>
+        <button class="nav-btn" data-view="settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+            设置
         </button>
     </nav>
     <div class="titlebar-spacer"></div>
@@ -411,13 +411,13 @@
         <div class="view-panel view-panel-hidden" id="vaultView">
             <iframe id="vaultFrame" data-src="vault.html" style="width:100%;height:100%;border:none;"></iframe>
         </div>
-        <!-- 设置 -->
-        <div class="view-panel view-panel-hidden" id="settingsView">
-            <iframe id="settingsFrame" data-src="settings.html" style="width:100%;height:100%;border:none;"></iframe>
-        </div>
         <!-- 学习计划 -->
         <div class="view-panel view-panel-hidden" id="learningPlanView">
             <iframe id="learningPlanFrame" data-src="learning-plan.html" style="width:100%;height:100%;border:none;"></iframe>
+        </div>
+        <!-- 设置 -->
+        <div class="view-panel view-panel-hidden" id="settingsView">
+            <iframe id="settingsFrame" data-src="settings.html" style="width:100%;height:100%;border:none;"></iframe>
         </div>
     </div>
 </div>

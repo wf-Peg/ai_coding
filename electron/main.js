@@ -1207,7 +1207,7 @@ function createMainWindow(config) {
       label: 'Clip', submenu: [
         { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => showConfigWindow(config) },
         { type: 'separator' },
-        { label: 'Exit', accelerator: 'Alt+F4', click: () => quitApp() }
+        { role: 'quit' }
       ]
     },
     {

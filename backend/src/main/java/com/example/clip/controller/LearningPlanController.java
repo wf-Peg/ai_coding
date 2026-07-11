@@ -19,6 +19,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/learning-plan")
+@CrossOrigin(origins = "*")
 public class LearningPlanController {
 
     private static final Logger log = LoggerFactory.getLogger(LearningPlanController.class);
