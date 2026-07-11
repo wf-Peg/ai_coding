@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学习计划</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        :root {
+            --primary: #3f8cff;
+            --primary-light: #eff6ff;
+            --primary-dark: #2f72d8;
+            --background: #f9fafb;
+            --surface: #ffffff;
+            --surface-hover: #f3f4f6;
+            --text: #1f2937;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            --border: #e5e7eb;
+            --border-light: #f3f4f6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --radius: 12px;
+            --radius-sm: 8px;
+            --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+            --shadow-hover: 0 8px 25px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
+            --transition: all 0.25s ease;
+        }
+
+        html[data-theme="dark"] {
+            --background: #1a1a2e;
+            --surface: #16213e;
+            --surface-hover: #1f2f50;
+            --text: #e0e0e0;
+            --text-secondary: #a0a0b0;
+            --text-muted: #707080;
+            --border: #2a2a4a;
+            --border-light: #222240;
+            --primary: #569cff;
+            --primary-light: #1a2d4a;
+            --shadow: 0 1px 3px rgba(0,0,0,0.3);
+            --shadow-hover: 0 8px 25px rgba(0,0,0,0.4);
+        }
+        html[data-theme="regular"] {
+            --background: #ecf5ff;
+            --surface: #ffffff;
+            --border: #c5daf8;
+            --primary: #3f8cff;
+            --primary-light: #e0edff;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'IBM Plex Sans', 'Noto Sans SC', -apple-system, sans-serif;
+            background: var(--background);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        /* ====== Header ====== */
+        .header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 32px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            background: rgba(255,255,255,0.85);
+        }
+        html[data-theme="dark"] .header { background: rgba(22,33,62,0.9); }
+        .header-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .header h1 span { color: var(--primary); }
+        .header-spacer { flex: 1; }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: inherit;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+        }
+        .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
+        .btn-secondary {
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        .btn-secondary:hover { background: var(--surface-hover); }
+        .btn-danger {
+            background: transparent;
+            color: var(--error);
+            border: 1px solid var(--error);
+        }
+        .btn-danger:hover { background: var(--error); color: #fff; }
+        .btn-sm { padding: 6px 14px; font-size: 0.8rem; }
+
+        /* ====== Content ====== */
+        .content {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 32px;
+        }
+
+        /* ====== Empty State ====== */
+        .empty-state {
+            text-align: center;
+            padding: 80px 24px;
+        }
+        .empty-state svg { width: 80px; height: 80px; color: var(--text-muted); margin-bottom: 20px; }
+        .empty-state h3 { font-size: 1.2rem; font-weight: 600; margin-bottom: 8px; color: var(--text-secondary); }
+        .empty-state p { color: var(--text-muted); margin-bottom: 24px; font-size: 0.9rem; }
+
+        /* ====== Plan Card ====== */
+        .plan-list {
+            display: grid;
+            gap: 16px;
+        }
+        .plan-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px 24px;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: var(--shadow);
+        }
+        .plan-card:hover {
+            box-shadow: var(--shadow-hover);
+            transform: translateY(-2px);
+            border-color: var(--primary);
+        }
+        .plan-card-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+        .plan-card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+        .plan-card-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        .plan-card-meta span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .plan-card-footer {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-light);
+        }
+        .progress-bar {
+            flex: 1;
+            height: 6px;
+            background: var(--border-light);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--success));
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+        .progress-text {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--primary);
+            min-width: 36px;
+            text-align: right;
+        }
+
+        /* ====== Modal ====== */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            animation: fadeIn 0.2s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .modal {
+            background: var(--surface);
+            border-radius: var(--radius);
+            width: 90%;
+            max-width: 520px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            animation: slideUp 0.3s ease;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-header h2 { font-size: 1.15rem; font-weight: 600; }
+        .modal-close {
+            width: 32px; height: 32px;
+            border: none; background: transparent;
+            cursor: pointer; border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--text-secondary);
+            transition: var(--transition);
+        }
+        .modal-close:hover { background: var(--surface-hover); }
+        .modal-body { padding: 24px; }
+        .form-group { margin-bottom: 18px; }
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: var(--text-secondary);
+        }
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 0.9rem;
+            font-family: inherit;
+            background: var(--background);
+            color: var(--text);
+            outline: none;
+            transition: var(--transition);
+        }
+        .form-group input:focus,
+        .form-group select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-light);
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        /* ====== Loading ====== */
+        .loading-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+        .loading-card {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            min-width: 320px;
+        }
+        .loading-spinner {
+            width: 48px; height: 48px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text { font-size: 0.95rem; color: var(--text-secondary); }
+        .loading-sub { font-size: 0.8rem; color: var(--text-muted); margin-top: 6px; }
+
+        /* ====== Detail View ====== */
+        .detail-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .back-btn {
+            width: 36px; height: 36px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--surface);
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--text-secondary);
+            transition: var(--transition);
+            flex-shrink: 0;
+        }
+        .back-btn:hover { background: var(--surface-hover); color: var(--text); }
+        .detail-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            flex: 1;
+        }
+        .detail-actions { display: flex; gap: 8px; }
+
+        .detail-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 24px;
+            padding: 16px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+        }
+        .detail-meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .detail-meta-item .label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+        .detail-meta-item .value { font-size: 0.9rem; font-weight: 500; }
+
+        /* ====== Mermaid ====== */
+        .mermaid-container {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            margin-bottom: 24px;
+            overflow-x: auto;
+            text-align: center;
+        }
+        .mermaid-container svg { max-width: 100%; }
+
+        /* ====== Phase Card ====== */
+        .phases-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+        .phase-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            margin-bottom: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            transition: var(--transition);
+        }
+        .phase-card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 20px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .phase-card-header:hover { background: var(--surface-hover); }
+        .phase-number {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: #fff;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.8rem;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .phase-info { flex: 1; min-width: 0; }
+        .phase-info h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 2px; }
+        .phase-info .phase-goal { font-size: 0.8rem; color: var(--text-secondary); }
+        .phase-weeks {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            background: var(--border-light);
+            padding: 2px 10px;
+            border-radius: 12px;
+            flex-shrink: 0;
+        }
+        .phase-chevron {
+            color: var(--text-muted);
+            transition: transform 0.3s;
+            flex-shrink: 0;
+        }
+        .phase-card.expanded .phase-chevron { transform: rotate(180deg); }
+        .phase-card-body {
+            display: none;
+            padding: 0 20px 20px;
+            border-top: 1px solid var(--border-light);
+        }
+        .phase-card.expanded .phase-card-body { display: block; }
+
+        .phase-progress-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 0;
+            margin-bottom: 16px;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .phase-progress-row .progress-bar { flex: 1; }
+        .phase-progress-row .progress-text { min-width: 40px; }
+        .phase-complete-btn {
+            padding: 6px 14px;
+            border: 1px solid var(--success);
+            border-radius: 6px;
+            background: transparent;
+            color: var(--success);
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-family: inherit;
+            font-weight: 500;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+        .phase-complete-btn.completed {
+            background: var(--success);
+            color: #fff;
+        }
+        .phase-complete-btn:hover { background: var(--success); color: #fff; }
+
+        /* ====== Resource Cards ====== */
+        .section-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 10px;
+            margin-top: 16px;
+        }
+        .resource-list { display: flex; flex-direction: column; gap: 8px; }
+        .resource-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px;
+            background: var(--background);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-sm);
+            transition: var(--transition);
+            text-decoration: none;
+            color: inherit;
+        }
+        .resource-card:hover {
+            border-color: var(--primary);
+            box-shadow: 0 2px 8px rgba(63,140,255,0.1);
+        }
+        .resource-icon {
+            width: 32px; height: 32px;
+            border-radius: 6px;
+            background: var(--primary-light);
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            color: var(--primary);
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        .resource-info { flex: 1; min-width: 0; }
+        .resource-title {
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-bottom: 2px;
+            line-height: 1.3;
+        }
+        .resource-snippet {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .resource-source {
+            display: inline-block;
+            font-size: 0.7rem;
+            padding: 1px 8px;
+            border-radius: 10px;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+        .source-exa { background: #dcfce7; color: #166534; }
+        .source-ai { background: #fef3c7; color: #92400e; }
+        html[data-theme="dark"] .source-exa { background: #064e3b; color: #6ee7b7; }
+        html[data-theme="dark"] .source-ai { background: #78350f; color: #fcd34d; }
+
+        /* ====== Quiz & Tasks ====== */
+        .quiz-item, .task-item {
+            padding: 10px 14px;
+            background: var(--background);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-sm);
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+        }
+        .quiz-type {
+            display: inline-block;
+            font-size: 0.7rem;
+            padding: 1px 8px;
+            border-radius: 4px;
+            margin-bottom: 6px;
+            background: var(--primary-light);
+            color: var(--primary);
+            font-weight: 600;
+        }
+        .quiz-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+        .quiz-option {
+            padding: 4px 12px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        .task-difficulty {
+            display: inline-flex;
+            gap: 2px;
+            margin-bottom: 6px;
+        }
+        .task-difficulty .star { color: var(--warning); font-size: 0.8rem; }
+        .task-difficulty .star.off { color: var(--border); }
+        .task-criteria {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-top: 6px;
+            padding-left: 8px;
+            border-left: 2px solid var(--success);
+        }
+    </style>
+</head>
+<body>
+<div class="header">
+    <div class="header-inner">
+        <h1><span>学习</span>计划</h1>
+        <div class="header-spacer"></div>
+        <button class="btn btn-primary" id="btnNewPlan" onclick="showCreateModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            新建计划
+        </button>
+    </div>
+</div>
+
+<div class="content" id="content">
+    <!-- 列表视图 -->
+    <div id="listView">
+        <div class="plan-list" id="planList"></div>
+        <div class="empty-state" id="emptyState" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M12 14l9-5-9-5-9 5 9 5z"/>
+                <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/>
+            </svg>
+            <h3>还没有学习计划</h3>
+            <p>创建你的第一个学习计划，AI 将为你定制专属学习路线图</p>
+            <button class="btn btn-primary" onclick="showCreateModal()">开始制定计划</button>
+        </div>
+    </div>
+
+    <!-- 详情视图 -->
+    <div id="detailView" style="display:none;"></div>
+</div>
+
+<!-- 新建计划弹窗 -->
+<div class="modal-overlay" id="createModalOverlay" style="display:none;" onclick="if(event.target===this) hideCreateModal()">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>新建学习计划</h2>
+            <button class="modal-close" onclick="hideCreateModal()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>学习主题 *</label>
+                <input type="text" id="planTitle" placeholder="例如：Python 机器学习、React 全栈开发" maxlength="100">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>当前水平</label>
+                    <select id="planLevel">
+                        <option value="zero">零基础</option>
+                        <option value="beginner" selected>入门</option>
+                        <option value="intermediate">中级</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>学习目标</label>
+                    <select id="planGoal">
+                        <option value="intro">了解入门</option>
+                        <option value="project" selected>完成项目</option>
+                        <option value="job">求职面试</option>
+                        <option value="portfolio">构建作品集</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>每周投入 (小时)</label>
+                    <input type="number" id="planHours" value="5" min="1" max="40">
+                </div>
+                <div class="form-group">
+                    <label>预计周期 (周)</label>
+                    <input type="number" id="planWeeks" value="8" min="2" max="52">
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="hideCreateModal()">取消</button>
+            <button class="btn btn-primary" onclick="createPlan()">生成学习路线</button>
+        </div>
+    </div>
+</div>
+
+<!-- 加载动画 -->
+<div class="loading-overlay" id="loadingOverlay" style="display:none;">
+    <div class="loading-card">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loadingText">AI 正在生成学习路线图...</div>
+        <div class="loading-sub" id="loadingSub"></div>
+    </div>
+</div>
+
+<script>
+// ====== API Base ======
+const API_BASE = window.location.origin + '/api/learning-plan';
+
+// ====== State ======
+let currentView = 'list'; // list | detail
+let currentPlanId = null;
+let plans = [];
+
+// ====== Theme ======
+function getThemeFromParent() {
+    try { return window.parent.document.documentElement.getAttribute('data-theme') || 'notion'; } catch(e) { return 'notion'; }
+}
+function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    if (typeof mermaid !== 'undefined') {
+        mermaid.initialize({ startOnLoad: false, theme: theme === 'dark' ? 'dark' : 'default' });
+    }
+}
+applyTheme(getThemeFromParent());
+
+window.addEventListener('message', (e) => {
+    if (e.data && e.data.action === 'themeChange') {
+        applyTheme(getThemeFromParent());
+    }
+    if (e.data && e.data.action === 'refresh') {
+        loadPlans();
+    }
+});
+
+// ====== API Calls ======
+async function apiFetch(path, options = {}) {
+    const res = await fetch(API_BASE + path, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(err.error || res.statusText);
+    }
+    if (res.status === 204) return null;
+    return res.json();
+}
+
+async function loadPlans() {
+    try {
+        plans = await apiFetch('');
+        renderList();
+    } catch (e) {
+        console.error('Failed to load plans:', e);
+    }
+}
+
+// ====== Render List ======
+function renderList() {
+    currentView = 'list';
+    document.getElementById('listView').style.display = 'block';
+    document.getElementById('detailView').style.display = 'none';
+    document.getElementById('btnNewPlan').style.display = '';
+
+    const listEl = document.getElementById('planList');
+    const emptyEl = document.getElementById('emptyState');
+
+    if (!plans || plans.length === 0) {
+        listEl.innerHTML = '';
+        emptyEl.style.display = 'block';
+        return;
+    }
+
+    emptyEl.style.display = 'none';
+    listEl.innerHTML = plans.map(p => {
+        const totalProgress = calcTotalProgress(p);
+        const phaseCount = p.phases ? p.phases.length : 0;
+        const completedCount = p.phases ? p.phases.filter(ph => ph.completed).length : 0;
+        const date = p.createdAt ? new Date(p.createdAt).toLocaleDateString('zh-CN') : '';
+        return `
+            <div class="plan-card" onclick="showDetail(${p.id})">
+                <div class="plan-card-header">
+                    <div class="plan-card-title">${escHtml(p.title)}</div>
+                </div>
+                <div class="plan-card-meta">
+                    <span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                        ${phaseCount} 个阶段
+                    </span>
+                    <span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                        ${p.totalWeeks} 周
+                    </span>
+                    <span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                        ${p.level === 'zero' ? '零基础' : p.level === 'beginner' ? '入门' : '中级'}
+                    </span>
+                    ${date ? `<span>${date}</span>` : ''}
+                </div>
+                <div class="plan-card-footer">
+                    <div class="progress-bar">
+                        <div class="progress-bar-fill" style="width:${totalProgress}%"></div>
+                    </div>
+                    <div class="progress-text">${totalProgress}%</div>
+                    <span style="font-size:0.8rem;color:var(--text-muted);">${completedCount}/${phaseCount}</span>
+                </div>
+            </div>`;
+    }).join('');
+}
+
+function calcTotalProgress(plan) {
+    if (!plan.phases || plan.phases.length === 0) return 0;
+    const total = plan.phases.reduce((sum, p) => sum + (p.progress || 0), 0);
+    return Math.round(total / plan.phases.length);
+}
+
+// ====== Render Detail ======
+function showDetail(planId) {
+    const plan = plans.find(p => p.id === planId);
+    if (!plan) return;
+
+    currentView = 'detail';
+    currentPlanId = planId;
+    document.getElementById('listView').style.display = 'none';
+    document.getElementById('btnNewPlan').style.display = 'none';
+
+    const totalProgress = calcTotalProgress(plan);
+    const phaseCount = plan.phases ? plan.phases.length : 0;
+    const completedCount = plan.phases ? plan.phases.filter(ph => ph.completed).length : 0;
+    const levelLabel = plan.level === 'zero' ? '零基础' : plan.level === 'beginner' ? '入门' : '中级';
+    const goalLabel = { intro: '了解入门', project: '完成项目', job: '求职面试', portfolio: '构建作品集' }[plan.goal] || plan.goal;
+    const date = plan.createdAt ? new Date(plan.createdAt).toLocaleDateString('zh-CN') : '';
+
+    let html = `
+        <div class="detail-header">
+            <button class="back-btn" onclick="backToList()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <div class="detail-title">${escHtml(plan.title)}</div>
+            <div class="detail-actions">
+                <button class="btn btn-danger btn-sm" onclick="deletePlan(${plan.id})">删除</button>
+            </div>
+        </div>
+
+        <div class="detail-meta">
+            <div class="detail-meta-item">
+                <span class="label">当前水平</span>
+                <span class="value">${levelLabel}</span>
+            </div>
+            <div class="detail-meta-item">
+                <span class="label">学习目标</span>
+                <span class="value">${goalLabel}</span>
+            </div>
+            <div class="detail-meta-item">
+                <span class="label">每周投入</span>
+                <span class="value">${plan.hoursPerWeek} 小时</span>
+            </div>
+            <div class="detail-meta-item">
+                <span class="label">预计周期</span>
+                <span class="value">${plan.totalWeeks} 周</span>
+            </div>
+            <div class="detail-meta-item">
+                <span class="label">总进度</span>
+                <span class="value">${totalProgress}% (${completedCount}/${phaseCount})</span>
+            </div>
+            <div class="detail-meta-item">
+                <span class="label">创建时间</span>
+                <span class="value">${date}</span>
+            </div>
+        </div>`;
+
+    // Mermaid 图
+    if (plan.mermaidDiagram) {
+        html += `<div class="mermaid-container"><div class="mermaid" id="mermaidDiagram">${escHtml(plan.mermaidDiagram)}</div></div>`;
+    }
+
+    // 阶段列表
+    html += `<div class="phases-title">学习阶段 (${phaseCount})</div>`;
+
+    if (plan.phases) {
+        plan.phases.forEach(phase => {
+            html += renderPhaseCard(phase);
+        });
+    }
+
+    document.getElementById('detailView').innerHTML = html;
+    document.getElementById('detailView').style.display = 'block';
+
+    // 渲染 Mermaid
+    if (plan.mermaidDiagram) {
+        setTimeout(() => {
+            try {
+                mermaid.run({ querySelector: '#mermaidDiagram' });
+            } catch(e) { console.warn('Mermaid render failed:', e); }
+        }, 100);
+    }
+}
+
+function renderPhaseCard(phase) {
+    const p = phase;
+    return `
+        <div class="phase-card ${p.completed ? 'expanded' : ''}" id="phase-${p.phaseNumber}">
+            <div class="phase-card-header" onclick="togglePhase(${p.phaseNumber})">
+                <div class="phase-number">${p.phaseNumber}</div>
+                <div class="phase-info">
+                    <h3>${escHtml(p.title)}</h3>
+                    <div class="phase-goal">${escHtml(p.goal)}</div>
+                </div>
+                <div class="phase-weeks">${p.estimatedWeeks} 周</div>
+                <div class="phase-chevron">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </div>
+            </div>
+            <div class="phase-card-body">
+                <div class="phase-progress-row">
+                    <span style="font-size:0.8rem;color:var(--text-secondary);">进度</span>
+                    <div class="progress-bar">
+                        <div class="progress-bar-fill" style="width:${p.progress || 0}%"></div>
+                    </div>
+                    <div class="progress-text">${p.progress || 0}%</div>
+                    <button class="phase-complete-btn ${p.completed ? 'completed' : ''}" onclick="event.stopPropagation(); toggleComplete(${p.phaseNumber}, ${!p.completed})">
+                        ${p.completed ? '✓ 已完成' : '标记完成'}
+                    </button>
+                </div>
+
+                ${renderResources(p.videos)}
+                ${renderQuizzes(p.knowledgeQuiz)}
+                ${renderTasks(p.practiceTasks)}
+            </div>
+        </div>`;
+}
+
+function renderResources(videos) {
+    if (!videos || videos.length === 0) return '';
+    return `
+        <div class="section-label">推荐资源</div>
+        <div class="resource-list">
+            ${videos.map(v => `
+                <a href="${escHtml(v.url)}" target="_blank" class="resource-card" rel="noopener">
+                    <div class="resource-icon">${(v.title || 'R')[0]}</div>
+                    <div class="resource-info">
+                        <div class="resource-title">${escHtml(v.title)}</div>
+                        ${v.snippet ? `<div class="resource-snippet">${escHtml(v.snippet)}</div>` : ''}
+                        <span class="resource-source ${v.source === 'exa' ? 'source-exa' : 'source-ai'}">
+                            ${v.source === 'exa' ? 'Exa 搜索' : 'AI 推荐'}
+                        </span>
+                        ${v.reason ? `<span style="font-size:0.72rem;color:var(--text-muted);margin-left:6px;">${escHtml(v.reason)}</span>` : ''}
+                    </div>
+                </a>
+            `).join('')}
+        </div>`;
+}
+
+function renderQuizzes(quizzes) {
+    if (!quizzes || quizzes.length === 0) return '';
+    return `
+        <div class="section-label">知识作业</div>
+        ${quizzes.map(q => `
+            <div class="quiz-item">
+                <span class="quiz-type">${q.type === 'choice' ? '选择题' : '问答题'}</span>
+                <div>${escHtml(q.question)}</div>
+                ${q.options && q.options.length > 0 ? `
+                    <div class="quiz-options">
+                        ${q.options.map(o => `<span class="quiz-option">${escHtml(o)}</span>`).join('')}
+                    </div>
+                ` : ''}
+            </div>
+        `).join('')}`;
+}
+
+function renderTasks(tasks) {
+    if (!tasks || tasks.length === 0) return '';
+    return `
+        <div class="section-label">实战任务</div>
+        ${tasks.map(t => `
+            <div class="task-item">
+                <div class="task-difficulty">
+                    ${[1,2,3].map(i => `<span class="star ${i <= t.difficulty ? '' : 'off'}">★</span>`).join('')}
+                </div>
+                <div>${escHtml(t.description)}</div>
+                ${t.acceptanceCriteria ? `<div class="task-criteria">验收标准：${escHtml(t.acceptanceCriteria)}</div>` : ''}
+            </div>
+        `).join('')}`;
+}
+
+// ====== Phase interactions ======
+function togglePhase(phaseNum) {
+    const card = document.getElementById('phase-' + phaseNum);
+    if (card) card.classList.toggle('expanded');
+}
+
+async function toggleComplete(phaseNum, completed) {
+    try {
+        const progress = completed ? 100 : 0;
+        await apiFetch(`/${currentPlanId}/phase/${phaseNum}`, {
+            method: 'PUT',
+            body: JSON.stringify({ progress, completed })
+        });
+        await loadPlans();
+        showDetail(currentPlanId);
+    } catch (e) {
+        alert('更新失败：' + e.message);
+    }
+}
+
+// ====== Create Plan ======
+function showCreateModal() {
+    document.getElementById('createModalOverlay').style.display = 'flex';
+    document.getElementById('planTitle').focus();
+}
+function hideCreateModal() {
+    document.getElementById('createModalOverlay').style.display = 'none';
+    document.getElementById('planTitle').value = '';
+}
+
+async function createPlan() {
+    const title = document.getElementById('planTitle').value.trim();
+    if (!title) { alert('请输入学习主题'); return; }
+
+    const level = document.getElementById('planLevel').value;
+    const goal = document.getElementById('planGoal').value;
+    const hoursPerWeek = parseInt(document.getElementById('planHours').value) || 5;
+    const totalWeeks = parseInt(document.getElementById('planWeeks').value) || 8;
+
+    hideCreateModal();
+    showLoading('AI 正在生成学习路线图...', '分析主题，规划学习阶段');
+
+    try {
+        // 模拟分步进度
+        setTimeout(() => {
+            document.getElementById('loadingText').textContent = '正在搜索真实学习资源...';
+            document.getElementById('loadingSub').textContent = '通过 Exa 搜索引擎获取高质量教程';
+        }, 3000);
+
+        const plan = await apiFetch('', {
+            method: 'POST',
+            body: JSON.stringify({ title, level, goal, hoursPerWeek, totalWeeks })
+        });
+
+        hideLoading();
+        await loadPlans();
+        showDetail(plan.id);
+    } catch (e) {
+        hideLoading();
+        alert('创建失败：' + e.message);
+    }
+}
+
+// ====== Delete Plan ======
+async function deletePlan(id) {
+    if (!confirm('确定要删除这个学习计划吗？此操作不可恢复。')) return;
+    try {
+        await apiFetch('/' + id, { method: 'DELETE' });
+        await loadPlans();
+        backToList();
+    } catch (e) {
+        alert('删除失败：' + e.message);
+    }
+}
+
+function backToList() {
+    currentPlanId = null;
+    renderList();
+}
+
+// ====== Loading ======
+function showLoading(text, sub) {
+    document.getElementById('loadingText').textContent = text;
+    document.getElementById('loadingSub').textContent = sub || '';
+    document.getElementById('loadingOverlay').style.display = 'flex';
+}
+function hideLoading() {
+    document.getElementById('loadingOverlay').style.display = 'none';
+}
+
+// ====== Utils ======
+function escHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ====== Init ======
+mermaid.initialize({ startOnLoad: false, theme: getThemeFromParent() === 'dark' ? 'dark' : 'default' });
+loadPlans();
+</script>
+</body>
+</html>

@@ -1,0 +1,327 @@
+package com.example.clip.service;
+
+import com.example.clip.core.LlmProvider;
+import com.example.clip.model.LearningPlan;
+import com.example.clip.model.LearningPlan.Phase;
+import com.example.clip.model.LearningPlan.VideoResource;
+import com.example.clip.model.LearningPlan.QuizQuestion;
+import com.example.clip.model.LearningPlan.PracticeTask;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * 学习计划服务。
+ * <p>
+ * 核心业务流程：AI 生成学习路线结构 → Exa 搜索真实学习资源 → 合并保存。
+ * 当 Exa 不可用时自动降级为 AI 生成资源。
+ * </p>
+ *
+ * <h3>生成流程</h3>
+ * <ol>
+ *   <li>接收用户输入（主题、水平、目标、时间投入）</li>
+ *   <li>调用 AI 生成阶段结构（phase 列表 + mermaid 图）</li>
+ *   <li>调用 Exa 为每个阶段搜索真实学习资源</li>
+ *   <li>如果 Exa 返回空（未配置 / 失败），降级为 AI 生成资源</li>
+ *   <li>保存到文件存储</li>
+ * </ol>
+ */
+@Service
+public class LearningPlanService {
+
+    private static final Logger log = LoggerFactory.getLogger(LearningPlanService.class);
+
+    private final FileStorageService fileStorageService;
+    private final ExaSearchService exaSearchService;
+    private final LlmProvider llmProvider;
+    private final ObjectMapper objectMapper;
+
+    public LearningPlanService(FileStorageService fileStorageService,
+                               ExaSearchService exaSearchService,
+                               LlmProvider llmProvider) {
+        this.fileStorageService = fileStorageService;
+        this.exaSearchService = exaSearchService;
+        this.llmProvider = llmProvider;
+        this.objectMapper = new ObjectMapper()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    }
+
+    /**
+     * 创建学习计划（AI 生成结构 + Exa 搜索资源）。
+     *
+     * @param title        学习主题
+     * @param level        当前水平
+     * @param goal         学习目标
+     * @param hoursPerWeek 每周投入小时数
+     * @param totalWeeks   预计总周数
+     * @return 生成的学习计划
+     */
+    public LearningPlan createPlan(String title, String level, String goal,
+                                   int hoursPerWeek, int totalWeeks) {
+        LearningPlan plan = new LearningPlan();
+        plan.setTitle(title);
+        plan.setLevel(level);
+        plan.setGoal(goal);
+        plan.setHoursPerWeek(hoursPerWeek);
+        plan.setTotalWeeks(totalWeeks);
+
+        // Step 1: AI 生成阶段结构
+        log.info("[LearningPlan] Step 1: AI generating phase structure for '{}'", title);
+        Map<String, Object> aiResult = generatePhaseStructure(title, level, goal, hoursPerWeek, totalWeeks);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> phasesRaw = (List<Map<String, Object>>) aiResult.getOrDefault("phases", Collections.emptyList());
+        String mermaidDiagram = (String) aiResult.getOrDefault("mermaidDiagram", "");
+
+        plan.setMermaidDiagram(mermaidDiagram);
+
+        // Step 2: 解析阶段
+        List<Phase> phases = new ArrayList<>();
+        for (Map<String, Object> phaseRaw : phasesRaw) {
+            Phase phase = parsePhase(phaseRaw);
+            phases.add(phase);
+        }
+
+        // Step 3: Exa 搜索真实资源（为每个阶段）
+        log.info("[LearningPlan] Step 2: Exa searching resources for {} phases", phases.size());
+        for (Phase phase : phases) {
+            List<VideoResource> exaResources = exaSearchService.searchResources(
+                    title, phase.getGoal(), 5);
+            if (!exaResources.isEmpty()) {
+                phase.setVideos(exaResources);
+                log.info("[LearningPlan] Phase '{}': {} Exa resources found", phase.getTitle(), exaResources.size());
+            } else {
+                // Exa 不可用，使用 AI 降级生成
+                log.info("[LearningPlan] Phase '{}': Exa unavailable, using AI fallback", phase.getTitle());
+                List<VideoResource> fallback = generateFallbackResources(title, phase.getGoal());
+                phase.setVideos(fallback);
+            }
+        }
+
+        plan.setPhases(phases);
+
+        // Step 4: 保存
+        LearningPlan saved = fileStorageService.saveLearningPlan(plan);
+        log.info("[LearningPlan] Plan '{}' created with {} phases, saved as id={}",
+                title, phases.size(), saved != null ? saved.getId() : null);
+        return saved;
+    }
+
+    /**
+     * 调用 AI 生成学习路线阶段结构。
+     */
+    private Map<String, Object> generatePhaseStructure(String title, String level, String goal,
+                                                        int hoursPerWeek, int totalWeeks) {
+        String levelLabel = switch (level) {
+            case "zero" -> "零基础";
+            case "beginner" -> "入门";
+            case "intermediate" -> "中级";
+            default -> level;
+        };
+        String goalLabel = switch (goal) {
+            case "intro" -> "了解入门";
+            case "project" -> "完成项目";
+            case "job" -> "求职面试";
+            case "portfolio" -> "构建作品集";
+            default -> goal;
+        };
+
+        String systemPrompt = """
+                你是一个技术学习导师。请根据以下信息生成一份分阶段学习路线图的结构。
+                
+                要求：
+                1. 阶段数量合理（根据总周数，通常 3-6 个阶段）
+                2. 每个阶段有明确的学习目标和可执行的知识作业、实战任务
+                3. 知识作业包含选择题和问答题，实战任务有验收标准
+                4. 难度随阶段递增
+                5. mermaidDiagram 使用中文节点标签，清晰展示学习路径
+                6. 返回纯 JSON（不要 markdown 代码块标记）
+                
+                返回格式：
+                {
+                  "phases": [
+                    {
+                      "phaseNumber": 1,
+                      "title": "阶段名称",
+                      "goal": "阶段目标",
+                      "estimatedWeeks": 2,
+                      "knowledgeQuiz": [
+                        {"type": "choice", "question": "...", "options": ["A", "B", "C", "D"]},
+                        {"type": "essay", "question": "..."}
+                      ],
+                      "practiceTasks": [
+                        {"description": "...", "difficulty": 2, "acceptanceCriteria": "..."}
+                      ]
+                    }
+                  ],
+                  "mermaidDiagram": "graph TD\\n  A[开始] --> B[阶段1]\\n  ..."
+                }
+                
+                注意：不需要生成 videos 字段，学习资源将通过搜索引擎实时获取。""";
+
+        String userMessage = String.format("""
+                学习主题：%s
+                当前水平：%s
+                学习目标：%s
+                每周投入：%d 小时
+                预计周期：%d 周""",
+                title, levelLabel, goalLabel, hoursPerWeek, totalWeeks);
+
+        try {
+            String response = llmProvider.chat(systemPrompt, userMessage);
+            String cleaned = cleanJson(response);
+            return objectMapper.readValue(cleaned, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            log.error("[LearningPlan] AI generation failed: {}", e.getMessage(), e);
+            // 返回降级结果
+            Map<String, Object> fallback = new LinkedHashMap<>();
+            fallback.put("phases", Collections.emptyList());
+            fallback.put("mermaidDiagram", "");
+            return fallback;
+        }
+    }
+
+    /**
+     * AI 降级生成学习资源（Exa 不可用时使用）。
+     */
+    private List<VideoResource> generateFallbackResources(String topic, String phaseGoal) {
+        String systemPrompt = """
+                你是一个学习资源推荐助手。请为以下学习主题和阶段目标推荐 3-5 个高质量的学习资源。
+                返回 JSON 数组格式（不要 markdown 代码块）：
+                [
+                  {"title": "资源名称", "url": "资源链接", "reason": "推荐理由"}
+                ]
+                注意：请确保推荐的资源是真实存在的知名平台资源（如官方文档、知名教程网站、GitHub 知名项目等）。""";
+
+        String userMessage = String.format("学习主题：%s\n阶段目标：%s", topic, phaseGoal);
+
+        try {
+            String response = llmProvider.chat(systemPrompt, userMessage);
+            String cleaned = cleanJson(response);
+            List<Map<String, Object>> raw = objectMapper.readValue(cleaned,
+                    new TypeReference<List<Map<String, Object>>>() {});
+            List<VideoResource> resources = new ArrayList<>();
+            for (Map<String, Object> item : raw) {
+                VideoResource vr = new VideoResource();
+                vr.setTitle(Objects.toString(item.get("title"), ""));
+                vr.setUrl(Objects.toString(item.get("url"), ""));
+                vr.setReason(Objects.toString(item.get("reason"), ""));
+                vr.setSource("ai");
+                vr.setSnippet("AI 推荐资源");
+                resources.add(vr);
+            }
+            return resources;
+        } catch (Exception e) {
+            log.warn("[LearningPlan] AI fallback resource generation failed: {}", e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * 解析 AI 返回的阶段 JSON 为 Phase 对象。
+     */
+    private Phase parsePhase(Map<String, Object> raw) {
+        Phase phase = new Phase();
+        phase.setPhaseNumber(toInt(raw.get("phaseNumber"), 1));
+        phase.setTitle(Objects.toString(raw.get("title"), ""));
+        phase.setGoal(Objects.toString(raw.get("goal"), ""));
+        phase.setEstimatedWeeks(toInt(raw.get("estimatedWeeks"), 1));
+        phase.setProgress(0);
+        phase.setCompleted(false);
+
+        // 解析知识作业
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> quizRaw = (List<Map<String, Object>>) raw.getOrDefault("knowledgeQuiz", Collections.emptyList());
+        List<QuizQuestion> quizzes = new ArrayList<>();
+        for (Map<String, Object> q : quizRaw) {
+            QuizQuestion quiz = new QuizQuestion();
+            quiz.setType(Objects.toString(q.get("type"), "choice"));
+            quiz.setQuestion(Objects.toString(q.get("question"), ""));
+            @SuppressWarnings("unchecked")
+            List<String> options = (List<String>) q.getOrDefault("options", Collections.emptyList());
+            quiz.setOptions(options);
+            quizzes.add(quiz);
+        }
+        phase.setKnowledgeQuiz(quizzes);
+
+        // 解析实战任务
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> tasksRaw = (List<Map<String, Object>>) raw.getOrDefault("practiceTasks", Collections.emptyList());
+        List<PracticeTask> tasks = new ArrayList<>();
+        for (Map<String, Object> t : tasksRaw) {
+            PracticeTask task = new PracticeTask();
+            task.setDescription(Objects.toString(t.get("description"), ""));
+            task.setDifficulty(toInt(t.get("difficulty"), 1));
+            task.setAcceptanceCriteria(Objects.toString(t.get("acceptanceCriteria"), ""));
+            tasks.add(task);
+        }
+        phase.setPracticeTasks(tasks);
+
+        return phase;
+    }
+
+    /**
+     * 清理 LLM 返回的 markdown 代码块包裹。
+     */
+    private String cleanJson(String json) {
+        if (json == null) return "";
+        json = json.trim();
+        if (json.startsWith("```")) {
+            json = json.replaceAll("^```json?\\s*", "").replaceAll("\\s*```$", "").trim();
+        }
+        return json;
+    }
+
+    private int toInt(Object value, int defaultValue) {
+        if (value instanceof Number) return ((Number) value).intValue();
+        if (value instanceof String) {
+            try { return Integer.parseInt((String) value); } catch (NumberFormatException e) { return defaultValue; }
+        }
+        return defaultValue;
+    }
+
+    // ==================== CRUD 委托 ====================
+
+    public List<LearningPlan> getAllPlans() {
+        return fileStorageService.getAllLearningPlans();
+    }
+
+    public LearningPlan getPlanById(Long id) {
+        return fileStorageService.getLearningPlanById(id);
+    }
+
+    public LearningPlan updatePlan(LearningPlan plan) {
+        plan.setUpdatedAt(LocalDateTime.now());
+        return fileStorageService.saveLearningPlan(plan);
+    }
+
+    public void deletePlan(Long id) {
+        fileStorageService.deleteLearningPlan(id);
+    }
+
+    /**
+     * 更新某个阶段的进度/完成状态。
+     */
+    public LearningPlan updatePhaseProgress(Long planId, int phaseNum, int progress, boolean completed) {
+        LearningPlan plan = fileStorageService.getLearningPlanById(planId);
+        if (plan == null) return null;
+
+        for (Phase phase : plan.getPhases()) {
+            if (phase.getPhaseNumber() == phaseNum) {
+                phase.setProgress(progress);
+                phase.setCompleted(completed);
+                break;
+            }
+        }
+
+        plan.setUpdatedAt(LocalDateTime.now());
+        return fileStorageService.saveLearningPlan(plan);
+    }
+}

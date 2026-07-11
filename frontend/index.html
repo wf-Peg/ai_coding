@@ -370,6 +370,13 @@
             </svg>
             设置
         </button>
+        <button class="nav-btn" data-view="learning-plan">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 14l9-5-9-5-9 5 9 5z"/>
+                <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/>
+            </svg>
+            学习
+        </button>
     </nav>
     <div class="titlebar-spacer"></div>
     <div class="window-controls" id="windowControls">
@@ -407,6 +414,10 @@
         <!-- 设置 -->
         <div class="view-panel view-panel-hidden" id="settingsView">
             <iframe id="settingsFrame" data-src="settings.html" style="width:100%;height:100%;border:none;"></iframe>
+        </div>
+        <!-- 学习计划 -->
+        <div class="view-panel view-panel-hidden" id="learningPlanView">
+            <iframe id="learningPlanFrame" data-src="learning-plan.html" style="width:100%;height:100%;border:none;"></iframe>
         </div>
     </div>
 </div>
@@ -451,7 +462,7 @@
       }
 
       function broadcastThemeChange() {
-        [todoFrame, clipFrame, topicFrame, vaultFrame, settingsFrame].forEach(frame => {
+        [todoFrame, clipFrame, topicFrame, vaultFrame, settingsFrame, learningPlanFrame].forEach(frame => {
           try { if (frame && frame.contentWindow) frame.contentWindow.postMessage({ action: 'themeChange' }, '*'); } catch(e) {}
         });
       }
@@ -486,9 +497,11 @@
       const topicView = document.getElementById('topicView');
       const vaultView = document.getElementById('vaultView');
       const settingsView = document.getElementById('settingsView');
+      const learningPlanView = document.getElementById('learningPlanView');
       const topicFrame = document.getElementById('topicFrame');
       const vaultFrame = document.getElementById('vaultFrame');
       const settingsFrame = document.getElementById('settingsFrame');
+      const learningPlanFrame = document.getElementById('learningPlanFrame');
       const scrollTools = document.getElementById('scrollTools');
 
       let activeIframe = null;
@@ -497,9 +510,9 @@
 
       applyTheme(null, false);
 
-      const viewMap = { topic: topicView, vault: vaultView, settings: settingsView };
-      const frameMap = { topic: topicFrame, vault: vaultFrame, settings: settingsFrame };
-      const allPanels = [homeView, topicView, vaultView, settingsView];
+      const viewMap = { topic: topicView, vault: vaultView, settings: settingsView, 'learning-plan': learningPlanView };
+      const frameMap = { topic: topicFrame, vault: vaultFrame, settings: settingsFrame, 'learning-plan': learningPlanFrame };
+      const allPanels = [homeView, topicView, vaultView, settingsView, learningPlanView];
 
       function renderView(view) {
         navBtns.forEach(n => n.classList.remove('active'));
@@ -535,6 +548,7 @@
         if (clean === '/topic') return 'topic';
         if (clean === '/settings') return 'settings';
         if (clean === '/vault') return 'vault';
+        if (clean === '/learning-plan') return 'learning-plan';
         return 'home';
       }
 

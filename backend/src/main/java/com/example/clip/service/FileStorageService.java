@@ -1169,4 +1169,101 @@ public class FileStorageService {
             e.printStackTrace();
         }
     }
+
+    // ==================== LearningPlan 存储 ====================
+
+    private Path getLearningPlanDateFilePath() {
+        String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        return storagePath.resolve("learning-plan").resolve(date + ".json");
+    }
+
+    private List<LearningPlan> readLearningPlanArrayFromFile(Path path) {
+        try {
+            if (!Files.exists(path)) return new ArrayList<>();
+            String content = Files.readString(path);
+            if (content == null || content.trim().isEmpty()) return new ArrayList<>();
+            return objectMapper.readValue(content, new TypeReference<List<LearningPlan>>() {});
+        } catch (IOException e) {
+            log.error("Failed to read learning plan file", e);
+            return new ArrayList<>();
+        }
+    }
+
+    private void writeLearningPlanArrayToFile(Path path, List<LearningPlan> plans) {
+        try {
+            Path parent = path.getParent();
+            if (!Files.exists(parent)) Files.createDirectories(parent);
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), plans);
+        } catch (IOException e) {
+            log.error("Failed to write learning plan file", e);
+        }
+    }
+
+    public LearningPlan saveLearningPlan(LearningPlan plan) {
+        try {
+            if (plan.getId() == null) plan.setId(idGenerator.getAndIncrement());
+            Path filePath = getLearningPlanDateFilePath();
+            List<LearningPlan> plans = readLearningPlanArrayFromFile(filePath);
+            boolean updated = false;
+            for (int i = 0; i < plans.size(); i++) {
+                if (plans.get(i).getId() != null && plans.get(i).getId().equals(plan.getId())) {
+                    plans.set(i, plan);
+                    updated = true;
+                    break;
+                }
+            }
+            if (!updated) plans.add(plan);
+            writeLearningPlanArrayToFile(filePath, plans);
+            return plan;
+        } catch (Exception e) {
+            log.error("Failed to save learning plan", e);
+            return null;
+        }
+    }
+
+    public List<LearningPlan> getAllLearningPlans() {
+        List<LearningPlan> allPlans = new ArrayList<>();
+        try {
+            Path planPath = storagePath.resolve("learning-plan");
+            if (!Files.exists(planPath)) return allPlans;
+            Files.walk(planPath)
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".json"))
+                    .forEach(path -> allPlans.addAll(readLearningPlanArrayFromFile(path)));
+            allPlans.sort((a, b) -> {
+                if (a.getCreatedAt() == null && b.getCreatedAt() == null) return 0;
+                if (a.getCreatedAt() == null) return 1;
+                if (b.getCreatedAt() == null) return -1;
+                return b.getCreatedAt().compareTo(a.getCreatedAt());
+            });
+        } catch (IOException e) {
+            log.error("Failed to list learning plans", e);
+        }
+        return allPlans;
+    }
+
+    public LearningPlan getLearningPlanById(Long id) {
+        if (id == null) return null;
+        return getAllLearningPlans().stream()
+                .filter(p -> p.getId() != null && p.getId().equals(id))
+                .findFirst().orElse(null);
+    }
+
+    public void deleteLearningPlan(Long id) {
+        if (id == null) return;
+        try {
+            Path planPath = storagePath.resolve("learning-plan");
+            if (!Files.exists(planPath)) return;
+            Files.walk(planPath)
+                    .filter(Files::isRegularFile)
+                    .filter(p -> p.toString().endsWith(".json"))
+                    .forEach(path -> {
+                        List<LearningPlan> plans = readLearningPlanArrayFromFile(path);
+                        boolean found = plans.removeIf(p -> p.getId() != null && p.getId().equals(id));
+                        if (found) writeLearningPlanArrayToFile(path, plans);
+                    });
+        } catch (IOException e) {
+            log.error("Failed to delete learning plan", e);
+        }
+    }
 }

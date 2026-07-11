@@ -61,3 +61,10 @@ clip:
   clip-weekly-report:
     path: ./weeklyReport   # 周报文件存放目录
 
+# Exa 搜索配置（用于学习计划模块资源搜索）
+exa:
+  # 从 https://dashboard.exa.ai/api-keys 获取
+  api-key: your-exa-api-key
+  # 是否启用 Exa 搜索，false 时降级为 AI 生成资源
+  enabled: true
+

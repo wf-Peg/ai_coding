@@ -73,11 +73,13 @@ public class LearningPlan {
         public void setCompleted(boolean completed) { this.completed = completed; }
     }
 
-    /** 推荐视频资源 */
+    /** 推荐视频/文章资源 */
     public static class VideoResource {
         private String title;
         private String url;
         private String reason;
+        private String source;  // exa / ai
+        private String snippet; // 内容摘要
 
         public String getTitle() { return title; }
         public void setTitle(String title) { this.title = title; }
@@ -85,6 +87,10 @@ public class LearningPlan {
         public void setUrl(String url) { this.url = url; }
         public String getReason() { return reason; }
         public void setReason(String reason) { this.reason = reason; }
+        public String getSource() { return source; }
+        public void setSource(String source) { this.source = source; }
+        public String getSnippet() { return snippet; }
+        public void setSnippet(String snippet) { this.snippet = snippet; }
     }
 
     /** 知识作业题目 */
