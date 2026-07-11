@@ -75,9 +75,33 @@ public class RoutingLlmProvider implements LlmProvider {
     @Override
     public String chat(String systemPrompt, String userMessage) {
         LlmProvider provider = getActiveProvider();
-        // 记录实际路由到的提供者，方便排查请求流向
         logger.debug("[LLM] Routing to {}", provider.getProviderName());
-        return provider.chat(systemPrompt, userMessage);
+        try {
+            return provider.chat(systemPrompt, userMessage);
+        } catch (Exception e) {
+            // 运行时失败（额度用尽、网络错误等），尝试降级到备用 provider
+            logger.warn("[LLM] {} 调用失败: {}，尝试降级到备用 provider",
+                    provider.getProviderName(), e.getMessage());
+            LlmProvider fallback = getFallbackProvider(provider);
+            if (fallback != null) {
+                logger.info("[LLM] 降级到 {}", fallback.getProviderName());
+                return fallback.chat(systemPrompt, userMessage);
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * 获取备用 provider（当主 provider 运行时失败时使用）。
+     */
+    private LlmProvider getFallbackProvider(LlmProvider failed) {
+        if (failed == dashScopeProvider && deepSeekProvider.isAvailable()) {
+            return deepSeekProvider;
+        }
+        if (failed == deepSeekProvider && dashScopeProvider.isAvailable()) {
+            return dashScopeProvider;
+        }
+        return null;
     }
 
     /**

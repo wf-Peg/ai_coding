@@ -78,6 +78,12 @@ public class LearningPlanService {
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> phasesRaw = (List<Map<String, Object>>) aiResult.getOrDefault("phases", Collections.emptyList());
+
+        if (phasesRaw.isEmpty()) {
+            // AI 生成失败，不保存空计划，直接抛出异常告知用户
+            throw new RuntimeException("AI 生成学习路线失败，请检查模型配置或 API Key 额度");
+        }
+
         String mermaidDiagram = (String) aiResult.getOrDefault("mermaidDiagram", "");
 
         plan.setMermaidDiagram(mermaidDiagram);

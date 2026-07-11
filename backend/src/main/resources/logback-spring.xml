@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <!-- 日志文件路径：C:\Users\{用户名}\AppData\Local\CutShelter\logs\ -->
-    <property name="LOG_PATH" value="${user.home}/AppData/Local/CutShelter/logs"/>
+    <!-- 日志文件路径：跨平台兼容 -->
+    <property name="LOG_PATH" value="${user.home}/.cut-demo/logs"/>
     <property name="LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"/>
 
     <!-- 控制台输出（开发调试用） -->
