@@ -4,6 +4,7 @@ import com.example.clip.core.AiService;
 import com.example.clip.model.ClipContent;
 import com.example.clip.model.KnowledgeEntry;
 import com.example.clip.model.TodoContent;
+import com.example.clip.model.LearningPlan;
 import com.example.clip.model.Topic;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -111,6 +112,8 @@ public class FileStorageService {
             Files.createDirectories(storagePath.resolve("knowledge"));
             // 创建话题目录
             Files.createDirectories(storagePath.resolve("topic"));
+            // 创建学习计划目录
+            Files.createDirectories(storagePath.resolve("learning-plan"));
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -232,7 +235,8 @@ public class FileStorageService {
                 .filter(path -> !path.toString().contains("todoList")) // 过滤待办事项目录
                 .filter(path -> !path.toString().contains("knowledge")) // 过滤知识条目目录
                 .filter(path -> !path.toString().contains("topic"))     // 过滤话题目录
-                .filter(path -> !path.toString().contains("vault"))     // 过滤话题目录
+                .filter(path -> !path.toString().contains("vault"))     // 过滤密码库目录
+                .filter(path -> !path.toString().contains("learning-plan")) // 过滤学习计划目录
                 .forEach(files::add);
         return files;
     }
