@@ -242,6 +242,45 @@
             display: grid;
             gap: 16px;
         }
+        .batch-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+        }
+        .batch-toolbar .batch-select-all {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+        .batch-toolbar .batch-count {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            flex: 1;
+        }
+        .batch-toolbar .btn-sm { padding: 4px 12px; font-size: 0.82rem; }
+        .plan-card-checkbox {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: var(--primary);
+            display: none;
+        }
+        .plan-card.batch-mode { position: relative; }
+        .plan-card.batch-mode .plan-card-checkbox { display: block; }
+        .plan-card.batch-mode { cursor: default; }
+        .plan-card.selected { border-color: var(--primary); background: var(--primary-light); }
         .plan-card {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -681,6 +720,7 @@
     <div class="header-inner">
         <h1><span>学习</span>计划</h1>
         <div class="header-spacer"></div>
+        <button class="btn btn-secondary btn-sm" id="btnBatchMode" onclick="enterBatchMode()" style="margin-right:8px;">批量管理</button>
         <button class="btn btn-primary" id="btnNewPlan" onclick="showCreateModal()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             新建计划
@@ -691,6 +731,13 @@
 <div class="content" id="content">
     <!-- 列表视图 -->
     <div id="listView">
+        <!-- 批量操作工具栏 -->
+        <div class="batch-toolbar" id="batchToolbar" style="display:none;">
+            <label class="batch-select-all"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this.checked)"> 全选</label>
+            <span class="batch-count" id="batchCount">已选 0 项</span>
+            <button class="btn btn-danger btn-sm" onclick="batchDelete()">批量删除</button>
+            <button class="btn btn-secondary btn-sm" onclick="cancelBatch()">取消</button>
+        </div>
         <div class="plan-list" id="planList"></div>
         <div class="empty-state" id="emptyState" style="display:none;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -843,6 +890,9 @@ async function loadPlans() {
 }
 
 // ====== Render List ======
+let batchMode = false;
+let selectedIds = new Set();
+
 function renderList() {
     currentView = 'list';
     document.getElementById('listView').style.display = 'block';
@@ -851,21 +901,27 @@ function renderList() {
 
     const listEl = document.getElementById('planList');
     const emptyEl = document.getElementById('emptyState');
+    const toolbarEl = document.getElementById('batchToolbar');
 
     if (!plans || plans.length === 0) {
         listEl.innerHTML = '';
         emptyEl.style.display = 'block';
+        toolbarEl.style.display = 'none';
         return;
     }
 
     emptyEl.style.display = 'none';
+    toolbarEl.style.display = batchMode ? 'flex' : 'none';
+
     listEl.innerHTML = plans.map(p => {
         const totalProgress = calcTotalProgress(p);
         const phaseCount = p.phases ? p.phases.length : 0;
         const completedCount = p.phases ? p.phases.filter(ph => ph.completed).length : 0;
         const date = p.createdAt ? new Date(p.createdAt).toLocaleDateString('zh-CN') : '';
+        const isSelected = selectedIds.has(p.id);
         return `
-            <div class="plan-card" onclick="showDetail(${p.id})">
+            <div class="plan-card ${batchMode ? 'batch-mode' : ''} ${isSelected ? 'selected' : ''}" onclick="${batchMode ? `toggleSelect(${p.id})` : `showDetail(${p.id})`}">
+                <input type="checkbox" class="plan-card-checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleSelect(${p.id})">
                 <div class="plan-card-header">
                     <div class="plan-card-title">${escHtml(p.title)}</div>
                 </div>
@@ -893,6 +949,63 @@ function renderList() {
                 </div>
             </div>`;
     }).join('');
+
+    updateBatchCount();
+}
+
+function enterBatchMode() {
+    batchMode = true;
+    selectedIds.clear();
+    document.getElementById('btnBatchMode').style.display = 'none';
+    renderList();
+}
+
+function cancelBatch() {
+    batchMode = false;
+    selectedIds.clear();
+    document.getElementById('btnBatchMode').style.display = '';
+    renderList();
+}
+
+function toggleSelect(id) {
+    if (selectedIds.has(id)) {
+        selectedIds.delete(id);
+    } else {
+        selectedIds.add(id);
+    }
+    renderList();
+}
+
+function toggleSelectAll(checked) {
+    if (checked) {
+        plans.forEach(p => selectedIds.add(p.id));
+    } else {
+        selectedIds.clear();
+    }
+    renderList();
+}
+
+function updateBatchCount() {
+    const el = document.getElementById('batchCount');
+    if (el) el.textContent = `已选 ${selectedIds.size} 项`;
+    const cb = document.getElementById('selectAllCheckbox');
+    if (cb) cb.checked = plans.length > 0 && selectedIds.size === plans.length;
+}
+
+async function batchDelete() {
+    if (selectedIds.size === 0) { alert('请先选择要删除的计划'); return; }
+    if (!confirm(`确定要删除选中的 ${selectedIds.size} 个学习计划吗？此操作不可恢复。`)) return;
+    try {
+        await apiFetch('/batch-delete', {
+            method: 'POST',
+            body: JSON.stringify({ ids: Array.from(selectedIds) })
+        });
+        batchMode = false;
+        selectedIds.clear();
+        await loadPlans();
+    } catch (e) {
+        alert('批量删除失败：' + e.message);
+    }
 }
 
 function calcTotalProgress(plan) {
@@ -925,6 +1038,14 @@ function showDetail(planId) {
             </button>
             <div class="detail-title">${escHtml(plan.title)}</div>
             <div class="detail-actions">
+                <button class="btn btn-secondary btn-sm" onclick="exportPdf()" title="导出为PDF">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    导出PDF
+                </button>
+                <button class="btn btn-secondary btn-sm" onclick="openFolder()" title="打开文件所在位置">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    打开目录
+                </button>
                 <button class="btn btn-danger btn-sm" onclick="deletePlan(${plan.id})">删除</button>
             </div>
         </div>
@@ -1148,6 +1269,138 @@ async function deletePlan(id) {
 function backToList() {
     currentPlanId = null;
     renderList();
+}
+
+// ====== Open Folder ======
+async function openFolder() {
+    try {
+        const res = await apiFetch('/open-folder', { method: 'POST' });
+        if (res.status === 'success') {
+            // 成功打开
+        } else {
+            alert('打开目录失败');
+        }
+    } catch (e) {
+        alert('打开目录失败：' + e.message);
+    }
+}
+
+// ====== Export PDF ======
+function exportPdf() {
+    const plan = plans.find(p => p.id === currentPlanId);
+    if (!plan) return;
+
+    const levelLabel = plan.level === 'zero' ? '零基础' : plan.level === 'beginner' ? '入门' : '中级';
+    const goalLabel = { intro: '了解入门', project: '完成项目', job: '求职面试', portfolio: '构建作品集' }[plan.goal] || plan.goal;
+    const date = plan.createdAt ? new Date(plan.createdAt).toLocaleDateString('zh-CN') : '';
+    const totalProgress = calcTotalProgress(plan);
+
+    let html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>${escHtml(plan.title)} - 学习计划</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'IBM Plex Sans','Noto Sans SC',sans-serif; color:#2f3437; background:#fff; padding:40px; line-height:1.6; }
+h1 { font-size:28px; margin-bottom:8px; color:#2383e2; }
+.meta { display:flex; gap:24px; margin-bottom:24px; font-size:13px; color:#6b6f76; border-bottom:1px solid #e8e8e6; padding-bottom:16px; }
+.meta span { display:flex; align-items:center; gap:4px; }
+h2 { font-size:18px; margin:24px 0 12px; color:#2f3437; border-left:3px solid #2383e2; padding-left:8px; }
+.phase { margin-bottom:20px; border:1px solid #e8e8e6; border-radius:8px; overflow:hidden; }
+.phase-header { background:#f7f7f5; padding:12px 16px; font-weight:600; display:flex; justify-content:space-between; }
+.phase-body { padding:16px; }
+.phase-goal { color:#6b6f76; font-size:13px; margin-bottom:12px; }
+.resource { margin:6px 0; font-size:13px; }
+.resource a { color:#2383e2; text-decoration:none; }
+.resource .src { font-size:11px; padding:1px 6px; border-radius:3px; background:#e9f3ff; color:#2383e2; }
+.quiz { margin:8px 0; font-size:13px; }
+.quiz .q { font-weight:500; margin-bottom:4px; }
+.quiz .opt { margin-left:16px; color:#6b6f76; }
+.task { margin:8px 0; font-size:13px; }
+.task .diff { color:#e9a23b; }
+.mermaid-diagram { background:#f7f7f5; padding:16px; border-radius:8px; margin:16px 0; font-size:12px; white-space:pre-wrap; font-family:monospace; }
+.progress-bar { width:100%; height:6px; background:#e8e8e6; border-radius:3px; margin:8px 0; }
+.progress-fill { height:100%; background:#2383e2; border-radius:3px; }
+.footer { margin-top:40px; text-align:center; font-size:12px; color:#8a8f98; }
+</style>
+</head>
+<body>
+<h1>${escHtml(plan.title)}</h1>
+<div class="meta">
+    <span>水平: ${levelLabel}</span>
+    <span>目标: ${goalLabel}</span>
+    <span>每周: ${plan.hoursPerWeek}h</span>
+    <span>周期: ${plan.totalWeeks}周</span>
+    <span>进度: ${totalProgress}%</span>
+    ${date ? `<span>创建: ${date}</span>` : ''}
+</div>`;
+
+    if (plan.mermaidDiagram) {
+        html += `<div class="mermaid-diagram">${escHtml(plan.mermaidDiagram)}</div>`;
+    }
+
+    html += `<h2>学习阶段 (${plan.phases ? plan.phases.length : 0})</h2>`;
+
+    if (plan.phases) {
+        plan.phases.forEach(phase => {
+            html += `<div class="phase">
+                <div class="phase-header">
+                    <span>阶段 ${phase.phaseNumber}: ${escHtml(phase.title)}</span>
+                    <span>${phase.estimatedWeeks} 周 | ${phase.progress || 0}% ${phase.completed ? '✓' : ''}</span>
+                </div>
+                <div class="phase-body">
+                    <div class="phase-goal">目标: ${escHtml(phase.goal)}</div>`;
+
+            if (phase.videos && phase.videos.length > 0) {
+                html += `<h3 style="font-size:14px;margin:12px 0 6px;">推荐资源</h3>`;
+                phase.videos.forEach(v => {
+                    html += `<div class="resource">
+                        <a href="${escHtml(v.url)}" target="_blank">${escHtml(v.title)}</a>
+                        <span class="src">${v.source === 'exa' ? 'Exa' : 'AI'}</span>
+                        ${v.reason ? `<span style="color:#8a8f98;"> - ${escHtml(v.reason)}</span>` : ''}
+                    </div>`;
+                    if (v.snippet) html += `<div style="font-size:12px;color:#6b6f76;margin-left:4px;">${escHtml(v.snippet)}</div>`;
+                });
+            }
+
+            if (phase.knowledgeQuiz && phase.knowledgeQuiz.length > 0) {
+                html += `<h3 style="font-size:14px;margin:12px 0 6px;">知识作业</h3>`;
+                phase.knowledgeQuiz.forEach((q, i) => {
+                    html += `<div class="quiz"><div class="q">${i+1}. [${q.type === 'choice' ? '选择' : '问答'}] ${escHtml(q.question)}</div>`;
+                    if (q.options && q.options.length > 0) {
+                        q.options.forEach((opt, j) => {
+                            html += `<div class="opt">${String.fromCharCode(65+j)}. ${escHtml(opt)}</div>`;
+                        });
+                    }
+                    html += `</div>`;
+                });
+            }
+
+            if (phase.practiceTasks && phase.practiceTasks.length > 0) {
+                html += `<h3 style="font-size:14px;margin:12px 0 6px;">实战任务</h3>`;
+                phase.practiceTasks.forEach((t, i) => {
+                    html += `<div class="task">
+                        ${i+1}. ${escHtml(t.description)}
+                        <span class="diff">${'★'.repeat(t.difficulty || 1)}</span>
+                        ${t.acceptanceCriteria ? `<div style="color:#6b6f76;margin-left:4px;">验收: ${escHtml(t.acceptanceCriteria)}</div>` : ''}
+                    </div>`;
+                });
+            }
+
+            html += `</div></div>`;
+        });
+    }
+
+    html += `<div class="footer">由 CutShelter 学习计划模块生成 | ${new Date().toLocaleString('zh-CN')}</div>`;
+    html += `</body></html>`;
+
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
+    setTimeout(() => {
+        win.print();
+    }, 500);
 }
 
 // ====== Loading ======

@@ -1,12 +1,16 @@
 package com.example.clip.controller;
 
 import com.example.clip.model.LearningPlan;
+import com.example.clip.service.FileStorageService;
 import com.example.clip.service.LearningPlanService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 
@@ -25,9 +29,12 @@ public class LearningPlanController {
     private static final Logger log = LoggerFactory.getLogger(LearningPlanController.class);
 
     private final LearningPlanService learningPlanService;
+    private final FileStorageService fileStorageService;
 
-    public LearningPlanController(LearningPlanService learningPlanService) {
+    public LearningPlanController(LearningPlanService learningPlanService,
+                                  FileStorageService fileStorageService) {
         this.learningPlanService = learningPlanService;
+        this.fileStorageService = fileStorageService;
     }
 
     /**
@@ -147,6 +154,71 @@ public class LearningPlanController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(updated);
+    }
+
+    /**
+     * 批量删除学习计划。
+     *
+     * @param body 请求体：{ ids: [1, 2, 3] }
+     * @return 删除结果
+     */
+    @PostMapping("/batch-delete")
+    public ResponseEntity<?> batchDelete(@RequestBody Map<String, Object> body) {
+        try {
+            @SuppressWarnings("unchecked")
+            List<Number> ids = (List<Number>) body.getOrDefault("ids", List.of());
+            if (ids.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "请选择要删除的计划"));
+            }
+            int count = 0;
+            for (Number id : ids) {
+                learningPlanService.deletePlan(id.longValue());
+                count++;
+            }
+            return ResponseEntity.ok(Map.of("deleted", count));
+        } catch (Exception e) {
+            log.error("[LearningPlan] batch delete failed", e);
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * 打开学习计划存储目录。
+     * <p>
+     * 通过系统级命令打开文件管理器，定位到学习计划数据所在目录。
+     * </p>
+     *
+     * @return 操作结果
+     */
+    @PostMapping("/open-folder")
+    public ResponseEntity<?> openStorageFolder() {
+        try {
+            String storagePath = fileStorageService.getStorageParentPath().toString();
+            Path folderPath = Paths.get(storagePath, "learning-plan");
+
+            if (!Files.exists(folderPath)) {
+                Files.createDirectories(folderPath);
+            }
+
+            String os = System.getProperty("os.name").toLowerCase();
+            ProcessBuilder pb;
+            if (os.contains("win")) {
+                pb = new ProcessBuilder("explorer.exe", folderPath.toAbsolutePath().toString());
+            } else if (os.contains("mac")) {
+                pb = new ProcessBuilder("open", folderPath.toAbsolutePath().toString());
+            } else {
+                pb = new ProcessBuilder("xdg-open", folderPath.toAbsolutePath().toString());
+            }
+            pb.start();
+
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "path", folderPath.toAbsolutePath().toString()
+            ));
+        } catch (Exception e) {
+            log.error("[LearningPlan] open folder failed", e);
+            return ResponseEntity.internalServerError().body(Map.of("error", "打开目录失败: " + e.getMessage()));
+        }
     }
 
     private int toInt(Object value, int defaultValue) {

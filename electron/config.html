@@ -64,6 +64,21 @@
     }
     .btn-browse:hover { background: #e4e7ec; }
 
+    /* ===== 子目录结构展示 ===== */
+    .path-desc { font-size: 12px; color: #999; margin-top: 4px; }
+    .sub-paths {
+      padding: 10px 14px; background: #fafbfc;
+      border: 1px solid #e8ecf1; border-radius: 8px;
+    }
+    .sub-path-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 4px 0; font-size: 13px;
+    }
+    .sub-path-item + .sub-path-item { border-top: 1px solid #e8ecf1; }
+    .sub-path-icon { font-size: 14px; }
+    .sub-path-label { color: #888; min-width: 70px; }
+    .sub-path-value { color: #555; font-family: 'SF Mono', 'Consolas', monospace; font-size: 12px; word-break: break-all; }
+
     /* ===== API Key 输入框中的密码可见性切换按钮 ===== */
     .api-key-wrapper { position: relative; }
     .api-key-wrapper input { padding-right: 42px; }
@@ -277,24 +292,31 @@
     <div class="section">
       <div class="section-title"><span class="icon">📁</span> 存储目录</div>
       <div class="form-group">
-        <label>剪藏文件存储目录 <span class="hint">（必填）</span></label>
+        <label>存储根目录 <span class="hint">（必填）</span></label>
         <div class="path-group">
-          <input type="text" id="storagePath" placeholder="选择剪藏文件存放目录" />
+          <input type="text" id="storagePath" placeholder="选择数据存储根目录" oninput="updateDerivedPaths(this.value)" />
           <button class="btn-browse" id="browseStorage" type="button">浏览...</button>
         </div>
+        <div class="path-desc">所有剪藏、整理、周报数据均存储在此目录下</div>
       </div>
       <div class="form-group">
-        <label>总结文件存储目录 <span class="hint">（必填）</span></label>
-        <div class="path-group">
-          <input type="text" id="organizedPath" placeholder="选择总结文件存放目录" />
-          <button class="btn-browse" id="browseOrganized" type="button">浏览...</button>
-        </div>
-      </div>
-      <div class="form-group">
-        <label>周报存储目录 <span class="hint">（必填）</span></label>
-        <div class="path-group">
-          <input type="text" id="weeklyReportPath" placeholder="选择周报文件存放目录" />
-          <button class="btn-browse" id="browseWeeklyReport" type="button">浏览...</button>
+        <label>子目录结构（自动派生）</label>
+        <div class="sub-paths">
+          <div class="sub-path-item">
+            <span class="sub-path-icon">📋</span>
+            <span class="sub-path-label">剪藏数据</span>
+            <span class="sub-path-value" id="derivedClipPath">—</span>
+          </div>
+          <div class="sub-path-item">
+            <span class="sub-path-icon">📊</span>
+            <span class="sub-path-label">整理数据</span>
+            <span class="sub-path-value" id="derivedOrganizedPath">—</span>
+          </div>
+          <div class="sub-path-item">
+            <span class="sub-path-icon">📝</span>
+            <span class="sub-path-label">周报数据</span>
+            <span class="sub-path-value" id="derivedWeeklyPath">—</span>
+          </div>
         </div>
       </div>
     </div>
@@ -469,8 +491,7 @@
         document.getElementById('backendPort').value = config.backendPort || 8080;
         document.getElementById('frontendPort').value = config.frontendPort || 3000;
         document.getElementById('storagePath').value = config.storagePath || '';
-        document.getElementById('organizedPath').value = config.organizedPath || '';
-        document.getElementById('weeklyReportPath').value = config.weeklyReportPath || '';
+        updateDerivedPaths(config.storagePath);
         // 邮件配置
         document.getElementById('mailEnabled').checked = config.mailEnabled || false;
         document.getElementById('mailHost').value = config.mailHost || '';
@@ -561,32 +582,15 @@
         document.getElementById('mailFields').style.display = this.checked ? 'block' : 'none';
       });
 
-      // ===== 浏览按钮：剪藏文件存储目录 =====
+      // ===== 浏览按钮：存储根目录 =====
       // 调用主进程的目录选择对话框，将用户选择的路径填入输入框
       document.getElementById('browseStorage').addEventListener('click', async function() {
         try {
           var dir = await api.selectDirectory();
-          if (dir) document.getElementById('storagePath').value = dir;
-        } catch (e) {
-          showStatus('选择目录失败: ' + e.message, 'error');
-        }
-      });
-
-      // ===== 浏览按钮：总结文件存储目录 =====
-      document.getElementById('browseOrganized').addEventListener('click', async function() {
-        try {
-          var dir = await api.selectDirectory();
-          if (dir) document.getElementById('organizedPath').value = dir;
-        } catch (e) {
-          showStatus('选择目录失败: ' + e.message, 'error');
-        }
-      });
-
-      // ===== 浏览按钮：周报存储目录 =====
-      document.getElementById('browseWeeklyReport').addEventListener('click', async function() {
-        try {
-          var dir = await api.selectDirectory();
-          if (dir) document.getElementById('weeklyReportPath').value = dir;
+          if (dir) {
+            document.getElementById('storagePath').value = dir;
+            updateDerivedPaths(dir);
+          }
         } catch (e) {
           showStatus('选择目录失败: ' + e.message, 'error');
         }
@@ -597,6 +601,20 @@
       document.getElementById('btnQuit').addEventListener('click', async function() {
         await api.quitApp();
       });
+
+      // ===== 自动派生子目录路径 =====
+      function updateDerivedPaths(rootPath) {
+        if (!rootPath) {
+          document.getElementById('derivedClipPath').textContent = '—';
+          document.getElementById('derivedOrganizedPath').textContent = '—';
+          document.getElementById('derivedWeeklyPath').textContent = '—';
+          return;
+        }
+        var normalized = rootPath.replace(/\\/g, '/');
+        document.getElementById('derivedClipPath').textContent = normalized + '/clip-storage';
+        document.getElementById('derivedOrganizedPath').textContent = normalized + '/clip-organized';
+        document.getElementById('derivedWeeklyPath').textContent = normalized + '/weekly-report';
+      }
 
       // ===== 保存并启动按钮 =====
       // 核心逻辑：收集表单数据 → 验证必填项 → 调用主进程保存/启动
@@ -610,8 +628,6 @@
         var backendPort = parseInt(document.getElementById('backendPort').value) || 8080;
         var frontendPort = parseInt(document.getElementById('frontendPort').value) || 3000;
         var storagePath = document.getElementById('storagePath').value.trim();
-        var organizedPath = document.getElementById('organizedPath').value.trim();
-        var weeklyReportPath = document.getElementById('weeklyReportPath').value.trim();
 
         // 表单验证：根据当前选择的 AI 提供商，检查对应的 API Key 是否填写
         if (activeProvider === 'deepseek') {
@@ -619,9 +635,7 @@
         } else {
           if (!apiKey) { showStatus('请填写 DashScope API Key', 'error'); return; }
         }
-        if (!storagePath) { showStatus('请选择剪藏文件存储目录', 'error'); return; }
-        if (!organizedPath) { showStatus('请选择总结文件存储目录', 'error'); return; }
-        if (!weeklyReportPath) { showStatus('请选择周报存储目录', 'error'); return; }
+        if (!storagePath) { showStatus('请选择数据存储根目录', 'error'); return; }
         if (backendPort === frontendPort) { showStatus('前端和后端端口不能相同', 'error'); return; }
 
         // 构建完整的配置对象，包含所有表单字段
@@ -634,8 +648,6 @@
           backendPort: backendPort,
           frontendPort: frontendPort,
           storagePath: storagePath,
-          organizedPath: organizedPath,
-          weeklyReportPath: weeklyReportPath,
           configured: true,
           mailEnabled: document.getElementById('mailEnabled').checked,
           mailHost: document.getElementById('mailHost').value.trim(),

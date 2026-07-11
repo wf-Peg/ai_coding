@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CutShelter - Electron 主进程入口
  * 
  * 职责：
@@ -77,9 +77,12 @@ if (process.platform === 'win32') {
   }
 }
 
-// 将 userData 目录重定向到 AppData\Local\CutShelter
+// 将 userData 目录重定向到平台标准路径
 // 避免配置文件随 Windows 账户漫游，且更新应用后配置不丢失
-app.setPath('userData', path.join(os.homedir(), 'AppData', 'Local', 'CutShelter'));
+const isWin = process.platform === 'win32';
+app.setPath('userData', isWin
+  ? path.join(os.homedir(), 'AppData', 'Local', 'CutShelter')
+  : path.join(os.homedir(), '.cut-shelter'));
 log.info('userData:', app.getPath('userData'));
 
 // ==================== 配置管理 ====================
@@ -360,6 +363,35 @@ function getFrontendDir() {
     }
   }
   return null;
+}
+
+/**
+ * 同步 model-config.json 到 storagePath/clip-storage/
+ * 确保初始化界面（config.html）保存的配置与设置页面（settings.html）数据一致
+ * 
+ * @param {Object} config - 用户配置对象
+ */
+function syncModelConfigJson(config) {
+  try {
+    const clipStoragePath = config.storagePath.endsWith('clip-storage') || config.storagePath.endsWith('clip-storage\\')
+      ? config.storagePath
+      : path.join(config.storagePath, 'clip-storage');
+    if (!fs.existsSync(clipStoragePath)) {
+      fs.mkdirSync(clipStoragePath, { recursive: true });
+    }
+    const modelConfigPath = path.join(clipStoragePath, 'model-config.json');
+    const modelConfig = {
+      activeProvider: config.activeProvider || 'dashscope',
+      deepseekApiKey: config.deepseekApiKey || '',
+      deepseekModel: config.deepseekModel || 'deepseek-chat',
+      dashscopeApiKey: config.apiKey || '',
+      dashscopeModel: config.dashscopeModel || 'qwen-plus'
+    };
+    fs.writeFileSync(modelConfigPath, JSON.stringify(modelConfig, null, 2), 'utf-8');
+    log.info('[Sync] model-config.json written to:', modelConfigPath);
+  } catch (e) {
+    log.error('[Sync] Failed to write model-config.json:', e.message);
+  }
 }
 
 /**
@@ -1387,6 +1419,9 @@ function setupIPC() {
     // 保存新配置并标记为已配置
     saveConfig({ ...config, configured: true });
 
+    // 同步 model-config.json 到 storagePath
+    syncModelConfigJson(config);
+
     // 停止旧服务
     stopBackend();
     stopFrontendServer();
@@ -2019,17 +2054,37 @@ app.whenReady().then(async () => {
   }
 
   // 迁移旧配置：如果旧路径存在配置但新路径不存在，自动复制
-  const oldConfigDir = path.join(os.homedir(), 'AppData', 'Roaming', 'clip-demo', 'config');
   const newConfigDir = path.join(app.getPath('userData'), 'config');
-  if (fs.existsSync(oldConfigDir) && !fs.existsSync(newConfigDir)) {
+
+  // 旧路径 1：clip-demo → CutShelter
+  const oldConfigDir1 = isWin
+    ? path.join(os.homedir(), 'AppData', 'Roaming', 'clip-demo', 'config')
+    : path.join(os.homedir(), '.clip-demo', 'config');
+  if (fs.existsSync(oldConfigDir1) && !fs.existsSync(newConfigDir)) {
     try {
       fs.mkdirSync(newConfigDir, { recursive: true });
-      for (const f of fs.readdirSync(oldConfigDir)) {
-        fs.copyFileSync(path.join(oldConfigDir, f), path.join(newConfigDir, f));
+      for (const f of fs.readdirSync(oldConfigDir1)) {
+        fs.copyFileSync(path.join(oldConfigDir1, f), path.join(newConfigDir, f));
       }
-      log.info('[Config] Migrated from old location:', oldConfigDir);
+      log.info('[Config] Migrated from old location:', oldConfigDir1);
     } catch (e) {
       log.error('[Config] Migration failed:', e.message);
+    }
+  }
+
+  // 旧路径 2：macOS 上之前硬编码的 Windows 风格路径 → 新路径 ~/.cut-shelter/
+  if (!isWin) {
+    const oldMacConfigDir = path.join(os.homedir(), 'AppData', 'Local', 'CutShelter', 'config');
+    if (fs.existsSync(oldMacConfigDir) && !fs.existsSync(newConfigDir)) {
+      try {
+        fs.mkdirSync(newConfigDir, { recursive: true });
+        for (const f of fs.readdirSync(oldMacConfigDir)) {
+          fs.copyFileSync(path.join(oldMacConfigDir, f), path.join(newConfigDir, f));
+        }
+        log.info('[Config] Migrated from old macOS path:', oldMacConfigDir);
+      } catch (e) {
+        log.error('[Config] macOS migration failed:', e.message);
+      }
     }
   }
 
@@ -2065,6 +2120,9 @@ app.whenReady().then(async () => {
     ipcMain.on('config-done', async (event, newConfig) => {
       log.info('Config done received:', JSON.stringify(newConfig, null, 2));
       saveConfig({ ...newConfig, configured: true });
+
+      // 同步 model-config.json 到 storagePath，保持与设置页面数据一致
+      syncModelConfigJson(newConfig);
 
       // 向配置窗口发送启动进度提示
       if (mainWindow && !mainWindow.isDestroyed()) {

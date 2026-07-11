@@ -85,9 +85,17 @@ public class RoutingLlmProvider implements LlmProvider {
             LlmProvider fallback = getFallbackProvider(provider);
             if (fallback != null) {
                 logger.info("[LLM] 降级到 {}", fallback.getProviderName());
-                return fallback.chat(systemPrompt, userMessage);
+                try {
+                    return fallback.chat(systemPrompt, userMessage);
+                } catch (Exception fe) {
+                    throw new RuntimeException(
+                        provider.getProviderName() + " 和 " + fallback.getProviderName()
+                        + " 均调用失败。主: " + e.getMessage()
+                        + "；备用: " + fe.getMessage(), fe);
+                }
             }
-            throw e;
+            throw new RuntimeException(provider.getProviderName() + " 调用失败且无可用备用 provider: "
+                    + e.getMessage(), e);
         }
     }
 
