@@ -1286,7 +1286,7 @@ async function openFolder() {
 }
 
 // ====== Export PDF ======
-function exportPdf() {
+async function exportPdf() {
     const plan = plans.find(p => p.id === currentPlanId);
     if (!plan) return;
 
@@ -1302,7 +1302,7 @@ function exportPdf() {
 <title>${escHtml(plan.title)} - 学习计划</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
-body { font-family: 'IBM Plex Sans','Noto Sans SC',sans-serif; color:#2f3437; background:#fff; padding:40px; line-height:1.6; }
+body { font-family: 'CJKFont','SimSun','Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif; color:#2f3437; background:#fff; padding:40px; line-height:1.6; }
 h1 { font-size:28px; margin-bottom:8px; color:#2383e2; }
 .meta { display:flex; gap:24px; margin-bottom:24px; font-size:13px; color:#6b6f76; border-bottom:1px solid #e8e8e6; padding-bottom:16px; }
 .meta span { display:flex; align-items:center; gap:4px; }
@@ -1401,26 +1401,30 @@ h2 { font-size:18px; margin:24px 0 12px; color:#2f3437; border-left:3px solid #2
     html += `<div class="footer">由 CutShelter 学习计划模块生成 | ${new Date().toLocaleString('zh-CN')}</div>`;
     html += `</body></html>`;
 
-    // 使用 Blob URL 保证 UTF-8 编码（解决 Electron 中 document.write 乱码问题）
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-
-    // 用隐藏 iframe 替代 window.open（Electron 中更可靠）
-    const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:none;opacity:0;';
-    document.body.appendChild(iframe);
-
-    iframe.onload = function() {
-        setTimeout(() => {
-            iframe.contentWindow.focus();
-            iframe.contentWindow.print();
-            setTimeout(() => {
-                document.body.removeChild(iframe);
-                URL.revokeObjectURL(url);
-            }, 1000);
-        }, 500);
-    };
-    iframe.src = url;
+    // 调用后端 Jsoup + OpenHTMLtoPDF 渲染，保证 UTF-8 编码和中文正确显示
+    try {
+        const res = await fetch(API_BASE + `/${currentPlanId}/export-pdf`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ html: html })
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || '导出失败');
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${plan.title.replace(/[\\\\/:*?\"<>|]/g, '_')}_学习计划.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        console.error('PDF export failed:', e);
+        alert('PDF 导出失败: ' + e.message);
+    }
 }
 
 // ====== Loading ======

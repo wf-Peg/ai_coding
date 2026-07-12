@@ -3,8 +3,11 @@ package com.example.clip.controller;
 import com.example.clip.model.LearningPlan;
 import com.example.clip.service.FileStorageService;
 import com.example.clip.service.LearningPlanService;
+import com.example.clip.service.PdfGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,11 +33,14 @@ public class LearningPlanController {
 
     private final LearningPlanService learningPlanService;
     private final FileStorageService fileStorageService;
+    private final PdfGenerator pdfGenerator;
 
     public LearningPlanController(LearningPlanService learningPlanService,
-                                  FileStorageService fileStorageService) {
+                                  FileStorageService fileStorageService,
+                                  PdfGenerator pdfGenerator) {
         this.learningPlanService = learningPlanService;
         this.fileStorageService = fileStorageService;
+        this.pdfGenerator = pdfGenerator;
     }
 
     /**
@@ -218,6 +224,48 @@ public class LearningPlanController {
         } catch (Exception e) {
             log.error("[LearningPlan] open folder failed", e);
             return ResponseEntity.internalServerError().body(Map.of("error", "打开目录失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 导出学习计划为 PDF。
+     * <p>
+     * 前端发送构建好的 HTML 内容，后端通过 Jsoup 清洗 +
+     * OpenHTMLtoPDF 渲染为 PDF 二进制流返回。
+     * 自动探测系统中文字体，确保中文正确显示。
+     * </p>
+     *
+     * @param id   计划 ID（用于生成文件名）
+     * @param body 请求体：{ html: "完整 HTML 字符串" }
+     * @return PDF 文件二进制流
+     */
+    @PostMapping("/{id}/export-pdf")
+    public ResponseEntity<?> exportPdf(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        try {
+            LearningPlan plan = learningPlanService.getPlanById(id);
+            if (plan == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            String html = (String) body.get("html");
+            if (html == null || html.isBlank()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "HTML 内容不能为空"));
+            }
+
+            byte[] pdfBytes = pdfGenerator.generate(html);
+
+            // 文件名使用计划标题，去除不安全字符
+            String safeTitle = plan.getTitle().replaceAll("[\\\\/:*?\"<>|]", "_").trim();
+            String filename = safeTitle + "_学习计划.pdf";
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename*=UTF-8''" + java.net.URLEncoder.encode(filename, "UTF-8"))
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(pdfBytes);
+        } catch (Exception e) {
+            log.error("[LearningPlan] PDF export failed for plan {}", id, e);
+            return ResponseEntity.internalServerError().body(Map.of("error", "PDF 导出失败: " + e.getMessage()));
         }
     }
 

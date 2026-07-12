@@ -80,13 +80,29 @@
             <version>1.17.2</version>
         </dependency>
         
-        <!-- Apache PDFBox依赖，用于PDF解析 -->
+        <!-- Apache PDFBox依赖，用于PDF解析（由 openhtmltopdf-pdfbox 统一管理版本） -->
         <dependency>
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox</artifactId>
-            <version>3.0.5</version>
+            <version>2.0.27</version>
             <exclusions>
-                <!-- 排除commons-logging依赖，避免日志冲突 -->
+                <exclusion>
+                    <artifactId>commons-logging</artifactId>
+                    <groupId>commons-logging</groupId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- OpenHTMLtoPDF 依赖，用于 HTML 转 PDF 渲染（学习计划导出） -->
+        <dependency>
+            <groupId>com.openhtmltopdf</groupId>
+            <artifactId>openhtmltopdf-pdfbox</artifactId>
+            <version>1.0.10</version>
+            <exclusions>
+                <exclusion>
+                    <artifactId>pdfbox</artifactId>
+                    <groupId>org.apache.pdfbox</groupId>
+                </exclusion>
                 <exclusion>
                     <artifactId>commons-logging</artifactId>
                     <groupId>commons-logging</groupId>

@@ -1,6 +1,5 @@
 package com.example.clip.service;
 
-import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
@@ -93,7 +92,7 @@ public class DocumentParseService {
      */
     private String parsePdf(byte[] fileBytes) throws IOException {
         // try-with-resources 确保 PDDocument 被正确关闭
-        try (PDDocument document = Loader.loadPDF(fileBytes)) {
+        try (PDDocument document = PDDocument.load(new ByteArrayInputStream(fileBytes))) {
             PDFTextStripper stripper = new PDFTextStripper();
             // 按位置排序，保证文本提取顺序与视觉阅读顺序一致
             stripper.setSortByPosition(true);
