@@ -1295,118 +1295,71 @@ async function exportPdf() {
     const date = plan.createdAt ? new Date(plan.createdAt).toLocaleDateString('zh-CN') : '';
     const totalProgress = calcTotalProgress(plan);
 
-    let html = `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<title>${escHtml(plan.title)} - 学习计划</title>
-<style>
-* { margin:0; padding:0; box-sizing:border-box; }
-body { font-family: 'CJKFont','SimSun','Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif; color:#2f3437; background:#fff; padding:40px; line-height:1.6; }
-h1 { font-size:28px; margin-bottom:8px; color:#2383e2; }
-.meta { display:flex; gap:24px; margin-bottom:24px; font-size:13px; color:#6b6f76; border-bottom:1px solid #e8e8e6; padding-bottom:16px; }
-.meta span { display:flex; align-items:center; gap:4px; }
-h2 { font-size:18px; margin:24px 0 12px; color:#2f3437; border-left:3px solid #2383e2; padding-left:8px; }
-.phase { margin-bottom:20px; border:1px solid #e8e8e6; border-radius:8px; overflow:hidden; }
-.phase-header { background:#f7f7f5; padding:12px 16px; font-weight:600; display:flex; justify-content:space-between; }
-.phase-body { padding:16px; }
-.phase-goal { color:#6b6f76; font-size:13px; margin-bottom:12px; }
-.resource { margin:6px 0; font-size:13px; }
-.resource a { color:#2383e2; text-decoration:none; }
-.resource .src { font-size:11px; padding:1px 6px; border-radius:3px; background:#e9f3ff; color:#2383e2; }
-.quiz { margin:8px 0; font-size:13px; }
-.quiz .q { font-weight:500; margin-bottom:4px; }
-.quiz .opt { margin-left:16px; color:#6b6f76; }
-.task { margin:8px 0; font-size:13px; }
-.task .diff { color:#e9a23b; }
-.mermaid-diagram { background:#f7f7f5; padding:16px; border-radius:8px; margin:16px 0; font-size:12px; white-space:pre-wrap; font-family:monospace; }
-.progress-bar { width:100%; height:6px; background:#e8e8e6; border-radius:3px; margin:8px 0; }
-.progress-fill { height:100%; background:#2383e2; border-radius:3px; }
-.footer { margin-top:40px; text-align:center; font-size:12px; color:#8a8f98; }
-@page { size: A4; margin: 15mm; }
-@media print {
-    body { padding: 0; }
-    .phase { page-break-inside: avoid; }
-    h2 { page-break-after: avoid; }
-}
-</style>
-</head>
-<body>
-<h1>${escHtml(plan.title)}</h1>
-<div class="meta">
-    <span>水平: ${levelLabel}</span>
-    <span>目标: ${goalLabel}</span>
-    <span>每周: ${plan.hoursPerWeek}h</span>
-    <span>周期: ${plan.totalWeeks}周</span>
-    <span>进度: ${totalProgress}%</span>
-    ${date ? `<span>创建: ${date}</span>` : ''}
-</div>`;
+    let md = `# ${plan.title}\n\n`;
+    md += `> **水平**: ${levelLabel} | **目标**: ${goalLabel} | **每周**: ${plan.hoursPerWeek}h | **周期**: ${plan.totalWeeks}周 | **进度**: ${totalProgress}%`;
+    if (date) md += ` | **创建**: ${date}`;
+    md += `\n\n`;
 
     if (plan.mermaidDiagram) {
-        html += `<div class="mermaid-diagram">${escHtml(plan.mermaidDiagram)}</div>`;
+        md += `---\n\n`;
+        md += `## 学习路径图\n\n`;
+        md += '```mermaid\n' + plan.mermaidDiagram + '\n```\n\n';
     }
 
-    html += `<h2>学习阶段 (${plan.phases ? plan.phases.length : 0})</h2>`;
+    md += `---\n\n`;
+    md += `## 学习阶段 (${plan.phases ? plan.phases.length : 0})\n\n`;
 
     if (plan.phases) {
         plan.phases.forEach(phase => {
-            html += `<div class="phase">
-                <div class="phase-header">
-                    <span>阶段 ${phase.phaseNumber}: ${escHtml(phase.title)}</span>
-                    <span>${phase.estimatedWeeks} 周 | ${phase.progress || 0}% ${phase.completed ? '✓' : ''}</span>
-                </div>
-                <div class="phase-body">
-                    <div class="phase-goal">目标: ${escHtml(phase.goal)}</div>`;
+            md += `### 阶段 ${phase.phaseNumber}: ${phase.title}\n\n`;
+            md += `> **目标**: ${phase.goal} | **周期**: ${phase.estimatedWeeks} 周 | **进度**: ${phase.progress || 0}% ${phase.completed ? '✓ 已完成' : ''}\n\n`;
 
             if (phase.videos && phase.videos.length > 0) {
-                html += `<h3 style="font-size:14px;margin:12px 0 6px;">推荐资源</h3>`;
+                md += `#### 推荐资源\n\n`;
                 phase.videos.forEach(v => {
-                    html += `<div class="resource">
-                        <a href="${escHtml(v.url)}" target="_blank">${escHtml(v.title)}</a>
-                        <span class="src">${v.source === 'exa' ? 'Exa' : 'AI'}</span>
-                        ${v.reason ? `<span style="color:#8a8f98;"> - ${escHtml(v.reason)}</span>` : ''}
-                    </div>`;
-                    if (v.snippet) html += `<div style="font-size:12px;color:#6b6f76;margin-left:4px;">${escHtml(v.snippet)}</div>`;
+                    const src = v.source === 'exa' ? 'Exa' : 'AI';
+                    md += `- [${v.title}](${v.url}) *[${src}]*`;
+                    if (v.reason) md += ` — ${v.reason}`;
+                    md += `\n`;
+                    if (v.snippet) md += `  > ${v.snippet}\n`;
                 });
+                md += `\n`;
             }
 
             if (phase.knowledgeQuiz && phase.knowledgeQuiz.length > 0) {
-                html += `<h3 style="font-size:14px;margin:12px 0 6px;">知识作业</h3>`;
+                md += `#### 知识作业\n\n`;
                 phase.knowledgeQuiz.forEach((q, i) => {
-                    html += `<div class="quiz"><div class="q">${i+1}. [${q.type === 'choice' ? '选择' : '问答'}] ${escHtml(q.question)}</div>`;
+                    const type = q.type === 'choice' ? '选择' : '问答';
+                    md += `${i + 1}. **[${type}]** ${q.question}\n`;
                     if (q.options && q.options.length > 0) {
                         q.options.forEach((opt, j) => {
-                            html += `<div class="opt">${String.fromCharCode(65+j)}. ${escHtml(opt)}</div>`;
+                            md += `   - ${String.fromCharCode(65 + j)}. ${opt}\n`;
                         });
                     }
-                    html += `</div>`;
+                    md += `\n`;
                 });
             }
 
             if (phase.practiceTasks && phase.practiceTasks.length > 0) {
-                html += `<h3 style="font-size:14px;margin:12px 0 6px;">实战任务</h3>`;
+                md += `#### 实战任务\n\n`;
                 phase.practiceTasks.forEach((t, i) => {
-                    html += `<div class="task">
-                        ${i+1}. ${escHtml(t.description)}
-                        <span class="diff">${'★'.repeat(t.difficulty || 1)}</span>
-                        ${t.acceptanceCriteria ? `<div style="color:#6b6f76;margin-left:4px;">验收: ${escHtml(t.acceptanceCriteria)}</div>` : ''}
-                    </div>`;
+                    md += `${i + 1}. ${t.description} ${'★'.repeat(t.difficulty || 1)}\n`;
+                    if (t.acceptanceCriteria) md += `   > 验收: ${t.acceptanceCriteria}\n`;
                 });
+                md += `\n`;
             }
 
-            html += `</div></div>`;
+            md += `---\n\n`;
         });
     }
 
-    html += `<div class="footer">由 CutShelter 学习计划模块生成 | ${new Date().toLocaleString('zh-CN')}</div>`;
-    html += `</body></html>`;
+    md += `*由 CutShelter 学习计划模块生成 | ${new Date().toLocaleString('zh-CN')}*\n`;
 
-    // 调用后端 Jsoup + OpenHTMLtoPDF 渲染，保证 UTF-8 编码和中文正确显示
     try {
         const res = await fetch(API_BASE + `/${currentPlanId}/export-pdf`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ html: html })
+            body: JSON.stringify({ markdown: md })
         });
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));

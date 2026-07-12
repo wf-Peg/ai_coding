@@ -79,6 +79,13 @@
             <artifactId>jsoup</artifactId>
             <version>1.17.2</version>
         </dependency>
+
+        <!-- Flexmark 依赖，用于 Markdown 转 HTML -->
+        <dependency>
+            <groupId>com.vladsch.flexmark</groupId>
+            <artifactId>flexmark-all</artifactId>
+            <version>0.64.8</version>
+        </dependency>
         
         <!-- Apache PDFBox依赖，用于PDF解析（由 openhtmltopdf-pdfbox 统一管理版本） -->
         <dependency>

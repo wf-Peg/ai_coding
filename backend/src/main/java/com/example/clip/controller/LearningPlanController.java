@@ -230,13 +230,13 @@ public class LearningPlanController {
     /**
      * 导出学习计划为 PDF。
      * <p>
-     * 前端发送构建好的 HTML 内容，后端通过 Jsoup 清洗 +
+     * 前端发送 Markdown 内容，后端通过 flexmark 转 HTML +
      * OpenHTMLtoPDF 渲染为 PDF 二进制流返回。
      * 自动探测系统中文字体，确保中文正确显示。
      * </p>
      *
      * @param id   计划 ID（用于生成文件名）
-     * @param body 请求体：{ html: "完整 HTML 字符串" }
+     * @param body 请求体：{ markdown: "Markdown 字符串" }
      * @return PDF 文件二进制流
      */
     @PostMapping("/{id}/export-pdf")
@@ -247,12 +247,12 @@ public class LearningPlanController {
                 return ResponseEntity.notFound().build();
             }
 
-            String html = (String) body.get("html");
-            if (html == null || html.isBlank()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "HTML 内容不能为空"));
+            String markdown = (String) body.get("markdown");
+            if (markdown == null || markdown.isBlank()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Markdown 内容不能为空"));
             }
 
-            byte[] pdfBytes = pdfGenerator.generate(html);
+            byte[] pdfBytes = pdfGenerator.generateFromMarkdown(markdown);
 
             // 文件名使用计划标题，去除不安全字符
             String safeTitle = plan.getTitle().replaceAll("[\\\\/:*?\"<>|]", "_").trim();
