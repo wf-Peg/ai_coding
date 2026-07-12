@@ -38,6 +38,10 @@ public class AppConfig {
     private String gitPassword = "";
     private String gitBranch = "main";
 
+    // ===== Exa 搜索配置 =====
+    private String exaApiKey = "";
+    private boolean exaEnabled = true;
+
     // ===== 存储路径（可配置） =====
     private String storagePath = "";
 
@@ -160,6 +164,24 @@ public class AppConfig {
 
     public void setGitBranch(String gitBranch) {
         this.gitBranch = gitBranch;
+    }
+
+    // ===== Exa 搜索 =====
+
+    public String getExaApiKey() {
+        return exaApiKey;
+    }
+
+    public void setExaApiKey(String exaApiKey) {
+        this.exaApiKey = exaApiKey;
+    }
+
+    public boolean isExaEnabled() {
+        return exaEnabled;
+    }
+
+    public void setExaEnabled(boolean exaEnabled) {
+        this.exaEnabled = exaEnabled;
     }
 
     // ===== 存储路径 =====

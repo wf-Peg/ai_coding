@@ -151,6 +151,8 @@ public class AppConfigService {
 
         config = fillStoragePaths(config);
         cachedConfig = config;
+        // 启动时同步到 ModelConfigService，确保 AI Provider 读取到正确的 API Key
+        syncToModelConfig(config);
         return config;
     }
 

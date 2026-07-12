@@ -1323,6 +1323,12 @@ h2 { font-size:18px; margin:24px 0 12px; color:#2f3437; border-left:3px solid #2
 .progress-bar { width:100%; height:6px; background:#e8e8e6; border-radius:3px; margin:8px 0; }
 .progress-fill { height:100%; background:#2383e2; border-radius:3px; }
 .footer { margin-top:40px; text-align:center; font-size:12px; color:#8a8f98; }
+@page { size: A4; margin: 15mm; }
+@media print {
+    body { padding: 0; }
+    .phase { page-break-inside: avoid; }
+    h2 { page-break-after: avoid; }
+}
 </style>
 </head>
 <body>
@@ -1395,12 +1401,26 @@ h2 { font-size:18px; margin:24px 0 12px; color:#2f3437; border-left:3px solid #2
     html += `<div class="footer">由 CutShelter 学习计划模块生成 | ${new Date().toLocaleString('zh-CN')}</div>`;
     html += `</body></html>`;
 
-    const win = window.open('', '_blank');
-    win.document.write(html);
-    win.document.close();
-    setTimeout(() => {
-        win.print();
-    }, 500);
+    // 使用 Blob URL 保证 UTF-8 编码（解决 Electron 中 document.write 乱码问题）
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+
+    // 用隐藏 iframe 替代 window.open（Electron 中更可靠）
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:none;opacity:0;';
+    document.body.appendChild(iframe);
+
+    iframe.onload = function() {
+        setTimeout(() => {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+            setTimeout(() => {
+                document.body.removeChild(iframe);
+                URL.revokeObjectURL(url);
+            }, 1000);
+        }, 500);
+    };
+    iframe.src = url;
 }
 
 // ====== Loading ======

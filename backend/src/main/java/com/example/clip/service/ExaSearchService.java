@@ -1,12 +1,12 @@
 package com.example.clip.service;
 
+import com.example.clip.config.AppConfig;
 import com.example.clip.model.LearningPlan.VideoResource;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -38,8 +38,7 @@ public class ExaSearchService {
 
     private static final Logger log = LoggerFactory.getLogger(ExaSearchService.class);
 
-    private final String apiKey;
-    private final boolean enabled;
+    private final AppConfigService appConfigService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
@@ -59,17 +58,28 @@ public class ExaSearchService {
             "arxiv.org", "dev.to", "stackoverflow.com"
     );
 
-    public ExaSearchService(
-            @Value("${exa.api-key:}") String apiKey,
-            @Value("${exa.enabled:true}") boolean enabled) {
-        this.apiKey = apiKey;
-        this.enabled = enabled && (apiKey != null && !apiKey.isBlank());
+    public ExaSearchService(AppConfigService appConfigService) {
+        this.appConfigService = appConfigService;
         this.objectMapper = new ObjectMapper()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
-        log.info("[ExaSearchService] initialized, enabled={}", this.enabled);
+        log.info("[ExaSearchService] initialized, will read config from AppConfigService at runtime");
+    }
+
+    /** 每次搜索时从 AppConfigService 读取最新配置 */
+    private String getApiKey() {
+        AppConfig config = appConfigService.getConfig();
+        return config != null ? config.getExaApiKey() : "";
+    }
+
+    /** 运行时判断是否启用 */
+    private boolean isEnabled() {
+        AppConfig config = appConfigService.getConfig();
+        if (config == null) return false;
+        String key = config.getExaApiKey();
+        return config.isExaEnabled() && key != null && !key.isBlank();
     }
 
     /**
@@ -81,7 +91,7 @@ public class ExaSearchService {
      * @return VideoResource 列表（可能为空）
      */
     public List<VideoResource> searchResources(String topic, String phaseGoal, int numResults) {
-        if (!enabled) {
+        if (!isEnabled()) {
             log.debug("[Exa] disabled, skip search for: {}", phaseGoal);
             return Collections.emptyList();
         }
@@ -140,7 +150,7 @@ public class ExaSearchService {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(EXA_SEARCH_URL))
                     .header("Content-Type", "application/json")
-                    .header("x-api-key", apiKey)
+                    .header("x-api-key", getApiKey())
                     .timeout(Duration.ofSeconds(30))
                     .POST(HttpRequest.BodyPublishers.ofString(json))
                     .build();

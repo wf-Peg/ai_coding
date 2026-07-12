@@ -95,6 +95,10 @@ async function loadConfig() {
     document.getElementById('gitPassword').value = config.gitPassword || '';
     document.getElementById('gitBranch').value = config.gitBranch || 'main';
 
+    // Exa 搜索配置
+    document.getElementById('exaApiKey').value = config.exaApiKey || '';
+    document.getElementById('exaEnabled').checked = config.exaEnabled !== false;
+
     // 存储路径（可配置）
     const rootPath = config.storagePath || '';
     document.getElementById('storagePath').value = rootPath;
@@ -138,6 +142,9 @@ async function saveConfig() {
     gitUsername: document.getElementById('gitUsername').value,
     gitPassword: document.getElementById('gitPassword').value,
     gitBranch: document.getElementById('gitBranch').value || 'main',
+    // Exa 搜索
+    exaApiKey: document.getElementById('exaApiKey').value,
+    exaEnabled: document.getElementById('exaEnabled').checked,
     storagePath: document.getElementById('storagePath').value
   };
 
