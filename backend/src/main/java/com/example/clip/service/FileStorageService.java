@@ -131,6 +131,7 @@ public class FileStorageService {
     private void initIdGenerator() {
         try {
             long maxId = 0;
+            // 扫描全部数据目录（剪藏 + 待办 + 知识 + 话题 + 学习计划），取全局最大 ID
             List<Path> jsonFiles = getAllJsonFiles();
             for (Path path : jsonFiles) {
                 List<ClipContent> clips = readClipArrayFromFile(path);
@@ -140,10 +141,41 @@ public class FileStorageService {
                     }
                 }
             }
+            // 扫描待办事项
+            maxId = Math.max(maxId, scanMaxIdInDir("todoList", this::readTodoArrayFromFile, t -> t.getId() == null ? 0L : t.getId()));
+            // 扫描知识条目
+            maxId = Math.max(maxId, scanMaxIdInDir("knowledge", this::readKnowledgeArrayFromFile, e -> e.getId() == null ? 0L : e.getId()));
+            // 扫描学习计划
+            maxId = Math.max(maxId, scanMaxIdInDir("learning-plan", this::readLearningPlanArrayFromFile, p -> p.getId() == null ? 0L : p.getId()));
             idGenerator.set(maxId + 1);
+            log.info("[FileStorageService] initIdGenerator: global maxId={}", maxId);
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * 扫描指定子目录下所有 JSON 文件，提取最大 ID 值
+     */
+    private <T> long scanMaxIdInDir(String dirName, java.util.function.Function<Path, List<T>> reader, java.util.function.ToLongFunction<T> idGetter) {
+        long maxId = 0;
+        try {
+            Path dir = storagePath.resolve(dirName);
+            if (!Files.exists(dir)) return 0;
+            try (var stream = Files.walk(dir)) {
+                List<Path> files = stream.filter(Files::isRegularFile)
+                        .filter(p -> p.toString().endsWith(".json"))
+                        .toList();
+                for (Path f : files) {
+                    List<T> items = reader.apply(f);
+                    for (T item : items) {
+                        long id = idGetter.applyAsLong(item);
+                        if (id > maxId) maxId = id;
+                    }
+                }
+            }
+        } catch (IOException ignored) {}
+        return maxId;
     }
 
     // ==================== Category → 目录路径映射 ====================
@@ -229,15 +261,16 @@ public class FileStorageService {
         if (!Files.exists(storagePath)) {
             return files;
         }
-        Files.walk(storagePath)
-                .filter(Files::isRegularFile)
-                .filter(path -> path.toString().endsWith(".json"))
-                .filter(path -> !path.toString().contains("todoList")) // 过滤待办事项目录
-                .filter(path -> !path.toString().contains("knowledge")) // 过滤知识条目目录
-                .filter(path -> !path.toString().contains("topic"))     // 过滤话题目录
-                .filter(path -> !path.toString().contains("vault"))     // 过滤密码库目录
-                .filter(path -> !path.toString().contains("learning-plan")) // 过滤学习计划目录
-                .forEach(files::add);
+        try (var stream = Files.walk(storagePath)) {
+            stream.filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".json"))
+                    .filter(path -> !path.toString().contains("todoList")) // 过滤待办事项目录
+                    .filter(path -> !path.toString().contains("knowledge")) // 过滤知识条目目录
+                    .filter(path -> !path.toString().contains("topic"))     // 过滤话题目录
+                    .filter(path -> !path.toString().contains("vault"))     // 过滤密码库目录
+                    .filter(path -> !path.toString().contains("learning-plan")) // 过滤学习计划目录
+                    .forEach(files::add);
+        }
         return files;
     }
 
@@ -620,8 +653,8 @@ public class FileStorageService {
      * @param todo 待办事项对象
      * @return 保存后的待办事项
      */
-    public TodoContent saveTodo(TodoContent todo) {
-        log.info("[FileStorageService] saveTodo called with todo: title={}, priority={}, deadline={}, completed={}, category={}", 
+    public synchronized TodoContent saveTodo(TodoContent todo) {
+        log.info("[FileStorageService] saveTodo called with todo: title={}, priority={}, deadline={}, completed={}, category={}",
             todo.getTitle(), todo.getPriority(), todo.getDeadline(), todo.isCompleted(), todo.getCategory());
         try {
             Path filePath;
@@ -731,29 +764,18 @@ public class FileStorageService {
                 return;
             }
 
-            // 遍历所有待办事项 JSON 文件
-            Files.walk(todoPath)
-                    .filter(Files::isRegularFile)
-                    .filter(path -> path.toString().endsWith(".json"))
-                    .forEach(path -> {
-                        List<TodoContent> todos = readTodoArrayFromFile(path);
-                        boolean found = false;
-
-                        // 使用 Iterator 安全删除
-                        Iterator<TodoContent> iterator = todos.iterator();
-                        while (iterator.hasNext()) {
-                            TodoContent todo = iterator.next();
-                            if (todo.getId() != null && todo.getId().equals(id)) {
-                                iterator.remove();
-                                found = true;
-                                break;
+            // 遍历所有待办事项 JSON 文件，全量删除同 ID 记录（不 break）
+            try (var stream = Files.walk(todoPath)) {
+                stream.filter(Files::isRegularFile)
+                        .filter(path -> path.toString().endsWith(".json"))
+                        .forEach(path -> {
+                            List<TodoContent> todos = readTodoArrayFromFile(path);
+                            boolean removed = todos.removeIf(t -> t.getId() != null && t.getId().equals(id));
+                            if (removed) {
+                                writeTodoArrayToFile(path, todos);
                             }
-                        }
-
-                        if (found) {
-                            writeTodoArrayToFile(path, todos);
-                        }
-                    });
+                        });
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -775,13 +797,14 @@ public class FileStorageService {
                 return allTodos;
             }
 
-            Files.walk(todoPath)
-                    .filter(Files::isRegularFile)
-                    .filter(path -> path.toString().endsWith(".json"))
-                    .forEach(path -> {
-                        List<TodoContent> todos = readTodoArrayFromFile(path);
-                        allTodos.addAll(todos);
-                    });
+            try (var stream = Files.walk(todoPath)) {
+                stream.filter(Files::isRegularFile)
+                        .filter(path -> path.toString().endsWith(".json"))
+                        .forEach(path -> {
+                            List<TodoContent> todos = readTodoArrayFromFile(path);
+                            allTodos.addAll(todos);
+                        });
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -804,13 +827,13 @@ public class FileStorageService {
                 return null;
             }
 
-            for (Path path : Files.walk(todoPath).filter(Files::isRegularFile).filter(path -> path.toString().endsWith(".json")).toList()) {
-                List<TodoContent> todos = readTodoArrayFromFile(path);
-                for (TodoContent todo : todos) {
-                    if (todo.getId() != null && todo.getId().equals(id)) {
-                        return todo;
-                    }
-                }
+            try (var stream = Files.walk(todoPath)) {
+                return stream.filter(Files::isRegularFile)
+                        .filter(path -> path.toString().endsWith(".json"))
+                        .flatMap(path -> readTodoArrayFromFile(path).stream())
+                        .filter(t -> t.getId() != null && t.getId().equals(id))
+                        .reduce((first, second) -> second) // 返回最后一条（最新写入）
+                        .orElse(null);
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -833,27 +856,17 @@ public class FileStorageService {
                 return;
             }
 
-            Files.walk(todoPath)
-                    .filter(Files::isRegularFile)
-                    .filter(path -> path.toString().endsWith(".json"))
-                    .forEach(path -> {
-                        List<TodoContent> todos = readTodoArrayFromFile(path);
-                        boolean found = false;
-
-                        Iterator<TodoContent> iterator = todos.iterator();
-                        while (iterator.hasNext()) {
-                            TodoContent todo = iterator.next();
-                            if (todo.getId() != null && todo.getId().equals(id)) {
-                                iterator.remove();
-                                found = true;
-                                break;
+            try (var stream = Files.walk(todoPath)) {
+                stream.filter(Files::isRegularFile)
+                        .filter(path -> path.toString().endsWith(".json"))
+                        .forEach(path -> {
+                            List<TodoContent> todos = readTodoArrayFromFile(path);
+                            boolean removed = todos.removeIf(t -> t.getId() != null && t.getId().equals(id));
+                            if (removed) {
+                                writeTodoArrayToFile(path, todos);
                             }
-                        }
-
-                        if (found) {
-                            writeTodoArrayToFile(path, todos);
-                        }
-                    });
+                        });
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }

@@ -1734,20 +1734,38 @@
     }
   }
 
+  const _togglingIds = new Set();
   async function toggleComplete(id) {
+    // 防止并发点击（await 期间用户再次点击）
+    if (_togglingIds.has(id)) return;
+    _togglingIds.add(id);
+
     const todo = todos.find(t => t.id === id);
-    if (!todo) return;
-    todo.completed = !todo.completed;
+    if (!todo) { _togglingIds.delete(id); return; }
+
+    const targetCompleted = !todo.completed;
+    // 乐观更新 UI
+    todo.completed = targetCompleted;
+    renderTimeline();
+    updateStats();
+
     try {
-      // 使用专用 status 接口，仅更新 completed 字段，不触发 createdAt 重置和文件迁移
-      await axios.put(`${TODO_API_BASE_URL}/${id}/status?completed=${todo.completed}`);
+      const res = await axios.put(`${TODO_API_BASE_URL}/${id}/status?completed=${targetCompleted}`);
+      // 用后端返回值同步真实状态，确保前端与后端一致
+      if (res.data) {
+        Object.assign(todo, res.data);
+      }
       renderTimeline();
       updateStats();
       showToast(todo.completed ? '已标记完成' : '已恢复待办', todo.completed ? '🎉' : '↩️');
     } catch (error) {
       console.error('更新待办失败:', error);
-      todo.completed = !todo.completed; // 回滚
+      todo.completed = !targetCompleted; // 回滚
+      renderTimeline();
+      updateStats();
       showToast('更新失败，请重试', '⚠️');
+    } finally {
+      _togglingIds.delete(id);
     }
   }
 
