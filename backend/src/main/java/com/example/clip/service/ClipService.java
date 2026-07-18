@@ -11,11 +11,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -153,9 +156,12 @@ public class ClipService {
         // 根据类型执行不同的处理逻辑
         switch (type != null ? type : "ai-text") {
             case "store-only":
-                // 仅存储模式：原文即摘要，不调用 AI
-                clipContent.setSummary(content != null ? content : "");
-                clipContent.setAnalysis("");
+                // 仅存储模式：先尝试识别 AI 结构化内容，匹配则自动填充字段
+                if (!tryParseStructuredContent(clipContent)) {
+                    // 非结构化内容，原文即摘要
+                    clipContent.setSummary(content != null ? content : "");
+                    clipContent.setAnalysis("");
+                }
                 break;
 
             case "link-ai":
@@ -198,9 +204,12 @@ public class ClipService {
 
             case "ai-text":
             default:
-                // AI 文本模式（默认）：直接对文本内容进行 AI 分析
-                boolean useAiCategory = (clipContent.getCategory() == null || clipContent.getCategory().isEmpty());
-                processWithAi(clipContent, useAiCategory);
+                // AI 文本模式（默认）：先检测是否已是 AI 结构化内容，是则跳过 AI 调用
+                if (!tryParseStructuredContent(clipContent)) {
+                    // 非结构化内容，调用 AI 分析
+                    boolean useAiCategory = (clipContent.getCategory() == null || clipContent.getCategory().isEmpty());
+                    processWithAi(clipContent, useAiCategory);
+                }
                 break;
         }
 
@@ -251,6 +260,130 @@ public class ClipService {
         clipContent.setMyThoughts(request.getMyThoughts());
 
         return storageService.saveClip(clipContent);
+    }
+
+    // ==================== 结构化内容自动识别 ====================
+
+    /**
+     * 尝试解析 AI 生成的结构化内容（如其他 AI 工具产出的 Markdown 格式分析结果）。
+     * <p>
+     * 自动检测内容是否包含"核心摘要"、"分析"、"标签"等结构化章节标记，
+     * 如果匹配则将各段内容映射到 ClipContent 的 summary、analysis、tags 字段，
+     * 避免重复调用 AI 接口，实现"一键安装"结构化存储。
+     * </p>
+     *
+     * @param clipContent 剪藏内容对象（会被直接修改）
+     * @return true 表示已识别并填充结构化字段；false 表示内容非结构化格式
+     */
+    private boolean tryParseStructuredContent(ClipContent clipContent) {
+        String content = clipContent.getContent();
+        if (content == null || content.trim().isEmpty()) {
+            return false;
+        }
+
+        boolean hasSummary = content.matches("(?s).*#{1,3}\\s*核心摘要.*");
+        boolean hasAnalysis = content.matches("(?s).*#{1,3}\\s*分析.*");
+        // 至少包含摘要或分析才算结构化内容
+        if (!hasSummary && !hasAnalysis) {
+            return false;
+        }
+
+        logger.info("[ClipService] 检测到 AI 结构化内容，自动解析字段");
+
+        if (hasSummary) {
+            String summary = extractMarkdownSection(content, "核心摘要");
+            if (summary != null && !summary.trim().isEmpty()) {
+                clipContent.setSummary(summary.trim());
+            }
+        }
+
+        if (hasAnalysis) {
+            String analysis = extractMarkdownSection(content, "分析");
+            if (analysis != null && !analysis.trim().isEmpty()) {
+                clipContent.setAnalysis(analysis.trim());
+            }
+        }
+
+        // 解析标签（## 标签 章节下的反引号标签）
+        List<String> tags = extractTagsFromMarkdown(content);
+        if (tags != null && !tags.isEmpty()) {
+            if (clipContent.getTags() == null || clipContent.getTags().isEmpty()) {
+                clipContent.setTags(tags);
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * 从 Markdown 内容中提取指定章节的文本内容。
+     * <p>
+     * 章节由 {@code ## 标题名} 开始，到下一个同级或更高级标题、分隔线（---）或文末结束。
+     * 支持一级到三级标题（#、##、###）。
+     * </p>
+     *
+     * @param content     Markdown 全文
+     * @param sectionName 章节名称（如"核心摘要"、"分析"、"标签"）
+     * @return 章节正文内容；未找到返回 null
+     */
+    private String extractMarkdownSection(String content, String sectionName) {
+        // 匹配 #/##/### + 章节名，内容捕获到下一个一级/二级标题、分隔线（---）或文末
+        // 三级标题（###）视为子章节，包含在父章节内容中
+        Pattern pattern = Pattern.compile(
+            "(?s)^#{1,3}\\s*" + Pattern.quote(sectionName) + "\\s*\\n(.*?)(?=^#{1,2}\\s|\\n---\\s*$|\\Z)",
+            Pattern.MULTILINE
+        );
+        Matcher matcher = pattern.matcher(content);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        return null;
+    }
+
+    /**
+     * 从 Markdown 内容的"标签"章节提取标签列表。
+     * <p>
+     * 支持两种标签格式：
+     * <ul>
+     *   <li>反引号格式：{@code `标签1` `标签2` `标签3`}</li>
+     *   <li>列表格式：{@code - 标签1} 或 {@code * 标签1}</li>
+     * </ul>
+     * </p>
+     *
+     * @param content Markdown 全文
+     * @return 标签列表；未找到返回 null
+     */
+    private List<String> extractTagsFromMarkdown(String content) {
+        String tagSection = extractMarkdownSection(content, "标签");
+        if (tagSection == null || tagSection.trim().isEmpty()) {
+            return null;
+        }
+
+        List<String> tags = new ArrayList<>();
+
+        // 反引号格式：`标签`
+        Pattern backtickPattern = Pattern.compile("`([^`]+)`");
+        Matcher backtickMatcher = backtickPattern.matcher(tagSection);
+        while (backtickMatcher.find()) {
+            String tag = backtickMatcher.group(1).trim();
+            if (!tag.isEmpty() && !tags.contains(tag)) {
+                tags.add(tag);
+            }
+        }
+
+        // 如果反引号没匹配到，尝试列表格式
+        if (tags.isEmpty()) {
+            Pattern listPattern = Pattern.compile("^[-*+]\\s+(.+)$", Pattern.MULTILINE);
+            Matcher listMatcher = listPattern.matcher(tagSection);
+            while (listMatcher.find()) {
+                String tag = listMatcher.group(1).trim();
+                if (!tag.isEmpty() && !tags.contains(tag)) {
+                    tags.add(tag);
+                }
+            }
+        }
+
+        return tags.isEmpty() ? null : tags;
     }
 
     /**
