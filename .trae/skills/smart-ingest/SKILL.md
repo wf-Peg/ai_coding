@@ -11,6 +11,8 @@ description: 智能入库 — 接收任意文本，AI 自动识别意图（剪�
 
 ## 意图识别规则
 
+> ⚠️ 本规则需与后端 `AiService.identifyIntent` 的 systemPrompt 保持同步，修改时请两处同时更新。
+
 根据文本内容判断意图：
 
 - **clip（剪藏）**：长文分析、URL、结构化报告、知识点、无明确行动项或待办属性的内容

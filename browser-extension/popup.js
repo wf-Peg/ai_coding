@@ -139,6 +139,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       showStatus('请输入内容', 'error');
       return;
     }
+    if (text.length < 5) {
+      showStatus('内容过短，请至少输入5个字符', 'error');
+      return;
+    }
 
     setLoading(true);
     smartIngestBtn.querySelector('.btn-text').style.display = 'none';

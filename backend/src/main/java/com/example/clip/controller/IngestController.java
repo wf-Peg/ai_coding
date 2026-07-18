@@ -194,6 +194,7 @@ public class IngestController {
         request.setTags(getStringList(fields, "tags"));
         request.setUseAiTags(!degraded);
         request.setWorkflowStatus("inbox");
+        request.setCapturedAt(LocalDateTime.now().toString());
 
         ClipContent clip = clipService.saveClip(request);
         if (clip == null) {
@@ -210,7 +211,7 @@ public class IngestController {
             }
         }
         result.put("id", clip.getId());
-        result.put("title", getString(fields, "title", truncate(rawText, 30)));
+        result.put("title", clip.getTitle());
         result.put("redirect", "/api/clip/" + clip.getId());
         log.info("[Ingest] Saved as clip: id={}, title={}", clip.getId(), clip.getTitle());
         return ResponseEntity.ok(result);
@@ -221,7 +222,8 @@ public class IngestController {
     private String getString(Map<String, Object> fields, String key, String defaultValue) {
         Object val = fields.get(key);
         if (val == null) return defaultValue;
-        return val.toString().trim();
+        String s = val.toString().trim();
+        return s.isEmpty() ? defaultValue : s;
     }
 
     @SuppressWarnings("unchecked")
