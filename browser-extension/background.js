@@ -39,6 +39,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         showNotification(request.error || '剪藏失败', 'error');
       }
       break;
+    case 'smartIngest':
+      smartIngest(request.data, sendResponse);
+      return true;
     default:
       sendResponse({ error: '未知操作' });
   }
@@ -512,6 +515,42 @@ async function sendToBackendPromise(data) {
       error: normalizedError.message
     };
   }
+  }
+}
+
+async function smartIngest(data, sendResponse) {
+  try {
+    const config = await getConfigAsync();
+    const ingestUrl = config.ingestUrl || 'http://localhost:8080/api/ingest';
+    const timeout = (config.apiTimeout || 30) * 1000;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    const response = await fetch(ingestUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      sendResponse({ success: false, error: errorBody.error || `请求失败 (${response.status})` });
+      return;
+    }
+
+    const result = await response.json();
+    sendResponse(result);
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      sendResponse({ success: false, error: '请求超时，请稍后重试' });
+    } else {
+      sendResponse({ success: false, error: '无法连接后端服务，请确认服务已启动' });
+    }
+  }
 }
 
 function normalizeTransportError(error) {
@@ -572,6 +611,7 @@ function getConfigAsync() {
     chrome.storage.local.get([
       'uiTheme',
       'apiUrl',
+      'ingestUrl',
       'apiTimeout',
       'apiRetryCount',
       'defaultType',
@@ -587,6 +627,7 @@ function getConfigAsync() {
       resolve({
         uiTheme: result.uiTheme || 'notion',
         apiUrl: result.apiUrl || 'http://localhost:8080/api/clip/add',
+        ingestUrl: result.ingestUrl || 'http://localhost:8080/api/ingest',
         apiTimeout: result.apiTimeout || 30,
         apiRetryCount: result.apiRetryCount || 2,
         defaultType: result.defaultType || 'ai-text',

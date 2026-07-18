@@ -2226,7 +2226,7 @@
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn-secondary" onclick="clearForm()">清空</button>
-<!--                    <button type="button" class="btn-secondary" onclick="startVoiceInput()">🎤 语音输入</button>-->
+                    <button type="button" class="btn-primary main-btn" onclick="smartIngestClip()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">智能入库</button>
                     <div class="action-split-group add-clip-action-split">
                         <button class="icon-btn" type="button" title="配置添加剪藏AI Prompt" onclick="openPromptConfigModal('clip')">⚙️</button>
                         <button type="submit" class="btn-primary main-btn">添加剪藏</button>
@@ -2797,6 +2797,53 @@
         removeFile();
         // 图片相关已移除A
         document.getElementById('type').dispatchEvent(new Event('change'));
+    }
+
+    async function smartIngestClip() {
+        const contentTextarea = document.getElementById('content');
+        const text = contentTextarea ? contentTextarea.value.trim() : '';
+        if (!text) {
+            showToast('请输入内容');
+            return;
+        }
+        if (text.length < 5) {
+            showToast('内容过短，请至少输入5个字符');
+            return;
+        }
+
+        const statusEl = document.getElementById('status-message');
+        if (statusEl) {
+            statusEl.textContent = '正在智能分析...';
+            statusEl.className = 'status-message info';
+            statusEl.style.display = 'block';
+        }
+
+        try {
+            const response = await fetch('/api/ingest', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                const intentLabel = result.intent === 'todo' ? '待办' : result.intent === 'topic' ? '话题' : '剪藏';
+                const degradedNote = result.degraded ? ' (降级存储)' : '';
+                showToast(`智能入库成功！识别为${intentLabel}${degradedNote}`);
+                clearForm();
+                if (typeof fetchClips === 'function') setTimeout(fetchClips, 500);
+            } else {
+                showToast(result.error || '智能入库失败');
+            }
+        } catch (error) {
+            console.error('智能入库失败:', error);
+            showToast('网络错误，请确认后端服务已启动');
+        } finally {
+            if (statusEl) {
+                statusEl.style.display = 'none';
+            }
+        }
     }
 
     function startVoiceInput() {

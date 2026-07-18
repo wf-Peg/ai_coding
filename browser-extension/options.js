@@ -2,6 +2,7 @@
 const DEFAULT_CONFIG = {
   uiTheme: 'notion',
   apiUrl: 'http://localhost:8080/api/clip/add',
+  ingestUrl: 'http://localhost:8080/api/ingest',
   apiTimeout: 30,
   apiRetryCount: 2,
   defaultType: 'ai-text',
@@ -34,6 +35,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const form = document.getElementById('optionsForm');
   const uiThemeSelect = document.getElementById('uiTheme');
   const apiUrlInput = document.getElementById('apiUrl');
+  const ingestUrlInput = document.getElementById('ingestUrl');
   const apiTimeoutInput = document.getElementById('apiTimeout');
   const apiRetryCountInput = document.getElementById('apiRetryCount');
   const defaultTypeSelect = document.getElementById('defaultType');
@@ -73,6 +75,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       uiThemeSelect.value = config.uiTheme;
       apiUrlInput.value = config.apiUrl;
+      ingestUrlInput.value = config.ingestUrl;
       apiTimeoutInput.value = config.apiTimeout;
       apiRetryCountInput.value = config.apiRetryCount;
       defaultTypeSelect.value = config.defaultType;
@@ -101,6 +104,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     applyTheme(DEFAULT_CONFIG.uiTheme);
     uiThemeSelect.value = DEFAULT_CONFIG.uiTheme;
     apiUrlInput.value = DEFAULT_CONFIG.apiUrl;
+    ingestUrlInput.value = DEFAULT_CONFIG.ingestUrl;
     apiTimeoutInput.value = DEFAULT_CONFIG.apiTimeout;
     apiRetryCountInput.value = DEFAULT_CONFIG.apiRetryCount;
     defaultTypeSelect.value = DEFAULT_CONFIG.defaultType;
@@ -132,6 +136,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const config = {
       uiTheme: uiThemeSelect.value,
       apiUrl: apiUrlInput.value.trim() || DEFAULT_CONFIG.apiUrl,
+      ingestUrl: ingestUrlInput.value.trim() || DEFAULT_CONFIG.ingestUrl,
       apiTimeout: parseInt(apiTimeoutInput.value) || DEFAULT_CONFIG.apiTimeout,
       apiRetryCount: parseInt(apiRetryCountInput.value) || DEFAULT_CONFIG.apiRetryCount,
       defaultType: defaultTypeSelect.value,

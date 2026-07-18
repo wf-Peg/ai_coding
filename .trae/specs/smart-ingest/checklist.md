@@ -1,0 +1,23 @@
+# Checklist
+
+- [ ] `POST /api/ingest` 接收 `{ text }` 并返回统一格式 `{ success, intent, id, title, redirect }`
+- [ ] text 为空时返回 400 `{ success:false, errorType:"validation" }`
+- [ ] text < 5 字符时返回 400
+- [ ] 待办文本正确识别为 intent=todo 并存入 TodoService
+- [ ] 剪藏文本正确识别为 intent=clip 并存入 ClipService
+- [ ] 话题文本正确识别为 intent=topic 并存入 TopicService
+- [ ] AI 意图识别失败时降级为 clip store-only，degraded=true
+- [ ] AI 字段提取失败时降级为 clip store-only，原文即内容
+- [ ] 存储失败时返回 500 `{ success:false, errorType:"storage_failed" }`
+- [ ] 原有接口 `POST /api/clip/add` 行为不变
+- [ ] 原有接口 `POST /api/todo/add` 行为不变
+- [ ] 原有接口 `POST /api/topic` 行为不变
+- [ ] Skill 文件 `.trae/skills/smart-ingest/SKILL.md` 存在且格式正确
+- [ ] Skill 包含 curl 调用模板（clip/add, todo/add, topic 三个接口）
+- [ ] Skill 包含后端不可用时的友好提示
+- [ ] 插件 options.js 包含 `ingestUrl` 配置项
+- [ ] 插件 popup.html 包含"智能入库"按钮
+- [ ] 插件智能入库调用 `POST /api/ingest` 并正确解析响应
+- [ ] 插件原有剪藏表单功能不受影响
+- [ ] `clip.html` 包含"智能入库"按钮
+- [ ] 后端 `mvn compile` 无错误

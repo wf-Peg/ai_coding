@@ -52,6 +52,12 @@
           </div>
 
           <div class="form-group">
+            <label for="ingestUrl">智能入库API地址</label>
+            <input type="text" id="ingestUrl" placeholder="http://localhost:8080/api/ingest">
+            <p class="help-text">智能入库接口地址，自动识别意图并路由入库</p>
+          </div>
+
+          <div class="form-group">
             <button type="button" class="btn-secondary" id="testBtn">测试连接</button>
             <span id="testStatus" class="test-status"></span>
           </div>

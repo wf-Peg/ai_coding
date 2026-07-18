@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const tagInput = document.getElementById('tagInput');
   const tagsList = document.getElementById('tagsList');
   const submitBtn = document.getElementById('submitBtn');
+  const smartIngestBtn = document.getElementById('smartIngestBtn');
   const clearBtn = document.getElementById('clearBtn');
   const statusMessage = document.getElementById('statusMessage');
   const settingsBtn = document.getElementById('settingsBtn');
@@ -56,6 +57,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 绑定事件
   form.addEventListener('submit', handleSubmit);
   clearBtn.addEventListener('click', handleClear);
+  smartIngestBtn.addEventListener('click', handleSmartIngest);
   settingsBtn.addEventListener('click', () => chrome.runtime.openOptionsPage());
   openClipList.addEventListener('click', openClipListPage);
   openTopicList.addEventListener('click', openTopicListPage);
@@ -128,6 +130,47 @@ document.addEventListener('DOMContentLoaded', async () => {
       try { chrome.runtime.sendMessage({ action: 'popupClipCompleted', success: false, error: '发送失败，请重试' }); } catch (e) {}
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSmartIngest() {
+    const text = contentInput.value.trim();
+    if (!text) {
+      showStatus('请输入内容', 'error');
+      return;
+    }
+
+    setLoading(true);
+    smartIngestBtn.querySelector('.btn-text').style.display = 'none';
+    smartIngestBtn.querySelector('.btn-loading').style.display = 'inline';
+    showStatus('正在智能分析...', 'info');
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'smartIngest',
+        data: { text }
+      });
+
+      if (response.success) {
+        const intentLabel = response.intent === 'todo' ? '待办' : response.intent === 'topic' ? '话题' : '剪藏';
+        const degradedNote = response.degraded ? ' (降级存储)' : '';
+        showStatus(`✅ 智能入库成功！识别为${intentLabel}${degradedNote}`, 'success');
+        try { chrome.runtime.sendMessage({ action: 'popupClipCompleted', success: true }); } catch (e) {}
+        setTimeout(() => {
+          handleClear();
+          window.close();
+        }, 2500);
+      } else {
+        showStatus('❌ ' + (response.error || '智能入库失败'), 'error');
+        try { chrome.runtime.sendMessage({ action: 'popupClipCompleted', success: false, error: response.error }); } catch (e) {}
+      }
+    } catch (error) {
+      console.error('智能入库失败:', error);
+      showStatus('❌ 发送失败，请重试', 'error');
+    } finally {
+      setLoading(false);
+      smartIngestBtn.querySelector('.btn-text').style.display = 'inline';
+      smartIngestBtn.querySelector('.btn-loading').style.display = 'none';
     }
   }
 
@@ -217,6 +260,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 设置加载状态
   function setLoading(loading) {
     submitBtn.disabled = loading;
+    smartIngestBtn.disabled = loading;
     clearBtn.disabled = loading;
     contentInput.disabled = loading;
     sourceInput.disabled = loading;

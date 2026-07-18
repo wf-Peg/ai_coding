@@ -945,4 +945,94 @@ public class AiService {
         matcher.appendTail(sb);
         return sb.toString();
     }
+
+    // ==================== 智能入库：意图识别与字段提取 ====================
+
+    /**
+     * 识别文本意图，判断应存入剪藏、待办还是话题。
+     * <p>
+     * 调用 LLM 进行三分类（clip / todo / topic），返回纯文本标签。
+     * 失败时返回 null，调用方应降级为 clip 处理。
+     * </p>
+     *
+     * @param text 用户输入的文本内容
+     * @return "clip" / "todo" / "topic"；失败返回 null
+     */
+    public String identifyIntent(String text) {
+        try {
+            String systemPrompt = "你是一个智能内容分类助手。请判断以下文本最适合存入哪种类型：\n" +
+                "\n" +
+                "- clip（剪藏）：长文分析、URL、结构化报告、知识点、无明确行动项或待办属性的内容\n" +
+                "- todo（待办）：含 deadline/时间限制、优先级、行动项、待办标记、提醒类内容\n" +
+                "- topic（话题）：分享推荐、观点讨论、社交讨论、对话内容\n" +
+                "\n" +
+                "只返回一个单词：clip、todo 或 topic。不要返回其他任何内容。";
+
+            String response = llmProvider.chat(systemPrompt, text);
+            if (response == null) return null;
+            String intent = response.trim().toLowerCase();
+            if (intent.contains("todo")) return "todo";
+            if (intent.contains("topic")) return "topic";
+            return "clip"; // 默认剪藏
+        } catch (Exception e) {
+            logger.error("[AI] identifyIntent failed: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 根据意图从文本中提取结构化字段。
+     * <p>
+     * 调用 LLM 提取字段并以 JSON 格式返回。返回的 Map key 为对应模型字段名。
+     * 失败时返回 null，调用方应降级处理。
+     * </p>
+     *
+     * @param text   原始文本
+     * @param intent 意图类型（clip / todo / topic）
+     * @return 字段映射，key 为目标模型字段名；失败返回 null
+     */
+    public Map<String, Object> extractFields(String text, String intent) {
+        try {
+            String fieldDesc;
+            switch (intent) {
+                case "todo":
+                    fieldDesc = "title（必填，任务标题）, priority（high/medium/low，默认 medium）, deadline（yyyy-MM-dd 格式的日期）, deadlineTime（HH:mm 格式的时间）, category（work/study/life/hobby/finance/social）";
+                    break;
+                case "topic":
+                    fieldDesc = "title（必填，话题标题）, summary（简短摘要）, content（正文内容）, tags（字符串数组，3-8 个关键词）, category（work/study/life/hobby/finance/social）";
+                    break;
+                case "clip":
+                default:
+                    fieldDesc = "title（标题）, content（正文内容）, summary（简短摘要，≤100字）, analysis（深度分析，Markdown格式）, tags（字符串数组，3-8 个关键词）, category（work/study/life/hobby/finance/social）, sourceUrl（如有URL）";
+                    break;
+            }
+
+            String systemPrompt = "你是一个智能数据提取助手。请从以下文本中提取结构化字段，以 JSON 格式返回。\n" +
+                "\n" +
+                "需要提取的字段：" + fieldDesc + "\n" +
+                "\n" +
+                "规则：\n" +
+                "1. 只返回 JSON 对象，不要包含 markdown 代码块标记\n" +
+                "2. 无法确定的字段用 null\n" +
+                "3. 日期用 yyyy-MM-dd 格式，时间用 HH:mm 格式\n" +
+                "4. tags 必须是字符串数组\n" +
+                "5. 不要添加任何额外解释";
+
+            String response = llmProvider.chat(systemPrompt, text);
+            if (response == null) return null;
+
+            // 清理 LLM 输出中可能的 markdown 代码块包裹
+            String cleaned = response.trim();
+            if (cleaned.startsWith("```")) {
+                cleaned = cleaned.replaceAll("```[a-z]*\\s*", "").trim();
+            }
+
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            return mapper.readValue(cleaned, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            logger.error("[AI] extractFields failed for intent={}: {}", intent, e.getMessage());
+            return null;
+        }
+    }
 }
