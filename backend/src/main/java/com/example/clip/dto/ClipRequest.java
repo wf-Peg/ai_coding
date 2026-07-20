@@ -35,6 +35,9 @@ public class ClipRequest {
     /** 标题 */
     private String title;
 
+    /** 摘要（一句话概括内容，不应为原文；由 agent 或前端传入，覆盖后端 fallback 逻辑） */
+    private String summary;
+
     /** 来源 URL */
     private String sourceUrl;
 
@@ -118,6 +121,14 @@ public class ClipRequest {
 
     public void setTitle(String title) {
         this.title = title;
+    }
+
+    public String getSummary() {
+        return summary;
+    }
+
+    public void setSummary(String summary) {
+        this.summary = summary;
     }
 
     public String getSourceUrl() {

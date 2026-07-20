@@ -258,6 +258,11 @@ public class ClipService {
         clipContent.setWorkflowStatus(workflowStatus);
         // 传递用户自己的思考
         clipContent.setMyThoughts(request.getMyThoughts());
+        // 覆盖摘要：若 request 显式传入 summary（非空且非空白），优先使用，避免 store-only 分支把 content 当 summary
+        // 场景：agent 已整理好简短摘要，不需要后端 fallback 到原文
+        if (request.getSummary() != null && !request.getSummary().trim().isEmpty()) {
+            clipContent.setSummary(request.getSummary());
+        }
 
         return storageService.saveClip(clipContent);
     }
