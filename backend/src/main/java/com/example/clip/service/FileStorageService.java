@@ -145,6 +145,8 @@ public class FileStorageService {
             maxId = Math.max(maxId, scanMaxIdInDir("todoList", this::readTodoArrayFromFile, t -> t.getId() == null ? 0L : t.getId()));
             // 扫描知识条目
             maxId = Math.max(maxId, scanMaxIdInDir("knowledge", this::readKnowledgeArrayFromFile, e -> e.getId() == null ? 0L : e.getId()));
+            // 扫描话题（修复：之前漏扫 topic 表，导致 idGenerator 给新 clip 分配已存在的 topic id，造成 ID 冲突）
+            maxId = Math.max(maxId, scanMaxIdInDir("topic", this::readTopicArrayFromFile, t -> t.getId() == null ? 0L : t.getId()));
             // 扫描学习计划
             maxId = Math.max(maxId, scanMaxIdInDir("learning-plan", this::readLearningPlanArrayFromFile, p -> p.getId() == null ? 0L : p.getId()));
             idGenerator.set(maxId + 1);
