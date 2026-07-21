@@ -706,8 +706,12 @@
             transition: all 0.2s ease;
             margin-bottom: 12px;
             box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
+            /* textarea 两行高度，禁止用户调整大小 */
+            min-height: 66px;
+            resize: none;
+            line-height: 1.5;
         }
-        .modal-input::placeholder { color: var(--fg-muted); font-size: 0.85rem; }
+        .modal-input::placeholder { color: var(--fg-muted); font-size: 0.85rem; white-space: pre-line; }
         .modal-input:focus {
             border-color: var(--primary);
             box-shadow: inset 0 1px 2px rgba(0,0,0,0.03), 0 0 0 3px var(--primary-glow);
@@ -1209,7 +1213,7 @@
         <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
-    <input type="text" class="modal-input" id="inputTitle" placeholder="任务内容[类型,工时h,进度%] 例：账务开发[需求分析,15h,30%]" maxlength="120" />
+    <textarea class="modal-input" id="inputTitle" placeholder="xx[需求分析,xxh,xx%]&#10;类型: 需求分析/系统设计/详细设计/架构设计/开发自测/联调测试/缺陷" maxlength="120" rows="2"></textarea>
     <div class="modal-options">
       <select id="inputPriority">
         <option value="medium">中优先级</option>
@@ -1908,7 +1912,10 @@
   });
   btnAdd.addEventListener('click', addTodo);
   inputTitle.addEventListener('keydown', e => {
-    if (e.key === 'Enter') addTodo();
+    if (e.key === 'Enter') {
+      e.preventDefault();  // 阻止 textarea 默认换行
+      addTodo();
+    }
   });
   btnConfirmDelete.addEventListener('click', executeDelete);
   btnConfirmCancel.addEventListener('click', cancelDelete);
