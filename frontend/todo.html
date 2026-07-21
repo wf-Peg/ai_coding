@@ -704,18 +704,28 @@
             font-size: 0.9rem;
             outline: none;
             transition: all 0.2s ease;
-            margin-bottom: 12px;
+            margin-bottom: 6px;
             box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
-            /* textarea 两行高度，禁止用户调整大小 */
-            min-height: 66px;
-            resize: none;
-            line-height: 1.5;
         }
-        .modal-input::placeholder { color: var(--fg-muted); font-size: 0.85rem; white-space: pre-line; }
+        .modal-input::placeholder { color: var(--fg-muted); font-size: 0.85rem; }
         .modal-input:focus {
             border-color: var(--primary);
             box-shadow: inset 0 1px 2px rgba(0,0,0,0.03), 0 0 0 3px var(--primary-glow);
             background: var(--card);
+        }
+
+        /* 类型说明行：浅灰色贴合主题，位于输入框下方 */
+        .modal-type-hint {
+            font-size: 0.75rem;
+            color: var(--fg-muted);
+            margin-bottom: 12px;
+            padding: 0 4px;
+            line-height: 1.4;
+            opacity: 0.85;
+        }
+        .modal-type-hint .hint-label {
+            font-weight: 500;
+            color: var(--fg-secondary, var(--fg-muted));
         }
 
         .modal-options {
@@ -1213,7 +1223,10 @@
         <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
-    <textarea class="modal-input" id="inputTitle" placeholder="xx[需求分析,xxh,xx%]&#10;类型: 需求分析/系统设计/详细设计/架构设计/开发自测/联调测试/缺陷" maxlength="120" rows="2"></textarea>
+    <input type="text" class="modal-input" id="inputTitle" value="xx[需求管理,xxh,xx%]" maxlength="120" />
+    <div class="modal-type-hint">
+      <span class="hint-label">类型：</span>需求管理 / 开发管理 / 测试管理 / 变更执行 / 数据管理 / 技术支持 / 工作管理 / 培训学习 / 沟通协助 / 其他工作
+    </div>
     <div class="modal-options">
       <select id="inputPriority">
         <option value="medium">中优先级</option>
@@ -1483,11 +1496,16 @@
     inputReminderMinutes.disabled = true;
     inputReminderMinutes.value = '15';
     addModal.classList.add('active');
-    setTimeout(() => inputTitle.focus(), 100);
+    // 重置为默认值并自动全选，方便用户直接替换
+    inputTitle.value = 'xx[需求管理,xxh,xx%]';
+    setTimeout(() => {
+      inputTitle.focus();
+      inputTitle.select();
+    }, 100);
   }
   function closeModal() {
     addModal.classList.remove('active');
-    inputTitle.value = '';
+    inputTitle.value = 'xx[需求管理,xxh,xx%]';
   }
 
   // 提醒开关联动
@@ -1702,11 +1720,13 @@
   // ── Actions ──
   async function addTodo() {
     const title = inputTitle.value.trim();
-    if (!title) {
+    // 校验默认值占位符：若未修改 xx 占位提示用户填写
+    if (!title || title.includes('xx[') || title === 'xx[需求管理,xxh,xx%]') {
       inputTitle.focus();
+      inputTitle.select();
       inputTitle.style.borderColor = 'var(--danger)';
       setTimeout(() => inputTitle.style.borderColor = '', 1500);
-      showToast('请输入待办内容', '⚠️');
+      showToast('请替换 xx 为实际内容后再提交', '⚠️');
       return;
     }
     const todo = {
@@ -1912,10 +1932,7 @@
   });
   btnAdd.addEventListener('click', addTodo);
   inputTitle.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-      e.preventDefault();  // 阻止 textarea 默认换行
-      addTodo();
-    }
+    if (e.key === 'Enter') addTodo();
   });
   btnConfirmDelete.addEventListener('click', executeDelete);
   btnConfirmCancel.addEventListener('click', cancelDelete);
