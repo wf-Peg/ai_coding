@@ -33,6 +33,9 @@ public class PdfController {
 
     private static final Logger logger = LoggerFactory.getLogger(PdfController.class);
 
+    /** 单个上传文件的最大大小（100MB） */
+    private static final long MAX_FILE_SIZE = 100L * 1024 * 1024;
+
     /** PDF 处理核心服务 */
     private final PdfService pdfService;
 
@@ -43,6 +46,18 @@ public class PdfController {
      */
     public PdfController(PdfService pdfService) {
         this.pdfService = pdfService;
+    }
+
+    /**
+     * 校验文件大小是否在允许范围内
+     *
+     * @param file 上传的文件
+     * @throws IllegalArgumentException 文件超过 100MB 时抛出
+     */
+    private void validateFileSize(MultipartFile file) {
+        if (file != null && file.getSize() > MAX_FILE_SIZE) {
+            throw new IllegalArgumentException("文件过大（超过100MB）: " + file.getOriginalFilename());
+        }
     }
 
     /**
@@ -60,10 +75,13 @@ public class PdfController {
     public ResponseEntity<?> mergePdfs(@RequestParam("files") MultipartFile[] files) {
         logger.info("[PdfController] 合并 PDF 请求，文件数={}", files == null ? 0 : files.length);
         try {
+            if (files != null) {
+                for (MultipartFile f : files) validateFileSize(f);
+            }
             byte[] merged = pdfService.mergePdfs(files);
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_PDF);
-            headers.setContentDispositionFormData("attachment", "merged.pdf");
+            headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"merged.pdf\"");
             return new ResponseEntity<>(merged, headers, HttpStatus.OK);
         } catch (IllegalArgumentException e) {
             logger.warn("[PdfController] 合并参数错误: {}", e.getMessage());
@@ -99,10 +117,11 @@ public class PdfController {
             @RequestParam(value = "mode", required = false) String mode) {
         logger.info("[PdfController] 拆分 PDF 请求，mode={}, ranges={}", mode, ranges);
         try {
+            validateFileSize(file);
             byte[] zip = pdfService.splitPdf(file, ranges, mode);
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.parseMediaType("application/zip"));
-            headers.setContentDispositionFormData("attachment", "split.zip");
+            headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"split.zip\"");
             return new ResponseEntity<>(zip, headers, HttpStatus.OK);
         } catch (IllegalArgumentException e) {
             logger.warn("[PdfController] 拆分参数错误: {}", e.getMessage());
@@ -128,6 +147,7 @@ public class PdfController {
     public ResponseEntity<Map<String, Object>> extractText(@RequestParam("file") MultipartFile file) {
         logger.info("[PdfController] 提取文本请求: {}", file.getOriginalFilename());
         try {
+            validateFileSize(file);
             Map<String, Object> result = pdfService.extractText(file);
             return ResponseEntity.ok(result);
         } catch (IllegalArgumentException e) {

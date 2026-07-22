@@ -475,29 +475,45 @@
         'use strict';
 
         // ── Theme sync ──
+        function applyTheme() {
+            const theme = localStorage.getItem('app_appearance_v1') || 'notion';
+            let isDark = theme === 'dark';
+            if (theme === 'system') {
+                isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            }
+            document.documentElement.setAttribute('data-theme', isDark ? 'dark' : theme);
+            if (isDark) {
+                document.body.classList.add('dark-theme');
+            } else {
+                document.body.classList.remove('dark-theme');
+            }
+        }
         window.addEventListener('message', (e) => {
             if (e.data && e.data.action === 'themeChange') {
-                const theme = localStorage.getItem('app_appearance_v1') || 'notion';
-                document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : 'light');
-                if (theme === 'dark') {
-                    document.body.classList.add('dark-theme');
-                } else {
-                    document.body.classList.remove('dark-theme');
-                }
+                applyTheme();
             }
         });
-        // Apply on load
-        const savedTheme = localStorage.getItem('app_appearance_v1') || 'notion';
-        if (savedTheme === 'dark') document.body.classList.add('dark-theme');
+        applyTheme();
 
         // ── API base ──
-        const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:8080' : '';
+        const API_BASE = window.location.protocol === 'file:' ? 'http://127.0.0.1:8080' : '';
 
         // ── Helpers ──
         function formatSize(bytes) {
             if (bytes < 1024) return bytes + ' B';
             if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
             return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        }
+
+        /** 从 HTTP 错误响应中提取可读的错误消息 */
+        async function parseError(res, prefix) {
+            const raw = await res.text().catch(() => '');
+            let msg = raw || res.statusText;
+            try {
+                const json = JSON.parse(raw);
+                if (json.error) msg = json.error;
+            } catch {}
+            return prefix + ' (' + res.status + '): ' + msg;
         }
 
         function downloadBlob(blob, filename) {
@@ -649,8 +665,7 @@
                     body: fd
                 });
                 if (!res.ok) {
-                    const msg = await res.text().catch(() => '');
-                    throw new Error('合并失败 (' + res.status + '): ' + (msg || res.statusText));
+                    throw new Error(await parseError(res, '合并失败'));
                 }
                 const blob = await res.blob();
                 downloadBlob(blob, 'merged.pdf');
@@ -716,8 +731,7 @@
                     body: fd
                 });
                 if (!res.ok) {
-                    const msg = await res.text().catch(() => '');
-                    throw new Error('拆分失败 (' + res.status + '): ' + (msg || res.statusText));
+                    throw new Error(await parseError(res, '拆分失败'));
                 }
                 const blob = await res.blob();
                 downloadBlob(blob, 'split.zip');
@@ -776,13 +790,12 @@
                     body: fd
                 });
                 if (!res.ok) {
-                    const msg = await res.text().catch(() => '');
-                    throw new Error('提取失败 (' + res.status + '): ' + (msg || res.statusText));
+                    throw new Error(await parseError(res, '提取失败'));
                 }
                 const data = await res.json();
                 const text = data.text || data.content || '';
                 const pages = data.pages || data.pageCount;
-                const truncated = data.truncated || data.truncated === true;
+                const truncated = !!data.truncated;
 
                 extractTextarea.value = text;
 

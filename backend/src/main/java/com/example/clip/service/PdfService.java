@@ -3,6 +3,7 @@ package com.example.clip.service;
 import org.apache.pdfbox.multipdf.PDFMergerUtility;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -38,6 +39,24 @@ public class PdfService {
     private static final int MAX_TEXT_LENGTH = 50000;
 
     /**
+     * 加载 PDF 文件，将解析失败转为 IllegalArgumentException（400 错误）
+     *
+     * @param file 上传的 PDF 文件
+     * @return 加载完成的 PDDocument（调用方负责关闭）
+     * @throws IllegalArgumentException 文件不是有效 PDF 或已加密时抛出
+     * @throws IOException             其他 I/O 错误
+     */
+    private PDDocument loadPdf(MultipartFile file) throws IOException {
+        try {
+            return PDDocument.load(file.getInputStream());
+        } catch (InvalidPasswordException e) {
+            throw new IllegalArgumentException("PDF 已加密，请先解密: " + file.getOriginalFilename(), e);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("文件不是有效PDF: " + file.getOriginalFilename(), e);
+        }
+    }
+
+    /**
      * 合并多个 PDF 文件
      * <p>
      * 使用 {@link PDFMergerUtility} 将传入的多个 PDF 顺序合并为一个 PDF。
@@ -61,10 +80,10 @@ public class PdfService {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
 
         // 第一个文件作为目标文档，其余文件依次追加进目标文档
-        try (PDDocument dest = PDDocument.load(files[0].getInputStream())) {
+        try (PDDocument dest = loadPdf(files[0])) {
             for (int i = 1; i < files.length; i++) {
                 // try-with-resources 确保每个源文档被正确关闭
-                try (PDDocument source = PDDocument.load(files[i].getInputStream())) {
+                try (PDDocument source = loadPdf(files[i])) {
                     merger.appendDocument(dest, source);
                 }
             }
@@ -96,7 +115,7 @@ public class PdfService {
     public byte[] splitPdf(MultipartFile file, String ranges, String mode) throws IOException {
         logger.info("[PdfService] 拆分 PDF，mode={}, ranges={}", mode, ranges);
 
-        try (PDDocument document = PDDocument.load(file.getInputStream());
+        try (PDDocument document = loadPdf(file);
              ByteArrayOutputStream zipOut = new ByteArrayOutputStream();
              ZipOutputStream zos = new ZipOutputStream(zipOut)) {
 
@@ -120,7 +139,7 @@ public class PdfService {
             for (int[] range : splitRanges) {
                 try (PDDocument splitDoc = new PDDocument()) {
                     for (int p = range[0]; p <= range[1]; p++) {
-                        splitDoc.addPage(document.getPage(p - 1));
+                        splitDoc.importPage(document.getPage(p - 1));
                     }
                     ByteArrayOutputStream pdfOut = new ByteArrayOutputStream();
                     splitDoc.save(pdfOut);
@@ -154,7 +173,7 @@ public class PdfService {
         logger.info("[PdfService] 提取 PDF 文本: {}", file.getOriginalFilename());
 
         // try-with-resources 确保 PDDocument 被正确关闭
-        try (PDDocument document = PDDocument.load(file.getInputStream())) {
+        try (PDDocument document = loadPdf(file)) {
             PDFTextStripper stripper = new PDFTextStripper();
             // 按位置排序，保证文本提取顺序与视觉阅读顺序一致
             stripper.setSortByPosition(true);
