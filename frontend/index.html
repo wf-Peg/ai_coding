@@ -371,6 +371,13 @@
             </svg>
             学习
         </button>
+        <button class="nav-btn" data-view="pdf">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+            </svg>
+            PDF
+        </button>
         <button class="nav-btn" data-view="settings">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
@@ -414,6 +421,10 @@
         <!-- 学习计划 -->
         <div class="view-panel view-panel-hidden" id="learningPlanView">
             <iframe id="learningPlanFrame" data-src="learning-plan.html" style="width:100%;height:100%;border:none;"></iframe>
+        </div>
+        <!-- PDF 工具 -->
+        <div class="view-panel view-panel-hidden" id="pdfView">
+            <iframe id="pdfFrame" data-src="pdf.html" style="width:100%;height:100%;border:none;"></iframe>
         </div>
         <!-- 设置 -->
         <div class="view-panel view-panel-hidden" id="settingsView">
@@ -462,7 +473,7 @@
       }
 
       function broadcastThemeChange() {
-        [todoFrame, clipFrame, topicFrame, vaultFrame, settingsFrame, learningPlanFrame].forEach(frame => {
+        [todoFrame, clipFrame, topicFrame, vaultFrame, settingsFrame, learningPlanFrame, pdfFrame].forEach(frame => {
           try { if (frame && frame.contentWindow) frame.contentWindow.postMessage({ action: 'themeChange' }, '*'); } catch(e) {}
         });
       }
@@ -498,10 +509,12 @@
       const vaultView = document.getElementById('vaultView');
       const settingsView = document.getElementById('settingsView');
       const learningPlanView = document.getElementById('learningPlanView');
+      const pdfView = document.getElementById('pdfView');
       const topicFrame = document.getElementById('topicFrame');
       const vaultFrame = document.getElementById('vaultFrame');
       const settingsFrame = document.getElementById('settingsFrame');
       const learningPlanFrame = document.getElementById('learningPlanFrame');
+      const pdfFrame = document.getElementById('pdfFrame');
       const scrollTools = document.getElementById('scrollTools');
 
       let activeIframe = null;
@@ -510,9 +523,9 @@
 
       applyTheme(null, false);
 
-      const viewMap = { topic: topicView, vault: vaultView, settings: settingsView, 'learning-plan': learningPlanView };
-      const frameMap = { topic: topicFrame, vault: vaultFrame, settings: settingsFrame, 'learning-plan': learningPlanFrame };
-      const allPanels = [homeView, topicView, vaultView, settingsView, learningPlanView];
+      const viewMap = { topic: topicView, vault: vaultView, settings: settingsView, 'learning-plan': learningPlanView, pdf: pdfView };
+      const frameMap = { topic: topicFrame, vault: vaultFrame, settings: settingsFrame, 'learning-plan': learningPlanFrame, pdf: pdfFrame };
+      const allPanels = [homeView, topicView, vaultView, settingsView, learningPlanView, pdfView];
 
       function renderView(view) {
         navBtns.forEach(n => n.classList.remove('active'));
@@ -549,6 +562,7 @@
         if (clean === '/settings') return 'settings';
         if (clean === '/vault') return 'vault';
         if (clean === '/learning-plan') return 'learning-plan';
+        if (clean === '/pdf') return 'pdf';
         return 'home';
       }
 

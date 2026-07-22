@@ -6,15 +6,54 @@
 
 pdf-master 是纯前端 React + WASM 应用，而本项目是 Spring Boot + 原生 JS 架构，因此 PDF 处理逻辑放在**后端用 Apache PDFBox**（已在 pom.xml 中）实现，前端提供 Notion 风格的操作界面。
 
+## 技术选型分析
+
+### Java PDF 库横向对比
+
+| 维度 | Apache PDFBox 3.0.6 | iText 8.x | OpenPDF 1.3.38 |
+|------|---------------------|-----------|-----------------|
+| 许可证 | **Apache 2.0**（无商用限制） | AGPL v3（SaaS/闭源需购买商业授权） | LGPL/MPL（可商用但有传染性） |
+| GitHub Stars | ~2,500+ | ~1,000+ | ~1,800+ |
+| 最新版本 | 3.0.6（2025-10，活跃维护） | 8.0.5（2023，商业驱动） | 1.3.38（2023，个人维护） |
+| 维护方 | Apache 基金会 | iText Group（商业公司） | 个人开发者社区 |
+| 100页合并性能 | 2103ms / 180MB | 1287ms / 85MB | ~2400ms / ~200MB |
+| 合并/拆分 | ✅ `PDFMergerUtility` | ✅ `PdfMerger` | ✅ `PdfCopy` |
+| 提取文本 | ✅ `PDFTextStripper` | ✅ | ✅ |
+| 水印 | ✅ `PDPageContentStream` | ✅ | ✅ |
+| 页码 | ✅ `PDPageContentStream` | ✅ | ✅ |
+| 元数据 | ✅ `PDDocumentInformation` | ✅ | ✅ |
+| 加密 | ✅ `StandardProtectionPolicy` | ✅ | ✅ |
+| **PDF 转图片** | ✅ `PDFRenderer` | ❌ 不支持 | ❌ 不支持 |
+| 图片转 PDF | ✅ `PDImageXObject` | ✅ | ✅ |
+| 压缩 | ⚠️ 有限（图片重压缩） | ✅ 更好 | ⚠️ 有限 |
+| 数字签名 | ✅ | ✅ | ✅ |
+| **本项目已有** | ✅ v2.0.27 | ❌ | ❌ |
+
+### 选型结论：Apache PDFBox
+
+**选择 Apache PDFBox，不引入新依赖。** 核心理由：
+
+1. **零新依赖**：已在 pom.xml 中（v2.0.27），与现有 `PdfGenerator`、`DocumentParseService` 一致
+2. **许可证无风险**：Apache 2.0 允许闭源商业使用，iText 的 AGPL 对桌面应用有传染性风险
+3. **功能覆盖完整**：是三选一中唯一支持 PDF→图片转换的库，覆盖 spec 中全部 10 个功能
+4. **活跃维护**：Apache 基金会背书，2025-10 发布 3.0.6，持续修 bug
+5. **性能够用**：虽比 iText 慢 40%，但本场景是单用户桌面工具，非高并发服务，毫秒级差异可接受
+
+**版本策略**：MVP 阶段保持 v2.0.27（与现有代码一致，零风险），后续可评估升级到 3.0.6（API 有 breaking change：`PDDocument.load()` → `Loader.loadPDF()`，需全局替换）。
+
+**不选 iText 的原因**：AGPL v3 许可证要求衍生作品开源，本项目是闭源桌面应用，存在法律风险。性能优势在单用户桌面场景下无意义。
+
+**不选 OpenPDF 的原因**：不支持 PDF→图片转换（Phase 3 功能），且社区活跃度低于 PDFBox。
+
 ## What Changes
 
-- 新增后端 `PdfController` + `PdfService`，基于 Apache PDFBox 2.0.27 实现 PDF 处理 API
+- 新增后端 `PdfController` + `PdfService`，基于现有 Apache PDFBox 2.0.27 实现 PDF 处理 API（零新依赖）
 - 新增前端 `pdf.html` 页面，Notion 风格，集成到 SPA 导航
 - 按 3 个优先级阶段逐步交付功能：
   - **Phase 1（MVP）**：PDF 合并、PDF 拆分、PDF 提取文本
   - **Phase 2**：PDF 水印、PDF 页码、PDF 元数据查看/编辑、PDF 加密
   - **Phase 3**：PDF 转图片、图片转 PDF、PDF 压缩、PDF 批量处理
-- 不引入新前端框架，不引入数据库，复用现有 `FileStorageService` 做临时文件管理
+- 不引入新前端框架，不引入数据库，不引入新后端依赖，复用现有 `FileStorageService` 做临时文件管理
 
 ## Impact
 

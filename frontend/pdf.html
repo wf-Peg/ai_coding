@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF 工具</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./styles/theme-notion.css">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--bg);
+            color: var(--fg);
+            min-height: 100vh;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .app-container {
+            position: relative;
+            z-index: 1;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 32px 20px 64px;
+        }
+
+        /* ── Header ── */
+        .page-header {
+            margin-bottom: 24px;
+            animation: fadeSlideDown 0.4s ease-out;
+        }
+        .page-header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            color: var(--fg);
+            margin-bottom: 6px;
+        }
+        .page-header .subtitle {
+            font-size: 0.9rem;
+            color: var(--fg-secondary);
+        }
+
+        /* ── Tab bar ── */
+        .tab-bar {
+            display: flex;
+            gap: 4px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 24px;
+        }
+        .tab-btn {
+            appearance: none;
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid transparent;
+            padding: 10px 16px;
+            font-family: var(--font-body);
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: var(--fg-secondary);
+            cursor: pointer;
+            transition: color var(--transition), border-color var(--transition);
+            margin-bottom: -1px;
+        }
+        .tab-btn:hover {
+            color: var(--fg);
+        }
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        /* ── Card ── */
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.25s ease-out;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+            padding: 24px;
+        }
+        .card + .card {
+            margin-top: 16px;
+        }
+        .card-title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--fg);
+            margin-bottom: 4px;
+        }
+        .card-desc {
+            font-size: 0.85rem;
+            color: var(--fg-secondary);
+            margin-bottom: 16px;
+        }
+
+        /* ── Dropzone ── */
+        .dropzone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius-md);
+            background: var(--card);
+            padding: 32px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color var(--transition), background var(--transition);
+        }
+        .dropzone:hover,
+        .dropzone.dragover {
+            border-color: var(--primary);
+            background: var(--primary-light);
+        }
+        .dropzone-icon {
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+            display: block;
+        }
+        .dropzone-text {
+            font-size: 0.9rem;
+            color: var(--fg-secondary);
+        }
+        .dropzone-text strong {
+            color: var(--primary);
+            font-weight: 600;
+        }
+        .dropzone-hint {
+            font-size: 0.78rem;
+            color: var(--fg-muted);
+            margin-top: 4px;
+        }
+
+        /* ── File list ── */
+        .file-list {
+            margin-top: 16px;
+            display: none;
+        }
+        .file-list.visible {
+            display: block;
+        }
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 4px;
+            border-bottom: 1px solid var(--border);
+        }
+        .file-item:last-child {
+            border-bottom: none;
+        }
+        .file-info {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            flex: 1;
+        }
+        .file-name {
+            font-size: 0.88rem;
+            color: var(--fg);
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .file-size {
+            font-size: 0.75rem;
+            color: var(--fg-muted);
+            margin-top: 2px;
+        }
+        .file-remove {
+            appearance: none;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--fg-secondary);
+            padding: 4px 10px;
+            font-size: 0.78rem;
+            cursor: pointer;
+            transition: all var(--transition);
+            flex-shrink: 0;
+        }
+        .file-remove:hover {
+            background: var(--danger-light);
+            color: var(--danger);
+            border-color: var(--danger);
+        }
+
+        /* ── Form controls ── */
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .radio-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: var(--fg);
+            cursor: pointer;
+        }
+        .radio-option input {
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+        .text-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--card);
+            color: var(--fg);
+            font-family: var(--font-body);
+            font-size: 0.9rem;
+            transition: border-color var(--transition), box-shadow var(--transition);
+        }
+        .text-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        /* ── Buttons ── */
+        .btn {
+            appearance: none;
+            border: none;
+            border-radius: var(--radius-md);
+            padding: 11px 20px;
+            font-family: var(--font-body);
+            font-size: 0.92rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background var(--transition), opacity var(--transition), box-shadow var(--transition);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: #ffffff;
+        }
+        .btn-primary:not(:disabled):hover {
+            background: var(--primary-dark);
+        }
+        .btn-secondary {
+            background: var(--accent);
+            color: var(--fg);
+        }
+        .btn-secondary:not(:disabled):hover {
+            background: var(--accent-light);
+        }
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+
+        /* ── Alert ── */
+        .alert {
+            display: none;
+            margin-top: 16px;
+            padding: 12px 14px;
+            border-radius: var(--radius-md);
+            font-size: 0.85rem;
+            border: 1px solid var(--danger);
+            background: var(--danger-light);
+            color: var(--danger);
+        }
+        .alert.visible {
+            display: block;
+        }
+
+        /* ── Result ── */
+        .result-area {
+            margin-top: 16px;
+            display: none;
+        }
+        .result-area.visible {
+            display: block;
+        }
+        .result-meta {
+            font-size: 0.8rem;
+            color: var(--fg-secondary);
+            margin-bottom: 8px;
+        }
+        .result-meta .warn {
+            color: var(--priority-medium);
+        }
+        .result-textarea {
+            width: 100%;
+            min-height: 240px;
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--card);
+            color: var(--fg);
+            font-family: 'IBM Plex Mono', 'Courier New', monospace;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            resize: vertical;
+        }
+        .result-textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        /* ── Animations ── */
+        @keyframes fadeSlideDown {
+            from { opacity: 0; transform: translateY(-6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 600px) {
+            .app-container {
+                padding: 20px 14px 48px;
+            }
+            .card {
+                padding: 18px 14px;
+            }
+            .tab-btn {
+                padding: 10px 10px;
+                font-size: 0.88rem;
+            }
+            .page-header h1 {
+                font-size: 1.3rem;
+            }
+        }
+
+        /* ── Dark theme tweaks (driven by data-theme/body class) ── */
+        html[data-theme="dark"] .text-input,
+        html[data-theme="dark"] .result-textarea {
+            background: var(--bg-elevated);
+        }
+        body.dark-theme .text-input,
+        body.dark-theme .result-textarea {
+            background: var(--bg-elevated);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="page-header">
+            <h1>PDF 工具</h1>
+            <p class="subtitle">合并、拆分 PDF 文件，以及提取文本内容</p>
+        </header>
+
+        <!-- Tab bar -->
+        <nav class="tab-bar" role="tablist">
+            <button class="tab-btn active" id="tab-merge" data-tab="merge" role="tab">合并</button>
+            <button class="tab-btn" id="tab-split" data-tab="split" role="tab">拆分</button>
+            <button class="tab-btn" id="tab-extract" data-tab="extract" role="tab">提取文本</button>
+        </nav>
+
+        <!-- Tab 1: Merge -->
+        <section class="tab-content active" id="content-merge" role="tabpanel">
+            <div class="card">
+                <div class="card-title">合并 PDF</div>
+                <div class="card-desc">选择 2 个或更多 PDF 文件，按顺序合并为一个 PDF。</div>
+
+                <div class="dropzone" id="merge-dropzone">
+                    <span class="dropzone-icon">⬆</span>
+                    <div class="dropzone-text"><strong>点击选择</strong> 或拖拽 PDF 文件到此区域</div>
+                    <div class="dropzone-hint">支持多个 .pdf 文件</div>
+                    <input type="file" id="merge-input" accept="application/pdf,.pdf" multiple hidden>
+                </div>
+
+                <div class="file-list" id="merge-file-list"></div>
+
+                <div class="btn-row">
+                    <button class="btn btn-primary" id="merge-btn" disabled>合并 PDF</button>
+                </div>
+
+                <div class="alert" id="merge-alert"></div>
+            </div>
+        </section>
+
+        <!-- Tab 2: Split -->
+        <section class="tab-content" id="content-split" role="tabpanel">
+            <div class="card">
+                <div class="card-title">拆分 PDF</div>
+                <div class="card-desc">选择一个 PDF 文件，按页码范围拆分或每页单独拆分。</div>
+
+                <div class="dropzone" id="split-dropzone">
+                    <span class="dropzone-icon">⬆</span>
+                    <div class="dropzone-text"><strong>点击选择</strong> 或拖拽 PDF 文件到此区域</div>
+                    <div class="dropzone-hint">仅支持单个 .pdf 文件</div>
+                    <input type="file" id="split-input" accept="application/pdf,.pdf" hidden>
+                </div>
+
+                <div class="file-list" id="split-file-list"></div>
+
+                <div class="radio-group" style="margin-top: 16px;">
+                    <label class="radio-option">
+                        <input type="radio" name="split-mode" value="ranges" checked>
+                        按页码范围
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="split-mode" value="each">
+                        每页拆分
+                    </label>
+                </div>
+
+                <div id="split-ranges-wrap">
+                    <input type="text" class="text-input" id="split-ranges" placeholder="如: 1-3,5,7-9">
+                </div>
+
+                <div class="btn-row">
+                    <button class="btn btn-primary" id="split-btn" disabled>拆分 PDF</button>
+                </div>
+
+                <div class="alert" id="split-alert"></div>
+            </div>
+        </section>
+
+        <!-- Tab 3: Extract text -->
+        <section class="tab-content" id="content-extract" role="tabpanel">
+            <div class="card">
+                <div class="card-title">提取文本</div>
+                <div class="card-desc">从 PDF 文件中提取全部文本内容。</div>
+
+                <div class="dropzone" id="extract-dropzone">
+                    <span class="dropzone-icon">⬆</span>
+                    <div class="dropzone-text"><strong>点击选择</strong> 或拖拽 PDF 文件到此区域</div>
+                    <div class="dropzone-hint">仅支持单个 .pdf 文件</div>
+                    <input type="file" id="extract-input" accept="application/pdf,.pdf" hidden>
+                </div>
+
+                <div class="file-list" id="extract-file-list"></div>
+
+                <div class="btn-row">
+                    <button class="btn btn-primary" id="extract-btn" disabled>提取文本</button>
+                </div>
+
+                <div class="alert" id="extract-alert"></div>
+
+                <div class="result-area" id="extract-result">
+                    <div class="result-meta" id="extract-meta"></div>
+                    <textarea class="result-textarea" id="extract-textarea" readonly placeholder="提取的文本将显示在此处..."></textarea>
+                    <div class="btn-row">
+                        <button class="btn btn-secondary" id="extract-copy">复制文本</button>
+                        <button class="btn btn-secondary" id="extract-download">下载 .txt</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+    (function () {
+        'use strict';
+
+        // ── Theme sync ──
+        window.addEventListener('message', (e) => {
+            if (e.data && e.data.action === 'themeChange') {
+                const theme = localStorage.getItem('app_appearance_v1') || 'notion';
+                document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : 'light');
+                if (theme === 'dark') {
+                    document.body.classList.add('dark-theme');
+                } else {
+                    document.body.classList.remove('dark-theme');
+                }
+            }
+        });
+        // Apply on load
+        const savedTheme = localStorage.getItem('app_appearance_v1') || 'notion';
+        if (savedTheme === 'dark') document.body.classList.add('dark-theme');
+
+        // ── API base ──
+        const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:8080' : '';
+
+        // ── Helpers ──
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        }
+
+        function downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function showAlert(el, message) {
+            el.textContent = message;
+            el.classList.add('visible');
+        }
+
+        function hideAlert(el) {
+            el.textContent = '';
+            el.classList.remove('visible');
+        }
+
+        function setLoading(btn, loading, loadingText) {
+            if (loading) {
+                btn.dataset.originalText = btn.textContent;
+                btn.textContent = loadingText || '处理中...';
+                btn.disabled = true;
+            } else {
+                btn.textContent = btn.dataset.originalText || btn.textContent;
+                btn.disabled = false;
+            }
+        }
+
+        function isPdfFile(file) {
+            return file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+        }
+
+        // ── Tab switching ──
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const target = btn.dataset.tab;
+                tabBtns.forEach(b => b.classList.toggle('active', b === btn));
+                tabContents.forEach(c => c.classList.toggle('active', c.id === 'content-' + target));
+            });
+        });
+
+        // ── Generic dropzone setup ──
+        function setupDropzone(dropzoneId, inputId, onFiles) {
+            const dz = document.getElementById(dropzoneId);
+            const input = document.getElementById(inputId);
+
+            dz.addEventListener('click', () => input.click());
+
+            input.addEventListener('change', () => {
+                if (input.files && input.files.length) onFiles(Array.from(input.files));
+                input.value = '';
+            });
+
+            ['dragenter', 'dragover'].forEach(ev => {
+                dz.addEventListener(ev, e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dz.classList.add('dragover');
+                });
+            });
+            ['dragleave', 'drop'].forEach(ev => {
+                dz.addEventListener(ev, e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dz.classList.remove('dragover');
+                });
+            });
+            dz.addEventListener('drop', e => {
+                const files = Array.from(e.dataTransfer.files || []);
+                if (files.length) onFiles(files);
+            });
+        }
+
+        function renderFileList(listEl, files, onRemove) {
+            listEl.innerHTML = '';
+            if (!files.length) {
+                listEl.classList.remove('visible');
+                return;
+            }
+            listEl.classList.add('visible');
+            files.forEach((file, idx) => {
+                const item = document.createElement('div');
+                item.className = 'file-item';
+                item.innerHTML =
+                    '<div class="file-info">' +
+                        '<span class="file-name"></span>' +
+                        '<span class="file-size"></span>' +
+                    '</div>' +
+                    '<button class="file-remove" type="button">移除</button>';
+                item.querySelector('.file-name').textContent = file.name;
+                item.querySelector('.file-size').textContent = formatSize(file.size);
+                item.querySelector('.file-remove').addEventListener('click', () => onRemove(idx));
+                listEl.appendChild(item);
+            });
+        }
+
+        // ════════════════ Tab 1: Merge ════════════════
+        const mergeDropzone = document.getElementById('merge-dropzone');
+        const mergeInput = document.getElementById('merge-input');
+        const mergeFileList = document.getElementById('merge-file-list');
+        const mergeBtn = document.getElementById('merge-btn');
+        const mergeAlert = document.getElementById('merge-alert');
+        let mergeFiles = [];
+
+        function refreshMergeBtn() {
+            mergeBtn.disabled = mergeFiles.length < 2;
+        }
+
+        function removeMergeFile(idx) {
+            mergeFiles.splice(idx, 1);
+            renderMergeFileList();
+            refreshMergeBtn();
+        }
+
+        function renderMergeFileList() {
+            renderFileList(mergeFileList, mergeFiles, removeMergeFile);
+        }
+
+        function addMergeFiles(newFiles) {
+            hideAlert(mergeAlert);
+            const pdfs = newFiles.filter(isPdfFile);
+            if (pdfs.length !== newFiles.length) {
+                showAlert(mergeAlert, '仅支持 .pdf 文件，已自动忽略其他类型。');
+            }
+            mergeFiles = mergeFiles.concat(pdfs);
+            renderMergeFileList();
+            refreshMergeBtn();
+        }
+
+        setupDropzone('merge-dropzone', 'merge-input', addMergeFiles);
+
+        mergeBtn.addEventListener('click', async () => {
+            if (mergeFiles.length < 2) return;
+            hideAlert(mergeAlert);
+            setLoading(mergeBtn, true, '处理中...');
+            try {
+                const fd = new FormData();
+                mergeFiles.forEach(f => fd.append('files', f, f.name));
+                const res = await fetch(API_BASE + '/api/pdf/merge', {
+                    method: 'POST',
+                    body: fd
+                });
+                if (!res.ok) {
+                    const msg = await res.text().catch(() => '');
+                    throw new Error('合并失败 (' + res.status + '): ' + (msg || res.statusText));
+                }
+                const blob = await res.blob();
+                downloadBlob(blob, 'merged.pdf');
+            } catch (err) {
+                showAlert(mergeAlert, err.message || '合并失败，请重试。');
+            } finally {
+                setLoading(mergeBtn, false);
+            }
+        });
+
+        // ════════════════ Tab 2: Split ════════════════
+        const splitFileList = document.getElementById('split-file-list');
+        const splitBtn = document.getElementById('split-btn');
+        const splitAlert = document.getElementById('split-alert');
+        const splitRangesWrap = document.getElementById('split-ranges-wrap');
+        const splitRangesInput = document.getElementById('split-ranges');
+        const splitRadios = document.querySelectorAll('input[name="split-mode"]');
+        let splitFiles = [];
+
+        function refreshSplitBtn() {
+            splitBtn.disabled = splitFiles.length < 1;
+        }
+
+        function addSplitFiles(newFiles) {
+            hideAlert(splitAlert);
+            const pdfs = newFiles.filter(isPdfFile);
+            if (!pdfs.length) {
+                showAlert(splitAlert, '请选择 .pdf 文件。');
+                return;
+            }
+            splitFiles = [pdfs[0]];
+            renderFileList(splitFileList, splitFiles, () => {
+                splitFiles = [];
+                renderFileList(splitFileList, splitFiles, () => {});
+                refreshSplitBtn();
+            });
+            refreshSplitBtn();
+        }
+
+        setupDropzone('split-dropzone', 'split-input', addSplitFiles);
+
+        splitRadios.forEach(radio => {
+            radio.addEventListener('change', () => {
+                const mode = document.querySelector('input[name="split-mode"]:checked').value;
+                splitRangesWrap.style.display = mode === 'ranges' ? '' : 'none';
+            });
+        });
+
+        splitBtn.addEventListener('click', async () => {
+            if (!splitFiles.length) return;
+            hideAlert(splitAlert);
+            setLoading(splitBtn, true, '处理中...');
+            try {
+                const mode = document.querySelector('input[name="split-mode"]:checked').value;
+                const fd = new FormData();
+                fd.append('file', splitFiles[0], splitFiles[0].name);
+                fd.append('mode', mode);
+                if (mode === 'ranges') {
+                    fd.append('ranges', (splitRangesInput.value || '').trim());
+                }
+                const res = await fetch(API_BASE + '/api/pdf/split', {
+                    method: 'POST',
+                    body: fd
+                });
+                if (!res.ok) {
+                    const msg = await res.text().catch(() => '');
+                    throw new Error('拆分失败 (' + res.status + '): ' + (msg || res.statusText));
+                }
+                const blob = await res.blob();
+                downloadBlob(blob, 'split.zip');
+            } catch (err) {
+                showAlert(splitAlert, err.message || '拆分失败，请重试。');
+            } finally {
+                setLoading(splitBtn, false);
+            }
+        });
+
+        // ════════════════ Tab 3: Extract text ════════════════
+        const extractFileList = document.getElementById('extract-file-list');
+        const extractBtn = document.getElementById('extract-btn');
+        const extractAlert = document.getElementById('extract-alert');
+        const extractResult = document.getElementById('extract-result');
+        const extractMeta = document.getElementById('extract-meta');
+        const extractTextarea = document.getElementById('extract-textarea');
+        const extractCopyBtn = document.getElementById('extract-copy');
+        const extractDownloadBtn = document.getElementById('extract-download');
+        let extractFiles = [];
+
+        function refreshExtractBtn() {
+            extractBtn.disabled = extractFiles.length < 1;
+        }
+
+        function addExtractFiles(newFiles) {
+            hideAlert(extractAlert);
+            const pdfs = newFiles.filter(isPdfFile);
+            if (!pdfs.length) {
+                showAlert(extractAlert, '请选择 .pdf 文件。');
+                return;
+            }
+            extractFiles = [pdfs[0]];
+            extractResult.classList.remove('visible');
+            extractTextarea.value = '';
+            renderFileList(extractFileList, extractFiles, () => {
+                extractFiles = [];
+                renderFileList(extractFileList, extractFiles, () => {});
+                extractResult.classList.remove('visible');
+                refreshExtractBtn();
+            });
+            refreshExtractBtn();
+        }
+
+        setupDropzone('extract-dropzone', 'extract-input', addExtractFiles);
+
+        extractBtn.addEventListener('click', async () => {
+            if (!extractFiles.length) return;
+            hideAlert(extractAlert);
+            setLoading(extractBtn, true, '处理中...');
+            try {
+                const fd = new FormData();
+                fd.append('file', extractFiles[0], extractFiles[0].name);
+                const res = await fetch(API_BASE + '/api/pdf/extract-text', {
+                    method: 'POST',
+                    body: fd
+                });
+                if (!res.ok) {
+                    const msg = await res.text().catch(() => '');
+                    throw new Error('提取失败 (' + res.status + '): ' + (msg || res.statusText));
+                }
+                const data = await res.json();
+                const text = data.text || data.content || '';
+                const pages = data.pages || data.pageCount;
+                const truncated = data.truncated || data.truncated === true;
+
+                extractTextarea.value = text;
+
+                let meta = '';
+                if (pages) meta += '页数: ' + pages;
+                if (truncated) meta += (meta ? ' · ' : '') + '<span class="warn">⚠ 文本已被截断</span>';
+                if (text) {
+                    const len = text.length;
+                    meta += (meta ? ' · ' : '') + '字符数: ' + len;
+                }
+                extractMeta.innerHTML = meta || '提取完成';
+
+                extractResult.classList.add('visible');
+            } catch (err) {
+                showAlert(extractAlert, err.message || '提取失败，请重试。');
+            } finally {
+                setLoading(extractBtn, false);
+            }
+        });
+
+        extractCopyBtn.addEventListener('click', async () => {
+            const text = extractTextarea.value;
+            if (!text) return;
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(text);
+                } else {
+                    extractTextarea.select();
+                    document.execCommand('copy');
+                }
+                const orig = extractCopyBtn.textContent;
+                extractCopyBtn.textContent = '已复制';
+                setTimeout(() => { extractCopyBtn.textContent = orig; }, 1500);
+            } catch (err) {
+                showAlert(extractAlert, '复制失败: ' + err.message);
+            }
+        });
+
+        extractDownloadBtn.addEventListener('click', () => {
+            const text = extractTextarea.value;
+            if (!text) return;
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            downloadBlob(blob, 'extracted.txt');
+        });
+    })();
+    </script>
+</body>
+</html>
