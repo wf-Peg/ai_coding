@@ -2,6 +2,7 @@ package com.example.clip.service;
 
 import com.example.clip.core.AiService;
 import com.example.clip.model.ClipContent;
+import com.example.clip.service.obsidian.ObsidianExportFormatter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,6 +54,8 @@ public class ContentOrganizeService {
     private final GitService gitService;
     /** Prompt 配置服务，用于获取认知对话模式 Prompt */
     private final PromptConfigService promptConfigService;
+    /** Obsidian 格式化服务，用于生成兼容 Obsidian 的 Markdown */
+    private final ObsidianExportFormatter obsidianExportFormatter;
     /** 整理结果的存储根目录 */
     private final Path organizedStoragePath;
     /** 上次整理状态（idle/processing/completed/error） */
@@ -76,12 +79,14 @@ public class ContentOrganizeService {
             EmailService emailService,
             GitService gitService,
             PromptConfigService promptConfigService,
+            ObsidianExportFormatter obsidianExportFormatter,
             @Value("${clip.organized-storage.path:./clip-organized}") String organizedStoragePath) {
         this.storageService = storageService;
         this.aiService = aiService;
         this.emailService = emailService;
         this.gitService = gitService;
         this.promptConfigService = promptConfigService;
+        this.obsidianExportFormatter = obsidianExportFormatter;
         this.organizedStoragePath = Paths.get(organizedStoragePath);
         // 确保整理存储目录存在
         initOrganizedStorage();
@@ -144,7 +149,6 @@ public class ContentOrganizeService {
 
             // 按分类分组剪藏内容
             Map<String, List<ClipContent>> clipsByCategory = groupClipsByCategory(todayClips);
-            String dateSuffix = today.format(DateTimeFormatter.ofPattern("yyMMdd"));
 
             int organizedCount = 0;
 
@@ -156,8 +160,8 @@ public class ContentOrganizeService {
                 if (!categoryClips.isEmpty()) {
                     // 组织分类内容（AI 整理）
                     String organizedContent = organizeCategoryContent(category, categoryClips);
-                    // 文件名格式：{category}_{yyMMdd}.md
-                    String fileName = category + "_" + dateSuffix + ".md";
+                    // 文件名格式：{分类中文名}_{yyyy-MM-dd}.md（Obsidian 友好）
+                    String fileName = obsidianExportFormatter.generateFileName(getTopCategoryName(category), today);
                     saveOrganizedContent(category, fileName, organizedContent);
                     organizedCount++;
                 }
@@ -233,9 +237,26 @@ public class ContentOrganizeService {
      */
     private String organizeCategoryContent(String category, List<ClipContent> clips) {
         StringBuilder contentBuilder = new StringBuilder();
-        contentBuilder.append("# ").append(getCategoryName(category)).append("\n\n");
-        contentBuilder.append("整理日期: ").append(LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy年MM月dd日"))).append("\n\n");
-        contentBuilder.append("---\n\n");
+
+        // 收集所有剪藏的标签（去重）和来源 URL，用于 frontmatter
+        List<String> allTags = clips.stream()
+                .filter(c -> c.getTags() != null)
+                .flatMap(c -> c.getTags().stream())
+                .filter(t -> t != null && !t.trim().isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+        List<String> allSourceUrls = clips.stream()
+                .map(ClipContent::getSourceUrl)
+                .filter(u -> u != null && !u.trim().isEmpty())
+                .collect(Collectors.toList());
+
+        // 生成 Obsidian 兼容的 YAML frontmatter
+        String categoryName = getCategoryName(category);
+        contentBuilder.append(obsidianExportFormatter.generateFrontmatter(
+                LocalDate.now(), allTags, categoryName, allSourceUrls));
+
+        // 正文标题（frontmatter 之后）
+        contentBuilder.append("# ").append(categoryName).append("\n\n");
 
         for (int i = 0; i < clips.size(); i++) {
             ClipContent clip = clips.get(i);
@@ -252,19 +273,16 @@ public class ContentOrganizeService {
             }
 
             if (clip.getAnalysis() != null) {
-                contentBuilder.append("### AI分析\n\n").append(clip.getAnalysis()).append("\n\n");
+                contentBuilder.append(obsidianExportFormatter.wrapCallout("AI 分析", clip.getAnalysis(), "analysis")).append("\n");
             }
 
             if (clip.getMyThoughts() != null && !clip.getMyThoughts().isEmpty()) {
-                contentBuilder.append("### 💭 我的思考\n\n").append(clip.getMyThoughts()).append("\n\n");
+                contentBuilder.append(obsidianExportFormatter.wrapCallout("💭 我的思考", clip.getMyThoughts(), "thoughts")).append("\n");
             }
 
             if (clip.getTags() != null && !clip.getTags().isEmpty()) {
                 contentBuilder.append("### 标签\n\n");
-                for (String tag : clip.getTags()) {
-                    contentBuilder.append("tag:#").append(tag).append("  ");
-                }
-                contentBuilder.append("\n\n");
+                contentBuilder.append(obsidianExportFormatter.formatTagsInline(clip.getTags())).append("\n\n");
             }
 
             contentBuilder.append("---\n\n");
@@ -406,6 +424,22 @@ public class ContentOrganizeService {
         }
 
         return category;
+    }
+
+    /**
+     * 获取一级分类中文名（不含子分类）。
+     * <p>
+     * 例如: "work-company" → "工作项目", "work" → "工作项目"。
+     * 用于归档文件名生成，使文件名简洁。
+     * </p>
+     *
+     * @param category 分类值
+     * @return 一级分类中文名
+     */
+    private String getTopCategoryName(String category) {
+        String fullName = getCategoryName(category);
+        int idx = fullName.indexOf(" > ");
+        return idx > 0 ? fullName.substring(0, idx) : fullName;
     }
 
     /**

@@ -68,3 +68,19 @@ exa:
   # 是否启用 Exa 搜索，false 时降级为 AI 生成资源
   enabled: true
 
+# Obsidian 导出格式配置（归档 Markdown 兼容 Obsidian）
+obsidian:
+  export:
+    # frontmatter 中包含的字段列表
+    frontmatter-fields:
+      - date
+      - tags
+      - category
+      - source
+    # Callout 类型映射（key=逻辑键, value=Obsidian Callout 类型）
+    callout-types:
+      analysis: note
+      thoughts: quote
+    # 归档文件名中的日期格式
+    file-name-date-format: yyyy-MM-dd
+
