@@ -100,6 +100,18 @@ public class ClipContent {
      */
     private String sourceFilePath;
 
+    /** 编辑器内容类型：text/json/xml/sql，用于再次打开时恢复语法模式 */
+    private String contentFormat;
+
+    /** 来源文件名，不包含本地绝对路径 */
+    private String sourceFileName;
+
+    /** 来源或保存目标字符编码 */
+    private String sourceEncoding;
+
+    /** 来源或保存目标换行符：LF/CRLF/CR */
+    private String sourceLineEnding;
+
     /**
      * 无参构造函数。
      * 自动设置创建时间（{@code createdAt}）为当前时间。
@@ -309,5 +321,37 @@ public class ClipContent {
      */
     public void setSourceFilePath(String sourceFilePath) {
         this.sourceFilePath = sourceFilePath;
+    }
+
+    public String getContentFormat() {
+        return contentFormat;
+    }
+
+    public void setContentFormat(String contentFormat) {
+        this.contentFormat = contentFormat;
+    }
+
+    public String getSourceFileName() {
+        return sourceFileName;
+    }
+
+    public void setSourceFileName(String sourceFileName) {
+        this.sourceFileName = sourceFileName;
+    }
+
+    public String getSourceEncoding() {
+        return sourceEncoding;
+    }
+
+    public void setSourceEncoding(String sourceEncoding) {
+        this.sourceEncoding = sourceEncoding;
+    }
+
+    public String getSourceLineEnding() {
+        return sourceLineEnding;
+    }
+
+    public void setSourceLineEnding(String sourceLineEnding) {
+        this.sourceLineEnding = sourceLineEnding;
     }
 }
