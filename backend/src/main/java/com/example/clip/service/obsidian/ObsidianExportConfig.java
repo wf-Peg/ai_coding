@@ -22,7 +22,10 @@ import java.util.Map;
  *   export:
  *     frontmatter-fields:
  *       - date
+ *       - updated
+ *       - type
  *       - tags
+ *       - aliases
  *       - category
  *       - source
  *     callout-types:
@@ -35,8 +38,15 @@ import java.util.Map;
 @ConfigurationProperties(prefix = "obsidian.export")
 public class ObsidianExportConfig {
 
-    /** frontmatter 中包含的字段列表，顺序即为输出顺序 */
-    private List<String> frontmatterFields = new ArrayList<>(List.of("date", "tags", "category", "source"));
+    /**
+     * frontmatter 中包含的字段列表，顺序即为输出顺序。
+     * <p>
+     * 默认包含 date / updated / type / tags / aliases / category / source，
+     * 兼容 Obsidian properties 与 Dataview 查询。用户可通过配置文件自定义覆盖。
+     * </p>
+     */
+    private List<String> frontmatterFields = new ArrayList<>(
+            List.of("date", "updated", "type", "tags", "aliases", "category", "source"));
 
     /** Callout 类型映射，key 为逻辑键（analysis/thoughts），value 为 Obsidian Callout 类型 */
     private Map<String, String> calloutTypes = new HashMap<>(Map.of("analysis", "note", "thoughts", "quote"));

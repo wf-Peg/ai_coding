@@ -62,6 +62,15 @@ public class PromptConfigService {
         normalized.setSmartOrganizePrompt(normalizeOrDefault(loaded.getSmartOrganizePrompt(), DEFAULT_SMART_ORGANIZE_PROMPT));
         normalized.setGenerateSynonymsPrompt(normalizeOrDefault(loaded.getGenerateSynonymsPrompt(), DEFAULT_GENERATE_SYNONYMS_PROMPT));
         normalized.setDivergentSummaryRoleMap(normalizeOrDefault(loaded.getDivergentSummaryRoleMap(), DEFAULT_DIVERGENT_SUMMARY_ROLE_MAP));
+        // Wiki
+        normalized.setWikiBatchExtractPrompt(normalizeOrDefault(loaded.getWikiBatchExtractPrompt(), DEFAULT_WIKI_BATCH_EXTRACT_PROMPT));
+        normalized.setWikiGenerateEntityPagePrompt(normalizeOrDefault(loaded.getWikiGenerateEntityPagePrompt(), DEFAULT_WIKI_GENERATE_ENTITY_PAGE_PROMPT));
+        normalized.setWikiGenerateConceptPagePrompt(normalizeOrDefault(loaded.getWikiGenerateConceptPagePrompt(), DEFAULT_WIKI_GENERATE_CONCEPT_PAGE_PROMPT));
+        normalized.setWikiGenerateSourcePagePrompt(normalizeOrDefault(loaded.getWikiGenerateSourcePagePrompt(), DEFAULT_WIKI_GENERATE_SOURCE_PAGE_PROMPT));
+        normalized.setWikiDetectContradictionPrompt(normalizeOrDefault(loaded.getWikiDetectContradictionPrompt(), DEFAULT_WIKI_DETECT_CONTRADICTION_PROMPT));
+        normalized.setWikiQueryIndexPrompt(normalizeOrDefault(loaded.getWikiQueryIndexPrompt(), DEFAULT_WIKI_QUERY_INDEX_PROMPT));
+        normalized.setWikiQuerySynthesisPrompt(normalizeOrDefault(loaded.getWikiQuerySynthesisPrompt(), DEFAULT_WIKI_QUERY_SYNTHESIS_PROMPT));
+        normalized.setWikiLintPrompt(normalizeOrDefault(loaded.getWikiLintPrompt(), DEFAULT_WIKI_LINT_PROMPT));
         return normalized;
     }
 
@@ -86,6 +95,15 @@ public class PromptConfigService {
         normalized.setSmartOrganizePrompt(normalizeOrDefault(config.getSmartOrganizePrompt(), existing.getSmartOrganizePrompt()));
         normalized.setGenerateSynonymsPrompt(normalizeOrDefault(config.getGenerateSynonymsPrompt(), existing.getGenerateSynonymsPrompt()));
         normalized.setDivergentSummaryRoleMap(normalizeOrDefault(config.getDivergentSummaryRoleMap(), existing.getDivergentSummaryRoleMap()));
+        // Wiki
+        normalized.setWikiBatchExtractPrompt(normalizeOrDefault(config.getWikiBatchExtractPrompt(), existing.getWikiBatchExtractPrompt()));
+        normalized.setWikiGenerateEntityPagePrompt(normalizeOrDefault(config.getWikiGenerateEntityPagePrompt(), existing.getWikiGenerateEntityPagePrompt()));
+        normalized.setWikiGenerateConceptPagePrompt(normalizeOrDefault(config.getWikiGenerateConceptPagePrompt(), existing.getWikiGenerateConceptPagePrompt()));
+        normalized.setWikiGenerateSourcePagePrompt(normalizeOrDefault(config.getWikiGenerateSourcePagePrompt(), existing.getWikiGenerateSourcePagePrompt()));
+        normalized.setWikiDetectContradictionPrompt(normalizeOrDefault(config.getWikiDetectContradictionPrompt(), existing.getWikiDetectContradictionPrompt()));
+        normalized.setWikiQueryIndexPrompt(normalizeOrDefault(config.getWikiQueryIndexPrompt(), existing.getWikiQueryIndexPrompt()));
+        normalized.setWikiQuerySynthesisPrompt(normalizeOrDefault(config.getWikiQuerySynthesisPrompt(), existing.getWikiQuerySynthesisPrompt()));
+        normalized.setWikiLintPrompt(normalizeOrDefault(config.getWikiLintPrompt(), existing.getWikiLintPrompt()));
         validate(normalized);
         storageService.saveConfig(normalized);
         return normalized;
@@ -174,6 +192,40 @@ public class PromptConfigService {
         return getPromptConfig().getDivergentSummaryRoleMap();
     }
 
+    // ==================== 便捷 Getter（Wiki） ====================
+
+    public String getWikiBatchExtractPrompt() {
+        return getPromptConfig().getWikiBatchExtractPrompt();
+    }
+
+    public String getWikiGenerateEntityPagePrompt() {
+        return getPromptConfig().getWikiGenerateEntityPagePrompt();
+    }
+
+    public String getWikiGenerateConceptPagePrompt() {
+        return getPromptConfig().getWikiGenerateConceptPagePrompt();
+    }
+
+    public String getWikiGenerateSourcePagePrompt() {
+        return getPromptConfig().getWikiGenerateSourcePagePrompt();
+    }
+
+    public String getWikiDetectContradictionPrompt() {
+        return getPromptConfig().getWikiDetectContradictionPrompt();
+    }
+
+    public String getWikiQueryIndexPrompt() {
+        return getPromptConfig().getWikiQueryIndexPrompt();
+    }
+
+    public String getWikiQuerySynthesisPrompt() {
+        return getPromptConfig().getWikiQuerySynthesisPrompt();
+    }
+
+    public String getWikiLintPrompt() {
+        return getPromptConfig().getWikiLintPrompt();
+    }
+
     // ==================== 模板渲染 ====================
 
     /**
@@ -223,6 +275,15 @@ public class PromptConfigService {
         c.setSmartOrganizePrompt(DEFAULT_SMART_ORGANIZE_PROMPT);
         c.setGenerateSynonymsPrompt(DEFAULT_GENERATE_SYNONYMS_PROMPT);
         c.setDivergentSummaryRoleMap(DEFAULT_DIVERGENT_SUMMARY_ROLE_MAP);
+        // Wiki
+        c.setWikiBatchExtractPrompt(DEFAULT_WIKI_BATCH_EXTRACT_PROMPT);
+        c.setWikiGenerateEntityPagePrompt(DEFAULT_WIKI_GENERATE_ENTITY_PAGE_PROMPT);
+        c.setWikiGenerateConceptPagePrompt(DEFAULT_WIKI_GENERATE_CONCEPT_PAGE_PROMPT);
+        c.setWikiGenerateSourcePagePrompt(DEFAULT_WIKI_GENERATE_SOURCE_PAGE_PROMPT);
+        c.setWikiDetectContradictionPrompt(DEFAULT_WIKI_DETECT_CONTRADICTION_PROMPT);
+        c.setWikiQueryIndexPrompt(DEFAULT_WIKI_QUERY_INDEX_PROMPT);
+        c.setWikiQuerySynthesisPrompt(DEFAULT_WIKI_QUERY_SYNTHESIS_PROMPT);
+        c.setWikiLintPrompt(DEFAULT_WIKI_LINT_PROMPT);
         return c;
     }
 
@@ -240,6 +301,14 @@ public class PromptConfigService {
         validateField("smartOrganizePrompt", config.getSmartOrganizePrompt());
         validateField("generateSynonymsPrompt", config.getGenerateSynonymsPrompt());
         validateField("divergentSummaryRoleMap", config.getDivergentSummaryRoleMap());
+        validateField("wikiBatchExtractPrompt", config.getWikiBatchExtractPrompt());
+        validateField("wikiGenerateEntityPagePrompt", config.getWikiGenerateEntityPagePrompt());
+        validateField("wikiGenerateConceptPagePrompt", config.getWikiGenerateConceptPagePrompt());
+        validateField("wikiGenerateSourcePagePrompt", config.getWikiGenerateSourcePagePrompt());
+        validateField("wikiDetectContradictionPrompt", config.getWikiDetectContradictionPrompt());
+        validateField("wikiQueryIndexPrompt", config.getWikiQueryIndexPrompt());
+        validateField("wikiQuerySynthesisPrompt", config.getWikiQuerySynthesisPrompt());
+        validateField("wikiLintPrompt", config.getWikiLintPrompt());
     }
 
     private void validateField(String fieldName, String value) {
@@ -494,4 +563,114 @@ public class PromptConfigService {
             "  \"finance\": \"你是一位金融专家，擅长投资理财和财务规划。\",\n" +
             "  \"social\": \"你是一位社交专家，擅长人际关系和沟通分析。\"\n" +
             "}";
+
+    // ==================== 默认 Wiki Prompt 常量 ====================
+
+    /** 默认 Wiki 批量实体/概念抽取 Prompt */
+    private static final String DEFAULT_WIKI_BATCH_EXTRACT_PROMPT =
+            "You are an entity and concept extractor for a personal knowledge base. You will receive multiple source documents. For each source, identify:\n" +
+            "1. Entities: specific people, products, technologies, organizations, places\n" +
+            "2. Concepts: topics, themes, ideas, theories, methods\n" +
+            "\n" +
+            "Return a JSON array where each element corresponds to a source (in order):\n" +
+            "[{\"index\": 0, \"entities\": [\"entity1\", \"entity2\"], \"concepts\": [\"concept1\"], \"summary\": \"one-line summary\"}, ...]\n" +
+            "\n" +
+            "Rules:\n" +
+            "- Be specific and concise with entity/concept names (use canonical names)\n" +
+            "- Summary should capture the key point in one line\n" +
+            "- Return ONLY the JSON array, no other text";
+
+    /** 默认 Wiki 实体页面生成 Prompt */
+    private static final String DEFAULT_WIKI_GENERATE_ENTITY_PAGE_PROMPT =
+            "You are a wiki page maintainer for a personal knowledge base. Generate or update an entity page.\n" +
+            "\n" +
+            "If creating a new page, include sections:\n" +
+            "- Brief definition of the entity\n" +
+            "- Key information from sources (summarized)\n" +
+            "- Relationships to other entities (use [[Entity Name]] wiki-links)\n" +
+            "\n" +
+            "If updating an existing page, integrate new information into existing content. Do not remove existing information. Add new source summaries and update relationships.\n" +
+            "\n" +
+            "Use Obsidian wiki-link syntax [[Page Name]] for cross-references.\n" +
+            "Use > [!note] callout for AI-generated analysis.\n" +
+            "Return ONLY the page content in Markdown (no frontmatter).";
+
+    /** 默认 Wiki 概念页面生成 Prompt */
+    private static final String DEFAULT_WIKI_GENERATE_CONCEPT_PAGE_PROMPT =
+            "You are a wiki page maintainer for a personal knowledge base. Generate or update a concept page.\n" +
+            "\n" +
+            "If creating a new page, include sections:\n" +
+            "- Concept explanation and definition\n" +
+            "- Cross-source synthesis (how multiple sources discuss this concept)\n" +
+            "- Related entities (use [[Entity Name]] wiki-links)\n" +
+            "- Related sources list\n" +
+            "\n" +
+            "If updating, integrate new information. Do not remove existing content.\n" +
+            "\n" +
+            "Use Obsidian wiki-link syntax [[Page Name]] for cross-references.\n" +
+            "Use > [!note] callout for AI-generated synthesis.\n" +
+            "Return ONLY the page content in Markdown (no frontmatter).";
+
+    /** 默认 Wiki 源页面生成 Prompt */
+    private static final String DEFAULT_WIKI_GENERATE_SOURCE_PAGE_PROMPT =
+            "You are a wiki page maintainer. Generate a source page that summarizes an original source document.\n" +
+            "\n" +
+            "Include:\n" +
+            "- Original content summary (key points, not full text)\n" +
+            "- AI analysis of the source\n" +
+            "- Source URL\n" +
+            "\n" +
+            "Use > [!note] callout for AI analysis.\n" +
+            "Return ONLY the page content in Markdown (no frontmatter).";
+
+    /** 默认 Wiki 矛盾检测 Prompt */
+    private static final String DEFAULT_WIKI_DETECT_CONTRADICTION_PROMPT =
+            "You are a contradiction detector for a knowledge base. Analyze if the new content contradicts any factual claims in the existing page content.\n" +
+            "\n" +
+            "If a contradiction is found, describe it concisely: what is the contradiction, what does each source claim.\n" +
+            "If no contradiction is found, return exactly: NONE\n" +
+            "\n" +
+            "Be strict about factual contradictions only (dates, numbers, definitions, causal claims). Do not flag differences in perspective or emphasis as contradictions.\n" +
+            "Return ONLY the contradiction description or NONE.";
+
+    /** 默认 Wiki 查询索引路由 Prompt */
+    private static final String DEFAULT_WIKI_QUERY_INDEX_PROMPT =
+            "You are a knowledge base navigator. Given a question and the wiki index (list of all pages with summaries), identify which pages are most relevant to answer the question.\n" +
+            "\n" +
+            "Return a JSON array of relevant page names (most relevant first):\n" +
+            "[\"Page Name 1\", \"Page Name 2\", \"Page Name 3\"]\n" +
+            "\n" +
+            "Select at most 5 most relevant pages. Return ONLY the JSON array.";
+
+    /** 默认 Wiki 查询答案综合 Prompt */
+    private static final String DEFAULT_WIKI_QUERY_SYNTHESIS_PROMPT =
+            "You are a knowledge base synthesizer. Given a question and relevant wiki page contents, synthesize a comprehensive answer.\n" +
+            "\n" +
+            "Rules:\n" +
+            "- Use [[Page Name]] wiki-links to reference sources\n" +
+            "- Be concise but thorough\n" +
+            "- If the pages don't contain enough information, say so\n" +
+            "- Note any contradictions between sources\n" +
+            "\n" +
+            "Return the answer in Markdown format.";
+
+    /** 默认 Wiki 按需 Lint Prompt — 检测矛盾/过时/孤儿页/缺失页/缺失交叉引用 */
+    private static final String DEFAULT_WIKI_LINT_PROMPT =
+            "You are a knowledge base linter. Scan all wiki pages and detect the following issue types:\n" +
+            "\n" +
+            "1. contradictions: Different pages make conflicting factual claims (dates, numbers, definitions, causal claims).\n" +
+            "2. stale: A page's information has been superseded by newer sources but the page has not been updated.\n" +
+            "3. orphan: A page that has no incoming links from other pages (orphaned page).\n" +
+            "4. missing_page: A concept or entity is mentioned (via [[Wiki-Link]] or plain text) but has no standalone page.\n" +
+            "5. missing_cross_reference: Two pages are clearly related but do not link to each other.\n" +
+            "\n" +
+            "Return a JSON array (no markdown code block) of detected issues:\n" +
+            "[{\"type\": \"contradiction\", \"pages\": [\"PageA\", \"PageB\"], \"description\": \"...\"}, {\"type\": \"orphan\", \"pages\": [\"PageC\"], \"description\": \"...\"}]\n" +
+            "\n" +
+            "Rules:\n" +
+            "- Only report genuine issues; do not speculate.\n" +
+            "- Each issue must have a non-empty description.\n" +
+            "- The pages field lists the page names involved (use the exact page names from the input).\n" +
+            "- If no issues are found, return an empty array: []\n" +
+            "- Return ONLY the JSON array, no other text.";
 }
