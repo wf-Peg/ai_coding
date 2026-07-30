@@ -91,6 +91,16 @@ public class ClipContent {
     private String myThoughts;
 
     /**
+     * Web Clipper 同步的源文件相对路径（可选）。
+     * <p>
+     * 当剪藏来源于 Obsidian Web Clipper 同步时，记录 sources/ 目录下的相对路径，
+     * 例如 {@code sources/2026-07-30_React入门.md}。便于后续跳转原文、回链或增量
+     * 处理。该字段不参与正常剪藏的存储流程，仅为 Web Clipper 同步链路保留。
+     * </p>
+     */
+    private String sourceFilePath;
+
+    /**
      * 无参构造函数。
      * 自动设置创建时间（{@code createdAt}）为当前时间。
      */
@@ -281,5 +291,23 @@ public class ClipContent {
 
     public void setMyThoughts(String myThoughts) {
         this.myThoughts = myThoughts;
+    }
+
+    /**
+     * 返回 Web Clipper 同步的源文件相对路径。
+     *
+     * @return 源文件路径，例如 {@code sources/2026-07-30_React入门.md}；非同步剪藏返回 null
+     */
+    public String getSourceFilePath() {
+        return sourceFilePath;
+    }
+
+    /**
+     * 设置 Web Clipper 同步的源文件相对路径。
+     *
+     * @param sourceFilePath 源文件路径
+     */
+    public void setSourceFilePath(String sourceFilePath) {
+        this.sourceFilePath = sourceFilePath;
     }
 }

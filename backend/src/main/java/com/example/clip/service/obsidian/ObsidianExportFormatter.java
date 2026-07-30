@@ -40,10 +40,11 @@ public class ObsidianExportFormatter {
     }
 
     /**
-     * 生成 YAML frontmatter 块。
+     * 生成 YAML frontmatter 块（向后兼容重载）。
      * <p>
-     * 根据 {@link ObsidianExportConfig#getFrontmatterFields()} 中配置的字段顺序
-     * 生成 frontmatter，仅输出配置中包含的字段。
+     * 委托到 {@link #generateFrontmatter(LocalDate, List, String, List, List, String)}，
+     * {@code aliases} 传 null，{@code type} 默认使用 {@code categoryName}。
+     * 旧调用方无需修改即可正常工作。
      * </p>
      *
      * @param date         整理日期
@@ -53,6 +54,32 @@ public class ObsidianExportFormatter {
      * @return {@code ---\n...\n---\n\n} 格式的 YAML frontmatter 字符串
      */
     public String generateFrontmatter(LocalDate date, List<String> tags, String categoryName, List<String> sourceUrls) {
+        return generateFrontmatter(date, tags, categoryName, sourceUrls, null, categoryName);
+    }
+
+    /**
+     * 生成 YAML frontmatter 块（完整版，支持 aliases / updated / type 字段）。
+     * <p>
+     * 根据 {@link ObsidianExportConfig#getFrontmatterFields()} 中配置的字段顺序
+     * 生成 frontmatter，仅输出配置中包含的字段。新增字段说明：
+     * <ul>
+     *   <li>{@code aliases}：Obsidian 别名列表，用于 wiki-link 容错
+     *       （如页面名 "React" 可设 aliases: ["ReactJS", "React.js"]）</li>
+     *   <li>{@code updated}：更新日期，Dataview 排序用</li>
+     *   <li>{@code type}：页面类型（entity/concept/synthesis/source/moc），Dataview 查询用</li>
+     * </ul>
+     * </p>
+     *
+     * @param date         整理日期（同时用于 date 和 updated 字段）
+     * @param tags         标签列表（将自动去重）
+     * @param categoryName 分类中文名
+     * @param sourceUrls   来源 URL 列表（可为空）
+     * @param aliases      Obsidian 别名列表（可为 null 或空，则不输出 aliases 字段）
+     * @param type         页面类型（可为 null 或空，则不输出 type 字段）
+     * @return {@code ---\n...\n---\n\n} 格式的 YAML frontmatter 字符串
+     */
+    public String generateFrontmatter(LocalDate date, List<String> tags, String categoryName,
+                                       List<String> sourceUrls, List<String> aliases, String type) {
         StringBuilder sb = new StringBuilder();
         sb.append("---\n");
 
@@ -69,6 +96,11 @@ public class ObsidianExportFormatter {
         // 来源 URL 过滤
         List<String> validUrls = sourceUrls != null
                 ? sourceUrls.stream().filter(u -> u != null && !u.trim().isEmpty()).collect(Collectors.toList())
+                : List.of();
+
+        // 别名过滤
+        List<String> validAliases = aliases != null
+                ? aliases.stream().filter(a -> a != null && !a.trim().isEmpty()).map(String::trim).collect(Collectors.toList())
                 : List.of();
 
         // 按配置的字段顺序输出
@@ -96,6 +128,22 @@ public class ObsidianExportFormatter {
                         for (String url : validUrls) {
                             sb.append("  - ").append(escapeYaml(url)).append("\n");
                         }
+                    }
+                    break;
+                case "aliases":
+                    if (!validAliases.isEmpty()) {
+                        sb.append("aliases:\n");
+                        for (String alias : validAliases) {
+                            sb.append("  - ").append(escapeYaml(alias)).append("\n");
+                        }
+                    }
+                    break;
+                case "updated":
+                    sb.append("updated: ").append(date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))).append("\n");
+                    break;
+                case "type":
+                    if (type != null && !type.isEmpty()) {
+                        sb.append("type: ").append(escapeYaml(type)).append("\n");
                     }
                     break;
                 default:

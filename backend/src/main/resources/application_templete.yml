@@ -72,9 +72,13 @@ exa:
 obsidian:
   export:
     # frontmatter 中包含的字段列表
+    # 默认 7 字段，兼容 Obsidian properties 与 Dataview 查询
     frontmatter-fields:
       - date
+      - updated
+      - type
       - tags
+      - aliases
       - category
       - source
     # Callout 类型映射（key=逻辑键, value=Obsidian Callout 类型）
@@ -83,4 +87,18 @@ obsidian:
       thoughts: quote
     # 归档文件名中的日期格式
     file-name-date-format: yyyy-MM-dd
+
+# LLM Wiki 配置（基于 Obsidian Vault 的 LLM 知识库）
+wiki:
+  vault-path: ./obsidian-vault  # Obsidian Vault 根路径
+  wiki-dir-name: wiki  # Vault 内 Wiki 目录名
+  sources-dir-name: sources  # Vault 内 sources 目录名（待入库的原始 Markdown）
+  batch-size: 5  # 批量入库窗口大小
+  batch-timeout-minutes: 30  # 批量入库触发超时（分钟）
+  lint-cache-enabled: true  # 是否启用增量 lint 缓存
+  extraction-model: deepseek  # 抽取阶段使用的模型标识
+  synthesis-model: dashscope  # 合成阶段使用的模型标识
+  page-types: [entity, concept, synthesis, source]  # 支持的页面类型列表
+  sync-enabled: true  # 是否启用 Web Clipper 源文件同步
+  sync-interval-seconds: 60  # Web Clipper 同步扫描间隔（秒）
 

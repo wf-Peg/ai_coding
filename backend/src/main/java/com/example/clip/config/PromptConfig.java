@@ -70,6 +70,32 @@ public class PromptConfig {
      */
     private String divergentSummaryRoleMap;
 
+    // ==================== Wiki Prompt（7 个） ====================
+
+    /** Wiki 批量实体/概念抽取 Prompt — 一次调用抽取多个源 */
+    private String wikiBatchExtractPrompt;
+
+    /** Wiki 实体页面生成/更新 Prompt */
+    private String wikiGenerateEntityPagePrompt;
+
+    /** Wiki 概念页面生成/更新 Prompt */
+    private String wikiGenerateConceptPagePrompt;
+
+    /** Wiki 源页面生成 Prompt */
+    private String wikiGenerateSourcePagePrompt;
+
+    /** Wiki 矛盾检测 Prompt */
+    private String wikiDetectContradictionPrompt;
+
+    /** Wiki 查询索引路由 Prompt（用于 WikiQueryService） */
+    private String wikiQueryIndexPrompt;
+
+    /** Wiki 查询答案综合 Prompt（用于 WikiQueryService） */
+    private String wikiQuerySynthesisPrompt;
+
+    /** Wiki 按需 Lint Prompt — 检测矛盾/过时/孤儿页/缺失页/缺失交叉引用 */
+    private String wikiLintPrompt;
+
     // ==================== 构造函数 ====================
 
     public PromptConfig() {
@@ -117,4 +143,30 @@ public class PromptConfig {
 
     public String getDivergentSummaryRoleMap() { return divergentSummaryRoleMap; }
     public void setDivergentSummaryRoleMap(String v) { this.divergentSummaryRoleMap = v; }
+
+    // ==================== Wiki Prompt Getter/Setter ====================
+
+    public String getWikiBatchExtractPrompt() { return wikiBatchExtractPrompt; }
+    public void setWikiBatchExtractPrompt(String v) { this.wikiBatchExtractPrompt = v; }
+
+    public String getWikiGenerateEntityPagePrompt() { return wikiGenerateEntityPagePrompt; }
+    public void setWikiGenerateEntityPagePrompt(String v) { this.wikiGenerateEntityPagePrompt = v; }
+
+    public String getWikiGenerateConceptPagePrompt() { return wikiGenerateConceptPagePrompt; }
+    public void setWikiGenerateConceptPagePrompt(String v) { this.wikiGenerateConceptPagePrompt = v; }
+
+    public String getWikiGenerateSourcePagePrompt() { return wikiGenerateSourcePagePrompt; }
+    public void setWikiGenerateSourcePagePrompt(String v) { this.wikiGenerateSourcePagePrompt = v; }
+
+    public String getWikiDetectContradictionPrompt() { return wikiDetectContradictionPrompt; }
+    public void setWikiDetectContradictionPrompt(String v) { this.wikiDetectContradictionPrompt = v; }
+
+    public String getWikiQueryIndexPrompt() { return wikiQueryIndexPrompt; }
+    public void setWikiQueryIndexPrompt(String v) { this.wikiQueryIndexPrompt = v; }
+
+    public String getWikiQuerySynthesisPrompt() { return wikiQuerySynthesisPrompt; }
+    public void setWikiQuerySynthesisPrompt(String v) { this.wikiQuerySynthesisPrompt = v; }
+
+    public String getWikiLintPrompt() { return wikiLintPrompt; }
+    public void setWikiLintPrompt(String v) { this.wikiLintPrompt = v; }
 }

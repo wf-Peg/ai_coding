@@ -2,6 +2,7 @@ package com.example.clip.core;
 
 import com.example.clip.dto.ClipAnalysisResult;
 import com.example.clip.dto.KnowledgeExtractionResult;
+import com.example.clip.dto.WikiExtractionResult;
 import com.example.clip.service.PromptConfigService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -698,6 +699,306 @@ public class AiService {
             result.put("knowledgePoints", List.of());
         }
         return result;
+    }
+
+    // ==================== LLM Wiki 功能 ====================
+
+    /**
+     * 批量从多个源内容中抽取实体与概念（Token 节省方案）。
+     * <p>
+     * 将多个源文档合并到一次 LLM 调用中，统一抽取实体（人物、产品、技术、组织、地点）
+     * 和概念（主题、思想、理论、方法），并为每个源生成一行摘要。
+     * 相比逐个源调用 LLM，可显著减少 Token 消耗和网络往返。
+     * </p>
+     *
+     * <h3>返回格式</h3>
+     * <pre>
+     * [
+     *   {"index": 0, "entities": ["React", "Facebook"], "concepts": ["Virtual DOM"], "summary": "..."},
+     *   {"index": 1, "entities": [...], "concepts": [...], "summary": "..."}
+     * ]
+     * </pre>
+     *
+     * <p>失败时返回空列表（优雅降级）。</p>
+     *
+     * @param contents 源文档内容列表
+     * @return 抽取结果列表，与输入顺序对应；失败返回空列表
+     */
+    public List<WikiExtractionResult> batchExtractEntitiesAndConcepts(List<String> contents) {
+        if (contents == null || contents.isEmpty()) {
+            return List.of();
+        }
+        try {
+            String systemPrompt = promptConfigService.getWikiBatchExtractPrompt();
+            // 构建用户消息：将每个源文档按索引拼接
+            StringBuilder userMessage = new StringBuilder();
+            for (int i = 0; i < contents.size(); i++) {
+                userMessage.append("=== Source ").append(i).append(" ===\n");
+                userMessage.append(contents.get(i) != null ? contents.get(i) : "").append("\n\n");
+            }
+            String response = llmProvider.chat(systemPrompt, userMessage.toString());
+            String cleaned = cleanJsonWrapper(response);
+            ObjectMapper mapper = new ObjectMapper()
+                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            List<WikiExtractionResult> parsed = mapper.readValue(cleaned,
+                    new TypeReference<List<WikiExtractionResult>>() {});
+            return parsed != null ? parsed : List.of();
+        } catch (Exception e) {
+            logger.error("[AI] batchExtractEntitiesAndConcepts failed: {}", e.getMessage(), e);
+            return List.of();
+        }
+    }
+
+    /**
+     * 生成或更新实体 Wiki 页面。
+     * <p>
+     * 若 {@code existingPageContent} 为 null/空，则创建新页面；否则在已有内容基础上增量更新。
+     * 系统提示词要求 LLM 使用 Obsidian [[Wiki-Link]] 语法和 > [!note] callout。
+     * </p>
+     *
+     * @param entityName          实体名称
+     * @param newSourceSummary    新来源的摘要内容
+     * @param existingPageContent 已有页面内容（可为 null 或空）
+     * @return 生成/更新后的 Markdown 页面内容；失败时返回 existingPageContent 或空字符串
+     */
+    public String generateEntityPage(String entityName, String newSourceSummary, String existingPageContent) {
+        boolean hasExisting = existingPageContent != null && !existingPageContent.trim().isEmpty();
+        try {
+            String systemPrompt = promptConfigService.getWikiGenerateEntityPagePrompt()
+                    .replace("{entityName}", entityName != null ? entityName : "");
+            StringBuilder userMessage = new StringBuilder();
+            userMessage.append("Entity: ").append(entityName != null ? entityName : "").append("\n\n");
+            userMessage.append("New source summary:\n").append(newSourceSummary != null ? newSourceSummary : "").append("\n\n");
+            if (hasExisting) {
+                userMessage.append("Existing page content (update this, do not remove existing information):\n")
+                        .append(existingPageContent);
+            } else {
+                userMessage.append("Existing page content: (none — create a new page)");
+            }
+            return llmProvider.chat(systemPrompt, userMessage.toString());
+        } catch (Exception e) {
+            logger.error("[AI] generateEntityPage failed for '{}': {}", entityName, e.getMessage(), e);
+            return hasExisting ? existingPageContent : "";
+        }
+    }
+
+    /**
+     * 生成或更新概念 Wiki 页面。
+     * <p>
+     * 与 {@link #generateEntityPage} 类似，但面向概念。包含概念解释、跨源综合、
+     * 相关实体（wiki-links）和相关源列表。
+     * </p>
+     *
+     * @param conceptName         概念名称
+     * @param newSourceSummary    新来源的摘要内容
+     * @param existingPageContent 已有页面内容（可为 null 或空）
+     * @return 生成/更新后的 Markdown 页面内容；失败时返回 existingPageContent 或空字符串
+     */
+    public String generateConceptPage(String conceptName, String newSourceSummary, String existingPageContent) {
+        boolean hasExisting = existingPageContent != null && !existingPageContent.trim().isEmpty();
+        try {
+            String systemPrompt = promptConfigService.getWikiGenerateConceptPagePrompt()
+                    .replace("{conceptName}", conceptName != null ? conceptName : "");
+            StringBuilder userMessage = new StringBuilder();
+            userMessage.append("Concept: ").append(conceptName != null ? conceptName : "").append("\n\n");
+            userMessage.append("New source summary:\n").append(newSourceSummary != null ? newSourceSummary : "").append("\n\n");
+            if (hasExisting) {
+                userMessage.append("Existing page content (update this, do not remove existing content):\n")
+                        .append(existingPageContent);
+            } else {
+                userMessage.append("Existing page content: (none — create a new page)");
+            }
+            return llmProvider.chat(systemPrompt, userMessage.toString());
+        } catch (Exception e) {
+            logger.error("[AI] generateConceptPage failed for '{}': {}", conceptName, e.getMessage(), e);
+            return hasExisting ? existingPageContent : "";
+        }
+    }
+
+    /**
+     * 生成源页面，对原始源文档进行汇总。
+     * <p>
+     * 包含原始内容摘要、AI 分析和源 URL。失败时返回一个基础摘要。
+     * </p>
+     *
+     * @param sourceContent 原始源内容
+     * @param sourceUrl     源 URL
+     * @return 源页面的 Markdown 内容；失败时返回基础摘要
+     */
+    public String generateSourcePage(String sourceContent, String sourceUrl) {
+        try {
+            String systemPrompt = promptConfigService.getWikiGenerateSourcePagePrompt();
+            StringBuilder userMessage = new StringBuilder();
+            userMessage.append("Source URL: ").append(sourceUrl != null ? sourceUrl : "").append("\n\n");
+            userMessage.append("Source content:\n").append(sourceContent != null ? sourceContent : "");
+            return llmProvider.chat(systemPrompt, userMessage.toString());
+        } catch (Exception e) {
+            logger.error("[AI] generateSourcePage failed: {}", e.getMessage(), e);
+            // 返回基础摘要作为降级
+            String safeUrl = sourceUrl != null ? sourceUrl : "";
+            String snippet = sourceContent != null && sourceContent.length() > 200
+                    ? sourceContent.substring(0, 200) + "..."
+                    : (sourceContent != null ? sourceContent : "");
+            return "# Source Page\n\nSource URL: " + safeUrl + "\n\n## Summary\n\n" + snippet;
+        }
+    }
+
+    /**
+     * 检测新内容与已有页面内容之间的事实矛盾。
+     * <p>
+     * 系统提示词要求 LLM 在发现矛盾时返回矛盾描述，无矛盾时返回 "NONE"。
+     * 本方法将 "NONE"（不区分大小写、忽略空白）映射为 null。
+     * </p>
+     *
+     * @param newContent           新内容
+     * @param existingPageContent  已有页面内容
+     * @return 矛盾描述字符串；无矛盾或失败时返回 null
+     */
+    public String detectContradiction(String newContent, String existingPageContent) {
+        try {
+            String systemPrompt = promptConfigService.getWikiDetectContradictionPrompt();
+            StringBuilder userMessage = new StringBuilder();
+            userMessage.append("Existing page content:\n")
+                    .append(existingPageContent != null ? existingPageContent : "")
+                    .append("\n\n===\n\nNew content:\n")
+                    .append(newContent != null ? newContent : "");
+            String response = llmProvider.chat(systemPrompt, userMessage.toString());
+            if (response == null) {
+                return null;
+            }
+            String trimmed = response.trim();
+            if (trimmed.isEmpty() || trimmed.equalsIgnoreCase("NONE")) {
+                return null;
+            }
+            return trimmed;
+        } catch (Exception e) {
+            logger.error("[AI] detectContradiction failed: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    // ==================== LLM Wiki 查询功能 ====================
+
+    /**
+     * 根据问题和 Wiki 索引定位最相关的页面名列表。
+     * <p>
+     * 第一阶段（便宜模型）：使用 {@link PromptConfigService#getWikiQueryIndexPrompt()} 作为系统提示词，
+     * 让 LLM 从 index.md 内容中挑选最多 5 个与问题最相关的页面名，返回 JSON 字符串数组。
+     * 调用方据此仅读取相关页面，避免全量扫描，节省 Token。
+     * </p>
+     *
+     * <p>失败时返回空列表（优雅降级）。</p>
+     *
+     * @param question     用户问题
+     * @param indexContent wiki/index.md 内容
+     * @return 相关页面名列表；失败时返回空列表
+     */
+    @SuppressWarnings("unchecked")
+    public List<String> locateRelevantPages(String question, String indexContent) {
+        try {
+            String systemPrompt = promptConfigService.getWikiQueryIndexPrompt();
+            String userMessage = "Question: " + (question != null ? question : "") + "\n\nWiki Index:\n"
+                    + (indexContent != null ? indexContent : "");
+            String response = llmProvider.chat(systemPrompt, userMessage);
+            if (response == null || response.trim().isEmpty()) {
+                return List.of();
+            }
+            String cleaned = cleanJsonWrapper(response);
+            ObjectMapper mapper = new ObjectMapper()
+                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            List<String> parsed = mapper.readValue(cleaned, new TypeReference<List<String>>() {});
+            return parsed != null ? parsed : List.of();
+        } catch (Exception e) {
+            logger.error("[AI] locateRelevantPages failed: {}", e.getMessage(), e);
+            return List.of();
+        }
+    }
+
+    /**
+     * 基于问题和相关页面内容综合生成答案。
+     * <p>
+     * 第二阶段（强模型）：使用 {@link PromptConfigService#getWikiQuerySynthesisPrompt()} 作为系统提示词，
+     * 将问题与每个相关页面内容拼接送入 LLM，生成 Markdown 答案，含 [[Wiki-Link]] 引用。
+     * </p>
+     *
+     * <p>失败时返回降级字符串 {@code "无法生成答案: " + e.getMessage()}。</p>
+     *
+     * @param question     用户问题
+     * @param pageContents 页面名 → 页面内容映射
+     * @return Markdown 答案字符串
+     */
+    public String synthesizeAnswer(String question, Map<String, String> pageContents) {
+        try {
+            String systemPrompt = promptConfigService.getWikiQuerySynthesisPrompt();
+            StringBuilder userMessage = new StringBuilder();
+            userMessage.append("Question: ").append(question != null ? question : "").append("\n\n");
+            userMessage.append("Relevant pages:\n\n");
+            if (pageContents != null && !pageContents.isEmpty()) {
+                for (Map.Entry<String, String> entry : pageContents.entrySet()) {
+                    String pageName = entry.getKey();
+                    String content = entry.getValue() != null ? entry.getValue() : "";
+                    userMessage.append("## ").append(pageName).append("\n")
+                            .append(content).append("\n\n");
+                }
+            }
+            return llmProvider.chat(systemPrompt, userMessage.toString());
+        } catch (Exception e) {
+            logger.error("[AI] synthesizeAnswer failed: {}", e.getMessage(), e);
+            return "无法生成答案: " + e.getMessage();
+        }
+    }
+
+    // ==================== LLM Wiki Lint 功能 ====================
+
+    /**
+     * 对所有 Wiki 页面执行健康检查（lint）。
+     * <p>
+     * 系统提示词使用 {@link PromptConfigService#getWikiLintPrompt()}，
+     * 用户消息先列出页面清单，再逐个展示页面内容。LLM 返回 JSON 数组，
+     * 每个元素含 type（contradiction/stale/orphan/missing_page/missing_cross_reference）、
+     * pages（涉及页面名列表）和 description（问题描述）字段。
+     * </p>
+     *
+     * <p>失败时返回空列表（优雅降级），不中断 lint 流程。</p>
+     *
+     * @param pageContents 页面名 → 页面内容映射
+     * @return 检测到的问题列表，每个元素含 type/pages/description；失败返回空列表
+     */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> lintWikiPages(Map<String, String> pageContents) {
+        if (pageContents == null || pageContents.isEmpty()) {
+            return List.of();
+        }
+        try {
+            String systemPrompt = promptConfigService.getWikiLintPrompt();
+            StringBuilder userMessage = new StringBuilder();
+            // 1. 页面清单
+            userMessage.append("Pages to lint:\n");
+            for (String pageName : pageContents.keySet()) {
+                userMessage.append("- ").append(pageName).append("\n");
+            }
+            userMessage.append("\n");
+            // 2. 逐个展示页面内容
+            for (Map.Entry<String, String> entry : pageContents.entrySet()) {
+                String pageName = entry.getKey();
+                String content = entry.getValue() != null ? entry.getValue() : "";
+                userMessage.append("=== ").append(pageName).append(" ===\n")
+                        .append(content).append("\n\n");
+            }
+            String response = llmProvider.chat(systemPrompt, userMessage.toString());
+            if (response == null || response.trim().isEmpty()) {
+                return List.of();
+            }
+            String cleaned = cleanJsonWrapper(response);
+            ObjectMapper mapper = new ObjectMapper()
+                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            List<Map<String, Object>> parsed = mapper.readValue(cleaned,
+                    new TypeReference<List<Map<String, Object>>>() {});
+            return parsed != null ? parsed : List.of();
+        } catch (Exception e) {
+            logger.error("[AI] lintWikiPages failed: {}", e.getMessage(), e);
+            return List.of();
+        }
     }
 
     // ==================== JSON 解析工具方法 ====================

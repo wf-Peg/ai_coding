@@ -965,6 +965,81 @@
             letter-spacing: 0.02em;
         }
 
+        /* Source badge in clip list */
+        .source-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-right: 6px;
+            letter-spacing: 0.02em;
+            border: 1px solid transparent;
+        }
+        .source-badge.web-clipper { background: #e3f2fd; color: #1976d2; border-color: rgba(25, 118, 210, 0.2); }
+        .source-badge.browser { background: #e8f5e9; color: #388e3c; border-color: rgba(56, 142, 60, 0.2); }
+        .source-badge.manual { background: #f5f5f5; color: #616161; border-color: rgba(97, 97, 97, 0.2); }
+        .source-badge.system { background: #f5f5f5; color: #9e9e9e; border-color: rgba(158, 158, 158, 0.2); }
+
+        html[data-theme="dark"] .source-badge.web-clipper { background: rgba(25, 118, 210, 0.18); color: #90caf9; border-color: rgba(144, 202, 249, 0.3); }
+        html[data-theme="dark"] .source-badge.browser { background: rgba(56, 142, 60, 0.18); color: #a5d6a7; border-color: rgba(165, 214, 167, 0.3); }
+        html[data-theme="dark"] .source-badge.manual { background: #3a3a3a; color: #bdbdbd; border-color: #4a4a4a; }
+        html[data-theme="dark"] .source-badge.system { background: #3a3a3a; color: #9e9e9e; border-color: #4a4a4a; }
+
+        /* Wiki-link 渲染 */
+        .wiki-link {
+            color: #1976d2;
+            text-decoration: underline;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .wiki-link:hover {
+            color: #1565c0;
+        }
+        html[data-theme="dark"] .wiki-link { color: #90caf9; }
+        html[data-theme="dark"] .wiki-link:hover { color: #bbdefb; }
+
+        /* Web Clipper 同步状态 */
+        .sync-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 12px;
+            background: var(--surface-hover);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        .sync-status .sync-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+            flex: 0 0 auto;
+        }
+        .sync-status .sync-dot.pending { background: var(--warning); }
+
+        .web-clipper-sync-btn {
+            padding: 6px 16px;
+            background: #1976d2;
+            color: #fff;
+            border: none;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .web-clipper-sync-btn:hover { background: #1565c0; transform: translateY(-1px); }
+        .web-clipper-sync-btn:disabled { background: #90caf9; cursor: not-allowed; transform: none; }
+        html[data-theme="dark"] .web-clipper-sync-btn { background: #1976d2; }
+        html[data-theme="dark"] .web-clipper-sync-btn:disabled { background: rgba(25, 118, 210, 0.4); color: #ddd; }
+
         .expand-btn {
             background: var(--surface);
             color: var(--text);
@@ -2210,6 +2285,15 @@
                     <span class="toggle-text">📥 整理收件箱</span>
                 </button>
             </div>
+            <div style="display: inline-flex; align-items: center; gap: 8px;">
+                <span id="web-clipper-sync-status" class="sync-status" title="Web Clipper 同步状态">
+                    <span class="sync-dot"></span>
+                    <span id="sync-status-text">Web Clipper 同步：加载中...</span>
+                </span>
+                <button class="web-clipper-sync-btn" id="web-clipper-sync-btn" onclick="triggerWebClipperSync()">
+                    立即同步
+                </button>
+            </div>
             <button class="toggle-btn" id="toggle-btn" onclick="toggleMode()">
                 <span class="toggle-text" id="toggle-text">🔍 切换到信息检索</span>
             </button>
@@ -2348,6 +2432,7 @@
     const API_BASE_URL = 'http://127.0.0.1:8080/api/clip';
     const KNOWLEDGE_API_BASE_URL = 'http://127.0.0.1:8080/api/knowledge';
     const GIT_API_BASE_URL = 'http://127.0.0.1:8080/api/git';
+    const SYNC_API_BASE_URL = 'http://127.0.0.1:8080/api/sync';
     let currentTags = [];
     const MAX_TAGS = 10;
     const THEME_STORAGE_KEY = 'app_theme_v1';
@@ -2410,6 +2495,7 @@
         applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME, false);
         fetchClips();
         loadCategories();
+        loadSyncStatus();
         handleTypeChange();
 
         const themeToggle = document.getElementById('themeToggle');
@@ -3177,6 +3263,7 @@
 
         clipItem.innerHTML = `
                 <div class="clip-header">
+                    ${getSourceBadge(clip.source)}
                     <span class="category-badge">📁 ${categoryLabel}</span>
                     ${clip.myThoughts ? '<span class="category-badge" style="background: rgba(168,85,247,0.1); color: #a855f7; border-color: rgba(168,85,247,0.2);">💭 有思考</span>' : ''}
                     <div class="clip-actions">
@@ -3207,7 +3294,7 @@
                 <div class="clip-detail" data-clip-id="${clip.id}">
                     <div class="content-section">
                         <h4>原文</h4>
-                        <div class="content-text truncated">${escapeHtml(originalContent)}</div>
+                        <div class="content-text truncated">${renderContent(originalContent)}</div>
                         <button class="copy-btn" onclick="copyToClipboard('${escapeJs(originalContent)}')">
                             📋 复制原文
                         </button>
@@ -3433,6 +3520,47 @@
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    // 根据剪藏的 source 字段生成来源徽章 HTML
+    function getSourceBadge(source) {
+        if (!source) return '';
+        const badgeMap = {
+            'web-clipper': { cls: 'web-clipper', label: 'Web Clipper' },
+            'browser': { cls: 'browser', label: '浏览器' },
+            'manual': { cls: 'manual', label: '手动' },
+            'system': { cls: 'system', label: '系统' }
+        };
+        const badge = badgeMap[source];
+        if (!badge) return '';
+        return `<span class="source-badge ${badge.cls}">${escapeHtml(badge.label)}</span>`;
+    }
+
+    // 渲染剪藏内容：检测 [[path|display]] 或 [[path]] 格式的 wiki-link
+    function renderContent(content) {
+        if (!content) return '';
+        const wikiLinkMatch = content.match(/^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/);
+        if (wikiLinkMatch) {
+            const path = wikiLinkMatch[1].trim();
+            const display = (wikiLinkMatch[2] || path).trim();
+            const escapedPath = escapeJs(path);
+            return `<a class="wiki-link" href="#" onclick="openInObsidian('${escapedPath}'); return false;">${escapeHtml(display)}</a>`;
+        }
+        return escapeHtml(content);
+    }
+
+    // 在 Obsidian 中打开指定路径的笔记
+    function openInObsidian(path) {
+        try {
+            const vault = encodeURIComponent('obsidian');
+            const encodedPath = encodeURIComponent(path);
+            const obsidianUrl = `obsidian://open?vault=${vault}&file=${encodedPath}`;
+            window.location.href = obsidianUrl;
+            showToast('已在 Obsidian 中打开：' + path);
+        } catch (e) {
+            console.error('打开 Obsidian 失败:', e);
+            showToast('打开 Obsidian 失败，请确认已安装 Obsidian');
+        }
     }
 
     function escapeJs(text) {
@@ -4099,6 +4227,59 @@
                 syncBtn.disabled = false;
                 showNotification('同步失败: ' + (error.response?.data?.message || error.message));
                 console.error('Git sync failed:', error);
+            });
+    }
+
+    // 触发 Web Clipper 同步：调用 POST /api/sync/trigger
+    function triggerWebClipperSync() {
+        const syncBtn = document.getElementById('web-clipper-sync-btn');
+        if (!syncBtn) return;
+        const originalText = syncBtn.textContent;
+        syncBtn.disabled = true;
+        syncBtn.textContent = '同步中...';
+
+        axios.post(`${SYNC_API_BASE_URL}/trigger`)
+            .then(response => {
+                const data = response.data || {};
+                const syncedCount = data.syncedCount != null ? data.syncedCount : (data.added != null ? data.added : (data.newCount != null ? data.newCount : 0));
+                const skippedCount = data.skippedCount != null ? data.skippedCount : (data.skipped != null ? data.skipped : (data.skipCount != null ? data.skipCount : 0));
+                const message = data.message || `同步完成：新增 ${syncedCount} 条，跳过 ${skippedCount} 条`;
+                showToast(message);
+                // 同步成功后刷新同步状态和剪藏列表
+                loadSyncStatus();
+                fetchClips();
+            })
+            .catch(error => {
+                const msg = error.response?.data?.message || error.message || '未知错误';
+                showToast('Web Clipper 同步失败: ' + msg);
+                console.error('Web Clipper sync failed:', error);
+            })
+            .finally(() => {
+                syncBtn.disabled = false;
+                syncBtn.textContent = originalText;
+            });
+    }
+
+    // 加载 Web Clipper 同步状态：调用 GET /api/sync/status
+    function loadSyncStatus() {
+        const statusText = document.getElementById('sync-status-text');
+        const statusDot = document.querySelector('#web-clipper-sync-status .sync-dot');
+        if (!statusText) return;
+
+        axios.get(`${SYNC_API_BASE_URL}/status`)
+            .then(response => {
+                const data = response.data || {};
+                const synced = data.synced != null ? data.synced : (data.syncedCount != null ? data.syncedCount : 0);
+                const pending = data.pending != null ? data.pending : (data.pendingCount != null ? data.pendingCount : 0);
+                statusText.textContent = `Web Clipper 同步：已同步 ${synced} 条，待同步 ${pending} 条`;
+                if (statusDot) {
+                    statusDot.classList.toggle('pending', pending > 0);
+                }
+            })
+            .catch(error => {
+                statusText.textContent = 'Web Clipper 同步：状态获取失败';
+                if (statusDot) statusDot.classList.add('pending');
+                console.error('Load sync status failed:', error);
             });
     }
 
