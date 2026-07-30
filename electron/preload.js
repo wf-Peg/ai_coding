@@ -46,6 +46,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
 
+  /**
+   * 打开系统文本文件选择器。主进程返回文本、编码信息和不透明文件令牌，
+   * 渲染进程不会获得任意路径写权限。
+   */
+  openTextFile: () => ipcRenderer.invoke('editor-open-text-file'),
+
+  /** 按指定编码重新读取已授权文件，不修改磁盘内容。 */
+  reopenTextFile: (fileToken, encoding) => ipcRenderer.invoke('editor-reopen-text-file', fileToken, encoding),
+
+  /** 保存到当前已授权文件，并检查外部修改冲突。 */
+  saveTextFile: (payload) => ipcRenderer.invoke('editor-save-text-file', payload),
+
+  /** 打开原生另存为对话框并保存文本。 */
+  saveTextFileAs: (payload) => ipcRenderer.invoke('editor-save-text-file-as', payload),
+
   // ===================== 后端服务管理 =====================
 
   /**

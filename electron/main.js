@@ -15,12 +15,16 @@ const fs = require('fs');
 const { spawn, execSync } = require('child_process');
 const http = require('http');
 const yaml = require('js-yaml');
+const { EditorFileService } = require('./editor-file-service');
 
 // 更新管理器（自动更新 + 手动检查）
 const updateManager = require('./update-manager');
 
 // 日志模块
 const log = require('./logger');
+
+/** 文本编辑器文件能力服务，只保存原生对话框授权过的路径。 */
+const editorFileService = new EditorFileService();
 
 // 懒加载的模块（避免阻塞启动）
 let finalhandler, serveStatic;
@@ -1379,6 +1383,58 @@ function setupIPC() {
     });
     if (result.canceled || result.filePaths.length === 0) return null;
     return result.filePaths[0];
+  });
+
+  // ===== 轻量文本编辑器文件能力 =====
+  ipcMain.handle('editor-open-text-file', async () => {
+    const options = {
+      title: '打开文本文件',
+      properties: ['openFile'],
+      filters: [
+        { name: '文本与代码', extensions: ['txt', 'md', 'json', 'xml', 'sql', 'csv', 'log', 'yaml', 'yml', 'ini', 'conf'] },
+        { name: '所有文件', extensions: ['*'] }
+      ]
+    };
+    const result = mainWindow
+      ? await dialog.showOpenDialog(mainWindow, options)
+      : await dialog.showOpenDialog(options);
+    if (result.canceled || result.filePaths.length === 0) return { canceled: true };
+    const opened = editorFileService.openPath(result.filePaths[0]);
+    log.info('[EditorFile] opened', opened.fileName, opened.size, opened.encoding);
+    return opened;
+  });
+
+  ipcMain.handle('editor-reopen-text-file', async (event, fileToken, encoding) => {
+    const reopened = editorFileService.reopen(fileToken, encoding);
+    log.info('[EditorFile] reopened', reopened.fileName, reopened.encoding);
+    return reopened;
+  });
+
+  ipcMain.handle('editor-save-text-file', async (event, payload) => {
+    const saved = editorFileService.save(payload?.fileToken, payload || {});
+    if (!saved.conflict) log.info('[EditorFile] saved', saved.fileName, saved.size, saved.encoding);
+    return saved;
+  });
+
+  ipcMain.handle('editor-save-text-file-as', async (event, payload) => {
+    const options = {
+      title: '保存文本文件',
+      defaultPath: payload?.suggestedName || 'untitled.txt',
+      filters: [
+        { name: '文本文件', extensions: ['txt'] },
+        { name: 'JSON', extensions: ['json'] },
+        { name: 'XML', extensions: ['xml'] },
+        { name: 'SQL', extensions: ['sql'] },
+        { name: '所有文件', extensions: ['*'] }
+      ]
+    };
+    const result = mainWindow
+      ? await dialog.showSaveDialog(mainWindow, options)
+      : await dialog.showSaveDialog(options);
+    if (result.canceled || !result.filePath) return { canceled: true };
+    const saved = editorFileService.saveAs(result.filePath, payload || {});
+    log.info('[EditorFile] saved as', saved.fileName, saved.size, saved.encoding);
+    return saved;
   });
 
   // 获取当前配置

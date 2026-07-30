@@ -3164,6 +3164,7 @@
         const originalContent = clip.content || '';
         const analysisContent = clip.analysis || '';
         const fanButtons = [
+            buildFanActionButton('edit-in-editor', clip.id, '在编辑器打开', renderFanActionIcon('editInEditor')),
             buildFanActionButton('organize-auto', clip.id, '快速AI整理', renderFanActionIcon('organizeAuto')),
             buildFanActionButton('organize-manual', clip.id, '编辑', renderFanActionIcon('organizeManual')),
             buildFanActionButton('to-todo', clip.id, '转待办', renderFanActionIcon('toTodo')),
@@ -3363,6 +3364,8 @@
 
     function renderFanActionIcon(type) {
         switch (type) {
+            case 'editInEditor':
+                return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>';
             case 'organizeAuto':
                 return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M12 3l2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.3-4.5 2.3.9-5L4.8 8.3l5-.7L12 3z"/></svg>';
             case 'organizeManual':
@@ -3382,7 +3385,7 @@
         event.stopPropagation();
         closeAllMoreActions();
         const label = getMoreActionLabel(action);
-        if (action == 'organize-manual') {
+        if (action === 'organize-manual' || action === 'edit-in-editor') {
             performMoreAction(action, clipId)
         } else {
             showActionConfirm(`确定执行「${label}」吗？`, () => performMoreAction(action, clipId));
@@ -3391,6 +3394,9 @@
 
     function performMoreAction(action, clipId) {
         switch (action) {
+            case 'edit-in-editor':
+                window.parent.postMessage({ type: 'openClipInEditor', clipId }, '*');
+                break;
             case 'organize-auto':
                 quickOrganizeClip(clipId);
                 break;
@@ -3413,6 +3419,8 @@
 
     function getMoreActionLabel(action) {
         switch (action) {
+            case 'edit-in-editor':
+                return '在编辑器打开';
             case 'organize-auto':
                 return '快速整理';
             case 'organize-manual':

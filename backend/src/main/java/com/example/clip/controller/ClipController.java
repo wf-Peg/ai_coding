@@ -2,6 +2,7 @@ package com.example.clip.controller;
 
 import com.example.clip.config.PromptConfig;
 import com.example.clip.core.AiService;
+import com.example.clip.dto.ClipEditRequest;
 import com.example.clip.dto.ClipRequest;
 import com.example.clip.dto.ClipResponse;
 import com.example.clip.dto.ClipToTodoRequest;
@@ -256,6 +257,32 @@ public class ClipController {
     @GetMapping("/inbox")
     public ResponseEntity<List<ClipContent>> getInboxClips() {
         return ResponseEntity.ok(clipService.getClipsByWorkflowStatus(ClipService.WORKFLOW_INBOX));
+    }
+
+    /**
+     * 按 ID 获取单条剪藏，供文本编辑器双向打开内容。
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<ClipContent> getClipById(@PathVariable(name = "id") Long id) {
+        ClipContent clip = clipService.getClipById(id);
+        return clip == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(clip);
+    }
+
+    /**
+     * 从文本编辑器更新剪藏的可编辑字段。
+     * 服务层会保留 AI 分析、附件和创建时间，并处理跨分类文件迁移。
+     */
+    @PutMapping("/{id}/editor-content")
+    public ResponseEntity<?> updateClipFromEditor(@PathVariable(name = "id") Long id,
+                                                   @RequestBody ClipEditRequest request) {
+        log.info("[API] editor update clip id={}, chars={}",
+                id,
+                request.getContent() == null ? 0 : request.getContent().length());
+        ClipContent updated = clipService.updateClipFromEditor(id, request);
+        if (updated == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(new ClipResponse(updated.getId(), "success"));
     }
 
     /**

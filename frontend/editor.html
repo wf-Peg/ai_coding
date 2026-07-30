@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>轻编辑</title>
+  <link rel="stylesheet" href="styles/design-tokens.css">
+  <link rel="stylesheet" href="styles/editor.css">
+</head>
+<body>
+  <main class="editor-app">
+    <header class="editor-toolbar">
+      <div class="toolbar-group toolbar-file-actions">
+        <button class="tool-btn" id="newFileBtn" title="新建 Ctrl+N">新建</button>
+        <button class="tool-btn" id="openFileBtn" title="打开 Ctrl+O">打开</button>
+        <button class="tool-btn primary" id="saveFileBtn" title="保存 Ctrl+S">保存</button>
+        <button class="tool-btn" id="saveAsBtn" title="另存为 Ctrl+Shift+S">另存</button>
+      </div>
+
+      <div class="document-identity">
+        <div class="document-title-line">
+          <span class="modified-dot" id="modifiedDot" aria-hidden="true"></span>
+          <strong id="documentName">未命名.txt</strong>
+          <span class="source-badge" id="clipSourceBadge" hidden>剪藏</span>
+        </div>
+        <span class="document-path" id="documentPath">尚未保存</span>
+      </div>
+
+      <div class="toolbar-group toolbar-main-actions">
+        <select class="tool-select" id="languageSelect" title="语言模式">
+          <option value="text">纯文本</option>
+          <option value="json">JSON</option>
+          <option value="xml">XML</option>
+          <option value="sql">SQL</option>
+        </select>
+        <button class="tool-btn" id="formatBtn" title="格式化 Shift+Alt+F">格式化</button>
+        <button class="tool-btn" id="transformBtn">转换</button>
+        <button class="tool-btn" id="compareBtn">对比</button>
+        <button class="tool-btn accent" id="clipBtn">存入剪藏</button>
+      </div>
+    </header>
+
+    <section class="compare-toolbar" id="compareToolbar" hidden>
+      <div class="compare-label">左侧：当前文档</div>
+      <div class="compare-actions">
+        <button class="inline-btn" id="compareClipboardBtn">从剪贴板载入右侧</button>
+        <button class="inline-btn" id="compareFileBtn">从文件载入右侧</button>
+        <button class="inline-btn" id="previousDiffBtn">上一处</button>
+        <button class="inline-btn" id="nextDiffBtn">下一处</button>
+        <span id="diffCounter">无差异</span>
+        <button class="inline-btn danger-text" id="closeCompareBtn">退出对比</button>
+      </div>
+    </section>
+
+    <section class="editor-workspace" id="editorWorkspace">
+      <div class="editor-pane main-pane">
+        <div id="mainEditor" class="ace-host" aria-label="文本编辑器"></div>
+      </div>
+      <div class="editor-pane compare-pane" id="comparePane" hidden>
+        <div class="compare-file-name" id="compareFileName">对比内容</div>
+        <div id="compareEditor" class="ace-host" aria-label="对比编辑器"></div>
+      </div>
+    </section>
+
+    <footer class="editor-statusbar">
+      <button class="status-btn" id="encodingBtn" title="重新按指定编码读取或转换保存编码">
+        <span id="encodingLabel">UTF-8</span>
+        <span id="encodingConfidence"></span>
+      </button>
+      <select class="status-select" id="lineEndingSelect" title="保存换行符">
+        <option value="LF">LF</option>
+        <option value="CRLF">CRLF</option>
+        <option value="CR">CR</option>
+      </select>
+      <span id="cursorStatus">行 1，列 1</span>
+      <span id="selectionStatus">0 字符</span>
+      <span id="matchStatus">未选择词语</span>
+      <span class="status-spacer"></span>
+      <span id="runtimeStatus">浏览器模式</span>
+    </footer>
+  </main>
+
+  <aside class="side-panel" id="transformPanel" aria-hidden="true">
+    <div class="panel-header">
+      <div>
+        <h2>文本转换</h2>
+        <p>有选区时处理选区，否则处理全文。</p>
+      </div>
+      <button class="icon-close" id="closeTransformBtn" aria-label="关闭">×</button>
+    </div>
+    <label class="field-label" for="transformOperation">操作</label>
+    <select class="field-control" id="transformOperation">
+      <option value="base64-encode">Base64 编码</option>
+      <option value="base64-decode">Base64 解码</option>
+      <option value="url-encode">URL 编码</option>
+      <option value="url-decode">URL 解码</option>
+      <option value="html-encode">HTML 实体编码</option>
+      <option value="html-decode">HTML 实体解码</option>
+      <option value="unicode-encode">Unicode 转义</option>
+      <option value="unicode-decode">Unicode 反转义</option>
+      <option value="hex-encode">Hex 编码</option>
+      <option value="hex-decode">Hex 解码</option>
+    </select>
+    <label class="field-label" for="transformPreview">结果预览</label>
+    <textarea class="preview-area" id="transformPreview" readonly></textarea>
+    <div class="panel-actions">
+      <button class="tool-btn" id="copyTransformBtn">复制结果</button>
+      <button class="tool-btn primary" id="applyTransformBtn">替换原文</button>
+    </div>
+  </aside>
+
+  <div class="modal-backdrop" id="encodingModal" hidden>
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="encodingTitle">
+      <div class="panel-header">
+        <div>
+          <h2 id="encodingTitle">字符编码</h2>
+          <p>重新读取只改变显示；转换编码在下次保存时生效。</p>
+        </div>
+        <button class="icon-close" data-close-modal="encodingModal" aria-label="关闭">×</button>
+      </div>
+      <label class="field-label" for="encodingSelect">目标编码</label>
+      <select class="field-control" id="encodingSelect">
+        <option value="UTF-8">UTF-8</option>
+        <option value="UTF-8-BOM">UTF-8 BOM</option>
+        <option value="GB18030">GB18030 / GBK</option>
+        <option value="UTF-16LE">UTF-16 LE</option>
+        <option value="UTF-16BE">UTF-16 BE</option>
+        <option value="BIG5">Big5</option>
+        <option value="SHIFT_JIS">Shift_JIS</option>
+        <option value="WINDOWS-1252">Windows-1252</option>
+      </select>
+      <div class="modal-note" id="encodingNote">浏览器模式只能可靠读取 UTF-8；桌面模式支持完整转换。</div>
+      <div class="panel-actions">
+        <button class="tool-btn" id="reopenEncodingBtn">按此编码重新读取</button>
+        <button class="tool-btn primary" id="setSaveEncodingBtn">设为保存编码</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="clipModal" hidden>
+    <section class="modal-card clip-modal-card" role="dialog" aria-modal="true" aria-labelledby="clipModalTitle">
+      <div class="panel-header">
+        <div>
+          <h2 id="clipModalTitle">存入剪藏</h2>
+          <p id="clipScopeDescription">保存当前文档。</p>
+        </div>
+        <button class="icon-close" data-close-modal="clipModal" aria-label="关闭">×</button>
+      </div>
+      <div class="form-grid">
+        <label class="field-group wide">
+          <span class="field-label">标题</span>
+          <input class="field-control" id="clipTitleInput" maxlength="160">
+        </label>
+        <label class="field-group">
+          <span class="field-label">保存方式</span>
+          <select class="field-control" id="clipModeSelect">
+            <option value="store-only">存入收件箱</option>
+            <option value="ai-text">AI 整理后存储</option>
+          </select>
+        </label>
+        <label class="field-group">
+          <span class="field-label">分类</span>
+          <select class="field-control" id="clipCategorySelect">
+            <option value="">收件箱 / 自动分类</option>
+          </select>
+        </label>
+        <label class="field-group wide">
+          <span class="field-label">标签（逗号分隔）</span>
+          <input class="field-control" id="clipTagsInput" placeholder="代码, 数据处理">
+        </label>
+        <label class="field-group wide">
+          <span class="field-label">我的思考</span>
+          <textarea class="field-control thoughts-input" id="clipThoughtsInput" placeholder="可选"></textarea>
+        </label>
+        <label class="check-row wide">
+          <input type="checkbox" id="includeFileNameCheck" checked>
+          <span>记录来源文件名（不会记录完整本地路径）</span>
+        </label>
+      </div>
+      <div class="panel-actions">
+        <button class="tool-btn" data-close-modal="clipModal">取消</button>
+        <button class="tool-btn primary" id="submitClipBtn">保存到剪藏</button>
+      </div>
+    </section>
+  </div>
+
+  <input id="browserFileInput" type="file" hidden accept=".txt,.md,.json,.xml,.sql,.csv,.log,.yaml,.yml,.ini,.conf">
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/logger.js"></script>
+  <script src="libs/ace/ace.js"></script>
+  <script src="libs/diff.min.js"></script>
+  <script src="libs/sql-formatter.min.js"></script>
+  <script src="js/editor-core.js"></script>
+  <script src="js/editor.js"></script>
+</body>
+</html>

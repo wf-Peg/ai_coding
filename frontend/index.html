@@ -344,12 +344,18 @@
         <span>碎碎记 <small class="brand-subtitle">CutShelter</small></span>
     </div>
     <nav class="titlebar-nav" id="titlebarNav">
-        <button class="nav-btn active" data-view="home">
+        <button class="nav-btn active" data-view="editor">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/>
+            </svg>
+            编辑
+        </button>
+        <button class="nav-btn" data-view="clip">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
                 <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
             </svg>
-            首页
+            剪藏
         </button>
         <button class="nav-btn" data-view="topic">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -401,8 +407,12 @@
 
 <div class="app-layout">
     <div class="main-content" id="mainContent">
-        <!-- 首页 -->
-        <div class="container view-panel" id="homeView">
+        <!-- 编辑器首页 -->
+        <div class="view-panel" id="editorView">
+            <iframe id="editorFrame" data-src="editor.html" style="width:100%;height:100%;border:none;"></iframe>
+        </div>
+        <!-- 剪藏工作台（原首页） -->
+        <div class="container view-panel view-panel-hidden" id="clipView">
             <div class="todo-section">
                 <iframe id="todoFrame" data-src="todo.html" style="width:100%;height:100%;border:none;"></iframe>
             </div>
@@ -473,7 +483,7 @@
       }
 
       function broadcastThemeChange() {
-        [todoFrame, clipFrame, topicFrame, vaultFrame, settingsFrame, learningPlanFrame, pdfFrame].forEach(frame => {
+        [editorFrame, todoFrame, clipFrame, topicFrame, vaultFrame, settingsFrame, learningPlanFrame, pdfFrame].forEach(frame => {
           try { if (frame && frame.contentWindow) frame.contentWindow.postMessage({ action: 'themeChange' }, '*'); } catch(e) {}
         });
       }
@@ -500,16 +510,31 @@
         if (event.data && event.data.type === 'appearanceChanged') {
           applyTheme(null, false);
         }
+        if (event.data && event.data.type === 'openClipInEditor' && event.data.clipId) {
+          pendingClipId = event.data.clipId;
+          renderView('editor');
+          window.history.pushState({ view: 'editor' }, '', '/');
+          sendPendingClipToEditor();
+        }
+        if (event.data && event.data.type === 'editorReady') {
+          editorReady = true;
+          sendPendingClipToEditor();
+        }
+        if (event.data && event.data.type === 'editorClipSaved') {
+          try { clipFrame.contentWindow.postMessage({ action: 'refresh' }, '*'); } catch (e) {}
+        }
       });
 
       // ====== 导航切换（SPA 路由 + 页面缓存） ======
       const navBtns = document.querySelectorAll('.titlebar-nav .nav-btn');
-      const homeView = document.getElementById('homeView');
+      const editorView = document.getElementById('editorView');
+      const clipView = document.getElementById('clipView');
       const topicView = document.getElementById('topicView');
       const vaultView = document.getElementById('vaultView');
       const settingsView = document.getElementById('settingsView');
       const learningPlanView = document.getElementById('learningPlanView');
       const pdfView = document.getElementById('pdfView');
+      const editorFrame = document.getElementById('editorFrame');
       const topicFrame = document.getElementById('topicFrame');
       const vaultFrame = document.getElementById('vaultFrame');
       const settingsFrame = document.getElementById('settingsFrame');
@@ -518,52 +543,69 @@
       const scrollTools = document.getElementById('scrollTools');
 
       let activeIframe = null;
+      let currentView = 'editor';
+      let pendingClipId = null;
+      let editorReady = false;
       const todoFrame = document.getElementById('todoFrame');
       const clipFrame = document.getElementById('clipFrame');
 
       applyTheme(null, false);
 
-      const viewMap = { topic: topicView, vault: vaultView, settings: settingsView, 'learning-plan': learningPlanView, pdf: pdfView };
-      const frameMap = { topic: topicFrame, vault: vaultFrame, settings: settingsFrame, 'learning-plan': learningPlanFrame, pdf: pdfFrame };
-      const allPanels = [homeView, topicView, vaultView, settingsView, learningPlanView, pdfView];
+      const viewMap = {
+        editor: editorView,
+        clip: clipView,
+        topic: topicView,
+        vault: vaultView,
+        settings: settingsView,
+        'learning-plan': learningPlanView,
+        pdf: pdfView
+      };
+      const VIEW_IFRAME = {
+        editor: [editorFrame],
+        clip: [todoFrame, clipFrame],
+        topic: [topicFrame],
+        vault: [vaultFrame],
+        settings: [settingsFrame],
+        'learning-plan': [learningPlanFrame],
+        pdf: [pdfFrame]
+      };
+      const allPanels = Object.values(viewMap);
+
+      function ensureFramesLoaded(view) {
+        (VIEW_IFRAME[view] || []).forEach(frame => {
+          if (frame && frame.dataset.src) {
+            frame.src = frame.dataset.src;
+            delete frame.dataset.src;
+          }
+        });
+      }
 
       function renderView(view) {
+        const normalizedView = viewMap[view] ? view : 'editor';
+        currentView = normalizedView;
         navBtns.forEach(n => n.classList.remove('active'));
-        const targetBtn = document.querySelector(`.nav-btn[data-view="${view}"]`);
+        const targetBtn = document.querySelector(`.nav-btn[data-view="${normalizedView}"]`);
         if (targetBtn) targetBtn.classList.add('active');
 
         // 隐藏所有 view panel（用 visibility 而非 display，避免 iframe 重新加载）
         allPanels.forEach(p => p.classList.add('view-panel-hidden'));
 
-        // 始终显示滚动工具
-        scrollTools.style.display = 'flex';
-
-        if (view === 'home') {
-          homeView.classList.remove('view-panel-hidden');
-          activeIframe = null; // 首页有两个 iframe，按钮会同时发送到两者
-        } else {
-          const panel = viewMap[view];
-          const frame = frameMap[view];
-          if (panel && frame) {
-            // 懒加载：首次访问时才加载 iframe src
-            if (frame.dataset.src) {
-              frame.src = frame.dataset.src;
-              delete frame.dataset.src;
-            }
-            panel.classList.remove('view-panel-hidden');
-            activeIframe = frame;
-          }
-        }
+        scrollTools.style.display = normalizedView === 'editor' ? 'none' : 'flex';
+        ensureFramesLoaded(normalizedView);
+        viewMap[normalizedView].classList.remove('view-panel-hidden');
+        activeIframe = normalizedView === 'clip' ? null : (VIEW_IFRAME[normalizedView]?.[0] || null);
       }
 
       function pathToView(path) {
         const clean = path.replace(/\/$/, '');
+        if (clean === '' || clean === '/editor') return 'editor';
+        if (clean === '/clip') return 'clip';
         if (clean === '/topic') return 'topic';
         if (clean === '/settings') return 'settings';
         if (clean === '/vault') return 'vault';
         if (clean === '/learning-plan') return 'learning-plan';
         if (clean === '/pdf') return 'pdf';
-        return 'home';
+        return 'editor';
       }
 
       navBtns.forEach(btn => {
@@ -571,7 +613,7 @@
           const view = btn.dataset.view;
           renderView(view);
           if (window.history.pushState) {
-            window.history.pushState({ view }, '', view === 'home' ? '/' : `/${view}`);
+            window.history.pushState({ view }, '', view === 'editor' ? '/' : `/${view}`);
           }
         });
       });
@@ -584,8 +626,8 @@
       document.getElementById('btnScrollTop').addEventListener('click', () => {
         if (activeIframe) {
           activeIframe.contentWindow.postMessage({action: 'scrollToTop'}, '*');
-        } else {
-          // 首页：同时发送到 todo 和 clip 两个 iframe
+        } else if (currentView === 'clip') {
+          // 剪藏工作台同时控制待办和剪藏两个 iframe
           if (todoFrame && todoFrame.contentWindow) todoFrame.contentWindow.postMessage({action: 'scrollToTop'}, '*');
           if (clipFrame && clipFrame.contentWindow) clipFrame.contentWindow.postMessage({action: 'scrollToTop'}, '*');
         }
@@ -593,7 +635,7 @@
       document.getElementById('btnRefresh').addEventListener('click', () => {
         if (activeIframe) {
           activeIframe.contentWindow.postMessage({action: 'refresh'}, '*');
-        } else {
+        } else if (currentView === 'clip') {
           if (todoFrame && todoFrame.contentWindow) todoFrame.contentWindow.postMessage({action: 'refresh'}, '*');
           if (clipFrame && clipFrame.contentWindow) clipFrame.contentWindow.postMessage({action: 'refresh'}, '*');
         }
@@ -602,11 +644,21 @@
       // 初始路由
       (function () {
         const view = pathToView(window.location.pathname);
-        if (view !== 'home') {
-          renderView(view);
-          window.history.replaceState({ view }, '', `/${view}`);
-        }
+        renderView(view);
+        window.history.replaceState({ view }, '', view === 'editor' ? '/' : `/${view}`);
       })();
+
+      function sendPendingClipToEditor() {
+        if (!pendingClipId || !editorReady || !editorFrame || !editorFrame.contentWindow) return;
+        editorFrame.contentWindow.postMessage({ action: 'openClipInEditor', clipId: pendingClipId }, '*');
+        pendingClipId = null;
+      }
+
+      editorFrame.addEventListener('load', () => {
+        editorReady = false;
+        // 子页脚本可能在 iframe load 事件前已发送 ready；主动握手可消除该时序窗口。
+        editorFrame.contentWindow.postMessage({ action: 'editorPing' }, '*');
+      });
 
       // ====== 窗口控制（仅 Electron 环境） ======
       // 懒加载 iframe：从 data-src 读取真实 URL 并设置 src

@@ -5,6 +5,7 @@
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
+    "test:editor": "node --test electron/editor-file-service.test.js",
     "postinstall": "electron-builder install-app-deps",
     "prebuild": "node scripts/prebuild-clean.js",
     "download-jre": "bash scripts/download-jre.sh",
@@ -142,7 +143,9 @@
     }
   },
   "dependencies": {
+    "chardet": "^2.1.0",
     "finalhandler": "^1.2.0",
+    "iconv-lite": "^0.6.3",
     "js-yaml": "^4.1.0",
     "node-notifier": "^10.0.1",
     "serve-static": "^1.15.0"

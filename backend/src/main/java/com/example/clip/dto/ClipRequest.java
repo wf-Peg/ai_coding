@@ -83,6 +83,18 @@ public class ClipRequest {
     /** 用户自己的思考（可选，可编辑），记录阅读后的主观判断、疑问、联想 */
     private String myThoughts;
 
+    /** 编辑器内容类型：text/json/xml/sql */
+    private String contentFormat;
+
+    /** 来源文件名。出于隐私考虑，不存储完整本地路径 */
+    private String sourceFileName;
+
+    /** 来源或保存目标字符编码 */
+    private String sourceEncoding;
+
+    /** 来源或保存目标换行符：LF/CRLF/CR */
+    private String sourceLineEnding;
+
     public String getContent() {
         return content;
     }
@@ -249,6 +261,38 @@ public class ClipRequest {
 
     public void setMyThoughts(String myThoughts) {
         this.myThoughts = myThoughts;
+    }
+
+    public String getContentFormat() {
+        return contentFormat;
+    }
+
+    public void setContentFormat(String contentFormat) {
+        this.contentFormat = contentFormat;
+    }
+
+    public String getSourceFileName() {
+        return sourceFileName;
+    }
+
+    public void setSourceFileName(String sourceFileName) {
+        this.sourceFileName = sourceFileName;
+    }
+
+    public String getSourceEncoding() {
+        return sourceEncoding;
+    }
+
+    public void setSourceEncoding(String sourceEncoding) {
+        this.sourceEncoding = sourceEncoding;
+    }
+
+    public String getSourceLineEnding() {
+        return sourceLineEnding;
+    }
+
+    public void setSourceLineEnding(String sourceLineEnding) {
+        this.sourceLineEnding = sourceLineEnding;
     }
 
     /**

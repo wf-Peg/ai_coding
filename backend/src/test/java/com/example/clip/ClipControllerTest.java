@@ -27,6 +27,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -164,6 +165,34 @@ public class ClipControllerTest {
 
         mockMvc.perform(get("/api/clip/inbox"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    public void testGetClipByIdForEditor() throws Exception {
+        ClipContent clip = new ClipContent();
+        clip.setId(3L);
+        clip.setContent("{\"ok\":true}");
+        clip.setContentFormat("json");
+        when(clipService.getClipById(3L)).thenReturn(clip);
+
+        mockMvc.perform(get("/api/clip/3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(3L))
+                .andExpect(jsonPath("$.contentFormat").value("json"));
+    }
+
+    @Test
+    public void testUpdateClipFromEditor() throws Exception {
+        ClipContent clip = new ClipContent();
+        clip.setId(3L);
+        when(clipService.updateClipFromEditor(eq(3L), any())).thenReturn(clip);
+
+        mockMvc.perform(put("/api/clip/3/editor-content")
+                        .contentType("application/json")
+                        .content("{\"content\":\"updated\",\"title\":\"Editor\",\"contentFormat\":\"text\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("success"))
+                .andExpect(jsonPath("$.id").value(3L));
     }
 
     @Test

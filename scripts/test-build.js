@@ -184,10 +184,10 @@ check('prebuild-clean.js 语法正确', () => {
 
 console.log('\n4. PEM.xml 配置');
 
-check('pom.xml Java 版本为 21', () => {
+check('pom.xml Java 版本为 17', () => {
   const pomXml = fs.readFileSync(path.join(PROJECT_DIR, 'backend/pom.xml'), 'utf-8');
-  if (!pomXml.includes('<java.version>21</java.version>')) {
-    throw new Error('Java 版本不是 21');
+  if (!pomXml.includes('<java.version>17</java.version>')) {
+    throw new Error('Java 版本不是 17');
   }
 });
 

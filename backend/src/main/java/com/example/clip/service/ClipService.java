@@ -1,6 +1,7 @@
 package com.example.clip.service;
 
 import com.example.clip.core.AiService;
+import com.example.clip.dto.ClipEditRequest;
 import com.example.clip.dto.ClipRequest;
 import com.example.clip.dto.OrganizeClipRequest;
 import com.example.clip.dto.OrganizeInboxRequest;
@@ -258,6 +259,10 @@ public class ClipService {
         clipContent.setWorkflowStatus(workflowStatus);
         // 传递用户自己的思考
         clipContent.setMyThoughts(request.getMyThoughts());
+        clipContent.setContentFormat(request.getContentFormat());
+        clipContent.setSourceFileName(request.getSourceFileName());
+        clipContent.setSourceEncoding(request.getSourceEncoding());
+        clipContent.setSourceLineEnding(request.getSourceLineEnding());
         // 覆盖摘要：若 request 显式传入 summary（非空且非空白），优先使用，避免 store-only 分支把 content 当 summary
         // 场景：agent 已整理好简短摘要，不需要后端 fallback 到原文
         if (request.getSummary() != null && !request.getSummary().trim().isEmpty()) {
@@ -490,6 +495,56 @@ public class ClipService {
      */
     public ClipContent getClipById(Long id) {
         return storageService.getClipById(id.toString());
+    }
+
+    /**
+     * 使用文本编辑器提交的白名单字段更新剪藏。
+     *
+     * 更新后使用 replaceClip 持久化，确保分类改变时旧分类文件中的记录会被移除。
+     * AI 分析、发散总结、创建时间和附件路径均保持不变。
+     */
+    public ClipContent updateClipFromEditor(Long id, ClipEditRequest request) {
+        ClipContent clip = getClipById(id);
+        if (clip == null) {
+            return null;
+        }
+
+        String previousContent = clip.getContent();
+        if (request.getContent() != null) {
+            clip.setContent(request.getContent());
+            if ("store-only".equals(clip.getType())
+                    && (clip.getSummary() == null || clip.getSummary().equals(previousContent))) {
+                clip.setSummary(request.getContent());
+            }
+        }
+        if (request.getTitle() != null) {
+            clip.setTitle(request.getTitle().trim());
+        }
+        clip.setCategory(request.getCategory() == null || request.getCategory().isBlank()
+                ? null
+                : request.getCategory().trim());
+        if (request.getTags() != null) {
+            clip.setTags(new ArrayList<>(request.getTags().stream().limit(10).toList()));
+        }
+        clip.setMyThoughts(request.getMyThoughts() == null || request.getMyThoughts().isBlank()
+                ? null
+                : request.getMyThoughts());
+        if (request.getCaptureMethod() != null) {
+            clip.setCaptureMethod(request.getCaptureMethod());
+        }
+        clip.setSelectedText(request.getSelectedText());
+        clip.setContextBefore(request.getContextBefore());
+        clip.setContextAfter(request.getContextAfter());
+        clip.setContentFormat(request.getContentFormat());
+        clip.setSourceFileName(request.getSourceFileName());
+        clip.setSourceEncoding(request.getSourceEncoding());
+        clip.setSourceLineEnding(request.getSourceLineEnding());
+
+        logger.info("[Editor] Updating clip id={}, chars={}, category={}",
+                id,
+                clip.getContent() == null ? 0 : clip.getContent().length(),
+                clip.getCategory());
+        return storageService.replaceClip(clip);
     }
 
     /**
