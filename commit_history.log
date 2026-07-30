@@ -124,3 +124,15 @@
 2026-07-20 09:19 | 周报生成Skill：基于待办按周输出xlsx
 2026-07-21 16:02 | 待办输入框改两行textarea优化placeholder
 2026-07-21 16:15 | 待办输入框改value默认值+浅灰色类型说明行
+2026-07-22 09:30 | PDF处理模块MVP：合并/拆分/提取文本+Notion风格UI+SPA导航
+2026-07-22 10:15 | PDF模块代码审查修复：主题/错误码/importPage/文件限制/JSON解析
+2026-07-30 18:15 | 已完成轻量文本编辑器的深度融合 MVP
+ - 编辑器已作为首页，原剪藏工作台保留在 /clip
+ - 支持编码查看、转换、JSON/XML/SQL 格式化、双击高亮对比
+ - 已打通编辑器与剪藏模块，支持打开、保存、更新剪藏
+2026-07-30 21:32 | LLM Wiki 知识库引擎 + Web Clipper Source Sync 合并到 feature-simple-codex
+ - 基于 Karpathy 的 LLM Wiki 理论，实现批量入库(BatchIngestService)、索引优先查询(WikiQueryService)、按需 Lint(WikiLintService)
+ - VaultWatchService 监听 sources/ 目录，积攒 5 条后触发 AI 批量处理
+ - SourceSyncService 独立的 Web Clipper 同步链路，零 AI 消耗，仅将剪藏同步到剪藏列表
+ - wiki-link 引用格式 [[sources/文件名|标题]]，前端可点击跳转
+ - 冲突解决：ClipContent 同时保留编辑器字段(contentFormat/sourceFileName/sourceEncoding/sourceLineEnding)与 Web Clipper sourceFilePath 字段
