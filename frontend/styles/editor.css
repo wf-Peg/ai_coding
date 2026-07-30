@@ -167,7 +167,7 @@ select {
 
 .compare-toolbar {
   min-height: 35px;
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -176,6 +176,10 @@ select {
   background: var(--app-surface-subtle);
   color: var(--app-text-secondary);
   font-size: 11px;
+}
+
+.compare-toolbar.is-open {
+  display: flex;
 }
 
 .inline-btn {

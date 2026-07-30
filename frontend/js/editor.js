@@ -330,6 +330,8 @@
     const shouldOpen = forceOpen !== undefined ? forceOpen : elements.comparePane.hidden;
     elements.comparePane.hidden = !shouldOpen;
     elements.compareToolbar.hidden = !shouldOpen;
+    elements.compareToolbar.classList.toggle('is-open', shouldOpen);
+    elements.compareToolbar.setAttribute('aria-hidden', String(!shouldOpen));
     elements.editorWorkspace.classList.toggle('comparing', shouldOpen);
     if (shouldOpen && !compareEditor.getValue()) {
       compareEditor.setValue(mainEditor.getValue(), -1);
