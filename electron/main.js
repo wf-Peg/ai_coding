@@ -1386,9 +1386,40 @@ function setupIPC() {
   });
 
   // ===== 轻量文本编辑器文件能力 =====
+  function getEditorDefaultDirectory() {
+    const config = loadConfig();
+    const rootPath = config.storagePath || APP_DIR;
+    const defaultDirectory = path.join(rootPath, 'tmp');
+    fs.mkdirSync(defaultDirectory, { recursive: true });
+    return defaultDirectory;
+  }
+
+  function getEditorExtension(language) {
+    return ({ json: 'json', xml: 'xml', sql: 'sql', text: 'txt' })[language] || 'txt';
+  }
+
+  function buildEditorFileName(fileName, language) {
+    const extension = getEditorExtension(language);
+    const baseName = path.basename(fileName || 'untitled');
+    const knownExtension = /\.(json|xml|sql|txt|md|csv|log|yaml|yml|ini|conf)$/i;
+    return `${baseName.replace(knownExtension, '') || 'untitled'}.${extension}`;
+  }
+
+  function getEditorFilters(language) {
+    const extension = getEditorExtension(language);
+    const label = extension.toUpperCase();
+    return [
+      { name: label, extensions: [extension] },
+      { name: '文本与代码', extensions: ['txt', 'md', 'json', 'xml', 'sql', 'csv', 'log', 'yaml', 'yml', 'ini', 'conf'] },
+      { name: '所有文件', extensions: ['*'] }
+    ];
+  }
+
   ipcMain.handle('editor-open-text-file', async () => {
+    const defaultDirectory = getEditorDefaultDirectory();
     const options = {
       title: '打开文本文件',
+      defaultPath: defaultDirectory,
       properties: ['openFile'],
       filters: [
         { name: '文本与代码', extensions: ['txt', 'md', 'json', 'xml', 'sql', 'csv', 'log', 'yaml', 'yml', 'ini', 'conf'] },
@@ -1417,16 +1448,13 @@ function setupIPC() {
   });
 
   ipcMain.handle('editor-save-text-file-as', async (event, payload) => {
+    const language = payload?.language || 'text';
+    const defaultDirectory = getEditorDefaultDirectory();
+    const suggestedName = buildEditorFileName(payload?.suggestedName, language);
     const options = {
       title: '保存文本文件',
-      defaultPath: payload?.suggestedName || 'untitled.txt',
-      filters: [
-        { name: '文本文件', extensions: ['txt'] },
-        { name: 'JSON', extensions: ['json'] },
-        { name: 'XML', extensions: ['xml'] },
-        { name: 'SQL', extensions: ['sql'] },
-        { name: '所有文件', extensions: ['*'] }
-      ]
+      defaultPath: path.join(defaultDirectory, suggestedName),
+      filters: getEditorFilters(language)
     };
     const result = mainWindow
       ? await dialog.showSaveDialog(mainWindow, options)

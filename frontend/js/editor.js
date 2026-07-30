@@ -3,6 +3,7 @@
 
   const API_BASE_URL = 'http://127.0.0.1:8080/api/clip';
   const MAX_TRANSFORM_LENGTH = 5 * 1024 * 1024;
+  const LANGUAGE_EXTENSIONS = { json: 'json', xml: 'xml', sql: 'sql', text: 'txt' };
   const THEME_STORAGE_KEY = 'app_theme_v1';
   const APPEARANCE_KEY = 'app_appearance_v1';
   const Range = ace.require('ace/range').Range;
@@ -28,7 +29,8 @@
     transformTarget: null,
     categoriesLoaded: false,
     clipMetadata: null,
-    diffTimer: null
+    diffTimer: null,
+    discardResolver: null
   };
 
   const elements = Object.fromEntries([
@@ -37,7 +39,7 @@
     'selectionStatus', 'matchStatus', 'runtimeStatus', 'compareToolbar', 'comparePane',
     'editorWorkspace', 'compareFileName', 'diffCounter', 'transformPanel',
     'transformOperation', 'transformPreview', 'encodingModal', 'encodingSelect',
-    'encodingNote', 'clipModal', 'clipModalTitle', 'clipScopeDescription',
+    'encodingNote', 'clipModal', 'clipModalTitle', 'clipScopeDescription', 'discardModal',
     'clipTitleInput', 'clipModeSelect', 'clipCategorySelect', 'clipTagsInput',
     'clipThoughtsInput', 'includeFileNameCheck', 'submitClipBtn', 'browserFileInput', 'toast'
   ].map(id => [id, document.getElementById(id)]));
@@ -125,6 +127,16 @@
     compareEditor.session.setMode(`ace/mode/${normalized}`);
   }
 
+  function getEditorExtension() {
+    return LANGUAGE_EXTENSIONS[elements.languageSelect.value] || 'txt';
+  }
+
+  function getSuggestedFileName() {
+    const extension = getEditorExtension();
+    const baseName = (state.fileName || 'untitled').replace(/\.(json|xml|sql|txt|md|csv|log|yaml|yml|ini|conf)$/i, '') || 'untitled';
+    return `${baseName}.${extension}`;
+  }
+
   function resetDocument() {
     state.fileToken = null;
     state.fileName = '未命名.txt';
@@ -143,11 +155,23 @@
   }
 
   function confirmDiscardChanges() {
-    return !state.modified || window.confirm('当前内容尚未保存，确定放弃修改吗？');
+    if (!state.modified) return Promise.resolve(true);
+    openModal(elements.discardModal);
+    return new Promise(resolve => {
+      state.discardResolver = resolve;
+    });
+  }
+
+  function settleDiscardDecision(shouldDiscard) {
+    closeModal(elements.discardModal);
+    if (!state.discardResolver) return;
+    const resolve = state.discardResolver;
+    state.discardResolver = null;
+    resolve(shouldDiscard);
   }
 
   async function openMainFile() {
-    if (!confirmDiscardChanges()) return;
+    if (!(await confirmDiscardChanges())) return;
     if (window.electronAPI && typeof window.electronAPI.openTextFile === 'function') {
       try {
         const result = await window.electronAPI.openTextFile();
@@ -213,6 +237,9 @@
 
   async function saveFile(saveAs) {
     const text = mainEditor.getValue();
+    const suggestedName = getSuggestedFileName();
+    const currentExtension = (state.fileName.match(/\.([^.]+)$/)?.[1] || '').toLowerCase();
+    const needsTypeConversion = currentExtension !== getEditorExtension();
     if (window.electronAPI && typeof window.electronAPI.saveTextFile === 'function') {
       try {
         const payload = {
@@ -221,9 +248,10 @@
           encoding: state.encoding,
           lineEnding: state.lineEnding,
           expectedMtimeMs: state.expectedMtimeMs,
-          suggestedName: state.fileName
+          suggestedName,
+          language: elements.languageSelect.value
         };
-        const result = saveAs || !state.fileToken
+        const result = saveAs || !state.fileToken || needsTypeConversion
           ? await window.electronAPI.saveTextFileAs(payload)
           : await window.electronAPI.saveTextFile(payload);
         if (!result || result.canceled) return;
@@ -248,7 +276,7 @@
     const blob = new Blob([normalized], { type: 'text/plain;charset=utf-8' });
     const anchor = document.createElement('a');
     anchor.href = URL.createObjectURL(blob);
-    anchor.download = state.fileName || 'untitled.txt';
+    anchor.download = suggestedName;
     anchor.click();
     setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
     state.encoding = 'UTF-8';
@@ -497,7 +525,7 @@
   }
 
   async function reopenWithEncoding() {
-    if (!confirmDiscardChanges()) return;
+    if (!(await confirmDiscardChanges())) return;
     const encoding = elements.encodingSelect.value;
     try {
       if (window.electronAPI && state.fileToken && typeof window.electronAPI.reopenTextFile === 'function') {
@@ -660,7 +688,8 @@
   }
 
   async function loadClip(clipId) {
-    if (!clipId || (!confirmDiscardChanges() && String(clipId) !== String(state.clipId))) return;
+    if (!clipId) return;
+    if (String(clipId) !== String(state.clipId) && !(await confirmDiscardChanges())) return;
     try {
       const response = await fetch(`${API_BASE_URL}/${clipId}`);
       if (!response.ok) throw new Error(response.status === 404 ? '剪藏不存在' : `HTTP ${response.status}`);
@@ -721,8 +750,8 @@
     markWordInEditor(compareEditor, word, state.syncMarkers.compare);
   });
 
-  document.getElementById('newFileBtn').addEventListener('click', () => {
-    if (confirmDiscardChanges()) resetDocument();
+  document.getElementById('newFileBtn').addEventListener('click', async () => {
+    if (await confirmDiscardChanges()) resetDocument();
   });
   document.getElementById('openFileBtn').addEventListener('click', openMainFile);
   document.getElementById('saveFileBtn').addEventListener('click', () => saveFile(false));
@@ -765,11 +794,17 @@
     button.addEventListener('click', () => closeModal(document.getElementById(button.dataset.closeModal)));
   });
 
+  document.getElementById('cancelDiscardBtn').addEventListener('click', () => settleDiscardDecision(false));
+  document.getElementById('cancelDiscardActionBtn').addEventListener('click', () => settleDiscardDecision(false));
+  document.getElementById('confirmDiscardBtn').addEventListener('click', () => settleDiscardDecision(true));
+
   document.addEventListener('keydown', event => {
     const modifier = event.ctrlKey || event.metaKey;
     if (modifier && event.key.toLowerCase() === 'n') {
       event.preventDefault();
-      if (confirmDiscardChanges()) resetDocument();
+      confirmDiscardChanges().then(shouldDiscard => {
+        if (shouldDiscard) resetDocument();
+      });
     } else if (modifier && event.key.toLowerCase() === 'o') {
       event.preventDefault();
       openMainFile();

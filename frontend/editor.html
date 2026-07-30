@@ -184,6 +184,23 @@
     </section>
   </div>
 
+  <div class="modal-backdrop" id="discardModal" hidden>
+    <section class="modal-card discard-modal-card" role="dialog" aria-modal="true" aria-labelledby="discardModalTitle">
+      <div class="panel-header">
+        <div>
+          <h2 id="discardModalTitle">放弃未保存修改</h2>
+          <p>当前内容尚未保存，确定放弃修改吗？</p>
+        </div>
+        <button class="icon-close" id="cancelDiscardBtn" aria-label="取消">×</button>
+      </div>
+      <div class="modal-note">放弃后，当前编辑内容将不会写入文件或剪藏。</div>
+      <div class="panel-actions">
+        <button class="tool-btn" id="cancelDiscardActionBtn">继续编辑</button>
+        <button class="tool-btn danger-action" id="confirmDiscardBtn">放弃修改</button>
+      </div>
+    </section>
+  </div>
+
   <input id="browserFileInput" type="file" hidden accept=".txt,.md,.json,.xml,.sql,.csv,.log,.yaml,.yml,.ini,.conf">
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 

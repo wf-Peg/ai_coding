@@ -411,6 +411,20 @@ select {
   width: min(620px, 96vw);
 }
 
+.discard-modal-card {
+  width: min(430px, 96vw);
+}
+
+.danger-action {
+  color: var(--app-danger);
+  border-color: color-mix(in srgb, var(--app-danger) 45%, var(--app-border));
+  background: color-mix(in srgb, var(--app-danger-soft) 50%, var(--app-surface));
+}
+
+.danger-action:hover {
+  background: var(--app-danger-soft);
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
