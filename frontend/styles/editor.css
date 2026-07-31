@@ -166,6 +166,7 @@ select {
 }
 
 .compare-toolbar {
+  grid-row: 2;
   min-height: 35px;
   display: none;
   align-items: center;
@@ -192,6 +193,7 @@ select {
 }
 
 .editor-workspace {
+  grid-row: 3;
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -258,6 +260,7 @@ select {
 }
 
 .editor-statusbar {
+  grid-row: 4;
   display: flex;
   align-items: center;
   gap: 11px;
@@ -384,15 +387,15 @@ select {
   position: fixed;
   z-index: 80;
   inset: 0;
-  display: grid;
+  display: none;
   place-items: center;
   padding: 20px;
   background: rgba(15, 23, 42, 0.36);
   backdrop-filter: blur(3px);
 }
 
-.modal-backdrop[hidden] {
-  display: none;
+.modal-backdrop.is-visible {
+  display: grid;
 }
 
 .modal-card {

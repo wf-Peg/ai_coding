@@ -357,7 +357,6 @@
   async function toggleCompare(forceOpen) {
     const shouldOpen = forceOpen !== undefined ? forceOpen : elements.comparePane.hidden;
     elements.comparePane.hidden = !shouldOpen;
-    elements.compareToolbar.hidden = !shouldOpen;
     elements.compareToolbar.classList.toggle('is-open', shouldOpen);
     elements.compareToolbar.setAttribute('aria-hidden', String(!shouldOpen));
     elements.editorWorkspace.classList.toggle('comparing', shouldOpen);
@@ -517,11 +516,11 @@
   }
 
   function openModal(element) {
-    element.hidden = false;
+    element.classList.add('is-visible');
   }
 
   function closeModal(element) {
-    element.hidden = true;
+    element.classList.remove('is-visible');
   }
 
   async function reopenWithEncoding() {
