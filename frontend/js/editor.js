@@ -7,20 +7,43 @@
   const THEME_STORAGE_KEY = 'app_theme_v1';
   const APPEARANCE_KEY = 'app_appearance_v1';
   const Range = ace.require('ace/range').Range;
-  const state = {
-    fileToken: null,
-    fileName: '未命名.txt',
-    displayPath: '',
-    encoding: 'UTF-8',
-    encodingConfidence: '',
-    lineEnding: 'LF',
-    expectedMtimeMs: null,
-    modified: false,
-    suppressChange: false,
-    browserBytes: null,
-    browserPurpose: 'main',
-    clipId: null,
-    clipType: 'store-only',
+
+  /**
+   * 工厂函数：生成默认标签状态快照
+   */
+  function createTabState() {
+    return {
+      id: `tab_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      fileToken: null,
+      fileName: '未命名.txt',
+      displayPath: '',
+      encoding: 'UTF-8',
+      encodingConfidence: '',
+      lineEnding: 'LF',
+      expectedMtimeMs: null,
+      modified: false,
+      suppressChange: false,
+      browserBytes: null,
+      browserPurpose: 'main',
+      clipId: null,
+      clipType: 'store-only',
+      clipMetadata: null,
+      content: '',
+      language: 'text',
+      scrollTop: 0,
+      scrollLeft: 0,
+      cursorRow: 0,
+      cursorColumn: 0
+    };
+  }
+
+  // 多标签状态
+  const tabs = [];
+  let activeTabIndex = 0;
+  let state = null;
+
+  // 跨标签共享状态（对比、转换等）
+  const sharedState = {
     compareToken: null,
     diffMarkers: { main: [], compare: [] },
     syncMarkers: { main: [], compare: [] },
@@ -28,12 +51,12 @@
     activeDiffIndex: -1,
     transformTarget: null,
     categoriesLoaded: false,
-    clipMetadata: null,
     diffTimer: null,
     discardResolver: null
   };
 
   const elements = Object.fromEntries([
+    'tabBar', 'tabNewBtn',
     'documentName', 'documentPath', 'modifiedDot', 'clipSourceBadge', 'languageSelect',
     'encodingLabel', 'encodingConfidence', 'lineEndingSelect', 'cursorStatus',
     'selectionStatus', 'matchStatus', 'runtimeStatus', 'compareToolbar', 'comparePane',
@@ -43,6 +66,15 @@
     'clipTitleInput', 'clipModeSelect', 'clipCategorySelect', 'clipTagsInput',
     'clipThoughtsInput', 'includeFileNameCheck', 'submitClipBtn', 'browserFileInput', 'toast'
   ].map(id => [id, document.getElementById(id)]));
+
+  /**
+   * 获取 Electron API（兼容 iframe 模式）。
+   * editor.html 在 index.html 的 iframe 中加载，preload 脚本只注入顶层窗口，
+   * 因此需要从 window.parent 获取 electronAPI。
+   */
+  function getElectronAPI() {
+    return window.electronAPI || (window.parent && window.parent.electronAPI);
+  }
 
   ace.config.set('basePath', 'libs/ace');
   ace.config.set('modePath', 'libs/ace');
@@ -60,6 +92,7 @@
       displayIndentGuides: true,
       highlightActiveLine: !readOnly,
       highlightSelectedWord: true,
+      selectionStyle: 'line',
       enableBasicAutocompletion: false,
       enableLiveAutocompletion: false,
       useWorker: true,
@@ -87,6 +120,152 @@
     compareEditor.setTheme(aceTheme);
   }
 
+  /**
+   * 保存当前活跃标签的快照（内容、光标、滚动位置）
+   */
+  function saveActiveTabSnapshot() {
+    if (!state) return;
+    state.content = mainEditor.getValue();
+    const cursor = mainEditor.getCursorPosition();
+    state.cursorRow = cursor.row;
+    state.cursorColumn = cursor.column;
+    state.scrollTop = mainEditor.session.getScrollTop();
+    state.scrollLeft = mainEditor.session.getScrollLeft();
+    state.language = elements.languageSelect.value;
+    state.lineEnding = elements.lineEndingSelect.value;
+  }
+
+  /**
+   * 切换到指定索引的标签
+   */
+  function switchToTab(index) {
+    if (index === activeTabIndex || index < 0 || index >= tabs.length) return;
+    saveActiveTabSnapshot();
+    activeTabIndex = index;
+    state = tabs[activeTabIndex];
+
+    // 恢复标签内容
+    state.suppressChange = true;
+    mainEditor.setValue(state.content || '', -1);
+    state.suppressChange = false;
+
+    // 恢复光标和滚动位置
+    mainEditor.gotoLine(state.cursorRow + 1, state.cursorColumn, false);
+    mainEditor.session.setScrollTop(state.scrollTop);
+    mainEditor.session.setScrollLeft(state.scrollLeft);
+
+    // 恢复语言模式
+    setLanguage(state.language);
+
+    // 更新 UI
+    updateDocumentIdentity();
+    updateCursorStatus();
+    renderTabBar();
+
+    // 切换标签时退出对比模式
+    if (!elements.comparePane.hidden) {
+      toggleCompare(false);
+    }
+
+    mainEditor.focus();
+  }
+
+  /**
+   * 新建标签
+   */
+  function createNewTab() {
+    saveActiveTabSnapshot();
+    const newTab = createTabState();
+    tabs.push(newTab);
+    activeTabIndex = tabs.length - 1;
+    state = tabs[activeTabIndex];
+    setEditorContent('', { fileName: '未命名.txt', encoding: 'UTF-8', lineEnding: 'LF' });
+    renderTabBar();
+    mainEditor.focus();
+  }
+
+  /**
+   * 关闭指定索引的标签
+   */
+  async function closeTab(index) {
+    if (tabs.length <= 1) return;
+
+    const tab = tabs[index];
+    if (tab.modified) {
+      // 先切换到该标签以便用户看到内容
+      if (index !== activeTabIndex) {
+        switchToTab(index);
+      }
+      const confirmed = await confirmDiscardChanges();
+      if (!confirmed) return;
+    }
+
+    // 移除标签
+    tabs.splice(index, 1);
+
+    // 调整活跃索引
+    if (index < activeTabIndex || activeTabIndex >= tabs.length) {
+      activeTabIndex = Math.min(activeTabIndex, tabs.length - 1);
+    }
+
+    state = tabs[activeTabIndex];
+
+    // 恢复新的活跃标签
+    state.suppressChange = true;
+    mainEditor.setValue(state.content || '', -1);
+    state.suppressChange = false;
+    mainEditor.gotoLine(state.cursorRow + 1, state.cursorColumn, false);
+    mainEditor.session.setScrollTop(state.scrollTop);
+    setLanguage(state.language);
+    updateDocumentIdentity();
+    renderTabBar();
+    mainEditor.focus();
+  }
+
+  /**
+   * 渲染标签栏 DOM
+   */
+  function renderTabBar() {
+    const tabBar = elements.tabBar;
+    // 移除旧标签项和 spacer
+    tabBar.querySelectorAll('.tab-item, .tab-bar-spacer').forEach(el => el.remove());
+
+    tabs.forEach((tab, index) => {
+      const tabEl = document.createElement('div');
+      tabEl.className = 'tab-item' + (index === activeTabIndex ? ' active' : '');
+      tabEl.title = tab.displayPath || tab.fileName;
+
+      const dot = document.createElement('span');
+      dot.className = 'tab-dot' + (tab.modified ? ' active' : '');
+
+      const label = document.createElement('span');
+      label.className = 'tab-label';
+      label.textContent = tab.fileName;
+
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'tab-close-btn';
+      closeBtn.innerHTML = '&times;';
+      closeBtn.title = '关闭标签 (Ctrl+W)';
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeTab(index);
+      });
+
+      tabEl.appendChild(dot);
+      tabEl.appendChild(label);
+      tabEl.appendChild(closeBtn);
+      tabEl.addEventListener('click', () => switchToTab(index));
+
+      tabBar.insertBefore(tabEl, elements.tabNewBtn);
+    });
+
+    // 添加双击空白区域新建标签的 spacer
+    const spacer = document.createElement('div');
+    spacer.className = 'tab-bar-spacer';
+    spacer.addEventListener('dblclick', createNewTab);
+    tabBar.insertBefore(spacer, elements.tabNewBtn);
+  }
+
   function updateDocumentIdentity() {
     elements.documentName.textContent = state.fileName;
     elements.documentPath.textContent = state.displayPath || (state.clipId ? `剪藏 #${state.clipId}` : '尚未保存');
@@ -101,6 +280,13 @@
   function setModified(modified) {
     state.modified = modified;
     updateDocumentIdentity();
+    // 增量更新当前标签的修改圆点，避免重建整个标签栏
+    const tabItems = elements.tabBar.querySelectorAll('.tab-item');
+    const currentTab = tabItems[activeTabIndex];
+    if (currentTab) {
+      const dot = currentTab.querySelector('.tab-dot');
+      if (dot) dot.classList.toggle('active', modified);
+    }
   }
 
   function setEditorContent(text, options = {}) {
@@ -158,23 +344,23 @@
     if (!state.modified) return Promise.resolve(true);
     openModal(elements.discardModal);
     return new Promise(resolve => {
-      state.discardResolver = resolve;
+      sharedState.discardResolver = resolve;
     });
   }
 
   function settleDiscardDecision(shouldDiscard) {
     closeModal(elements.discardModal);
-    if (!state.discardResolver) return;
-    const resolve = state.discardResolver;
-    state.discardResolver = null;
+    if (!sharedState.discardResolver) return;
+    const resolve = sharedState.discardResolver;
+    sharedState.discardResolver = null;
     resolve(shouldDiscard);
   }
 
   async function openMainFile() {
     if (!(await confirmDiscardChanges())) return;
-    if (window.electronAPI && typeof window.electronAPI.openTextFile === 'function') {
+    if (getElectronAPI() && typeof getElectronAPI().openTextFile === 'function') {
       try {
-        const result = await window.electronAPI.openTextFile();
+        const result = await getElectronAPI().openTextFile();
         if (!result || result.canceled) return;
         state.clipId = null;
         state.clipType = 'store-only';
@@ -188,6 +374,7 @@
           lineEnding: result.lineEnding,
           expectedMtimeMs: result.mtimeMs
         });
+        renderTabBar();
         showToast(`已打开 ${result.fileName}`);
         FrontendLogger.info('[Editor] Opened file', result.fileName, result.size);
       } catch (error) {
@@ -219,6 +406,7 @@
       lineEnding: EditorCore.detectLineEnding(text),
       browserBytes: bytes
     });
+    renderTabBar();
   }
 
   function decodeBrowserBytes(bytes, encoding) {
@@ -240,7 +428,7 @@
     const suggestedName = getSuggestedFileName();
     const currentExtension = (state.fileName.match(/\.([^.]+)$/)?.[1] || '').toLowerCase();
     const needsTypeConversion = currentExtension !== getEditorExtension();
-    if (window.electronAPI && typeof window.electronAPI.saveTextFile === 'function') {
+    if (getElectronAPI() && typeof getElectronAPI().saveTextFile === 'function') {
       try {
         const payload = {
           fileToken: state.fileToken,
@@ -252,8 +440,8 @@
           language: elements.languageSelect.value
         };
         const result = saveAs || !state.fileToken || needsTypeConversion
-          ? await window.electronAPI.saveTextFileAs(payload)
-          : await window.electronAPI.saveTextFile(payload);
+          ? await getElectronAPI().saveTextFileAs(payload)
+          : await getElectronAPI().saveTextFile(payload);
         if (!result || result.canceled) return;
         if (result.conflict) {
           showToast('文件已被其他程序修改，请使用“另存为”或重新打开', true);
@@ -264,6 +452,7 @@
         state.displayPath = result.displayPath;
         state.expectedMtimeMs = result.mtimeMs;
         setModified(false);
+        renderTabBar();
         showToast(`已保存为 ${state.encoding}`);
         FrontendLogger.info('[Editor] Saved file', result.fileName, result.size, state.encoding);
       } catch (error) {
@@ -320,7 +509,7 @@
   }
 
   function openTransformPanel() {
-    state.transformTarget = getTargetRangeAndText();
+    sharedState.transformTarget = getTargetRangeAndText();
     elements.transformPanel.classList.add('open');
     elements.transformPanel.setAttribute('aria-hidden', 'false');
     updateTransformPreview();
@@ -332,24 +521,71 @@
   }
 
   function updateTransformPreview() {
-    if (!state.transformTarget) state.transformTarget = getTargetRangeAndText();
-    if (state.transformTarget.text.length > MAX_TRANSFORM_LENGTH) {
+    if (!sharedState.transformTarget) sharedState.transformTarget = getTargetRangeAndText();
+
+    const operation = elements.transformOperation.value;
+
+    // 文件 MD5 校验：异步处理
+    if (operation === 'md5-file') {
+      handleFileMd5Preview();
+      return;
+    }
+
+    if (sharedState.transformTarget.text.length > MAX_TRANSFORM_LENGTH) {
       elements.transformPreview.value = '内容超过 5 MB，无法转换。';
       return;
     }
     try {
       elements.transformPreview.value = EditorCore.transform(
-        state.transformTarget.text,
-        elements.transformOperation.value
+        sharedState.transformTarget.text,
+        operation
       );
     } catch (error) {
       elements.transformPreview.value = `转换失败：${error.message}`;
     }
   }
 
+  async function handleFileMd5Preview() {
+    const api = getElectronAPI();
+    if (!api || typeof api.getFileMd5 !== 'function') {
+      elements.transformPreview.value = '文件 MD5 校验仅桌面模式可用。';
+      return;
+    }
+    if (!state.fileToken) {
+      elements.transformPreview.value = '请先保存文件后再进行文件 MD5 校验。';
+      return;
+    }
+
+    // 计算内容 MD5（编辑器当前文本）
+    const contentMd5 = EditorCore.transform(sharedState.transformTarget.text, 'md5-encode');
+
+    // 从磁盘读取文件 MD5
+    const result = await api.getFileMd5(state.fileToken);
+    if (result.error) {
+      elements.transformPreview.value = `文件 MD5 校验失败：${result.error}`;
+      return;
+    }
+
+    elements.transformPreview.value = [
+      `┌─ 文件信息 ─────────────────`,
+      `│ 文件名：${result.fileName}`,
+      `│ 文件大小：${(result.size / 1024).toFixed(1)} KB`,
+      `│ 文件 MD5：${result.hash}`,
+      `├─ 内容对比 ─────────────────`,
+      `│ 内容 MD5：${contentMd5.trim()}`,
+      `│ 结论：${result.hash === contentMd5.trim() ? '✓ 文件与内容 MD5 一致' : '✗ 文件与内容 MD5 不一致（编码/换行符差异）'}`,
+      `└────────────────────────────`
+    ].join('\n');
+  }
+
   function applyTransform() {
-    if (!state.transformTarget || elements.transformPreview.value.startsWith('转换失败：')) return;
-    mainEditor.session.replace(state.transformTarget.range, elements.transformPreview.value);
+    const operation = elements.transformOperation.value;
+    if (operation === 'md5-file') {
+      showToast('文件 MD5 校验结果为只读信息，不可替换原文');
+      return;
+    }
+    if (!sharedState.transformTarget || elements.transformPreview.value.startsWith('转换失败：')) return;
+    mainEditor.session.replace(sharedState.transformTarget.range, elements.transformPreview.value);
     closeTransformPanel();
     showToast('转换结果已替换原文');
   }
@@ -364,6 +600,13 @@
       compareEditor.setValue(mainEditor.getValue(), -1);
       elements.compareFileName.textContent = '当前文档快照';
     }
+    if (!shouldOpen) {
+      clearMarkers(mainEditor, sharedState.diffMarkers.main);
+      clearMarkers(compareEditor, sharedState.diffMarkers.compare);
+      sharedState.diffLocations = [];
+      sharedState.activeDiffIndex = -1;
+      elements.diffCounter.textContent = '无差异';
+    }
     setTimeout(() => {
       mainEditor.resize();
       compareEditor.resize();
@@ -374,8 +617,8 @@
   async function loadCompareFromClipboard() {
     try {
       let text;
-      if (window.electronAPI && typeof window.electronAPI.readClipboard === 'function') {
-        text = await window.electronAPI.readClipboard();
+      if (getElectronAPI() && typeof getElectronAPI().readClipboard === 'function') {
+        text = await getElectronAPI().readClipboard();
       } else {
         text = await navigator.clipboard.readText();
       }
@@ -388,11 +631,11 @@
   }
 
   async function loadCompareFromFile() {
-    if (window.electronAPI && typeof window.electronAPI.openTextFile === 'function') {
+    if (getElectronAPI() && typeof getElectronAPI().openTextFile === 'function') {
       try {
-        const result = await window.electronAPI.openTextFile();
+        const result = await getElectronAPI().openTextFile();
         if (!result || result.canceled) return;
-        state.compareToken = result.fileToken;
+        sharedState.compareToken = result.fileToken;
         compareEditor.setValue(result.text, -1);
         elements.compareFileName.textContent = result.fileName;
         updateDiff();
@@ -422,10 +665,10 @@
   }
 
   function updateDiff() {
-    clearMarkers(mainEditor, state.diffMarkers.main);
-    clearMarkers(compareEditor, state.diffMarkers.compare);
-    state.diffLocations = [];
-    state.activeDiffIndex = -1;
+    clearMarkers(mainEditor, sharedState.diffMarkers.main);
+    clearMarkers(compareEditor, sharedState.diffMarkers.compare);
+    sharedState.diffLocations = [];
+    sharedState.activeDiffIndex = -1;
 
     if (!window.Diff || typeof window.Diff.diffLines !== 'function') {
       elements.diffCounter.textContent = '差异组件未加载';
@@ -434,33 +677,46 @@
     const parts = window.Diff.diffLines(mainEditor.getValue(), compareEditor.getValue());
     let leftRow = 0;
     let rightRow = 0;
+    // 标记上一部分是否为 removed（用于合并 removed+added 为 1 处差异）
+    let prevWasRemoved = false;
+
     parts.forEach(part => {
       const rows = countRows(part.value);
-      if (part.removed) {
-        state.diffMarkers.main.push(addFullLineMarker(mainEditor, leftRow, rows, 'diff-removed-line'));
-        state.diffLocations.push({ editor: mainEditor, row: leftRow });
+      if (part.removed && !part.added) {
+        // 纯删除：记录差异位置
+        sharedState.diffMarkers.main.push(addFullLineMarker(mainEditor, leftRow, rows, 'diff-removed-line'));
+        sharedState.diffLocations.push({ editor: mainEditor, row: leftRow });
         leftRow += rows;
-      } else if (part.added) {
-        state.diffMarkers.compare.push(addFullLineMarker(compareEditor, rightRow, rows, 'diff-added-line'));
-        state.diffLocations.push({ editor: compareEditor, row: rightRow });
+        prevWasRemoved = true;
+      } else if (part.added && !part.removed) {
+        // 纯新增
+        if (prevWasRemoved) {
+          // 上一部分是 removed，合并为同一次替换，不新增 diffLocations
+          prevWasRemoved = false;
+        } else {
+          sharedState.diffLocations.push({ editor: compareEditor, row: rightRow });
+        }
+        sharedState.diffMarkers.compare.push(addFullLineMarker(compareEditor, rightRow, rows, 'diff-added-line'));
         rightRow += rows;
       } else {
+        // 无变化行
         leftRow += rows;
         rightRow += rows;
+        prevWasRemoved = false;
       }
     });
-    elements.diffCounter.textContent = state.diffLocations.length
-      ? `${state.diffLocations.length} 处差异`
+    elements.diffCounter.textContent = sharedState.diffLocations.length
+      ? `${sharedState.diffLocations.length} 处差异`
       : '无差异';
   }
 
   function navigateDiff(direction) {
-    if (!state.diffLocations.length) return;
-    state.activeDiffIndex = (state.activeDiffIndex + direction + state.diffLocations.length) % state.diffLocations.length;
-    const location = state.diffLocations[state.activeDiffIndex];
+    if (!sharedState.diffLocations.length) return;
+    sharedState.activeDiffIndex = (sharedState.activeDiffIndex + direction + sharedState.diffLocations.length) % sharedState.diffLocations.length;
+    const location = sharedState.diffLocations[sharedState.activeDiffIndex];
     location.editor.scrollToLine(location.row + 1, true, true, () => {});
     location.editor.gotoLine(location.row + 1, 0, true);
-    elements.diffCounter.textContent = `${state.activeDiffIndex + 1} / ${state.diffLocations.length}`;
+    elements.diffCounter.textContent = `${sharedState.activeDiffIndex + 1} / ${sharedState.diffLocations.length}`;
   }
 
   function escapeRegExp(value) {
@@ -502,8 +758,8 @@
     const count = countWholeWordMatches(mainEditor.getValue(), word);
     elements.matchStatus.textContent = count ? `${count} 个整词匹配` : '未选择词语';
     if (!elements.comparePane.hidden) {
-      markWordInEditor(mainEditor, word, state.syncMarkers.main);
-      markWordInEditor(compareEditor, word, state.syncMarkers.compare);
+      markWordInEditor(mainEditor, word, sharedState.syncMarkers.main);
+      markWordInEditor(compareEditor, word, sharedState.syncMarkers.compare);
     }
   }
 
@@ -527,8 +783,8 @@
     if (!(await confirmDiscardChanges())) return;
     const encoding = elements.encodingSelect.value;
     try {
-      if (window.electronAPI && state.fileToken && typeof window.electronAPI.reopenTextFile === 'function') {
-        const result = await window.electronAPI.reopenTextFile(state.fileToken, encoding);
+      if (getElectronAPI() && state.fileToken && typeof getElectronAPI().reopenTextFile === 'function') {
+        const result = await getElectronAPI().reopenTextFile(state.fileToken, encoding);
         setEditorContent(result.text, {
           fileToken: state.fileToken,
           fileName: state.fileName,
@@ -605,7 +861,7 @@
   }
 
   async function loadCategories() {
-    if (state.categoriesLoaded) return;
+    if (sharedState.categoriesLoaded) return;
     try {
       const response = await fetch(`${API_BASE_URL}/categories`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -623,7 +879,7 @@
         node.textContent = option.label;
         elements.clipCategorySelect.appendChild(node);
       });
-      state.categoriesLoaded = true;
+      sharedState.categoriesLoaded = true;
     } catch (error) {
       FrontendLogger.warn('[Editor] Failed to load categories', error);
     }
@@ -713,6 +969,7 @@
       state.clipId = clip.id;
       state.clipType = clip.type || 'store-only';
       updateDocumentIdentity();
+      renderTabBar();
       showToast(`已打开剪藏 #${clip.id}`);
     } catch (error) {
       handleError('打开剪藏失败', error);
@@ -736,8 +993,8 @@
   mainEditor.session.on('change', () => {
     if (!state.suppressChange) setModified(true);
     if (!elements.comparePane.hidden) {
-      clearTimeout(state.diffTimer);
-      state.diffTimer = setTimeout(updateDiff, 180);
+      clearTimeout(sharedState.diffTimer);
+      sharedState.diffTimer = setTimeout(updateDiff, 180);
     }
   });
   mainEditor.selection.on('changeCursor', updateCursorStatus);
@@ -745,16 +1002,15 @@
   mainEditor.container.addEventListener('dblclick', () => setTimeout(syncSelectedWord, 0));
   compareEditor.container.addEventListener('dblclick', () => {
     const word = compareEditor.getSelectedText();
-    markWordInEditor(mainEditor, word, state.syncMarkers.main);
-    markWordInEditor(compareEditor, word, state.syncMarkers.compare);
+    markWordInEditor(mainEditor, word, sharedState.syncMarkers.main);
+    markWordInEditor(compareEditor, word, sharedState.syncMarkers.compare);
   });
 
-  document.getElementById('newFileBtn').addEventListener('click', async () => {
-    if (await confirmDiscardChanges()) resetDocument();
-  });
+  document.getElementById('newFileBtn').addEventListener('click', createNewTab);
   document.getElementById('openFileBtn').addEventListener('click', openMainFile);
   document.getElementById('saveFileBtn').addEventListener('click', () => saveFile(false));
   document.getElementById('saveAsBtn').addEventListener('click', () => saveFile(true));
+  elements.tabNewBtn.addEventListener('click', createNewTab);
   document.getElementById('formatBtn').addEventListener('click', formatCurrentContent);
   document.getElementById('transformBtn').addEventListener('click', openTransformPanel);
   document.getElementById('closeTransformBtn').addEventListener('click', closeTransformPanel);
@@ -801,9 +1057,19 @@
     const modifier = event.ctrlKey || event.metaKey;
     if (modifier && event.key.toLowerCase() === 'n') {
       event.preventDefault();
-      confirmDiscardChanges().then(shouldDiscard => {
-        if (shouldDiscard) resetDocument();
-      });
+      createNewTab();
+    } else if (modifier && event.key.toLowerCase() === 't') {
+      event.preventDefault();
+      createNewTab();
+    } else if (modifier && event.key.toLowerCase() === 'w') {
+      event.preventDefault();
+      closeTab(activeTabIndex);
+    } else if (modifier && event.key === 'Tab') {
+      event.preventDefault();
+      const next = event.shiftKey
+        ? (activeTabIndex - 1 + tabs.length) % tabs.length
+        : (activeTabIndex + 1) % tabs.length;
+      switchToTab(next);
     } else if (modifier && event.key.toLowerCase() === 'o') {
       event.preventDefault();
       openMainFile();
@@ -817,9 +1083,10 @@
   });
 
   window.addEventListener('beforeunload', event => {
-    if (!state.modified) return;
-    event.preventDefault();
-    event.returnValue = '';
+    if (tabs.some(tab => tab.modified)) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
   });
 
   window.addEventListener('message', event => {
@@ -842,12 +1109,18 @@
   });
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 
-  elements.runtimeStatus.textContent = window.electronAPI ? '桌面模式' : '浏览器模式';
-  elements.encodingNote.textContent = window.electronAPI
+  elements.runtimeStatus.textContent = getElectronAPI() ? '桌面模式' : '浏览器模式';
+  elements.encodingNote.textContent = getElectronAPI()
     ? '重新读取不会修改磁盘；设置保存编码后，保存时才执行转换。'
     : '浏览器模式可重新解码已选择文件，但保存统一下载为 UTF-8。';
   applyTheme();
+
+  // 初始化默认标签
+  tabs.push(createTabState());
+  state = tabs[0];
   resetDocument();
+  renderTabBar();
+
   updateCursorStatus();
   window.parent.postMessage({ type: 'editorReady' }, '*');
 })();

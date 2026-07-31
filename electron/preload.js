@@ -61,6 +61,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** 打开原生另存为对话框并保存文本。 */
   saveTextFileAs: (payload) => ipcRenderer.invoke('editor-save-text-file-as', payload),
 
+  /** 根据文件令牌计算已保存文件的 MD5 哈希。 */
+  getFileMd5: (fileToken) => ipcRenderer.invoke('editor-get-file-md5', fileToken),
+
   // ===================== 后端服务管理 =====================
 
   /**

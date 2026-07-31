@@ -32,7 +32,7 @@ select {
 
 .editor-app {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) 27px;
+  grid-template-rows: auto auto auto minmax(0, 1fr) 27px;
   width: 100%;
   height: 100%;
 }
@@ -165,8 +165,118 @@ select {
   font-size: 12px;
 }
 
-.compare-toolbar {
+/* 标签栏容器 */
+.tab-bar {
   grid-row: 2;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  background: var(--app-surface-subtle);
+  border-bottom: 1px solid var(--app-border);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  min-height: 32px;
+}
+
+/* 单个标签 */
+.tab-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  min-width: 80px;
+  max-width: 200px;
+  border-right: 1px solid var(--app-border);
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--app-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  transition: background 100ms, color 100ms;
+  user-select: none;
+}
+
+.tab-item:hover {
+  background: var(--app-surface-hover);
+  color: var(--app-text);
+}
+
+.tab-item.active {
+  background: var(--app-surface);
+  color: var(--app-text);
+  font-weight: 600;
+  border-bottom: 2px solid var(--app-primary);
+}
+
+/* 标签文字 */
+.tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 标签修改圆点 */
+.tab-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tab-dot.active {
+  background: var(--app-warning);
+}
+
+/* 标签关闭按钮 */
+.tab-close-btn {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  color: var(--app-text-muted);
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tab-close-btn:hover {
+  background: var(--app-danger-soft);
+  color: var(--app-danger);
+}
+
+/* 新建标签按钮 */
+.tab-new-btn {
+  flex-shrink: 0;
+  width: 30px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--app-text-muted);
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tab-new-btn:hover {
+  background: var(--app-surface-hover);
+  color: var(--app-text);
+}
+
+/* 标签栏空白区域用于双击新建 */
+.tab-bar-spacer {
+  flex: 1;
+  min-width: 20px;
+}
+
+.compare-toolbar {
+  grid-row: 3;
   min-height: 35px;
   display: none;
   align-items: center;
@@ -193,7 +303,7 @@ select {
 }
 
 .editor-workspace {
-  grid-row: 3;
+  grid-row: 4;
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -252,6 +362,14 @@ select {
   background: rgba(209, 67, 67, 0.14);
 }
 
+/* 增强编辑器选中文本高亮 */
+.ace_focused .ace_selection {
+  background: color-mix(in srgb, var(--app-primary) 28%, transparent) !important;
+}
+.ace_selection {
+  background: color-mix(in srgb, var(--app-primary) 16%, transparent) !important;
+}
+
 .ace_marker-layer .sync-word-marker {
   position: absolute;
   border: 1px solid color-mix(in srgb, var(--app-primary) 70%, transparent);
@@ -260,7 +378,7 @@ select {
 }
 
 .editor-statusbar {
-  grid-row: 4;
+  grid-row: 5;
   display: flex;
   align-items: center;
   gap: 11px;
@@ -340,6 +458,9 @@ select {
   cursor: pointer;
   font-size: 20px;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .field-label {

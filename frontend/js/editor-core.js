@@ -172,6 +172,89 @@
     return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   }
 
+  /**
+   * 纯 JS MD5 实现（按 RFC 1321）
+   * 将输入字符串计算为 32 位小写十六进制 MD5 哈希值。
+   */
+  function md5Hash(text) {
+    const bytes = new TextEncoder().encode(text);
+    const lengthBits = bytes.length * 8;
+
+    // 补位：先补 0x80，再补 0x00 到 64 字节倍数 - 8，最后补 64 位长度
+    const paddedLength = (((bytes.length + 8) >>> 6) + 1) << 6;
+    const padded = new Uint8Array(paddedLength);
+    padded.set(bytes);
+    padded[bytes.length] = 0x80;
+
+    const view = new DataView(padded.buffer);
+    for (let i = 0; i < 8; i++) {
+      view.setUint8(paddedLength - 8 + i, (lengthBits >>> (i * 8)) & 0xff);
+    }
+
+    // MD5 初始常量
+    let a = 0x67452301, b = 0xefcdab89, c = 0x98badcfe, d = 0x10325476;
+
+    // 每轮 16 步的偏移量
+    const s = [
+      [7, 12, 17, 22], [5, 9, 14, 20], [4, 11, 16, 23], [6, 10, 15, 21]
+    ];
+    // 每步常数
+    const K = new Uint32Array(64);
+    for (let i = 0; i < 64; i++) {
+      K[i] = Math.floor(Math.abs(Math.sin(i + 1)) * 0x100000000);
+    }
+
+    function leftRotate(x, n) {
+      return ((x << n) | (x >>> (32 - n))) >>> 0;
+    }
+
+    function F(x, y, z) { return (x & y) | (~x & z); }
+    function G(x, y, z) { return (x & z) | (y & ~z); }
+    function H(x, y, z) { return x ^ y ^ z; }
+    function I(x, y, z) { return y ^ (x | ~z); }
+
+    const steps = [F, G, H, I];
+    const gIndex = [
+      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      [1, 6, 11, 0, 5, 10, 15, 4, 9, 14, 3, 8, 13, 2, 7, 12],
+      [5, 8, 11, 14, 1, 4, 7, 10, 13, 0, 3, 6, 9, 12, 15, 2],
+      [0, 3, 6, 9, 12, 15, 2, 5, 8, 11, 14, 1, 4, 7, 10, 13]
+    ];
+
+    for (let offset = 0; offset < paddedLength; offset += 64) {
+      const words = new Uint32Array(16);
+      for (let i = 0; i < 16; i++) {
+        words[i] = view.getUint32(offset + i * 4, true);
+      }
+
+      let A = a, B = b, C = c, D = d;
+
+      for (let round = 0; round < 64; round++) {
+        const f = steps[round >>> 4](B, C, D);
+        const g = gIndex[round >>> 4][round & 15];
+        const temp = (A + f + K[round] + words[g]) >>> 0;
+        const newA = (B + leftRotate(temp, s[round >>> 4][round & 3])) >>> 0;
+        A = D; D = C; C = B; B = newA;
+      }
+
+      a = (a + A) >>> 0;
+      b = (b + B) >>> 0;
+      c = (c + C) >>> 0;
+      d = (d + D) >>> 0;
+    }
+
+    function toHex(n) {
+      return n.toString(16).padStart(8, '0');
+    }
+    return toHex(a) + toHex(b) + toHex(c) + toHex(d);
+  }
+
+  function md5Encode(text) {
+    // 按行计算 MD5，每行输出独立的哈希值
+    const lines = text.split('\n');
+    return lines.map(line => md5Hash(line)).join('\n');
+  }
+
   function transform(text, operation) {
     switch (operation) {
       case 'base64-encode': return utf8ToBase64(text);
@@ -184,6 +267,7 @@
       case 'unicode-decode': return unicodeDecode(text);
       case 'hex-encode': return hexEncode(text);
       case 'hex-decode': return hexDecode(text);
+      case 'md5-encode': return md5Encode(text);
       default: throw new Error(`不支持的转换操作：${operation}`);
     }
   }

@@ -40,6 +40,10 @@
       </div>
     </header>
 
+    <nav class="tab-bar" id="tabBar" aria-label="编辑标签">
+      <button class="tab-new-btn" id="tabNewBtn" title="新建标签 (Ctrl+T)">+</button>
+    </nav>
+
     <section class="compare-toolbar" id="compareToolbar" aria-hidden="true">
       <div class="compare-label">左侧：当前文档</div>
       <div class="compare-actions">
@@ -100,6 +104,8 @@
       <option value="unicode-decode">Unicode 反转义</option>
       <option value="hex-encode">Hex 编码</option>
       <option value="hex-decode">Hex 解码</option>
+      <option value="md5-encode">MD5 编码</option>
+      <option value="md5-file">MD5 文件校验</option>
     </select>
     <label class="field-label" for="transformPreview">结果预览</label>
     <textarea class="preview-area" id="transformPreview" readonly></textarea>

@@ -13,6 +13,7 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const { spawn, execSync } = require('child_process');
+const crypto = require('crypto');
 const http = require('http');
 const yaml = require('js-yaml');
 const { EditorFileService } = require('./editor-file-service');
@@ -1463,6 +1464,19 @@ function setupIPC() {
     const saved = editorFileService.saveAs(result.filePath, payload || {});
     log.info('[EditorFile] saved as', saved.fileName, saved.size, saved.encoding);
     return saved;
+  });
+
+  ipcMain.handle('editor-get-file-md5', async (event, fileToken) => {
+    try {
+      const filePath = editorFileService.resolveToken(fileToken);
+      const bytes = fs.readFileSync(filePath);
+      const hash = crypto.createHash('md5').update(bytes).digest('hex');
+      const stat = fs.statSync(filePath);
+      return { hash, fileName: path.basename(filePath), size: stat.size };
+    } catch (error) {
+      log.error('[EditorFile] get-file-md5 error', error.message);
+      return { error: error.message };
+    }
   });
 
   // 获取当前配置
