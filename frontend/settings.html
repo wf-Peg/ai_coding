@@ -741,6 +741,24 @@
             </div>
         </div>
 
+        <!-- 缓存管理 -->
+        <div class="section" id="cacheSection">
+            <div class="section-title">
+                缓存管理
+                <span class="section-badge immediate">即时生效</span>
+            </div>
+            <div class="setting-row" style="border-bottom: none;">
+                <div class="setting-label">
+                    <div class="setting-title">清除浏览器缓存</div>
+                    <div class="setting-desc">清除应用内所有缓存的静态资源与存储数据，页面将在下次加载时重新获取最新内容</div>
+                </div>
+                <div class="setting-control">
+                    <button class="btn btn-outline" id="clearCacheBtn" onclick="clearCache()" style="font-size:0.85rem;padding:6px 16px;">清除缓存</button>
+                </div>
+            </div>
+            <div id="cacheResult" style="font-size:12px;color:var(--text-secondary);margin-top:4px;min-height:20px;"></div>
+        </div>
+
         <!-- 更新管理 -->
         <div class="section" id="updateSection">
             <div class="section-title">软件更新</div>
@@ -812,6 +830,50 @@
         </div>
     </div>
 
-    <script src="settings.js"></script>
+    <script src="js/settings.js"></script>
+    <script>
+    /**
+     * 清除浏览器缓存
+     * 通过 iframe 父窗口的 electronAPI 调用主进程清除缓存
+     */
+    async function clearCache() {
+        const resultEl = document.getElementById('cacheResult');
+        const btn = document.getElementById('clearCacheBtn');
+        btn.disabled = true;
+        btn.textContent = '清除中...';
+        resultEl.textContent = '正在清除缓存...';
+        resultEl.style.color = 'var(--text-secondary)';
+
+        try {
+            // settings.html 在 iframe 中运行，通过 parent 访问 electronAPI
+            const api = window.parent?.electronAPI;
+            if (!api || !api.clearCache) {
+                resultEl.textContent = '⚠️ 清除缓存功能仅在 Electron 桌面应用中可用';
+                resultEl.style.color = '#f59e0b';
+                return;
+            }
+            const result = await api.clearCache();
+            if (result.success) {
+                resultEl.textContent = '✅ 缓存已清除，刷新页面后生效（Ctrl+Shift+R 强制刷新）';
+                resultEl.style.color = '#10b981';
+            } else {
+                resultEl.textContent = '❌ 清除失败: ' + (result.message || '未知错误');
+                resultEl.style.color = '#ef4444';
+            }
+        } catch (e) {
+            resultEl.textContent = '❌ 清除失败: ' + e.message;
+            resultEl.style.color = '#ef4444';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '清除缓存';
+            // 3秒后自动清除提示文字
+            setTimeout(() => {
+                if (resultEl.textContent.includes('✅') || resultEl.textContent.includes('❌')) {
+                    resultEl.textContent = '';
+                }
+            }, 5000);
+        }
+    }
+    </script>
 </body>
 </html>

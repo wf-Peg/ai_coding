@@ -60,7 +60,7 @@
     'documentName', 'documentPath', 'modifiedDot', 'clipSourceBadge', 'languageSelect',
     'encodingLabel', 'encodingConfidence', 'lineEndingSelect', 'cursorStatus',
     'selectionStatus', 'matchStatus', 'runtimeStatus', 'compareToolbar', 'comparePane',
-    'editorWorkspace', 'compareFileName', 'diffCounter', 'transformPanel',
+    'editorWorkspace', 'compareFileName', 'diffCounter', 'markdownPane', 'markdownBody', 'closeMarkdownBtn', 'transformPanel',
     'transformOperation', 'transformPreview', 'encodingModal', 'encodingSelect',
     'encodingNote', 'clipModal', 'clipModalTitle', 'clipScopeDescription', 'discardModal',
     'clipTitleInput', 'clipModeSelect', 'clipCategorySelect', 'clipTagsInput',
@@ -81,8 +81,19 @@
   ace.config.set('themePath', 'libs/ace');
   ace.config.set('workerPath', 'libs/ace');
 
+  // language_tools 需要在创建编辑器前加载以注册自动补全选项
+  try {
+    ace.require(['ace/ext/language_tools'], function() {});
+  } catch (e) {
+    console.warn('ace/ext/language_tools 加载失败:', e);
+  }
+
   const mainEditor = createEditor('mainEditor', false);
   const compareEditor = createEditor('compareEditor', true);
+
+  // 搜索/替换快捷键（Ctrl+F / Ctrl+H）由 Ace 内置命令处理：
+  // ace.js 核心已注册 find/replace 命令并调用 config.loadModule("ace/ext/searchbox")，
+  // ext-searchbox.js 已通过 editor.html 中的 <script> 标签加载并注册模块，无需自定义绑定。
 
   function createEditor(id, readOnly) {
     const editor = ace.edit(id);
@@ -93,13 +104,15 @@
       highlightActiveLine: !readOnly,
       highlightSelectedWord: true,
       selectionStyle: 'line',
-      enableBasicAutocompletion: false,
-      enableLiveAutocompletion: false,
+      showInvisibles: true,
       useWorker: true,
       readOnly,
       scrollPastEnd: 0.3,
-      wrap: false
+      wrap: false,
+      enableBasicAutocompletion: !readOnly,
+      enableLiveAutocompletion: !readOnly
     });
+    editor.renderer.setAnimatedScroll(true);
     editor.session.setMode('ace/mode/text');
     editor.session.setUseSoftTabs(true);
     editor.session.setTabSize(2);
@@ -162,9 +175,12 @@
     updateCursorStatus();
     renderTabBar();
 
-    // 切换标签时退出对比模式
+    // 切换标签时退出对比和 Markdown 预览模式
     if (!elements.comparePane.hidden) {
       toggleCompare(false);
+    }
+    if (!elements.markdownPane.hidden) {
+      toggleMarkdownPreview(false);
     }
 
     mainEditor.focus();
@@ -590,12 +606,60 @@
     showToast('转换结果已替换原文');
   }
 
+  /**
+   * 切换 Markdown 预览模式
+   */
+  let markdownRenderTimer = null;
+
+  function toggleMarkdownPreview(forceOpen) {
+    const shouldOpen = forceOpen !== undefined ? forceOpen : elements.markdownPane.hidden;
+    elements.markdownPane.hidden = !shouldOpen;
+    elements.editorWorkspace.classList.toggle('markdown-preview', shouldOpen);
+
+    // 进入 Markdown 预览时退出对比模式
+    if (shouldOpen && !elements.comparePane.hidden) {
+      toggleCompare(false);
+    }
+
+    if (shouldOpen) {
+      renderMarkdownPreview();
+      // 监听编辑器内容变化，同步更新预览
+      mainEditor.session.on('change', scheduleMarkdownRender);
+    } else {
+      mainEditor.session.off('change', scheduleMarkdownRender);
+    }
+
+    setTimeout(() => mainEditor.resize(), 0);
+  }
+
+  function scheduleMarkdownRender() {
+    clearTimeout(markdownRenderTimer);
+    markdownRenderTimer = setTimeout(renderMarkdownPreview, 300);
+  }
+
+  function renderMarkdownPreview() {
+    const text = mainEditor.getValue();
+    if (!text.trim()) {
+      elements.markdownBody.innerHTML = '<p style="color:var(--app-text-muted);padding:2em 0;text-align:center;">暂无内容</p>';
+      return;
+    }
+    try {
+      elements.markdownBody.innerHTML = window.marked.parse(text);
+    } catch (error) {
+      elements.markdownBody.innerHTML = `<p style="color:var(--app-danger);">渲染失败：${error.message}</p>`;
+    }
+  }
+
   async function toggleCompare(forceOpen) {
     const shouldOpen = forceOpen !== undefined ? forceOpen : elements.comparePane.hidden;
     elements.comparePane.hidden = !shouldOpen;
     elements.compareToolbar.classList.toggle('is-open', shouldOpen);
     elements.compareToolbar.setAttribute('aria-hidden', String(!shouldOpen));
     elements.editorWorkspace.classList.toggle('comparing', shouldOpen);
+    // 进入对比模式时退出 Markdown 预览
+    if (shouldOpen && !elements.markdownPane.hidden) {
+      toggleMarkdownPreview(false);
+    }
     if (shouldOpen && !compareEditor.getValue()) {
       compareEditor.setValue(mainEditor.getValue(), -1);
       elements.compareFileName.textContent = '当前文档快照';
@@ -1027,6 +1091,8 @@
   });
   document.getElementById('compareBtn').addEventListener('click', () => toggleCompare());
   document.getElementById('closeCompareBtn').addEventListener('click', () => toggleCompare(false));
+  document.getElementById('markdownBtn').addEventListener('click', () => toggleMarkdownPreview());
+  elements.closeMarkdownBtn.addEventListener('click', () => toggleMarkdownPreview(false));
   document.getElementById('compareClipboardBtn').addEventListener('click', loadCompareFromClipboard);
   document.getElementById('compareFileBtn').addEventListener('click', loadCompareFromFile);
   document.getElementById('previousDiffBtn').addEventListener('click', () => navigateDiff(-1));
@@ -1079,6 +1145,9 @@
     } else if (event.shiftKey && event.altKey && event.key.toLowerCase() === 'f') {
       event.preventDefault();
       formatCurrentContent();
+    } else if (modifier && event.shiftKey && event.key.toLowerCase() === 'm') {
+      event.preventDefault();
+      toggleMarkdownPreview();
     }
   });
 
@@ -1122,5 +1191,13 @@
   renderTabBar();
 
   updateCursorStatus();
+
+  // 阻止 Ctrl+R 刷新页面（浏览器默认行为与编辑模块冲突）
+  document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && (e.key === 'r' || e.key === 'R')) {
+      e.preventDefault();
+    }
+  });
+
   window.parent.postMessage({ type: 'editorReady' }, '*');
 })();

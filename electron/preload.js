@@ -184,11 +184,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
   windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized'),
 
   /**
+   * 按偏移量移动窗口位置（用于自定义标题栏拖拽）
+   * @param {number} deltaX - 水平偏移量
+   * @param {number} deltaY - 垂直偏移量
+   * @returns {Promise<void>}
+   */
+  windowDrag: (deltaX, deltaY) => ipcRenderer.invoke('window-drag', deltaX, deltaY),
+
+  /**
    * 监听主进程发送的窗口最大化状态变化事件
    * @param {Function} callback - 接收布尔值的回调，true 表示已最大化
    * 当用户通过系统手势或双击标题栏最大化窗口时，主进程推送此事件
    */
   onWindowMaximized: (callback) => ipcRenderer.on('window-maximized', (event, maximized) => callback(maximized)),
+
+  /**
+   * 清除浏览器缓存（设置页调用）
+   * @returns {Promise<{success: boolean, message?: string}>}
+   */
+  clearCache: () => ipcRenderer.invoke('clear-cache'),
+
+  /**
+   * 强制刷新页面（忽略缓存，Ctrl+Shift+R 触发）
+   * @returns {Promise<void>}
+   */
+  forceReload: () => ipcRenderer.invoke('force-reload'),
 
   // ===================== 更新管理 =====================
 

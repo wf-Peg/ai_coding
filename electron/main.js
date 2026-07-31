@@ -8,7 +8,7 @@
  * 4. 提供 IPC 通道供渲染进程调用
  */
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, Notification, globalShortcut, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, Notification, globalShortcut, clipboard, session } = require('electron');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -1579,6 +1579,39 @@ function setupIPC() {
 
   // 查询当前窗口是否最大化（前端用于显示对应图标）
   ipcMain.handle('window-is-maximized', () => mainWindow?.isMaximized() ?? false);
+
+  // 处理窗口拖拽（按偏移量移动窗口位置）
+  ipcMain.handle('window-drag', (event, deltaX, deltaY) => {
+    if (mainWindow) {
+      const [x, y] = mainWindow.getPosition();
+      mainWindow.setPosition(x + deltaX, y + deltaY);
+    }
+  });
+
+  // 清除浏览器缓存（设置页「清除缓存」按钮调用）
+  ipcMain.handle('clear-cache', async () => {
+    try {
+      await session.defaultSession.clearCache();
+      // 同时清除 localStorage 和 sessionStorage
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.session.clearStorageData({
+          storages: ['localstorage', 'sessionstorage', 'caches', 'indexdb', 'serviceworkers']
+        });
+      }
+      log.info('[Cache] Browser cache cleared');
+      return { success: true };
+    } catch (e) {
+      log.error('[Cache] Clear failed:', e.message);
+      return { success: false, message: e.message };
+    }
+  });
+
+  // 强制刷新页面（忽略缓存，Ctrl+Shift+R 触发）
+  ipcMain.handle('force-reload', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.reloadIgnoringCache();
+    }
+  });
 
   // ===== 日志 =====
   ipcMain.handle('log-to-file', async (event, payload) => {

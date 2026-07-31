@@ -36,6 +36,7 @@
         <button class="tool-btn" id="formatBtn" title="格式化 Shift+Alt+F">格式化</button>
         <button class="tool-btn" id="transformBtn">转换</button>
         <button class="tool-btn" id="compareBtn">对比</button>
+        <button class="tool-btn" id="markdownBtn" title="Markdown 预览 Ctrl+Shift+M">Markdown</button>
         <button class="tool-btn accent" id="clipBtn">存入剪藏</button>
       </div>
     </header>
@@ -59,6 +60,13 @@
     <section class="editor-workspace" id="editorWorkspace">
       <div class="editor-pane main-pane">
         <div id="mainEditor" class="ace-host" aria-label="文本编辑器"></div>
+      </div>
+      <div class="editor-pane markdown-pane" id="markdownPane" hidden>
+        <div class="markdown-header">
+          <span>Markdown 预览</span>
+          <button class="inline-btn" id="closeMarkdownBtn">关闭预览</button>
+        </div>
+        <div class="markdown-body" id="markdownBody"></div>
       </div>
       <div class="editor-pane compare-pane" id="comparePane" hidden>
         <div class="compare-file-name" id="compareFileName">对比内容</div>
@@ -211,7 +219,23 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="js/logger.js"></script>
+  <script src="libs/marked.min.js"></script>
   <script src="libs/ace/ace.js"></script>
+  <script>
+    // 桥接全局 define/require：ace.js 为 noconflict 构建（define/require 挂在 ace 命名空间），
+    // 而 ext-language_tools.js / ext-searchbox.js 为标准构建（使用全局裸 define/require）。
+    // 不桥接则扩展模块无法注册，Ctrl+F/Ctrl+H 搜索替换与代码自动补全均失效。
+    (function bridgeAceGlobals() {
+      if (!window.define && window.ace && window.ace.define) {
+        window.define = window.ace.define;
+      }
+      if (!window.require && window.ace && window.ace.require) {
+        window.require = window.ace.require;
+      }
+    })();
+  </script>
+  <script src="libs/ace/ext-language_tools.js"></script>
+  <script src="libs/ace/ext-searchbox.js"></script>
   <script src="libs/diff.min.js"></script>
   <script src="libs/sql-formatter.min.js"></script>
   <script src="js/editor-core.js"></script>

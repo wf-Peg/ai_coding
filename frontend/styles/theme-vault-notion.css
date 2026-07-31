@@ -316,6 +316,8 @@
    深色主题
    ══════════════════════════════════════════════════════════════ */
 html[data-theme="dark"] {
+  --vault-accent: var(--primary);
+  --vault-glow: rgba(86, 156, 255, 0.2);
   --vault-amber: #fbbf24;
   --vault-green: #34d399;
   --vault-red: #f87171;

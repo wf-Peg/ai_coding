@@ -58,11 +58,32 @@
             border-bottom: 1px solid var(--titlebar-border);
             display: flex;
             align-items: center;
-            -webkit-app-region: drag;
             user-select: none;
             flex-shrink: 0;
         }
-        
+        .titlebar-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 14px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text);
+            -webkit-app-region: no-drag;
+        }
+        .titlebar-brand svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+        .brand-subtitle {
+            font-size: 0.65em;
+            font-weight: 400;
+            color: var(--text-muted, #999);
+            letter-spacing: 0.04em;
+            vertical-align: middle;
+            margin-left: 4px;
+        }
         .titlebar-nav {
             display: flex;
             align-items: center;
@@ -315,6 +336,12 @@
 </div>
 <!-- ====== 自定义标题栏（Obsidian 风格） ====== -->
 <div class="titlebar" id="titlebar">
+    <div class="titlebar-brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span>碎碎记 <small class="brand-subtitle">CutShelter</small></span>
+    </div>
     <nav class="titlebar-nav" id="titlebarNav">
         <button class="nav-btn active" data-view="editor">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -673,10 +700,49 @@
         document.getElementById('btnMaximize').addEventListener('click', () => window.electronAPI.windowMaximize());
         document.getElementById('btnClose').addEventListener('click', () => window.electronAPI.windowClose());
 
-        // 双击标题栏切换最大化/还原（排除窗口控制按钮区域）
+        // 双击标题栏空白区域切换最大化/还原（排除品牌区、导航按钮、窗口控制按钮）
         document.getElementById('titlebar').addEventListener('dblclick', (e) => {
+          if (e.target.closest('.titlebar-brand')) return;
+          if (e.target.closest('#titlebarNav')) return;
           if (e.target.closest('#windowControls')) return;
           window.electronAPI.windowMaximize();
+        });
+
+        // ===== 自定义标题栏拖拽（通过 IPC 相对桌面移动窗口） =====
+        const titlebarSpacer = document.querySelector('.titlebar-spacer');
+        let isDragging = false;
+        let dragStartX, dragStartY;
+
+        titlebarSpacer.addEventListener('mousedown', (e) => {
+          if (e.button !== 0) return;
+          isDragging = true;
+          dragStartX = e.screenX;
+          dragStartY = e.screenY;
+          titlebarSpacer.style.cursor = 'grabbing';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+          if (!isDragging) return;
+          const deltaX = e.screenX - dragStartX;
+          const deltaY = e.screenY - dragStartY;
+          dragStartX = e.screenX;
+          dragStartY = e.screenY;
+          window.electronAPI.windowDrag(deltaX, deltaY);
+        });
+
+        document.addEventListener('mouseup', () => {
+          if (isDragging) {
+            isDragging = false;
+            titlebarSpacer.style.cursor = 'default';
+          }
+        });
+
+        // ===== Ctrl+Shift+R 强制刷新（忽略缓存） =====
+        document.addEventListener('keydown', (e) => {
+          if (e.ctrlKey && e.shiftKey && (e.key === 'R' || e.key === 'r')) {
+            e.preventDefault();
+            window.electronAPI.forceReload();
+          }
         });
 
         // 同步最大化图标
