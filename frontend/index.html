@@ -62,29 +62,7 @@
             user-select: none;
             flex-shrink: 0;
         }
-        .titlebar-brand {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 0 14px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: var(--text);
-            -webkit-app-region: no-drag;
-        }
-        .titlebar-brand svg {
-            width: 18px;
-            height: 18px;
-            flex-shrink: 0;
-        }
-        .brand-subtitle {
-            font-size: 0.65em;
-            font-weight: 400;
-            color: var(--text-muted, #999);
-            letter-spacing: 0.04em;
-            vertical-align: middle;
-            margin-left: 4px;
-        }
+        
         .titlebar-nav {
             display: flex;
             align-items: center;
@@ -337,12 +315,6 @@
 </div>
 <!-- ====== 自定义标题栏（Obsidian 风格） ====== -->
 <div class="titlebar" id="titlebar">
-    <div class="titlebar-brand">
-        <svg viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        <span>碎碎记 <small class="brand-subtitle">CutShelter</small></span>
-    </div>
     <nav class="titlebar-nav" id="titlebarNav">
         <button class="nav-btn active" data-view="editor">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -700,6 +672,12 @@
         document.getElementById('btnMinimize').addEventListener('click', () => window.electronAPI.windowMinimize());
         document.getElementById('btnMaximize').addEventListener('click', () => window.electronAPI.windowMaximize());
         document.getElementById('btnClose').addEventListener('click', () => window.electronAPI.windowClose());
+
+        // 双击标题栏切换最大化/还原（排除窗口控制按钮区域）
+        document.getElementById('titlebar').addEventListener('dblclick', (e) => {
+          if (e.target.closest('#windowControls')) return;
+          window.electronAPI.windowMaximize();
+        });
 
         // 同步最大化图标
         window.electronAPI.onWindowMaximized((maximized) => {

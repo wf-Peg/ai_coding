@@ -130,6 +130,11 @@
  - 编辑器已作为首页，原剪藏工作台保留在 /clip
  - 支持编码查看、转换、JSON/XML/SQL 格式化、双击高亮对比
  - 已打通编辑器与剪藏模块，支持打开、保存、更新剪藏
+2026-07-31 23:00 | 标题栏精简+双击最大化+桌面拖拽优化
+ - 移除标题栏品牌区（logo + "碎碎记 CutShelter"），仅保留导航按钮和窗口控制按钮
+ - 标题栏空白区域可拖拽窗口（-webkit-app-region: drag）
+ - 双击标题栏空白区域切换最大化/还原
+
 2026-07-30 21:32 | LLM Wiki 知识库引擎 + Web Clipper Source Sync 合并到 feature-simple-codex
  - 基于 Karpathy 的 LLM Wiki 理论，实现批量入库(BatchIngestService)、索引优先查询(WikiQueryService)、按需 Lint(WikiLintService)
  - VaultWatchService 监听 sources/ 目录，积攒 5 条后触发 AI 批量处理
