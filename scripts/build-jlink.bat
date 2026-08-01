@@ -118,8 +118,9 @@ REM ============================================================
 echo [JLINK] 配置 JDK 模块列表（仅保留 Spring Boot 运行必需模块）...
 
 REM Spring Boot Web + Spring AI + PDFBox + POI 等所需模块
-REM 排除 java.desktop（~12MB）、jdk.compiler（~11MB）、jdk.javadoc 等非运行时模块
-set "MODULES=java.base,java.logging,java.xml,java.sql,java.naming,java.management,java.instrument,jdk.unsupported,jdk.zipfs,jdk.charsets,jdk.crypto.ec,java.net.http,java.security.jgss,java.security.sasl,jdk.security.auth,jdk.naming.dns,jdk.management,jdk.management.agent,jdk.random,jdk.crypto.cryptoki,jdk.crypto.mscapi,java.prefs,java.compiler,java.scripting,jdk.localedata,java.rmi,jdk.naming.rmi,java.transaction.xa,jdk.jfr"
+REM java.desktop 是 Spring Boot 3.2 属性绑定 BindConverter 的必需模块
+REM （java.beans.PropertyEditorSupport），否则启动报 NoClassDefFoundError
+set "MODULES=java.base,java.logging,java.xml,java.sql,java.naming,java.management,java.instrument,jdk.unsupported,jdk.zipfs,jdk.charsets,jdk.crypto.ec,java.net.http,java.security.jgss,java.security.sasl,jdk.security.auth,jdk.naming.dns,jdk.management,jdk.management.agent,jdk.random,jdk.crypto.cryptoki,jdk.crypto.mscapi,java.prefs,java.compiler,java.scripting,jdk.localedata,java.rmi,jdk.naming.rmi,java.transaction.xa,jdk.jfr,java.desktop"
 
 REM ============================================================
 REM 4. 执行 jlink 生成最小化 JRE
@@ -139,7 +140,7 @@ echo.
     --no-man-pages ^
     --vm=server
 
-if %ERRORLEVEL% NEQ 0 (
+if errorlevel 1 (
     echo [ERROR] jlink 执行失败！请检查 JDK 版本和模块列表。
     pause
     exit /b 1

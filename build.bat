@@ -56,25 +56,25 @@ echo        This reduces JRE from 316MB to ~50MB
 
 REM 检查是否有 jlink 工具（需要 JDK 17+）
 set "HAS_JLINK=0"
-if defined JAVA_HOME (
-    if exist "%JAVA_HOME%\bin\jlink.exe" set "HAS_JLINK=1"
-)
-if not defined JAVA_HOME (
-    where jlink.exe >nul 2>&1 && set "HAS_JLINK=1"
-)
+if defined JAVA_HOME if exist "%JAVA_HOME%\bin\jlink.exe" set "HAS_JLINK=1"
+if defined JAVA_HOME goto :jlink_check_done
+where jlink.exe >nul 2>&1
+if errorlevel 1 goto :jlink_check_done
+set "HAS_JLINK=1"
+:jlink_check_done
 
 if "%HAS_JLINK%"=="1" (
     echo        jlink tool found, generating minimal JRE...
     if not exist "jre\bin\java.exe" (
         call scripts\build-jlink.bat
-        if %errorlevel% neq 0 (
+        if errorlevel 1 (
             echo [WARNING] jlink failed, falling back to system Java
         )
     ) else (
         echo [OK] Minimal JRE already exists: jre\bin\java.exe
     )
 ) else (
-    echo [INFO] jlink not available (need JDK 17+), will use system Java.
+    echo [INFO] jlink not available (need JDK 17+^), will use system Java.
     echo        Install JDK 17+ and run 'npm run build:jlink' for smaller package.
     echo        Download: https://adoptium.net/
 )

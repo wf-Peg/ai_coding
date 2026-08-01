@@ -118,7 +118,8 @@ fi
 log_info "配置 JDK 模块列表（仅保留 Spring Boot 运行必需模块）..."
 
 # Spring Boot Web 应用 + Spring AI + PDFBox + POI 等所需模块
-# 排除 java.desktop（~12MB）、jdk.compiler（~11MB）、jdk.javadoc 等非运行时模块
+# java.desktop 是 Spring Boot 3.2 属性绑定 BindConverter 的必需模块
+# （java.beans.PropertyEditorSupport），否则启动报 NoClassDefFoundError
 MODULES="\
 java.base,\
 java.logging,\
@@ -149,7 +150,8 @@ java.rmi,\
 jdk.naming.rmi,\
 java.transaction.xa,\
 jdk.security.jgss,\
-jdk.jfr"
+jdk.jfr,\
+java.desktop"
 
 # ============================================================
 # 4. 执行 jlink 生成最小化 JRE
