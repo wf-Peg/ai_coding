@@ -991,12 +991,43 @@ function createTray() {
  * 
  * @param {BrowserWindow} win - 触发关闭的窗口实例
  */
-function showCloseDialog(win) {
+async function showCloseDialog(win) {
   const parent = win || BrowserWindow.getFocusedWindow();
   if (!parent) return;
 
-  const dialogWidth = 420;
-  const dialogHeight = 280;
+  // 从父窗口读取主题设置（app_appearance_v1: regular/dark/notion/system）
+  let appearance = 'dark'; // 默认深色
+  try {
+    appearance = await parent.webContents.executeJavaScript(
+      'localStorage.getItem("app_appearance_v1")'
+    ) || 'dark';
+    if (appearance === 'system') {
+      const isSystemDark = await parent.webContents.executeJavaScript(
+        'window.matchMedia("(prefers-color-scheme: dark)").matches'
+      );
+      appearance = isSystemDark ? 'dark' : 'regular';
+    } else if (appearance === 'notion') {
+      const isNotionDark = await parent.webContents.executeJavaScript(
+        'document.documentElement.getAttribute("data-theme") === "dark"'
+      );
+      appearance = isNotionDark ? 'dark' : 'notion';
+    }
+  } catch (e) {
+    // 读取失败时使用默认深色
+  }
+
+  // 根据外观值计算颜色方案
+  const isDark = appearance === 'dark';
+  // 弹窗卡片背景色：与页面底色形成微妙区分
+  //   regular → 页面 #f9fafb, 弹窗 #f3f4f6 (乳白色)
+  //   notion  → 页面 #f7f7f5, 弹窗 #ffffff (白色)
+  //   dark    → 页面 #1e1e1e, 弹窗 #2d2d2d (黑灰色)
+  const cardBg = appearance === 'regular' ? '#f3f4f6'
+    : appearance === 'notion' ? '#ffffff'
+    : '#2d2d2d';
+
+  const dialogWidth = 400;
+  const dialogHeight = 210;
   const parentBounds = parent.getBounds();
   const x = parentBounds.x + Math.round((parentBounds.width - dialogWidth) / 2);
   const y = parentBounds.y + Math.round((parentBounds.height - dialogHeight) / 2);
@@ -1027,62 +1058,74 @@ function showCloseDialog(win) {
   }
   .card {
     width: 100%; height: 100%;
-    background: var(--card-bg); border-radius: 12px;
-    border: 1px solid var(--border);
-    box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+    background: var(--card-bg);
+    border-radius: 12px;
+    border: none;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 16px 48px rgba(0,0,0,0.5);
     display: flex; flex-direction: column;
     overflow: hidden;
   }
+  .card.light {
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 16px 48px rgba(0,0,0,0.12);
+  }
   .header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 20px 10px;
+    padding: 14px 20px 6px;
     -webkit-app-region: drag;
   }
   .title {
     font-size: 14px; font-weight: 600; color: var(--fg);
     display: flex; align-items: center; gap: 8px;
+    letter-spacing: -0.01em;
   }
   .title svg { width: 18px; height: 18px; stroke: var(--accent); }
   .close-btn {
-    width: 28px; height: 28px; border-radius: 6px; border: none;
+    width: 28px; height: 28px; border-radius: 8px; border: none;
     background: transparent; cursor: pointer; color: var(--fg-muted);
     display: flex; align-items: center; justify-content: center;
     -webkit-app-region: no-drag; transition: all 0.15s;
   }
-  .close-btn:hover { background: rgba(255,255,255,0.1); color: var(--fg); }
+  .close-btn:hover { background: var(--hover-bg); color: var(--fg); }
   .close-btn svg { width: 14px; height: 14px; }
   .body {
-    padding: 6px 20px 18px; flex: 1;
+    padding: 6px 20px 14px; flex: 1;
     display: flex; flex-direction: column; justify-content: center;
   }
-  .body p { font-size: 13px; color: var(--fg-muted); line-height: 1.6; }
-  .body p strong { color: var(--fg); }
+  .body p {
+    font-size: 13px; color: var(--fg-secondary); line-height: 1.6;
+    margin-bottom: 0;
+  }
+  .body p strong { color: var(--fg); font-weight: 600; }
   .footer {
-    padding: 0 20px 16px; display: flex; gap: 10px; justify-content: flex-end;
+    padding: 0 20px 14px; display: flex; gap: 8px; justify-content: flex-end;
   }
   .btn {
-    font-size: 13px; padding: 8px 20px; border-radius: 8px; border: 1px solid transparent;
+    font-size: 13px; padding: 7px 16px; border-radius: 8px; border: 1px solid transparent;
     cursor: pointer; font-family: inherit; transition: all 0.15s; font-weight: 500;
+    letter-spacing: 0.01em;
   }
-  .btn-secondary {
-    background: transparent; border-color: var(--border); color: var(--fg-muted);
+  .btn-cancel {
+    background: var(--btn-secondary-bg); border-color: var(--btn-secondary-border); color: var(--fg);
   }
-  .btn-secondary:hover { border-color: var(--fg-muted); color: var(--fg); }
-  .btn-primary {
-    background: var(--accent); color: #fff; border-color: var(--accent);
-  }
-  .btn-primary:hover { opacity: 0.9; }
+  .btn-cancel:hover { background: var(--btn-secondary-hover); }
   .btn-danger {
-    background: transparent; border-color: rgba(239,68,68,0.3); color: #ef4444;
+    background: var(--btn-danger-bg); border-color: var(--btn-danger-border); color: var(--danger);
   }
-  .btn-danger:hover { background: rgba(239,68,68,0.1); border-color: #ef4444; }
+  .btn-danger:hover { background: var(--btn-danger-hover); border-color: var(--danger); }
   .checkbox-row {
-    display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 12px; color: var(--fg-muted);
+    display: flex; align-items: center; gap: 8px; margin-top: 12px;
   }
-  .checkbox-row input { accent-color: var(--accent); }
+  .checkbox-row input {
+    width: 14px; height: 14px; cursor: pointer;
+    accent-color: var(--accent); flex-shrink: 0;
+  }
+  .checkbox-row label {
+    font-size: 12.5px; color: var(--fg-muted); cursor: pointer;
+    line-height: 1.4;
+  }
 </style></head>
 <body>
-<div class="card">
+<div class="card${isDark ? '' : ' light'}">
   <div class="header">
     <div class="title">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1104,7 +1147,7 @@ function showCloseDialog(win) {
     </div>
   </div>
   <div class="footer">
-    <button class="btn btn-secondary" onclick="choose('tray')">最小化到托盘</button>
+    <button class="btn btn-cancel" onclick="choose('tray')">最小化到托盘</button>
     <button class="btn btn-danger" onclick="choose('quit')">退出程序</button>
   </div>
 </div>
@@ -1117,15 +1160,22 @@ function showCloseDialog(win) {
 </script>
 </body></html>`;
 
-  // Inject CSS variables matching the app theme
-  const isDark = true; // default to dark
+  // Inject CSS variables matching the app theme (matching theme-notion.css)
   const cssVars = `
     :root {
-      --card-bg: ${isDark ? '#1e1e1e' : '#ffffff'};
-      --border: ${isDark ? '#3e3e3e' : '#e0e0dc'};
-      --fg: ${isDark ? '#d4d4d4' : '#1e1e1e'};
-      --fg-muted: ${isDark ? '#9a9a9a' : '#6b6b6b'};
+      --card-bg: ${cardBg};
+      --fg: ${isDark ? '#d4d4d4' : '#1f2937'};
+      --fg-secondary: ${isDark ? '#9a9a9a' : '#6b7280'};
+      --fg-muted: ${isDark ? '#6a6a6a' : '#9ca3af'};
       --accent: #569cff;
+      --danger: ${isDark ? '#e06060' : '#ef4444'};
+      --hover-bg: ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'};
+      --btn-secondary-bg: ${isDark ? 'transparent' : (appearance === 'notion' ? '#f7f7f5' : '#ffffff')};
+      --btn-secondary-border: ${isDark ? '#3e3e3e' : (appearance === 'notion' ? '#dcdcd8' : '#e5e7eb')};
+      --btn-secondary-hover: ${isDark ? '#3a3a3a' : (appearance === 'notion' ? '#efefed' : '#f3f4f6')};
+      --btn-danger-bg: ${isDark ? 'transparent' : 'transparent'};
+      --btn-danger-border: ${isDark ? 'rgba(224,96,96,0.3)' : 'rgba(239,68,68,0.3)'};
+      --btn-danger-hover: ${isDark ? 'rgba(224,96,96,0.1)' : 'rgba(239,68,68,0.06)'};
     }
   `;
   const fullHtml = html.replace('</style>', cssVars + '</style>');
@@ -1512,6 +1562,147 @@ function setupIPC() {
     }
   });
 
+  // ===== 编辑器缓存 =====
+  // 缓存目录：{storagePath}/.tmp/editor/cache.json
+  // 保存所有标签状态，用于用户未保存关闭后恢复
+
+  ipcMain.handle('editor-save-cache', async (event, cacheData) => {
+    try {
+      const config = loadConfig();
+      const rootPath = config.storagePath || APP_DIR;
+      const cacheDir = path.join(rootPath, '.tmp', 'editor');
+      if (!fs.existsSync(cacheDir)) {
+        fs.mkdirSync(cacheDir, { recursive: true });
+      }
+      fs.writeFileSync(path.join(cacheDir, 'cache.json'), JSON.stringify(cacheData, null, 2), 'utf-8');
+      return { success: true };
+    } catch (err) {
+      log.error('[EditorCache] save failed:', err.message);
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('editor-load-cache', async () => {
+    try {
+      const config = loadConfig();
+      const rootPath = config.storagePath || APP_DIR;
+      const cacheFile = path.join(rootPath, '.tmp', 'editor', 'cache.json');
+      if (!fs.existsSync(cacheFile)) return { exists: false };
+      const data = JSON.parse(fs.readFileSync(cacheFile, 'utf-8'));
+      return { exists: true, data };
+    } catch (err) {
+      log.error('[EditorCache] load failed:', err.message);
+      return { exists: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('editor-clear-cache', async () => {
+    try {
+      const config = loadConfig();
+      const rootPath = config.storagePath || APP_DIR;
+      const cacheFile = path.join(rootPath, '.tmp', 'editor', 'cache.json');
+      if (fs.existsSync(cacheFile)) {
+        fs.unlinkSync(cacheFile);
+      }
+      return { success: true };
+    } catch (err) {
+      log.error('[EditorCache] clear failed:', err.message);
+      return { success: false, message: err.message };
+    }
+  });
+
+  // ===== 编辑器文件树 =====
+  // 列出指定目录的内容
+  ipcMain.handle('editor-list-directory', async (event, dirPath) => {
+    try {
+      if (!dirPath || !fs.existsSync(dirPath)) {
+        return { exists: false, files: [] };
+      }
+      const stat = fs.statSync(dirPath);
+      if (!stat.isDirectory()) {
+        return { exists: false, files: [] };
+      }
+      const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+      const files = entries
+        .filter(entry => !entry.name.startsWith('.')) // 忽略隐藏文件
+        .map(entry => ({
+          name: entry.name,
+          path: path.join(dirPath, entry.name),
+          isDirectory: entry.isDirectory(),
+          size: entry.isFile() ? fs.statSync(path.join(dirPath, entry.name)).size : 0,
+          mtimeMs: entry.isFile() ? fs.statSync(path.join(dirPath, entry.name)).mtimeMs : 0
+        }));
+      // 排序：文件夹在前，文件在后，按名称字母序
+      files.sort((a, b) => {
+        if (a.isDirectory && !b.isDirectory) return -1;
+        if (!a.isDirectory && b.isDirectory) return 1;
+        return a.name.localeCompare(b.name);
+      });
+      return { exists: true, files };
+    } catch (err) {
+      log.error('[EditorFileTree] list failed:', err.message);
+      return { exists: false, files: [], message: err.message };
+    }
+  });
+
+  // 根据文件令牌获取所在目录路径
+  ipcMain.handle('editor-get-file-directory', async (event, fileToken) => {
+    try {
+      const filePath = editorFileService.resolveToken(fileToken);
+      const dirPath = path.dirname(filePath);
+      if (fs.existsSync(dirPath)) {
+        return { exists: true, dirPath };
+      }
+      return { exists: false, dirPath: null };
+    } catch (err) {
+      log.error('[EditorFileTree] get directory failed:', err.message);
+      return { exists: false, dirPath: null, message: err.message };
+    }
+  });
+
+  // 通过文件路径打开文件
+  ipcMain.handle('editor-open-file-by-path', async (event, filePath) => {
+    try {
+      if (!filePath || !fs.existsSync(filePath)) {
+        return { canceled: true, message: '文件不存在' };
+      }
+      const stat = fs.statSync(filePath);
+      if (stat.isDirectory()) {
+        return { canceled: true, message: '无法打开目录' };
+      }
+      const opened = editorFileService.openPath(filePath);
+      log.info('[EditorFileTree] opened', opened.fileName, opened.size);
+      return opened;
+    } catch (err) {
+      log.error('[EditorFileTree] open by path failed:', err.message);
+      return { canceled: true, message: err.message };
+    }
+  });
+
+  // ===== 编辑器自动保存 =====
+  ipcMain.handle('editor-autosave-file', async (event, payload) => {
+    try {
+      const { fileToken, text, encoding, lineEnding } = payload || {};
+      if (!fileToken) {
+        return { error: 'No file token provided' };
+      }
+      const saved = editorFileService.save(fileToken, {
+        text,
+        encoding: encoding || 'UTF-8',
+        lineEnding: lineEnding || 'LF'
+      });
+      if (saved.conflict) {
+        log.warn('[EditorAutosave] conflict detected for', saved.fileName);
+        return { error: 'File conflict detected' };
+      }
+      log.info('[EditorAutosave] saved', saved.fileName, saved.size);
+      return { success: true };
+    } catch (err) {
+      log.error('[EditorAutosave] failed:', err.message);
+      return { error: err.message };
+    }
+  });
+
   // 获取当前配置
   ipcMain.handle('get-config', async () => loadConfig());
 
@@ -1614,6 +1805,15 @@ function setupIPC() {
 
   // 查询当前窗口是否最大化（前端用于显示对应图标）
   ipcMain.handle('window-is-maximized', () => mainWindow?.isMaximized() ?? false);
+
+  // 全屏模式切换（编辑器 F11 全屏）
+  ipcMain.handle('set-fullscreen', (event, enabled) => {
+    if (mainWindow) {
+      mainWindow.setFullScreen(enabled);
+      return { success: true };
+    }
+    return { success: false, message: 'Main window not found' };
+  });
 
   // ===== 标题栏拖拽（JS 移动 + 贴边分屏） =====
   // 方案：渲染进程上报鼠标屏幕坐标 → 主进程绝对坐标定位 setBounds。

@@ -558,6 +558,194 @@ select {
   flex: 1;
 }
 
+#statusLang,
+#statusTabSize {
+  color: var(--app-text-muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* ── 设置弹窗 ── */
+.settings-modal-card {
+  width: min(400px, 90vw);
+  transition: width 0.2s ease;
+}
+
+.settings-modal-card.advanced-open {
+  width: min(520px, 94vw);
+}
+
+/* 设置标签页切换 */
+.settings-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--app-border);
+  padding-bottom: 0;
+  margin-bottom: 12px;
+}
+
+.settings-tab {
+  flex: 1;
+  padding: 6px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--app-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.settings-tab:hover {
+  color: var(--app-text);
+}
+
+.settings-tab.active {
+  color: var(--app-primary);
+  border-bottom-color: var(--app-primary);
+}
+
+.settings-tab-content {
+  display: block;
+}
+
+.settings-tab-content[hidden] {
+  display: none;
+}
+
+/* ACE 高级设置容器 */
+#aceSettingsContainer {
+  max-height: 50vh;
+  overflow-y: auto;
+  font-size: 12px;
+}
+
+#aceSettingsContainer table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#aceSettingsContainer table tr {
+  border-bottom: 1px solid color-mix(in srgb, var(--app-border) 50%, transparent);
+}
+
+#aceSettingsContainer table tr:last-child {
+  border-bottom: none;
+}
+
+#aceSettingsContainer table td {
+  padding: 4px 6px;
+  vertical-align: middle;
+}
+
+#aceSettingsContainer table td:first-child {
+  width: 45%;
+  color: var(--app-text);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+#aceSettingsContainer table td:last-child {
+  text-align: right;
+}
+
+#aceSettingsContainer select,
+#aceSettingsContainer input[type="number"] {
+  padding: 2px 6px;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  font-size: 11px;
+}
+
+#aceSettingsContainer button {
+  padding: 2px 8px;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+#aceSettingsContainer button:hover {
+  background: var(--app-surface-hover);
+}
+
+#aceSettingsContainer button[ace_selected_button="true"] {
+  background: var(--app-primary);
+  color: #fff;
+  border-color: var(--app-primary);
+}
+
+#aceSettingsContainer input[type="checkbox"] {
+  accent-color: var(--app-primary);
+  cursor: pointer;
+}
+
+#aceSettingsContainer .ace_optionsMenuKey {
+  color: var(--app-primary);
+  font-weight: 600;
+}
+
+#aceSettingsContainer .ace_optionsMenuCommand {
+  color: var(--app-text-secondary);
+}
+
+/* 高级设置滚动条 */
+#aceSettingsContainer::-webkit-scrollbar {
+  width: 4px;
+}
+
+#aceSettingsContainer::-webkit-scrollbar-thumb {
+  background: var(--app-border);
+  border-radius: 4px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-row input[type="range"] {
+  flex: 1;
+  height: 4px;
+  accent-color: var(--app-primary);
+  cursor: pointer;
+}
+
+.settings-row #fontSizeLabel {
+  min-width: 36px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--app-text);
+  font-weight: 600;
+}
+
+/* ── 拖拽悬停效果 ── */
+.editor-pane.drag-over .ace_host {
+  opacity: 0.7;
+}
+
+.editor-pane.drag-over::after {
+  content: '拖放文件到此处打开';
+  position: absolute;
+  z-index: 20;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--app-primary);
+  background: color-mix(in srgb, var(--app-primary-soft) 60%, transparent);
+  border: 2px dashed var(--app-primary);
+  border-radius: var(--app-radius);
+  pointer-events: none;
+}
+
 .side-panel {
   position: fixed;
   z-index: 50;
@@ -813,4 +1001,256 @@ select {
   .check-row.wide {
     grid-column: auto;
   }
+}
+
+/* ── 文件树侧边栏 ── */
+.filetree-pane {
+  border-right: 1px solid var(--app-border-strong);
+  display: flex;
+  flex-direction: column;
+  background: var(--app-surface-subtle);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.filetree-pane[hidden] {
+  display: none !important;
+}
+
+.filetree-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--app-border);
+  color: var(--app-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.filetree-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.filetree-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+  font-size: 12px;
+  font-family: var(--app-font-mono);
+}
+
+.filetree-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+  color: var(--app-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 80ms, color 80ms;
+}
+
+.filetree-item:hover {
+  background: var(--app-surface-hover);
+  color: var(--app-text);
+}
+
+.filetree-item.active {
+  color: var(--app-primary);
+  background: var(--app-primary-soft);
+}
+
+.filetree-item .ft-icon {
+  flex-shrink: 0;
+  font-size: 13px;
+  width: 18px;
+  text-align: center;
+  color: var(--app-text-muted);
+}
+
+.filetree-item.folder .ft-icon { color: var(--app-warning); }
+.filetree-item.file .ft-icon { color: var(--app-text-muted); }
+
+.filetree-item.indent-1 { padding-left: 24px; }
+.filetree-item.indent-2 { padding-left: 38px; }
+.filetree-item.indent-3 { padding-left: 52px; }
+.filetree-item.indent-4 { padding-left: 66px; }
+.filetree-item.indent-5 { padding-left: 80px; }
+
+/* ── 编辑器工作区带文件树 ── */
+.editor-workspace.show-filetree {
+  grid-template-columns: 220px minmax(0, 1fr);
+}
+
+.main-pane {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ── 全屏模式 ── */
+.editor-app.fullscreen {
+  position: fixed;
+  z-index: 9999;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: var(--app-bg);
+}
+
+/* ── 自动保存状态 ── */
+#autosaveStatus {
+  font-size: 10px;
+  color: var(--app-text-muted);
+  white-space: nowrap;
+}
+
+#autosaveStatus.saving {
+  color: var(--app-warning);
+}
+
+#autosaveStatus.saved {
+  color: var(--app-success, #4caf50);
+}
+
+/* ── 历史面板 ── */
+.history-list {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-subtle);
+  font-size: 11px;
+  font-family: var(--app-font-mono);
+}
+
+.history-item {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--app-border);
+  color: var(--app-text-secondary);
+  cursor: default;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-item:last-child {
+  border-bottom: 0;
+}
+
+.history-item.undo {
+  color: var(--app-danger);
+  background: var(--app-danger-soft);
+}
+
+.history-item.redo {
+  color: var(--app-success, #4caf50);
+  background: color-mix(in srgb, #4caf50 10%, transparent);
+}
+
+.history-item.current {
+  color: var(--app-text);
+  font-weight: 600;
+  background: var(--app-primary-soft);
+}
+
+/* ── Overview 滚动条预览图（简化 minimap） ── */
+.overview-ruler {
+  position: absolute;
+  z-index: 10;
+  top: 0;
+  right: 0;
+  width: 48px;
+  height: 100%;
+  background: color-mix(in srgb, var(--app-bg) 50%, transparent);
+  border-left: 1px solid var(--app-border);
+  cursor: pointer;
+  overflow: hidden;
+  transition: opacity 0.15s ease;
+}
+
+.overview-ruler canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.overview-viewport {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 20px;
+  background: color-mix(in srgb, var(--app-primary) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--app-primary) 40%, transparent);
+  border-radius: 2px;
+  pointer-events: none;
+  transition: top 0.1s ease;
+}
+
+.overview-ruler:hover {
+  opacity: 1;
+}
+
+.overview-ruler-tip {
+  position: absolute;
+  z-index: 11;
+  right: 50px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 10px;
+  color: var(--app-text-secondary);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.overview-ruler-tip.show {
+  opacity: 1;
+}
+
+/* ── 增强通知样式 ── */
+.toast.show.success {
+  color: var(--app-success, #4caf50);
+  border-color: color-mix(in srgb, var(--app-success, #4caf50) 45%, var(--app-border));
+  background: color-mix(in srgb, var(--app-success, #4caf50) 12%, var(--app-surface));
+}
+
+.toast.show.warning {
+  color: var(--app-warning);
+  border-color: color-mix(in srgb, var(--app-warning) 45%, var(--app-border));
+  background: color-mix(in srgb, var(--app-warning) 12%, var(--app-surface));
+}
+
+.toast.show.info {
+  color: var(--app-text);
+  border-color: var(--app-border);
+  background: var(--app-surface);
+}
+
+/* ── 高亮过渡动画 ── */
+.ace_active-line {
+  transition: background 0.15s ease;
+}
+
+.ace_marker-layer .ace-active-line {
+  transition: background 0.15s ease;
+}
+
+/* ── 光标闪烁动画 ── */
+.ace_cursor {
+  transition: left 0.08s ease, top 0.08s ease;
+}
+
+/* ── 选中文本过渡 ── */
+.ace_selection {
+  transition: background 0.1s ease;
 }

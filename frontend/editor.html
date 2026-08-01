@@ -37,6 +37,8 @@
         <button class="tool-btn" id="transformBtn">转换</button>
         <button class="tool-btn" id="compareBtn">对比</button>
         <button class="tool-btn" id="markdownBtn" title="Markdown 预览 Ctrl+Shift+M">Markdown</button>
+        <button class="tool-btn" id="settingsBtn" title="编辑器设置 Ctrl+,">设置</button>
+        <button class="tool-btn" id="fullscreenBtn" title="全屏模式 F11">全屏</button>
         <button class="tool-btn accent" id="clipBtn">存入剪藏</button>
       </div>
     </header>
@@ -58,8 +60,19 @@
     </section>
 
     <section class="editor-workspace" id="editorWorkspace">
-      <div class="editor-pane main-pane">
+      <div class="editor-pane filetree-pane" id="fileTreePane" hidden>
+        <div class="filetree-header">
+          <span id="fileTreeTitle">文件浏览器</span>
+          <div class="filetree-header-actions">
+            <button class="inline-btn" id="selectDirBtn" title="选择目录浏览">选择目录</button>
+            <button class="inline-btn" id="closeFileTreeBtn">关闭</button>
+          </div>
+        </div>
+        <div class="filetree-body" id="fileTreeBody"></div>
+      </div>
+      <div class="editor-pane main-pane" id="mainPane">
         <div id="mainEditor" class="ace-host" aria-label="文本编辑器"></div>
+        <div id="overviewRuler" class="overview-ruler" hidden></div>
       </div>
       <div class="editor-pane markdown-pane" id="markdownPane" hidden>
         <div class="markdown-header">
@@ -84,13 +97,32 @@
         <option value="CRLF">CRLF</option>
         <option value="CR">CR</option>
       </select>
+      <span id="statusLang">纯文本</span>
+      <span id="statusTabSize">Tab: 2</span>
       <span id="cursorStatus">行 1，列 1</span>
       <span id="selectionStatus">0 字符</span>
       <span id="matchStatus">未选择词语</span>
+      <span id="autosaveStatus">自动保存</span>
       <span class="status-spacer"></span>
       <span id="runtimeStatus">浏览器模式</span>
     </footer>
   </main>
+
+  <aside class="side-panel" id="historyPanel" aria-hidden="true">
+    <div class="panel-header">
+      <div>
+        <h2>编辑历史</h2>
+        <p>撤销/重做历史记录（共 <span id="historyCount">0</span> 步）</p>
+      </div>
+      <button class="icon-close" id="closeHistoryBtn" aria-label="关闭">×</button>
+    </div>
+    <div class="history-list" id="historyList"></div>
+    <div class="panel-actions">
+      <button class="tool-btn" id="undoHistoryBtn">撤销</button>
+      <button class="tool-btn" id="redoHistoryBtn">重做</button>
+      <button class="tool-btn" id="clearHistoryBtn">清空历史</button>
+    </div>
+  </aside>
 
   <aside class="side-panel" id="transformPanel" aria-hidden="true">
     <div class="panel-header">
@@ -215,6 +247,45 @@
     </section>
   </div>
 
+  <div class="modal-backdrop" id="settingsModal">
+    <section class="modal-card settings-modal-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="panel-header">
+        <div>
+          <h2 id="settingsTitle">编辑器设置</h2>
+          <p id="settingsDesc">调整编辑器偏好设置。</p>
+        </div>
+        <button class="icon-close" data-close-modal="settingsModal" aria-label="关闭">×</button>
+      </div>
+      <!-- 设置标签页 -->
+      <div class="settings-tabs">
+        <button class="settings-tab active" data-tab="basic">基本</button>
+        <button class="settings-tab" data-tab="advanced">高级</button>
+      </div>
+      <!-- 基本设置 -->
+      <div class="settings-tab-content" id="settingsBasic">
+        <label class="field-label" for="fontSizeSlider">字体大小</label>
+        <div class="settings-row">
+          <input type="range" id="fontSizeSlider" min="8" max="40" value="13" step="1">
+          <span id="fontSizeLabel">13px</span>
+        </div>
+        <label class="field-label" for="tabSizeSelect">缩进大小</label>
+        <select class="field-control" id="tabSizeSelect">
+          <option value="2">2 空格</option>
+          <option value="4">4 空格</option>
+          <option value="8">8 空格</option>
+        </select>
+        <div class="modal-note" style="margin-top:8px;">按 Ctrl+= / Ctrl+- 或 Ctrl+滚轮 快速调整字体大小</div>
+      </div>
+      <!-- 高级设置（ACE 图形化设置面板） -->
+      <div class="settings-tab-content" id="settingsAdvanced" hidden>
+        <div id="aceSettingsContainer"></div>
+      </div>
+      <div class="panel-actions">
+        <button class="tool-btn primary" data-close-modal="settingsModal">关闭</button>
+      </div>
+    </section>
+  </div>
+
   <input id="browserFileInput" type="file" hidden accept=".txt,.md,.json,.xml,.sql,.csv,.log,.yaml,.yml,.ini,.conf">
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -236,6 +307,7 @@
   </script>
   <script src="libs/ace/ext-language_tools.js"></script>
   <script src="libs/ace/ext-searchbox.js"></script>
+  <script src="libs/ace/ext-settings_menu.js"></script>
   <script src="libs/diff.min.js"></script>
   <script src="libs/sql-formatter.min.js"></script>
   <script src="js/editor-core.js"></script>

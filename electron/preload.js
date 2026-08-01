@@ -216,6 +216,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onWindowMaximized: (callback) => ipcRenderer.on('window-maximized', (event, maximized) => callback(maximized)),
 
   /**
+   * 切换编辑器全屏模式（F11）
+   * @param {boolean} enabled - true 进入全屏，false 退出全屏
+   * @returns {Promise<{success: boolean}>}
+   */
+  setFullscreen: (enabled) => ipcRenderer.invoke('set-fullscreen', enabled),
+
+  /**
    * 清除浏览器缓存（设置页调用）
    * @returns {Promise<{success: boolean, message?: string}>}
    */
@@ -226,6 +233,63 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * @returns {Promise<void>}
    */
   forceReload: () => ipcRenderer.invoke('force-reload'),
+
+  // ===================== 编辑器缓存 =====================
+
+  /**
+   * 保存编辑器所有标签状态到缓存（{storagePath}/.tmp/editor/cache.json）
+   * 用户未保存关闭应用后，下次打开可恢复编辑器内容
+   * @param {Object} cacheData - 包含 tabs 数组和 activeTabIndex 的缓存数据
+   * @returns {Promise<{success: boolean, message?: string}>}
+   */
+  saveEditorCache: (cacheData) => ipcRenderer.invoke('editor-save-cache', cacheData),
+
+  /**
+   * 读取编辑器缓存
+   * @returns {Promise<{exists: boolean, data?: Object, message?: string}>}
+   */
+  loadEditorCache: () => ipcRenderer.invoke('editor-load-cache'),
+
+  /**
+   * 清除编辑器缓存（恢复成功后调用）
+   * @returns {Promise<{success: boolean, message?: string}>}
+   */
+  clearEditorCache: () => ipcRenderer.invoke('editor-clear-cache'),
+
+  // ===================== 编辑器文件树 =====================
+
+  /**
+   * 列出指定目录的文件和子目录
+   * @param {string} dirPath - 目录路径
+   * @returns {Promise<{exists: boolean, files: Array}>} 文件列表
+   */
+  listDirectory: (dirPath) => ipcRenderer.invoke('editor-list-directory', dirPath),
+
+  /**
+   * 根据文件令牌获取所在目录路径
+   * @param {string} fileToken - 文件令牌
+   * @returns {Promise<{exists: boolean, dirPath: string|null}>}
+   */
+  getFileDirectory: (fileToken) => ipcRenderer.invoke('editor-get-file-directory', fileToken),
+
+  /**
+   * 通过文件路径打开文件
+   * @param {string} filePath - 文件绝对路径
+   * @returns {Promise<Object>} 文件内容与元数据
+   */
+  openFileByPath: (filePath) => ipcRenderer.invoke('editor-open-file-by-path', filePath),
+
+  // ===================== 编辑器自动保存 =====================
+
+  /**
+   * 自动保存文件内容到磁盘
+   * @param {string} fileToken - 文件令牌
+   * @param {string} text - 文本内容
+   * @param {string} encoding - 编码
+   * @param {string} lineEnding - 换行符
+   * @returns {Promise<{success: boolean, error?: string}>}
+   */
+  autosaveFile: (fileToken, text, encoding, lineEnding) => ipcRenderer.invoke('editor-autosave-file', { fileToken, text, encoding, lineEnding }),
 
   // ===================== 更新管理 =====================
 
