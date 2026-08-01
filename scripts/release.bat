@@ -120,11 +120,15 @@ if %ERRORLEVEL% NEQ 0 echo   [WARNING] Version may be unchanged
 echo   [OK] Version updated
 
 REM ============================================================
-REM Step 3: JRE / JDK
+REM Step 3: JRE / JDK (jlink 裁剪 or 完整下载)
 REM ============================================================
 echo [3/8] JRE / JDK check ...
 
 REM check if jre/ already exists
+if exist "jre\bin\java.exe" (
+    echo   [OK] jlink-minimal JRE found: jre\
+    goto :step4
+)
 if exist "jre\win\bin\java.exe" (
     echo   [OK] Built-in JRE found: jre\win
     goto :step4
@@ -134,7 +138,20 @@ if exist "jre\mac\bin\java" (
     goto :step4
 )
 
-REM check if local JDK is available
+REM try jlink 裁剪（需要 JDK 17+ 的 jlink 工具）
+echo   Trying jlink minimal JRE ...
+if defined JAVA_HOME (
+    if exist "%JAVA_HOME%\bin\jlink.exe" (
+        echo   jlink available, generating minimal JRE...
+        call scripts\build-jlink.bat
+        if exist "jre\bin\java.exe" (
+            echo   [OK] jlink-minimal JRE generated
+            goto :step4
+        )
+    )
+)
+
+REM fallback: check if system JDK is available
 if defined JAVA_HOME (
     if exist "%JAVA_HOME%\bin\java.exe" (
         echo   [OK] Using JAVA_HOME: %JAVA_HOME%
@@ -148,12 +165,12 @@ if %ERRORLEVEL% EQU 0 (
     goto :step4
 )
 
-REM no JDK/JRE found, try to download
-echo   Downloading JRE ...
+REM no JDK/JRE found, try to download full JRE
+echo   Downloading full JRE ...
 call scripts\download-jre.bat all
 if %ERRORLEVEL% NEQ 0 (
     echo   [WARNING] JRE download failed. Build will use system JDK.
-    echo   [WARNING] Run manually: scripts\download-jre.bat all
+    echo   [WARNING] Run manually: scripts\build-jlink.bat or scripts\download-jre.bat all
 )
 
 :step4
