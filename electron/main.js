@@ -102,8 +102,8 @@ const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 
 /** 默认配置（新用户首次运行时使用） */
 const DEFAULT_CONFIG = {
-  backendPort: 8080,           // Spring Boot 后端端口
-  frontendPort: 3000,           // 前端静态服务器端口
+  backendPort: 8081,           // Spring Boot 后端端口
+  frontendPort: 3001,           // 前端静态服务器端口
   apiKey: '',                   // DashScope API Key
   activeProvider: 'dashscope',  // 当前 AI 提供商
   deepseekApiKey: '',           // DeepSeek API Key
@@ -922,6 +922,10 @@ function createTray() {
   // 尝试加载应用图标，缩放到 16x16（托盘标准尺寸）
   if (fs.existsSync(iconPath)) {
     trayIcon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
+    // macOS 使用 Template 图标（黑白色，自动适配菜单栏明暗模式）
+    if (process.platform === 'darwin') {
+      trayIcon.setTemplateImage(true);
+    }
   } else {
     // 图标缺失时创建空图标（托盘仍然可用，但不显示图标）
     trayIcon = nativeImage.createEmpty();
@@ -1589,6 +1593,29 @@ function setupIPC() {
       const cacheFile = path.join(rootPath, '.tmp', 'editor', 'cache.json');
       if (!fs.existsSync(cacheFile)) return { exists: false };
       const data = JSON.parse(fs.readFileSync(cacheFile, 'utf-8'));
+
+      // 主进程重启后内存令牌表已清空，缓存的 fileToken 全部失效。
+      // 若原文件仍存在则重新授权并返回新令牌；否则清空令牌，
+      // 避免自动保存/保存时触发"文件访问令牌无效或已过期"。
+      if (data && Array.isArray(data.tabs)) {
+        data.tabs.forEach(tab => {
+          if (!tab || !tab.fileToken) return;
+          try {
+            if (tab.displayPath && fs.existsSync(tab.displayPath)) {
+              const opened = editorFileService.openPath(tab.displayPath);
+              tab.fileToken = opened.fileToken;
+              tab.expectedMtimeMs = opened.mtimeMs;
+            } else {
+              tab.fileToken = null;
+              tab.expectedMtimeMs = null;
+            }
+          } catch (err) {
+            log.warn('[EditorCache] re-auth failed, clearing token:', tab.displayPath, err.message);
+            tab.fileToken = null;
+            tab.expectedMtimeMs = null;
+          }
+        });
+      }
       return { exists: true, data };
     } catch (err) {
       log.error('[EditorCache] load failed:', err.message);
@@ -1696,7 +1723,7 @@ function setupIPC() {
         return { error: 'File conflict detected' };
       }
       log.info('[EditorAutosave] saved', saved.fileName, saved.size);
-      return { success: true };
+      return { success: true, mtimeMs: saved.mtimeMs };
     } catch (err) {
       log.error('[EditorAutosave] failed:', err.message);
       return { error: err.message };
@@ -1705,6 +1732,31 @@ function setupIPC() {
 
   // 获取当前配置
   ipcMain.handle('get-config', async () => loadConfig());
+
+  // 获取 Electron 配置文件信息（config.json 所在目录与完整路径）
+  ipcMain.handle('get-config-path', async () => {
+    ensureConfigDir();
+    return {
+      success: true,
+      configDir: CONFIG_DIR,
+      configPath: CONFIG_FILE,
+      exists: fs.existsSync(CONFIG_FILE)
+    };
+  });
+
+  // 打开 Electron 配置文件所在目录（供设置页面确认配置使用）
+  ipcMain.handle('open-config-folder', async () => {
+    try {
+      ensureConfigDir();
+      const error = await shell.openPath(CONFIG_DIR);
+      if (error) {
+        return { success: false, message: `打开目录失败: ${error}` };
+      }
+      return { success: true, configDir: CONFIG_DIR, configPath: CONFIG_FILE };
+    } catch (e) {
+      return { success: false, message: e.message };
+    }
+  });
 
   // 检查后端是否可用
   ipcMain.handle('check-backend', async (event, port) => await checkPort(port));

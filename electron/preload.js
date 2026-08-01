@@ -43,6 +43,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** 更新随系统登录自动启动设置 */
   setAutoStart: (enabled) => ipcRenderer.invoke('set-auto-start', enabled),
 
+  /**
+   * 获取 Electron 配置文件（config.json）的所在目录与完整路径
+   * @returns {Promise<{success: boolean, configDir: string, configPath: string, exists: boolean}>}
+   * 用于设置页面展示并确认桌面应用配置的实际存储位置
+   */
+  getConfigPath: () => ipcRenderer.invoke('get-config-path'),
+
+  /**
+   * 打开 Electron 配置文件所在目录（系统文件管理器）
+   * @returns {Promise<{success: boolean, configDir?: string, configPath?: string, message?: string}>}
+   * 用于设置页面「打开目录」按钮，方便用户手动查看/备份 config.json
+   */
+  openConfigFolder: () => ipcRenderer.invoke('open-config-folder'),
+
   // ===================== 文件/目录选择 =====================
 
   /**
