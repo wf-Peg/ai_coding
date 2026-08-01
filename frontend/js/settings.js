@@ -1,5 +1,5 @@
-const API_BASE = 'http://127.0.0.1:8080/api/config';
-const MODEL_TEST_BASE = 'http://127.0.0.1:8080/api/model-config';
+const API_BASE = 'http://127.0.0.1:8081/api/config';
+const MODEL_TEST_BASE = 'http://127.0.0.1:8081/api/model-config';
 const THEME_KEY = 'app_theme_v1';
 const APPEARANCE_KEY = 'app_appearance_v1'; // regular | dark | notion | system
 let currentStoragePath = ''; // 用于检测路径变更
@@ -105,6 +105,10 @@ async function loadConfig() {
     currentStoragePath = rootPath;
     updateDerivedPaths(rootPath);
 
+    // 本地配置文件路径（Electron config.json + 后端 app-config.json）
+    loadElectronConfigPath();
+    loadConfigFilePath();
+
     const electronAPI = getElectronAPI();
     if (electronAPI && electronAPI.getAutoStart) {
       try {
@@ -119,7 +123,7 @@ async function loadConfig() {
     console.error('加载配置失败:', error);
     const errDiv = document.createElement('div');
     errDiv.className = 'backend-error';
-    errDiv.innerHTML = '<strong>⚠️ 无法连接后端服务</strong><br>请确保 Spring Boot 后端已在 <strong>http://127.0.0.1:8080</strong> 启动';
+    errDiv.innerHTML = '<strong>⚠️ 无法连接后端服务</strong><br>请确保 Spring Boot 后端已在 <strong>http://127.0.0.1:8081</strong> 启动';
     const existing = document.querySelector('.backend-error');
     if (existing) existing.remove();
     document.querySelector('.page-title').after(errDiv);
@@ -171,7 +175,7 @@ async function saveConfig() {
   if (shouldArchive) {
     try {
       showToast('正在归档旧数据...');
-      const archiveResult = await fetch('http://127.0.0.1:8080/api/config/migrate-storage', {
+      const archiveResult = await fetch('http://127.0.0.1:8081/api/config/migrate-storage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ oldPath: oldStoragePath, newPath: newStoragePath })
@@ -780,7 +784,7 @@ async function testMail() {
   btn.disabled = true;
   btn.textContent = '测试中...';
   try {
-    const response = await fetch('http://127.0.0.1:8080/api/config/test-mail', {
+    const response = await fetch('http://127.0.0.1:8081/api/config/test-mail', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ host, port, username, password })
@@ -815,7 +819,7 @@ async function testGit() {
   btn.disabled = true;
   btn.textContent = '测试中...';
   try {
-    const response = await fetch('http://127.0.0.1:8080/api/git/test-connection', {
+    const response = await fetch('http://127.0.0.1:8081/api/git/test-connection', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ remoteUrl, username, password })
@@ -869,6 +873,109 @@ function updateDerivedPaths(rootPath) {
   document.getElementById('derivedClipPath').textContent = normalized + '/clip-storage';
   document.getElementById('derivedOrganizedPath').textContent = normalized + '/clip-organized';
   document.getElementById('derivedWeeklyPath').textContent = normalized + '/weekly-report';
+}
+
+// ==================== 本地配置文件 ====================
+
+// 加载 Electron 桌面应用配置路径（config.json）并展示
+// 该文件由 Electron 主进程管理，位于 userData/config/config.json
+async function loadElectronConfigPath() {
+  const input = document.getElementById('electronConfigPath');
+  if (!input) return;
+  const api = getElectronAPI();
+  if (!api || !api.getConfigPath) {
+    input.value = '仅在桌面客户端中可用';
+    return;
+  }
+  try {
+    const result = await api.getConfigPath();
+    if (result.success && result.configPath) {
+      input.value = result.configPath;
+    } else {
+      input.value = '获取配置路径失败';
+    }
+  } catch (e) {
+    console.error('获取 Electron 配置路径失败:', e);
+    input.value = '获取配置路径失败';
+  }
+}
+
+// 打开 Electron 桌面应用配置文件（config.json）所在目录
+async function openElectronConfigFolder() {
+  const api = getElectronAPI();
+  if (!api || !api.openConfigFolder) {
+    showToast('仅在桌面客户端中可用');
+    return;
+  }
+  const btn = document.getElementById('openElectronConfigBtn');
+  const input = document.getElementById('electronConfigPath');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '打开中...';
+  }
+  try {
+    const result = await api.openConfigFolder();
+    if (result.success) {
+      if (input && result.configPath) input.value = result.configPath;
+      showToast('已打开 Electron 配置文件目录');
+    } else {
+      showToast(result.message || '打开配置文件目录失败');
+    }
+  } catch (e) {
+    console.error('打开 Electron 配置目录失败:', e);
+    showToast('打开配置文件目录失败，请检查后端服务');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '打开目录';
+    }
+  }
+}
+
+// 加载后端配置文件路径（app-config.json）并展示
+async function loadConfigFilePath() {
+  const input = document.getElementById('configFilePath');
+  if (!input) return;
+  try {
+    const response = await fetch(`${API_BASE}/path`);
+    const result = await response.json();
+    if (result.status === 'success' && result.configPath) {
+      input.value = result.configPath;
+    } else {
+      input.value = '获取配置路径失败';
+    }
+  } catch (e) {
+    console.error('获取配置路径失败:', e);
+    input.value = '获取配置路径失败';
+  }
+}
+
+// 打开后端配置文件（app-config.json）所在目录
+async function openConfigFolder() {
+  const btn = document.getElementById('openConfigFolderBtn');
+  const input = document.getElementById('configFilePath');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '打开中...';
+  }
+  try {
+    const response = await fetch(`${API_BASE}/open-config-folder`, { method: 'POST' });
+    const result = await response.json();
+    if (result.status === 'success') {
+      if (input && result.configPath) input.value = result.configPath;
+      showToast('已打开配置文件目录');
+    } else {
+      showToast(result.message || '打开配置文件目录失败');
+    }
+  } catch (e) {
+    console.error('打开配置文件目录失败:', e);
+    showToast('打开配置文件目录失败，请检查后端服务');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '打开目录';
+    }
+  }
 }
 
 async function browseDirectory(inputId) {

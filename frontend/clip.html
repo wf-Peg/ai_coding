@@ -475,6 +475,26 @@
             box-shadow: 0 8px 20px rgba(63, 140, 255, 0.22);
         }
 
+        /* 深色主题：智能入库按钮采用中性灰阶，贴合深色主题底色，不引入蓝色。
+           选择器带上 .btn-primary 提升优先级，覆盖 clip-theme-notion.css 中深色主题的蓝色 .btn-primary */
+        html[data-theme="dark"] .smart-ingest-btn.btn-primary {
+            background: #343434;
+            color: #cfcfcf;
+            border: 1px solid #4d4d4d;
+            box-shadow: none;
+        }
+
+        html[data-theme="dark"] .smart-ingest-btn.btn-primary:hover {
+            background: #414141;
+            color: #ffffff;
+            border-color: #6f6f6f;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+        }
+
+        html[data-theme="dark"] .smart-ingest-btn.btn-primary:active {
+            transform: translateY(0);
+        }
+
         html[data-theme="regular"] .action-split-group.add-clip-action-split .main-btn {
             background: var(--surface);
             color: var(--text);
@@ -1021,24 +1041,63 @@
         }
         .sync-status .sync-dot.pending { background: var(--warning); }
 
+        /* Web Clipper 同步按钮：图标 + 文字，与工具栏按钮统一，贴合主题 */
         .web-clipper-sync-btn {
-            padding: 6px 16px;
-            background: #1976d2;
-            color: #fff;
-            border: none;
-            border-radius: var(--radius);
-            cursor: pointer;
-            font-size: 0.85rem;
-            font-weight: 600;
-            transition: var(--transition);
             display: inline-flex;
             align-items: center;
             gap: 6px;
+            padding: 6px 14px;
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            white-space: nowrap;
+            transition: var(--transition);
         }
-        .web-clipper-sync-btn:hover { background: #1565c0; transform: translateY(-1px); }
-        .web-clipper-sync-btn:disabled { background: #90caf9; cursor: not-allowed; transform: none; }
-        html[data-theme="dark"] .web-clipper-sync-btn { background: #1976d2; }
-        html[data-theme="dark"] .web-clipper-sync-btn:disabled { background: rgba(25, 118, 210, 0.4); color: #ddd; }
+
+        .web-clipper-sync-btn svg {
+            width: 14px;
+            height: 14px;
+            flex: 0 0 auto;
+        }
+
+        .web-clipper-sync-btn:hover {
+            background: var(--surface-hover);
+            border-color: var(--primary);
+            color: var(--primary);
+            transform: translateY(-1px);
+        }
+
+        .web-clipper-sync-btn:disabled {
+            background: var(--primary-bg);
+            color: var(--text-secondary);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* regular 主题：与工具栏主按钮保持一致的渐变语言 */
+        html[data-theme="regular"] .web-clipper-sync-btn {
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+            color: #ffffff;
+            border: 1px solid rgba(63, 140, 255, 0.42);
+            border-radius: 12px;
+            box-shadow: 0 6px 16px rgba(63, 140, 255, 0.24);
+        }
+        html[data-theme="regular"] .web-clipper-sync-btn:hover {
+            background: linear-gradient(135deg, #275fc0, var(--primary-dark));
+            color: #ffffff;
+            border-color: rgba(47, 114, 216, 0.5);
+        }
+
+        /* 深色主题：hover 采用中性灰阶亮化，避免出现蓝色块 */
+        html[data-theme="dark"] .web-clipper-sync-btn:hover {
+            background: var(--surface-hover);
+            color: #ffffff;
+            border-color: #6f6f6f;
+        }
 
         .expand-btn {
             background: var(--surface);
@@ -2290,8 +2349,12 @@
                     <span class="sync-dot"></span>
                     <span id="sync-status-text">Web Clipper 同步：加载中...</span>
                 </span>
-                <button class="web-clipper-sync-btn" id="web-clipper-sync-btn" onclick="triggerWebClipperSync()">
-                    立即同步
+                <button class="web-clipper-sync-btn" id="web-clipper-sync-btn" onclick="triggerWebClipperSync()" title="立即将 Web Clipper 扩展中暂存的内容同步到剪藏">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
+                        <polyline points="21 3 21 9 15 9"/>
+                    </svg>
+                    <span class="wc-sync-label">立即同步</span>
                 </button>
             </div>
             <button class="toggle-btn" id="toggle-btn" onclick="toggleMode()">
@@ -2371,7 +2434,7 @@
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn-secondary" onclick="clearForm()">清空</button>
-                    <button type="button" class="btn-primary main-btn smart-ingest-btn" onclick="smartIngestClip(event)">智能入库</button>
+                    <button type="button" class="btn-primary main-btn smart-ingest-btn" title="AI 自动识别内容意图（剪藏 / 待办 / 话题）并入库" onclick="smartIngestClip(event)">智能入库</button>
                     <div class="action-split-group add-clip-action-split">
                         <button class="icon-btn" type="button" title="配置添加剪藏AI Prompt" onclick="openPromptConfigModal('clip')">⚙️</button>
                         <button type="submit" class="btn-primary main-btn">添加剪藏</button>
@@ -2429,10 +2492,10 @@
 
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script>
-    const API_BASE_URL = 'http://127.0.0.1:8080/api/clip';
-    const KNOWLEDGE_API_BASE_URL = 'http://127.0.0.1:8080/api/knowledge';
-    const GIT_API_BASE_URL = 'http://127.0.0.1:8080/api/git';
-    const SYNC_API_BASE_URL = 'http://127.0.0.1:8080/api/sync';
+    const API_BASE_URL = 'http://127.0.0.1:8081/api/clip';
+    const KNOWLEDGE_API_BASE_URL = 'http://127.0.0.1:8081/api/knowledge';
+    const GIT_API_BASE_URL = 'http://127.0.0.1:8081/api/git';
+    const SYNC_API_BASE_URL = 'http://127.0.0.1:8081/api/sync';
     let currentTags = [];
     const MAX_TAGS = 10;
     const THEME_STORAGE_KEY = 'app_theme_v1';
@@ -4242,9 +4305,9 @@
     function triggerWebClipperSync() {
         const syncBtn = document.getElementById('web-clipper-sync-btn');
         if (!syncBtn) return;
-        const originalText = syncBtn.textContent;
+        const originalHtml = syncBtn.innerHTML;
         syncBtn.disabled = true;
-        syncBtn.textContent = '同步中...';
+        syncBtn.innerHTML = '同步中...';
 
         axios.post(`${SYNC_API_BASE_URL}/trigger`)
             .then(response => {
@@ -4264,7 +4327,7 @@
             })
             .finally(() => {
                 syncBtn.disabled = false;
-                syncBtn.textContent = originalText;
+                syncBtn.innerHTML = originalHtml;
             });
     }
 

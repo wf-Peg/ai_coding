@@ -93,6 +93,24 @@ public class AppConfigService {
     }
 
     /**
+     * 获取配置文件目录路径（~/.clip-demo/config）
+     *
+     * @return 配置文件所在目录的绝对路径
+     */
+    public String getConfigDirPath() {
+        return getConfigDir().toString();
+    }
+
+    /**
+     * 获取配置文件完整路径（~/.clip-demo/config/app-config.json）
+     *
+     * @return 配置文件的绝对路径
+     */
+    public String getConfigFileFullPath() {
+        return getConfigFilePath().toString();
+    }
+
+    /**
      * 获取统一配置（优先使用缓存）
      *
      * @return AppConfig 对象

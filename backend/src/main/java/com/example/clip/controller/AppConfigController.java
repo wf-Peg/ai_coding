@@ -6,6 +6,9 @@ import com.example.clip.service.EmailService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -140,6 +143,75 @@ public class AppConfigController {
             result.put("success", false);
             result.put("message", "归档失败: " + e.getMessage());
             return ResponseEntity.internalServerError().body(result);
+        }
+    }
+
+    /**
+     * 获取本地配置文件路径
+     * <p>
+     * GET /api/config/path
+     * <p>
+     * 仅返回配置文件所在目录与完整路径，不执行打开操作，
+     * 供设置页面加载时展示。
+     *
+     * @return 包含 configDir 和 configPath 的 JSON
+     */
+    @GetMapping("/path")
+    public ResponseEntity<Map<String, Object>> getConfigPath() {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("status", "success");
+        result.put("configDir", appConfigService.getConfigDirPath());
+        result.put("configPath", appConfigService.getConfigFileFullPath());
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * 打开本地配置文件所在目录
+     * <p>
+     * POST /api/config/open-config-folder
+     * <p>
+     * 在服务器端操作系统上打开配置文件（~/.clip-demo/config/app-config.json）
+     * 所在目录，方便用户查看、备份或手动编辑配置文件。
+     * 根据操作系统类型（Windows/macOS/Linux）使用不同的命令打开。
+     *
+     * @return 操作结果，包含状态、配置目录路径和配置文件完整路径
+     */
+    @PostMapping("/open-config-folder")
+    public ResponseEntity<Map<String, Object>> openConfigFolder() {
+        try {
+            String configDir = appConfigService.getConfigDirPath();
+            Path folderPath = Paths.get(configDir);
+
+            // 目录不存在时主动创建，确保可以打开
+            if (!Files.exists(folderPath)) {
+                Files.createDirectories(folderPath);
+            }
+
+            // 根据操作系统类型选择对应的文件管理器命令
+            String os = System.getProperty("os.name").toLowerCase();
+            ProcessBuilder processBuilder;
+
+            if (os.contains("win")) {
+                processBuilder = new ProcessBuilder("explorer.exe", configDir);
+            } else if (os.contains("mac")) {
+                processBuilder = new ProcessBuilder("open", configDir);
+            } else {
+                processBuilder = new ProcessBuilder("xdg-open", configDir);
+            }
+
+            processBuilder.start();
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("status", "success");
+            result.put("message", "已尝试打开配置文件目录");
+            result.put("configDir", configDir);
+            result.put("configPath", appConfigService.getConfigFileFullPath());
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("status", "error");
+            result.put("message", "打开配置文件目录失败: " + e.getMessage());
+            return ResponseEntity.badRequest().body(result);
         }
     }
 }
