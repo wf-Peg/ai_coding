@@ -49,30 +49,42 @@ if not exist "target\clip-demo-0.0.1-SNAPSHOT.jar" (
 echo [OK] Backend JAR built successfully
 cd /d "%~dp0"
 
-REM ---------- Step 2: Prepare JRE ----------
+REM ---------- Step 2: Prepare JRE (jlink 裁剪最小化) ----------
 echo.
-echo [2/4] Checking embedded JRE...
-if exist "jre\bin\java.exe" (
-    echo [OK] Found jre\bin\java.exe, using local JRE
-) else if exist "jdk\bin\java.exe" (
-    echo [OK] Found jdk\bin\java.exe, creating symlink as jre...
-    mklink /D jre jdk >nul 2>nul || xcopy /E /I /Q jdk jre\ >nul
+echo [2/4] Generating minimal JRE via jlink...
+echo        This reduces JRE from 316MB to ~50MB
+
+REM 检查是否有 jlink 工具（需要 JDK 17+）
+set "HAS_JLINK=0"
+if defined JAVA_HOME (
+    if exist "%JAVA_HOME%\bin\jlink.exe" set "HAS_JLINK=1"
+)
+if not defined JAVA_HOME (
+    where jlink.exe >nul 2>&1 && set "HAS_JLINK=1"
+)
+
+if "%HAS_JLINK%"=="1" (
+    echo        jlink tool found, generating minimal JRE...
     if not exist "jre\bin\java.exe" (
-        echo [ERROR] Failed to create jre from jdk folder
-        pause
-        exit /b 1
+        call scripts\build-jlink.bat
+        if %errorlevel% neq 0 (
+            echo [WARNING] jlink failed, falling back to system Java
+        )
+    ) else (
+        echo [OK] Minimal JRE already exists: jre\bin\java.exe
     )
 ) else (
-    echo [INFO] No local JRE/JDK found in project directory.
-    echo        Place your JDK folder here and rename to "jre" or "jdk".
-    echo        Or the script will try to download one automatically.
-    echo.
-    call prepare-jre.bat
-    if not exist "jre\bin\java.exe" (
-        echo [ERROR] JRE preparation failed
-        pause
-        exit /b 1
-    )
+    echo [INFO] jlink not available (need JDK 17+), will use system Java.
+    echo        Install JDK 17+ and run 'npm run build:jlink' for smaller package.
+    echo        Download: https://adoptium.net/
+)
+
+REM Fallback: check if jre exists, if not, use system Java during build
+if not exist "jre\bin\java.exe" (
+    echo [INFO] No embedded JRE found. The build will use system Java.
+    echo        Users without JDK installed must download JRE manually.
+    echo        Run: scripts\build-jlink.bat  (needs JDK 17+)
+    echo        Or:  scripts\download-jre.bat (no JDK needed)
 )
 
 REM ---------- Step 3: Install Electron Dependencies ----------

@@ -47,17 +47,38 @@ fi
 echo -e "${GREEN}✓ 后端 JAR 包构建成功${NC}"
 cd ..
 
-# 步骤2: 安装 Electron 依赖
+# 步骤2: 生成最小化 JRE（jlink 裁剪）
 echo ""
-echo -e "${YELLOW}[2/3] 安装 Electron 依赖...${NC}"
+echo -e "${YELLOW}[2/4] 生成最小化 JRE（jlink 裁剪）...${NC}"
+echo "  将 JRE 从 316MB 裁剪到约 50MB"
+if command -v jlink &> /dev/null; then
+    if [ ! -f "jre/bin/java" ] && [ ! -f "jre/bin/java.exe" ]; then
+        bash scripts/build-jlink.sh
+        if [ $? -ne 0 ]; then
+            echo -e "${RED}jlink 失败，将使用系统 Java${NC}"
+        fi
+    else
+        echo -e "${GREEN}✓ 最小化 JRE 已存在${NC}"
+    fi
+else
+    echo -e "${YELLOW}! 未找到 jlink（需要 JDK 17+），将使用系统 Java${NC}"
+    echo "  提示: 安装 JDK 17+ 后运行 'npm run build:jlink:unix' 可进一步减小体积"
+fi
+if [ ! -f "jre/bin/java" ] && [ ! -f "jre/bin/java.exe" ]; then
+    echo -e "${YELLOW}! 无嵌入式 JRE，打包后的应用需要用户自行安装 JDK 17+${NC}"
+fi
+
+# 步骤3: 安装 Electron 依赖
+echo ""
+echo -e "${YELLOW}[3/4] 安装 Electron 依赖...${NC}"
 if [ ! -d "node_modules" ]; then
     npm install
 fi
 echo -e "${GREEN}✓ Electron 依赖安装完成${NC}"
 
-# 步骤3: 打包桌面应用
+# 步骤4: 打包桌面应用
 echo ""
-echo -e "${YELLOW}[3/3] 打包桌面应用...${NC}"
+echo -e "${YELLOW}[4/4] 打包桌面应用...${NC}"
 
 # 检测平台
 OS="$(uname -s)"

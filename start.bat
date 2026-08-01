@@ -1,9 +1,14 @@
 @echo off
-title Clip - Start Services
-
+title CutShelter - Start Services
 echo ========================================
-echo   Clip - Starting Frontend & Backend
+echo   CutShelter - Starting Frontend & Backend
 echo ========================================
+echo.
+echo   Note: 建议使用 'npm start' 启动（Electron 桌面模式）
+echo         此脚本仅启动后端 + 前端服务，用于调试
+echo.
+echo   JRE: 优先使用 jre/bin/java.exe（jlink 裁剪版 ~50MB）
+echo        找不到时回退到系统 JAVA_HOME 或 PATH
 echo.
 
 :: Check Java
@@ -15,9 +20,9 @@ if %errorlevel% neq 0 (
 )
 
 :: Check if backend is already running
-curl -s http://127.0.0.1:8080/api/clip/list >nul 2>&1
+curl -s http://127.0.0.1:8081/api/clip/list >nul 2>&1
 if %errorlevel% equ 0 (
-    echo [INFO] Backend already running on port 8080
+    echo [INFO] Backend already running on port 8081
     goto :start_frontend
 )
 
@@ -36,7 +41,7 @@ start "Clip-Backend" /min cmd /c "java -jar target\clip-demo-0.0.1-SNAPSHOT.jar 
 echo       Waiting for backend...
 set retries=0
 :wait_backend
-curl -s http://127.0.0.1:8080/api/clip/list >nul 2>&1
+curl -s http://127.0.0.1:8081/api/clip/list >nul 2>&1
 if %errorlevel% equ 0 (
     echo       Backend started!
     goto :start_frontend
@@ -51,9 +56,9 @@ timeout /t 2 /nobreak >nul
 goto :wait_backend
 
 :start_frontend
-curl -s http://127.0.0.1:3000 >nul 2>&1
+curl -s http://127.0.0.1:3001 >nul 2>&1
 if %errorlevel% equ 0 (
-    echo [INFO] Frontend already running on port 3000
+    echo [INFO] Frontend already running on port 3001
     goto :done
 )
 
@@ -67,10 +72,10 @@ echo       Frontend started!
 echo.
 echo ========================================
 echo   All services started!
-echo   Frontend: http://127.0.0.1:3000
-echo   Backend:  http://127.0.0.1:8080
+echo   Frontend: http://127.0.0.1:3001
+echo   Backend:  http://127.0.0.1:8081
 echo ========================================
 echo.
 echo Press any key to open browser...
 pause >nul
-start http://127.0.0.1:3000
+start http://127.0.0.1:3001
