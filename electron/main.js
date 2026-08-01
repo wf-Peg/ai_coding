@@ -111,6 +111,7 @@ const DEFAULT_CONFIG = {
   dashscopeModel: 'qwen-plus',
   storagePath: APP_DIR,           // Clip_Bed 父目录，clip-storage/clip-organized/weekly-report 为固定子目录
   configured: false,            // 是否已完成首次配置
+  autoStart: false,             // 是否随系统登录自动启动
   mailEnabled: false,           // 邮件功能是否启用
   mailHost: '',
   mailPort: 465,
@@ -155,6 +156,20 @@ function loadConfig() {
 function saveConfig(config) {
   ensureConfigDir();
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
+}
+
+/** 应用系统登录项设置。开发模式下把当前应用路径作为启动参数传给 Electron。 */
+function applyAutoStartSetting(enabled) {
+  const loginItemSettings = {
+    openAtLogin: Boolean(enabled),
+    path: process.execPath,
+    args: isPackaged ? [] : [app.getAppPath()]
+  };
+  if (process.platform === 'darwin') {
+    loginItemSettings.name = app.getName();
+  }
+  app.setLoginItemSettings(loginItemSettings);
+  return app.getLoginItemSettings();
 }
 
 // ==================== 进程管理 ====================
@@ -1362,17 +1377,35 @@ function setupIPC() {
   // 保存配置
   ipcMain.handle('save-config', async (event, newConfig) => {
     try {
-      saveConfig(newConfig);
+      const nextConfig = { ...loadConfig(), ...newConfig };
+      saveConfig(nextConfig);
+      applyAutoStartSetting(nextConfig.autoStart);
       // 同步更新 application.yml，确保重启后 storagePath 等配置生效
       const jarPath = getJarPath();
       if (jarPath) {
         const ymlPath = path.join(path.dirname(jarPath), 'application.yml');
-        fs.writeFileSync(ymlPath, generateApplicationYml(newConfig), 'utf-8');
+        fs.writeFileSync(ymlPath, generateApplicationYml(nextConfig), 'utf-8');
         log.info('application.yml updated via save-config');
       }
       return { success: true, message: 'Config saved.' };
     } catch (e) {
       return { success: false, message: `Save failed: ${e.message}` };
+    }
+  });
+
+  ipcMain.handle('get-auto-start', () => {
+    return app.getLoginItemSettings().openAtLogin;
+  });
+
+  ipcMain.handle('set-auto-start', (event, enabled) => {
+    try {
+      const nextConfig = { ...loadConfig(), autoStart: Boolean(enabled) };
+      saveConfig(nextConfig);
+      const settings = applyAutoStartSetting(nextConfig.autoStart);
+      return { success: true, enabled: settings.openAtLogin };
+    } catch (e) {
+      log.error('[AutoStart] Failed to update login item:', e.message);
+      return { success: false, message: e.message };
     }
   });
 
@@ -1515,7 +1548,9 @@ function setupIPC() {
   // 重启后端服务（用于配置变更后重新加载）
   ipcMain.handle('restart-backend', async (event, config) => {
     // 保存新配置并标记为已配置
-    saveConfig({ ...config, configured: true });
+    const nextConfig = { ...config, configured: true };
+    saveConfig(nextConfig);
+    applyAutoStartSetting(nextConfig.autoStart);
 
     // 同步 model-config.json 到 storagePath
     syncModelConfigJson(config);
@@ -2250,7 +2285,9 @@ app.whenReady().then(async () => {
     // 监听配置完成事件（由前端 config.html 发送）
     ipcMain.on('config-done', async (event, newConfig) => {
       log.info('Config done received:', JSON.stringify(newConfig, null, 2));
-      saveConfig({ ...newConfig, configured: true });
+      const nextConfig = { ...newConfig, configured: true };
+      saveConfig(nextConfig);
+      applyAutoStartSetting(nextConfig.autoStart);
 
       // 同步 model-config.json 到 storagePath，保持与设置页面数据一致
       syncModelConfigJson(newConfig);

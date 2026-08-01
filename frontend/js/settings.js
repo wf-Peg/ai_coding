@@ -105,6 +105,15 @@ async function loadConfig() {
     currentStoragePath = rootPath;
     updateDerivedPaths(rootPath);
 
+    const electronAPI = getElectronAPI();
+    if (electronAPI && electronAPI.getAutoStart) {
+      try {
+        document.getElementById('autoStartToggle').checked = await electronAPI.getAutoStart();
+      } catch (error) {
+        console.warn('读取开机自启状态失败:', error);
+      }
+    }
+
     showToast('配置加载成功');
   } catch (error) {
     console.error('加载配置失败:', error);
@@ -145,7 +154,8 @@ async function saveConfig() {
     // Exa 搜索
     exaApiKey: document.getElementById('exaApiKey').value,
     exaEnabled: document.getElementById('exaEnabled').checked,
-    storagePath: document.getElementById('storagePath').value
+    storagePath: document.getElementById('storagePath').value,
+    autoStart: document.getElementById('autoStartToggle')?.checked === true
   };
 
   // 检测存储路径变更
@@ -186,6 +196,12 @@ async function saveConfig() {
     if (response.ok && result.success) {
       currentStoragePath = newStoragePath; // 更新已记录路径
 
+      const autoStartAPI = getElectronAPI();
+      if (autoStartAPI && autoStartAPI.setAutoStart) {
+        const autoStartResult = await autoStartAPI.setAutoStart(config.autoStart);
+        if (!autoStartResult?.success) throw new Error(autoStartResult?.message || '开机自启设置失败');
+      }
+
       // 同步 storagePath 到 Electron config.json（触发 application.yml 更新）
       if (newStoragePath !== oldStoragePath) {
         const api = getElectronAPI();
@@ -216,6 +232,21 @@ async function saveConfig() {
     saveBtn.disabled = false;
     saveBtn.textContent = '保存所有配置';
   }
+}
+
+async function onAutoStartChange() {
+  const toggle = document.getElementById('autoStartToggle');
+  const electronAPI = getElectronAPI();
+  if (!toggle || !electronAPI?.setAutoStart) return;
+
+  const enabled = toggle.checked;
+  const result = await electronAPI.setAutoStart(enabled);
+  if (!result?.success) {
+    toggle.checked = !enabled;
+    showToast('开机自启设置失败，请稍后重试');
+    return;
+  }
+  showToast(enabled ? '已开启开机自启' : '已关闭开机自启');
 }
 
 // 测试 DashScope 连接

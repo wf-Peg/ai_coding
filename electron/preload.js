@@ -37,6 +37,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   getConfig: () => ipcRenderer.invoke('get-config'),
 
+  /** 查询是否已开启随系统登录自动启动 */
+  getAutoStart: () => ipcRenderer.invoke('get-auto-start'),
+
+  /** 更新随系统登录自动启动设置 */
+  setAutoStart: (enabled) => ipcRenderer.invoke('set-auto-start', enabled),
+
   // ===================== 文件/目录选择 =====================
 
   /**

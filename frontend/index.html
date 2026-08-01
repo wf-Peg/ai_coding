@@ -132,7 +132,10 @@
         /* 窗口控制按钮 */
         .titlebar-spacer {
             flex: 1;
+            cursor: grab;
+            user-select: none;
         }
+        .titlebar-spacer.dragging { cursor: grabbing; }
         .window-controls {
             display: flex;
             height: 100%;
@@ -708,20 +711,39 @@
           window.electronAPI.windowMaximize();
         });
 
-        // ===== 自定义标题栏拖拽（通过 IPC 相对桌面移动窗口） =====
+        // ===== 标题栏空白区长按拖拽（使用系统屏幕坐标计算位移） =====
         const titlebarSpacer = document.querySelector('.titlebar-spacer');
         let isDragging = false;
+        let pressTimer = null;
+        let pressStartX = 0;
+        let pressStartY = 0;
         let dragStartX, dragStartY;
+
+        const cancelDragPress = () => {
+          if (pressTimer) {
+            clearTimeout(pressTimer);
+            pressTimer = null;
+          }
+        };
 
         titlebarSpacer.addEventListener('mousedown', (e) => {
           if (e.button !== 0) return;
-          isDragging = true;
-          dragStartX = e.screenX;
-          dragStartY = e.screenY;
-          titlebarSpacer.style.cursor = 'grabbing';
+          cancelDragPress();
+          pressStartX = e.screenX;
+          pressStartY = e.screenY;
+          pressTimer = setTimeout(() => {
+            isDragging = true;
+            dragStartX = e.screenX;
+            dragStartY = e.screenY;
+            titlebarSpacer.classList.add('dragging');
+          }, 180);
         });
 
         document.addEventListener('mousemove', (e) => {
+          if (!isDragging && pressTimer) {
+            const moved = Math.hypot(e.screenX - pressStartX, e.screenY - pressStartY);
+            if (moved > 8) cancelDragPress();
+          }
           if (!isDragging) return;
           const deltaX = e.screenX - dragStartX;
           const deltaY = e.screenY - dragStartY;
@@ -730,11 +752,16 @@
           window.electronAPI.windowDrag(deltaX, deltaY);
         });
 
-        document.addEventListener('mouseup', () => {
-          if (isDragging) {
-            isDragging = false;
-            titlebarSpacer.style.cursor = 'default';
-          }
+        const stopDragging = () => {
+          cancelDragPress();
+          isDragging = false;
+          titlebarSpacer.classList.remove('dragging');
+        };
+
+        document.addEventListener('mouseup', stopDragging);
+        window.addEventListener('blur', stopDragging);
+        titlebarSpacer.addEventListener('mouseleave', (e) => {
+          if (!isDragging && e.buttons === 0) cancelDragPress();
         });
 
         // ===== Ctrl+Shift+R 强制刷新（忽略缓存） =====

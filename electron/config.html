@@ -288,6 +288,21 @@
       </div>
     </div>
 
+    <!-- ===== 启动行为配置区块 ===== -->
+    <div class="section">
+      <div class="section-title"><span class="icon">🚀</span> 启动行为</div>
+      <div class="setting-row" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;">
+        <div>
+          <strong>开机自动启动</strong>
+          <p class="hint">登录系统后自动启动 CutShelter，并在后台保持运行</p>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="autoStart">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
     <!-- ===== 存储目录配置区块 ===== -->
     <div class="section">
       <div class="section-title"><span class="icon">📁</span> 存储目录</div>
@@ -491,6 +506,7 @@
         document.getElementById('backendPort').value = config.backendPort || 8080;
         document.getElementById('frontendPort').value = config.frontendPort || 3000;
         document.getElementById('storagePath').value = config.storagePath || '';
+        document.getElementById('autoStart').checked = config.autoStart === true;
         updateDerivedPaths(config.storagePath);
         // 邮件配置
         document.getElementById('mailEnabled').checked = config.mailEnabled || false;
@@ -648,6 +664,7 @@
           backendPort: backendPort,
           frontendPort: frontendPort,
           storagePath: storagePath,
+          autoStart: document.getElementById('autoStart').checked,
           configured: true,
           mailEnabled: document.getElementById('mailEnabled').checked,
           mailHost: document.getElementById('mailHost').value.trim(),

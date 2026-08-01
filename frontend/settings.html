@@ -519,6 +519,25 @@
             </div>
         </div>
 
+        <div class="section">
+            <div class="section-title">
+                启动行为
+                <span class="section-badge immediate">即时生效</span>
+            </div>
+            <div class="setting-row" style="border-bottom: none;">
+                <div class="setting-label">
+                    <div class="setting-title">开机自动启动</div>
+                    <div class="setting-desc">登录系统后自动启动 CutShelter，并在后台保持运行</div>
+                </div>
+                <div class="setting-control">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="autoStartToggle" onchange="onAutoStartChange()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
         <div class="section" id="shortcutSection">
             <div class="section-title">
                 快捷键设置
