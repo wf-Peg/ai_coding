@@ -1088,6 +1088,30 @@ select {
   grid-template-columns: 220px minmax(0, 1fr);
 }
 
+/* ── 历史面板 / 最近面板（内嵌编辑区左侧，与文件树同布局） ── */
+.history-pane,
+.recent-pane {
+  border-right: 1px solid var(--app-border-strong);
+  display: flex;
+  flex-direction: column;
+  background: var(--app-surface-subtle);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.history-pane[hidden],
+.recent-pane[hidden] {
+  display: none !important;
+}
+
+.editor-workspace.show-history {
+  grid-template-columns: 280px minmax(0, 1fr);
+}
+
+.editor-workspace.show-recent {
+  grid-template-columns: 280px minmax(0, 1fr);
+}
+
 .main-pane {
   position: relative;
   min-width: 0;
@@ -1109,22 +1133,45 @@ select {
   font-size: 10px;
   color: var(--app-text-muted);
   white-space: nowrap;
+  padding: 2px 6px;
+}
+
+#autosaveStatus.active {
+  color: var(--app-primary);
+  border-color: var(--app-primary);
+  background: var(--app-primary-soft);
+  font-weight: 600;
 }
 
 #autosaveStatus.saving {
   color: var(--app-warning);
+  border-color: var(--app-warning);
 }
 
 #autosaveStatus.saved {
   color: var(--app-success, #4caf50);
+  border-color: color-mix(in srgb, var(--app-success, #4caf50) 45%, var(--app-border));
+}
+
+#autosaveStatus.failed {
+  color: var(--app-danger);
+  border-color: var(--app-danger);
+  background: var(--app-danger-soft);
+  font-weight: 600;
+  animation: autosave-fail-pulse 1s ease-in-out infinite;
+}
+
+@keyframes autosave-fail-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }
 
 /* ── 历史面板 ── */
 .history-list {
   flex: 1;
   overflow-y: auto;
-  border: 1px solid var(--app-border);
-  border-radius: var(--app-radius);
+  border: 0;
+  border-radius: 0;
   background: var(--app-surface-subtle);
   font-size: 11px;
   font-family: var(--app-font-mono);
@@ -1158,6 +1205,39 @@ select {
   color: var(--app-text);
   font-weight: 600;
   background: var(--app-primary-soft);
+}
+
+/* ── 最近打开 ── */
+.recent-item {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--app-border);
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.recent-item:hover {
+  background: var(--app-primary-soft);
+}
+
+.recent-item:last-child {
+  border-bottom: 0;
+}
+
+.recent-item .recent-name {
+  color: var(--app-text);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recent-item .recent-meta {
+  color: var(--app-text-muted);
+  font-size: 10px;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── Overview 滚动条预览图（简化 minimap） ── */

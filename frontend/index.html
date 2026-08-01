@@ -767,9 +767,9 @@
           titlebarSpacer.addEventListener('pointercancel', stopDrag);
         }
 
-        // ===== Ctrl+Shift+R 强制刷新（忽略缓存） =====
+        // ===== Ctrl/Cmd+Shift+R 强制刷新（忽略缓存） =====
         document.addEventListener('keydown', (e) => {
-          if (e.ctrlKey && e.shiftKey && (e.key === 'R' || e.key === 'r')) {
+          if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'R' || e.key === 'r')) {
             e.preventDefault();
             window.electronAPI.forceReload();
           }

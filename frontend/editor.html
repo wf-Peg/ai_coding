@@ -33,7 +33,7 @@
           <option value="xml">XML</option>
           <option value="sql">SQL</option>
         </select>
-        <button class="tool-btn" id="formatBtn" title="格式化 Shift+Alt+F">格式化</button>
+        <button class="tool-btn" id="formatBtn" title="格式化 Ctrl+L">格式化</button>
         <button class="tool-btn" id="transformBtn">转换</button>
         <button class="tool-btn" id="compareBtn">对比</button>
         <button class="tool-btn" id="markdownBtn" title="Markdown 预览 Ctrl+Shift+M">Markdown</button>
@@ -70,6 +70,28 @@
         </div>
         <div class="filetree-body" id="fileTreeBody"></div>
       </div>
+      <div class="editor-pane history-pane" id="historyPane" hidden>
+        <div class="filetree-header">
+          <span>编辑历史（<span id="historyCount">0</span> 步）</span>
+          <div class="filetree-header-actions">
+            <button class="inline-btn" id="undoHistoryBtn">撤销</button>
+            <button class="inline-btn" id="redoHistoryBtn">重做</button>
+            <button class="inline-btn" id="clearHistoryBtn">清空</button>
+            <button class="inline-btn" id="closeHistoryBtn">关闭</button>
+          </div>
+        </div>
+        <div class="history-list" id="historyList"></div>
+      </div>
+      <div class="editor-pane recent-pane" id="recentPane" hidden>
+        <div class="filetree-header">
+          <span>最近打开（保留 20 个）</span>
+          <div class="filetree-header-actions">
+            <button class="inline-btn" id="clearRecentBtn">清空记录</button>
+            <button class="inline-btn" id="closeRecentBtn">关闭</button>
+          </div>
+        </div>
+        <div class="history-list" id="recentList"></div>
+      </div>
       <div class="editor-pane main-pane" id="mainPane">
         <div id="mainEditor" class="ace-host" aria-label="文本编辑器"></div>
         <div id="overviewRuler" class="overview-ruler" hidden></div>
@@ -102,27 +124,11 @@
       <span id="cursorStatus">行 1，列 1</span>
       <span id="selectionStatus">0 字符</span>
       <span id="matchStatus">未选择词语</span>
-      <span id="autosaveStatus">自动保存</span>
+      <button class="status-btn" id="autosaveStatus" title="自动保存已开启：每 10 秒保存一次，点击关闭">自动保存</button>
       <span class="status-spacer"></span>
       <span id="runtimeStatus">浏览器模式</span>
     </footer>
   </main>
-
-  <aside class="side-panel" id="historyPanel" aria-hidden="true">
-    <div class="panel-header">
-      <div>
-        <h2>编辑历史</h2>
-        <p>撤销/重做历史记录（共 <span id="historyCount">0</span> 步）</p>
-      </div>
-      <button class="icon-close" id="closeHistoryBtn" aria-label="关闭">×</button>
-    </div>
-    <div class="history-list" id="historyList"></div>
-    <div class="panel-actions">
-      <button class="tool-btn" id="undoHistoryBtn">撤销</button>
-      <button class="tool-btn" id="redoHistoryBtn">重做</button>
-      <button class="tool-btn" id="clearHistoryBtn">清空历史</button>
-    </div>
-  </aside>
 
   <aside class="side-panel" id="transformPanel" aria-hidden="true">
     <div class="panel-header">
@@ -274,7 +280,7 @@
           <option value="4">4 空格</option>
           <option value="8">8 空格</option>
         </select>
-        <div class="modal-note" style="margin-top:8px;">按 Ctrl+= / Ctrl+- 或 Ctrl+滚轮 快速调整字体大小</div>
+        <div class="modal-note" style="margin-top:8px;">按 Ctrl/Cmd+= / Ctrl/Cmd+- 或 Ctrl/Cmd+滚轮 快速调整字体大小</div>
       </div>
       <!-- 高级设置（ACE 图形化设置面板） -->
       <div class="settings-tab-content" id="settingsAdvanced" hidden>
