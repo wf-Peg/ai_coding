@@ -8,7 +8,7 @@
  * 4. 提供 IPC 通道供渲染进程调用
  */
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, Notification, globalShortcut, clipboard, session } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, Notification, globalShortcut, clipboard, session, screen } = require('electron');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -1615,12 +1615,104 @@ function setupIPC() {
   // 查询当前窗口是否最大化（前端用于显示对应图标）
   ipcMain.handle('window-is-maximized', () => mainWindow?.isMaximized() ?? false);
 
-  // 处理窗口拖拽（按偏移量移动窗口位置）
-  ipcMain.handle('window-drag', (event, deltaX, deltaY) => {
-    if (mainWindow) {
-      const [x, y] = mainWindow.getPosition();
-      mainWindow.setPosition(x + deltaX, y + deltaY);
+  // ===== 标题栏拖拽（JS 移动 + 贴边分屏） =====
+  // 方案：渲染进程上报鼠标屏幕坐标 → 主进程绝对坐标定位 setBounds。
+  // 关键设计：
+  //   1. 拖拽中只用 setBounds 显式传递宽高，绝不改变窗口尺寸
+  //   2. 分屏吸附仅在松手时判定：窗口位置贴边（<70px）才 setBounds 半屏/全屏
+  //   3. 位置钳制：防止窗口拖出可视区域无法找回
+  let windowDragState = null;
+
+  // 渲染进程在标题栏空白区按下时调用，记录拖拽起点（绝对坐标定位基准）
+  ipcMain.on('window-drag-start', (event, mouseX, mouseY) => {
+    if (mainWindow && Number.isFinite(mouseX) && Number.isFinite(mouseY)) {
+      // 如果窗口已最大化，先还原再记录尺寸，避免 setPosition 触发 unmaximize 导致尺寸变化
+      if (mainWindow.isMaximized()) {
+        mainWindow.unmaximize();
+      }
+      const [wx, wy] = mainWindow.getPosition();
+      const [ww, wh] = mainWindow.getSize();
+      windowDragState = { wx, wy, mouseX, mouseY, ww, wh };
     }
+  });
+
+  // 拖拽移动：上报鼠标屏幕坐标，主进程换算绝对位置并 setBounds
+  ipcMain.on('window-drag-move', (event, mouseX, mouseY) => {
+    try {
+      if (!mainWindow || mainWindow.isDestroyed() || !windowDragState) return;
+      if (!Number.isFinite(mouseX) || !Number.isFinite(mouseY)) return;
+      const { wx, wy, mouseX: startX, mouseY: startY, ww, wh } = windowDragState;
+      const nx = wx + (mouseX - startX);
+      const ny = wy + (mouseY - startY);
+      if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
+
+      // 钳制：防止窗口拖出可视区域无法找回
+      // 关键设计：
+      //   1. 顶部：确保标题栏始终可见（窗口顶部最多移出屏幕 30px，标题栏~50px 高，至少 20px 可见）
+      //   2. 底部：确保窗口不被任务栏遮挡，窗口底部不超出 workArea 底部
+      //   3. 左/右：确保至少 60px 可见
+      let cx = nx, cy = ny;
+      try {
+        const display = screen.getDisplayMatching({ x: Math.round(nx), y: Math.round(ny), width: Math.max(ww, 1), height: Math.max(wh, 1) });
+        if (display && display.workArea) {
+          const area = display.workArea;
+          const MIN_VISIBLE = 60;
+          const TITLEBAR_VISIBLE = 30; // 标题栏最多 30px 移出屏幕顶部
+          if (cx + ww < area.x + MIN_VISIBLE) cx = area.x + MIN_VISIBLE - ww;
+          if (cx > area.x + area.width - MIN_VISIBLE) cx = area.x + area.width - MIN_VISIBLE;
+          if (cy < area.y - TITLEBAR_VISIBLE) cy = area.y - TITLEBAR_VISIBLE;        // 顶部：标题栏可见
+          if (cy + wh > area.y + area.height) cy = area.y + area.height - wh;         // 底部：不被任务栏遮挡
+        }
+      } catch (err) {
+        // getDisplayMatching 失败时用主显示器兜底钳制
+        try {
+          const primary = screen.getPrimaryDisplay();
+          if (primary && primary.workArea) {
+            const area = primary.workArea;
+            const MIN_VISIBLE = 60;
+            const TITLEBAR_VISIBLE = 30;
+            if (cx + ww < area.x + MIN_VISIBLE) cx = area.x + MIN_VISIBLE - ww;
+            if (cx > area.x + area.width - MIN_VISIBLE) cx = area.x + area.width - MIN_VISIBLE;
+            if (cy < area.y - TITLEBAR_VISIBLE) cy = area.y - TITLEBAR_VISIBLE;
+            if (cy + wh > area.y + area.height) cy = area.y + area.height - wh;
+          }
+        } catch (e) { /* 完全钳制失败，保留原位置 */ }
+      }
+
+      // 用 setBounds 显式指定当前尺寸，保证拖拽中绝不改变窗口大小
+      mainWindow.setBounds({ x: Math.round(cx), y: Math.round(cy), width: ww, height: wh });
+    } catch (err) { /* 拖拽异常静默忽略 */ }
+  });
+
+  // 松手：根据窗口位置判定贴边分屏
+  ipcMain.on('window-drag-end', () => {
+    try {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        const bounds = mainWindow.getBounds();
+        const cx = Math.round(bounds.x + bounds.width / 2);
+        const cy = Math.round(bounds.y + bounds.height / 2);
+        if (Number.isFinite(cx) && Number.isFinite(cy)) {
+          const display = screen.getDisplayMatching({ x: cx, y: cy, width: 1, height: 1 });
+          if (display && display.workArea) {
+            const area = display.workArea;
+            // 钳制逻辑 MIN_VISIBLE=60，窗口贴边后窗口位置距边缘 ≤ 60
+            // 用 70 作为阈值：窗口被钳制到边缘附近时触发分屏
+            const threshold = 70;
+            if (bounds.y <= area.y + threshold) {
+              // 顶部：最大化
+              mainWindow.setBounds({ x: area.x, y: area.y, width: area.width, height: area.height });
+            } else if (bounds.x <= area.x + threshold) {
+              // 左侧：左半屏
+              mainWindow.setBounds({ x: area.x, y: area.y, width: Math.round(area.width / 2), height: area.height });
+            } else if (bounds.x + bounds.width >= area.x + area.width - threshold) {
+              // 右侧：右半屏
+              mainWindow.setBounds({ x: area.x + Math.round(area.width / 2), y: area.y, width: Math.round(area.width / 2), height: area.height });
+            }
+          }
+        }
+      }
+    } catch (err) { /* 分屏失败忽略 */ }
+    windowDragState = null;
   });
 
   // 清除浏览器缓存（设置页「清除缓存」按钮调用）

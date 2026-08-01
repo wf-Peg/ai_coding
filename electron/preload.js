@@ -190,12 +190,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
   windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized'),
 
   /**
-   * 按偏移量移动窗口位置（用于自定义标题栏拖拽）
-   * @param {number} deltaX - 水平偏移量
-   * @param {number} deltaY - 垂直偏移量
-   * @returns {Promise<void>}
+   * 开始窗口拖拽（主进程记录窗口起点与鼠标起点，用于绝对坐标定位）
+   * @param {number} mouseX - 按下时鼠标屏幕 X 坐标
+   * @param {number} mouseY - 按下时鼠标屏幕 Y 坐标
    */
-  windowDrag: (deltaX, deltaY) => ipcRenderer.invoke('window-drag', deltaX, deltaY),
+  windowDragStart: (mouseX, mouseY) => ipcRenderer.send('window-drag-start', mouseX, mouseY),
+
+  /**
+   * 窗口拖拽移动（上报当前鼠标屏幕坐标，主进程换算绝对位置）
+   * @param {number} mouseX - 鼠标屏幕 X 坐标
+   * @param {number} mouseY - 鼠标屏幕 Y 坐标
+   */
+  windowDragMove: (mouseX, mouseY) => ipcRenderer.send('window-drag-move', mouseX, mouseY),
+
+  /**
+   * 结束窗口拖拽（主进程根据窗口位置判定贴边分屏）
+   */
+  windowDragEnd: () => ipcRenderer.send('window-drag-end'),
 
   /**
    * 监听主进程发送的窗口最大化状态变化事件
