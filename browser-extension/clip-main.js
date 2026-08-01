@@ -1,5 +1,5 @@
-const API_BASE_URL = 'http://127.0.0.1:8080/api/clip';
-const GIT_API_BASE_URL = 'http://127.0.0.1:8080/api/git';
+const API_BASE_URL = 'http://127.0.0.1:8081/api/clip';
+const GIT_API_BASE_URL = 'http://127.0.0.1:8081/api/git';
 let currentTags = [];
 const MAX_TAGS = 10;
 const THEME_STORAGE_KEY = 'app_theme_v1';

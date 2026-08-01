@@ -12,7 +12,7 @@
  */
 
 // 从 options 配置中提取的后端 API 基础地址（http://host:port）
-let API_BASE = 'http://localhost:8080';
+let API_BASE = 'http://localhost:8081';
 
 document.addEventListener('DOMContentLoaded', async () => {
   await initApiBase();
@@ -30,7 +30,7 @@ async function initApiBase() {
   try {
     const { apiUrl } = await chrome.storage.local.get('apiUrl');
     if (apiUrl) {
-      // apiUrl 形如 http://127.0.0.1:8080/api/clip/add，提取到 host:port
+      // apiUrl 形如 http://127.0.0.1:8081/api/clip/add，提取到 host:port
       API_BASE = apiUrl.replace(/\/api\/.*$/, '');
     }
   } catch (e) {
@@ -139,7 +139,7 @@ function bindEvents() {
   if (vaultLink) {
     vaultLink.addEventListener('click', (e) => {
       e.preventDefault();
-      const frontendUrl = API_BASE.replace(/:\d+/, ':3000');
+      const frontendUrl = API_BASE.replace(/:\d+/, ':3001');
       chrome.tabs.create({ url: frontendUrl + '/#/vault' });
       window.close();
     });

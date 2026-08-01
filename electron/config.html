@@ -279,11 +279,11 @@
       <div class="port-row">
         <div class="form-group">
           <label>后端端口 <span class="hint">（必填）</span></label>
-          <input type="number" id="backendPort" value="8080" min="1024" max="65535" />
+          <input type="number" id="backendPort" value="8081" min="1024" max="65535" />
         </div>
         <div class="form-group">
           <label>前端端口 <span class="hint">（必填）</span></label>
-          <input type="number" id="frontendPort" value="3000" min="1024" max="65535" />
+          <input type="number" id="frontendPort" value="3001" min="1024" max="65535" />
         </div>
       </div>
     </div>
@@ -503,8 +503,8 @@
         document.getElementById('dashscopeModel').value = config.dashscopeModel || 'qwen-plus';
         document.getElementById('deepseekApiKey').value = config.deepseekApiKey || '';
         document.getElementById('deepseekModel').value = config.deepseekModel || 'deepseek-chat';
-        document.getElementById('backendPort').value = config.backendPort || 8080;
-        document.getElementById('frontendPort').value = config.frontendPort || 3000;
+        document.getElementById('backendPort').value = config.backendPort || 8081;
+        document.getElementById('frontendPort').value = config.frontendPort || 3001;
         document.getElementById('storagePath').value = config.storagePath || '';
         document.getElementById('autoStart').checked = config.autoStart === true;
         updateDerivedPaths(config.storagePath);
@@ -641,8 +641,8 @@
         var activeProvider = document.getElementById('activeProvider').value;
         var apiKey = document.getElementById('apiKey').value.trim();
         var deepseekApiKey = document.getElementById('deepseekApiKey').value.trim();
-        var backendPort = parseInt(document.getElementById('backendPort').value) || 8080;
-        var frontendPort = parseInt(document.getElementById('frontendPort').value) || 3000;
+        var backendPort = parseInt(document.getElementById('backendPort').value) || 8081;
+        var frontendPort = parseInt(document.getElementById('frontendPort').value) || 3001;
         var storagePath = document.getElementById('storagePath').value.trim();
 
         // 表单验证：根据当前选择的 AI 提供商，检查对应的 API Key 是否填写

@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-set PORT=3000
+set PORT=3001
 cd /d "%~dp0"
 
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr /R /C:":%PORT% .*LISTENING"') do (

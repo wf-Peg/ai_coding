@@ -1,8 +1,8 @@
 // 选项页面脚本
 const DEFAULT_CONFIG = {
   uiTheme: 'notion',
-  apiUrl: 'http://localhost:8080/api/clip/add',
-  ingestUrl: 'http://localhost:8080/api/ingest',
+  apiUrl: 'http://localhost:8081/api/clip/add',
+  ingestUrl: 'http://localhost:8081/api/ingest',
   apiTimeout: 30,
   apiRetryCount: 2,
   defaultType: 'ai-text',

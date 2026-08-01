@@ -76,7 +76,7 @@
 
 | 文件 | 改动 |
 |------|------|
-| `options.js` | DEFAULT_CONFIG 新增 `ingestUrl: 'http://localhost:8080/api/ingest'` |
+| `options.js` | DEFAULT_CONFIG 新增 `ingestUrl: 'http://localhost:8081/api/ingest'` |
 | `options.html` | 新增智能入库 API 地址配置项 |
 | `popup.js` | 新增 `handleSmartIngest()` 函数 |
 | `popup.html` | 表单下方新增"智能入库"按钮 |
@@ -93,7 +93,7 @@
 ### POST /api/ingest
 
 ```
-POST http://localhost:8080/api/ingest
+POST http://localhost:8081/api/ingest
 Content-Type: application/json
 
 { "text": "..." }

@@ -125,7 +125,7 @@ description: 智能入库 — 接收任意文本，AI 自动识别意图（剪�
 
 ## 调用后端接口
 
-后端服务运行在 `http://localhost:8080`，请确保服务已启动。
+后端服务运行在 `http://localhost:8081`，请确保服务已启动。
 
 ### 平台兼容性调用方式
 
@@ -236,7 +236,7 @@ $body = @{
 $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($body)
 
 try {
-    $r = Invoke-WebRequest -Uri "http://localhost:8080/api/<endpoint>" -Method POST `
+    $r = Invoke-WebRequest -Uri "http://localhost:8081/api/<endpoint>" -Method POST `
         -UseBasicParsing -TimeoutSec 30 `
         -ContentType "application/json; charset=utf-8" -Body $bodyBytes
     Write-Host "Status: $($r.StatusCode)"
@@ -271,7 +271,7 @@ for ($i = 0; $i -lt $maxRetries -and -not $success; $i++) {
         Start-Sleep -Seconds $retryDelays[$i]
     }
     try {
-        $r = Invoke-WebRequest -Uri "http://localhost:8080/api/<endpoint>" -Method POST `
+        $r = Invoke-WebRequest -Uri "http://localhost:8081/api/<endpoint>" -Method POST `
             -UseBasicParsing -TimeoutSec 30 `
             -ContentType "application/json; charset=utf-8" -Body $bodyBytes
         Write-Host "✅ 入库成功 (Status: $($r.StatusCode))"

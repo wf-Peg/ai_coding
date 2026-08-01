@@ -183,7 +183,7 @@ AI 识别工作 vs 生活待办
 $ErrorActionPreference = "Stop"
 
 # ========== 1. 配置 ==========
-$backendUrl = "http://localhost:8080/api/todo/list"
+$backendUrl = "http://localhost:8081/api/todo/list"
 $reportDir = "D:\develop\svnRep\信息科技部\1、职能管理\3、管理周报\2、软件开发跨组\2026\信贷核心\彭文峰"
 
 # 计算本周一 00:00 和本周日 23:59 的时间戳（毫秒）

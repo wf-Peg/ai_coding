@@ -65,7 +65,7 @@ build.bat       # Windows
 - 样式：内联 `<style>` 或 `styles/` 目录下独立 CSS 文件
 - 主题：`theme-notion.css`（Notion风格）、`theme-regular.css`（常规）
 - Markdown 渲染：`libs/marked.min.js`
-- API 调用：`fetch('http://127.0.0.1:8080/api/...')`
+- API 调用：`fetch('http://127.0.0.1:8081/api/...')`
 - 每个页面独立 HTML 文件，逻辑内嵌或独立 JS 文件
 
 ### LLM 提供者

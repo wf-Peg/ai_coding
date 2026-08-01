@@ -118,7 +118,7 @@ mvn clean package -DskipTests
 mvn spring-boot:run
 ```
 
-后端服务将在 `http://localhost:8080` 启动。
+后端服务将在 `http://localhost:8081` 启动。
 
 #### 4.2 启动前端服务
 
@@ -128,10 +128,10 @@ npx serve frontend -l 3000
 
 # 方式B：使用Python
 cd frontend
-python3 -m http.server 3000 --bind 0.0.0.0
+python3 -m http.server 3001 --bind 0.0.0.0
 ```
 
-前端服务将在 `http://localhost:3000` 启动。
+前端服务将在 `http://localhost:3001` 启动。
 
 #### 4.3 停止服务
 

@@ -161,8 +161,8 @@ async function handleContextMenuClick(info, tab) {
         break;
       case 'vault-open': {
         const vaultConfig = await getConfigAsync();
-        const vaultApiUrl = vaultConfig.apiUrl || 'http://localhost:8080/api/clip/add';
-        const vaultFrontendUrl = vaultApiUrl.replace(/\/api\/.*$/, '').replace(/:\d+/, ':3000');
+        const vaultApiUrl = vaultConfig.apiUrl || 'http://localhost:8081/api/clip/add';
+        const vaultFrontendUrl = vaultApiUrl.replace(/\/api\/.*$/, '').replace(/:\d+/, ':3001');
         chrome.tabs.create({ url: vaultFrontendUrl + '/#/vault' });
         break;
       }
@@ -454,7 +454,7 @@ async function sendToBackend(data, sendResponse) {
 async function sendToBackendPromise(data) {
   try {
     const config = await getConfigAsync();
-    const apiUrl = config.apiUrl || 'http://localhost:8080/api/clip/add';
+    const apiUrl = config.apiUrl || 'http://localhost:8081/api/clip/add';
     const timeout = (config.apiTimeout || 30) * 1000;
     const maxRetries = config.apiRetryCount || 0;
     let retries = 0;
@@ -521,7 +521,7 @@ async function sendToBackendPromise(data) {
 async function smartIngest(data, sendResponse) {
   try {
     const config = await getConfigAsync();
-    const ingestUrl = config.ingestUrl || 'http://localhost:8080/api/ingest';
+    const ingestUrl = config.ingestUrl || 'http://localhost:8081/api/ingest';
     const timeout = (config.apiTimeout || 30) * 1000;
 
     const controller = new AbortController();
@@ -626,8 +626,8 @@ function getConfigAsync() {
     ], (result) => {
       resolve({
         uiTheme: result.uiTheme || 'notion',
-        apiUrl: result.apiUrl || 'http://localhost:8080/api/clip/add',
-        ingestUrl: result.ingestUrl || 'http://localhost:8080/api/ingest',
+        apiUrl: result.apiUrl || 'http://localhost:8081/api/clip/add',
+        ingestUrl: result.ingestUrl || 'http://localhost:8081/api/ingest',
         apiTimeout: result.apiTimeout || 30,
         apiRetryCount: result.apiRetryCount || 2,
         defaultType: result.defaultType || 'ai-text',

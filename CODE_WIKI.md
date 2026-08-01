@@ -537,7 +537,7 @@ browser-extension/
 | 配置项 | 值 | 说明 |
 |--------|-----|------|
 | 权限 | `contextMenus`, `storage`, `activeTab`, `scripting` | 右键菜单 + 存储 + 脚本注入 |
-| host_permissions | `<all_urls>`, localhost:8080 | 所有页面 + 后端 API |
+| host_permissions | `<all_urls>`, localhost:8081 | 所有页面 + 后端 API |
 | commands | `clip-page` (Ctrl+Shift+S), `clip-selection` (Ctrl+Shift+V) | 快捷键 |
 | content_scripts | `content.js` + `content.css`, `document_idle` | 内容脚本 |
 
@@ -655,14 +655,14 @@ mvn clean package -DskipTests
 
 # 2. 启动后端
 java -jar target/clip-demo-0.0.1-SNAPSHOT.jar
-# 后端运行在 http://127.0.0.1:8080
+# 后端运行在 http://127.0.0.1:8081
 
 # 3. 启动前端
 cd frontend
 node server.js
-# 前端运行在 http://127.0.0.1:3000
+# 前端运行在 http://127.0.0.1:3001
 
-# 4. 打开浏览器访问 http://127.0.0.1:3000
+# 4. 打开浏览器访问 http://127.0.0.1:3001
 ```
 
 #### 方式三：Electron 开发模式
@@ -751,9 +751,9 @@ npm run build:linux   # Linux (AppImage)
     ↓
 fetch('/api/...')
     ↓
-Electron 前端服务器（:3000）
+Electron 前端服务器（:3001）
     ↓ API 代理
-Spring Boot 后端（:8080）
+Spring Boot 后端（:8081）
     ↓
 Controller → Service → FileStorageService
     ↓                    ↓

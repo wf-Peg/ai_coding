@@ -320,14 +320,14 @@ async function savePassword() {
 
 ### 6.4 API 地址配置
 
-复用 `options.js` 中的 `apiUrl` 配置（默认 `http://localhost:8080`），从中提取 host:port 作为 vault API base。
+复用 `options.js` 中的 `apiUrl` 配置（默认 `http://localhost:8081`），从中提取 host:port 作为 vault API base。
 
 ```javascript
 // import-password.js
 async function getVaultApiBase() {
   const config = await chrome.storage.local.get('apiUrl');
-  const apiUrl = config.apiUrl || 'http://localhost:8080/api/clip/add';
-  // 从 /api/clip/add 提取 http://localhost:8080
+  const apiUrl = config.apiUrl || 'http://localhost:8081/api/clip/add';
+  // 从 /api/clip/add 提取 http://localhost:8081
   return apiUrl.replace(/\/api\/.*$/, '');
 }
 ```

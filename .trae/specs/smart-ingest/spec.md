@@ -157,17 +157,17 @@ Content-Type: application/json
 **curl 示例**:
 ```bash
 # 待办入库
-curl -X POST http://localhost:8080/api/ingest \
+curl -X POST http://localhost:8081/api/ingest \
   -H "Content-Type: application/json" \
   -d '{"text":"明天下午3点前完成报告，高优先级"}'
 
 # 剪藏入库
-curl -X POST http://localhost:8080/api/ingest \
+curl -X POST http://localhost:8081/api/ingest \
   -H "Content-Type: application/json" \
   -d '{"text":"TCP 三次握手: SYN → SYN-ACK → ACK，是建立可靠连接的基础"}'
 
 # 话题入库
-curl -X POST http://localhost:8080/api/ingest \
+curl -X POST http://localhost:8081/api/ingest \
   -H "Content-Type: application/json" \
   -d '{"text":"推荐 Obsidian 笔记工具，支持双向链接和本地存储"}'
 ```
