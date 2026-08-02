@@ -248,6 +248,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   forceReload: () => ipcRenderer.invoke('force-reload'),
 
+  /**
+   * 保存看板娘上传图标到本地文件系统
+   * @param {string} characterId - 角色 ID（如 luoxiaohei）
+   * @param {string} action - 动作（如 wave）
+   * @param {string} dataUrl - 图片 base64 data URL
+   * @returns {Promise<{success: boolean, filePath?: string, message?: string}>}
+   */
+  saveMascotImage: (characterId, action, dataUrl) => ipcRenderer.invoke('save-mascot-image', { characterId, action, dataUrl }),
+
   // ===================== 编辑器缓存 =====================
 
   /**

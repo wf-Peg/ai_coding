@@ -525,6 +525,9 @@
         if (event.data && event.data.type === 'editorClipSaved') {
           try { clipFrame.contentWindow.postMessage({ action: 'refresh' }, '*'); } catch (e) {}
         }
+        if (event.data && event.data.type === 'mascotChanged') {
+          try { editorFrame.contentWindow.postMessage(event.data, '*'); } catch (e) {}
+        }
       });
 
       // ====== 导航切换（SPA 路由 + 页面缓存） ======

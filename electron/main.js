@@ -1438,6 +1438,8 @@ function setupIPC() {
       const nextConfig = { ...loadConfig(), ...newConfig };
       saveConfig(nextConfig);
       applyAutoStartSetting(nextConfig.autoStart);
+      // 同步 model-config.json 到 ~/.cut-shelter/config/，确保后端 AppConfigService 迁移时能读到 API Key
+      syncModelConfigJson(nextConfig);
       // 同步更新 application.yml，确保重启后 storagePath 等配置生效
       const jarPath = getJarPath();
       if (jarPath) {
@@ -1731,6 +1733,33 @@ function setupIPC() {
     } catch (err) {
       log.error('[EditorAutosave] failed:', err.message);
       return { error: err.message };
+    }
+  });
+
+  // ===== 看板娘图标上传 =====
+  // 将上传的图标保存到本地文件系统，覆盖原预设图标文件
+  ipcMain.handle('save-mascot-image', async (event, { characterId, action, dataUrl }) => {
+    try {
+      if (!characterId || !action || !dataUrl) {
+        return { success: false, message: '参数不完整' };
+      }
+      // 解码 base64 数据 URL（格式: data:image/png;base64,xxxx）
+      const matches = dataUrl.match(/^data:image\/\w+;base64,(.+)$/);
+      if (!matches) {
+        return { success: false, message: '无效的图片数据格式' };
+      }
+      const buffer = Buffer.from(matches[1], 'base64');
+      const mascotDir = path.join(APP_DIR, 'frontend', 'assets', 'mascot', characterId);
+      if (!fs.existsSync(mascotDir)) {
+        fs.mkdirSync(mascotDir, { recursive: true });
+      }
+      const filePath = path.join(mascotDir, action + '.png');
+      fs.writeFileSync(filePath, buffer);
+      log.info('[Mascot] saved mascot image:', filePath, `(${buffer.length} bytes)`);
+      return { success: true, filePath };
+    } catch (err) {
+      log.error('[Mascot] save mascot image failed:', err.message);
+      return { success: false, message: err.message };
     }
   });
 
@@ -2699,6 +2728,9 @@ app.whenReady().then(async () => {
   } else {
     // ===== 已配置完成：直接启动服务 =====
     try {
+      // 启动前同步 model-config.json，确保后端 AppConfigService 迁移时能读到 API Key
+      syncModelConfigJson(config);
+
       await startFrontendServer(config);
 
       // 后端异步启动，不阻塞窗口创建

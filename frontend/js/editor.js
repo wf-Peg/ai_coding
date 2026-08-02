@@ -85,13 +85,29 @@
       const action = config.action || 'run';
       elements.aiPetBtn.dataset.action = action;
       elements.aiPetBtn.style.setProperty('--mascot-color', config.color || 'var(--app-primary)');
-      const customIcon = config.iconType === 'upload' && config.iconDataUrl
-        ? `<img class="ai-pet-image" src="${config.iconDataUrl}" alt="看板娘">`
-        : null;
-      if (customIcon) elements.aiPetBtn.innerHTML = customIcon;
+      // 构建图片 HTML
+      let iconHtml = null;
+      if (config.iconType === 'preset-images' && config.iconId) {
+        iconHtml = `<img class="ai-pet-image" src="assets/mascot/${config.iconId}/${action}.png" alt="Pet">`;
+      } else if (config.iconType === 'upload' && config.iconDataUrls) {
+        const uploads = config.iconDataUrls;
+        const isLegacy = Object.keys(uploads).some(k => ['run', 'wave', 'jump', 'think', 'sleep', 'celebrate'].includes(k));
+        const charUploads = isLegacy ? uploads : (uploads[config.iconId] || {});
+        const url = charUploads[action];
+        if (url) {
+          iconHtml = `<img class="ai-pet-image" src="${url}" alt="Pet">`;
+        } else if (config.iconId) {
+          // 如果当前动作没有上传图片，用预设图兜底
+          iconHtml = `<img class="ai-pet-image" src="assets/mascot/${config.iconId}/${action}.png" alt="Pet">`;
+        }
+      } else if (config.iconType === 'upload' && config.iconDataUrl) {
+        // 旧版兼容
+        iconHtml = `<img class="ai-pet-image" src="${config.iconDataUrl}" alt="Pet">`;
+      }
+      if (iconHtml) elements.aiPetBtn.innerHTML = iconHtml;
       else if (config.iconSvg) elements.aiPetBtn.innerHTML = config.iconSvg.replace('<svg ', '<svg class="ai-pet-svg" ');
-      else elements.aiPetBtn.innerHTML = '<svg class="ai-pet-svg" viewBox="0 0 64 64" aria-hidden="true"><ellipse class="ai-pet-glow" cx="32" cy="53" rx="25" ry="5"></ellipse><path class="ai-dino-body" d="M17 47V29c0-10 7-17 17-17h6c7 0 12 5 12 12v23H17Z"></path><path class="ai-dino-snout" d="M39 18h10c4 0 7 3 7 7v6H39Z"></path><circle class="ai-dino-eye" cx="48" cy="23" r="2"></circle><path class="ai-dino-arm" d="M40 37h9l4 5"></path><path class="ai-dino-leg ai-dino-leg-back" d="M24 47v7M39 47v7"></path><path class="ai-dino-foot" d="M19 54h10M34 54h10"></path><path class="ai-dino-spine" d="M19 29l-6-4 6-3-5-5 8-1"></path><path class="ai-dino-tail" d="M18 39H9l4-5H7"></path></svg>';
-      elements.aiPetBtn.title = `打开看板娘 · ${({ run: '奔跑', wave: '挥手', jump: '跳跃', think: '思考', sleep: '打盹', celebrate: '庆祝' })[action] || '奔跑'}`;
+      else elements.aiPetBtn.innerHTML = '<svg class="ai-pet-svg" viewBox="0 0 64 64" aria-hidden="true"><ellipse class="ai-pet-glow" cx="32" cy="50" rx="14" ry="4" fill="var(--mascot-color,var(--app-primary))" opacity=".2"></ellipse><g class="ai-pet-figure"><circle cx="32" cy="28" r="18" fill="var(--mascot-color,var(--app-primary))" fill-opacity=".85" stroke="var(--mascot-color,var(--app-primary))" stroke-width="2.5"></circle></g><g class="ai-pet-face"><circle cx="23" cy="25" r="5" fill="#fff" stroke="none"></circle><circle cx="41" cy="25" r="5" fill="#fff" stroke="none"></circle><circle class="ai-pet-eye" cx="23" cy="25" r="3" fill="#2d3748" stroke="none"></circle><circle class="ai-pet-eye" cx="41" cy="25" r="3" fill="#2d3748" stroke="none"></circle><circle class="ai-pet-eye-highlight" cx="22" cy="23.5" r="1.5" fill="#fff" stroke="none"></circle><circle class="ai-pet-eye-highlight" cx="40" cy="23.5" r="1.5" fill="#fff" stroke="none"></circle><ellipse class="ai-pet-blush" cx="18" cy="31" rx="4" ry="2.5" fill="#ff8a9e" opacity=".5" stroke="none"></ellipse><ellipse class="ai-pet-blush" cx="46" cy="31" rx="4" ry="2.5" fill="#ff8a9e" opacity=".5" stroke="none"></ellipse><path d="M27 34c2 2 6 2 8 0" fill="none" stroke="#2d3748" stroke-width="2" stroke-linecap="round"></path></g></svg>';
+      elements.aiPetBtn.title = `打开Pet · ${({ run: '奔跑', wave: '挥手', jump: '跳跃', think: '思考', sleep: '打盹', celebrate: '庆祝' })[action] || '奔跑'}`;
     } catch (_) {
       elements.aiPetBtn.dataset.action = 'run';
     }
@@ -826,7 +842,7 @@
 
   function toggleMarkdownPreview(forceOpen) {
     const shouldOpen = forceOpen !== undefined ? forceOpen : elements.markdownPane.hidden;
-    if (shouldOpen && !elements.aiChatPane.hidden) setAiChatPanelOpen(false);
+    if (shouldOpen && isPaneOpen(elements.aiChatPane)) setAiChatPanelOpen(false);
     elements.markdownPane.hidden = !shouldOpen;
     elements.editorWorkspace.classList.toggle('markdown-preview', shouldOpen);
 
@@ -866,7 +882,7 @@
 
   async function toggleCompare(forceOpen) {
     const shouldOpen = forceOpen !== undefined ? forceOpen : elements.comparePane.hidden;
-    if (shouldOpen && !elements.aiChatPane.hidden) setAiChatPanelOpen(false);
+    if (shouldOpen && isPaneOpen(elements.aiChatPane)) setAiChatPanelOpen(false);
     elements.comparePane.hidden = !shouldOpen;
     elements.compareToolbar.classList.toggle('is-open', shouldOpen);
     elements.compareToolbar.setAttribute('aria-hidden', String(!shouldOpen));
@@ -909,13 +925,46 @@
     if (!elements.aiPetBtn) return;
     elements.aiPetBtn.classList.remove('thinking', 'happy', 'error', 'sleeping');
     if (nextState !== 'idle') elements.aiPetBtn.classList.add(nextState);
-    elements.aiPetBtn.title = nextState === 'thinking' ? '看板娘正在奔跑回答' : nextState === 'sleeping' ? '看板娘正在打盹，点击唤醒' : '打开看板娘';
+    elements.aiPetBtn.title = nextState === 'thinking' ? 'Pet正在奔跑回答' : nextState === 'sleeping' ? 'Pet正在打盹，点击唤醒' : '打开Pet';
     clearTimeout(petIdleTimer);
     if (nextState === 'idle') {
       petIdleTimer = setTimeout(() => setPetState('sleeping'), 2 * 60 * 1000);
     }
+    // 根据状态切换对应的动作图片（thinking→think, happy→celebrate, sleeping→sleep）
+    updatePetActionImage(nextState);
+  }
+
+  function updatePetActionImage(state) {
+    try {
+      const config = JSON.parse(localStorage.getItem('cut_shelter_mascot_v1') || '{}');
+      // 状态 ↔ 动作映射：状态机状态 → 预设动作名称
+      const stateToAction = {
+        thinking: 'think',
+        happy: 'celebrate',
+        sleeping: 'sleep',
+        error: config.action || 'run',
+        idle: config.action || 'run'
+      };
+      const action = stateToAction[state] || 'run';
+      const img = elements.aiPetBtn.querySelector('.ai-pet-image');
+      if (!img) return; // 内联 SVG 无需切换图片
+      elements.aiPetBtn.dataset.action = action;
+      if (config.iconType === 'preset-images' && config.iconId) {
+        img.src = `assets/mascot/${config.iconId}/${action}.png`;
+      } else if (config.iconType === 'upload' && config.iconDataUrls) {
+        const uploads = config.iconDataUrls;
+        const isLegacy = Object.keys(uploads).some(k => ['run', 'wave', 'jump', 'think', 'sleep', 'celebrate'].includes(k));
+        const charUploads = isLegacy ? uploads : (uploads[config.iconId] || {});
+        img.src = charUploads[action] || (config.iconId ? `assets/mascot/${config.iconId}/${action}.png` : img.src);
+      }
+    } catch (_) {}
   }
   setPetState('idle');
+
+  // 面板开关统一辅助：aria-hidden + workspace 类 + 抽屉动画结束后 resize
+  function isPaneOpen(pane) {
+    return pane.getAttribute('aria-hidden') !== 'true';
+  }
 
   function setAiChatPanelOpen(open) {
     if (open) {
@@ -923,21 +972,23 @@
       if (!elements.markdownPane.hidden) toggleMarkdownPreview(false);
       setAiChatWidth(getAiChatWidth(), false);
     }
-    elements.aiChatPane.hidden = !open;
+    elements.aiChatPane.setAttribute('aria-hidden', String(!open));
     elements.editorWorkspace.classList.toggle('show-ai-chat', open);
+    if (elements.aiPetBtn) elements.aiPetBtn.classList.toggle('active', open);
     if (open) {
       renderAiChat();
       setTimeout(() => {
         mainEditor.resize();
         elements.aiChatInput.focus();
-      }, 50);
+      }, 250);
     } else {
-      setTimeout(() => mainEditor.resize(), 50);
+      setTimeout(() => mainEditor.resize(), 250);
     }
   }
 
   function toggleAiChatPanel() {
-    setAiChatPanelOpen(elements.aiChatPane.hidden);
+    setPetState('idle');
+    setAiChatPanelOpen(!isPaneOpen(elements.aiChatPane));
   }
 
   function escapeAiHtml(value) {
@@ -1096,13 +1147,19 @@
       }
       parser.push(decoder.decode());
       parser.finish();
-      if (request.serverError) throw new Error(request.serverError);
+      if (request.serverError && !request.completed) throw new Error(request.serverError);
       if (!request.completed) throw new Error('AI 流式响应未正常结束');
     } catch (error) {
       if (request.controller.signal.aborted) return;
+      // 请求已成功完成（收到 done 事件），不覆盖为 error 状态
+      if (request.completed) return;
+      const rawMsg = error.message || '';
+      const friendlyMsg = rawMsg.includes('Failed to fetch') || rawMsg.includes('fetch failed') || rawMsg.includes('NetworkError') || rawMsg.toLowerCase().includes('network error')
+        ? '无法连接到 AI 服务，请检查网络或后端服务是否正常运行'
+        : rawMsg || 'AI 服务调用失败';
       finishAiRequest(request, {
         type: 'error', assistantId: request.assistantId,
-        message: error.message || 'AI 服务调用失败'
+        message: friendlyMsg
       }, 'error');
     } finally {
       if (request.tab === state && !activeAiRequest) {
@@ -2236,19 +2293,22 @@
 
   function toggleFileTree() {
     fileTreeOpen = !fileTreeOpen;
-    elements.fileTreePane.hidden = !fileTreeOpen;
+    elements.fileTreePane.setAttribute('aria-hidden', String(!fileTreeOpen));
     elements.editorWorkspace.classList.toggle('show-filetree', fileTreeOpen);
+    if (fileTreeBtn) fileTreeBtn.classList.toggle('active', fileTreeOpen);
 
     if (fileTreeOpen) {
       // 互斥：关闭历史/最近面板
-      elements.historyPane.hidden = true;
+      elements.historyPane.setAttribute('aria-hidden', 'true');
       elements.editorWorkspace.classList.remove('show-history');
-      elements.recentPane.hidden = true;
+      if (historyBtn) historyBtn.classList.remove('active');
+      elements.recentPane.setAttribute('aria-hidden', 'true');
       elements.editorWorkspace.classList.remove('show-recent');
+      if (recentBtn) recentBtn.classList.remove('active');
       loadFileTree();
     }
 
-    setTimeout(function() { mainEditor.resize(); }, 50);
+    setTimeout(function() { mainEditor.resize(); }, 250);
   }
 
   function loadFileTree() {
@@ -2665,26 +2725,28 @@
 
   // 切换历史面板（内嵌编辑区左侧，与文件树一致）
   function toggleHistoryPanel() {
-    if (!elements.historyPane.hidden) {
-      elements.historyPane.hidden = true;
-      elements.editorWorkspace.classList.remove('show-history');
-    } else {
+    const open = !isPaneOpen(elements.historyPane);
+    if (open) {
       // 互斥：关闭文件树和最近面板
-      elements.fileTreePane.hidden = true;
+      elements.fileTreePane.setAttribute('aria-hidden', 'true');
       elements.editorWorkspace.classList.remove('show-filetree');
-      elements.recentPane.hidden = true;
+      if (fileTreeBtn) fileTreeBtn.classList.remove('active');
+      elements.recentPane.setAttribute('aria-hidden', 'true');
       elements.editorWorkspace.classList.remove('show-recent');
+      if (recentBtn) recentBtn.classList.remove('active');
       updateHistoryPanel();
-      elements.historyPane.hidden = false;
-      elements.editorWorkspace.classList.add('show-history');
     }
-    setTimeout(function() { mainEditor.resize(); }, 50);
+    elements.historyPane.setAttribute('aria-hidden', String(!open));
+    elements.editorWorkspace.classList.toggle('show-history', open);
+    if (historyBtn) historyBtn.classList.toggle('active', open);
+    setTimeout(function() { mainEditor.resize(); }, 250);
   }
 
   function closeHistoryPanel() {
-    elements.historyPane.hidden = true;
+    elements.historyPane.setAttribute('aria-hidden', 'true');
     elements.editorWorkspace.classList.remove('show-history');
-    setTimeout(function() { mainEditor.resize(); }, 50);
+    if (historyBtn) historyBtn.classList.remove('active');
+    setTimeout(function() { mainEditor.resize(); }, 250);
   }
 
   // 历史按钮（在状态栏）
@@ -2713,7 +2775,7 @@
   // 编辑变更时更新历史
   mainEditor.session.on('change', function() {
     // 防抖更新历史面板（如果打开的话）
-    if (elements.historyPane.hidden) return;
+    if (!isPaneOpen(elements.historyPane)) return;
     clearTimeout(historyEntries._timer);
     historyEntries._timer = setTimeout(updateHistoryPanel, 300);
   });
@@ -2828,26 +2890,28 @@
 
   // 切换最近面板（内嵌编辑区左侧，与文件树一致）
   function toggleRecentPanel() {
-    if (!elements.recentPane.hidden) {
-      elements.recentPane.hidden = true;
-      elements.editorWorkspace.classList.remove('show-recent');
-    } else {
+    const open = !isPaneOpen(elements.recentPane);
+    if (open) {
       // 互斥：关闭文件树和历史面板
-      elements.fileTreePane.hidden = true;
+      elements.fileTreePane.setAttribute('aria-hidden', 'true');
       elements.editorWorkspace.classList.remove('show-filetree');
-      elements.historyPane.hidden = true;
+      if (fileTreeBtn) fileTreeBtn.classList.remove('active');
+      elements.historyPane.setAttribute('aria-hidden', 'true');
       elements.editorWorkspace.classList.remove('show-history');
+      if (historyBtn) historyBtn.classList.remove('active');
       renderRecentPanel();
-      elements.recentPane.hidden = false;
-      elements.editorWorkspace.classList.add('show-recent');
     }
-    setTimeout(function() { mainEditor.resize(); }, 50);
+    elements.recentPane.setAttribute('aria-hidden', String(!open));
+    elements.editorWorkspace.classList.toggle('show-recent', open);
+    if (recentBtn) recentBtn.classList.toggle('active', open);
+    setTimeout(function() { mainEditor.resize(); }, 250);
   }
 
   function closeRecentPanel() {
-    elements.recentPane.hidden = true;
+    elements.recentPane.setAttribute('aria-hidden', 'true');
     elements.editorWorkspace.classList.remove('show-recent');
-    setTimeout(function() { mainEditor.resize(); }, 50);
+    if (recentBtn) recentBtn.classList.remove('active');
+    setTimeout(function() { mainEditor.resize(); }, 250);
   }
 
   // 最近打开按钮（状态栏，历史按钮旁）
@@ -2963,12 +3027,13 @@
 
     function toggleOverviewRuler(show) {
       rulerVisible = show !== undefined ? show : !rulerVisible;
-      rulerEl.hidden = !rulerVisible;
+      rulerEl.setAttribute('aria-hidden', String(!rulerVisible));
+      if (overviewBtn) overviewBtn.classList.toggle('active', rulerVisible);
       if (rulerVisible) {
         setTimeout(function() {
           updateRulerSize();
           renderOverview();
-        }, 50);
+        }, 250);
       }
     }
 

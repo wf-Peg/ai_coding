@@ -128,7 +128,7 @@ const requiredFiles = [
   'frontend/index.html',
   'frontend/clip.html',
   'frontend/settings.html',
-  'frontend/settings.js',
+  'frontend/js/settings.js',
   'backend/pom.xml',
 ];
 

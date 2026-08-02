@@ -82,5 +82,8 @@ jre/
 .DS_Store
 Thumbs.db
 
+# Windows 设备名误创建的空文件（git 幽灵条目）
+nul
+
 # Obsidian配置目录
 .obsidian/

@@ -306,8 +306,10 @@ select {
   grid-row: 4;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  /* 恒定三列：左面板位 / 编辑区 / 右面板位；列宽随 show-* 类过渡，实现推拉式抽屉 */
+  grid-template-columns: 0fr minmax(0, 1fr) 0fr;
   background: var(--app-surface);
+  transition: grid-template-columns 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .editor-workspace.comparing {
@@ -322,6 +324,39 @@ select {
   min-width: 0;
   min-height: 0;
   position: relative;
+}
+
+/* 抽屉面板：grid 显式定位，避免 DOM 顺序影响动画布局 */
+.editor-workspace > .filetree-pane,
+.editor-workspace > .history-pane,
+.editor-workspace > .recent-pane {
+  grid-column: 1;
+  grid-row: 1;
+}
+.editor-workspace > .main-pane {
+  grid-column: 2;
+  grid-row: 1;
+}
+.editor-workspace > .ai-chat-pane {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+/* 对比 / Markdown 预览模式：编辑器占左列，侧面板不占位（保持原并排布局） */
+.editor-workspace.comparing > .filetree-pane,
+.editor-workspace.comparing > .history-pane,
+.editor-workspace.comparing > .recent-pane,
+.editor-workspace.comparing > .ai-chat-pane,
+.editor-workspace.markdown-preview > .filetree-pane,
+.editor-workspace.markdown-preview > .history-pane,
+.editor-workspace.markdown-preview > .recent-pane,
+.editor-workspace.markdown-preview > .ai-chat-pane {
+  display: none !important;
+}
+.editor-workspace.comparing > .main-pane,
+.editor-workspace.markdown-preview > .main-pane {
+  grid-column: 1;
+  grid-row: 1;
 }
 
 .compare-pane {
@@ -545,6 +580,33 @@ select {
 .status-btn {
   padding: 2px 5px;
   font-size: 10px;
+  position: relative;
+  transition: color 160ms ease, border-color 160ms ease, background-color 160ms ease,
+              transform 160ms ease, box-shadow 160ms ease;
+}
+
+.status-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+}
+
+/* 激活态：面板已打开时高亮（含底部指示条） */
+.status-btn.active {
+  color: var(--app-primary);
+  border-color: var(--app-primary);
+  background: color-mix(in srgb, var(--app-primary-soft) 65%, transparent);
+}
+
+.status-btn.active::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -2px;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--app-primary);
 }
 
 .status-select {
@@ -801,6 +863,13 @@ select {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: transform 160ms ease, color 160ms ease, background-color 160ms ease;
+}
+
+.icon-close:hover {
+  transform: rotate(90deg);
+  color: var(--app-text);
+  background: var(--app-surface-hover);
 }
 
 .field-label {
@@ -1030,9 +1099,7 @@ select {
   min-width: 0;
 }
 
-.filetree-pane[hidden] {
-  display: none !important;
-}
+/* 文件树显隐由 aria-hidden + grid 0fr 过渡控制（见下方抽屉面板统一规则） */
 
 .filetree-header {
   display: flex;
@@ -1100,9 +1167,9 @@ select {
 .filetree-item.indent-4 { padding-left: 66px; }
 .filetree-item.indent-5 { padding-left: 80px; }
 
-/* ── 编辑器工作区带文件树 ── */
+/* ── 编辑器工作区带文件树（三列恒定：左面板位 / 编辑区 / 右面板位） ── */
 .editor-workspace.show-filetree {
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: 220px minmax(0, 1fr) 0fr;
 }
 
 /* ── 历史面板 / 最近面板（内嵌编辑区左侧，与文件树同布局） ── */
@@ -1116,23 +1183,18 @@ select {
   min-width: 0;
 }
 
-.history-pane[hidden],
-.recent-pane[hidden] {
-  display: none !important;
-}
-
 .editor-workspace.show-history {
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: 280px minmax(0, 1fr) 0fr;
 }
 
 .editor-workspace.show-recent {
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: 280px minmax(0, 1fr) 0fr;
 }
 
 /* ── AI 对话面板 ── */
 .editor-workspace.show-ai-chat {
   --ai-chat-width: 360px;
-  grid-template-columns: minmax(0, 1fr) var(--ai-chat-width);
+  grid-template-columns: 0fr minmax(0, 1fr) var(--ai-chat-width);
 }
 
 .editor-workspace.show-filetree.show-ai-chat {
@@ -1144,6 +1206,56 @@ select {
   grid-template-columns: 280px minmax(0, 1fr) var(--ai-chat-width);
 }
 
+/* 对比 / 预览模式与左侧抽屉同开时，抽屉不挤压对比布局（覆盖 show-* 的列宽） */
+.editor-workspace.comparing.show-filetree,
+.editor-workspace.comparing.show-history,
+.editor-workspace.comparing.show-recent,
+.editor-workspace.markdown-preview.show-filetree,
+.editor-workspace.markdown-preview.show-history,
+.editor-workspace.markdown-preview.show-recent {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+/* ── 抽屉面板隐藏机制：grid 0fr 收回 + 淡出（替代 hidden 属性，可过渡） ── */
+.filetree-pane[aria-hidden="true"],
+.history-pane[aria-hidden="true"],
+.recent-pane[aria-hidden="true"],
+.ai-chat-pane[aria-hidden="true"] {
+  visibility: hidden;
+  opacity: 0;
+  transition: visibility 0s linear 240ms, opacity 200ms ease;
+}
+
+.filetree-pane[aria-hidden="false"],
+.history-pane[aria-hidden="false"],
+.recent-pane[aria-hidden="false"],
+.ai-chat-pane[aria-hidden="false"] {
+  visibility: visible;
+  opacity: 1;
+  transition: visibility 0s linear 0s, opacity 240ms ease;
+}
+
+/* 面板内容方向性滑入（左面板从左，机器人面板从右） */
+.filetree-pane[aria-hidden="false"],
+.history-pane[aria-hidden="false"],
+.recent-pane[aria-hidden="false"] {
+  animation: pane-slide-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ai-chat-pane[aria-hidden="false"] {
+  animation: pane-slide-in-right 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes pane-slide-in {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pane-slide-in-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
 .ai-chat-pane {
   display: flex;
   flex-direction: column;
@@ -1152,8 +1264,6 @@ select {
   border-left: 1px solid var(--app-border-strong);
   background: var(--app-surface-subtle);
 }
-
-.ai-chat-pane[hidden] { display: none !important; }
 
 .ai-chat-resize-handle {
   position: absolute;
@@ -1294,30 +1404,35 @@ select {
 .ai-pet-svg { width: 29px; height: 29px; overflow: visible; animation: ai-pet-run 700ms steps(2, end) infinite; }
 .ai-pet-image { width: 29px; height: 29px; object-fit: contain; animation: ai-pet-run 700ms steps(2, end) infinite; }
 .ai-pet-glow { fill: color-mix(in srgb, var(--app-primary) 18%, transparent); }
-.ai-dino-body, .ai-dino-snout { fill: color-mix(in srgb, var(--mascot-color, var(--app-primary)) 18%, transparent); stroke: var(--mascot-color, var(--app-primary)); stroke-width: 2; stroke-linejoin: round; }
-.ai-dino-eye { fill: var(--mascot-color, var(--app-primary)); }
-.ai-dino-arm, .ai-dino-leg, .ai-dino-foot, .ai-dino-spine, .ai-dino-tail { fill: none; stroke: var(--mascot-color, var(--app-primary)); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-.ai-dino-leg-back { animation: ai-dino-step 350ms steps(2, end) infinite; transform-origin: 39px 47px; }
+.ai-pet-eye { fill: #2d3748; }
+.ai-pet-eye-highlight { fill: #fff; }
+.ai-pet-blush { fill: #ff8a9e; opacity: .5; }
 .ai-pet-button.thinking .ai-pet-svg, .ai-pet-button.thinking .ai-pet-image { animation: ai-pet-run 320ms steps(2, end) infinite; }
-.ai-pet-button.thinking .ai-dino-eye { animation: ai-pet-tip-pulse 700ms ease-in-out infinite; }
-.ai-pet-button.happy .ai-pet-svg { animation: ai-pet-happy 500ms ease-in-out 3; }
-.ai-pet-button.error .ai-dino-eye { fill: var(--app-danger); }
-.ai-pet-button[data-action="wave"] .ai-dino-arm { animation: ai-dino-wave 600ms ease-in-out infinite alternate; transform-origin: 40px 37px; }
-.ai-pet-button[data-action="jump"] .ai-pet-svg { animation: ai-dino-jump 900ms ease-in-out infinite; }
-.ai-pet-button[data-action="think"] .ai-pet-svg { animation: ai-dino-think 1.8s ease-in-out infinite; }
-.ai-pet-button[data-action="sleep"] .ai-pet-svg { animation: ai-dino-sleep 2.4s ease-in-out infinite; opacity: .8; }
-.ai-pet-button[data-action="celebrate"] .ai-pet-svg { animation: ai-dino-celebrate 650ms ease-in-out infinite; }
+.ai-pet-button.thinking .ai-pet-face { animation: ai-pet-face-pulse 700ms ease-in-out infinite; }
+.ai-pet-button.happy .ai-pet-svg, .ai-pet-button.happy .ai-pet-image { animation: ai-pet-happy 500ms ease-in-out 3; }
+.ai-pet-button.error .ai-pet-svg, .ai-pet-button.error .ai-pet-image { animation: ai-pet-shake 300ms ease-in-out infinite; }
+.ai-pet-button.error .ai-pet-eye { fill: var(--app-danger); }
+.ai-pet-button[data-action="wave"] .ai-pet-svg, .ai-pet-button[data-action="wave"] .ai-pet-image { animation: ai-dino-wave 600ms ease-in-out infinite alternate; }
+.ai-pet-button[data-action="jump"] .ai-pet-svg, .ai-pet-button[data-action="jump"] .ai-pet-image { animation: ai-dino-jump 900ms ease-in-out infinite; }
+.ai-pet-button[data-action="think"] .ai-pet-svg, .ai-pet-button[data-action="think"] .ai-pet-image { animation: ai-dino-think 1.8s ease-in-out infinite; }
+.ai-pet-button[data-action="sleep"] .ai-pet-svg, .ai-pet-button[data-action="sleep"] .ai-pet-image { animation: ai-dino-sleep 2.4s ease-in-out infinite; opacity: .8; }
+.ai-pet-button[data-action="celebrate"] .ai-pet-svg, .ai-pet-button[data-action="celebrate"] .ai-pet-image { animation: ai-dino-celebrate 650ms ease-in-out infinite; }
+
+/* Pet激活态：对话面板打开时高亮 */
+.ai-pet-button.active {
+  background: var(--app-primary-soft);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary) 22%, transparent);
+}
 .ai-pet-button.sleeping .ai-pet-svg, .ai-pet-button.sleeping .ai-pet-image { animation: ai-dino-sleep 2.4s ease-in-out infinite; opacity: .72; }
 @keyframes ai-pet-run { 50% { transform: translateY(-2px); } }
-@keyframes ai-dino-step { 50% { transform: rotate(-12deg); } }
 @keyframes ai-dino-wave { to { transform: rotate(-20deg); } }
 @keyframes ai-dino-jump { 50% { transform: translateY(-6px) rotate(-3deg); } }
 @keyframes ai-dino-think { 50% { transform: translateX(2px) rotate(3deg); } }
 @keyframes ai-dino-sleep { 50% { transform: translateY(2px) scale(.96); } }
 @keyframes ai-dino-celebrate { 50% { transform: translateY(-4px) rotate(8deg); } }
-@keyframes ai-pet-think { 50% { transform: translateY(-1px) rotate(-3deg); } }
 @keyframes ai-pet-happy { 50% { transform: translateY(-4px); } }
-@keyframes ai-pet-tip-pulse { 50% { opacity: 0.25; } }
+@keyframes ai-pet-face-pulse { 50% { opacity: .5; } }
+@keyframes ai-pet-shake { 25% { transform: translateX(-2px); } 75% { transform: translateX(2px); } }
 
 /* ── 编辑器右键菜单 ── */
 .editor-context-menu {
@@ -1338,6 +1453,18 @@ select {
 
 @media (prefers-reduced-motion: reduce) {
   .ai-pet-svg, .ai-pet-antenna, .ai-chat-stream-cursor { animation: none; }
+  /* 减弱动态效果：关闭面板抽屉与动效 */
+  .editor-workspace,
+  .editor-pane,
+  .overview-ruler,
+  .status-btn,
+  .icon-close,
+  .filetree-item,
+  .history-item,
+  .recent-item {
+    transition: none !important;
+    animation: none !important;
+  }
 }
 
 .main-pane {
@@ -1468,6 +1595,38 @@ select {
   text-overflow: ellipsis;
 }
 
+/* ── 面板列表项 hover：左侧主色指示条滑出 ── */
+.filetree-item,
+.history-item,
+.recent-item {
+  position: relative;
+}
+
+.filetree-item::before,
+.history-item::before,
+.recent-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 18%;
+  bottom: 18%;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--app-primary);
+  opacity: 0;
+  transform: scaleY(0.4);
+  transform-origin: center;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.filetree-item:hover::before,
+.history-item:hover::before,
+.recent-item:hover::before,
+.filetree-item.active::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
 /* ── Overview 滚动条预览图（简化 minimap） ── */
 .overview-ruler {
   position: absolute;
@@ -1480,7 +1639,7 @@ select {
   border-left: 1px solid var(--app-border);
   cursor: pointer;
   overflow: hidden;
-  transition: opacity 0.15s ease;
+  transition: opacity 240ms ease, transform 240ms ease;
 }
 
 .overview-ruler canvas {
@@ -1523,6 +1682,19 @@ select {
 
 .overview-ruler-tip.show {
   opacity: 1;
+}
+
+/* 概览浮层显隐：淡入淡出 + 轻微缩放（置于 hover 规则之后，确保隐藏态优先） */
+.overview-ruler[aria-hidden="true"] {
+  opacity: 0;
+  transform: scale(0.98);
+  pointer-events: none;
+}
+
+.overview-ruler[aria-hidden="false"] {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
 }
 
 /* ── 增强通知样式 ── */

@@ -60,7 +60,7 @@
     </section>
 
     <section class="editor-workspace" id="editorWorkspace">
-      <div class="editor-pane filetree-pane" id="fileTreePane" hidden>
+      <div class="editor-pane filetree-pane" id="fileTreePane" aria-hidden="true">
         <div class="filetree-header">
           <span id="fileTreeTitle">文件浏览器</span>
           <div class="filetree-header-actions">
@@ -70,7 +70,7 @@
         </div>
         <div class="filetree-body" id="fileTreeBody"></div>
       </div>
-      <div class="editor-pane history-pane" id="historyPane" hidden>
+      <div class="editor-pane history-pane" id="historyPane" aria-hidden="true">
         <div class="filetree-header">
           <span>编辑历史（<span id="historyCount">0</span> 步）</span>
           <div class="filetree-header-actions">
@@ -82,7 +82,7 @@
         </div>
         <div class="history-list" id="historyList"></div>
       </div>
-      <div class="editor-pane recent-pane" id="recentPane" hidden>
+      <div class="editor-pane recent-pane" id="recentPane" aria-hidden="true">
         <div class="filetree-header">
           <span>最近打开（保留 20 个）</span>
           <div class="filetree-header-actions">
@@ -94,7 +94,7 @@
       </div>
       <div class="editor-pane main-pane" id="mainPane">
         <div id="mainEditor" class="ace-host" aria-label="文本编辑器"></div>
-        <div id="overviewRuler" class="overview-ruler" hidden></div>
+        <div id="overviewRuler" class="overview-ruler" aria-hidden="true"></div>
       </div>
       <div class="editor-pane markdown-pane" id="markdownPane" hidden>
         <div class="markdown-header">
@@ -107,11 +107,11 @@
         <div class="compare-file-name" id="compareFileName">对比内容</div>
         <div id="compareEditor" class="ace-host" aria-label="对比编辑器"></div>
       </div>
-      <aside class="editor-pane ai-chat-pane" id="aiChatPane" hidden aria-label="看板娘对话">
+      <aside class="editor-pane ai-chat-pane" id="aiChatPane" aria-hidden="true" aria-label="Pet对话">
         <div class="ai-chat-resize-handle" id="aiChatResizeHandle" role="separator" aria-orientation="vertical" aria-label="调整 AI 面板宽度"></div>
         <header class="ai-chat-header">
           <div class="ai-chat-heading">
-            <span class="ai-chat-title">看板娘</span>
+            <span class="ai-chat-title">Pet</span>
             <span class="ai-chat-status" id="aiChatStatus">就绪</span>
           </div>
           <div class="ai-chat-actions">
@@ -148,17 +148,23 @@
       <span id="matchStatus">未选择词语</span>
       <button class="status-btn" id="autosaveStatus" title="自动保存已开启：每 10 秒保存一次，点击关闭">自动保存</button>
       <span class="status-spacer"></span>
-      <button class="ai-pet-button" id="aiPetBtn" type="button" title="打开看板娘" aria-label="打开看板娘">
+      <button class="ai-pet-button" id="aiPetBtn" type="button" title="打开Pet" aria-label="打开Pet">
         <svg class="ai-pet-svg" viewBox="0 0 64 64" aria-hidden="true">
-          <ellipse class="ai-pet-glow" cx="32" cy="53" rx="25" ry="5"></ellipse>
-          <path class="ai-dino-body" d="M17 47V29c0-10 7-17 17-17h6c7 0 12 5 12 12v23H17Z"></path>
-          <path class="ai-dino-snout" d="M39 18h10c4 0 7 3 7 7v6H39Z"></path>
-          <circle class="ai-dino-eye" cx="48" cy="23" r="2"></circle>
-          <path class="ai-dino-arm" d="M40 37h9l4 5"></path>
-          <path class="ai-dino-leg ai-dino-leg-back" d="M24 47v7M39 47v7"></path>
-          <path class="ai-dino-foot" d="M19 54h10M34 54h10"></path>
-          <path class="ai-dino-spine" d="M19 29l-6-4 6-3-5-5 8-1"></path>
-          <path class="ai-dino-tail" d="M18 39H9l4-5H7"></path>
+          <ellipse class="ai-pet-glow" cx="32" cy="50" rx="14" ry="4" fill="var(--mascot-color,var(--app-primary))" opacity=".2"></ellipse>
+          <g class="ai-pet-figure">
+            <circle cx="32" cy="28" r="18" fill="var(--mascot-color,var(--app-primary))" fill-opacity=".85" stroke="var(--mascot-color,var(--app-primary))" stroke-width="2.5"></circle>
+          </g>
+          <g class="ai-pet-face">
+            <circle cx="23" cy="25" r="5" fill="#fff" stroke="none"></circle>
+            <circle cx="41" cy="25" r="5" fill="#fff" stroke="none"></circle>
+            <circle class="ai-pet-eye" cx="23" cy="25" r="3" fill="#2d3748" stroke="none"></circle>
+            <circle class="ai-pet-eye" cx="41" cy="25" r="3" fill="#2d3748" stroke="none"></circle>
+            <circle class="ai-pet-eye-highlight" cx="22" cy="23.5" r="1.5" fill="#fff" stroke="none"></circle>
+            <circle class="ai-pet-eye-highlight" cx="40" cy="23.5" r="1.5" fill="#fff" stroke="none"></circle>
+            <ellipse class="ai-pet-blush" cx="18" cy="31" rx="4" ry="2.5" fill="#ff8a9e" opacity=".5" stroke="none"></ellipse>
+            <ellipse class="ai-pet-blush" cx="46" cy="31" rx="4" ry="2.5" fill="#ff8a9e" opacity=".5" stroke="none"></ellipse>
+            <path d="M27 34c2 2 6 2 8 0" fill="none" stroke="#2d3748" stroke-width="2" stroke-linecap="round"></path>
+          </g>
         </svg>
       </button>
       <span id="runtimeStatus">浏览器模式</span>
