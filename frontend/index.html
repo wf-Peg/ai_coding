@@ -386,6 +386,12 @@
             </svg>
             PDF
         </button>
+        <button class="nav-btn" data-view="data-observability">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 19V5M4 19h16"/><path d="M7 15l3-4 3 2 5-7"/><circle cx="7" cy="15" r="1"/><circle cx="10" cy="11" r="1"/><circle cx="13" cy="13" r="1"/><circle cx="18" cy="6" r="1"/>
+            </svg>
+            观测
+        </button>
         <button class="nav-btn" data-view="settings">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
@@ -437,6 +443,10 @@
         <!-- PDF 工具 -->
         <div class="view-panel view-panel-hidden" id="pdfView">
             <iframe id="pdfFrame" data-src="pdf.html" style="width:100%;height:100%;border:none;"></iframe>
+        </div>
+        <!-- 数据观测 -->
+        <div class="view-panel view-panel-hidden" id="dataObservabilityView">
+            <iframe id="dataObservabilityFrame" data-src="data-observability.html" style="width:100%;height:100%;border:none;"></iframe>
         </div>
         <!-- 设置 -->
         <div class="view-panel view-panel-hidden" id="settingsView">
@@ -539,12 +549,14 @@
       const settingsView = document.getElementById('settingsView');
       const learningPlanView = document.getElementById('learningPlanView');
       const pdfView = document.getElementById('pdfView');
+      const dataObservabilityView = document.getElementById('dataObservabilityView');
       const editorFrame = document.getElementById('editorFrame');
       const topicFrame = document.getElementById('topicFrame');
       const vaultFrame = document.getElementById('vaultFrame');
       const settingsFrame = document.getElementById('settingsFrame');
       const learningPlanFrame = document.getElementById('learningPlanFrame');
       const pdfFrame = document.getElementById('pdfFrame');
+      const dataObservabilityFrame = document.getElementById('dataObservabilityFrame');
       const scrollTools = document.getElementById('scrollTools');
 
       let activeIframe = null;
@@ -564,6 +576,7 @@
         settings: settingsView,
         'learning-plan': learningPlanView,
         pdf: pdfView
+        , 'data-observability': dataObservabilityView
       };
       const VIEW_IFRAME = {
         editor: [editorFrame],
@@ -573,6 +586,7 @@
         settings: [settingsFrame],
         'learning-plan': [learningPlanFrame],
         pdf: [pdfFrame]
+        , 'data-observability': [dataObservabilityFrame]
       };
       const allPanels = Object.values(viewMap);
 
@@ -610,6 +624,7 @@
         if (clean === '/vault') return 'vault';
         if (clean === '/learning-plan') return 'learning-plan';
         if (clean === '/pdf') return 'pdf';
+        if (clean === '/data-observability') return 'data-observability';
         return 'editor';
       }
 
