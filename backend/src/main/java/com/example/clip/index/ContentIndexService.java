@@ -1,5 +1,6 @@
 package com.example.clip.index;
 
+import com.example.clip.service.FileStorageService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -37,6 +38,19 @@ public class ContentIndexService {
             }
         }
         writeAtomically(new ArrayList<>(unique.values()));
+    }
+
+    public synchronized void rebuildFromStorage(FileStorageService storageService) {
+        if (storageService == null) {
+            throw new IllegalArgumentException("storage service is required");
+        }
+        ContentRefMapper mapper = new ContentRefMapper();
+        List<ContentRef> refs = new ArrayList<>();
+        storageService.getAllClips().forEach(item -> refs.add(mapper.fromClip(item)));
+        storageService.getAllKnowledgeEntries().forEach(item -> refs.add(mapper.fromKnowledge(item)));
+        storageService.getAllTodos().forEach(item -> refs.add(mapper.fromTodo(item)));
+        storageService.getAllLearningPlans().forEach(item -> refs.add(mapper.fromLearningPlan(item)));
+        rebuild(refs);
     }
 
     public synchronized List<ContentRef> readAll() {

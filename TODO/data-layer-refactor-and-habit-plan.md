@@ -64,3 +64,17 @@
 - 缺失字段和旧 JSON 字段不会抛出异常。
 - 相同实体重复映射结果一致。
 - `ContentRef` 不携带正文，避免索引重复保存用户内容。
+
+## 当前落地状态（2026-08-02）
+
+已按上述顺序完成第一版可测试基础设施：
+
+- Phase 0：`ContentRef`、实体映射器已覆盖剪藏、知识、待办、学习计划，稳定 ID 使用 `类型:id`。
+- Phase 1：`ContentIndexService` 支持从 `FileStorageService` 扫描重建、去重和原子写入；原业务 JSON 仍是唯一数据源。
+- Phase 2：`RelationIndexService` 支持关系幂等写入、来源/反向查询和删除。
+- Phase 3：`ProjectIndexService` 支持项目保存、按项目 ID 更新、成员幂等加入和移除。
+- Phase 4：`ActionEventService` 使用 JSONL 记录事件并支持按时间清理。
+- Phase 5：`HabitProfileService` 聚合分类、标签、目录和动作计数；空元数据事件仍会统计动作。
+- Phase 6：`ProjectSuggestionService` 基于分类、标签、目录、成员模式和习惯画像输出带原因的确定性评分，不自动建立关系。
+
+对应测试位于 `backend/src/test/java/com/example/clip/index/`，覆盖映射、重建幂等、关系、项目成员、事件画像和建议解释性评分。后续接入业务时，应通过应用配置目录创建索引服务，并把事件写入放到不阻塞主流程的异步边界；建议分数低于产品阈值时只展示候选，不自动关联。

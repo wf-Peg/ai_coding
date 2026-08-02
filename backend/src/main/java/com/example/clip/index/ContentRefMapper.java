@@ -3,6 +3,7 @@ package com.example.clip.index;
 import com.example.clip.model.ClipContent;
 import com.example.clip.model.KnowledgeEntry;
 import com.example.clip.model.TodoContent;
+import com.example.clip.model.LearningPlan;
 
 import java.util.List;
 
@@ -59,6 +60,24 @@ public class ContentRefMapper {
                 null,
                 todo.getCreatedAt(),
                 null,
+                null
+        );
+    }
+
+    public ContentRef fromLearningPlan(LearningPlan plan) {
+        if (plan == null || plan.getId() == null) {
+            throw new IllegalArgumentException("learning plan and plan id are required");
+        }
+        return new ContentRef(
+                typedId("learning-plan", plan.getId()),
+                "learning-plan",
+                String.valueOf(plan.getId()),
+                plan.getTitle(),
+                null,
+                List.of(),
+                null,
+                plan.getCreatedAt(),
+                plan.getUpdatedAt(),
                 null
         );
     }
