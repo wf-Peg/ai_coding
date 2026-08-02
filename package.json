@@ -6,6 +6,7 @@
   "scripts": {
     "start": "electron .",
     "test:editor": "node --test electron/editor-file-service.test.js",
+    "test:editor-ai": "node --test electron/editor-ai-chat-core.test.js",
     "postinstall": "electron-builder install-app-deps",
     "prebuild": "node scripts/prebuild-clean.js",
     "download-jre": "bash scripts/download-jre.sh",

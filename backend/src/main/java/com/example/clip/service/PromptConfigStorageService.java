@@ -15,7 +15,7 @@ import java.nio.file.Paths;
  * Prompt 配置持久化服务
  * <p>
  * 负责 Prompt 配置（系统提示词）的 JSON 文件持久化读写。
- * 配置文件存储于用户主目录下的 .clip-demo/prompt-config.json 文件中。
+ * 配置文件存储于用户主目录下的 .cut-shelter/config/prompt-config.json 文件中。
  * 如果文件不存在，PromptConfigService 会使用内置的默认 Prompt。
  * </p>
  */
@@ -36,7 +36,7 @@ public class PromptConfigStorageService {
     /**
      * 获取配置文件路径
      * <p>
-     * 配置文件存储在用户主目录下的 .clip-demo 目录中。
+     * 配置文件存储在用户主目录下的 .cut-shelter/config 目录中。
      * 如果目录不存在则自动创建，如果创建失败则回退到当前工作目录。
      * </p>
      *
@@ -44,7 +44,7 @@ public class PromptConfigStorageService {
      */
     private Path getConfigFilePath() {
         String userHome = System.getProperty("user.home");
-        Path configDir = Paths.get(userHome, ".clip-demo");
+        Path configDir = Paths.get(userHome, ".cut-shelter", "config");
         if (!Files.exists(configDir)) {
             try {
                 Files.createDirectories(configDir);

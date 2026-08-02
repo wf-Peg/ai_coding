@@ -23,7 +23,7 @@ import java.util.zip.ZipOutputStream;
  * 应用统一配置持久化服务
  * <p>
  * 将所有应用级配置（AI 模型、邮件、Git、存储路径等）集中存储到
- * {@code ~/.clip-demo/config/app-config.json} 用户主目录下。
+ * {@code ~/.cut-shelter/config/app-config.json} 用户主目录下。
  * 不同 exe 启动时读取同一份配置，确保配置互通。
  * 保存时同时同步到旧的 ModelConfigService 和 GitConfigStorageService，
  * 确保向后兼容。
@@ -34,7 +34,7 @@ public class AppConfigService {
 
     private static final Logger log = LoggerFactory.getLogger(AppConfigService.class);
 
-    private static final String CONFIG_DIR = ".clip-demo";
+    private static final String CONFIG_DIR = ".cut-shelter";
     private static final String CONFIG_SUB_DIR = "config";
     private static final String CONFIG_FILE = "app-config.json";
 
@@ -63,7 +63,7 @@ public class AppConfigService {
     }
 
     private Path getConfigDir() {
-        // 统一使用 ~/.clip-demo/config/ 目录，不同 exe 共享同一份配置
+        // 统一使用 ~/.cut-shelter/config/ 目录，不同 exe 共享同一份配置
         String userHome = System.getProperty("user.home");
         if (userHome == null || userHome.isEmpty()) {
             userHome = ".";
@@ -93,7 +93,7 @@ public class AppConfigService {
     }
 
     /**
-     * 获取配置文件目录路径（~/.clip-demo/config）
+     * 获取配置文件目录路径（~/.cut-shelter/config）
      *
      * @return 配置文件所在目录的绝对路径
      */
@@ -102,7 +102,7 @@ public class AppConfigService {
     }
 
     /**
-     * 获取配置文件完整路径（~/.clip-demo/config/app-config.json）
+     * 获取配置文件完整路径（~/.cut-shelter/config/app-config.json）
      *
      * @return 配置文件的绝对路径
      */

@@ -5,6 +5,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 /**
  * 路由 LLM 提供者 —— 实现 {@link LlmProvider} 接口的代理/路由模式。
  * <p>
@@ -97,6 +99,59 @@ public class RoutingLlmProvider implements LlmProvider {
             throw new RuntimeException(provider.getProviderName() + " 调用失败且无可用备用 provider: "
                     + e.getMessage(), e);
         }
+    }
+
+    @Override
+    public ChatStreamHandle streamChat(List<ChatMessage> messages, ChatStreamListener listener) {
+        LlmProvider provider = getActiveProvider();
+        logger.debug("[LLM] Routing stream to {}", provider.getProviderName());
+        java.util.concurrent.atomic.AtomicBoolean emitted = new java.util.concurrent.atomic.AtomicBoolean();
+        java.util.concurrent.atomic.AtomicReference<ChatStreamHandle> active = new java.util.concurrent.atomic.AtomicReference<>();
+
+        ChatStreamListener routedListener = new ChatStreamListener() {
+            @Override
+            public void onDelta(String content) {
+                emitted.set(true);
+                listener.onDelta(content);
+            }
+
+            @Override
+            public void onComplete() {
+                listener.onComplete();
+            }
+
+            @Override
+            public void onError(Throwable error) {
+                if (emitted.get()) {
+                    listener.onError(error);
+                    return;
+                }
+                LlmProvider fallback = getFallbackProvider(provider);
+                if (fallback == null) {
+                    listener.onError(error);
+                    return;
+                }
+                logger.warn("[LLM] {} 流式调用失败，降级到 {}", provider.getProviderName(), fallback.getProviderName());
+                active.set(fallback.streamChat(messages, listener));
+            }
+        };
+        ChatStreamHandle initialHandle = provider.streamChat(messages, routedListener);
+        if (!active.compareAndSet(null, initialHandle) && initialHandle != null) {
+            initialHandle.cancel();
+        }
+        return new ChatStreamHandle() {
+            @Override
+            public void cancel() {
+                ChatStreamHandle handle = active.get();
+                if (handle != null) handle.cancel();
+            }
+
+            @Override
+            public boolean isCancelled() {
+                ChatStreamHandle handle = active.get();
+                return handle != null && handle.isCancelled();
+            }
+        };
     }
 
     /**

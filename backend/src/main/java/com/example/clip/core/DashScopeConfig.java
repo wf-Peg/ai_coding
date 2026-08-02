@@ -36,14 +36,14 @@ public class DashScopeConfig {
      * DashScope API 密钥。
      * 从 application.yml 的 spring.ai.dashscope.api-key 读取。
      */
-    @Value("${spring.ai.dashscope.api-key}")
+    @Value("${spring.ai.dashscope.api-key:}")
     private String apiKey;
 
     /**
      * DashScope 默认模型名称。
      * 从 application.yml 的 spring.ai.dashscope.chat.options.model 读取。
      */
-    @Value("${spring.ai.dashscope.chat.options.model}")
+    @Value("${spring.ai.dashscope.chat.options.model:qwen-plus}")
     private String model;
 
     /**

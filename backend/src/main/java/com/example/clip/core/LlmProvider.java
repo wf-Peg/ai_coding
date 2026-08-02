@@ -1,5 +1,7 @@
 package com.example.clip.core;
 
+import java.util.List;
+
 /**
  * LLM（大语言模型）提供者统一接口。
  * <p>
@@ -34,6 +36,11 @@ public interface LlmProvider {
      * @throws RuntimeException 当 API 调用失败时抛出
      */
     String chat(String systemPrompt, String userMessage);
+
+    /**
+     * 以流式方式调用 LLM。实现类必须在完成、失败或取消时终止回调序列。
+     */
+    ChatStreamHandle streamChat(List<ChatMessage> messages, ChatStreamListener listener);
 
     /**
      * 获取当前提供者的唯一名称标识。

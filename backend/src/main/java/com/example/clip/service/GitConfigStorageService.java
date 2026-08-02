@@ -15,7 +15,7 @@ import java.nio.file.Paths;
  * Git 配置持久化服务
  * <p>
  * 负责 Git 配置（远程仓库地址、用户名、分支等）的 JSON 文件持久化读写。
- * 配置文件存储于用户主目录下的 .clip-demo/git-config.json 文件中。
+ * 配置文件存储于用户主目录下的 .cut-shelter/config/git-config.json 文件中。
  * 提供备份和恢复机制：保存时会自动备份旧配置，加载失败时会尝试从备份恢复。
  * </p>
  */
@@ -38,16 +38,16 @@ public class GitConfigStorageService {
     /**
      * 获取配置文件路径
      * <p>
-     * 配置文件存储在用户主目录下的 .clip-demo 目录中。
+     * 配置文件存储在用户主目录下的 .cut-shelter/config 目录中。
      * 如果目录不存在则自动创建，如果创建失败则回退到当前工作目录。
      * </p>
      *
      * @return 配置文件的完整路径
      */
     private Path getConfigFilePath() {
-        // 使用用户目录下的 .clip-demo 目录存放配置
+        // 使用用户目录下的 .cut-shelter/config 目录存放配置
         String userHome = System.getProperty("user.home");
-        Path configDir = Paths.get(userHome, ".clip-demo");
+        Path configDir = Paths.get(userHome, ".cut-shelter", "config");
 
         // 确保目录存在
         if (!Files.exists(configDir)) {

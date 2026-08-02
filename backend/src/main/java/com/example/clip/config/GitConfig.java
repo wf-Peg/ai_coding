@@ -1,5 +1,7 @@
 package com.example.clip.config;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 /**
  * Git 配置类（GitConfig）。
  * <p>
@@ -19,6 +21,7 @@ package com.example.clip.config;
  * 不校验用户名和密码，因为某些场景下可能使用 SSH 密钥认证无需密码。
  * </p>
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class GitConfig {
 
     /** 远程仓库 URL，如 https://github.com/user/repo.git */

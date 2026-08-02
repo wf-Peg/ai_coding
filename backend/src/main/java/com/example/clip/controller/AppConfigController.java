@@ -170,7 +170,7 @@ public class AppConfigController {
      * <p>
      * POST /api/config/open-config-folder
      * <p>
-     * 在服务器端操作系统上打开配置文件（~/.clip-demo/config/app-config.json）
+     * 在服务器端操作系统上打开配置文件（~/.cut-shelter/config/app-config.json）
      * 所在目录，方便用户查看、备份或手动编辑配置文件。
      * 根据操作系统类型（Windows/macOS/Linux）使用不同的命令打开。
      *

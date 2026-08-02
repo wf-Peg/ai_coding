@@ -1,27 +1,16 @@
 /**
  * Electron 主进程日志模块
  *
- * 同时输出到控制台和文件，日志文件写入 C:\Users\{用户名}\AppData\Local\CutShelter\logs\
- * 按天滚动，保留 30 天。
+ * 同时输出到控制台和文件，日志文件写入当前项目/应用工作目录下的 app.log。
  */
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
-
-const LOG_DIR = path.join(os.homedir(), 'AppData', 'Local', 'CutShelter', 'logs');
-const MAX_DAYS = 30;
+const LOG_DIR = process.cwd();
+const LOG_FILE = path.join(LOG_DIR, 'app.log');
 
 // 确保日志目录存在
 if (!fs.existsSync(LOG_DIR)) {
   fs.mkdirSync(LOG_DIR, { recursive: true });
-}
-
-function getLogFileName() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `electron.${y}-${m}-${d}.log`;
 }
 
 function formatLog(level, ...args) {
@@ -44,28 +33,14 @@ function writeLog(level, ...args) {
   consoleFn(...args);
   // 文件写入
   try {
-    fs.appendFileSync(path.join(LOG_DIR, getLogFileName()), line, 'utf-8');
+    fs.appendFileSync(LOG_FILE, line, 'utf-8');
   } catch (e) {
     console.error('Failed to write log file:', e.message);
   }
 }
 
 function cleanupOldLogs() {
-  try {
-    const files = fs.readdirSync(LOG_DIR);
-    const cutoff = Date.now() - MAX_DAYS * 24 * 60 * 60 * 1000;
-    for (const f of files) {
-      if (f.startsWith('electron.') && f.endsWith('.log')) {
-        const filePath = path.join(LOG_DIR, f);
-        try {
-          const stat = fs.statSync(filePath);
-          if (stat.mtimeMs < cutoff) {
-            fs.unlinkSync(filePath);
-          }
-        } catch (e) { /* 文件可能已被删除 */ }
-      }
-    }
-  } catch (e) { /* 目录可能不存在 */ }
+  // app.log 持续保留，不做自动清理。
 }
 
 module.exports = {
@@ -73,5 +48,6 @@ module.exports = {
   warn: (...args) => writeLog('WARN', ...args),
   error: (...args) => writeLog('ERROR', ...args),
   cleanupOldLogs,
-  LOG_DIR
+  LOG_DIR,
+  LOG_FILE
 };

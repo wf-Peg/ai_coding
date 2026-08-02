@@ -15,7 +15,7 @@ import java.nio.file.Paths;
  * 模型配置服务
  * <p>
  * 负责 AI 模型配置（API Key、Base URL、模型名称等）的 JSON 文件持久化读写。
- * 配置文件存储于 clip-storage 目录下的 model-config.json 文件中。
+ * 配置文件存储于用户配置目录下的 model-config.json 文件中。
  * 使用 volatile 缓存配置对象，减少文件 IO 次数。
  * </p>
  */
@@ -48,15 +48,13 @@ public class ModelConfigService {
      * @return 配置文件的完整路径
      */
     private Path getConfigFilePath() {
-        // 优先使用 clip-storage 目录，与 FileStorageService 保持一致
-        String storagePath = System.getProperty("clip.storage.path", "./clip-storage");
-        Path configDir = Paths.get(storagePath);
+        String userHome = System.getProperty("user.home", ".");
+        Path configDir = Paths.get(userHome, ".cut-shelter", "config");
         if (!Files.exists(configDir)) {
             try {
                 Files.createDirectories(configDir);
             } catch (IOException e) {
-                log.error("Failed to create storage directory: {}", e.getMessage());
-                // 目录创建失败时回退到当前目录
+                log.warn("Failed to create application config directory: {}", e.getMessage());
                 return Paths.get(CONFIG_FILE_NAME);
             }
         }

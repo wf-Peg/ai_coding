@@ -386,20 +386,18 @@ function getFrontendDir() {
 }
 
 /**
- * 同步 model-config.json 到 storagePath/clip-storage/
+ * 同步 model-config.json 到应用配置目录 ~/.cut-shelter/config/
  * 确保初始化界面（config.html）保存的配置与设置页面（settings.html）数据一致
  * 
  * @param {Object} config - 用户配置对象
  */
 function syncModelConfigJson(config) {
   try {
-    const clipStoragePath = config.storagePath.endsWith('clip-storage') || config.storagePath.endsWith('clip-storage\\')
-      ? config.storagePath
-      : path.join(config.storagePath, 'clip-storage');
-    if (!fs.existsSync(clipStoragePath)) {
-      fs.mkdirSync(clipStoragePath, { recursive: true });
+    const configDir = path.join(os.homedir(), '.cut-shelter', 'config');
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true });
     }
-    const modelConfigPath = path.join(clipStoragePath, 'model-config.json');
+    const modelConfigPath = path.join(configDir, 'model-config.json');
     const modelConfig = {
       activeProvider: config.activeProvider || 'dashscope',
       deepseekApiKey: config.deepseekApiKey || '',
@@ -827,15 +825,21 @@ function startFrontendServer(config) {
       // 代理 /api/* 请求到后端
       const urlPath = req.url || '';
       if (urlPath.startsWith('/api/')) {
+        const isAiStream = urlPath.startsWith('/api/ai/chat/stream');
         const proxyReq = http.request({
           hostname: '127.0.0.1',
           port: config.backendPort,
           path: urlPath,
           method: req.method,
           headers: req.headers,
-          timeout: 30000
+          timeout: isAiStream ? 0 : 30000
         }, (proxyRes) => {
-          res.writeHead(proxyRes.statusCode, proxyRes.headers);
+          const responseHeaders = { ...proxyRes.headers };
+          if (isAiStream) {
+            responseHeaders['cache-control'] = 'no-cache, no-transform';
+            responseHeaders.connection = 'keep-alive';
+          }
+          res.writeHead(proxyRes.statusCode, responseHeaders);
           proxyRes.pipe(res);
         });
         proxyReq.on('error', (e) => {
@@ -2605,7 +2609,11 @@ app.whenReady().then(async () => {
   killPortProcess(config.backendPort);
   killPortProcess(config.frontendPort);
 
-  if (!config.configured || !config.apiKey) {
+  const hasConfiguredProviderKey = config.activeProvider === 'deepseek'
+    ? Boolean(config.deepseekApiKey && config.deepseekApiKey.trim())
+    : Boolean(config.apiKey && config.apiKey.trim());
+
+  if (!config.configured || !hasConfiguredProviderKey) {
     // ===== 首次运行：显示配置引导窗口 =====
     log.info('First run - showing config window');
 

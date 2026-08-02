@@ -80,6 +80,7 @@ async function loadConfig() {
     document.getElementById('deepseekApiKey').value = config.deepseekApiKey || '';
     document.getElementById('deepseekModel').value = config.deepseekModel || 'deepseek-chat';
     onProviderChange();
+    loadMascotConfig();
 
     // 邮件配置
     document.getElementById('mailEnabled').checked = config.mailEnabled === true;
@@ -128,6 +129,177 @@ async function loadConfig() {
     if (existing) existing.remove();
     document.querySelector('.page-title').after(errDiv);
     showToast('加载配置失败，请检查后端服务');
+  }
+}
+
+const MASCOT_CONFIG_KEY = 'cut_shelter_mascot_v1';
+const MASCOT_ACTION_LABELS = { run: '奔跑中', wave: '挥手中', jump: '跳跃中', think: '思考中', sleep: '打盹中', celebrate: '庆祝中' };
+const MASCOT_COLORS = ['#569cff', '#49b883', '#e88b55', '#b477e8', '#e05d76', '#d0a23c'];
+const MASCOT_PRESETS = [
+  { id: 'robot-blue', name: '蓝色机器人', color: '#569cff' },
+  { id: 'pikachu-yellow', name: '活力电气鼠', color: '#e5b93f' },
+  { id: 'dino-mint', name: '薄荷小恐龙', color: '#49b883' },
+  { id: 'cat-violet', name: '紫色小猫', color: '#b477e8' }
+];
+
+function getMascotConfig() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(MASCOT_CONFIG_KEY) || '{}');
+    const history = Array.isArray(raw.history) ? raw.history : [];
+    return { prompt: '', action: 'run', color: MASCOT_COLORS[0], iconType: 'preset', iconId: 'robot-blue', iconSvg: buildMascotSvg('robot-blue'), iconDataUrl: '', history, currentId: raw.currentId || history[0]?.id || null, ...raw };
+  } catch (_) { return { prompt: '', action: 'run', color: MASCOT_COLORS[0], iconType: 'preset', iconId: 'robot-blue', iconSvg: buildMascotSvg('robot-blue'), iconDataUrl: '', history: [], currentId: null }; }
+}
+
+function loadMascotConfig() {
+  const config = getMascotConfig();
+  const prompt = document.getElementById('mascotPrompt');
+  const action = document.getElementById('mascotAction');
+  if (prompt) prompt.value = config.prompt;
+  if (action) action.value = config.action;
+  renderMascotPresets(config);
+  renderMascotPreview(config.action, config.color);
+  renderMascotHistory();
+}
+
+function renderMascotPreview(action, color = MASCOT_COLORS[0]) {
+  const label = document.getElementById('mascotActionLabel');
+  if (label) label.textContent = MASCOT_ACTION_LABELS[action] || MASCOT_ACTION_LABELS.run;
+  const preview = document.getElementById('mascotPreview');
+  if (preview) {
+    preview.dataset.action = action;
+    preview.style.setProperty('--mascot-color', color);
+    const icon = preview.querySelector('.mascot-preview-dino');
+    if (icon) {
+      const config = getMascotConfig();
+      icon.innerHTML = config.iconType === 'upload' && config.iconDataUrl
+        ? `<img src="${config.iconDataUrl}" alt="自定义看板娘图标">`
+        : (config.iconSvg || buildMascotSvg(config.iconId));
+    }
+  }
+}
+
+function renderMascotPresets(config = getMascotConfig()) {
+  const list = document.getElementById('mascotPresetList');
+  if (!list) return;
+  list.innerHTML = MASCOT_PRESETS.map(preset => `<button type="button" class="mascot-preset${config.iconId === preset.id && config.iconType !== 'upload' ? ' active' : ''}" data-mascot-preset="${preset.id}" style="--mascot-color:${preset.color}"><span>${preset.svg || buildMascotSvg(preset.id)}</span><small>${preset.name}</small></button>`).join('');
+}
+
+function applyMascotConfig(next) {
+  localStorage.setItem(MASCOT_CONFIG_KEY, JSON.stringify(next));
+  notifyMascotChanged(next);
+  renderMascotPresets(next);
+  renderMascotPreview(next.action, next.color);
+  showToast('看板娘图标已应用');
+}
+
+function handleMascotPreset(event) {
+  const id = event.target.closest('[data-mascot-preset]')?.dataset.mascotPreset;
+  if (!id) return;
+  const preset = MASCOT_PRESETS.find(item => item.id === id);
+  if (!preset) return;
+  const config = getMascotConfig();
+  applyMascotConfig({ ...config, iconType: 'preset', iconId: preset.id, iconSvg: buildMascotSvg(preset.id), iconDataUrl: '', color: preset.color });
+}
+
+function handleMascotUpload(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const name = document.getElementById('mascotUploadName');
+  if (name) name.textContent = file.name;
+  if (file.size > 1024 * 1024) { showToast('图标不能超过 1MB'); event.target.value = ''; return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const config = getMascotConfig();
+    applyMascotConfig({ ...config, iconType: 'upload', iconId: `upload-${Date.now()}`, iconDataUrl: reader.result, color: '#569cff' });
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleMascotActionChange(event) {
+  const config = getMascotConfig();
+  const next = { ...config, action: event.target.value };
+  applyMascotConfig(next);
+}
+
+function notifyMascotChanged(config) {
+  try {
+    window.dispatchEvent(new StorageEvent('storage', { key: MASCOT_CONFIG_KEY, newValue: JSON.stringify(config) }));
+  } catch (_) {}
+  try { window.parent.postMessage({ type: 'mascotChanged', mascot: config }, '*'); } catch (_) {}
+  try { new BroadcastChannel('cut-shelter-mascot').postMessage(config); } catch (_) {}
+}
+
+function generateMascotIcon() {
+  const prompt = document.getElementById('mascotPrompt')?.value.trim() || '一只边跑边挥手的绿色小恐龙';
+  const action = document.getElementById('mascotAction')?.value || 'run';
+  const config = getMascotConfig();
+  const color = MASCOT_COLORS[Math.abs([...prompt].reduce((sum, char) => sum + char.codePointAt(0), 0)) % MASCOT_COLORS.length];
+  const item = { id: `mascot_${Date.now()}`, prompt, action, color, iconType: config.iconType, iconId: config.iconId, iconSvg: config.iconSvg || '', iconDataUrl: config.iconDataUrl || '', createdAt: Date.now() };
+  config.history = [item, ...config.history.filter(entry => entry.prompt !== prompt || entry.action !== action)].slice(0, 30);
+  config.currentId = item.id;
+  config.prompt = prompt;
+  config.action = action;
+  config.color = color;
+  localStorage.setItem(MASCOT_CONFIG_KEY, JSON.stringify(config));
+  notifyMascotChanged(config);
+  renderMascotPreview(action, color);
+  renderMascotHistory();
+  const hint = document.getElementById('mascotGeneratedHint');
+  if (hint) hint.textContent = `已生成：${prompt}（${MASCOT_ACTION_LABELS[action]}）`;
+  showToast('机器人图标已生成并应用');
+}
+
+function renderMascotHistory() {
+  const list = document.getElementById('mascotHistoryList');
+  if (!list) return;
+  const config = getMascotConfig();
+  const filter = (document.getElementById('mascotHistoryFilter')?.value || '').trim().toLowerCase();
+  const items = config.history.filter(item => `${item.prompt} ${MASCOT_ACTION_LABELS[item.action] || ''}`.toLowerCase().includes(filter));
+  if (!items.length) { list.innerHTML = '<div class="form-hint">暂无匹配的历史图标</div>'; return; }
+  list.innerHTML = items.map(item => `<div class="mascot-history-item${item.id === config.currentId ? ' current' : ''}">
+    <div class="mascot-history-icon" style="--mascot-color:${item.color}">${renderHistoryIcon(item)}</div>
+    <div class="mascot-history-copy"><div class="mascot-history-prompt" title="${escapeHtml(item.prompt)}">${escapeHtml(item.prompt)}</div><div class="mascot-history-meta">${MASCOT_ACTION_LABELS[item.action] || '奔跑中'}</div></div>
+    <div class="mascot-history-actions"><button type="button" data-mascot-use="${item.id}">使用</button><button type="button" data-mascot-delete="${item.id}">删除</button></div>
+  </div>`).join('');
+}
+
+function renderHistoryIcon(item) {
+  if (item.iconType === 'upload' && item.iconDataUrl) {
+    return `<img src="${item.iconDataUrl}" alt="历史看板娘图标">`;
+  }
+  return item.iconSvg || buildMascotSvg(item.iconId);
+}
+
+function buildMascotSvg(id = 'dino-mint') {
+  const icons = {
+    'robot-blue': '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="13" y="18" width="38" height="30" rx="10" fill="#569cff"/><path d="M32 18V10M27 10h10" fill="none" stroke="#569cff" stroke-width="4" stroke-linecap="round"/><circle cx="25" cy="32" r="4" fill="#fff"/><circle cx="39" cy="32" r="4" fill="#fff"/><path d="M24 41h16" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/><path d="M13 28H7M51 28h6M22 48v7M42 48v7" fill="none" stroke="#569cff" stroke-width="4" stroke-linecap="round"/></svg>',
+    'pikachu-yellow': '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M18 27 10 8l14 9c5-3 11-3 16 0l14-9-8 19c2 13-6 25-19 25S16 40 18 27Z" fill="#e5b93f"/><circle cx="25" cy="32" r="3" fill="#3a3024"/><circle cx="40" cy="32" r="3" fill="#3a3024"/><circle cx="18" cy="39" r="4" fill="#e05d76"/><circle cx="47" cy="39" r="4" fill="#e05d76"/><path d="M29 41c2 2 4 2 6 0" fill="none" stroke="#3a3024" stroke-width="2" stroke-linecap="round"/></svg>',
+    'dino-mint': '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M17 47V29c0-10 7-17 17-17h6c7 0 12 5 12 12v23H17Z" fill="#49b883"/><path d="M39 18h10c4 0 7 3 7 7v6H39Z" fill="#49b883"/><circle cx="48" cy="23" r="2" fill="#fff"/><path d="M40 37h9l4 5M24 47v7M39 47v7M19 54h10M34 54h10M19 29l-6-4 6-3-5-5 8-1M18 39H9l4-5H7" fill="none" stroke="#49b883" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    'cat-violet': '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="m16 24 3-15 13 9 13-9 3 15c2 15-5 29-16 29S14 39 16 24Z" fill="#b477e8"/><circle cx="25" cy="32" r="3" fill="#fff"/><circle cx="40" cy="32" r="3" fill="#fff"/><path d="M29 40c2 2 4 2 6 0M11 37h10M43 37h10" fill="none" stroke="#b477e8" stroke-width="2.5" stroke-linecap="round"/></svg>'
+  };
+  return icons[id] || icons['dino-mint'];
+}
+
+function escapeHtml(value) { return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char])); }
+
+function handleMascotHistoryClick(event) {
+  const useId = event.target.dataset.mascotUse;
+  const deleteId = event.target.dataset.mascotDelete;
+  if (!useId && !deleteId) return;
+  const config = getMascotConfig();
+  if (useId) {
+    const item = config.history.find(entry => entry.id === useId);
+    if (!item) return;
+    Object.assign(config, { currentId: item.id, prompt: item.prompt, action: item.action, color: item.color, iconType: item.iconType || 'preset', iconId: item.iconId || config.iconId, iconSvg: item.iconSvg || buildMascotSvg(item.iconId), iconDataUrl: item.iconDataUrl || '' });
+    localStorage.setItem(MASCOT_CONFIG_KEY, JSON.stringify(config));
+    notifyMascotChanged(config);
+    document.getElementById('mascotAction').value = item.action;
+    renderMascotPreview(item.action, item.color); renderMascotHistory(); showToast('已应用历史机器人图标');
+  } else if (deleteId) {
+    config.history = config.history.filter(entry => entry.id !== deleteId);
+    if (config.currentId === deleteId) { config.currentId = config.history[0]?.id || null; Object.assign(config, config.history[0] || { prompt: '', action: 'run', color: MASCOT_COLORS[0] }); }
+    localStorage.setItem(MASCOT_CONFIG_KEY, JSON.stringify(config)); renderMascotHistory(); renderMascotPreview(config.action, config.color); showToast('历史机器人图标已删除');
+    notifyMascotChanged(config);
   }
 }
 
@@ -384,6 +556,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
   document.getElementById('appearanceSelect').value = appearance;
   loadConfig();
+document.getElementById('mascotAction')?.addEventListener('change', handleMascotActionChange);
+  document.getElementById('mascotPresetList')?.addEventListener('click', handleMascotPreset);
+  document.getElementById('mascotUpload')?.addEventListener('change', handleMascotUpload);
+  document.getElementById('mascotHistoryFilter')?.addEventListener('input', renderMascotHistory);
+  document.getElementById('mascotHistoryList')?.addEventListener('click', handleMascotHistoryClick);
+  loadMascotConfig();
   loadShortcutConfig();
   initUpdateUI();
 });

@@ -107,6 +107,28 @@
         <div class="compare-file-name" id="compareFileName">对比内容</div>
         <div id="compareEditor" class="ace-host" aria-label="对比编辑器"></div>
       </div>
+      <aside class="editor-pane ai-chat-pane" id="aiChatPane" hidden aria-label="看板娘对话">
+        <div class="ai-chat-resize-handle" id="aiChatResizeHandle" role="separator" aria-orientation="vertical" aria-label="调整 AI 面板宽度"></div>
+        <header class="ai-chat-header">
+          <div class="ai-chat-heading">
+            <span class="ai-chat-title">看板娘</span>
+            <span class="ai-chat-status" id="aiChatStatus">就绪</span>
+          </div>
+          <div class="ai-chat-actions">
+            <button class="inline-btn" id="aiChatClearBtn" title="清空当前标签会话">清空</button>
+            <button class="icon-close" id="aiChatCloseBtn" aria-label="关闭 AI 对话">×</button>
+          </div>
+        </header>
+        <div class="ai-chat-messages" id="aiChatMessages" aria-live="polite"></div>
+        <div class="ai-chat-composer">
+          <textarea id="aiChatInput" rows="3" placeholder="输入问题，Enter 发送，Shift+Enter 换行"></textarea>
+          <div class="ai-chat-composer-footer">
+            <span class="ai-chat-hint">上下文仅保存在当前标签</span>
+            <button class="tool-btn primary" id="aiChatSendBtn">发送</button>
+            <button class="tool-btn danger-action" id="aiChatStopBtn" hidden>停止</button>
+          </div>
+        </div>
+      </aside>
     </section>
 
     <footer class="editor-statusbar">
@@ -126,6 +148,19 @@
       <span id="matchStatus">未选择词语</span>
       <button class="status-btn" id="autosaveStatus" title="自动保存已开启：每 10 秒保存一次，点击关闭">自动保存</button>
       <span class="status-spacer"></span>
+      <button class="ai-pet-button" id="aiPetBtn" type="button" title="打开看板娘" aria-label="打开看板娘">
+        <svg class="ai-pet-svg" viewBox="0 0 64 64" aria-hidden="true">
+          <ellipse class="ai-pet-glow" cx="32" cy="53" rx="25" ry="5"></ellipse>
+          <path class="ai-dino-body" d="M17 47V29c0-10 7-17 17-17h6c7 0 12 5 12 12v23H17Z"></path>
+          <path class="ai-dino-snout" d="M39 18h10c4 0 7 3 7 7v6H39Z"></path>
+          <circle class="ai-dino-eye" cx="48" cy="23" r="2"></circle>
+          <path class="ai-dino-arm" d="M40 37h9l4 5"></path>
+          <path class="ai-dino-leg ai-dino-leg-back" d="M24 47v7M39 47v7"></path>
+          <path class="ai-dino-foot" d="M19 54h10M34 54h10"></path>
+          <path class="ai-dino-spine" d="M19 29l-6-4 6-3-5-5 8-1"></path>
+          <path class="ai-dino-tail" d="M18 39H9l4-5H7"></path>
+        </svg>
+      </button>
       <span id="runtimeStatus">浏览器模式</span>
     </footer>
   </main>
@@ -293,6 +328,14 @@
   </div>
 
   <input id="browserFileInput" type="file" hidden accept=".txt,.md,.json,.xml,.sql,.csv,.log,.yaml,.yml,.ini,.conf">
+  <div class="editor-context-menu" id="editorContextMenu" hidden role="menu">
+    <button type="button" data-context-action="copy" role="menuitem">复制</button>
+    <button type="button" data-context-action="cut" role="menuitem">剪切</button>
+    <button type="button" data-context-action="paste" role="menuitem">粘贴</button>
+    <button type="button" data-context-action="selectAll" role="menuitem">全选</button>
+    <div class="editor-context-divider"></div>
+    <button type="button" data-context-action="aiSearch" role="menuitem" id="aiSearchContextBtn">AI 搜索选中内容</button>
+  </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="js/logger.js"></script>
@@ -317,6 +360,7 @@
   <script src="libs/diff.min.js"></script>
   <script src="libs/sql-formatter.min.js"></script>
   <script src="js/editor-core.js"></script>
+  <script src="js/editor-ai-chat-core.js"></script>
   <script src="js/editor.js"></script>
 </body>
 </html>

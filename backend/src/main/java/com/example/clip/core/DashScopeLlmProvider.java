@@ -11,6 +11,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 阿里云 DashScope（百炼）大模型提供者实现。
@@ -83,6 +85,7 @@ public class DashScopeLlmProvider implements LlmProvider {
      */
     @Override
     public String chat(String systemPrompt, String userMessage) {
+        ensureConfigured();
         try {
             // 构建系统消息：设定 AI 的角色和行为规范
             Message systemMessage = Message.builder()
@@ -117,6 +120,48 @@ public class DashScopeLlmProvider implements LlmProvider {
         }
     }
 
+    @Override
+    public ChatStreamHandle streamChat(List<ChatMessage> messages, ChatStreamListener listener) {
+        try {
+            ensureConfigured();
+        } catch (RuntimeException error) {
+            listener.onError(error);
+            return new DisposableChatStreamHandle();
+        }
+        List<Message> dashScopeMessages = messages.stream().map(message -> Message.builder()
+                .role(message.role())
+                .content(message.content())
+                .build()).collect(Collectors.toList());
+        GenerationParam param = GenerationParam.builder()
+                .apiKey(getApiKey())
+                .model(getModel())
+                .messages(dashScopeMessages)
+                .resultFormat(GenerationParam.ResultFormat.MESSAGE)
+                .incrementalOutput(true)
+                .build();
+
+        DisposableChatStreamHandle handle = new DisposableChatStreamHandle();
+        try {
+            io.reactivex.disposables.Disposable disposable = generation.streamCall(param)
+                    .subscribe(result -> {
+                        if (handle.isCancelled() || result == null || result.getOutput() == null
+                                || result.getOutput().getChoices() == null
+                                || result.getOutput().getChoices().isEmpty()) {
+                            return;
+                        }
+                        String content = result.getOutput().getChoices().get(0).getMessage().getContent();
+                        if (content != null && !content.isEmpty()) {
+                            listener.onDelta(content);
+                        }
+                    }, listener::onError, listener::onComplete);
+            handle.setDisposable(disposable);
+            return handle;
+        } catch (Exception error) {
+            listener.onError(error);
+            return handle;
+        }
+    }
+
     /**
      * 获取提供者名称。
      *
@@ -138,7 +183,16 @@ public class DashScopeLlmProvider implements LlmProvider {
      */
     @Override
     public boolean isAvailable() {
-        return getApiKey() != null && !getApiKey().isEmpty();
+        String apiKey = getApiKey();
+        return apiKey != null && !apiKey.isBlank()
+                && !apiKey.startsWith("your-")
+                && !apiKey.startsWith("${");
+    }
+
+    private void ensureConfigured() {
+        if (!isAvailable()) {
+            throw new IllegalStateException("DashScope API Key 未配置，请在设置页面中配置");
+        }
     }
 
     /**

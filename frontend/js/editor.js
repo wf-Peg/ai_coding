@@ -2,6 +2,7 @@
   'use strict';
 
   const API_BASE_URL = 'http://127.0.0.1:8081/api/clip';
+  const AI_CHAT_API_URL = API_BASE_URL.replace(/\/api\/clip$/, '/api/ai/chat/stream');
   const MAX_TRANSFORM_LENGTH = 5 * 1024 * 1024;
   const LANGUAGE_EXTENSIONS = { json: 'json', xml: 'xml', sql: 'sql', text: 'txt' };
   const THEME_STORAGE_KEY = 'app_theme_v1';
@@ -33,7 +34,8 @@
       scrollTop: 0,
       scrollLeft: 0,
       cursorRow: 0,
-      cursorColumn: 0
+      cursorColumn: 0,
+      aiChat: window.EditorAiChatCore.createState()
     };
   }
 
@@ -41,6 +43,9 @@
   const tabs = [];
   let activeTabIndex = 0;
   let state = null;
+  let activeAiRequest = null;
+  let petIdleTimer = null;
+  const AI_CHAT_WIDTH_KEY = 'editor_ai_chat_width_v1';
 
   // 跨标签共享状态（对比、转换等）
   const sharedState = {
@@ -69,8 +74,39 @@
     'fullscreenBtn', 'fileTreePane', 'fileTreeTitle', 'fileTreeBody', 'closeFileTreeBtn', 'selectDirBtn',
     'autosaveStatus', 'historyCount', 'historyList', 'closeHistoryBtn',
     'undoHistoryBtn', 'redoHistoryBtn', 'clearHistoryBtn', 'mainPane', 'historyPane', 'recentPane',
-    'recentList', 'closeRecentBtn', 'clearRecentBtn'
+    'recentList', 'closeRecentBtn', 'clearRecentBtn', 'aiChatPane', 'aiChatMessages', 'aiChatInput',
+    'aiChatSendBtn', 'aiChatStopBtn', 'aiChatClearBtn', 'aiChatCloseBtn', 'aiChatStatus',
+    'aiChatResizeHandle', 'aiPetBtn', 'editorContextMenu', 'aiSearchContextBtn'
   ].map(id => [id, document.getElementById(id)]));
+
+  function applyMascotPreference() {
+    try {
+      const config = JSON.parse(localStorage.getItem('cut_shelter_mascot_v1') || '{}');
+      const action = config.action || 'run';
+      elements.aiPetBtn.dataset.action = action;
+      elements.aiPetBtn.style.setProperty('--mascot-color', config.color || 'var(--app-primary)');
+      const customIcon = config.iconType === 'upload' && config.iconDataUrl
+        ? `<img class="ai-pet-image" src="${config.iconDataUrl}" alt="看板娘">`
+        : null;
+      if (customIcon) elements.aiPetBtn.innerHTML = customIcon;
+      else if (config.iconSvg) elements.aiPetBtn.innerHTML = config.iconSvg.replace('<svg ', '<svg class="ai-pet-svg" ');
+      else elements.aiPetBtn.innerHTML = '<svg class="ai-pet-svg" viewBox="0 0 64 64" aria-hidden="true"><ellipse class="ai-pet-glow" cx="32" cy="53" rx="25" ry="5"></ellipse><path class="ai-dino-body" d="M17 47V29c0-10 7-17 17-17h6c7 0 12 5 12 12v23H17Z"></path><path class="ai-dino-snout" d="M39 18h10c4 0 7 3 7 7v6H39Z"></path><circle class="ai-dino-eye" cx="48" cy="23" r="2"></circle><path class="ai-dino-arm" d="M40 37h9l4 5"></path><path class="ai-dino-leg ai-dino-leg-back" d="M24 47v7M39 47v7"></path><path class="ai-dino-foot" d="M19 54h10M34 54h10"></path><path class="ai-dino-spine" d="M19 29l-6-4 6-3-5-5 8-1"></path><path class="ai-dino-tail" d="M18 39H9l4-5H7"></path></svg>';
+      elements.aiPetBtn.title = `打开看板娘 · ${({ run: '奔跑', wave: '挥手', jump: '跳跃', think: '思考', sleep: '打盹', celebrate: '庆祝' })[action] || '奔跑'}`;
+    } catch (_) {
+      elements.aiPetBtn.dataset.action = 'run';
+    }
+  }
+  applyMascotPreference();
+  window.addEventListener('storage', (event) => {
+    if (event.key === 'cut_shelter_mascot_v1') applyMascotPreference();
+  });
+  window.addEventListener('message', (event) => {
+    if (event.data?.type === 'mascotChanged') applyMascotPreference();
+  });
+  try {
+    const mascotChannel = new BroadcastChannel('cut-shelter-mascot');
+    mascotChannel.addEventListener('message', applyMascotPreference);
+  } catch (_) {}
 
   /**
    * 获取 Electron API（兼容 iframe 模式）。
@@ -261,14 +297,23 @@
     state.lineEnding = elements.lineEndingSelect.value;
   }
 
+  function ensureAiChatState(tab) {
+    if (!tab.aiChat || !window.EditorAiChatCore) {
+      tab.aiChat = window.EditorAiChatCore.createState();
+    }
+    return tab.aiChat;
+  }
+
   /**
    * 切换到指定索引的标签
    */
   function switchToTab(index) {
     if (index === activeTabIndex || index < 0 || index >= tabs.length) return;
+    if (activeAiRequest) cancelAiRequest();
     saveActiveTabSnapshot();
     activeTabIndex = index;
     state = tabs[activeTabIndex];
+    ensureAiChatState(state);
 
     // 恢复标签内容
     state.suppressChange = true;
@@ -288,6 +333,7 @@
     updateCursorStatus();
     updateStatusBar();
     renderTabBar();
+    renderAiChat();
 
     // 切换标签时退出对比和 Markdown 预览模式
     if (!elements.comparePane.hidden) {
@@ -309,8 +355,10 @@
     tabs.push(newTab);
     activeTabIndex = tabs.length - 1;
     state = tabs[activeTabIndex];
+    ensureAiChatState(state);
     setEditorContent('', { fileName: '未命名.txt', encoding: 'UTF-8', lineEnding: 'LF' });
     renderTabBar();
+    renderAiChat();
     mainEditor.focus();
   }
 
@@ -321,6 +369,7 @@
     if (tabs.length <= 1) return;
 
     const tab = tabs[index];
+    if (activeAiRequest && activeAiRequest.tab === tab) cancelAiRequest();
     if (tab.modified) {
       // 先切换到该标签以便用户看到内容
       if (index !== activeTabIndex) {
@@ -339,6 +388,7 @@
     }
 
     state = tabs[activeTabIndex];
+    ensureAiChatState(state);
 
     // 恢复新的活跃标签
     state.suppressChange = true;
@@ -349,6 +399,7 @@
     setLanguage(state.language);
     updateDocumentIdentity();
     renderTabBar();
+    renderAiChat();
     mainEditor.focus();
   }
 
@@ -775,6 +826,7 @@
 
   function toggleMarkdownPreview(forceOpen) {
     const shouldOpen = forceOpen !== undefined ? forceOpen : elements.markdownPane.hidden;
+    if (shouldOpen && !elements.aiChatPane.hidden) setAiChatPanelOpen(false);
     elements.markdownPane.hidden = !shouldOpen;
     elements.editorWorkspace.classList.toggle('markdown-preview', shouldOpen);
 
@@ -814,6 +866,7 @@
 
   async function toggleCompare(forceOpen) {
     const shouldOpen = forceOpen !== undefined ? forceOpen : elements.comparePane.hidden;
+    if (shouldOpen && !elements.aiChatPane.hidden) setAiChatPanelOpen(false);
     elements.comparePane.hidden = !shouldOpen;
     elements.compareToolbar.classList.toggle('is-open', shouldOpen);
     elements.compareToolbar.setAttribute('aria-hidden', String(!shouldOpen));
@@ -838,6 +891,309 @@
       compareEditor.resize();
       if (shouldOpen) updateDiff();
     }, 0);
+  }
+
+  function getAiChatWidth() {
+    const stored = Number(localStorage.getItem(AI_CHAT_WIDTH_KEY));
+    return Number.isFinite(stored) ? Math.max(280, Math.min(560, stored)) : 360;
+  }
+
+  function setAiChatWidth(width, persist) {
+    const normalized = Math.max(280, Math.min(560, Math.round(width)));
+    elements.editorWorkspace.style.setProperty('--ai-chat-width', `${normalized}px`);
+    if (persist) localStorage.setItem(AI_CHAT_WIDTH_KEY, String(normalized));
+    setTimeout(() => mainEditor.resize(), 0);
+  }
+
+  function setPetState(nextState) {
+    if (!elements.aiPetBtn) return;
+    elements.aiPetBtn.classList.remove('thinking', 'happy', 'error', 'sleeping');
+    if (nextState !== 'idle') elements.aiPetBtn.classList.add(nextState);
+    elements.aiPetBtn.title = nextState === 'thinking' ? '看板娘正在奔跑回答' : nextState === 'sleeping' ? '看板娘正在打盹，点击唤醒' : '打开看板娘';
+    clearTimeout(petIdleTimer);
+    if (nextState === 'idle') {
+      petIdleTimer = setTimeout(() => setPetState('sleeping'), 2 * 60 * 1000);
+    }
+  }
+  setPetState('idle');
+
+  function setAiChatPanelOpen(open) {
+    if (open) {
+      if (!elements.comparePane.hidden) toggleCompare(false);
+      if (!elements.markdownPane.hidden) toggleMarkdownPreview(false);
+      setAiChatWidth(getAiChatWidth(), false);
+    }
+    elements.aiChatPane.hidden = !open;
+    elements.editorWorkspace.classList.toggle('show-ai-chat', open);
+    if (open) {
+      renderAiChat();
+      setTimeout(() => {
+        mainEditor.resize();
+        elements.aiChatInput.focus();
+      }, 50);
+    } else {
+      setTimeout(() => mainEditor.resize(), 50);
+    }
+  }
+
+  function toggleAiChatPanel() {
+    setAiChatPanelOpen(elements.aiChatPane.hidden);
+  }
+
+  function escapeAiHtml(value) {
+    const node = document.createElement('div');
+    node.textContent = value || '';
+    return node.innerHTML;
+  }
+
+  function sanitizeAiHtml(html) {
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    template.content.querySelectorAll('script,style,iframe,object,embed,form').forEach(node => node.remove());
+    template.content.querySelectorAll('*').forEach(node => {
+      Array.from(node.attributes).forEach(attribute => {
+        const name = attribute.name.toLowerCase();
+        const value = attribute.value.trim().toLowerCase();
+        if (name.startsWith('on') || ((name === 'href' || name === 'src') && value.startsWith('javascript:'))) {
+          node.removeAttribute(attribute.name);
+        }
+      });
+    });
+    return template.innerHTML;
+  }
+
+  function renderAiAssistantContent(message) {
+    if (!message.content) return '<span class="ai-chat-stream-cursor">▍</span>';
+    if (!window.marked || typeof window.marked.parse !== 'function') {
+      return escapeAiHtml(message.content);
+    }
+    return sanitizeAiHtml(window.marked.parse(message.content));
+  }
+
+  function renderAiChat() {
+    if (!elements.aiChatMessages || !window.EditorAiChatCore) return;
+    if (!state) {
+      elements.aiChatMessages.innerHTML = '<div class="ai-chat-empty">打开一个编辑标签后开始对话。</div>';
+      return;
+    }
+    const chat = ensureAiChatState(state);
+    if (!chat.messages.length) {
+      elements.aiChatMessages.innerHTML = '<div class="ai-chat-empty">你好，我可以解释术语、分析文本或协助处理当前编辑内容。</div>';
+    } else {
+      elements.aiChatMessages.innerHTML = chat.messages.map(message => {
+        const content = message.role === 'assistant'
+          ? renderAiAssistantContent(message)
+          : escapeAiHtml(message.content);
+        const copy = message.role === 'assistant' && message.content && !message.streaming
+          ? `<button class="ai-chat-copy" data-copy-message-id="${escapeAiHtml(message.id)}">复制</button>` : '';
+        const error = message.error ? `<div class="ai-chat-message-error">${escapeAiHtml(message.error)}</div>` : '';
+        return `<div class="ai-chat-message ${message.role}">
+          <div class="ai-chat-bubble">${content}</div>${error}${copy}
+        </div>`;
+      }).join('');
+      elements.aiChatMessages.querySelectorAll('[data-copy-message-id]').forEach(button => {
+        button.addEventListener('click', async () => {
+          try {
+            const message = chat.messages.find(item => item.id === button.dataset.copyMessageId);
+            await navigator.clipboard.writeText(message ? message.content : '');
+            showToast('AI 回答已复制');
+          } catch (error) {
+            showToast('复制 AI 回答失败', true);
+          }
+        });
+      });
+    }
+    const status = chat.status === 'streaming' ? '思考中…' : chat.status === 'error' ? '发生错误' : '就绪';
+    elements.aiChatStatus.textContent = status;
+    elements.aiChatStatus.className = `ai-chat-status ${chat.status}`;
+    const busy = Boolean(chat.activeRequestId);
+    elements.aiChatSendBtn.hidden = busy;
+    elements.aiChatStopBtn.hidden = !busy;
+    elements.aiChatInput.disabled = busy;
+    elements.aiChatMessages.scrollTop = elements.aiChatMessages.scrollHeight;
+  }
+
+  function updateAiChatState(tab, action) {
+    tab.aiChat = window.EditorAiChatCore.reduce(ensureAiChatState(tab), action);
+    if (tab === state) renderAiChat();
+  }
+
+  function finishAiRequest(request, action, petState) {
+    updateAiChatState(request.tab, action);
+    if (activeAiRequest === request) activeAiRequest = null;
+    if (request.tab === state) {
+      setPetState(petState);
+      if (petState === 'happy') setTimeout(() => {
+        if (!activeAiRequest) setPetState('idle');
+      }, 1800);
+    }
+  }
+
+  function cancelAiRequest() {
+    const request = activeAiRequest;
+    if (!request) return;
+    request.controller.abort();
+    finishAiRequest(request, { type: 'cancel', assistantId: request.assistantId }, 'idle');
+  }
+
+  async function sendAiMessage(rawMessage) {
+    const message = String(rawMessage || '').trim();
+    if (!message || !state || activeAiRequest) return;
+    setAiChatPanelOpen(true);
+
+    const request = {
+      tab: state,
+      requestId: `editor-ai-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      userId: `user-${Date.now()}`,
+      assistantId: `assistant-${Date.now()}`,
+      controller: new AbortController(),
+      completed: false,
+      serverError: null
+    };
+    updateAiChatState(request.tab, {
+      type: 'start',
+      requestId: request.requestId,
+      userId: request.userId,
+      assistantId: request.assistantId,
+      content: message
+    });
+    activeAiRequest = request;
+    elements.aiChatInput.value = '';
+    setPetState('thinking');
+
+    try {
+      const response = await fetch(AI_CHAT_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+        body: JSON.stringify({
+          requestId: request.requestId,
+          messages: window.EditorAiChatCore.toApiMessages(request.tab.aiChat)
+        }),
+        signal: request.controller.signal
+      });
+      if (!response.ok) throw new Error(`AI 服务返回 HTTP ${response.status}`);
+      if (!response.body) throw new Error('AI 服务未返回流式响应');
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      const parser = new window.EditorAiChatCore.SseParser(event => {
+        if (event.event === 'delta' && event.data && event.data.content) {
+          updateAiChatState(request.tab, {
+            type: 'delta', assistantId: request.assistantId, content: event.data.content
+          });
+        } else if (event.event === 'done' || event.raw === '[DONE]') {
+          request.completed = true;
+          finishAiRequest(request, { type: 'done', assistantId: request.assistantId }, 'happy');
+        } else if (event.event === 'error') {
+          request.serverError = event.data && event.data.message ? event.data.message : 'AI 服务调用失败';
+        }
+      });
+
+      while (true) {
+        const result = await reader.read();
+        if (result.done) break;
+        parser.push(decoder.decode(result.value, { stream: true }));
+      }
+      parser.push(decoder.decode());
+      parser.finish();
+      if (request.serverError) throw new Error(request.serverError);
+      if (!request.completed) throw new Error('AI 流式响应未正常结束');
+    } catch (error) {
+      if (request.controller.signal.aborted) return;
+      finishAiRequest(request, {
+        type: 'error', assistantId: request.assistantId,
+        message: error.message || 'AI 服务调用失败'
+      }, 'error');
+    } finally {
+      if (request.tab === state && !activeAiRequest) {
+        renderAiChat();
+      }
+    }
+  }
+
+  function openEditorContextMenu(event) {
+    event.preventDefault();
+    const selectedText = mainEditor.getSelectedText();
+    elements.aiSearchContextBtn.hidden = !selectedText.trim();
+    elements.editorContextMenu.querySelector('.editor-context-divider').hidden = !selectedText.trim();
+    elements.editorContextMenu.hidden = false;
+    const menu = elements.editorContextMenu;
+    const left = Math.min(event.clientX, window.innerWidth - menu.offsetWidth - 8);
+    const top = Math.min(event.clientY, window.innerHeight - menu.offsetHeight - 8);
+    menu.style.left = `${Math.max(8, left)}px`;
+    menu.style.top = `${Math.max(8, top)}px`;
+    menu.dataset.selectedText = selectedText;
+  }
+
+  function closeEditorContextMenu() {
+    elements.editorContextMenu.hidden = true;
+    delete elements.editorContextMenu.dataset.selectedText;
+  }
+
+  function executeEditorContextAction(action) {
+    const selectedText = elements.editorContextMenu.dataset.selectedText || '';
+    closeEditorContextMenu();
+    if (action === 'aiSearch') {
+      const prompt = window.EditorAiChatCore.buildSearchPrompt(selectedText);
+      if (prompt) sendAiMessage(prompt);
+      return;
+    }
+    mainEditor.focus();
+    const command = action === 'selectAll' ? 'selectall' : action;
+    try {
+      mainEditor.execCommand(command);
+    } catch (error) {
+      showToast(`${action} 操作失败`, true);
+    }
+  }
+
+  function initializeAiChat() {
+    setAiChatWidth(getAiChatWidth(), false);
+    elements.aiPetBtn.addEventListener('click', toggleAiChatPanel);
+    elements.aiChatCloseBtn.addEventListener('click', () => setAiChatPanelOpen(false));
+    elements.aiChatClearBtn.addEventListener('click', () => {
+      cancelAiRequest();
+      if (state) updateAiChatState(state, { type: 'clear' });
+    });
+    elements.aiChatSendBtn.addEventListener('click', () => sendAiMessage(elements.aiChatInput.value));
+    elements.aiChatStopBtn.addEventListener('click', cancelAiRequest);
+    elements.aiChatInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendAiMessage(elements.aiChatInput.value);
+      }
+    });
+    mainEditor.container.addEventListener('contextmenu', openEditorContextMenu);
+    elements.editorContextMenu.querySelectorAll('[data-context-action]').forEach(button => {
+      button.addEventListener('click', () => executeEditorContextAction(button.dataset.contextAction));
+    });
+    elements.aiSearchContextBtn.hidden = true;
+    document.addEventListener('click', event => {
+      if (!elements.editorContextMenu.contains(event.target)) closeEditorContextMenu();
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') closeEditorContextMenu();
+    });
+    window.addEventListener('blur', closeEditorContextMenu);
+
+    let dragStartX = 0;
+    let dragStartWidth = 360;
+    elements.aiChatResizeHandle.addEventListener('pointerdown', event => {
+      event.preventDefault();
+      dragStartX = event.clientX;
+      dragStartWidth = getAiChatWidth();
+      elements.aiChatResizeHandle.classList.add('dragging');
+      const move = moveEvent => setAiChatWidth(dragStartWidth + dragStartX - moveEvent.clientX, false);
+      const stop = () => {
+        setAiChatWidth(parseInt(getComputedStyle(elements.editorWorkspace).getPropertyValue('--ai-chat-width'), 10), true);
+        elements.aiChatResizeHandle.classList.remove('dragging');
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', stop);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', stop, { once: true });
+    });
+    renderAiChat();
   }
 
   async function loadCompareFromClipboard() {
@@ -1542,6 +1898,7 @@
         const t = { ...tab };
         delete t.suppressChange;
         delete t.browserBytes;
+        delete t.aiChat;
         return t;
       })
     };
@@ -1560,6 +1917,7 @@
     cache.tabs.forEach(t => tabs.push(t));
     activeTabIndex = Math.min(cache.activeTabIndex || 0, tabs.length - 1);
     state = tabs[activeTabIndex];
+    ensureAiChatState(state);
 
     // 恢复编辑器内容
     state.suppressChange = true;
@@ -1573,6 +1931,7 @@
     updateCursorStatus();
     updateStatusBar();
     renderTabBar();
+    renderAiChat();
     mainEditor.focus();
 
     // 清除缓存，避免每次启动都恢复
@@ -1626,13 +1985,16 @@
       // 无缓存时创建默认空白标签
       tabs.push(createTabState());
       state = tabs[0];
+      ensureAiChatState(state);
       resetDocument();
       renderTabBar();
+      renderAiChat();
     }
   })();
 
   updateCursorStatus();
   updateStatusBar();
+  initializeAiChat();
 
   // 阻止 Ctrl+R / Cmd+R 刷新页面（浏览器默认行为与编辑模块冲突）
   document.addEventListener('keydown', function(e) {

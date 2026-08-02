@@ -8,6 +8,7 @@ import com.example.clip.model.LearningPlan;
 import com.example.clip.model.Topic;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -271,6 +272,8 @@ public class FileStorageService {
                     .filter(path -> !path.toString().contains("topic"))     // 过滤话题目录
                     .filter(path -> !path.toString().contains("vault"))     // 过滤密码库目录
                     .filter(path -> !path.toString().contains("learning-plan")) // 过滤学习计划目录
+                    .filter(path -> !path.getFileName().toString().equals("model-config.json")) // 过滤模型配置
+                    .filter(path -> !path.getFileName().toString().equals("app-config.json")) // 过滤应用配置
                     .forEach(files::add);
         }
         return files;
@@ -295,9 +298,25 @@ public class FileStorageService {
             if (content == null || content.trim().isEmpty()) {
                 return new ArrayList<>();
             }
-            return objectMapper.readValue(content, new TypeReference<List<ClipContent>>() {});
+            JsonNode root = objectMapper.readTree(content);
+            if (root.isArray()) {
+                return objectMapper.convertValue(root, new TypeReference<List<ClipContent>>() {});
+            }
+            if (root.isObject()) {
+                JsonNode clipsNode = root.get("clips");
+                if (clipsNode != null && clipsNode.isArray()) {
+                    return objectMapper.convertValue(clipsNode, new TypeReference<List<ClipContent>>() {});
+                }
+                if (!root.has("id") && !root.has("content") && !root.has("title")) {
+                    log.warn("[FileStorageService] Skipping non-clip JSON file: {}", path);
+                    return new ArrayList<>();
+                }
+                return List.of(objectMapper.treeToValue(root, ClipContent.class));
+            }
+            log.warn("[FileStorageService] Ignoring unsupported clip data format: {}", path);
+            return new ArrayList<>();
         } catch (IOException e) {
-            e.printStackTrace();
+            log.warn("[FileStorageService] Unable to read clip data, skipping file {}: {}", path, e.getMessage());
             return new ArrayList<>();
         }
     }

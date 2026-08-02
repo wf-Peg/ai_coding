@@ -7,7 +7,14 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.*;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.net.URI;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * DeepSeek 大模型提供者实现。
@@ -62,6 +69,8 @@ public class DeepSeekLlmProvider implements LlmProvider {
 
     /** HTTP 客户端，用于发送 REST API 请求 */
     private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
+    private final ExecutorService streamExecutor = Executors.newCachedThreadPool();
 
     /**
      * 构造器注入 ModelConfigService，并手动创建 RestTemplate。
@@ -72,6 +81,7 @@ public class DeepSeekLlmProvider implements LlmProvider {
         this.modelConfigService = modelConfigService;
         // 手动创建 RestTemplate 实例，避免与 Spring Boot 自动配置冲突
         this.restTemplate = new RestTemplate();
+        this.objectMapper = new ObjectMapper();
     }
 
     /**
@@ -100,7 +110,7 @@ public class DeepSeekLlmProvider implements LlmProvider {
         String model = config.getDeepseekModel();
 
         // 校验 API Key 是否已配置
-        if (apiKey == null || apiKey.isEmpty()) {
+        if (apiKey == null || apiKey.isBlank() || apiKey.startsWith("your-") || apiKey.startsWith("${")) {
             throw new RuntimeException("DeepSeek API Key 未配置，请在设置页面中配置");
         }
 
@@ -164,6 +174,58 @@ public class DeepSeekLlmProvider implements LlmProvider {
         }
     }
 
+    @Override
+    public ChatStreamHandle streamChat(List<ChatMessage> messages, ChatStreamListener listener) {
+        ModelConfig config = modelConfigService.getConfig();
+        if (config == null || config.getDeepseekApiKey() == null || config.getDeepseekApiKey().isBlank()) {
+            listener.onError(new IllegalStateException("DeepSeek API Key 未配置，请在设置页面中配置"));
+            return new ChatStreamHandle() {
+                @Override public void cancel() { }
+                @Override public boolean isCancelled() { return false; }
+            };
+        }
+
+        String model = config.getDeepseekModel() == null || config.getDeepseekModel().isBlank()
+                ? "deepseek-chat" : config.getDeepseekModel();
+        Map<String, Object> requestBody = new LinkedHashMap<>();
+        requestBody.put("model", model);
+        requestBody.put("stream", true);
+        requestBody.put("messages", messages.stream()
+                .map(message -> Map.of("role", message.role(), "content", message.content()))
+                .toList());
+
+        java.util.concurrent.Future<?> future = streamExecutor.submit(() -> {
+            try {
+                restTemplate.execute(
+                        URI.create(BASE_URL + CHAT_ENDPOINT),
+                        HttpMethod.POST,
+                        request -> {
+                            request.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+                            request.getHeaders().setBearerAuth(config.getDeepseekApiKey());
+                            objectMapper.writeValue(request.getBody(), requestBody);
+                        },
+                        response -> {
+                            if (!response.getStatusCode().is2xxSuccessful()) {
+                                throw new RuntimeException("DeepSeek 流式请求失败: HTTP " + response.getStatusCode().value());
+                            }
+                            OpenAiSseParser parser = new OpenAiSseParser(objectMapper, listener::onDelta, listener::onComplete);
+                            try (BufferedReader reader = new BufferedReader(
+                                    new InputStreamReader(response.getBody(), StandardCharsets.UTF_8))) {
+                                String line;
+                                while ((line = reader.readLine()) != null) {
+                                    parser.accept(line + "\n");
+                                }
+                            }
+                            parser.finish();
+                            return null;
+                        });
+            } catch (Exception error) {
+                listener.onError(error);
+            }
+        });
+        return new FutureChatStreamHandle(future);
+    }
+
     /**
      * 获取提供者名称。
      *
@@ -190,6 +252,9 @@ public class DeepSeekLlmProvider implements LlmProvider {
         if (config == null) {
             return false;
         }
-        return config.getDeepseekApiKey() != null && !config.getDeepseekApiKey().isEmpty();
+        String apiKey = config.getDeepseekApiKey();
+        return apiKey != null && !apiKey.isBlank()
+                && !apiKey.startsWith("your-")
+                && !apiKey.startsWith("${");
     }
 }
