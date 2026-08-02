@@ -64,5 +64,9 @@
     finally { button.disabled = false; button.textContent = '重建内容索引'; }
   });
   window.addEventListener('message', event => { if (event.data?.action === 'themeChange' && event.data.theme) document.documentElement.dataset.theme = event.data.theme; });
+  try {
+    const parentTheme = window.parent?.document?.documentElement?.getAttribute('data-theme');
+    if (parentTheme) document.documentElement.dataset.theme = parentTheme;
+  } catch (_) {}
   load();
 })();

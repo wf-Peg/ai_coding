@@ -17,6 +17,8 @@ import com.example.clip.service.PromptConfigService;
 import com.example.clip.service.SearchService;
 import com.example.clip.service.TodoService;
 import com.example.clip.service.WeeklyReportService;
+import com.example.clip.service.UserActionEventRecorder;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -71,6 +73,8 @@ public class ClipController {
     private final PromptConfigService promptConfigService;
     /** 待办事项服务，用于剪藏转待办功能 */
     private final TodoService todoService;
+    @Autowired(required = false)
+    private UserActionEventRecorder actionEventRecorder;
 
     /**
      * 构造函数，通过依赖注入初始化所有服务组件
@@ -115,6 +119,9 @@ public class ClipController {
         log.info("[API] /add called, type={}, useAiTags={}", request.getType(), request.getUseAiTags());
         // 保存剪藏内容，service 层会根据 useAiTags 决定是否调用 AI 生成标签
         ClipContent clip = clipService.saveClip(request);
+        recordAction("content_created", "clip:" + clip.getId(), Map.of(
+                "category", clip.getCategory() == null ? "" : clip.getCategory(),
+                "tag", clip.getTags() == null || clip.getTags().isEmpty() ? "" : clip.getTags().get(0)));
         String savedType = clip.getType();
 
         // "store-only" 类型仅存储，不处理标签逻辑
@@ -149,6 +156,7 @@ public class ClipController {
     @PostMapping("/system")
     public ResponseEntity<?> systemClip(@RequestBody ClipRequest request) {
         ClipContent clip = clipService.saveClip(request);
+        recordAction("content_created", "clip:" + clip.getId(), Map.of("source", "system"));
         return ResponseEntity.ok(new ClipResponse(clip.getId(), "success"));
     }
 
@@ -282,6 +290,7 @@ public class ClipController {
         if (updated == null) {
             return ResponseEntity.notFound().build();
         }
+        recordAction("content_edited", "clip:" + updated.getId(), Map.of("source", "editor"));
         return ResponseEntity.ok(new ClipResponse(updated.getId(), "success"));
     }
 
@@ -296,6 +305,7 @@ public class ClipController {
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteClip(@PathVariable(name = "id") Long id) {
         clipService.deleteClip(id);
+        recordAction("content_deleted", "clip:" + id, Map.of());
         return ResponseEntity.ok(new ClipResponse(null, "success"));
     }
 
@@ -320,6 +330,7 @@ public class ClipController {
         String thoughts = body.getOrDefault("myThoughts", "");
         clip.setMyThoughts(thoughts.isEmpty() ? null : thoughts);
         clipService.saveClip(clip);
+        recordAction("content_edited", "clip:" + id, Map.of("field", "myThoughts"));
         return ResponseEntity.ok(Map.of("status", "success", "myThoughts", clip.getMyThoughts() != null ? clip.getMyThoughts() : ""));
     }
 
@@ -678,5 +689,11 @@ public class ClipController {
             }
         }
         return null;
+    }
+
+    private void recordAction(String type, String contentId, Map<String, String> metadata) {
+        if (actionEventRecorder != null) {
+            actionEventRecorder.record(type, contentId, metadata);
+        }
     }
 }

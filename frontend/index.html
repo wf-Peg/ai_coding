@@ -495,8 +495,8 @@
       }
 
       function broadcastThemeChange() {
-        [editorFrame, todoFrame, clipFrame, topicFrame, vaultFrame, settingsFrame, learningPlanFrame, pdfFrame].forEach(frame => {
-          try { if (frame && frame.contentWindow) frame.contentWindow.postMessage({ action: 'themeChange' }, '*'); } catch(e) {}
+        [editorFrame, todoFrame, clipFrame, topicFrame, vaultFrame, settingsFrame, learningPlanFrame, pdfFrame, dataObservabilityFrame].forEach(frame => {
+          try { if (frame && frame.contentWindow) frame.contentWindow.postMessage({ action: 'themeChange', theme: document.documentElement.getAttribute('data-theme') }, '*'); } catch(e) {}
         });
       }
 
