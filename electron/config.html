@@ -239,6 +239,7 @@
         <select id="activeProvider" style="width:100%;padding:10px 14px;border:1px solid #d9dce1;border-radius:8px;font-size:14px;outline:none;background:white;cursor:pointer;">
           <option value="dashscope">阿里云 DashScope</option>
           <option value="deepseek">DeepSeek</option>
+          <option value="custom">自定义 OpenAI 兼容（中转站）</option>
         </select>
       </div>
 
@@ -269,6 +270,29 @@
         <div class="form-group">
           <label>DeepSeek 模型</label>
           <input type="text" id="deepseekModel" placeholder="deepseek-chat" style="width:100%;padding:10px 14px;border:1px solid #d9dce1;border-radius:8px;font-size:14px;outline:none;background:white;" />
+        </div>
+      </div>
+
+      <!-- Custom 配置字段（默认隐藏，当选择自定义 OpenAI 兼容时显示） -->
+      <div id="customFields" style="display:none;">
+        <div class="form-group">
+          <label>展示名称 <span class="hint">（可选）</span></label>
+          <input type="text" id="customProviderName" placeholder="我的中转站" style="width:100%;padding:10px 14px;border:1px solid #d9dce1;border-radius:8px;font-size:14px;outline:none;background:white;" />
+        </div>
+        <div class="form-group">
+          <label>API 地址 <span class="hint">（必填）</span></label>
+          <input type="text" id="customBaseUrl" placeholder="https://api.example.com/v1" style="width:100%;padding:10px 14px;border:1px solid #d9dce1;border-radius:8px;font-size:14px;outline:none;background:white;" />
+        </div>
+        <div class="form-group">
+          <label>API Key <span class="hint">（必填）</span></label>
+          <div class="api-key-wrapper">
+            <input type="password" id="customApiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" />
+            <button class="toggle-visibility" id="toggleCustomApiKey" type="button">👁</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>模型名称 <span class="hint">（必填）</span></label>
+          <input type="text" id="customModel" placeholder="gpt-4o-mini" style="width:100%;padding:10px 14px;border:1px solid #d9dce1;border-radius:8px;font-size:14px;outline:none;background:white;" />
         </div>
       </div>
     </div>
@@ -503,6 +527,10 @@
         document.getElementById('dashscopeModel').value = config.dashscopeModel || 'qwen-plus';
         document.getElementById('deepseekApiKey').value = config.deepseekApiKey || '';
         document.getElementById('deepseekModel').value = config.deepseekModel || 'deepseek-chat';
+        document.getElementById('customProviderName').value = config.customProviderName || '';
+        document.getElementById('customBaseUrl').value = config.customBaseUrl || '';
+        document.getElementById('customApiKey').value = config.customApiKey || '';
+        document.getElementById('customModel').value = config.customModel || '';
         document.getElementById('backendPort').value = config.backendPort || 8081;
         document.getElementById('frontendPort').value = config.frontendPort || 3001;
         document.getElementById('storagePath').value = config.storagePath || '';
@@ -574,6 +602,19 @@
         }
       });
 
+      // ===== Custom API Key 密码可见性切换 =====
+      document.getElementById('toggleCustomApiKey').addEventListener('click', function() {
+        var input = document.getElementById('customApiKey');
+        var btn = document.getElementById('toggleCustomApiKey');
+        if (input.type === 'password') {
+          input.type = 'text';
+          btn.textContent = '🙈';
+        } else {
+          input.type = 'password';
+          btn.textContent = '👁';
+        }
+      });
+
       // ===== AI 提供商切换 =====
       /**
        * 根据当前选中的 AI 提供商，切换显示对应的配置字段组
@@ -582,13 +623,9 @@
        */
       function updateProviderFields() {
         var provider = document.getElementById('activeProvider').value;
-        if (provider === 'deepseek') {
-          document.getElementById('dashscopeFields').style.display = 'none';
-          document.getElementById('deepseekFields').style.display = 'block';
-        } else {
-          document.getElementById('dashscopeFields').style.display = 'block';
-          document.getElementById('deepseekFields').style.display = 'none';
-        }
+        document.getElementById('dashscopeFields').style.display = provider === 'dashscope' ? 'block' : 'none';
+        document.getElementById('deepseekFields').style.display = provider === 'deepseek' ? 'block' : 'none';
+        document.getElementById('customFields').style.display = provider === 'custom' ? 'block' : 'none';
       }
       document.getElementById('activeProvider').addEventListener('change', updateProviderFields);
 
@@ -648,6 +685,13 @@
         // 表单验证：根据当前选择的 AI 提供商，检查对应的 API Key 是否填写
         if (activeProvider === 'deepseek') {
           if (!deepseekApiKey) { showStatus('请填写 DeepSeek API Key', 'error'); return; }
+        } else if (activeProvider === 'custom') {
+          var customBaseUrl = document.getElementById('customBaseUrl').value.trim();
+          var customApiKey = document.getElementById('customApiKey').value.trim();
+          var customModel = document.getElementById('customModel').value.trim();
+          if (!customBaseUrl) { showStatus('请填写 API 地址', 'error'); return; }
+          if (!customApiKey) { showStatus('请填写 API Key', 'error'); return; }
+          if (!customModel) { showStatus('请填写模型名称', 'error'); return; }
         } else {
           if (!apiKey) { showStatus('请填写 DashScope API Key', 'error'); return; }
         }
@@ -661,6 +705,10 @@
           dashscopeModel: document.getElementById('dashscopeModel').value,
           deepseekApiKey: deepseekApiKey,
           deepseekModel: document.getElementById('deepseekModel').value,
+          customProviderName: document.getElementById('customProviderName').value.trim(),
+          customBaseUrl: document.getElementById('customBaseUrl').value.trim(),
+          customApiKey: document.getElementById('customApiKey').value.trim(),
+          customModel: document.getElementById('customModel').value.trim(),
           backendPort: backendPort,
           frontendPort: frontendPort,
           storagePath: storagePath,

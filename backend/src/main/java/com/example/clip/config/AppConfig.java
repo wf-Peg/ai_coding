@@ -23,7 +23,13 @@ public class AppConfig {
     private String dashscopeApiKey = "";
     private String dashscopeModel = "qwen-plus";
     private String deepseekApiKey = "";
-    private String deepseekModel = "deepseek-chat";
+    private String deepseekModel = "deepseek-v4-flash";
+
+    // ===== 自定义 OpenAI 兼容 Provider =====
+    private String customProviderName = "";
+    private String customBaseUrl = "";
+    private String customApiKey = "";
+    private String customModel = "";
 
     // ===== 邮件配置 =====
     private boolean mailEnabled = false;
@@ -88,6 +94,40 @@ public class AppConfig {
 
     public void setDeepseekModel(String deepseekModel) {
         this.deepseekModel = deepseekModel;
+    }
+
+    // ===== 自定义 OpenAI 兼容 Provider =====
+
+    public String getCustomProviderName() {
+        return customProviderName;
+    }
+
+    public void setCustomProviderName(String customProviderName) {
+        this.customProviderName = customProviderName;
+    }
+
+    public String getCustomBaseUrl() {
+        return customBaseUrl;
+    }
+
+    public void setCustomBaseUrl(String customBaseUrl) {
+        this.customBaseUrl = customBaseUrl;
+    }
+
+    public String getCustomApiKey() {
+        return customApiKey;
+    }
+
+    public void setCustomApiKey(String customApiKey) {
+        this.customApiKey = customApiKey;
+    }
+
+    public String getCustomModel() {
+        return customModel;
+    }
+
+    public void setCustomModel(String customModel) {
+        this.customModel = customModel;
     }
 
     // ===== 邮件 =====

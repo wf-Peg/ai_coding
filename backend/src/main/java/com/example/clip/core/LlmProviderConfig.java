@@ -26,6 +26,13 @@ import org.springframework.context.annotation.Primary;
  * 也通过 {@code @Component} 注册为 Bean，但它们不标记 {@code @Primary}，
  * 因此不会被自动注入到需要 {@link LlmProvider} 的地方。
  * </p>
+ *
+ * <p>
+ * 额外注册了一个 {@link OpenAiCompatibleLlmProvider} Bean（dashscopeCompatibleProvider），
+ * 用于 DashScope OpenAI 兼容模式调用（{@code https://dashscope.aliyuncs.com/compatible-mode/v1}），
+ * 当前作为备用方案预留，为后续从原生 SDK 迁移到兼容模式做准备。
+ * 保留 DashScopeLlmProvider 的原生 SDK 调用作为兜底。
+ * </p>
  */
 @Configuration
 public class LlmProviderConfig {
@@ -35,19 +42,52 @@ public class LlmProviderConfig {
      * <p>
      * 使用 {@code @Primary} 标记为主 Bean，当有多个同类型候选时优先注入。
      * 返回 {@link RoutingLlmProvider} 实例，它封装了路由逻辑，
-     * 可以根据配置动态选择 DashScope 或 DeepSeek。
+     * 可以根据配置动态选择 DashScope、DeepSeek 或 Custom 提供者。
      * </p>
      *
      * @param modelConfigService 模型配置服务，由 Spring 自动注入
      * @param dashScopeProvider  DashScope 提供者，由 Spring 自动注入
      * @param deepSeekProvider   DeepSeek 提供者，由 Spring 自动注入
+     * @param customProvider     自定义 OpenAI 兼容提供者，由 Spring 自动注入
      * @return 路由 LLM 提供者实例，作为主 LlmProvider Bean
      */
     @Bean
     @Primary
     public LlmProvider llmProvider(ModelConfigService modelConfigService,
                                    DashScopeLlmProvider dashScopeProvider,
-                                   DeepSeekLlmProvider deepSeekProvider) {
-        return new RoutingLlmProvider(modelConfigService, dashScopeProvider, deepSeekProvider);
+                                   DeepSeekLlmProvider deepSeekProvider,
+                                   OpenAiCompatibleLlmProvider customProvider) {
+        return new RoutingLlmProvider(modelConfigService, dashScopeProvider, deepSeekProvider, customProvider);
+    }
+
+    /**
+     * 注册自定义 OpenAI 兼容提供者 Bean。
+     * <p>
+     * 使用 providerKey "custom"，从 {@link ModelConfig} 中读取
+     * customApiKey / customModel / customBaseUrl 配置。
+     * </p>
+     *
+     * @param modelConfigService 模型配置服务，由 Spring 自动注入
+     * @return 自定义 OpenAI 兼容提供者实例
+     */
+    @Bean
+    public OpenAiCompatibleLlmProvider customProvider(ModelConfigService modelConfigService) {
+        return new OpenAiCompatibleLlmProvider(modelConfigService, "custom", "custom");
+    }
+
+    /**
+     * 创建 DashScope OpenAI 兼容模式的 LLM 提供者 Bean。
+     * <p>
+     * 使用 {@link OpenAiCompatibleLlmProvider} 通过 OpenAI 兼容接口
+     * （{@code https://dashscope.aliyuncs.com/compatible-mode/v1}）调用 DashScope 模型。
+     * 当前作为备用方案注册，不主动使用，为后续从原生 SDK 迁移到兼容模式预留。
+     * </p>
+     *
+     * @param modelConfigService 模型配置服务，由 Spring 自动注入
+     * @return DashScope 兼容模式的 LLM 提供者实例
+     */
+    @Bean
+    public OpenAiCompatibleLlmProvider dashscopeCompatibleProvider(ModelConfigService modelConfigService) {
+        return new OpenAiCompatibleLlmProvider(modelConfigService, "dashscope", "dashscope");
     }
 }

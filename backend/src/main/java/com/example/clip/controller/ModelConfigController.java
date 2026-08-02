@@ -78,6 +78,46 @@ public class ModelConfigController {
     }
 
     /**
+     * 获取内置预设模板列表
+     * <p>
+     * GET /api/model-config/presets
+     *
+     * @return 预设模板列表，每个模板包含 id、name、baseUrl、defaultModel 字段
+     */
+    @GetMapping("/presets")
+    public ResponseEntity<List<Map<String, Object>>> getPresets() {
+        List<Map<String, Object>> presets = Arrays.asList(
+            createPreset("dashscope", "阿里云 DashScope", "https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus"),
+            createPreset("deepseek", "DeepSeek", "https://api.deepseek.com/v1", "deepseek-v4-flash"),
+            createPreset("openrouter", "OpenRouter", "https://openrouter.ai/api/v1", ""),
+            createPreset("siliconflow", "硅基流动", "https://api.siliconflow.cn/v1", ""),
+            createPreset("glm", "智谱 GLM", "https://open.bigmodel.cn/api/paas/v4", "glm-4-flash"),
+            createPreset("moonshot", "月之暗面 Kimi", "https://api.moonshot.cn/v1", "moonshot-v1-8k"),
+            createPreset("ollama", "Ollama 本地", "http://localhost:11434/v1", "llama3"),
+            createPreset("custom", "自定义中转站", "", "")
+        );
+        return ResponseEntity.ok(presets);
+    }
+
+    /**
+     * 创建一个预设模板条目
+     *
+     * @param id           预设唯一标识
+     * @param name         预设显示名称
+     * @param baseUrl      API 基础地址
+     * @param defaultModel 默认模型名称
+     * @return 包含预设信息的 Map
+     */
+    private Map<String, Object> createPreset(String id, String name, String baseUrl, String defaultModel) {
+        Map<String, Object> preset = new LinkedHashMap<>();
+        preset.put("id", id);
+        preset.put("name", name);
+        preset.put("baseUrl", baseUrl);
+        preset.put("defaultModel", defaultModel);
+        return preset;
+    }
+
+    /**
      * 测试模型连接
      * <p>
      * POST /api/model-config/test
@@ -89,9 +129,10 @@ public class ModelConfigController {
      * <ul>
      *   <li>{@code dashscope} — 阿里云百炼大模型平台</li>
      *   <li>{@code deepseek} — DeepSeek 大模型 API</li>
+     *   <li>{@code custom} — 自定义 OpenAI 兼容 API</li>
      * </ul>
      *
-     * @param body 包含 provider（默认 "dashscope"）、apiKey、model 的请求体
+     * @param body 包含 provider（默认 "dashscope"）、baseUrl、apiKey、model 的请求体
      * @return 测试结果，包含 success、message 和 response 字段
      */
     @PostMapping("/test")
@@ -109,6 +150,12 @@ public class ModelConfigController {
                 String response = testDeepSeek(apiKey, model);
                 result.put("success", true);
                 result.put("message", "DeepSeek 连接测试成功");
+                result.put("response", response);
+            } else if ("custom".equals(provider)) {
+                String baseUrl = body.get("baseUrl");
+                String response = testOpenAiCompatible(baseUrl, apiKey, model);
+                result.put("success", true);
+                result.put("message", "自定义 Provider 连接测试成功");
                 result.put("response", response);
             } else {
                 // 默认走 DashScope 测试
@@ -164,43 +211,57 @@ public class ModelConfigController {
     /**
      * 测试 DeepSeek 模型连接
      * <p>
-     * 使用 RestTemplate 直接调用 DeepSeek 的 OpenAI 兼容 API 发送测试消息。
+     * 委托给 {@link #testOpenAiCompatible} 使用 DeepSeek 的固定地址进行测试。
      *
      * @param apiKey DeepSeek API Key（Bearer Token 认证）
-     * @param model  模型名称，为空时默认使用 "deepseek-chat"
+     * @param model  模型名称，为空时默认使用 "deepseek-v4-flash"
      * @return 模型返回的响应文本
      * @throws RuntimeException 若 API Key 为空或调用失败
      */
     private String testDeepSeek(String apiKey, String model) {
+        return testOpenAiCompatible("https://api.deepseek.com/v1", apiKey, model);
+    }
+
+    /**
+     * 测试 OpenAI 兼容 API 的连接
+     * <p>
+     * 使用 RestTemplate 调用指定 baseUrl 的 Chat Completions 端点，
+     * 发送一条简短的测试消息，验证 API 调用是否正常。
+     *
+     * @param baseUrl API 基础地址（如 "https://api.deepseek.com/v1"），末尾不要带 /chat/completions
+     * @param apiKey  Bearer Token 认证的 API Key
+     * @param model   模型名称，为空时默认使用 "gpt-3.5-turbo"
+     * @return 模型返回的响应文本
+     * @throws RuntimeException 若 API Key 或 baseUrl 为空或调用失败
+     */
+    private String testOpenAiCompatible(String baseUrl, String apiKey, String model) {
         if (apiKey == null || apiKey.isEmpty()) {
             throw new RuntimeException("请先填写 API Key");
         }
-        // 使用 RestTemplate 发送 HTTP 请求到 DeepSeek API
+        if (baseUrl == null || baseUrl.isEmpty()) {
+            throw new RuntimeException("请先填写 API 地址");
+        }
+        // 确保 baseUrl 末尾没有多余的 /
+        String normalizedUrl = baseUrl.replaceAll("/+$", "") + "/chat/completions";
+
         RestTemplate restTemplate = new RestTemplate();
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        // 使用 Bearer Token 方式认证
         headers.setBearerAuth(apiKey);
 
-        // 构建 OpenAI 兼容格式的请求体
         Map<String, Object> requestBody = new LinkedHashMap<>();
-        requestBody.put("model", model != null && !model.isEmpty() ? model : "deepseek-chat");  // 默认模型
-        requestBody.put("stream", false);  // 非流式输出
+        requestBody.put("model", model != null && !model.isEmpty() ? model : "gpt-3.5-turbo");
+        requestBody.put("stream", false);
         requestBody.put("messages", Arrays.asList(
                 Map.of("role", "system", "content", "你是一个测试助手。"),
                 Map.of("role", "user", "content", "请回复：连接测试成功！")
         ));
 
-        // 发送 POST 请求到 DeepSeek 的 Chat Completions 端点
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
         ResponseEntity<Map> response = restTemplate.exchange(
-                "https://api.deepseek.com/v1/chat/completions",
-                HttpMethod.POST,
-                entity,
-                Map.class
+                normalizedUrl, HttpMethod.POST, entity, Map.class
         );
 
-        // 从响应中提取助手回复内容
         Map<String, Object> respBody = response.getBody();
         List<Map<String, Object>> choices = (List<Map<String, Object>>) respBody.get("choices");
         Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");

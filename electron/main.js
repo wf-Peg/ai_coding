@@ -116,7 +116,11 @@ const DEFAULT_CONFIG = {
   mailHost: '',
   mailPort: 465,
   mailUsername: '',
-  mailPassword: ''
+  mailPassword: '',
+  customProviderName: '',        // 自定义 OpenAI 兼容提供商名称
+  customBaseUrl: '',             // 自定义 OpenAI 兼容 API 地址
+  customApiKey: '',              // 自定义 OpenAI 兼容 API Key
+  customModel: ''                // 自定义 OpenAI 兼容模型名称
 };
 
 /**
@@ -403,7 +407,11 @@ function syncModelConfigJson(config) {
       deepseekApiKey: config.deepseekApiKey || '',
       deepseekModel: config.deepseekModel || 'deepseek-chat',
       dashscopeApiKey: config.apiKey || '',
-      dashscopeModel: config.dashscopeModel || 'qwen-plus'
+      dashscopeModel: config.dashscopeModel || 'qwen-plus',
+      customProviderName: config.customProviderName || '',
+      customBaseUrl: config.customBaseUrl || '',
+      customApiKey: config.customApiKey || '',
+      customModel: config.customModel || ''
     };
     fs.writeFileSync(modelConfigPath, JSON.stringify(modelConfig, null, 2), 'utf-8');
     log.info('[Sync] model-config.json written to:', modelConfigPath);
@@ -434,8 +442,12 @@ function generateApplicationYml(config) {
           'api-key': config.apiKey,
           chat: { options: { model: config.dashscopeModel || 'qwen-plus' } }
         },
-        // DeepSeek 配置（兼容 OpenAI 协议）
-        openai: {
+        // DeepSeek / 自定义 OpenAI 兼容配置
+        openai: config.activeProvider === 'custom' ? {
+          'api-key': config.customApiKey || '',
+          'base-url': config.customBaseUrl || '',
+          chat: { options: { model: config.customModel || '' } }
+        } : {
           'api-key': config.deepseekApiKey || '',
           'base-url': 'https://api.deepseek.com',
           chat: { options: { model: config.deepseekModel || 'deepseek-chat' } }
@@ -2640,6 +2652,8 @@ app.whenReady().then(async () => {
 
   const hasConfiguredProviderKey = config.activeProvider === 'deepseek'
     ? Boolean(config.deepseekApiKey && config.deepseekApiKey.trim())
+    : config.activeProvider === 'custom'
+    ? Boolean(config.customApiKey && config.customApiKey.trim())
     : Boolean(config.apiKey && config.apiKey.trim());
 
   if (!config.configured || !hasConfiguredProviderKey) {

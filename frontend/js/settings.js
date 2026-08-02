@@ -78,7 +78,11 @@ async function loadConfig() {
     document.getElementById('dashscopeApiKey').value = config.dashscopeApiKey || '';
     document.getElementById('dashscopeModel').value = config.dashscopeModel || 'qwen-plus';
     document.getElementById('deepseekApiKey').value = config.deepseekApiKey || '';
-    document.getElementById('deepseekModel').value = config.deepseekModel || 'deepseek-chat';
+    document.getElementById('deepseekModel').value = config.deepseekModel || 'deepseek-v4-flash';
+    document.getElementById('customProviderName').value = config.customProviderName || '';
+    document.getElementById('customBaseUrl').value = config.customBaseUrl || '';
+    document.getElementById('customApiKey').value = config.customApiKey || '';
+    document.getElementById('customModel').value = config.customModel || '';
     onProviderChange();
     loadMascotConfig();
 
@@ -474,6 +478,10 @@ async function saveConfig() {
     dashscopeModel: document.getElementById('dashscopeModel').value,
     deepseekApiKey: document.getElementById('deepseekApiKey').value,
     deepseekModel: document.getElementById('deepseekModel').value,
+    customProviderName: document.getElementById('customProviderName').value,
+    customBaseUrl: document.getElementById('customBaseUrl').value,
+    customApiKey: document.getElementById('customApiKey').value,
+    customModel: document.getElementById('customModel').value,
     // 邮件
     mailEnabled: document.getElementById('mailEnabled').checked,
     mailHost: document.getElementById('mailHost').value,
@@ -672,21 +680,130 @@ function onProviderChange() {
   const active = document.getElementById('activeProvider').value;
   const dashBadge = document.getElementById('dashscopeBadge');
   const deepBadge = document.getElementById('deepseekBadge');
+  const customSection = document.getElementById('customSection');
+  const presetGroup = document.getElementById('presetGroup');
+  const dashSection = document.getElementById('dashscopeSection');
+  const deepSection = document.getElementById('deepseekSection');
 
-  if (active === 'deepseek') {
+  // 重置所有区块显示
+  dashSection.style.display = 'block';
+  deepSection.style.display = 'block';
+  customSection.style.display = 'none';
+  presetGroup.style.display = 'none';
+
+  if (active === 'custom') {
+    dashSection.style.display = 'none';
+    deepSection.style.display = 'none';
+    customSection.style.display = 'block';
+    presetGroup.style.display = 'block';
+    dashBadge.className = 'badge badge-inactive';
+    dashBadge.textContent = '未激活';
+    deepBadge.className = 'badge badge-inactive';
+    deepBadge.textContent = '未激活';
+    loadPresets();
+  } else if (active === 'deepseek') {
     dashBadge.className = 'badge badge-inactive';
     dashBadge.textContent = '未激活';
     deepBadge.className = 'badge badge-active';
     deepBadge.textContent = '当前';
-    document.getElementById('deepseekSection').style.borderColor = 'var(--primary)';
-    document.getElementById('dashscopeSection').style.borderColor = 'var(--border)';
+    deepSection.style.borderColor = 'var(--primary)';
+    dashSection.style.borderColor = 'var(--border)';
   } else {
+    // dashscope
     dashBadge.className = 'badge badge-active';
     dashBadge.textContent = '当前';
     deepBadge.className = 'badge badge-inactive';
     deepBadge.textContent = '未激活';
-    document.getElementById('dashscopeSection').style.borderColor = 'var(--primary)';
-    document.getElementById('deepseekSection').style.borderColor = 'var(--border)';
+    dashSection.style.borderColor = 'var(--primary)';
+    deepSection.style.borderColor = 'var(--border)';
+  }
+}
+
+// 加载预设模板列表
+async function loadPresets() {
+  const select = document.getElementById('presetSelect');
+  if (!select) return;
+  try {
+    const response = await fetch(`${MODEL_TEST_BASE}/presets`);
+    if (!response.ok) return;
+    const presets = await response.json();
+    // 保留第一个占位选项
+    select.innerHTML = '<option value="">-- 选择预设 --</option>';
+    presets.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name;
+      select.appendChild(opt);
+    });
+  } catch (e) {
+    console.warn('加载预设模板失败:', e);
+  }
+}
+
+// 预设模板切换
+function onPresetChange() {
+  const preset = document.getElementById('presetSelect').value;
+  if (!preset) return;
+  // 从后端 API 获取预设列表（已缓存在 select 的 option 中，直接取 data-* 即可）
+  // 实际上我们通过预设 id 映射，但更可靠的方式是重新请求
+  fetch(`${MODEL_TEST_BASE}/presets`)
+    .then(r => r.json())
+    .then(presets => {
+      const p = presets.find(item => item.id === preset);
+      if (!p) return;
+      if (p.baseUrl) document.getElementById('customBaseUrl').value = p.baseUrl;
+      if (p.defaultModel) document.getElementById('customModel').value = p.defaultModel;
+      showToast(`已应用「${p.name}」预设`);
+    })
+    .catch(() => {});
+}
+
+// 测试自定义 OpenAI 兼容连接
+async function testCustom() {
+  const apiKey = document.getElementById('customApiKey').value;
+  const model = document.getElementById('customModel').value;
+  const baseUrl = document.getElementById('customBaseUrl').value;
+  if (!apiKey) {
+    const el = document.getElementById('customTestResult');
+    el.className = 'test-result show error';
+    el.textContent = '请先填写 API Key';
+    return;
+  }
+  if (!baseUrl) {
+    const el = document.getElementById('customTestResult');
+    el.className = 'test-result show error';
+    el.textContent = '请先填写 API 地址';
+    return;
+  }
+
+  const testBtn = document.getElementById('testCustomBtn');
+  testBtn.disabled = true;
+  testBtn.textContent = '测试中...';
+
+  const resultEl = document.getElementById('customTestResult');
+  resultEl.className = 'test-result show';
+  resultEl.textContent = '正在测试连接...';
+
+  try {
+    const response = await fetch(`${MODEL_TEST_BASE}/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: 'custom', apiKey, model, baseUrl })
+    });
+    const result = await response.json();
+    if (result.success) {
+      resultEl.className = 'test-result show success';
+      resultEl.textContent = '自定义连接测试成功！';
+    } else {
+      resultEl.className = 'test-result show error';
+      resultEl.textContent = result.message || '连接测试失败';
+    }
+  } catch (error) {
+    resultEl.className = 'test-result show error';
+    resultEl.textContent = '测试请求失败: ' + error.message;
+  } finally {
+    testBtn.disabled = false;
+    testBtn.textContent = '测试连接';
   }
 }
 

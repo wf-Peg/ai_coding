@@ -217,6 +217,10 @@ public class AppConfigService {
             mc.setDashscopeModel(config.getDashscopeModel());
             mc.setDeepseekApiKey(config.getDeepseekApiKey());
             mc.setDeepseekModel(config.getDeepseekModel());
+            mc.setCustomProviderName(config.getCustomProviderName());
+            mc.setCustomBaseUrl(config.getCustomBaseUrl());
+            mc.setCustomApiKey(config.getCustomApiKey());
+            mc.setCustomModel(config.getCustomModel());
             modelConfigService.saveConfig(mc);
             log.debug("Synced to ModelConfigService");
         } catch (Exception e) {
@@ -259,6 +263,10 @@ public class AppConfigService {
                 config.setDashscopeModel(mc.getDashscopeModel());
                 config.setDeepseekApiKey(mc.getDeepseekApiKey());
                 config.setDeepseekModel(mc.getDeepseekModel());
+                config.setCustomProviderName(mc.getCustomProviderName());
+                config.setCustomBaseUrl(mc.getCustomBaseUrl());
+                config.setCustomApiKey(mc.getCustomApiKey());
+                config.setCustomModel(mc.getCustomModel());
             } catch (Exception e) {
                 log.debug("No legacy model config to migrate: {}", e.getMessage());
             }

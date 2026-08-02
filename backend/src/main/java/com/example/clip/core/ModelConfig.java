@@ -33,8 +33,8 @@ public class ModelConfig {
     /** DeepSeek 的 API Key，由用户在设置页面配置 */
     private String deepseekApiKey = "";
 
-    /** DeepSeek 使用的模型名称，默认为 deepseek-chat */
-    private String deepseekModel = "deepseek-chat";
+    /** DeepSeek 使用的模型名称，默认为 deepseek-v4-flash */
+    private String deepseekModel = "deepseek-v4-flash";
 
     /**
      * DashScope 的 API Key（可覆盖 application.yml 中的配置）。
@@ -44,6 +44,20 @@ public class ModelConfig {
 
     /** DashScope 使用的模型名称，默认为 qwen-plus */
     private String dashscopeModel = "qwen-plus";
+
+    // ===== 新增：自定义 OpenAI 兼容 Provider（中转站） =====
+
+    /** 自定义中转站展示名称 */
+    private String customProviderName = "";
+
+    /** 自定义 API 地址，如 https://one-api.example.com/v1 */
+    private String customBaseUrl = "";
+
+    /** 自定义中转站 API Key */
+    private String customApiKey = "";
+
+    /** 自定义中转站模型名称 */
+    private String customModel = "";
 
     /** 无参构造器，用于 JSON 反序列化 */
     public ModelConfig() {}
@@ -90,6 +104,40 @@ public class ModelConfig {
         this.dashscopeModel = dashscopeModel;
     }
 
+    // ==================== custom getters / setters ====================
+
+    public String getCustomProviderName() {
+        return customProviderName;
+    }
+
+    public void setCustomProviderName(String customProviderName) {
+        this.customProviderName = customProviderName;
+    }
+
+    public String getCustomBaseUrl() {
+        return customBaseUrl;
+    }
+
+    public void setCustomBaseUrl(String customBaseUrl) {
+        this.customBaseUrl = customBaseUrl;
+    }
+
+    public String getCustomApiKey() {
+        return customApiKey;
+    }
+
+    public void setCustomApiKey(String customApiKey) {
+        this.customApiKey = customApiKey;
+    }
+
+    public String getCustomModel() {
+        return customModel;
+    }
+
+    public void setCustomModel(String customModel) {
+        this.customModel = customModel;
+    }
+
     // ==================== 便捷方法 ====================
 
     /**
@@ -103,6 +151,9 @@ public class ModelConfig {
      */
     @JsonIgnore
     public String getActiveApiKey() {
+        if ("custom".equals(activeProvider)) {
+            return customApiKey;
+        }
         if ("deepseek".equals(activeProvider)) {
             return deepseekApiKey;
         }
@@ -117,10 +168,13 @@ public class ModelConfig {
      * 标记 {@code @JsonIgnore} 以简化 JSON 序列化输出。
      * </p>
      *
-     * @return 当前激活提供者的模型名称，如 "qwen-plus" 或 "deepseek-chat"
+     * @return 当前激活提供者的模型名称，如 "qwen-plus" 或 "deepseek-v4-flash"
      */
     @JsonIgnore
     public String getActiveModel() {
+        if ("custom".equals(activeProvider)) {
+            return customModel;
+        }
         if ("deepseek".equals(activeProvider)) {
             return deepseekModel;
         }

@@ -114,9 +114,9 @@ public class DeepSeekLlmProvider implements LlmProvider {
             throw new RuntimeException("DeepSeek API Key 未配置，请在设置页面中配置");
         }
 
-        // 如果模型名称为空，使用默认值 "deepseek-chat"
+        // 如果模型名称为空，使用默认值 "deepseek-v4-flash"
         if (model == null || model.isEmpty()) {
-            model = "deepseek-chat";
+            model = "deepseek-v4-flash";
         }
 
         try {
@@ -186,7 +186,7 @@ public class DeepSeekLlmProvider implements LlmProvider {
         }
 
         String model = config.getDeepseekModel() == null || config.getDeepseekModel().isBlank()
-                ? "deepseek-chat" : config.getDeepseekModel();
+                ? "deepseek-v4-flash" : config.getDeepseekModel();
         Map<String, Object> requestBody = new LinkedHashMap<>();
         requestBody.put("model", model);
         requestBody.put("stream", true);

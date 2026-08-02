@@ -43,8 +43,8 @@ spring:
       chat:
         options:
           # DeepSeek 模型名称
-          # 可选值: deepseek-chat, deepseek-reasoner
-          model: deepseek-chat
+          # 可选值: deepseek-v4-flash, deepseek-reasoner
+          model: deepseek-v4-flash
 
 # 服务器配置
 server:

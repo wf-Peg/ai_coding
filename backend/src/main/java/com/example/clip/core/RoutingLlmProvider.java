@@ -5,36 +5,37 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 路由 LLM 提供者 —— 实现 {@link LlmProvider} 接口的代理/路由模式。
  * <p>
  * 核心职责：根据 {@link ModelConfig} 配置中的 {@code activeProvider} 字段，
- * 动态选择实际使用的底层 LLM 提供者（DashScope 或 DeepSeek）。
+ * 动态选择实际使用的底层 LLM 提供者（DashScope / DeepSeek / Custom）。
  * 所有对 {@link LlmProvider} 的调用都通过本类进行路由分发。
  * </p>
  *
  * <h3>路由逻辑</h3>
  * <ol>
  *   <li>读取 {@link ModelConfigService} 中的当前配置</li>
+ *   <li>如果 {@code activeProvider} 为 "custom" 且 Custom API Key 已配置，则使用 Custom Provider</li>
  *   <li>如果 {@code activeProvider} 为 "deepseek" 且 DeepSeek API Key 已配置，则使用 DeepSeek</li>
- *   <li>如果 DeepSeek 不可用（API Key 未配置），自动回退到 DashScope</li>
+ *   <li>如果 custom 或 deepseek 不可用，自动回退到 DashScope</li>
  *   <li>默认使用 DashScope</li>
  * </ol>
  *
  * <h3>设计优势</h3>
  * <ul>
  *   <li>支持运行时热切换：用户修改配置后，下一次请求立即生效，无需重启</li>
- *   <li>自动回退：当前选定的提供者不可用时，自动降级到备用提供者</li>
+ *   <li>多级自动降级：custom → deepseek → dashscope，当前选定的提供者不可用时自动降级</li>
  *   <li>透明代理：上层 {@link AiService} 无需感知底层切换逻辑</li>
  * </ul>
  *
- * <p>通过 {@code @Component("routingLlmProvider")} 显式命名 Bean，
- * 配合 {@link LlmProviderConfig} 中的 {@code @Primary} 注解，
- * 确保 Spring 注入 {@link LlmProvider} 时优先使用本类实例。</p>
+ * <p>本类不标注 {@code @Component}，仅通过 {@link LlmProviderConfig} 中的
+ * {@code @Bean} 方法创建实例，由 {@code @Primary} 注解确保优先注入。</p>
  */
-@Component("routingLlmProvider")
 public class RoutingLlmProvider implements LlmProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(RoutingLlmProvider.class);
@@ -48,8 +49,29 @@ public class RoutingLlmProvider implements LlmProvider {
     /** DeepSeek 提供者（可选提供者） */
     private final DeepSeekLlmProvider deepSeekProvider;
 
+    /** 自定义 OpenAI 兼容提供者（可选提供者） */
+    private final OpenAiCompatibleLlmProvider customProvider;
+
     /**
-     * 构造器注入所有依赖。
+     * 构造器注入所有依赖（含 custom 提供者）。
+     *
+     * @param modelConfigService 模型配置服务，用于读取当前激活的提供者
+     * @param dashScopeProvider  DashScope 提供者实现
+     * @param deepSeekProvider   DeepSeek 提供者实现
+     * @param customProvider     自定义 OpenAI 兼容提供者实现
+     */
+    public RoutingLlmProvider(ModelConfigService modelConfigService,
+                              DashScopeLlmProvider dashScopeProvider,
+                              DeepSeekLlmProvider deepSeekProvider,
+                              OpenAiCompatibleLlmProvider customProvider) {
+        this.modelConfigService = modelConfigService;
+        this.dashScopeProvider = dashScopeProvider;
+        this.deepSeekProvider = deepSeekProvider;
+        this.customProvider = customProvider;
+    }
+
+    /**
+     * 构造器注入（兼容旧版本，无 custom 提供者）。
      *
      * @param modelConfigService 模型配置服务，用于读取当前激活的提供者
      * @param dashScopeProvider  DashScope 提供者实现
@@ -58,9 +80,7 @@ public class RoutingLlmProvider implements LlmProvider {
     public RoutingLlmProvider(ModelConfigService modelConfigService,
                               DashScopeLlmProvider dashScopeProvider,
                               DeepSeekLlmProvider deepSeekProvider) {
-        this.modelConfigService = modelConfigService;
-        this.dashScopeProvider = dashScopeProvider;
-        this.deepSeekProvider = deepSeekProvider;
+        this(modelConfigService, dashScopeProvider, deepSeekProvider, null);
     }
 
     /**
@@ -78,26 +98,32 @@ public class RoutingLlmProvider implements LlmProvider {
     public String chat(String systemPrompt, String userMessage) {
         LlmProvider provider = getActiveProvider();
         logger.debug("[LLM] Routing to {}", provider.getProviderName());
-        try {
-            return provider.chat(systemPrompt, userMessage);
-        } catch (Exception e) {
-            // 运行时失败（额度用尽、网络错误等），尝试降级到备用 provider
-            logger.warn("[LLM] {} 调用失败: {}，尝试降级到备用 provider",
-                    provider.getProviderName(), e.getMessage());
-            LlmProvider fallback = getFallbackProvider(provider);
-            if (fallback != null) {
-                logger.info("[LLM] 降级到 {}", fallback.getProviderName());
-                try {
-                    return fallback.chat(systemPrompt, userMessage);
-                } catch (Exception fe) {
+        return chatWithFallback(provider, systemPrompt, userMessage);
+    }
+
+    /**
+     * 递归降级调用：当前 provider 失败时自动尝试备用 provider，
+     * 直至所有 provider 均失败为止。
+     * 使用 Set 记录已尝试过的 provider，避免循环降级。
+     */
+    private String chatWithFallback(LlmProvider provider, String systemPrompt, String userMessage) {
+        Set<LlmProvider> tried = new HashSet<>();
+        LlmProvider current = provider;
+        while (true) {
+            tried.add(current);
+            try {
+                return current.chat(systemPrompt, userMessage);
+            } catch (Exception e) {
+                LlmProvider next = getFallbackProvider(current);
+                if (next == null || tried.contains(next)) {
                     throw new RuntimeException(
-                        provider.getProviderName() + " 和 " + fallback.getProviderName()
-                        + " 均调用失败。主: " + e.getMessage()
-                        + "；备用: " + fe.getMessage(), fe);
+                        current.getProviderName() + " 调用失败且无可用备用 provider: "
+                        + e.getMessage(), e);
                 }
+                logger.warn("[LLM] {} 调用失败: {}，降级到 {}",
+                        current.getProviderName(), e.getMessage(), next.getProviderName());
+                current = next;
             }
-            throw new RuntimeException(provider.getProviderName() + " 调用失败且无可用备用 provider: "
-                    + e.getMessage(), e);
         }
     }
 
@@ -158,11 +184,18 @@ public class RoutingLlmProvider implements LlmProvider {
      * 获取备用 provider（当主 provider 运行时失败时使用）。
      */
     private LlmProvider getFallbackProvider(LlmProvider failed) {
-        if (failed == dashScopeProvider && deepSeekProvider.isAvailable()) {
-            return deepSeekProvider;
+        if (failed == customProvider) {
+            if (deepSeekProvider.isAvailable()) return deepSeekProvider;
+            if (dashScopeProvider.isAvailable()) return dashScopeProvider;
+            return null;
         }
-        if (failed == deepSeekProvider && dashScopeProvider.isAvailable()) {
-            return dashScopeProvider;
+        if (failed == deepSeekProvider) {
+            if (dashScopeProvider.isAvailable()) return dashScopeProvider;
+            return null;
+        }
+        if (failed == dashScopeProvider) {
+            if (deepSeekProvider.isAvailable()) return deepSeekProvider;
+            return null;
         }
         return null;
     }
@@ -213,6 +246,18 @@ public class RoutingLlmProvider implements LlmProvider {
         // 读取运行时配置，若配置尚未初始化则默认为 dashscope
         ModelConfig config = modelConfigService.getConfig();
         String active = config != null ? config.getActiveProvider() : "dashscope";
+
+        if ("custom".equals(active)) {
+            if (customProvider == null || !customProvider.isAvailable()) {
+                logger.warn("[LLM] Custom Provider API Key 未配置，回退到 DeepSeek");
+                if (deepSeekProvider.isAvailable()) {
+                    return deepSeekProvider;
+                }
+                logger.warn("[LLM] DeepSeek 也不可用，回退到 DashScope");
+                return dashScopeProvider;
+            }
+            return customProvider;
+        }
 
         if ("deepseek".equals(active)) {
             // 用户选择了 DeepSeek，但需要先确认 API Key 是否已配置
