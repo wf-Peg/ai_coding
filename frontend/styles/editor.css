@@ -329,7 +329,8 @@ select {
 /* 抽屉面板：grid 显式定位，避免 DOM 顺序影响动画布局 */
 .editor-workspace > .filetree-pane,
 .editor-workspace > .history-pane,
-.editor-workspace > .recent-pane {
+.editor-workspace > .recent-pane,
+.editor-workspace > .fav-pane {
   grid-column: 1;
   grid-row: 1;
 }
@@ -346,10 +347,12 @@ select {
 .editor-workspace.comparing > .filetree-pane,
 .editor-workspace.comparing > .history-pane,
 .editor-workspace.comparing > .recent-pane,
+.editor-workspace.comparing > .fav-pane,
 .editor-workspace.comparing > .ai-chat-pane,
 .editor-workspace.markdown-preview > .filetree-pane,
 .editor-workspace.markdown-preview > .history-pane,
 .editor-workspace.markdown-preview > .recent-pane,
+.editor-workspace.markdown-preview > .fav-pane,
 .editor-workspace.markdown-preview > .ai-chat-pane {
   display: none !important;
 }
@@ -1183,11 +1186,18 @@ select {
   min-width: 0;
 }
 
-.editor-workspace.show-history {
-  grid-template-columns: 280px minmax(0, 1fr) 0fr;
+.fav-pane {
+  border-right: 1px solid var(--app-border-strong);
+  display: flex;
+  flex-direction: column;
+  background: var(--app-surface-subtle);
+  overflow: hidden;
+  min-width: 0;
 }
 
-.editor-workspace.show-recent {
+.editor-workspace.show-history,
+.editor-workspace.show-recent,
+.editor-workspace.show-fav {
   grid-template-columns: 280px minmax(0, 1fr) 0fr;
 }
 
@@ -1202,7 +1212,8 @@ select {
 }
 
 .editor-workspace.show-history.show-ai-chat,
-.editor-workspace.show-recent.show-ai-chat {
+.editor-workspace.show-recent.show-ai-chat,
+.editor-workspace.show-fav.show-ai-chat {
   grid-template-columns: 280px minmax(0, 1fr) var(--ai-chat-width);
 }
 
@@ -1210,9 +1221,11 @@ select {
 .editor-workspace.comparing.show-filetree,
 .editor-workspace.comparing.show-history,
 .editor-workspace.comparing.show-recent,
+.editor-workspace.comparing.show-fav,
 .editor-workspace.markdown-preview.show-filetree,
 .editor-workspace.markdown-preview.show-history,
-.editor-workspace.markdown-preview.show-recent {
+.editor-workspace.markdown-preview.show-recent,
+.editor-workspace.markdown-preview.show-fav {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
@@ -1220,6 +1233,7 @@ select {
 .filetree-pane[aria-hidden="true"],
 .history-pane[aria-hidden="true"],
 .recent-pane[aria-hidden="true"],
+.fav-pane[aria-hidden="true"],
 .ai-chat-pane[aria-hidden="true"] {
   visibility: hidden;
   opacity: 0;
@@ -1229,6 +1243,7 @@ select {
 .filetree-pane[aria-hidden="false"],
 .history-pane[aria-hidden="false"],
 .recent-pane[aria-hidden="false"],
+.fav-pane[aria-hidden="false"],
 .ai-chat-pane[aria-hidden="false"] {
   visibility: visible;
   opacity: 1;
@@ -1623,6 +1638,187 @@ select {
 .history-item:hover::before,
 .recent-item:hover::before,
 .filetree-item.active::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+/* ── 收藏面板 ── */
+.fav-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 0;
+}
+
+.fav-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--app-border);
+  transition: background 120ms ease, transform 200ms ease;
+  position: relative;
+  user-select: none;
+}
+
+.fav-item:hover {
+  background: var(--app-primary-soft);
+}
+
+.fav-item:last-child {
+  border-bottom: 0;
+}
+
+.fav-item.dragging {
+  opacity: 0.5;
+  transform: scale(0.97);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.fav-item.drag-over {
+  border-top: 2px solid var(--app-primary);
+}
+
+.fav-item .fav-drag-handle {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 150ms ease;
+  user-select: none;
+}
+
+.fav-item:hover .fav-drag-handle {
+  opacity: 1;
+}
+
+.fav-item .fav-drag-handle:active {
+  cursor: grabbing;
+}
+
+.fav-item .fav-body {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.fav-item .fav-name {
+  color: var(--app-text);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fav-item .fav-meta {
+  color: var(--app-text-muted);
+  font-size: 10px;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fav-item .fav-remove-btn {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 150ms ease, background 120ms ease, color 120ms ease;
+  padding: 0;
+  line-height: 1;
+}
+
+.fav-item:hover .fav-remove-btn {
+  opacity: 1;
+}
+
+.fav-item .fav-remove-btn:hover {
+  background: var(--app-danger-soft);
+  color: var(--app-danger);
+}
+
+.fav-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  text-align: center;
+  gap: 8px;
+}
+
+.fav-empty .fav-empty-icon {
+  font-size: 32px;
+  opacity: 0.4;
+}
+
+/* 收藏项动画 */
+.fav-item.fav-enter {
+  animation: favFadeInUp 200ms ease-out forwards;
+}
+
+.fav-item.fav-leave {
+  animation: favFadeOut 200ms ease-in forwards;
+}
+
+@keyframes favFadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes favFadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+/* 收藏项左侧指示条（与文件树/历史/最近一致） */
+.fav-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 18%;
+  bottom: 18%;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--app-primary);
+  opacity: 0;
+  transform: scaleY(0.4);
+  transform-origin: center;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.fav-item:hover::before {
   opacity: 1;
   transform: scaleY(1);
 }

@@ -74,7 +74,7 @@
     'fullscreenBtn', 'fileTreePane', 'fileTreeTitle', 'fileTreeBody', 'closeFileTreeBtn', 'selectDirBtn',
     'autosaveStatus', 'historyCount', 'historyList', 'closeHistoryBtn',
     'undoHistoryBtn', 'redoHistoryBtn', 'clearHistoryBtn', 'mainPane', 'historyPane', 'recentPane',
-    'recentList', 'closeRecentBtn', 'clearRecentBtn', 'aiChatPane', 'aiChatMessages', 'aiChatInput',
+    'recentList', 'closeRecentBtn', 'clearRecentBtn', 'favPane', 'favList', 'closeFavBtn', 'clearFavBtn', 'aiChatPane', 'aiChatMessages', 'aiChatInput',
     'aiChatSendBtn', 'aiChatStopBtn', 'aiChatClearBtn', 'aiChatCloseBtn', 'aiChatStatus',
     'aiChatResizeHandle', 'aiPetBtn', 'editorContextMenu', 'aiSearchContextBtn'
   ].map(id => [id, document.getElementById(id)]));
@@ -452,6 +452,11 @@
       tabEl.appendChild(label);
       tabEl.appendChild(closeBtn);
       tabEl.addEventListener('click', () => switchToTab(index));
+      tabEl.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        showTabContextMenu(e, index);
+      });
 
       tabBar.insertBefore(tabEl, elements.tabNewBtn);
     });
@@ -461,6 +466,101 @@
     spacer.className = 'tab-bar-spacer';
     spacer.addEventListener('dblclick', createNewTab);
     tabBar.insertBefore(spacer, elements.tabNewBtn);
+  }
+
+  // 标签栏右键菜单
+  function showTabContextMenu(event, tabIndex) {
+    var tab = tabs[tabIndex];
+    if (!tab) return;
+    var menu = document.getElementById('tabContextMenu');
+    if (!menu) return;
+    var filePath = tab.displayPath || tab.fileToken || '';
+    var isFav = filePath ? isFavoriteFile(filePath) : false;
+    menu.innerHTML = '<button type="button" class="tab-context-fav" role="menuitem">' + (isFav ? '★ 取消收藏' : '☆ 收藏到常用') + '</button>';
+    menu.hidden = false;
+    var left = Math.min(event.clientX, window.innerWidth - menu.offsetWidth - 8);
+    var top = Math.min(event.clientY, window.innerHeight - menu.offsetHeight - 8);
+    menu.style.left = Math.max(8, left) + 'px';
+    menu.style.top = Math.max(8, top) + 'px';
+    menu.dataset.tabIndex = tabIndex;
+    // 收藏按钮点击
+    var favBtn = menu.querySelector('.tab-context-fav');
+    if (favBtn) {
+      favBtn.onclick = function() {
+        menu.hidden = true;
+        if (filePath) {
+          toggleFavItem(filePath, tab.fileName);
+        } else {
+          showToast('该文件暂无可收藏路径', true);
+        }
+      };
+    }
+  }
+
+  // 关闭标签右键菜单
+  function closeTabContextMenu() {
+    var menu = document.getElementById('tabContextMenu');
+    if (menu) menu.hidden = true;
+  }
+
+  document.addEventListener('click', function(event) {
+    var menu = document.getElementById('tabContextMenu');
+    if (menu && !menu.contains(event.target)) closeTabContextMenu();
+  });
+  document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') closeTabContextMenu();
+  });
+  window.addEventListener('blur', closeTabContextMenu);
+
+  // 文件树右键菜单
+  function showFileTreeContextMenu(event, file) {
+    if (file.isDirectory) return;
+    var menu = document.getElementById('tabContextMenu');
+    if (!menu) return;
+    var filePath = file.path || '';
+    var isFav = filePath ? isFavoriteFile(filePath) : false;
+    menu.innerHTML = '<button type="button" class="tab-context-fav" role="menuitem">' + (isFav ? '★ 取消收藏' : '☆ 收藏到常用') + '</button>';
+    menu.hidden = false;
+    var left = Math.min(event.clientX, window.innerWidth - menu.offsetWidth - 8);
+    var top = Math.min(event.clientY, window.innerHeight - menu.offsetHeight - 8);
+    menu.style.left = Math.max(8, left) + 'px';
+    menu.style.top = Math.max(8, top) + 'px';
+    var favBtn = menu.querySelector('.tab-context-fav');
+    if (favBtn) {
+      favBtn.onclick = function() {
+        menu.hidden = true;
+        if (filePath) {
+          toggleFavItem(filePath, file.name);
+        } else {
+          showToast('该文件暂无可收藏路径', true);
+        }
+      };
+    }
+  }
+
+  // 最近文件右键菜单
+  function showRecentContextMenu(event, item) {
+    var menu = document.getElementById('tabContextMenu');
+    if (!menu) return;
+    var filePath = item.path || '';
+    var isFav = filePath ? isFavoriteFile(filePath) : false;
+    menu.innerHTML = '<button type="button" class="tab-context-fav" role="menuitem">' + (isFav ? '★ 取消收藏' : '☆ 收藏到常用') + '</button>';
+    menu.hidden = false;
+    var left = Math.min(event.clientX, window.innerWidth - menu.offsetWidth - 8);
+    var top = Math.min(event.clientY, window.innerHeight - menu.offsetHeight - 8);
+    menu.style.left = Math.max(8, left) + 'px';
+    menu.style.top = Math.max(8, top) + 'px';
+    var favBtn = menu.querySelector('.tab-context-fav');
+    if (favBtn) {
+      favBtn.onclick = function() {
+        menu.hidden = true;
+        if (filePath) {
+          toggleFavItem(filePath, item.name);
+        } else {
+          showToast('该文件暂无可收藏路径', true);
+        }
+      };
+    }
   }
 
   function updateDocumentIdentity() {
@@ -2473,6 +2573,11 @@
         item.addEventListener('click', function() {
           openFileTreeFile(file);
         });
+        item.addEventListener('contextmenu', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          showFileTreeContextMenu(e, file);
+        });
       }
 
       elements.fileTreeBody.appendChild(item);
@@ -2727,13 +2832,16 @@
   function toggleHistoryPanel() {
     const open = !isPaneOpen(elements.historyPane);
     if (open) {
-      // 互斥：关闭文件树和最近面板
+      // 互斥：关闭文件树、最近和收藏面板
       elements.fileTreePane.setAttribute('aria-hidden', 'true');
       elements.editorWorkspace.classList.remove('show-filetree');
       if (fileTreeBtn) fileTreeBtn.classList.remove('active');
       elements.recentPane.setAttribute('aria-hidden', 'true');
       elements.editorWorkspace.classList.remove('show-recent');
       if (recentBtn) recentBtn.classList.remove('active');
+      elements.favPane.setAttribute('aria-hidden', 'true');
+      elements.editorWorkspace.classList.remove('show-fav');
+      if (favBtn) favBtn.classList.remove('active');
       updateHistoryPanel();
     }
     elements.historyPane.setAttribute('aria-hidden', String(!open));
@@ -2837,6 +2945,11 @@
       el.addEventListener('click', function() {
         openRecentFile(item.path);
       });
+      el.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        showRecentContextMenu(e, item);
+      });
       elements.recentList.appendChild(el);
     });
   }
@@ -2851,9 +2964,14 @@
     try {
       const result = await api.openFileByPath(filePath);
       if (!result || result.canceled) {
-        // 文件已被删除/移动：从最近记录中移除
+        // 文件已被删除/移动：从最近记录和收藏列表中移除
         recordRecentFileRemove(filePath);
-        showToast('文件不存在或已被移动，已从最近记录移除', true);
+        if (isFavoriteFile(filePath)) {
+          removeFavoriteFile(filePath);
+          showToast('文件不存在或已被移动，已从最近记录和收藏列表移除', true);
+        } else {
+          showToast('文件不存在或已被移动，已从最近记录移除', true);
+        }
         renderRecentPanel();
         return;
       }
@@ -2892,13 +3010,16 @@
   function toggleRecentPanel() {
     const open = !isPaneOpen(elements.recentPane);
     if (open) {
-      // 互斥：关闭文件树和历史面板
+      // 互斥：关闭文件树、历史和收藏面板
       elements.fileTreePane.setAttribute('aria-hidden', 'true');
       elements.editorWorkspace.classList.remove('show-filetree');
       if (fileTreeBtn) fileTreeBtn.classList.remove('active');
       elements.historyPane.setAttribute('aria-hidden', 'true');
       elements.editorWorkspace.classList.remove('show-history');
       if (historyBtn) historyBtn.classList.remove('active');
+      elements.favPane.setAttribute('aria-hidden', 'true');
+      elements.editorWorkspace.classList.remove('show-fav');
+      if (favBtn) favBtn.classList.remove('active');
       renderRecentPanel();
     }
     elements.recentPane.setAttribute('aria-hidden', String(!open));
@@ -2931,6 +3052,214 @@
 
   // 打开文件时记录到最近列表
   // （openMainFile / openFileTreeFile 成功回调中调用 recordRecentFile）
+
+  // ══════════════════════════════════════════════════════════
+  // 7.6 Favorite Files (常用文件收藏 - 无数量上限)
+  // ══════════════════════════════════════════════════════════
+  var FAVORITE_FILES_KEY = 'editor_favorite_files';
+
+  function getFavoriteFiles() {
+    try {
+      return JSON.parse(localStorage.getItem(FAVORITE_FILES_KEY) || '[]');
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveFavoriteFiles(list) {
+    try {
+      localStorage.setItem(FAVORITE_FILES_KEY, JSON.stringify(list));
+    } catch (e) {
+      FrontendLogger.warn('[Editor] Failed to save favorite files:', e.message);
+    }
+  }
+
+  function addFavoriteFile(filePath, fileName) {
+    if (!filePath) return false;
+    var list = getFavoriteFiles();
+    var existing = list.filter(function(item) { return item.path === filePath; });
+    if (existing.length > 0) return false; // 已存在
+    list.push({ id: 'fav_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), path: filePath, name: fileName || filePath.split(/[\\/]/).pop() || filePath, addTime: Date.now() });
+    saveFavoriteFiles(list);
+    if (elements.favPane.getAttribute('aria-hidden') === 'false') renderFavPanel();
+    return true;
+  }
+
+  function removeFavoriteFile(filePath) {
+    var list = getFavoriteFiles().filter(function(item) { return item.path !== filePath; });
+    saveFavoriteFiles(list);
+    if (elements.favPane.getAttribute('aria-hidden') === 'false') renderFavPanel();
+  }
+
+  function isFavoriteFile(filePath) {
+    return getFavoriteFiles().some(function(item) { return item.path === filePath; });
+  }
+
+  function toggleFavItem(filePath, fileName) {
+    if (isFavoriteFile(filePath)) {
+      removeFavoriteFile(filePath);
+      showToast('已取消收藏');
+    } else {
+      addFavoriteFile(filePath, fileName);
+      showToast('已收藏到常用');
+    }
+  }
+
+  function renderFavPanel() {
+    var list = getFavoriteFiles();
+    elements.favList.innerHTML = '';
+    if (list.length === 0) {
+      elements.favList.innerHTML = '<div class="fav-empty"><div class="fav-empty-icon">☆</div><div>暂无收藏文件</div><div style="font-size:11px;opacity:0.7;">右键标签栏可收藏</div></div>';
+      return;
+    }
+    list.forEach(function(item, index) {
+      var el = document.createElement('div');
+      el.className = 'fav-item';
+      el.draggable = true;
+      el.dataset.favIndex = index;
+      // 拖拽手柄
+      var handle = document.createElement('span');
+      handle.className = 'fav-drag-handle';
+      handle.textContent = '☰';
+      handle.title = '拖拽排序';
+      // 文件信息
+      var body = document.createElement('div');
+      body.className = 'fav-body';
+      var nameLine = document.createElement('div');
+      nameLine.className = 'fav-name';
+      nameLine.textContent = item.name;
+      var metaLine = document.createElement('div');
+      metaLine.className = 'fav-meta';
+      metaLine.textContent = item.path;
+      body.appendChild(nameLine);
+      body.appendChild(metaLine);
+      // 删除按钮
+      var removeBtn = document.createElement('button');
+      removeBtn.className = 'fav-remove-btn';
+      removeBtn.textContent = '×';
+      removeBtn.title = '取消收藏';
+      removeBtn.addEventListener('click', function(ev) {
+        ev.stopPropagation();
+        removeFavoriteFile(item.path);
+        showToast('已取消收藏');
+      });
+      // 点击打开文件
+      el.addEventListener('click', function() {
+        openRecentFile(item.path);
+      });
+      // 拖拽事件
+      el.draggable = true;
+      el.addEventListener('dragstart', function(ev) {
+        el.classList.add('dragging');
+        ev.dataTransfer.effectAllowed = 'move';
+        ev.dataTransfer.setData('text/plain', index);
+        // 自定义拖拽幽灵图
+        var ghost = el.cloneNode(true);
+        ghost.style.position = 'absolute';
+        ghost.style.top = '-9999px';
+        ghost.style.width = el.offsetWidth + 'px';
+        ghost.style.opacity = '0.7';
+        ghost.style.borderRadius = '6px';
+        ghost.style.background = 'var(--app-surface)';
+        ghost.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+        ghost.style.padding = '6px 8px';
+        ghost.style.fontSize = '12px';
+        ghost.style.pointerEvents = 'none';
+        document.body.appendChild(ghost);
+        ev.dataTransfer.setDragImage(ghost, 20, 20);
+        setTimeout(function() { document.body.removeChild(ghost); }, 0);
+      });
+      el.addEventListener('dragend', function() {
+        el.classList.remove('dragging');
+        document.querySelectorAll('.fav-item.drag-over').forEach(function(o) { o.classList.remove('drag-over'); });
+      });
+      el.addEventListener('dragleave', function() {
+        el.classList.remove('drag-over');
+      });
+      el.appendChild(handle);
+      el.appendChild(body);
+      el.appendChild(removeBtn);
+      el.addEventListener('animationend', function() {
+        el.classList.remove('fav-enter');
+      });
+      elements.favList.appendChild(el);
+      // 新项入场动画
+      requestAnimationFrame(function() { el.classList.add('fav-enter'); });
+    });
+  }
+
+  function toggleFavPanel() {
+    var open = elements.favPane.getAttribute('aria-hidden') === 'false';
+    if (open) {
+      // 关闭
+      elements.favPane.setAttribute('aria-hidden', 'true');
+      elements.editorWorkspace.classList.remove('show-fav');
+      if (favBtn) favBtn.classList.remove('active');
+      setTimeout(function() { mainEditor.resize(); }, 250);
+    } else {
+      // 互斥关闭其他面板
+      elements.fileTreePane.setAttribute('aria-hidden', 'true');
+      elements.editorWorkspace.classList.remove('show-filetree');
+      if (fileTreeBtn) fileTreeBtn.classList.remove('active');
+      elements.historyPane.setAttribute('aria-hidden', 'true');
+      elements.editorWorkspace.classList.remove('show-history');
+      if (historyBtn) historyBtn.classList.remove('active');
+      elements.recentPane.setAttribute('aria-hidden', 'true');
+      elements.editorWorkspace.classList.remove('show-recent');
+      if (recentBtn) recentBtn.classList.remove('active');
+      renderFavPanel();
+      elements.favPane.setAttribute('aria-hidden', 'false');
+      elements.editorWorkspace.classList.add('show-fav');
+      if (favBtn) favBtn.classList.add('active');
+      setTimeout(function() { mainEditor.resize(); }, 250);
+    }
+  }
+
+  function closeFavPanel() {
+    elements.favPane.setAttribute('aria-hidden', 'true');
+    elements.editorWorkspace.classList.remove('show-fav');
+    if (favBtn) favBtn.classList.remove('active');
+    setTimeout(function() { mainEditor.resize(); }, 250);
+  }
+
+  // 收藏按钮（状态栏）
+  var favBtn = document.createElement('button');
+  favBtn.className = 'status-btn';
+  favBtn.title = '常用文件收藏';
+  favBtn.textContent = '☆';
+  favBtn.addEventListener('click', toggleFavPanel);
+  elements.runtimeStatus.parentNode.insertBefore(favBtn, recentBtn);
+
+  // 常用文件面板事件绑定
+  elements.closeFavBtn.addEventListener('click', closeFavPanel);
+  elements.clearFavBtn.addEventListener('click', function() {
+    saveFavoriteFiles([]);
+    renderFavPanel();
+    showToast('常用文件已清空');
+  });
+
+  // fav-list 拖拽排序（一次性注册，避免重复监听）
+  elements.favList.addEventListener('dragover', function(ev) {
+    ev.preventDefault();
+    ev.dataTransfer.dropEffect = 'move';
+    var target = ev.target.closest('.fav-item');
+    if (!target) return;
+    document.querySelectorAll('.fav-item.drag-over').forEach(function(o) { if (o !== target) o.classList.remove('drag-over'); });
+    target.classList.add('drag-over');
+  });
+  elements.favList.addEventListener('drop', function(ev) {
+    ev.preventDefault();
+    var srcIndex = parseInt(ev.dataTransfer.getData('text/plain'), 10);
+    var target = ev.target.closest('.fav-item');
+    if (!target) return;
+    var dstIndex = parseInt(target.dataset.favIndex, 10);
+    if (isNaN(srcIndex) || isNaN(dstIndex) || srcIndex === dstIndex) return;
+    var list = getFavoriteFiles();
+    var item = list.splice(srcIndex, 1)[0];
+    list.splice(dstIndex, 0, item);
+    saveFavoriteFiles(list);
+    renderFavPanel();
+  });
 
   // ══════════════════════════════════════════════════════════
   // 8. Overview Ruler (滚动条预览图 - 简化 minimap)
