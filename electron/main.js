@@ -946,15 +946,22 @@ function stopFrontendServer() {
  * 双击托盘图标可快速恢复窗口
  */
 function createTray() {
-  const iconPath = path.join(__dirname, 'icon.png');
+  // 托盘图标路径：优先使用新设计的 tray-icon.png，回退到旧 icon.png
+  const trayIconPath = path.join(__dirname, 'tray-icon.png');
+  const fallbackIconPath = path.join(__dirname, 'icon.png');
+  const iconPath = fs.existsSync(trayIconPath) ? trayIconPath : fallbackIconPath;
   let trayIcon;
 
-  // 尝试加载应用图标，缩放到 16x16（托盘标准尺寸）
   if (fs.existsSync(iconPath)) {
-    trayIcon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
-    // macOS 使用 Template 图标（黑白色，自动适配菜单栏明暗模式）
+    // macOS: 使用原生尺寸不缩放，保持 Retina 清晰度
+    // macOS 托盘标准 22pt，@3x = 66px，64px 源图清晰度足够
+    // Windows/Linux: 缩放到 16x16 适应托盘标准尺寸
     if (process.platform === 'darwin') {
+      trayIcon = nativeImage.createFromPath(iconPath);
+      // Template 图标：macOS 自动转为单色适配菜单栏明暗模式
       trayIcon.setTemplateImage(true);
+    } else {
+      trayIcon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
     }
   } else {
     // 图标缺失时创建空图标（托盘仍然可用，但不显示图标）
@@ -1404,6 +1411,7 @@ function showConfigWindow(config) {
   configWindow = new BrowserWindow({
     width: 560, height: 700,
     resizable: false,
+    frame: false,
     title: 'Clip - Settings',
     parent: mainWindow,      // 设置父窗口，随父窗口一起关闭
     webPreferences: {
@@ -2160,7 +2168,7 @@ function setupIPC() {
 // ==================== 剪贴板 & 全局快捷键 ====================
 
 // 全局快捷键状态
-let shortcutAccelerator = 'CommandOrControl+Shift+Z';
+let shortcutAccelerator = 'Alt+X';
 let shortcutEnabled = true;
 
 /** 注册全局快捷键 */
@@ -2202,6 +2210,16 @@ function loadShortcutFromConfig() {
 
 // 剪贴板读取
 ipcMain.handle('read-clipboard', () => clipboard.readText());
+
+// 在文件管理器中显示
+ipcMain.handle('show-item-in-folder', async (event, filePath) => {
+  if (!filePath || typeof filePath !== 'string') return;
+  try {
+    await shell.showItemInFolder(filePath);
+  } catch (e) {
+    log.warn('[show-item-in-folder] Failed:', filePath, e.message);
+  }
+});
 
 // 快捷键配置
 ipcMain.handle('get-shortcut-config', () => {
@@ -2670,19 +2688,14 @@ app.whenReady().then(async () => {
   killPortProcess(config.backendPort);
   killPortProcess(config.frontendPort);
 
-  const hasConfiguredProviderKey = config.activeProvider === 'deepseek'
-    ? Boolean(config.deepseekApiKey && config.deepseekApiKey.trim())
-    : config.activeProvider === 'custom'
-    ? Boolean(config.customApiKey && config.customApiKey.trim())
-    : Boolean(config.apiKey && config.apiKey.trim());
-
-  if (!config.configured || !hasConfiguredProviderKey) {
+  if (!config.configured) {
     // ===== 首次运行：显示配置引导窗口 =====
     log.info('First run - showing config window');
 
     // 复用 mainWindow 变量指向配置窗口
     mainWindow = new BrowserWindow({
       width: 560, height: 700, resizable: false,
+      frame: false,
       title: 'Clip - Setup',
       webPreferences: {
         nodeIntegration: false,

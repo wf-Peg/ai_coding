@@ -8,7 +8,8 @@
     "test:editor": "node --test electron/editor-file-service.test.js",
     "test:editor-ai": "node --test electron/editor-ai-chat-core.test.js",
     "postinstall": "electron-builder install-app-deps",
-    "prebuild": "node scripts/prebuild-clean.js",
+    "generate-icons": "node scripts/generate-icons.js",
+    "prebuild": "node scripts/generate-icons.js && node scripts/prebuild-clean.js",
     "download-jre": "bash scripts/download-jre.sh",
     "download-jre:all": "bash scripts/download-jre.sh all",
     "download-jre:win": "scripts\\download-jre.bat",
@@ -114,7 +115,7 @@
           ]
         }
       ],
-      "icon": "electron/icon.png",
+      "icon": "electron/app-icon.png",
       "category": "public.app-category.productivity",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
@@ -144,7 +145,7 @@
           ]
         }
       ],
-      "icon": "electron/icon.png",
+      "icon": "electron/app-icon.png",
       "category": "Utility"
     }
   },
