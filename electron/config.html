@@ -12,17 +12,31 @@
       background: #f5f7fa; color: #333; overflow: hidden;
     }
 
-    /* ===== 页面头部（渐变色标题栏） ===== */
-    .header {
+    /* ===== 自定义标题栏（无边框窗口） ===== */
+    .titlebar {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 40px; padding: 0 12px;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white; padding: 24px 32px;
+      user-select: none;
     }
-    .header h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
-    .brand-subtitle { font-size: 0.55em; font-weight: 400; color: #999; letter-spacing: 0.04em; vertical-align: middle; margin-left: 6px; }
-    .header p { font-size: 13px; opacity: 0.85; }
+    .titlebar-drag {
+      -webkit-app-region: drag;
+      display: flex; align-items: center; gap: 8px; flex: 1;
+      height: 100%;
+    }
+    .titlebar-icon { font-size: 16px; }
+    .titlebar-title { font-size: 13px; color: white; font-weight: 500; }
+    .titlebar-close {
+      -webkit-app-region: no-drag;
+      width: 32px; height: 32px; border: none; background: transparent;
+      border-radius: 6px; color: rgba(255,255,255,0.8); font-size: 16px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s;
+    }
+    .titlebar-close:hover { background: rgba(255,255,255,0.2); color: white; }
 
     /* ===== 主内容区域（可滚动） ===== */
-    .container { padding: 24px 32px; max-height: calc(100vh - 100px); overflow-y: auto; }
+    .container { padding: 24px 32px; max-height: calc(100vh - 40px); overflow-y: auto; }
 
     /* ===== 配置区块 ===== */
     .section { margin-bottom: 24px; }
@@ -63,31 +77,11 @@
       white-space: nowrap; transition: background 0.2s;
     }
     .btn-browse:hover { background: #e4e7ec; }
-
-    /* ===== 子目录结构展示 ===== */
     .path-desc { font-size: 12px; color: #999; margin-top: 4px; }
-    .sub-paths {
-      padding: 10px 14px; background: #fafbfc;
-      border: 1px solid #e8ecf1; border-radius: 8px;
-    }
-    .sub-path-item {
-      display: flex; align-items: center; gap: 8px;
-      padding: 4px 0; font-size: 13px;
-    }
-    .sub-path-item + .sub-path-item { border-top: 1px solid #e8ecf1; }
-    .sub-path-icon { font-size: 14px; }
-    .sub-path-label { color: #888; min-width: 70px; }
-    .sub-path-value { color: #555; font-family: 'SF Mono', 'Consolas', monospace; font-size: 12px; word-break: break-all; }
 
-    /* ===== API Key 输入框中的密码可见性切换按钮 ===== */
-    .api-key-wrapper { position: relative; }
-    .api-key-wrapper input { padding-right: 42px; }
-    .toggle-visibility {
-      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-      background: none; border: none; cursor: pointer;
-      font-size: 16px; color: #999; padding: 4px;
-    }
-    .toggle-visibility:hover { color: #666; }
+    /* ===== 端口行（两个端口输入框并排） ===== */
+    .port-row { display: flex; gap: 16px; }
+    .port-row .form-group { flex: 1; }
 
     /* ===== 底部操作按钮区域 ===== */
     .actions {
@@ -128,10 +122,6 @@
     }
     .first-run-notice strong { display: block; margin-bottom: 4px; font-size: 14px; }
 
-    /* ===== 端口行（两个端口输入框并排） ===== */
-    .port-row { display: flex; gap: 16px; }
-    .port-row .form-group { flex: 1; }
-
     /* ===== 自定义滚动条 ===== */
     .container::-webkit-scrollbar { width: 6px; }
     .container::-webkit-scrollbar-track { background: transparent; }
@@ -166,135 +156,26 @@
       text-align: center;
       max-width: 300px;
     }
-  /* ===== 更新管理样式 ===== */
-    .toggle-switch {
-      position: relative; display: inline-block; width: 44px; height: 24px;
-    }
-    .toggle-switch input { opacity: 0; width: 0; height: 0; }
-    .toggle-slider {
-      position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-      background: #d1d5db; border-radius: 24px; transition: 0.3s;
-    }
-    .toggle-slider::before {
-      content: ""; position: absolute; height: 18px; width: 18px;
-      left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.3s;
-    }
-    .toggle-switch input:checked + .toggle-slider { background: #667eea; }
-    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
-    .update-label { font-size: 13px; color: #666; }
-    .update-available { color: #16a34a; font-weight: 500; }
-    .update-checking { color: #666; }
-    .update-error { color: #dc2626; }
-    .update-notes {
-      background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;
-      padding: 10px; margin-top: 8px; max-height: 160px; overflow-y: auto;
-      font-size: 12px; white-space: pre-wrap; color: #166534;
-    }
-    .progress-bar {
-      width: 100%; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; margin-top: 8px;
-    }
-    .progress-fill {
-      height: 100%; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 3px; transition: width 0.3s ease; width: 0%;
-    }
-    .update-btn {
-      padding: 6px 14px; border: none; border-radius: 6px; font-size: 12px; font-weight: 500;
-      cursor: pointer; transition: all 0.2s;
-    }
-    .update-btn.primary {
-      background: linear-gradient(135deg, #667eea, #764ba2); color: white;
-    }
-    .update-btn.primary:hover { opacity: 0.9; }
-    .update-btn.outline {
-      background: white; color: #555; border: 1px solid #d9dce1;
-    }
-    .update-btn.outline:hover { background: #f0f2f5; }
-    .update-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   </style>
 </head>
 <body>
 
-  <!-- ==================== 页面头部 ==================== -->
-  <div class="header">
-    <h1 id="headerTitle">⚙️ CutShelter <span class="brand-subtitle">剪藏</span> - 设置</h1>
-    <p id="headerDesc">配置应用参数</p>
+  <!-- ==================== 自定义标题栏 ==================== -->
+  <div class="titlebar">
+    <div class="titlebar-drag">
+      <span class="titlebar-icon">⚙️</span>
+      <span class="titlebar-title" id="headerTitle">CutShelter - 设置</span>
+    </div>
+    <button class="titlebar-close" id="titlebarClose" title="关闭">✕</button>
   </div>
 
   <!-- ==================== 主内容区域 ==================== -->
   <div class="container">
 
-    <!-- 首次运行提示横幅：仅在首次启动时显示，引导用户完成初始配置 -->
+    <!-- 首次运行提示横幅：仅在首次启动时显示 -->
     <div id="firstRunNotice" class="first-run-notice" style="display:none;">
-      <strong>欢迎使用剪藏！</strong>
-      首次使用需要完成以下配置。请确保已准备好阿里云 DashScope API Key。
-      <a href="https://dashscope.console.aliyun.com/apiKey" target="_blank" style="color: #667eea;">点击获取 API Key</a>
-    </div>
-
-    <!-- ===== AI 模型配置区块 ===== -->
-    <div class="section">
-      <div class="section-title"><span class="icon">🔑</span> AI 模型配置</div>
-
-      <!-- AI 提供商选择（DashScope / DeepSeek），切换时显示对应的字段组 -->
-      <div class="form-group">
-        <label>当前使用模型</label>
-        <select id="activeProvider" style="width:100%;padding:10px 14px;border:1px solid #d9dce1;border-radius:8px;font-size:14px;outline:none;background:white;cursor:pointer;">
-          <option value="dashscope">阿里云 DashScope</option>
-          <option value="deepseek">DeepSeek</option>
-          <option value="custom">自定义 OpenAI 兼容（中转站）</option>
-        </select>
-      </div>
-
-      <!-- DashScope 配置字段（默认显示） -->
-      <div id="dashscopeFields">
-        <div class="form-group">
-          <label>DashScope API Key <span class="hint">（必填）</span></label>
-          <div class="api-key-wrapper">
-            <input type="password" id="apiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" />
-            <button class="toggle-visibility" id="toggleApiKey" type="button">👁</button>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>DashScope 模型</label>
-          <input type="text" id="dashscopeModel" placeholder="qwen-plus" style="width:100%;padding:10px 14px;border:1px solid #d9dce1;border-radius:8px;font-size:14px;outline:none;background:white;" />
-        </div>
-      </div>
-
-      <!-- DeepSeek 配置字段（默认隐藏，当选择 DeepSeek 时显示） -->
-      <div id="deepseekFields" style="display:none;">
-        <div class="form-group">
-          <label>DeepSeek API Key <span class="hint">（必填）</span></label>
-          <div class="api-key-wrapper">
-            <input type="password" id="deepseekApiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" />
-            <button class="toggle-visibility" id="toggleDeepseekApiKey" type="button">👁</button>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>DeepSeek 模型</label>
-          <input type="text" id="deepseekModel" placeholder="deepseek-chat" style="width:100%;padding:10px 14px;border:1px solid #d9dce1;border-radius:8px;font-size:14px;outline:none;background:white;" />
-        </div>
-      </div>
-
-      <!-- Custom 配置字段（默认隐藏，当选择自定义 OpenAI 兼容时显示） -->
-      <div id="customFields" style="display:none;">
-        <div class="form-group">
-          <label>展示名称 <span class="hint">（可选）</span></label>
-          <input type="text" id="customProviderName" placeholder="我的中转站" style="width:100%;padding:10px 14px;border:1px solid #d9dce1;border-radius:8px;font-size:14px;outline:none;background:white;" />
-        </div>
-        <div class="form-group">
-          <label>API 地址 <span class="hint">（必填）</span></label>
-          <input type="text" id="customBaseUrl" placeholder="https://api.example.com/v1" style="width:100%;padding:10px 14px;border:1px solid #d9dce1;border-radius:8px;font-size:14px;outline:none;background:white;" />
-        </div>
-        <div class="form-group">
-          <label>API Key <span class="hint">（必填）</span></label>
-          <div class="api-key-wrapper">
-            <input type="password" id="customApiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" />
-            <button class="toggle-visibility" id="toggleCustomApiKey" type="button">👁</button>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>模型名称 <span class="hint">（必填）</span></label>
-          <input type="text" id="customModel" placeholder="gpt-4o-mini" style="width:100%;padding:10px 14px;border:1px solid #d9dce1;border-radius:8px;font-size:14px;outline:none;background:white;" />
-        </div>
-      </div>
+      <strong>🎉 欢迎使用剪藏！</strong>
+      首次使用只需配置存储目录和端口即可开始。AI 等高级功能可在设置中按需配置。
     </div>
 
     <!-- ===== 端口配置区块 ===== -->
@@ -312,134 +193,25 @@
       </div>
     </div>
 
-    <!-- ===== 启动行为配置区块 ===== -->
-    <div class="section">
-      <div class="section-title"><span class="icon">🚀</span> 启动行为</div>
-      <div class="setting-row" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;">
-        <div>
-          <strong>开机自动启动</strong>
-          <p class="hint">登录系统后自动启动 CutShelter，并在后台保持运行</p>
-        </div>
-        <label class="toggle-switch">
-          <input type="checkbox" id="autoStart">
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-    </div>
-
-    <!-- ===== 存储目录配置区块 ===== -->
+    <!-- ===== 存储目录区块 ===== -->
     <div class="section">
       <div class="section-title"><span class="icon">📁</span> 存储目录</div>
       <div class="form-group">
         <label>存储根目录 <span class="hint">（必填）</span></label>
         <div class="path-group">
-          <input type="text" id="storagePath" placeholder="选择数据存储根目录" oninput="updateDerivedPaths(this.value)" />
+          <input type="text" id="storagePath" placeholder="选择数据存储根目录" />
           <button class="btn-browse" id="browseStorage" type="button">浏览...</button>
         </div>
         <div class="path-desc">所有剪藏、整理、周报数据均存储在此目录下</div>
-      </div>
-      <div class="form-group">
-        <label>子目录结构（自动派生）</label>
-        <div class="sub-paths">
-          <div class="sub-path-item">
-            <span class="sub-path-icon">📋</span>
-            <span class="sub-path-label">剪藏数据</span>
-            <span class="sub-path-value" id="derivedClipPath">—</span>
-          </div>
-          <div class="sub-path-item">
-            <span class="sub-path-icon">📊</span>
-            <span class="sub-path-label">整理数据</span>
-            <span class="sub-path-value" id="derivedOrganizedPath">—</span>
-          </div>
-          <div class="sub-path-item">
-            <span class="sub-path-icon">📝</span>
-            <span class="sub-path-label">周报数据</span>
-            <span class="sub-path-value" id="derivedWeeklyPath">—</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ===== 邮件通知配置区块（可选） ===== -->
-    <div class="section">
-      <div class="section-title"><span class="icon">📧</span> 邮件通知 <span class="hint">（可选）</span></div>
-      <div class="form-group" style="display:flex;align-items:center;gap:8px;">
-        <input type="checkbox" id="mailEnabled" style="width:auto;" />
-        <label for="mailEnabled" style="margin:0;cursor:pointer;">启用整理完成后发送邮件</label>
-      </div>
-      <!-- 邮件详细配置字段，仅在勾选"启用邮件"后显示 -->
-      <div id="mailFields" style="display:none;">
-        <div class="form-group">
-          <label>SMTP 服务器</label>
-          <input type="text" id="mailHost" placeholder="smtp.qq.com" />
-        </div>
-        <div class="form-group">
-          <label>SMTP 端口</label>
-          <input type="number" id="mailPort" value="465" min="1" max="65535" />
-        </div>
-        <div class="form-group">
-          <label>发件邮箱</label>
-          <input type="text" id="mailUsername" placeholder="your@qq.com" />
-        </div>
-        <div class="form-group">
-          <label>授权码 <span class="hint">（非邮箱密码，需在邮箱设置中获取）</span></label>
-          <input type="password" id="mailPassword" placeholder="SMTP授权码" />
-        </div>
-      </div>
-    </div>
-
-    <!-- ===== 软件更新区块 ===== -->
-    <div class="section" id="updateSection">
-      <div class="section-title"><span class="icon">🔄</span> 软件更新</div>
-
-      <div class="form-group">
-        <label>当前版本</label>
-        <div style="display:flex;align-items:center;gap:12px;">
-          <span id="currentVersion" style="font-weight:600;font-size:15px;">v1.0.0</span>
-          <button class="update-btn outline" id="checkUpdateBtn" onclick="manualCheckUpdate()" style="font-size:12px;">检查更新</button>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label>自动检查更新</label>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <label class="toggle-switch">
-            <input type="checkbox" id="autoUpdateToggle" onchange="onAutoUpdateToggle()">
-            <span class="toggle-slider"></span>
-          </label>
-          <span class="update-label" id="autoUpdateLabel">已关闭</span>
-        </div>
-      </div>
-
-      <div class="form-group" id="frequencyGroup" style="display:none;">
-        <label>检查频率</label>
-        <select id="updateFrequency" onchange="onFrequencyChange()" style="width:100%;padding:8px 12px;border:1px solid #d9dce1;border-radius:6px;font-size:13px;outline:none;background:white;cursor:pointer;">
-          <option value="daily">每天</option>
-          <option value="weekly">每周</option>
-          <option value="monthly">每月</option>
-        </select>
-      </div>
-
-      <div id="updateStatus" style="display:none;margin-top:8px;">
-        <div id="updateMessage" style="font-size:13px;margin-bottom:6px;"></div>
-        <div class="progress-bar" id="updateProgressBar" style="display:none;">
-          <div class="progress-fill" id="updateProgressFill"></div>
-        </div>
-        <div id="updateActions" style="display:none;margin-top:8px;">
-          <button class="update-btn primary" id="updateNowBtn" onclick="startUpdate()" style="font-size:12px;">立即更新</button>
-          <button class="update-btn outline" id="cancelUpdateBtn" onclick="cancelUpdate()" style="display:none;font-size:12px;">取消</button>
-        </div>
       </div>
     </div>
 
     <!-- ===== 底部操作按钮 ===== -->
     <div class="actions">
       <div class="actions-left">
-        <!-- 退出应用按钮：首次运行时隐藏，非首次运行时显示 -->
         <button class="btn btn-danger" id="btnQuit" type="button">退出应用</button>
       </div>
       <div class="actions-right">
-        <!-- 保存并启动按钮：保存配置，然后启动/重启后端服务 -->
         <button class="btn btn-primary" id="btnSave" type="button">保存并启动</button>
       </div>
     </div>
@@ -449,7 +221,6 @@
   </div>
 
   <!-- ==================== 启动遮罩层 ==================== -->
-  <!-- 启动/重启服务时覆盖整个页面，显示旋转加载动画和进度描述 -->
   <div class="startup-overlay" id="startupOverlay">
     <div class="spinner"></div>
     <div class="startup-text">正在启动服务...</div>
@@ -489,6 +260,9 @@
     /** 是否为首次运行（首次运行时行为不同：不显示退出按钮，走 configDone 流程） */
     var isFirstRun = false;
 
+    /** 保存主进程推送的已有配置，避免保存时覆盖非当前页面的配置项 */
+    var loadedConfig = null;
+
     /**
      * 在页面底部状态栏显示消息
      * @param {string} message - 要显示的消息文本
@@ -519,130 +293,45 @@
     waitForAPI(function(api) {
 
       // ===== 监听主进程事件：加载已有配置 =====
-      // 主进程在配置窗口打开时，通过 'load-config' 频道发送已保存的配置
-      // 渲染进程收到后，将配置数据填充到表单各字段中
       api.onLoadConfig(function(config) {
-        document.getElementById('activeProvider').value = config.activeProvider || 'dashscope';
-        document.getElementById('apiKey').value = config.apiKey || '';
-        document.getElementById('dashscopeModel').value = config.dashscopeModel || 'qwen-plus';
-        document.getElementById('deepseekApiKey').value = config.deepseekApiKey || '';
-        document.getElementById('deepseekModel').value = config.deepseekModel || 'deepseek-chat';
-        document.getElementById('customProviderName').value = config.customProviderName || '';
-        document.getElementById('customBaseUrl').value = config.customBaseUrl || '';
-        document.getElementById('customApiKey').value = config.customApiKey || '';
-        document.getElementById('customModel').value = config.customModel || '';
+        loadedConfig = config;
         document.getElementById('backendPort').value = config.backendPort || 8081;
         document.getElementById('frontendPort').value = config.frontendPort || 3001;
         document.getElementById('storagePath').value = config.storagePath || '';
-        document.getElementById('autoStart').checked = config.autoStart === true;
-        updateDerivedPaths(config.storagePath);
-        // 邮件配置
-        document.getElementById('mailEnabled').checked = config.mailEnabled || false;
-        document.getElementById('mailHost').value = config.mailHost || '';
-        document.getElementById('mailPort').value = config.mailPort || 465;
-        document.getElementById('mailUsername').value = config.mailUsername || '';
-        document.getElementById('mailPassword').value = config.mailPassword || '';
-        document.getElementById('mailFields').style.display = config.mailEnabled ? 'block' : 'none';
-        // 根据当前选择的提供商，更新对应字段组的显示/隐藏
-        updateProviderFields();
       });
 
       // ===== 监听主进程事件：首次运行 =====
-      // 首次运行时，显示欢迎横幅，修改标题，隐藏退出按钮
       api.onFirstRun(function() {
         isFirstRun = true;
         document.getElementById('firstRunNotice').style.display = 'block';
         document.getElementById('headerTitle').textContent = 'CutShelter - 初始设置';
-        document.getElementById('headerDesc').textContent = '首次使用，请完成配置后启动';
         // 首次运行时没有已运行的服务，因此不需要退出按钮
         document.getElementById('btnQuit').style.display = 'none';
       });
 
       // ===== 监听主进程事件：启动进度 =====
-      // 主进程在启动后端服务过程中，会多次推送进度更新
-      // 渲染进程在启动遮罩层上显示当前进度描述
       api.onStartupProgress(function(msg) {
         showStartupOverlay(msg);
       });
 
       // ===== 监听主进程事件：启动失败 =====
-      // 启动过程中发生错误时，主进程推送此事件
-      // 渲染进程隐藏遮罩，显示错误信息，并恢复保存按钮的可用状态
       api.onStartupError(function(msg) {
         hideStartupOverlay();
         showStatus('启动失败: ' + msg, 'error');
         document.getElementById('btnSave').disabled = false;
       });
 
-      // ===== DashScope API Key 密码可见性切换 =====
-      // 点击眼睛图标，在 password 和 text 类型之间切换，实现密码显隐
-      document.getElementById('toggleApiKey').addEventListener('click', function() {
-        var input = document.getElementById('apiKey');
-        var btn = document.getElementById('toggleApiKey');
-        if (input.type === 'password') {
-          input.type = 'text';
-          btn.textContent = '🙈';
-        } else {
-          input.type = 'password';
-          btn.textContent = '👁';
-        }
-      });
-
-      // ===== DeepSeek API Key 密码可见性切换 =====
-      // 逻辑同上，控制 DeepSeek 的 API Key 输入框显隐
-      document.getElementById('toggleDeepseekApiKey').addEventListener('click', function() {
-        var input = document.getElementById('deepseekApiKey');
-        var btn = document.getElementById('toggleDeepseekApiKey');
-        if (input.type === 'password') {
-          input.type = 'text';
-          btn.textContent = '🙈';
-        } else {
-          input.type = 'password';
-          btn.textContent = '👁';
-        }
-      });
-
-      // ===== Custom API Key 密码可见性切换 =====
-      document.getElementById('toggleCustomApiKey').addEventListener('click', function() {
-        var input = document.getElementById('customApiKey');
-        var btn = document.getElementById('toggleCustomApiKey');
-        if (input.type === 'password') {
-          input.type = 'text';
-          btn.textContent = '🙈';
-        } else {
-          input.type = 'password';
-          btn.textContent = '👁';
-        }
-      });
-
-      // ===== AI 提供商切换 =====
-      /**
-       * 根据当前选中的 AI 提供商，切换显示对应的配置字段组
-       * - DashScope: 显示 dashscopeFields，隐藏 deepseekFields
-       * - DeepSeek:  隐藏 dashscopeFields，显示 deepseekFields
-       */
-      function updateProviderFields() {
-        var provider = document.getElementById('activeProvider').value;
-        document.getElementById('dashscopeFields').style.display = provider === 'dashscope' ? 'block' : 'none';
-        document.getElementById('deepseekFields').style.display = provider === 'deepseek' ? 'block' : 'none';
-        document.getElementById('customFields').style.display = provider === 'custom' ? 'block' : 'none';
-      }
-      document.getElementById('activeProvider').addEventListener('change', updateProviderFields);
-
-      // ===== 邮件配置区域的显示/隐藏切换 =====
-      // 勾选「启用邮件」时展开邮件详细配置字段，取消勾选时隐藏
-      document.getElementById('mailEnabled').addEventListener('change', function() {
-        document.getElementById('mailFields').style.display = this.checked ? 'block' : 'none';
+      // ===== 自定义标题栏关闭按钮 =====
+      document.getElementById('titlebarClose').addEventListener('click', function() {
+        window.close();
       });
 
       // ===== 浏览按钮：存储根目录 =====
-      // 调用主进程的目录选择对话框，将用户选择的路径填入输入框
       document.getElementById('browseStorage').addEventListener('click', async function() {
         try {
           var dir = await api.selectDirectory();
           if (dir) {
             document.getElementById('storagePath').value = dir;
-            updateDerivedPaths(dir);
           }
         } catch (e) {
           showStatus('选择目录失败: ' + e.message, 'error');
@@ -650,88 +339,38 @@
       });
 
       // ===== 退出应用按钮 =====
-      // 调用主进程的 quit-app 方法，退出整个 Electron 应用
       document.getElementById('btnQuit').addEventListener('click', async function() {
         await api.quitApp();
       });
 
-      // ===== 自动派生子目录路径 =====
-      function updateDerivedPaths(rootPath) {
-        if (!rootPath) {
-          document.getElementById('derivedClipPath').textContent = '—';
-          document.getElementById('derivedOrganizedPath').textContent = '—';
-          document.getElementById('derivedWeeklyPath').textContent = '—';
-          return;
-        }
-        var normalized = rootPath.replace(/\\/g, '/');
-        document.getElementById('derivedClipPath').textContent = normalized + '/clip-storage';
-        document.getElementById('derivedOrganizedPath').textContent = normalized + '/clip-organized';
-        document.getElementById('derivedWeeklyPath').textContent = normalized + '/weekly-report';
-      }
-
       // ===== 保存并启动按钮 =====
-      // 核心逻辑：收集表单数据 → 验证必填项 → 调用主进程保存/启动
-      // 首次运行：通过 configDone 单向发送配置，主进程通过事件推送进度
-      // 非首次运行：通过 restartBackend 双向通信，等待重启结果
       document.getElementById('btnSave').addEventListener('click', async function() {
         // 收集表单数据
-        var activeProvider = document.getElementById('activeProvider').value;
-        var apiKey = document.getElementById('apiKey').value.trim();
-        var deepseekApiKey = document.getElementById('deepseekApiKey').value.trim();
         var backendPort = parseInt(document.getElementById('backendPort').value) || 8081;
         var frontendPort = parseInt(document.getElementById('frontendPort').value) || 3001;
         var storagePath = document.getElementById('storagePath').value.trim();
 
-        // 表单验证：根据当前选择的 AI 提供商，检查对应的 API Key 是否填写
-        if (activeProvider === 'deepseek') {
-          if (!deepseekApiKey) { showStatus('请填写 DeepSeek API Key', 'error'); return; }
-        } else if (activeProvider === 'custom') {
-          var customBaseUrl = document.getElementById('customBaseUrl').value.trim();
-          var customApiKey = document.getElementById('customApiKey').value.trim();
-          var customModel = document.getElementById('customModel').value.trim();
-          if (!customBaseUrl) { showStatus('请填写 API 地址', 'error'); return; }
-          if (!customApiKey) { showStatus('请填写 API Key', 'error'); return; }
-          if (!customModel) { showStatus('请填写模型名称', 'error'); return; }
-        } else {
-          if (!apiKey) { showStatus('请填写 DashScope API Key', 'error'); return; }
-        }
+        // 表单验证：仅校验必填项（端口 + 存储目录）
         if (!storagePath) { showStatus('请选择数据存储根目录', 'error'); return; }
         if (backendPort === frontendPort) { showStatus('前端和后端端口不能相同', 'error'); return; }
 
-        // 构建完整的配置对象，包含所有表单字段
-        var newConfig = {
-          activeProvider: activeProvider,
-          apiKey: apiKey,
-          dashscopeModel: document.getElementById('dashscopeModel').value,
-          deepseekApiKey: deepseekApiKey,
-          deepseekModel: document.getElementById('deepseekModel').value,
-          customProviderName: document.getElementById('customProviderName').value.trim(),
-          customBaseUrl: document.getElementById('customBaseUrl').value.trim(),
-          customApiKey: document.getElementById('customApiKey').value.trim(),
-          customModel: document.getElementById('customModel').value.trim(),
+        // 合并已有配置，保留未在当前页面展示的配置项（如 AI、邮件等）
+        var newConfig = Object.assign({}, loadedConfig || {}, {
           backendPort: backendPort,
           frontendPort: frontendPort,
           storagePath: storagePath,
-          autoStart: document.getElementById('autoStart').checked,
-          configured: true,
-          mailEnabled: document.getElementById('mailEnabled').checked,
-          mailHost: document.getElementById('mailHost').value.trim(),
-          mailPort: parseInt(document.getElementById('mailPort').value) || 465,
-          mailUsername: document.getElementById('mailUsername').value.trim(),
-          mailPassword: document.getElementById('mailPassword').value.trim()
-        };
+          configured: true
+        });
 
         var btn = document.getElementById('btnSave');
         btn.disabled = true; // 禁用按钮防止重复提交
 
         if (isFirstRun) {
           // 首次运行：通过 configDone 单向发送配置给主进程
-          // 主进程负责保存配置、启动服务，并通过 startup-progress 事件推送进度
           showStartupOverlay('正在保存配置...');
           api.configDone(newConfig);
         } else {
           // 非首次运行：通过 restartBackend 双向通信
-          // 主进程用新配置重启后端服务，返回结果告知成功或失败
           showStartupOverlay('正在保存配置并重启服务...');
           try {
             var result = await api.restartBackend(newConfig);
@@ -754,172 +393,6 @@
           }
         }
       });
-
-      // ===== 更新管理 =====
-      var updateDownloadUrl = null;
-      var isUpdating = false;
-
-      function initUpdateUI() {
-        // 加载当前版本号
-        api.getVersion().then(function(version) {
-          document.getElementById('currentVersion').textContent = 'v' + version;
-        }).catch(function() {});
-
-        // 加载更新配置
-        api.getUpdateConfig().then(function(config) {
-          var toggle = document.getElementById('autoUpdateToggle');
-          toggle.checked = config.autoUpdate === true;
-          document.getElementById('updateFrequency').value = config.frequency || 'weekly';
-          onAutoUpdateToggle();
-        }).catch(function() {});
-
-        // 监听更新进度
-        api.onUpdateProgress(function(data) {
-          var statusEl = document.getElementById('updateStatus');
-          var msgEl = document.getElementById('updateMessage');
-          statusEl.style.display = 'block';
-          msgEl.textContent = data.message;
-          msgEl.className = 'update-checking';
-
-          var bar = document.getElementById('updateProgressBar');
-          var fill = document.getElementById('updateProgressFill');
-          if (data.percent >= 0) {
-            bar.style.display = 'block';
-            fill.style.width = data.percent + '%';
-          }
-          if (data.percent >= 100) {
-            document.getElementById('updateActions').style.display = 'none';
-            document.getElementById('cancelUpdateBtn').style.display = 'none';
-          }
-        });
-
-        // 监听新版本可用
-        api.onUpdateAvailable(function(data) {
-          showUpdateAvailable(data);
-        });
-
-        // 监听更新完成
-        api.onUpdateComplete(function() {
-          document.getElementById('updateMessage').textContent = '更新完成，应用即将重启...';
-          document.getElementById('updateMessage').className = 'update-available';
-        });
-
-        // 监听更新错误
-        api.onUpdateError(function(msg) {
-          document.getElementById('updateMessage').textContent = '更新失败: ' + msg;
-          document.getElementById('updateMessage').className = 'update-error';
-          document.getElementById('updateProgressBar').style.display = 'none';
-          document.getElementById('updateNowBtn').style.display = 'block';
-          document.getElementById('cancelUpdateBtn').style.display = 'none';
-          isUpdating = false;
-        });
-      }
-
-      function onAutoUpdateToggle() {
-        var checked = document.getElementById('autoUpdateToggle').checked;
-        document.getElementById('frequencyGroup').style.display = checked ? 'block' : 'none';
-        document.getElementById('autoUpdateLabel').textContent = checked ? '已开启' : '已关闭';
-        saveUpdateConfig();
-      }
-
-      function onFrequencyChange() {
-        saveUpdateConfig();
-      }
-
-      function saveUpdateConfig() {
-        api.saveUpdateConfig({
-          autoUpdate: document.getElementById('autoUpdateToggle').checked,
-          frequency: document.getElementById('updateFrequency').value
-        }).catch(function(e) {
-          console.error('[Update] Save config failed:', e);
-        });
-      }
-
-      function manualCheckUpdate() {
-        var statusEl = document.getElementById('updateStatus');
-        var msgEl = document.getElementById('updateMessage');
-        var checkBtn = document.getElementById('checkUpdateBtn');
-
-        statusEl.style.display = 'block';
-        msgEl.textContent = '正在检查更新...';
-        msgEl.className = 'update-checking';
-        document.getElementById('updateProgressBar').style.display = 'none';
-        document.getElementById('updateActions').style.display = 'none';
-        checkBtn.disabled = true;
-        checkBtn.textContent = '检查中...';
-
-        api.checkForUpdate().then(function(result) {
-          if (result.hasUpdate) {
-            showUpdateAvailable(result);
-          } else {
-            msgEl.textContent = result.message || '已是最新版本';
-            msgEl.className = 'update-available';
-            document.getElementById('updateActions').style.display = 'none';
-          }
-        }).catch(function(e) {
-          msgEl.textContent = '检查失败: ' + e.message;
-          msgEl.className = 'update-error';
-        }).then(function() {
-          checkBtn.disabled = false;
-          checkBtn.textContent = '检查更新';
-        });
-      }
-
-      function showUpdateAvailable(data) {
-        var statusEl = document.getElementById('updateStatus');
-        var msgEl = document.getElementById('updateMessage');
-        var actionsEl = document.getElementById('updateActions');
-
-        statusEl.style.display = 'block';
-        msgEl.innerHTML = '发现新版本 <strong>v' + data.version + '</strong>（当前 v' + data.currentVersion + '）';
-        msgEl.className = 'update-available';
-
-        // 显示更新日志
-        if (data.releaseNotes) {
-          var notesEl = document.createElement('div');
-          notesEl.className = 'update-notes';
-          notesEl.textContent = data.releaseNotes;
-          var oldNotes = statusEl.querySelector('.update-notes');
-          if (oldNotes) oldNotes.remove();
-          msgEl.after(notesEl);
-        }
-
-        actionsEl.style.display = 'block';
-        document.getElementById('updateNowBtn').style.display = 'block';
-        document.getElementById('cancelUpdateBtn').style.display = 'none';
-        updateDownloadUrl = data.downloadUrl;
-      }
-
-      function startUpdate() {
-        if (isUpdating || !updateDownloadUrl) return;
-        isUpdating = true;
-        document.getElementById('updateNowBtn').style.display = 'none';
-        document.getElementById('cancelUpdateBtn').style.display = 'inline-block';
-        document.getElementById('updateProgressBar').style.display = 'block';
-
-        api.downloadAndApplyUpdate(updateDownloadUrl).then(function(result) {
-          if (!result.success) throw new Error(result.message);
-        }).catch(function(e) {
-          console.error('[Update] Start update failed:', e);
-          document.getElementById('updateMessage').textContent = '更新失败: ' + e.message;
-          document.getElementById('updateMessage').className = 'update-error';
-          document.getElementById('updateProgressBar').style.display = 'none';
-          document.getElementById('updateNowBtn').style.display = 'block';
-          document.getElementById('cancelUpdateBtn').style.display = 'none';
-          isUpdating = false;
-        });
-      }
-
-      function cancelUpdate() {
-        isUpdating = false;
-        document.getElementById('updateStatus').style.display = 'none';
-        document.getElementById('updateNowBtn').style.display = 'block';
-        document.getElementById('cancelUpdateBtn').style.display = 'none';
-        document.getElementById('updateProgressBar').style.display = 'none';
-      }
-
-      // 初始化更新 UI
-      initUpdateUI();
     });
   </script>
 </body>
