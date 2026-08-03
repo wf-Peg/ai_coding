@@ -1264,11 +1264,13 @@ async function showCloseDialog(win) {
  * @param {Object} config - 用户配置
  */
 function createMainWindow(config) {
+  const appIconPath = path.join(__dirname, 'app-icon.png');
   mainWindow = new BrowserWindow({
     width: 1200, height: 800,
     minWidth: 900, minHeight: 600,
     frame: false,          // 无边框（自定义标题栏）
     title: 'Clip',
+    icon: appIconPath,
     webPreferences: {
       nodeIntegration: false,          // 安全：禁用 Node.js 集成
       contextIsolation: true,          // 安全：启用上下文隔离
@@ -1413,6 +1415,7 @@ function showConfigWindow(config) {
     resizable: false,
     frame: false,
     title: 'Clip - Settings',
+    icon: path.join(__dirname, 'app-icon.png'),
     parent: mainWindow,      // 设置父窗口，随父窗口一起关闭
     webPreferences: {
       nodeIntegration: false,
@@ -2697,6 +2700,7 @@ app.whenReady().then(async () => {
       width: 560, height: 700, resizable: false,
       frame: false,
       title: 'Clip - Setup',
+      icon: path.join(__dirname, 'app-icon.png'),
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -2819,6 +2823,7 @@ app.whenReady().then(async () => {
       mainWindow = new BrowserWindow({
         width: 560, height: 700, resizable: false,
         title: 'Clip - Settings',
+        icon: path.join(__dirname, 'app-icon.png'),
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,
