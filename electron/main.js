@@ -162,18 +162,32 @@ function saveConfig(config) {
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
 }
 
-/** 应用系统登录项设置。开发模式下把当前应用路径作为启动参数传给 Electron。 */
-function applyAutoStartSetting(enabled) {
+/** 构造跨平台登录项参数，开发模式必须显式传入应用目录。 */
+function getAutoStartLoginItemSettings(enabled) {
   const loginItemSettings = {
     openAtLogin: Boolean(enabled),
     path: process.execPath,
     args: isPackaged ? [] : [app.getAppPath()]
   };
   if (process.platform === 'darwin') {
-    loginItemSettings.name = app.getName();
+    loginItemSettings.name = 'CutShelter';
   }
+  return loginItemSettings;
+}
+
+/** 应用系统登录项设置。开发模式下把当前应用路径作为启动参数传给 Electron。 */
+function applyAutoStartSetting(enabled) {
+  const loginItemSettings = getAutoStartLoginItemSettings(enabled);
   app.setLoginItemSettings(loginItemSettings);
-  return app.getLoginItemSettings();
+  const settings = app.getLoginItemSettings();
+  log.info('[AutoStart] Login item synchronized:', JSON.stringify({
+    enabled: settings.openAtLogin,
+    path: loginItemSettings.path,
+    args: loginItemSettings.args,
+    platform: process.platform,
+    packaged: isPackaged
+  }));
+  return settings;
 }
 
 // ==================== 进程管理 ====================
@@ -2645,6 +2659,12 @@ app.whenReady().then(async () => {
 
   const config = loadConfig();
   log.info('Config loaded:', JSON.stringify(config, null, 2));
+
+  // 修复旧版本可能写入的不完整 macOS 登录项（仅在用户已开启自启时校准）。
+  // 否则系统可能只启动 Electron 可执行文件，落到 Electron 默认欢迎页。
+  if (config.autoStart) {
+    applyAutoStartSetting(true);
+  }
 
   // 启动前清理端口上残留的旧进程（如上次崩溃未清理的）
   killPortProcess(config.backendPort);
