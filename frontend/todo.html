@@ -1279,7 +1279,7 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script src="libs/axios.min.js"></script>
 <script>
 (function() {
   'use strict';
@@ -1317,6 +1317,22 @@
 
   // ── API ──
   const TODO_API_BASE_URL = 'http://127.0.0.1:8081/api/todo';
+
+  // ── 离线/断网模式处理 ──
+  // 全局 axios 响应拦截器：统一拦截网络错误
+  axios.interceptors.response.use(
+    response => response,
+    error => {
+      if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error')) {
+        console.warn('[离线模式] 后端服务不可达，部分功能不可用:', error.config?.url || '');
+      }
+      return Promise.reject(error);
+    }
+  );
+  // 监听浏览器网络状态变化
+  window.addEventListener('online', () => showToast('网络已恢复连接'));
+  window.addEventListener('offline', () => showToast('网络已断开，部分功能可能不可用'));
+
   const THEME_STORAGE_KEY = 'app_theme_v1';
   const APPEARANCE_KEY = 'app_appearance_v1';
   const DEFAULT_THEME = 'notion';
