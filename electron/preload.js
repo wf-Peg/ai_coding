@@ -84,6 +84,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** 根据文件令牌计算已保存文件的 MD5 哈希。 */
   getFileMd5: (fileToken) => ipcRenderer.invoke('editor-get-file-md5', fileToken),
 
+  /** 在文件管理器中显示指定文件所在目录。 */
+  showItemInFolder: (filePath) => ipcRenderer.invoke('show-item-in-folder', filePath),
+
   // ===================== 后端服务管理 =====================
 
   /**

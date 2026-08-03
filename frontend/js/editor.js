@@ -76,7 +76,7 @@
     'undoHistoryBtn', 'redoHistoryBtn', 'clearHistoryBtn', 'mainPane', 'historyPane', 'recentPane',
     'recentList', 'closeRecentBtn', 'clearRecentBtn', 'favPane', 'favList', 'closeFavBtn', 'clearFavBtn', 'aiChatPane', 'aiChatMessages', 'aiChatInput',
     'aiChatSendBtn', 'aiChatStopBtn', 'aiChatClearBtn', 'aiChatCloseBtn', 'aiChatStatus',
-    'aiChatResizeHandle', 'aiPetBtn', 'editorContextMenu', 'aiSearchContextBtn'
+    'aiChatResizeHandle', 'aiPetBtn', 'editorContextMenu', 'aiSearchContextBtn', 'smartIngestContextBtn', 'aiImportPasswordContextBtn'
   ].map(id => [id, document.getElementById(id)]));
 
   function applyMascotPreference() {
@@ -451,6 +451,45 @@
       tabEl.appendChild(dot);
       tabEl.appendChild(label);
       tabEl.appendChild(closeBtn);
+
+      // 拖拽排序
+      tabEl.draggable = true;
+      tabEl.dataset.tabIndex = index;
+      tabEl.addEventListener('dragstart', function(e) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(index));
+        setTimeout(function() { tabEl.classList.add('tab-dragging'); }, 0);
+      });
+      tabEl.addEventListener('dragend', function() {
+        tabEl.classList.remove('tab-dragging');
+        tabBar.querySelectorAll('.tab-item').forEach(function(el) { el.classList.remove('tab-drop-target'); });
+      });
+      tabEl.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        tabBar.querySelectorAll('.tab-item').forEach(function(el) { el.classList.remove('tab-drop-target'); });
+        tabEl.classList.add('tab-drop-target');
+      });
+      tabEl.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        tabEl.classList.remove('tab-drop-target');
+        tabBar.querySelectorAll('.tab-item').forEach(function(el) { el.classList.remove('tab-dragging', 'tab-drop-target'); });
+        var srcIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
+        var dstIndex = parseInt(tabEl.dataset.tabIndex, 10);
+        if (isNaN(srcIndex) || isNaN(dstIndex) || srcIndex === dstIndex) return;
+        var item = tabs.splice(srcIndex, 1)[0];
+        tabs.splice(dstIndex, 0, item);
+        if (srcIndex < activeTabIndex && dstIndex >= activeTabIndex) {
+          activeTabIndex--;
+        } else if (srcIndex > activeTabIndex && dstIndex <= activeTabIndex) {
+          activeTabIndex++;
+        } else if (srcIndex === activeTabIndex) {
+          activeTabIndex = dstIndex;
+        }
+        renderTabBar();
+      });
+
       tabEl.addEventListener('click', () => switchToTab(index));
       tabEl.addEventListener('contextmenu', (e) => {
         e.preventDefault();
@@ -474,16 +513,16 @@
     if (!tab) return;
     var menu = document.getElementById('tabContextMenu');
     if (!menu) return;
-    var filePath = tab.displayPath || tab.fileToken || '';
+    var filePath = tab.displayPath || '';
     var isFav = filePath ? isFavoriteFile(filePath) : false;
-    menu.innerHTML = '<button type="button" class="tab-context-fav" role="menuitem">' + (isFav ? '★ 取消收藏' : '☆ 收藏到常用') + '</button>';
+    menu.innerHTML = '<button type="button" class="tab-context-fav" role="menuitem">' + (isFav ? '★ 取消收藏' : '☆ 收藏到常用') + '</button>'
+      + (filePath ? '<button type="button" class="tab-context-open-folder" role="menuitem">📂 打开文件所在目录</button>' : '');
     menu.hidden = false;
     var left = Math.min(event.clientX, window.innerWidth - menu.offsetWidth - 8);
     var top = Math.min(event.clientY, window.innerHeight - menu.offsetHeight - 8);
     menu.style.left = Math.max(8, left) + 'px';
     menu.style.top = Math.max(8, top) + 'px';
     menu.dataset.tabIndex = tabIndex;
-    // 收藏按钮点击
     var favBtn = menu.querySelector('.tab-context-fav');
     if (favBtn) {
       favBtn.onclick = function() {
@@ -493,6 +532,13 @@
         } else {
           showToast('该文件暂无可收藏路径', true);
         }
+      };
+    }
+    var openFolderBtn = menu.querySelector('.tab-context-open-folder');
+    if (openFolderBtn) {
+      openFolderBtn.onclick = function() {
+        menu.hidden = true;
+        openFileInFolder(filePath);
       };
     }
   }
@@ -519,7 +565,8 @@
     if (!menu) return;
     var filePath = file.path || '';
     var isFav = filePath ? isFavoriteFile(filePath) : false;
-    menu.innerHTML = '<button type="button" class="tab-context-fav" role="menuitem">' + (isFav ? '★ 取消收藏' : '☆ 收藏到常用') + '</button>';
+    menu.innerHTML = '<button type="button" class="tab-context-fav" role="menuitem">' + (isFav ? '★ 取消收藏' : '☆ 收藏到常用') + '</button>'
+      + (filePath ? '<button type="button" class="tab-context-open-folder" role="menuitem">📂 打开文件所在目录</button>' : '');
     menu.hidden = false;
     var left = Math.min(event.clientX, window.innerWidth - menu.offsetWidth - 8);
     var top = Math.min(event.clientY, window.innerHeight - menu.offsetHeight - 8);
@@ -536,6 +583,13 @@
         }
       };
     }
+    var openFolderBtn = menu.querySelector('.tab-context-open-folder');
+    if (openFolderBtn) {
+      openFolderBtn.onclick = function() {
+        menu.hidden = true;
+        openFileInFolder(filePath);
+      };
+    }
   }
 
   // 最近文件右键菜单
@@ -544,7 +598,8 @@
     if (!menu) return;
     var filePath = item.path || '';
     var isFav = filePath ? isFavoriteFile(filePath) : false;
-    menu.innerHTML = '<button type="button" class="tab-context-fav" role="menuitem">' + (isFav ? '★ 取消收藏' : '☆ 收藏到常用') + '</button>';
+    menu.innerHTML = '<button type="button" class="tab-context-fav" role="menuitem">' + (isFav ? '★ 取消收藏' : '☆ 收藏到常用') + '</button>'
+      + (filePath ? '<button type="button" class="tab-context-open-folder" role="menuitem">📂 打开文件所在目录</button>' : '');
     menu.hidden = false;
     var left = Math.min(event.clientX, window.innerWidth - menu.offsetWidth - 8);
     var top = Math.min(event.clientY, window.innerHeight - menu.offsetHeight - 8);
@@ -559,6 +614,13 @@
         } else {
           showToast('该文件暂无可收藏路径', true);
         }
+      };
+    }
+    var openFolderBtn = menu.querySelector('.tab-context-open-folder');
+    if (openFolderBtn) {
+      openFolderBtn.onclick = function() {
+        menu.hidden = true;
+        openFileInFolder(filePath);
       };
     }
   }
@@ -1272,6 +1334,8 @@
     event.preventDefault();
     const selectedText = mainEditor.getSelectedText();
     elements.aiSearchContextBtn.hidden = !selectedText.trim();
+    elements.smartIngestContextBtn.hidden = !selectedText.trim();
+    elements.aiImportPasswordContextBtn.hidden = !selectedText.trim();
     elements.editorContextMenu.querySelector('.editor-context-divider').hidden = !selectedText.trim();
     elements.editorContextMenu.hidden = false;
     const menu = elements.editorContextMenu;
@@ -1293,6 +1357,39 @@
     if (action === 'aiSearch') {
       const prompt = window.EditorAiChatCore.buildSearchPrompt(selectedText);
       if (prompt) sendAiMessage(prompt);
+      return;
+    }
+    if (action === 'smartIngest') {
+      if (!selectedText.trim()) { showToast('请先选中文本', true); return; }
+      const url = API_BASE_URL.replace('/api/clip', '/api/ingest');
+      fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: selectedText }) })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.success) {
+            var intentLabel = data.intent === 'todo' ? '待办' : data.intent === 'topic' ? '话题' : '剪藏';
+            showToast('智能入库成功: ' + intentLabel + (data.title ? ' - ' + data.title : ''));
+          } else {
+            showToast('智能入库失败: ' + (data.error || '未知错误'), true);
+          }
+        })
+        .catch(function() { showToast('智能入库请求失败，请确认后端已启动', true); });
+      return;
+    }
+    if (action === 'aiImportPassword') {
+      if (!selectedText.trim()) { showToast('请先选中文本', true); return; }
+      var vaultUrl = API_BASE_URL.replace('/api/clip', '/api/vault/auto-fill');
+      fetch(vaultUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: selectedText }) })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.success && data.entries && data.entries.length > 0) {
+            showToast('AI 识别到 ' + data.entries.length + ' 条密码，请在密码库中查看');
+          } else if (data.success) {
+            showToast('AI 未识别到密码信息', true);
+          } else {
+            showToast('AI 识别失败: ' + (data.error || '未知错误'), true);
+          }
+        })
+        .catch(function() { showToast('AI 识别请求失败，请确认后端已启动', true); });
       return;
     }
     mainEditor.focus();
@@ -2153,6 +2250,17 @@
   updateStatusBar();
   initializeAiChat();
 
+  // 标签栏容器 - 阻止拖拽默认行为
+  elements.tabBar.addEventListener('dragover', function(e) { e.preventDefault(); });
+  elements.tabBar.addEventListener('drop', function(e) { e.preventDefault(); });
+
+  // 路径栏双击打开文件所在目录
+  elements.documentPath.addEventListener('dblclick', function() {
+    var path = state && state.displayPath;
+    if (!path) { showToast('文件尚未保存，无法打开目录', true); return; }
+    openFileInFolder(path);
+  });
+
   // 阻止 Ctrl+R / Cmd+R 刷新页面（浏览器默认行为与编辑模块冲突）
   document.addEventListener('keydown', function(e) {
     if ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R')) {
@@ -2729,7 +2837,7 @@
   // 7. History (历史管理)
   // ══════════════════════════════════════════════════════════
   var historyEntries = [];
-  var maxHistoryEntries = 100;
+  var maxHistoryEntries = 200;
 
   // 从 ACE 撤销栈项中提取具体的变化内容摘要。
   // 注意：ACE UndoManager 的 $undoStack/$redoStack 每项是一个"组"（delta 数组），
@@ -2792,22 +2900,43 @@
   function updateHistoryPanel() {
     try {
       var undoManager = mainEditor.session.getUndoManager();
-      // 获取撤销栈
       var undoStack = undoManager.$undoStack || [];
       var redoStack = undoManager.$redoStack || [];
       var stackPosition = undoManager.$stackPosition || 0;
+      var totalEntries = undoStack.length + redoStack.length;
 
-      elements.historyCount.textContent = undoStack.length + redoStack.length;
+      elements.historyCount.textContent = totalEntries;
 
-      // 渲染历史列表
       elements.historyList.innerHTML = '';
 
-      // 显示重做栈（反向）
-      for (var i = redoStack.length - 1; i >= 0; i--) {
-        elements.historyList.appendChild(createHistoryItem(redoStack[i], 'redo'));
+      // 限制显示数量
+      var maxDisplay = maxHistoryEntries;
+      var redoCount = redoStack.length;
+      var undoCount = undoStack.length;
+      // 如果总条目超过上限，从最早的撤销记录开始截断
+      if (totalEntries > maxDisplay) {
+        var excess = totalEntries - maxDisplay;
+        // 优先截断撤销栈底部（最早的历史）
+        if (excess <= undoCount) {
+          undoCount -= excess;
+        } else {
+          redoCount = Math.max(0, redoCount - (excess - undoCount));
+          undoCount = 0;
+        }
       }
 
-      // 显示当前分隔
+      // 显示重做栈（反向：最远->最近）
+      for (var i = redoStack.length - 1; i >= redoStack.length - redoCount; i--) {
+        var redoItem = createHistoryItem(redoStack[i], 'redo');
+        redoItem.dataset.historyIndex = i;
+        redoItem.dataset.historyKind = 'redo';
+        redoItem.addEventListener('click', function(idx) {
+          return function() { seekToHistory('redo', idx); };
+        }(i));
+        elements.historyList.appendChild(redoItem);
+      }
+
+      // 显示当前位置分隔
       if (undoStack.length > 0 && redoStack.length > 0) {
         var sep = document.createElement('div');
         sep.className = 'history-item current';
@@ -2815,9 +2944,18 @@
         elements.historyList.appendChild(sep);
       }
 
-      // 显示撤销栈（反向）
+      // 显示撤销栈（反向：最近->最远）
+      var displayedUndo = 0;
       for (var j = undoStack.length - 1; j >= 0; j--) {
-        elements.historyList.appendChild(createHistoryItem(undoStack[j], 'undo'));
+        if (displayedUndo >= undoCount) break;
+        var undoItem = createHistoryItem(undoStack[j], 'undo');
+        undoItem.dataset.historyIndex = j;
+        undoItem.dataset.historyKind = 'undo';
+        undoItem.addEventListener('click', function(idx) {
+          return function() { seekToHistory('undo', idx); };
+        }(j));
+        elements.historyList.appendChild(undoItem);
+        displayedUndo++;
       }
 
       if (undoStack.length === 0 && redoStack.length === 0) {
@@ -2826,6 +2964,31 @@
     } catch (e) {
       elements.historyList.innerHTML = '<div class="history-item" style="cursor:default;color:var(--app-text-muted);">历史记录不可用</div>';
     }
+  }
+
+  function seekToHistory(kind, index) {
+    var undoManager = mainEditor.session.getUndoManager();
+    var undoStack = undoManager.$undoStack || [];
+    var redoStack = undoManager.$redoStack || [];
+    var steps = 0;
+
+    if (kind === 'undo') {
+      // 点击撤销栈中的条目：index 是 undoStack 数组中的索引
+      // 需要撤销的次数 = index + 1（因为最靠近当前位置的 undoStack[length-1] 撤销 1 次）
+      steps = index + 1;
+      for (var i = 0; i < steps; i++) {
+        mainEditor.undo();
+      }
+    } else if (kind === 'redo') {
+      // 点击重做栈中的条目：index 是 redoStack 数组中的索引
+      // 需要重做的次数 = redoStack.length - index
+      steps = redoStack.length - index;
+      for (var j = 0; j < steps; j++) {
+        mainEditor.redo();
+      }
+    }
+
+    setTimeout(updateHistoryPanel, 100);
   }
 
   // 切换历史面板（内嵌编辑区左侧，与文件树一致）
@@ -3102,6 +3265,16 @@
     } else {
       addFavoriteFile(filePath, fileName);
       showToast('已收藏到常用');
+    }
+  }
+
+  function openFileInFolder(filePath) {
+    if (!filePath) { showToast('文件路径不可用', true); return; }
+    var api = getElectronAPI();
+    if (api && api.showItemInFolder) {
+      api.showItemInFolder(filePath);
+    } else {
+      showToast('仅在桌面模式下可用', true);
     }
   }
 

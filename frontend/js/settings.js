@@ -865,7 +865,7 @@ async function loadShortcutConfig() {
   try {
     const config = await api.getShortcutConfig();
     document.getElementById('shortcutEnabled').checked = config.enabled;
-    document.getElementById('shortcutKey').value = config.accelerator || 'Ctrl+Shift+Z';
+    document.getElementById('shortcutKey').value = config.accelerator || 'Alt+X';
     document.getElementById('shortcutKeyRow').style.display = config.enabled ? '' : 'none';
   } catch (e) {}
 }
@@ -899,7 +899,7 @@ async function cancelShortcutRecording() {
   if (api && api.setShortcutConfig && recordingPreviousEnabled) {
     try {
       const val = input.value.trim();
-      const accelerator = (val && val !== '按下组合键...') ? val : 'Ctrl+Shift+Z';
+      const accelerator = (val && val !== '按下组合键...') ? val : 'Alt+X';
       await api.setShortcutConfig({ enabled: true, accelerator });
     } catch (e) {}
   }
@@ -939,7 +939,7 @@ document.addEventListener('click', (e) => {
 
 async function onShortcutChange() {
   const enabled = document.getElementById('shortcutEnabled').checked;
-  const accelerator = document.getElementById('shortcutKey').value.trim() || 'Ctrl+Shift+Z';
+  const accelerator = document.getElementById('shortcutKey').value.trim() || 'Alt+X';
   document.getElementById('shortcutKeyRow').style.display = enabled ? '' : 'none';
   const api = getElectronAPI();
   if (!api || !api.setShortcutConfig) return;

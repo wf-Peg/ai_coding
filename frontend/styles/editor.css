@@ -126,6 +126,10 @@ select {
   max-width: 100%;
   color: var(--app-text-muted);
   font-size: 10px;
+  cursor: pointer;
+}
+.document-path:hover {
+  text-decoration: underline;
 }
 
 .modified-dot {
@@ -273,6 +277,14 @@ select {
 .tab-bar-spacer {
   flex: 1;
   min-width: 20px;
+}
+
+/* 拖拽排序样式 */
+.tab-item.tab-dragging {
+  opacity: 0.4;
+}
+.tab-item.tab-drop-target {
+  border-left: 2px solid var(--app-primary);
 }
 
 .compare-toolbar {
@@ -1551,7 +1563,7 @@ select {
   padding: 4px 8px;
   border-bottom: 1px solid var(--app-border);
   color: var(--app-text-secondary);
-  cursor: default;
+  cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
