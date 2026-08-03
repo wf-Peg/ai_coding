@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -352,6 +352,12 @@
             </svg>
             编辑
         </button>
+        <button class="nav-btn" data-view="workspace">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M8 4v16"/>
+            </svg>
+            工作台
+        </button>
         <button class="nav-btn" data-view="clip">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
@@ -418,6 +424,9 @@
         <!-- 编辑器首页 -->
         <div class="view-panel" id="editorView">
             <iframe id="editorFrame" data-src="editor.html" style="width:100%;height:100%;border:none;"></iframe>
+        </div>
+        <div class="view-panel view-panel-hidden" id="workspaceView">
+            <iframe id="workspaceFrame" data-src="workspace.html" style="width:100%;height:100%;border:none;"></iframe>
         </div>
         <!-- 剪藏工作台（原首页） -->
         <div class="container view-panel view-panel-hidden" id="clipView">
@@ -495,7 +504,7 @@
       }
 
       function broadcastThemeChange() {
-        [editorFrame, todoFrame, clipFrame, topicFrame, vaultFrame, settingsFrame, learningPlanFrame, pdfFrame, dataObservabilityFrame].forEach(frame => {
+        [editorFrame, workspaceFrame, todoFrame, clipFrame, topicFrame, vaultFrame, settingsFrame, learningPlanFrame, pdfFrame, dataObservabilityFrame].forEach(frame => {
           try { if (frame && frame.contentWindow) frame.contentWindow.postMessage({ action: 'themeChange', theme: document.documentElement.getAttribute('data-theme') }, '*'); } catch(e) {}
         });
       }
@@ -543,6 +552,7 @@
       // ====== 导航切换（SPA 路由 + 页面缓存） ======
       const navBtns = document.querySelectorAll('.titlebar-nav .nav-btn');
       const editorView = document.getElementById('editorView');
+      const workspaceView = document.getElementById('workspaceView');
       const clipView = document.getElementById('clipView');
       const topicView = document.getElementById('topicView');
       const vaultView = document.getElementById('vaultView');
@@ -551,6 +561,7 @@
       const pdfView = document.getElementById('pdfView');
       const dataObservabilityView = document.getElementById('dataObservabilityView');
       const editorFrame = document.getElementById('editorFrame');
+      const workspaceFrame = document.getElementById('workspaceFrame');
       const topicFrame = document.getElementById('topicFrame');
       const vaultFrame = document.getElementById('vaultFrame');
       const settingsFrame = document.getElementById('settingsFrame');
@@ -570,6 +581,7 @@
 
       const viewMap = {
         editor: editorView,
+        workspace: workspaceView,
         clip: clipView,
         topic: topicView,
         vault: vaultView,
@@ -580,6 +592,7 @@
       };
       const VIEW_IFRAME = {
         editor: [editorFrame],
+        workspace: [workspaceFrame],
         clip: [todoFrame, clipFrame],
         topic: [topicFrame],
         vault: [vaultFrame],
@@ -618,6 +631,7 @@
       function pathToView(path) {
         const clean = path.replace(/\/$/, '');
         if (clean === '' || clean === '/editor') return 'editor';
+        if (clean === '/workspace') return 'workspace';
         if (clean === '/clip') return 'clip';
         if (clean === '/topic') return 'topic';
         if (clean === '/settings') return 'settings';
@@ -820,3 +834,5 @@
 </script>
 </body>
 </html>
+
+

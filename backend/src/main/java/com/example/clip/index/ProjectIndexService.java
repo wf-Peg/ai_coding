@@ -43,6 +43,10 @@ public class ProjectIndexService {
                 .filter(item -> item.projectId().equals(projectId)).toList();
     }
 
+    public synchronized List<Project> readAll() {
+        return List.copyOf(read(projectPath, new TypeReference<List<Project>>() {}));
+    }
+
     private <T> List<T> read(Path path, TypeReference<List<T>> type) {
         if (!Files.exists(path)) return new ArrayList<>();
         try { return objectMapper.readValue(path.toFile(), type); }
