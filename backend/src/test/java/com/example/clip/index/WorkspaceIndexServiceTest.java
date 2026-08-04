@@ -6,6 +6,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -57,6 +58,41 @@ class WorkspaceIndexServiceTest {
         assertThrows(IllegalArgumentException.class,
                 () -> service.saveWorkspace(new Workspace("id", "名称", "", "", "general", "invalid", now, now)));
         assertFalse(Files.exists(tempDir.resolve("workspace.json")));
+    }
+
+    @Test
+    void resolvesWorkspaceUsingPersistedManualMembersAndPassedRelationMembersWithoutWritingMembers() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        WorkspaceIndexService service = new WorkspaceIndexService(tempDir);
+        Workspace workspace = new Workspace("workspace-1", "Java", "学习", "#569cff", "project", "active", now, now);
+        service.saveWorkspace(workspace);
+        service.addMember(new WorkspaceMembership(workspace.id(), "clip:manual", "manual", "手动", 1, now, now));
+        List<ContentRef> refs = List.of(
+                ref("clip:manual", "手动内容"),
+                ref("clip:relation", "关联内容"));
+
+        WorkspaceResolution resolution = service.resolveWorkspace(workspace.id(), refs,
+                List.of(new WorkspaceMembership(workspace.id(), "clip:relation", "relation", "关联", 1, now, now)));
+
+        assertEquals(List.of("clip:manual", "clip:relation"),
+                resolution.visible().stream().map(ContentRef::id).toList());
+        assertEquals(1, resolution.manualCount());
+        assertEquals(1, resolution.relationCount());
+        assertEquals(1, service.members(workspace.id()).size());
+    }
+
+    @Test
+    void resolvesWorkspaceRejectsUnknownWorkspace() {
+        WorkspaceIndexService service = new WorkspaceIndexService(tempDir);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.resolveWorkspace("missing", List.of(), List.of()));
+    }
+
+    private ContentRef ref(String id, String title) {
+        LocalDateTime now = LocalDateTime.now();
+        return new ContentRef(id, "clip", id, title, "学习", List.of(), "clips/" + id + ".json",
+                now, now, "正文");
     }
 
     @Test

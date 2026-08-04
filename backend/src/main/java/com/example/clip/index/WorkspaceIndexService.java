@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -59,6 +60,17 @@ public class WorkspaceIndexService {
         requireText(workspaceId, "workspaceId");
         return read(membershipPath, new TypeReference<List<WorkspaceMembership>>() {}).stream()
                 .filter(item -> item.workspaceId().equals(workspaceId)).toList();
+    }
+
+    public synchronized WorkspaceResolution resolveWorkspace(String workspaceId, Collection<ContentRef> refs,
+                                                              Collection<WorkspaceMembership> relationMembers) {
+        requireText(workspaceId, "workspaceId");
+        boolean exists = read(workspacePath, new TypeReference<List<Workspace>>() {}).stream()
+                .anyMatch(item -> item.id().equals(workspaceId));
+        if (!exists) throw new IllegalArgumentException("工作台不存在: " + workspaceId);
+        List<WorkspaceMembership> manualMembers = read(membershipPath,
+                new TypeReference<List<WorkspaceMembership>>() {});
+        return ruleService.resolve(workspaceId, refs, manualMembers, relationMembers);
     }
 
     public synchronized void deleteWorkspace(String workspaceId) {
