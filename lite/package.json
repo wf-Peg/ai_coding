@@ -1,0 +1,100 @@
+{
+  "name": "clip-demo-lite",
+  "version": "1.0.0",
+  "description": "CutShelter Lite - Lightweight offline editor with front-end AI",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "syntax-check": "node scripts/syntax-check.js",
+    "build:win": "electron-builder --win --x64",
+    "build:mac": "electron-builder --mac --arm64 --x64",
+    "build:linux": "electron-builder --linux --x64",
+    "build:portable:win": "electron-builder --win portable --x64"
+  },
+  "build": {
+    "appId": "com.example.clip-demo.lite",
+    "productName": "CutShelter Lite",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "**/*",
+      "!node_modules/**/*",
+      "!**/node_modules/**/*",
+      "!dist-electron/**/*",
+      "!scripts/**/*",
+      "!README.md"
+    ],
+    "extraResources": [
+      {
+        "from": "frontend",
+        "to": "frontend",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "icon": "app-icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "signingHashAlgorithms": [
+        "sha256"
+      ],
+      "sign": null
+    },
+    "portable": {
+      "artifactName": "${productName}-portable-${version}-win-x64.${ext}",
+      "requestExecutionLevel": "user"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CutShelter Lite",
+      "packElevateHelper": false,
+      "differentialPackage": false,
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "mac": {
+      "icon": "app-icon.png",
+      "category": "public.app-category.productivity",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "linux": {
+      "icon": "app-icon.png",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Utility"
+    }
+  },
+  "dependencies": {
+    "chardet": "^2.1.0",
+    "clip-demo": "file:..",
+    "iconv-lite": "^0.6.3"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  }
+}
