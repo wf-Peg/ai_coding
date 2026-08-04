@@ -3,6 +3,8 @@ package com.example.clip.index;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -13,6 +15,7 @@ import java.util.List;
 import java.util.Set;
 
 public class WorkspaceIndexService {
+    private static final Logger log = LoggerFactory.getLogger(WorkspaceIndexService.class);
     private static final Set<String> WORKSPACE_TYPES = Set.of("general", "project", "learning");
     private static final Set<String> WORKSPACE_STATUSES = Set.of("active", "archived");
 
@@ -64,13 +67,35 @@ public class WorkspaceIndexService {
 
     public synchronized WorkspaceResolution resolveWorkspace(String workspaceId, Collection<ContentRef> refs,
                                                               Collection<WorkspaceMembership> relationMembers) {
-        requireText(workspaceId, "workspaceId");
-        boolean exists = read(workspacePath, new TypeReference<List<Workspace>>() {}).stream()
-                .anyMatch(item -> item.id().equals(workspaceId));
-        if (!exists) throw new IllegalArgumentException("工作台不存在: " + workspaceId);
-        List<WorkspaceMembership> manualMembers = read(membershipPath,
-                new TypeReference<List<WorkspaceMembership>>() {});
-        return ruleService.resolve(workspaceId, refs, manualMembers, relationMembers);
+        long startedAt = System.nanoTime();
+        int refCount = refs == null ? 0 : refs.size();
+        int relationMemberCount = relationMembers == null ? 0 : relationMembers.size();
+        log.info("event=resolveWorkspace.start workspaceId={} refCount={} relationMemberCount={}",
+                workspaceId, refCount, relationMemberCount);
+        try {
+            requireText(workspaceId, "workspaceId");
+            boolean exists = read(workspacePath, new TypeReference<List<Workspace>>() {}).stream()
+                    .anyMatch(item -> item.id().equals(workspaceId));
+            if (!exists) {
+                log.warn("event=resolveWorkspace.workspace_missing workspaceId={}", workspaceId);
+                throw new IllegalArgumentException("工作台不存在: " + workspaceId);
+            }
+            List<WorkspaceMembership> manualMembers = read(membershipPath,
+                    new TypeReference<List<WorkspaceMembership>>() {});
+            log.info("event=resolveWorkspace.members.read workspaceId={} manualMemberCount={}",
+                    workspaceId, manualMembers.size());
+            WorkspaceResolution resolution = ruleService.resolve(workspaceId, refs, manualMembers, relationMembers);
+            log.info("event=resolveWorkspace.rules.resolved workspaceId={} ruleMatchedCount={} manualCount={} relationCount={} excludedCount={}",
+                    workspaceId, resolution.ruleMatchedCount(), resolution.manualCount(), resolution.relationCount(),
+                    resolution.excludedCount());
+            log.info("event=resolveWorkspace.completed workspaceId={} visibleCount={} durationMs={}", workspaceId,
+                    resolution.visibleCount(), (System.nanoTime() - startedAt) / 1_000_000);
+            return resolution;
+        } catch (RuntimeException error) {
+            log.error("event=resolveWorkspace.exception workspaceId={} errorType={}", workspaceId,
+                    error.getClass().getSimpleName());
+            throw error;
+        }
     }
 
     public synchronized void deleteWorkspace(String workspaceId) {

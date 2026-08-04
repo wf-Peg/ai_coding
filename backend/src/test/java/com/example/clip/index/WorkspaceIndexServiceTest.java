@@ -1,7 +1,12 @@
 package com.example.clip.index;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.slf4j.LoggerFactory;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -82,11 +87,35 @@ class WorkspaceIndexServiceTest {
     }
 
     @Test
-    void resolvesWorkspaceRejectsUnknownWorkspace() {
-        WorkspaceIndexService service = new WorkspaceIndexService(tempDir);
+    void resolveWorkspaceLogsStructuredLifecycleWithoutSensitiveContent() {
+        Logger logger = (Logger) LoggerFactory.getLogger(WorkspaceIndexService.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            LocalDateTime now = LocalDateTime.now();
+            WorkspaceIndexService service = new WorkspaceIndexService(tempDir);
+            Workspace workspace = new Workspace("workspace-1", "Java", "学习", "#569cff", "project", "active", now, now);
+            service.saveWorkspace(workspace);
+            service.addMember(new WorkspaceMembership(workspace.id(), "clip:manual", "manual", "手动", 1, now, now));
+            String sensitiveContent = "绝密正文-content-token";
+            service.resolveWorkspace(workspace.id(), List.of(ref("clip:manual", sensitiveContent)), List.of());
+            assertThrows(IllegalArgumentException.class,
+                    () -> service.resolveWorkspace("missing", List.of(), List.of()));
 
-        assertThrows(IllegalArgumentException.class,
-                () -> service.resolveWorkspace("missing", List.of(), List.of()));
+            String messages = appender.list.stream().map(ILoggingEvent::getFormattedMessage).reduce("", (left, right) -> left + "\\n" + right);
+            assertTrue(messages.contains("event=resolveWorkspace.start"));
+            assertTrue(messages.contains("event=resolveWorkspace.members.read"));
+            assertTrue(messages.contains("event=resolveWorkspace.rules.resolved"));
+            assertTrue(messages.contains("event=resolveWorkspace.completed"));
+            assertTrue(messages.contains("event=resolveWorkspace.workspace_missing"));
+            assertFalse(messages.contains(sensitiveContent));
+            assertFalse(messages.contains("token"));
+            assertTrue(appender.list.stream().anyMatch(event -> event.getLevel() == Level.WARN));
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
     }
 
     private ContentRef ref(String id, String title) {
