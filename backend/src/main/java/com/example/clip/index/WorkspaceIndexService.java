@@ -17,11 +17,13 @@ public class WorkspaceIndexService {
 
     private final Path workspacePath;
     private final Path membershipPath;
+    private final WorkspaceRuleService ruleService;
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     public WorkspaceIndexService(Path indexDir) {
         this.workspacePath = indexDir.resolve("workspace.json");
         this.membershipPath = indexDir.resolve("workspace-memberships.json");
+        this.ruleService = new WorkspaceRuleService(indexDir);
     }
 
     public synchronized void saveWorkspace(Workspace workspace) {
@@ -65,6 +67,7 @@ public class WorkspaceIndexService {
                 .filter(item -> !item.id().equals(workspaceId)).toList());
         writeAll(membershipPath, read(membershipPath, new TypeReference<List<WorkspaceMembership>>() {}).stream()
                 .filter(item -> !item.workspaceId().equals(workspaceId)).toList());
+        ruleService.deleteWorkspaceData(workspaceId);
     }
 
     private void validateWorkspace(Workspace workspace) {

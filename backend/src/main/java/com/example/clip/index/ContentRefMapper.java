@@ -24,7 +24,8 @@ public class ContentRefMapper {
                 clip.getSourceFilePath(),
                 clip.getCreatedAt(),
                 null,
-                null
+                null,
+                clip.getWorkflowStatus()
         );
     }
 
