@@ -9,6 +9,16 @@
   const APPEARANCE_KEY = 'app_appearance_v1';
   const Range = ace.require('ace/range').Range;
 
+  // 验证离线词典加载状态
+  if (typeof window.DICT !== 'undefined') {
+    var dictKeys = Object.keys(window.DICT);
+    if (dictKeys.length > 0) {
+      console.log('[editor] 离线词典已加载，共 ' + dictKeys.length + ' 个词条');
+    }
+  } else {
+    console.warn('[editor] 离线词典未加载，请确认 dict-offline.js 已正确引入');
+  }
+
   /**
    * 工厂函数：生成默认标签状态快照
    */
@@ -1412,11 +1422,11 @@
       var word = selectedText.trim().toLowerCase();
       // 取第一个单词（如果是词组）
       var firstWord = word.split(/[\s,;:!?.\n]+/)[0];
-      var meaning = (window.DICT && window.DICT[firstWord]) || (window.DICT && window.DICT[word]) || null;
-      if (meaning) {
-        showToast('📖 ' + firstWord + ': ' + meaning);
+      var result = lookupOfflineWord(firstWord);
+      if (result) {
+        showToast('📖 ' + result.word + ': ' + result.meaning + (result.matchedAs ? ' (匹配: ' + result.matchedAs + ')' : ''));
       } else {
-        showToast('📖 未找到 "' + firstWord + '" 的离线释义', true);
+        showToast('📖 未找到 "' + firstWord + '" 的离线释义，试试在线翻译', true);
       }
       return;
     }
@@ -1447,7 +1457,94 @@
   }
 
   /**
-   * 在线翻译：调用 MyMemory 免费翻译 API 进行翻译
+   * 离线词典智能查找：支持词形变化匹配
+   */
+  function lookupOfflineWord(word) {
+    if (!window.DICT) { return null; }
+    var clean = word.replace(/[^a-z'-]/g, '').toLowerCase().trim();
+    if (!clean) return null;
+    // 1. 精确匹配
+    if (window.DICT[clean]) {
+      return { word: clean, meaning: window.DICT[clean], matchedAs: null };
+    }
+    // 2. 尝试各种词形变化
+    var forms = [];
+    // 复数/三单 -s/-es/-ies
+    if (clean.endsWith('ies')) forms.push(clean.slice(0, -3) + 'y');
+    if (clean.endsWith('ves')) forms.push(clean.slice(0, -3) + 'f');
+    if (clean.endsWith('es')) forms.push(clean.slice(0, -2));
+    if (clean.endsWith('s') && !clean.endsWith('ss')) forms.push(clean.slice(0, -1));
+    // 进行时 -ing
+    if (clean.endsWith('ying')) forms.push(clean.slice(0, -4) + 'ie');
+    if (clean.endsWith('ming')) forms.push(clean.slice(0, -3));
+    if (clean.endsWith('ning') && clean.length > 6) forms.push(clean.slice(0, -4));
+    if (clean.endsWith('ing') && clean.length > 5) {
+      forms.push(clean.slice(0, -3));           // walk-ing → walk
+      forms.push(clean.slice(0, -3) + 'e');     // mak-ing → make
+    }
+    // 过去式 -ed
+    if (clean.endsWith('ied')) forms.push(clean.slice(0, -3) + 'y');
+    if (clean.endsWith('ed') && clean.length > 4) {
+      forms.push(clean.slice(0, -2));           // walk-ed → walk
+      forms.push(clean.slice(0, -1));           // dance-d → dance
+    }
+    if (clean.endsWith('d') && clean.length > 3) {
+      forms.push(clean.slice(0, -1));           // 简单-d 结尾
+    }
+    // 比较级/最高级 -er/-est
+    if (clean.endsWith('iest')) forms.push(clean.slice(0, -4) + 'y');
+    if (clean.endsWith('est') && clean.length > 5) forms.push(clean.slice(0, -3));
+    if (clean.endsWith('ier')) forms.push(clean.slice(0, -3) + 'y');
+    if (clean.endsWith('er') && clean.length > 4) forms.push(clean.slice(0, -2));
+    // 副词 -ly
+    if (clean.endsWith('ily')) forms.push(clean.slice(0, -3) + 'y');
+    if (clean.endsWith('ly') && clean.length > 5) forms.push(clean.slice(0, -2));
+    // 名词 -tion/-sion
+    if (clean.endsWith('ation')) forms.push(clean.slice(0, -5) + 'e');
+    if (clean.endsWith('ition')) forms.push(clean.slice(0, -5) + 'e');
+    if (clean.endsWith('tion')) forms.push(clean.slice(0, -4) + 'e');
+    if (clean.endsWith('sion')) forms.push(clean.slice(0, -4));
+    // 名词 -ment
+    if (clean.endsWith('ment')) forms.push(clean.slice(0, -4));
+    // 名词 -ness
+    if (clean.endsWith('iness')) forms.push(clean.slice(0, -5) + 'y');
+    if (clean.endsWith('ness')) forms.push(clean.slice(0, -4));
+    // 形容词 -able/-ible
+    if (clean.endsWith('able')) forms.push(clean.slice(0, -4));
+    if (clean.endsWith('ible')) forms.push(clean.slice(0, -4));
+    // 形容词 -ful
+    if (clean.endsWith('iful')) forms.push(clean.slice(0, -4) + 'y');
+    if (clean.endsWith('ful')) forms.push(clean.slice(0, -3));
+    // 形容词 -less
+    if (clean.endsWith('less')) forms.push(clean.slice(0, -4));
+    // 形容词 -ive
+    if (clean.endsWith('ative')) forms.push(clean.slice(0, -5) + 'e');
+    if (clean.endsWith('ive')) forms.push(clean.slice(0, -3));
+    // 去重
+    var seen = {};
+    var unique = [];
+    forms.forEach(function(f) {
+      if (f && f.length > 1 && !seen[f]) { seen[f] = true; unique.push(f); }
+    });
+    // 按匹配质量排序：越长越精确
+    unique.sort(function(a, b) { return b.length - a.length; });
+    for (var i = 0; i < unique.length; i++) {
+      if (window.DICT[unique[i]]) {
+        return { word: unique[i], meaning: window.DICT[unique[i]], matchedAs: clean };
+      }
+    }
+    // 3. 部分匹配：包含关系
+    var keys = Object.keys(window.DICT);
+    for (var j = 0; j < keys.length; j++) {
+      if (keys[j].indexOf(clean) !== -1 || clean.indexOf(keys[j]) !== -1) {
+        return { word: keys[j], meaning: window.DICT[keys[j]], matchedAs: '部分匹配' };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 在线翻译：调用翻译 API，失败时回退到 AI 翻译
    */
   function onlineTranslateText(text) {
     if (!text.trim()) return;
@@ -1459,21 +1556,87 @@
     } else {
       langPair = 'en|zh-CN';
     }
-    var url = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text.slice(0, 500)) + '&langpair=' + langPair;
-    fetch(url)
+    // 1. 尝试 MyMemory 翻译 API
+    var myMemoryUrl = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text.slice(0, 500)) + '&langpair=' + langPair;
+    fetch(myMemoryUrl)
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        if (data && data.responseData && data.responseData.translatedText) {
-          var result = data.responseData.translatedText;
+        var result = data && data.responseData && data.responseData.translatedText;
+        if (result) {
           showToast('🌐 翻译结果: ' + result);
-          // 同时将翻译结果写入剪贴板
           navigator.clipboard.writeText(result).catch(function() {});
-        } else {
-          showToast('🌐 在线翻译未返回结果', true);
+          return;
         }
+        // MyMemory 返回了结果但无翻译内容，尝试 AI 回退
+        showToast('🌐 MyMemory 无结果，尝试 AI 翻译...');
+        return translateViaAi(text, langPair);
       })
       .catch(function() {
-        showToast('🌐 在线翻译请求失败，请检查网络连接', true);
+        // MyMemory 请求失败，尝试 AI 回退
+        showToast('🌐 MyMemory 请求失败，尝试 AI 翻译...');
+        return translateViaAi(text, langPair);
+      });
+  }
+
+  /**
+   * 通过后端 AI 进行翻译回退
+   */
+  function translateViaAi(text, langPair) {
+    var direction = langPair === 'zh-CN|en' ? '中译英' : '英译中';
+    var prompt = '请将以下文本' + direction + '，只返回翻译结果，不要加任何解释或标记：\n\n' + text.slice(0, 800);
+    var aiUrl = AI_CHAT_API_URL;
+    var requestId = 'trans-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    var controller = new AbortController();
+    // 使用超时控制
+    var timeout = setTimeout(function() { controller.abort(); }, 15000);
+    return fetch(aiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+      body: JSON.stringify({
+        requestId: requestId,
+        messages: [{ role: 'user', content: prompt }]
+      }),
+      signal: controller.signal
+    })
+      .then(function(r) {
+        clearTimeout(timeout);
+        if (!r.ok) throw new Error('AI 服务返回 ' + r.status);
+        if (!r.body) throw new Error('无响应体');
+        var reader = r.body.getReader();
+        var decoder = new TextDecoder();
+        var fullText = '';
+        var parser = new window.EditorAiChatCore.SseParser(function(event) {
+          if (event.event === 'delta' && event.data && event.data.content) {
+            fullText += event.data.content;
+          }
+        });
+        // 递归读取流
+        function readStream() {
+          return reader.read().then(function(result) {
+            if (result.done) {
+              parser.finish();
+              return fullText;
+            }
+            parser.push(decoder.decode(result.value, { stream: true }));
+            return readStream();
+          });
+        }
+        return readStream();
+      })
+      .then(function(translated) {
+        if (translated && translated.trim()) {
+          showToast('🌐 AI 翻译: ' + translated.trim());
+          navigator.clipboard.writeText(translated.trim()).catch(function() {});
+        } else {
+          showToast('🌐 AI 翻译未返回结果，请稍后重试', true);
+        }
+      })
+      .catch(function(err) {
+        if (err.name === 'AbortError') {
+          showToast('🌐 AI 翻译超时，请稍后重试', true);
+        } else {
+          showToast('🌐 所有翻译服务均不可用，请检查网络连接', true);
+        }
       });
   }
 
@@ -1483,24 +1646,100 @@
   function addEnglishTranslation(text) {
     if (!text.trim()) return;
     showToast('➕ 正在获取英文翻译...');
+    // 先尝试在线翻译，成功则插入编辑器；失败则回退离线词典（单次词）
     var url = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text.slice(0, 500)) + '&langpair=zh-CN|en';
     fetch(url)
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        if (data && data.responseData && data.responseData.translatedText) {
-          var translation = data.responseData.translatedText;
-          var cursorPos = mainEditor.getCursorPosition();
-          var session = mainEditor.getSession();
-          // 在选中文本后追加翻译
-          session.insert(cursorPos, ' (' + translation + ')');
-          showToast('➕ 已添加英文翻译');
+        var translation = data && data.responseData && data.responseData.translatedText;
+        if (translation) {
+          insertTranslation(translation);
+          return;
+        }
+        // MyMemory 失败，尝试 AI 翻译
+        showToast('➕ MyMemory 受限，尝试 AI 翻译...');
+        return addEnglishViaAi(text);
+      })
+      .catch(function() {
+        // MyMemory 请求失败，尝试 AI 翻译
+        showToast('➕ MyMemory 不可用，尝试 AI 翻译...');
+        return addEnglishViaAi(text);
+      });
+  }
+
+  /**
+   * 通过 AI 获取英文翻译并插入编辑器
+   */
+  function addEnglishViaAi(text) {
+    // 单英文词回退到离线词典
+    var singleWord = text.trim().toLowerCase().replace(/[^a-z]/g, '');
+    if (singleWord && window.DICT && window.DICT[singleWord]) {
+      insertTranslation(window.DICT[singleWord].split(';')[0].trim() || window.DICT[singleWord]);
+      showToast('➕ 使用离线词典翻译');
+      return;
+    }
+    var prompt = '请将以下中文翻译成英文，只返回翻译结果，不要加任何解释或标记：\n\n' + text.slice(0, 500);
+    var aiUrl = AI_CHAT_API_URL;
+    var requestId = 'trans-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    var controller = new AbortController();
+    var timeout = setTimeout(function() { controller.abort(); }, 15000);
+    return fetch(aiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+      body: JSON.stringify({
+        requestId: requestId,
+        messages: [{ role: 'user', content: prompt }]
+      }),
+      signal: controller.signal
+    })
+      .then(function(r) {
+        clearTimeout(timeout);
+        if (!r.ok) throw new Error('AI 服务返回 ' + r.status);
+        if (!r.body) throw new Error('无响应体');
+        var reader = r.body.getReader();
+        var decoder = new TextDecoder();
+        var fullText = '';
+        var parser = new window.EditorAiChatCore.SseParser(function(event) {
+          if (event.event === 'delta' && event.data && event.data.content) {
+            fullText += event.data.content;
+          }
+        });
+        function readStream() {
+          return reader.read().then(function(result) {
+            if (result.done) {
+              parser.finish();
+              return fullText;
+            }
+            parser.push(decoder.decode(result.value, { stream: true }));
+            return readStream();
+          });
+        }
+        return readStream();
+      })
+      .then(function(translated) {
+        if (translated && translated.trim()) {
+          insertTranslation(translated.trim());
+          showToast('➕ 已添加 AI 英文翻译');
         } else {
           showToast('➕ 获取英文翻译失败', true);
         }
       })
-      .catch(function() {
-        showToast('➕ 获取英文翻译请求失败，请检查网络连接', true);
+      .catch(function(err) {
+        if (err.name === 'AbortError') {
+          showToast('➕ AI 翻译超时，请稍后重试', true);
+        } else {
+          showToast('➕ 获取英文翻译失败，请检查网络连接', true);
+        }
       });
+  }
+
+  /**
+   * 将翻译结果插入到编辑器光标位置
+   */
+  function insertTranslation(translation) {
+    var cursorPos = mainEditor.getCursorPosition();
+    var session = mainEditor.getSession();
+    session.insert(cursorPos, ' (' + translation + ')');
   }
 
   /**
