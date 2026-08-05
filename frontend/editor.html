@@ -125,6 +125,7 @@
             <span class="ai-chat-status" id="aiChatStatus">就绪</span>
           </div>
           <div class="ai-chat-actions">
+            <button class="inline-btn" id="aiChatContextBtn" title="读取编辑器上下文发送给AI">读取上下文</button>
             <button class="inline-btn" id="aiChatClearBtn" title="清空当前标签会话">清空</button>
             <button class="icon-close" id="aiChatCloseBtn" aria-label="关闭 AI 对话">×</button>
           </div>
@@ -353,6 +354,12 @@
     <button type="button" data-context-action="aiSearch" role="menuitem" id="aiSearchContextBtn">AI 搜索选中内容</button>
     <button type="button" data-context-action="smartIngest" role="menuitem" id="smartIngestContextBtn">📥 智能入库</button>
     <button type="button" data-context-action="aiImportPassword" role="menuitem" id="aiImportPasswordContextBtn">🔑 AI 识别导入密码</button>
+    <div class="editor-context-divider"></div>
+    <button type="button" data-context-action="offlineTranslate" role="menuitem" id="offlineTranslateContextBtn">📖 离线翻译</button>
+    <button type="button" data-context-action="onlineTranslate" role="menuitem" id="onlineTranslateContextBtn">🌐 在线翻译</button>
+    <button type="button" data-context-action="addEnglishTranslation" role="menuitem" id="addEnglishTranslationContextBtn">➕ 添加英文翻译</button>
+    <div class="editor-context-divider"></div>
+    <button type="button" data-context-action="aiContextAnalysis" role="menuitem" id="aiContextAnalysisContextBtn">🤖 AI 分析上下文</button>
   </div>
   <div class="editor-context-menu" id="tabContextMenu" hidden role="menu"></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -380,6 +387,7 @@
   <script src="libs/sql-formatter.min.js"></script>
   <script src="js/editor-core.js"></script>
   <script src="js/editor-ai-chat-core.js"></script>
+  <script src="js/dict-offline.js"></script>
   <script src="js/editor.js"></script>
 </body>
 </html>
