@@ -72,12 +72,12 @@
       </div>
       <div class="editor-pane history-pane" id="historyPane" aria-hidden="true">
         <div class="filetree-header">
-          <span>编辑历史（<span id="historyCount">0</span> 步）</span>
+          <span><strong>编辑历史</strong>（<span id="historyCount">0</span> 步）</span>
           <div class="filetree-header-actions">
-            <button class="inline-btn" id="undoHistoryBtn">撤销</button>
-            <button class="inline-btn" id="redoHistoryBtn">重做</button>
-            <button class="inline-btn" id="clearHistoryBtn">清空</button>
-            <button class="inline-btn" id="closeHistoryBtn">关闭</button>
+            <button class="inline-btn" id="undoHistoryBtn" title="撤销 Ctrl+Z">撤销</button>
+            <button class="inline-btn" id="redoHistoryBtn" title="重做 Ctrl+Shift+Z">重做</button>
+            <button class="inline-btn" id="clearHistoryBtn" title="清空所有历史记录">清空</button>
+            <button class="inline-btn" id="closeHistoryBtn" title="关闭历史面板">关闭</button>
           </div>
         </div>
         <div class="history-list" id="historyList"></div>

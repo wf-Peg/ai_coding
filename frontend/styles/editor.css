@@ -1556,37 +1556,91 @@ select {
   border-radius: 0;
   background: var(--app-surface-subtle);
   font-size: 11px;
-  font-family: var(--app-font-mono);
+  padding: 4px 0;
 }
 
 .history-item {
-  padding: 4px 8px;
+  padding: 7px 10px;
   border-bottom: 1px solid var(--app-border);
-  color: var(--app-text-secondary);
   cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  position: relative;
+  transition: background 120ms ease;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-left: 3px solid transparent;
 }
 
 .history-item:last-child {
   border-bottom: 0;
 }
 
+.history-item:hover {
+  background: var(--app-surface-hover);
+}
+
+.history-item .history-action {
+  font-size: 11px;
+  color: var(--app-text);
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-item .history-action-label {
+  font-weight: 600;
+  color: var(--app-text-secondary);
+  margin-right: 2px;
+}
+
+.history-item .history-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 10px;
+  color: var(--app-text-muted);
+}
+
+.history-item .history-time {
+  font-family: var(--app-font-mono);
+  color: var(--app-text-muted);
+  white-space: nowrap;
+}
+
+.history-item .history-position {
+  color: var(--app-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .history-item.undo {
+  border-left-color: var(--app-danger);
+}
+
+.history-item.undo .history-action-label {
   color: var(--app-danger);
-  background: var(--app-danger-soft);
 }
 
 .history-item.redo {
+  border-left-color: var(--app-success, #4caf50);
+}
+
+.history-item.redo .history-action-label {
   color: var(--app-success, #4caf50);
-  background: color-mix(in srgb, #4caf50 10%, transparent);
 }
 
 .history-item.current {
-  color: var(--app-text);
+  border-left-color: var(--app-primary);
   font-weight: 600;
   background: var(--app-primary-soft);
+  cursor: default;
+}
+
+.history-item.current .history-action-label {
+  color: var(--app-primary);
+  font-weight: 700;
 }
 
 /* ── 最近打开 ── */
@@ -1624,13 +1678,11 @@ select {
 
 /* ── 面板列表项 hover：左侧主色指示条滑出 ── */
 .filetree-item,
-.history-item,
 .recent-item {
   position: relative;
 }
 
 .filetree-item::before,
-.history-item::before,
 .recent-item::before {
   content: '';
   position: absolute;
@@ -1647,7 +1699,6 @@ select {
 }
 
 .filetree-item:hover::before,
-.history-item:hover::before,
 .recent-item:hover::before,
 .filetree-item.active::before {
   opacity: 1;

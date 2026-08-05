@@ -3193,7 +3193,23 @@
     return parts.join('；');
   }
 
-  // 渲染单条历史项（带悬停可查看完整变化内容）
+  // 格式化时间戳为可读字符串
+  function formatHistoryTime(timestamp) {
+    if (!timestamp) return '';
+    var d = new Date(timestamp);
+    var now = new Date();
+    var isToday = d.getFullYear() === now.getFullYear()
+      && d.getMonth() === now.getMonth()
+      && d.getDate() === now.getDate();
+    var pad = function(n) { return n < 10 ? '0' + n : n; };
+    var timeStr = pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+    if (isToday) {
+      return timeStr;
+    }
+    return pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + timeStr;
+  }
+
+  // 渲染单条历史项（带结构化布局和时间戳）
   function createHistoryItem(entry, kind) {
     var item = document.createElement('div');
     item.className = 'history-item ' + kind;
@@ -3201,7 +3217,7 @@
     var deltas = Array.isArray(entry) ? entry
       : (entry && entry.deltas && Array.isArray(entry.deltas) ? entry.deltas : [entry]);
     var first = deltas[0] || null;
-    var position = first && first.start ? '（行 ' + (first.start.row + 1) + '，列 ' + (first.start.column + 1) + '）' : '';
+    var position = first && first.start ? '行 ' + (first.start.row + 1) + '，列 ' + (first.start.column + 1) : '';
     // 完整变化内容（多个 delta 拼接）
     var fullParts = [];
     for (var i = 0; i < deltas.length; i++) {
@@ -3209,9 +3225,31 @@
       if (lines.length) fullParts.push(lines.join('\n'));
     }
     var fullText = fullParts.join('\n');
-    item.textContent = (kind === 'undo' ? '撤销 ' : '重做 ') + describeHistoryEntry(entry) + position;
+    // 时间戳
+    var timestamp = entry && entry._timestamp ? entry._timestamp : null;
+    var timeStr = formatHistoryTime(timestamp);
+
+    // 动作描述
+    var actionLabel = kind === 'undo' ? '撤销' : '重做';
+    var desc = describeHistoryEntry(entry);
+
+    // 构建结构化 HTML
+    var html = '<span class="history-action">'
+      + '<span class="history-action-label">' + actionLabel + '</span> '
+      + '<span class="history-action-desc">' + escapeHtml(desc) + '</span>'
+      + '</span>';
+    html += '<span class="history-meta">';
+    if (timeStr) {
+      html += '<span class="history-time">' + timeStr + '</span>';
+    }
+    if (position) {
+      html += '<span class="history-position">' + position + '</span>';
+    }
+    html += '</span>';
+    item.innerHTML = html;
+
+    // 悬停显示完整变化内容
     if (fullText) {
-      // 悬停显示完整变化内容
       item.title = '位置: ' + position + '\n完整内容:\n' + (fullText.length > 500 ? fullText.slice(0, 500) + '…' : fullText);
     }
     return item;
@@ -3260,7 +3298,7 @@
       if (undoStack.length > 0 && redoStack.length > 0) {
         var sep = document.createElement('div');
         sep.className = 'history-item current';
-        sep.textContent = '← 当前位置';
+        sep.innerHTML = '<span class="history-action"><span class="history-action-label">← 当前位置</span></span>';
         elements.historyList.appendChild(sep);
       }
 
@@ -3279,10 +3317,10 @@
       }
 
       if (undoStack.length === 0 && redoStack.length === 0) {
-        elements.historyList.innerHTML = '<div class="history-item" style="cursor:default;color:var(--app-text-muted);">暂无历史记录</div>';
+        elements.historyList.innerHTML = '<div class="history-item" style="cursor:default;padding:24px 12px;text-align:center;color:var(--app-text-muted);font-size:11px;line-height:1.6;">暂无历史记录<br>编辑内容后将自动记录</div>';
       }
     } catch (e) {
-      elements.historyList.innerHTML = '<div class="history-item" style="cursor:default;color:var(--app-text-muted);">历史记录不可用</div>';
+      elements.historyList.innerHTML = '<div class="history-item" style="cursor:default;padding:24px 12px;text-align:center;color:var(--app-text-muted);font-size:11px;">历史记录不可用</div>';
     }
   }
 
@@ -3359,12 +3397,25 @@
   });
   elements.clearHistoryBtn.addEventListener('click', function() {
     mainEditor.session.getUndoManager().reset();
+    _lastUndoStackSize = 0;
     updateHistoryPanel();
     showToast('历史记录已清空');
   });
 
-  // 编辑变更时更新历史
+  // 编辑变更时更新历史，并记录时间戳
+  var _lastUndoStackSize = 0;
   mainEditor.session.on('change', function() {
+    // 为新撤销栈条目记录时间戳
+    var um = mainEditor.session.getUndoManager();
+    var stack = um.$undoStack || [];
+    if (stack.length > _lastUndoStackSize) {
+      for (var i = _lastUndoStackSize; i < stack.length; i++) {
+        if (stack[i] && !stack[i]._timestamp) {
+          stack[i]._timestamp = Date.now();
+        }
+      }
+    }
+    _lastUndoStackSize = stack.length;
     // 防抖更新历史面板（如果打开的话）
     if (!isPaneOpen(elements.historyPane)) return;
     clearTimeout(historyEntries._timer);
