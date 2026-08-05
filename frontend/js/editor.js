@@ -76,7 +76,9 @@
     'undoHistoryBtn', 'redoHistoryBtn', 'clearHistoryBtn', 'mainPane', 'historyPane', 'recentPane',
     'recentList', 'closeRecentBtn', 'clearRecentBtn', 'favPane', 'favList', 'closeFavBtn', 'clearFavBtn', 'aiChatPane', 'aiChatMessages', 'aiChatInput',
     'aiChatSendBtn', 'aiChatStopBtn', 'aiChatClearBtn', 'aiChatCloseBtn', 'aiChatStatus',
-    'aiChatResizeHandle', 'aiPetBtn', 'editorContextMenu', 'aiSearchContextBtn', 'smartIngestContextBtn', 'aiImportPasswordContextBtn'
+    'aiChatResizeHandle', 'aiPetBtn', 'editorContextMenu', 'aiSearchContextBtn', 'smartIngestContextBtn', 'aiImportPasswordContextBtn',
+    'offlineTranslateContextBtn', 'onlineTranslateContextBtn', 'addEnglishTranslationContextBtn', 'aiContextAnalysisContextBtn',
+    'aiChatContextBtn'
   ].map(id => [id, document.getElementById(id)]));
 
   function applyMascotPreference() {
@@ -1333,10 +1335,22 @@
   function openEditorContextMenu(event) {
     event.preventDefault();
     const selectedText = mainEditor.getSelectedText();
-    elements.aiSearchContextBtn.hidden = !selectedText.trim();
-    elements.smartIngestContextBtn.hidden = !selectedText.trim();
-    elements.aiImportPasswordContextBtn.hidden = !selectedText.trim();
-    elements.editorContextMenu.querySelector('.editor-context-divider').hidden = !selectedText.trim();
+    const hasSelection = !!selectedText.trim();
+    elements.aiSearchContextBtn.hidden = !hasSelection;
+    elements.smartIngestContextBtn.hidden = !hasSelection;
+    elements.aiImportPasswordContextBtn.hidden = !hasSelection;
+    elements.offlineTranslateContextBtn.hidden = !hasSelection;
+    elements.onlineTranslateContextBtn.hidden = !hasSelection;
+    elements.addEnglishTranslationContextBtn.hidden = !hasSelection;
+    // AI 分析上下文始终可用（无选中时分析全文）
+    elements.aiContextAnalysisContextBtn.hidden = false;
+    // 收集所有翻译相关按钮，用于控制分隔线显隐
+    const translateDivider = elements.editorContextMenu.querySelectorAll('.editor-context-divider');
+    // 第一个分隔线（AI操作前）始终显示（有选中时）
+    // 第二个分隔线（翻译与AI分析之间）在有选中或AI功能可见时显示
+    translateDivider.forEach(function(div) {
+      div.hidden = !hasSelection;
+    });
     elements.editorContextMenu.hidden = false;
     const menu = elements.editorContextMenu;
     const left = Math.min(event.clientX, window.innerWidth - menu.offsetWidth - 8);
@@ -1392,6 +1406,37 @@
         .catch(function() { showToast('AI 识别请求失败，请确认后端已启动', true); });
       return;
     }
+    // 离线翻译：从本地词典查询选中单词
+    if (action === 'offlineTranslate') {
+      if (!selectedText.trim()) { showToast('请先选中文本', true); return; }
+      var word = selectedText.trim().toLowerCase();
+      // 取第一个单词（如果是词组）
+      var firstWord = word.split(/[\s,;:!?.\n]+/)[0];
+      var meaning = (window.DICT && window.DICT[firstWord]) || (window.DICT && window.DICT[word]) || null;
+      if (meaning) {
+        showToast('📖 ' + firstWord + ': ' + meaning);
+      } else {
+        showToast('📖 未找到 "' + firstWord + '" 的离线释义', true);
+      }
+      return;
+    }
+    // 在线翻译：调用翻译API
+    if (action === 'onlineTranslate') {
+      if (!selectedText.trim()) { showToast('请先选中文本', true); return; }
+      onlineTranslateText(selectedText.trim());
+      return;
+    }
+    // 添加英文翻译：在选中文本后追加英文翻译
+    if (action === 'addEnglishTranslation') {
+      if (!selectedText.trim()) { showToast('请先选中文本', true); return; }
+      addEnglishTranslation(selectedText.trim());
+      return;
+    }
+    // AI 分析上下文：将编辑区内容发送到AI聊天
+    if (action === 'aiContextAnalysis') {
+      sendEditorContextToAi(selectedText || mainEditor.getValue());
+      return;
+    }
     mainEditor.focus();
     const command = action === 'selectAll' ? 'selectall' : action;
     try {
@@ -1401,6 +1446,83 @@
     }
   }
 
+  /**
+   * 在线翻译：调用 MyMemory 免费翻译 API 进行翻译
+   */
+  function onlineTranslateText(text) {
+    if (!text.trim()) return;
+    showToast('🌐 正在在线翻译...');
+    var langPair = 'zh-CN|en';
+    // 检测是否包含中文，决定翻译方向
+    if (/[\u4e00-\u9fff]/.test(text)) {
+      langPair = 'zh-CN|en';
+    } else {
+      langPair = 'en|zh-CN';
+    }
+    var url = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text.slice(0, 500)) + '&langpair=' + langPair;
+    fetch(url)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data && data.responseData && data.responseData.translatedText) {
+          var result = data.responseData.translatedText;
+          showToast('🌐 翻译结果: ' + result);
+          // 同时将翻译结果写入剪贴板
+          navigator.clipboard.writeText(result).catch(function() {});
+        } else {
+          showToast('🌐 在线翻译未返回结果', true);
+        }
+      })
+      .catch(function() {
+        showToast('🌐 在线翻译请求失败，请检查网络连接', true);
+      });
+  }
+
+  /**
+   * 添加英文翻译：对中文文本追加英文翻译到编辑器
+   */
+  function addEnglishTranslation(text) {
+    if (!text.trim()) return;
+    showToast('➕ 正在获取英文翻译...');
+    var url = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text.slice(0, 500)) + '&langpair=zh-CN|en';
+    fetch(url)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data && data.responseData && data.responseData.translatedText) {
+          var translation = data.responseData.translatedText;
+          var cursorPos = mainEditor.getCursorPosition();
+          var session = mainEditor.getSession();
+          // 在选中文本后追加翻译
+          session.insert(cursorPos, ' (' + translation + ')');
+          showToast('➕ 已添加英文翻译');
+        } else {
+          showToast('➕ 获取英文翻译失败', true);
+        }
+      })
+      .catch(function() {
+        showToast('➕ 获取英文翻译请求失败，请检查网络连接', true);
+      });
+  }
+
+  /**
+   * 将编辑器上下文发送到AI聊天面板
+   */
+  function sendEditorContextToAi(editorContent) {
+    if (!editorContent || !editorContent.trim()) {
+      showToast('编辑器内容为空', true);
+      return;
+    }
+    var maxLen = 3000;
+    var content = editorContent.trim();
+    if (content.length > maxLen) {
+      content = content.slice(0, maxLen) + '\n\n...(内容过长已截断)';
+    }
+    var prompt = '请分析以下编辑器中的内容，提炼要点、指出问题或给出优化建议：\n\n```\n' + content + '\n```';
+    setAiChatPanelOpen(true);
+    setTimeout(function() {
+      sendAiMessage(prompt);
+    }, 300);
+  }
+
   function initializeAiChat() {
     setAiChatWidth(getAiChatWidth(), false);
     elements.aiPetBtn.addEventListener('click', toggleAiChatPanel);
@@ -1408,6 +1530,12 @@
     elements.aiChatClearBtn.addEventListener('click', () => {
       cancelAiRequest();
       if (state) updateAiChatState(state, { type: 'clear' });
+    });
+    // 读取上下文按钮
+    elements.aiChatContextBtn.addEventListener('click', function() {
+      if (!state) { showToast('没有打开的编辑器内容', true); return; }
+      var editorContent = mainEditor.getValue() || state.content || '';
+      sendEditorContextToAi(editorContent);
     });
     elements.aiChatSendBtn.addEventListener('click', () => sendAiMessage(elements.aiChatInput.value));
     elements.aiChatStopBtn.addEventListener('click', cancelAiRequest);
@@ -1422,6 +1550,10 @@
       button.addEventListener('click', () => executeEditorContextAction(button.dataset.contextAction));
     });
     elements.aiSearchContextBtn.hidden = true;
+    elements.offlineTranslateContextBtn.hidden = true;
+    elements.onlineTranslateContextBtn.hidden = true;
+    elements.addEnglishTranslationContextBtn.hidden = true;
+    elements.aiContextAnalysisContextBtn.hidden = true;
     document.addEventListener('click', event => {
       if (!elements.editorContextMenu.contains(event.target)) closeEditorContextMenu();
     });
