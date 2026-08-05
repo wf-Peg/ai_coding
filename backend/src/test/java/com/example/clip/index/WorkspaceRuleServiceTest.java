@@ -68,8 +68,8 @@ class WorkspaceRuleServiceTest {
         service.saveExclusion(new WorkspaceExclusion("w", "clip:3", "忽略", now, now));
 
         WorkspaceResolution resolution = service.resolve("w", refs,
-                List.of(new WorkspaceMembership("w", "clip:3", "manual", "手动", 1, now, now)),
-                List.of(new WorkspaceMembership("w", "clip:2", "relation", "关联", 1, now, now)));
+                List.of(new WorkspaceMembership("w", "clip:3", "manual", "手动", 1.0, "", 1, now, now)),
+                List.of(new WorkspaceMembership("w", "clip:2", "relation", "关联", 1.0, "", 1, now, now)));
 
         assertEquals(List.of("clip:2"), resolution.visible().stream().map(ContentRef::id).toList());
         assertEquals(2, resolution.ruleMatchedCount());

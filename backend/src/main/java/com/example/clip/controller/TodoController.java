@@ -2,8 +2,10 @@ package com.example.clip.controller;
 
 import com.example.clip.model.TodoContent;
 import com.example.clip.service.TodoService;
+import com.example.clip.service.UserActionEventRecorder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,6 +15,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 待办事项 REST 控制器
@@ -41,6 +44,9 @@ public class TodoController {
     /** 待办事项核心业务服务 */
     private final TodoService todoService;
 
+    @Autowired(required = false)
+    private UserActionEventRecorder actionEventRecorder;
+
     /**
      * 构造函数，通过依赖注入初始化服务组件
      *
@@ -48,6 +54,18 @@ public class TodoController {
      */
     public TodoController(TodoService todoService) {
         this.todoService = todoService;
+    }
+
+    /**
+     * 记录用户操作事件，best-effort，失败不影响业务。
+     *
+     * @param type      事件类型
+     * @param contentId 内容 ID
+     * @param metadata  附加元数据
+     */
+    private void recordAction(String type, String contentId, Map<String, String> metadata) {
+        if (actionEventRecorder != null)
+            actionEventRecorder.record(type, contentId, metadata);
     }
 
     /**
@@ -100,6 +118,7 @@ public class TodoController {
             TodoContent savedTodo = todoService.saveTodo(todo);
             if (savedTodo != null) {
                 log.info("[API] Todo saved successfully: id={}", savedTodo.getId());
+                recordAction("todo_created", "todo:" + savedTodo.getId(), Map.of("title", savedTodo.getTitle() != null ? savedTodo.getTitle() : ""));
                 return ResponseEntity.ok(savedTodo);
             } else {
                 log.error("[API] Failed to save todo, savedTodo is null");
@@ -126,6 +145,7 @@ public class TodoController {
     public ResponseEntity<TodoContent> updateTodo(@RequestBody TodoContent todo) {
         TodoContent updatedTodo = todoService.updateTodo(todo);
         if (updatedTodo != null) {
+            recordAction("todo_edited", "todo:" + todo.getId(), Map.of("title", todo.getTitle() != null ? todo.getTitle() : ""));
             return ResponseEntity.ok(updatedTodo);
         } else {
             return ResponseEntity.badRequest().build();
@@ -143,6 +163,7 @@ public class TodoController {
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteTodo(@PathVariable Long id) {
         todoService.deleteTodo(id);
+        recordAction("todo_deleted", "todo:" + id, Map.of());
         return ResponseEntity.ok().build();
     }
 
@@ -162,6 +183,7 @@ public class TodoController {
     public ResponseEntity<TodoContent> updateTodoStatus(@PathVariable Long id, @RequestParam boolean completed) {
         TodoContent updatedTodo = todoService.updateTodoStatus(id, completed);
         if (updatedTodo != null) {
+            recordAction(completed ? "todo_completed" : "todo_edited", "todo:" + id, Map.of());
             return ResponseEntity.ok(updatedTodo);
         } else {
             return ResponseEntity.notFound().build();

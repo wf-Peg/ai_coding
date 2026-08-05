@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -168,6 +169,47 @@ public class LearningPlanController {
      * @param body 请求体：{ ids: [1, 2, 3] }
      * @return 删除结果
      */
+    @PutMapping("/{id}/mastery")
+    public ResponseEntity<?> updateMastery(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        LearningPlan plan = learningPlanService.getPlanById(id);
+        if (plan == null) return ResponseEntity.notFound().build();
+
+        if (body.containsKey("mastery")) {
+            plan.setMastery(toInt(body.get("mastery"), plan.getMastery() != null ? plan.getMastery() : 0));
+        }
+        if (body.containsKey("nextReviewAt")) {
+            String reviewStr = (String) body.get("nextReviewAt");
+            if (reviewStr != null) plan.setNextReviewAt(LocalDateTime.parse(reviewStr));
+        }
+        if (body.containsKey("reviewCount")) {
+            plan.setReviewCount(toInt(body.get("reviewCount"), plan.getReviewCount()));
+        }
+        if (body.containsKey("category")) {
+            plan.setCategory((String) body.get("category"));
+        }
+        if (body.containsKey("tags")) {
+            @SuppressWarnings("unchecked")
+            List<String> tags = (List<String>) body.get("tags");
+            plan.setTags(tags != null ? tags : List.of());
+        }
+
+        LearningPlan updated = learningPlanService.updatePlan(plan);
+        return ResponseEntity.ok(updated);
+    }
+
+    @PostMapping("/{id}/review")
+    public ResponseEntity<?> recordReview(@PathVariable Long id) {
+        LearningPlan plan = learningPlanService.getPlanById(id);
+        if (plan == null) return ResponseEntity.notFound().build();
+
+        int newMastery = Math.min(100, (plan.getMastery() != null ? plan.getMastery() : 0) + 10);
+        plan.setMastery(newMastery);
+        plan.setReviewCount(plan.getReviewCount() + 1);
+        plan.setNextReviewAt(LocalDateTime.now().plusDays(plan.getReviewCount() <= 2 ? 1 : 7));
+        LearningPlan updated = learningPlanService.updatePlan(plan);
+        return ResponseEntity.ok(updated);
+    }
+
     @PostMapping("/batch-delete")
     public ResponseEntity<?> batchDelete(@RequestBody Map<String, Object> body) {
         try {

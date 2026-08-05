@@ -95,8 +95,20 @@ public class WorkspaceRuleService {
         candidates.addAll(relationIds);
         candidates.removeAll(excludedIds);
         List<ContentRef> visible = candidates.stream().map(byId::get).filter(java.util.Objects::nonNull).toList();
+        // 构建每个可见内容的来源映射
+        Map<String, String> contentSources = new LinkedHashMap<>();
+        for (ContentRef ref : visible) {
+            if (ruleIds.contains(ref.id())) {
+                contentSources.put(ref.id(), "rule");
+            } else if (manualIds.contains(ref.id())) {
+                contentSources.put(ref.id(), "manual");
+            } else if (relationIds.contains(ref.id())) {
+                contentSources.put(ref.id(), "relation");
+            }
+        }
         return new WorkspaceResolution(visible, ruleIds.size(), manualIds.size(), relationIds.size(),
-                (int) excludedIds.stream().filter(byId::containsKey).count(), visible.size());
+                (int) excludedIds.stream().filter(byId::containsKey).count(), visible.size(),
+                List.of(), Map.of(), contentSources);
     }
 
     private boolean matches(WorkspaceRule rule, ContentRef ref) {

@@ -691,9 +691,19 @@ public class ClipController {
         return null;
     }
 
+    @PostMapping("/event")
+    public ResponseEntity<Map<String, Object>> recordEvent(@RequestBody EventRequest eventRequest) {
+        if (eventRequest != null && eventRequest.type() != null && !eventRequest.type().isBlank()) {
+            recordAction(eventRequest.type(), eventRequest.contentId(), eventRequest.metadata());
+        }
+        return ResponseEntity.ok(Map.of("status", "ok"));
+    }
+
     private void recordAction(String type, String contentId, Map<String, String> metadata) {
         if (actionEventRecorder != null) {
             actionEventRecorder.record(type, contentId, metadata);
         }
     }
+
+    public record EventRequest(String type, String contentId, Map<String, String> metadata) {}
 }

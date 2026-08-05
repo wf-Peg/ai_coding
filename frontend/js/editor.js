@@ -87,9 +87,9 @@
     'recentList', 'closeRecentBtn', 'clearRecentBtn', 'favPane', 'favList', 'closeFavBtn', 'clearFavBtn', 'aiChatPane', 'aiChatMessages', 'aiChatInput',
     'aiChatSendBtn', 'aiChatStopBtn', 'aiChatClearBtn', 'aiChatCloseBtn', 'aiChatStatus',
     'aiChatResizeHandle', 'aiPetBtn', 'editorContextMenu', 'aiSearchContextBtn', 'smartIngestContextBtn', 'aiImportPasswordContextBtn',
-    'offlineTranslateContextBtn', 'onlineTranslateContextBtn', 'addEnglishTranslationContextBtn', 'aiContextAnalysisContextBtn',
+    'offlineTranslateContextBtn', 'onlineTranslateContextBtn', 'addCustomMappingContextBtn', 'addToDictLibContextBtn', 'aiContextAnalysisContextBtn',
     'manageDictionaryContextBtn', 'aiChatContextBtn',
-    'dictModal', 'dictSourceInput', 'dictTargetInput', 'dictAddBtn', 'dictList'
+    'dictModal', 'dictSourceInput', 'dictTargetInput', 'dictAddBtn', 'dictList', 'dictLibList', 'dictTabMapping', 'dictTabLibrary'
   ].map(id => [id, document.getElementById(id)]));
 
   function applyMascotPreference() {
@@ -1264,7 +1264,14 @@
 
   async function sendAiMessage(rawMessage) {
     const message = String(rawMessage || '').trim();
-    if (!message || !state || activeAiRequest) return;
+    if (!message || !state) return;
+    if (activeAiRequest) {
+      pendingDictAdd = null;
+      return;
+    }
+    // 将当前 pendingDictAdd 捕获到 request 对象上，避免后续调用覆盖
+    var capturedPendingAdd = pendingDictAdd;
+    pendingDictAdd = null;
     setAiChatPanelOpen(true);
 
     const request = {
@@ -1274,7 +1281,8 @@
       assistantId: `assistant-${Date.now()}`,
       controller: new AbortController(),
       completed: false,
-      serverError: null
+      serverError: null,
+      pendingDictAdd: capturedPendingAdd
     };
     updateAiChatState(request.tab, {
       type: 'start',
@@ -1310,6 +1318,32 @@
         } else if (event.event === 'done' || event.raw === '[DONE]') {
           request.completed = true;
           finishAiRequest(request, { type: 'done', assistantId: request.assistantId }, 'happy');
+          // 自动添加词典：AI 回复完成后，将结果存入对应词典
+          var pendingAdd = request.pendingDictAdd;
+          if (pendingAdd) {
+            var messages = request.tab.aiChat.messages || [];
+            var assistantMsg = null;
+            for (var mi = messages.length - 1; mi >= 0; mi--) {
+              if (messages[mi].role === 'assistant' && !messages[mi].streaming && messages[mi].content) {
+                assistantMsg = messages[mi];
+                break;
+              }
+            }
+            if (assistantMsg) {
+              var translation = assistantMsg.content.replace(/^["']|["']$/g, '').trim();
+              if (translation) {
+                if (pendingAdd.type === 'mapping') {
+                  if (addUserDictEntry(pendingAdd.source, translation)) {
+                    showToast('✅ 已自动添加到自定义映射: ' + pendingAdd.source + ' → ' + translation);
+                  }
+                } else if (pendingAdd.type === 'lib') {
+                  if (addDictLibEntry(pendingAdd.source, translation)) {
+                    showToast('✅ 已自动添加到词典库: ' + pendingAdd.source + ' → ' + translation);
+                  }
+                }
+              }
+            }
+          }
         } else if (event.event === 'error') {
           request.serverError = event.data && event.data.message ? event.data.message : 'AI 服务调用失败';
         }
@@ -1352,17 +1386,19 @@
     elements.aiImportPasswordContextBtn.hidden = !hasSelection;
     elements.offlineTranslateContextBtn.hidden = !hasSelection;
     elements.onlineTranslateContextBtn.hidden = !hasSelection;
-    elements.addEnglishTranslationContextBtn.hidden = !hasSelection;
+    elements.addCustomMappingContextBtn.hidden = !hasSelection;
+    elements.addToDictLibContextBtn.hidden = !hasSelection;
     // AI 分析上下文始终可用（无选中时分析全文）
     elements.aiContextAnalysisContextBtn.hidden = false;
     // 管理词典始终可用
     elements.manageDictionaryContextBtn.hidden = false;
-    // 分隔线显隐：共4条分隔线，第1-2条（翻译相关）按选中状态，第3-4条（AI分析+管理词典）始终显示
+    // 分隔线显隐：共3条分隔线，后2条（翻译相关）按选中状态
     const translateDivider = elements.editorContextMenu.querySelectorAll('.editor-context-divider');
     translateDivider.forEach(function(div, idx) {
-      // idx 0 = 全选与AI搜索之间, idx 1 = 智能入库与离线翻译之间
-      // idx 2 = 添加翻译与AI分析之间, idx 3 = AI分析与管理词典之间
-      div.hidden = (idx < 2) ? !hasSelection : false;
+      // idx 0 = 编辑操作与AI功能之间（始终可见）
+      // idx 1 = AI功能与翻译功能之间（按选中状态）
+      // idx 2 = 翻译功能与词典管理之间（按选中状态）
+      div.hidden = (idx >= 1) ? !hasSelection : false;
     });
     elements.editorContextMenu.hidden = false;
     const menu = elements.editorContextMenu;
@@ -1383,7 +1419,10 @@
     closeEditorContextMenu();
     if (action === 'aiSearch') {
       const prompt = window.EditorAiChatCore.buildSearchPrompt(selectedText);
-      if (prompt) sendAiMessage(prompt);
+      if (prompt) {
+        pendingDictAdd = { source: selectedText.trim(), type: 'mapping' };
+        sendAiMessage(prompt);
+      }
       return;
     }
     if (action === 'smartIngest') {
@@ -1422,14 +1461,30 @@
     // 离线翻译：从本地词典查询选中单词
     if (action === 'offlineTranslate') {
       if (!selectedText.trim()) { showToast('请先选中文本', true); return; }
-      var word = selectedText.trim().toLowerCase();
-      // 取第一个单词（如果是词组）
-      var firstWord = word.split(/[\s,;:!?.\n]+/)[0];
-      var result = lookupOfflineWord(firstWord);
+      var text = selectedText.trim();
+      var hasChinese = /[\u4e00-\u9fff]/.test(text);
+      var result = null;
+      if (hasChinese) {
+        // 中文文本：直接查 USER_DICT、DICT_CN、DICT_LIB
+        if (window.USER_DICT && window.USER_DICT[text]) {
+          result = { word: text, meaning: window.USER_DICT[text], matchedAs: '用户词典' };
+        }
+        if (!result && window.DICT_CN && window.DICT_CN[text]) {
+          result = { word: text, meaning: window.DICT_CN[text], matchedAs: '中译英' };
+        }
+        if (!result) {
+          var libResult = lookupDictLib(text);
+          if (libResult) result = libResult;
+        }
+      } else {
+        // 英文文本：取第一个单词走 lookupOfflineWord
+        var firstWord = text.split(/[\s,;:!?.\n]+/)[0];
+        result = lookupOfflineWord(firstWord);
+      }
       if (result) {
         showToast('📖 ' + result.word + ': ' + result.meaning + (result.matchedAs ? ' (匹配: ' + result.matchedAs + ')' : ''));
       } else {
-        showToast('📖 未找到 "' + firstWord + '" 的离线释义，试试在线翻译', true);
+        showToast('📖 未找到"' + (hasChinese ? text : text.split(/[\s,;:!?.\n]+/)[0]) + '"的离线释义，试试在线翻译', true);
       }
       return;
     }
@@ -1439,10 +1494,16 @@
       onlineTranslateText(selectedText.trim());
       return;
     }
-    // 添加英文翻译：在选中文本后追加英文翻译
-    if (action === 'addEnglishTranslation') {
+    // 添加自定义词典：选中文本 → 打开词典弹窗，预填源词并聚焦到释义输入框
+    if (action === 'addCustomMapping') {
       if (!selectedText.trim()) { showToast('请先选中文本', true); return; }
-      addEnglishTranslation(selectedText.trim());
+      openDictModalWithSource(selectedText.trim());
+      return;
+    }
+    // 添加词典库：选中文本 → 弹出输入框，输入翻译 → 保存到词典库
+    if (action === 'addToDictLib') {
+      if (!selectedText.trim()) { showToast('请先选中文本', true); return; }
+      promptAddToDictLib(selectedText.trim());
       return;
     }
     // AI 分析上下文：将编辑区内容发送到AI聊天
@@ -1477,6 +1538,15 @@
     for (var uk = 0; uk < userKeys.length; uk++) {
       if (userKeys[uk].toLowerCase() === clean) {
         return { word: userKeys[uk], meaning: userDict[userKeys[uk]], matchedAs: '用户词典' };
+      }
+    }
+    // 0.2 查词典库（DICT_LIB）
+    if (window.DICT_LIB) {
+      var libKeys = Object.keys(window.DICT_LIB);
+      for (var lk = 0; lk < libKeys.length; lk++) {
+        if (libKeys[lk].toLowerCase() === clean) {
+          return { word: libKeys[lk], meaning: window.DICT_LIB[libKeys[lk]], matchedAs: '词典库' };
+        }
       }
     }
     // 0.5 查中文→英文词典（DICT_CN）
@@ -1568,11 +1638,10 @@
   function onlineTranslateText(text) {
     if (!text.trim()) return;
     var prompt = '一句话翻译：' + text.trim();
+    pendingDictAdd = { source: text.trim(), type: 'lib' };
     showToast('🌐 正在通过 AI 翻译...');
     setAiChatPanelOpen(true);
-    setTimeout(function() {
-      sendAiMessage(prompt);
-    }, 300);
+    sendAiMessage(prompt);
   }
 
   /**
@@ -1669,7 +1738,8 @@
     elements.aiSearchContextBtn.hidden = true;
     elements.offlineTranslateContextBtn.hidden = true;
     elements.onlineTranslateContextBtn.hidden = true;
-    elements.addEnglishTranslationContextBtn.hidden = true;
+    elements.addCustomMappingContextBtn.hidden = true;
+    elements.addToDictLibContextBtn.hidden = true;
     elements.aiContextAnalysisContextBtn.hidden = true;
     elements.manageDictionaryContextBtn.hidden = true;
     document.addEventListener('click', event => {
@@ -3892,6 +3962,66 @@
     });
   })();
 
+  /* ─── 词典库 (DICT_LIB) ─── */
+  var DICT_LIB_STORAGE_KEY = 'editor_dict_lib_v1';
+
+  /** 从 localStorage 加载词典库 */
+  function loadDictLib() {
+    try {
+      var data = localStorage.getItem(DICT_LIB_STORAGE_KEY);
+      if (data) {
+        var parsed = JSON.parse(data);
+        if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+          window.DICT_LIB = parsed;
+          return;
+        }
+      }
+    } catch (e) { /* 忽略 */ }
+    window.DICT_LIB = {};
+  }
+
+  /** 保存词典库到 localStorage */
+  function saveDictLib() {
+    try {
+      localStorage.setItem(DICT_LIB_STORAGE_KEY, JSON.stringify(window.DICT_LIB || {}));
+    } catch (e) { /* 忽略 */ }
+  }
+
+  /** 添加词典库条目 */
+  function addDictLibEntry(source, target) {
+    if (!source || !source.trim() || !target || !target.trim()) {
+      showToast('源词和翻译不能为空', true);
+      return false;
+    }
+    source = source.trim();
+    target = target.trim();
+    if (!window.DICT_LIB) window.DICT_LIB = {};
+    window.DICT_LIB[source] = target;
+    saveDictLib();
+    registerDictCompleter();
+    return true;
+  }
+
+  /** 删除词典库条目 */
+  function removeDictLibEntry(source) {
+    if (!window.DICT_LIB) return;
+    delete window.DICT_LIB[source];
+    saveDictLib();
+    registerDictCompleter();
+  }
+
+  /** 在词典库中查找 */
+  function lookupDictLib(word) {
+    if (!window.DICT_LIB || !word) return null;
+    if (window.DICT_LIB[word]) {
+      return { word: word, meaning: window.DICT_LIB[word], matchedAs: '词典库' };
+    }
+    return null;
+  }
+
+  /** 待处理的词典自动添加（AI搜索/在线翻译完成后触发） */
+  var pendingDictAdd = null;
+
   /* ─── 用户自定义词典 (USER_DICT) ─── */
   var USER_DICT_STORAGE_KEY = 'editor_user_dict_v1';
 
@@ -3972,6 +4102,110 @@
     });
   }
 
+  /** 渲染词典库列表 */
+  function renderDictLibList() {
+    var listEl = elements.dictLibList;
+    if (!listEl) return;
+    var dict = window.DICT_LIB || {};
+    var keys = Object.keys(dict);
+    if (keys.length === 0) {
+      listEl.innerHTML = '<div class="dict-list-empty">暂无词典库条目<br>右键选中文本选择"添加词典库"快速添加</div>';
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < keys.length; i++) {
+      var src = keys[i];
+      var tgt = dict[src];
+      html += '<div class="dict-item" data-source="' + encodeURIComponent(src) + '">'
+        + '<span class="dict-source">' + escapeHtml(src) + '</span>'
+        + '<span class="dict-arrow">→</span>'
+        + '<span class="dict-target">' + escapeHtml(tgt) + '</span>'
+        + '<button class="dict-remove-btn" data-source="' + encodeURIComponent(src) + '" title="删除条目">×</button>'
+        + '</div>';
+    }
+    listEl.innerHTML = html;
+    listEl.querySelectorAll('.dict-remove-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var src = decodeURIComponent(this.dataset.source);
+        removeDictLibEntry(src);
+        renderDictLibList();
+        showToast('已删除词典库条目: ' + src);
+      });
+    });
+  }
+
+  /** 切换词典弹窗标签 */
+  function switchDictTab(tab) {
+    if (!elements.dictTabMapping || !elements.dictTabLibrary) return;
+    var tabs = document.querySelectorAll('.dict-tab');
+    tabs.forEach(function(t) {
+      t.classList.remove('active');
+      if (t.dataset.dictTab === tab) t.classList.add('active');
+    });
+    elements.dictTabMapping.style.display = tab === 'mapping' ? 'block' : 'none';
+    elements.dictTabLibrary.style.display = tab === 'library' ? 'block' : 'none';
+  }
+
+  /** 打开词典弹窗并预填源词 */
+  function openDictModalWithSource(sourceText) {
+    if (elements.dictSourceInput) elements.dictSourceInput.value = sourceText;
+    switchDictTab('mapping');
+    openDictModal();
+    if (elements.dictTargetInput) setTimeout(function() { elements.dictTargetInput.focus(); }, 100);
+  }
+
+  /** 弹出词典库添加对话框（替代 window.prompt，兼容 Electron contextIsolation） */
+  function showDictLibAddDialog(sourceText) {
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-backdrop';
+    overlay.style.cssText = 'display:flex;align-items:center;justify-content:center;z-index:10000';
+
+    var dialog = document.createElement('div');
+    dialog.className = 'modal-card';
+    dialog.style.cssText = 'width:400px;padding:20px';
+
+    dialog.innerHTML = '<div class="panel-header" style="margin-bottom:12px">'
+      + '<div><h2>添加到词典库</h2><p style="font-size:12px;color:var(--app-text-muted);margin-top:4px">为 "' + escapeHtml(sourceText) + '" 添加翻译</p></div>'
+      + '</div>'
+      + '<label class="field-group wide" style="margin-bottom:12px">'
+      + '<span class="field-label">翻译</span>'
+      + '<input class="field-control" id="dictLibAddInput" placeholder="输入翻译" style="width:100%">'
+      + '</label>'
+      + '<div class="panel-actions" style="justify-content:flex-end;gap:8px">'
+      + '<button class="tool-btn" id="dictLibAddCancelBtn">取消</button>'
+      + '<button class="tool-btn primary" id="dictLibAddConfirmBtn">添加</button>'
+      + '</div>';
+
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    var input = dialog.querySelector('#dictLibAddInput');
+    var confirmBtn = dialog.querySelector('#dictLibAddConfirmBtn');
+    var cancelBtn = dialog.querySelector('#dictLibAddCancelBtn');
+
+    function close() { document.body.removeChild(overlay); }
+
+    confirmBtn.addEventListener('click', function() {
+      var translation = input.value.trim();
+      if (translation) {
+        if (addDictLibEntry(sourceText, translation)) {
+          showToast('✅ 已添加到词典库: ' + sourceText + ' → ' + translation);
+        }
+      }
+      close();
+    });
+    cancelBtn.addEventListener('click', close);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+    input.addEventListener('keydown', function(e) { if (e.key === 'Enter') confirmBtn.click(); });
+
+    setTimeout(function() { input.focus(); }, 100);
+  }
+
+  /** 弹出快速添加对话框，将选中文本添加到词典库 */
+  function promptAddToDictLib(sourceText) {
+    showDictLibAddDialog(sourceText);
+  }
+
   /** 转义 HTML 特殊字符 */
   function escapeHtml(str) {
     var div = document.createElement('div');
@@ -3981,7 +4215,10 @@
 
   /** 打开词典管理弹窗 */
   function openDictModal() {
+    // 重置到自定义映射标签
+    switchDictTab('mapping');
     renderDictList();
+    renderDictLibList();
     elements.dictModal.classList.add('is-visible');
   }
 
@@ -4025,6 +4262,12 @@
     elements.dictModal.addEventListener('click', function(e) {
       if (e.target === elements.dictModal) closeDictModal();
     });
+    // 标签切换
+    elements.dictModal.querySelectorAll('.dict-tab').forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        switchDictTab(this.dataset.dictTab);
+      });
+    });
   }
 
   /* ─── ACE 编辑器词典自动补全 (Completer) ─── */
@@ -4052,6 +4295,13 @@
       var uk = Object.keys(window.USER_DICT);
       for (var ui = 0; ui < uk.length; ui++) {
         entries[uk[ui]] = window.USER_DICT[uk[ui]];
+      }
+    }
+    // 词典库
+    if (window.DICT_LIB) {
+      var lk = Object.keys(window.DICT_LIB);
+      for (var li = 0; li < lk.length; li++) {
+        entries[lk[li]] = window.DICT_LIB[lk[li]];
       }
     }
     return entries;
@@ -4114,7 +4364,8 @@
     }
   }
 
-  // 初始化：加载用户词典 + 注册 completer + 设置弹窗
+  // 初始化：加载词典 + 注册 completer + 设置弹窗
+  loadDictLib();
   loadUserDict();
   setupDictModal();
   // 延迟注册 completer（等待编辑器完全初始化）

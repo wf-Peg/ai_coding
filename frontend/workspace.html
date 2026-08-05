@@ -6,15 +6,54 @@
   <title>工作台 - CutShelter</title>
   <link rel="stylesheet" href="styles/design-tokens.css">
   <style>
-    :root { --ws-bg: var(--app-bg); --ws-surface: var(--app-surface); --ws-subtle: var(--app-surface-subtle); --ws-border: var(--app-border); --ws-text: var(--app-text); --ws-muted: var(--app-text-secondary); --ws-faint: var(--app-text-muted); --ws-primary: var(--app-primary); --ws-primary-soft: var(--app-primary-soft); }
+    :root { --ws-bg: var(--app-bg); --ws-surface: var(--app-surface); --ws-subtle: var(--app-surface-subtle); --ws-border: var(--app-border); --ws-text: var(--app-text); --ws-muted: var(--app-text-secondary); --ws-faint: var(--app-text-muted); --ws-primary: var(--app-primary); --ws-primary-soft: var(--app-primary-soft); --ws-danger: var(--app-danger); --ws-danger-soft: var(--app-danger-soft); }
     * { box-sizing: border-box; }
     body { min-width: 0; margin: 0; background: var(--ws-bg); color: var(--ws-text); font: 14px/1.55 var(--app-font); }
-    button, input { font: inherit; }
+    button, input, select, textarea { font: inherit; }
     button { cursor: pointer; }
-    .shell { width: min(1180px, 100%); margin: 0 auto; padding: 32px; }
+    input, select, textarea { outline: none; }
+    a { color: var(--ws-primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Shell ── */
+    .shell { display: flex; min-height: 100vh; }
+
+    /* ── Sidebar ── */
+    .sidebar { width: 240px; flex: none; display: flex; flex-direction: column; max-height: 100vh; border-right: 1px solid var(--ws-border); background: var(--ws-surface); }
+    .sidebar-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 18px 14px; }
+    .sidebar-header h1 { margin: 0; font-size: 18px; letter-spacing: -.03em; }
+    .sidebar-collapse { display: none; width: 30px; height: 30px; align-items: center; justify-content: center; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-surface); color: var(--ws-muted); font-size: 16px; transition: all .16s ease; }
+    .sidebar-collapse:hover { border-color: var(--ws-primary); color: var(--ws-primary); }
+    .sidebar-nav { padding: 6px 10px; }
+    .sidebar-nav-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border: 0; border-radius: var(--app-radius); background: transparent; color: var(--ws-muted); font-size: 14px; text-align: left; transition: all .16s ease; }
+    .sidebar-nav-item:hover { background: var(--ws-subtle); color: var(--ws-text); }
+    .sidebar-nav-item.active { background: var(--ws-primary-soft); color: var(--ws-primary); font-weight: 600; }
+    .sidebar-nav-item .icon { flex: none; width: 18px; text-align: center; font-size: 15px; }
+    .sidebar-divider { height: 1px; margin: 6px 14px; background: var(--ws-border); }
+    .sidebar-section { padding: 10px 10px 4px; font-size: 11px; font-weight: 700; color: var(--ws-faint); letter-spacing: .06em; text-transform: uppercase; }
+    .sidebar-list { flex: 1; overflow-y: auto; padding: 2px 10px; }
+    .sidebar-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border: 0; border-radius: var(--app-radius); background: transparent; color: var(--ws-text); font-size: 14px; text-align: left; transition: all .16s ease; }
+    .sidebar-item:hover { background: var(--ws-subtle); }
+    .sidebar-item.active { background: var(--ws-primary-soft); color: var(--ws-primary); font-weight: 600; }
+    .sidebar-item .ws-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--ws-primary); }
+    .sidebar-item .ws-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sidebar-item .ws-type-tag { flex: none; font-size: 9px; color: var(--ws-faint); padding: 1px 5px; border: 1px solid var(--ws-border); border-radius: 4px; margin-left: auto; }
+    .sidebar-footer { padding: 10px; border-top: 1px solid var(--ws-border); }
+    .sidebar-footer .new-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 12px; border: 1px dashed var(--ws-border); border-radius: var(--app-radius); background: transparent; color: var(--ws-muted); font-size: 13px; transition: all .16s ease; }
+    .sidebar-footer .new-btn:hover { border-color: var(--ws-primary); color: var(--ws-primary); background: var(--ws-primary-soft); }
+    .sidebar-footer .new-btn .icon { font-size: 16px; font-weight: 700; }
+    .sidebar-backdrop { display: none; }
+
+    /* ── Main area ── */
+    .main-area { flex: 1; min-width: 0; overflow-y: auto; }
+
+    /* ── Overview View ── */
+    .overview-view { display: block; }
+    .overview-view.hidden { display: none; }
+    .overview-view .shell-inner { width: min(1180px, 100%); margin: 0 auto; padding: 32px; }
     .hero { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
     .eyebrow { margin: 0 0 8px; color: var(--ws-primary); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-    h1 { margin: 0; font-size: clamp(24px, 3vw, 32px); line-height: 1.2; letter-spacing: -.035em; }
+    .hero h1 { margin: 0; font-size: clamp(24px, 3vw, 32px); line-height: 1.2; letter-spacing: -.035em; }
     .subtitle { max-width: 620px; margin: 10px 0 0; color: var(--ws-muted); }
     .refresh { display: inline-flex; align-items: center; gap: 7px; flex: none; padding: 9px 13px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-surface); color: var(--ws-text); transition: border-color .16s ease, color .16s ease, transform .16s ease; }
     .refresh:hover { border-color: var(--ws-primary); color: var(--ws-primary); transform: translateY(-1px); }
@@ -27,7 +66,7 @@
     .result-count { margin-left: 8px; color: var(--ws-faint); font-size: 12px; font-weight: 400; }
     .search { position: relative; flex: 0 1 260px; }
     .search svg { position: absolute; top: 50%; left: 11px; width: 16px; height: 16px; color: var(--ws-faint); transform: translateY(-50%); pointer-events: none; }
-    .search input { width: 100%; padding: 9px 11px 9px 35px; outline: none; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-subtle); color: var(--ws-text); transition: border-color .16s ease, box-shadow .16s ease; }
+    .search input { width: 100%; padding: 9px 11px 9px 35px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-subtle); color: var(--ws-text); transition: border-color .16s ease, box-shadow .16s ease; }
     .search input:focus { border-color: var(--ws-primary); box-shadow: 0 0 0 3px var(--ws-primary-soft); }
     .filters { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 22px; border-bottom: 1px solid var(--ws-border); background: color-mix(in srgb, var(--ws-subtle) 55%, transparent); }
     .filter { padding: 5px 10px; border: 1px solid var(--ws-border); border-radius: 999px; background: transparent; color: var(--ws-muted); font-size: 12px; transition: all .16s ease; }
@@ -40,14 +79,21 @@
     .type-mark[data-type="todo"] { background: color-mix(in srgb, var(--app-success) 12%, transparent); color: var(--app-success); }
     .type-mark[data-type="knowledge"] { background: color-mix(in srgb, var(--app-warning) 13%, transparent); color: var(--app-warning); }
     .type-mark[data-type="learning-plan"] { background: color-mix(in srgb, #876de2 14%, transparent); color: #7657cf; }
+    .item-body { min-width: 0; }
     .item-title { margin: 0; overflow: hidden; font-size: 14px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
     .item-meta { display: flex; flex-wrap: wrap; gap: 7px 10px; margin-top: 5px; color: var(--ws-muted); font-size: 12px; }
     .tag { color: var(--ws-faint); }
     .item-date { padding-top: 4px; color: var(--ws-faint); font-size: 11px; white-space: nowrap; }
+    .item-actions { display: flex; align-items: center; gap: 6px; }
     .project-panel { position: sticky; top: 16px; }
     .panel-heading { padding: 19px 18px 14px; border-bottom: 1px solid var(--ws-border); }
     .panel-heading h2 { margin: 0; font-size: 15px; }
     .panel-heading p { margin: 5px 0 0; color: var(--ws-muted); font-size: 12px; }
+    .ws-summary-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px 14px; }
+    .ws-summary-card { text-align: center; padding: 8px 4px; border: 1px solid var(--ws-border); border-radius: 8px; }
+    .ws-summary-card .ws-card-value { font-size: 18px; font-weight: 700; color: var(--ws-accent); }
+    .ws-summary-card .ws-card-label { font-size: 10px; color: var(--ws-faint); margin-top: 2px; }
+    .ws-summary-card.archived .ws-card-value { color: var(--ws-faint); }
     .projects { display: grid; gap: 0; }
     .project { padding: 15px 18px; border-bottom: 1px solid var(--ws-border); }
     .project:last-child { border-bottom: 0; }
@@ -55,126 +101,1281 @@
     .project-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--project-color, var(--ws-primary)); }
     .project-description { display: -webkit-box; margin: 5px 0 0 16px; overflow: hidden; color: var(--ws-muted); font-size: 12px; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     .project-status { margin: 7px 0 0 16px; color: var(--ws-faint); font-size: 11px; }
+
+    /* ── Detail View ── */
+    .detail-view { display: none; }
+    .detail-view.visible { display: block; }
+    .detail-view .shell-inner { width: min(1180px, 100%); margin: 0 auto; padding: 32px; }
+    .detail-header { display: flex; align-items: start; justify-content: space-between; gap: 20px; margin-bottom: 24px; flex-wrap: wrap; }
+    .detail-header-left { display: flex; align-items: center; gap: 14px; }
+    .detail-color { width: 18px; height: 18px; border-radius: 50%; flex: none; }
+    .detail-info h2 { margin: 0; font-size: 22px; letter-spacing: -.02em; }
+    .detail-info .detail-type { display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 999px; background: var(--ws-subtle); color: var(--ws-muted); font-size: 11px; }
+    .detail-stats { display: flex; flex-wrap: wrap; gap: 8px; }
+    .stat-badge { padding: 6px 12px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-surface); font-size: 12px; color: var(--ws-muted); white-space: nowrap; }
+    .stat-badge strong { color: var(--ws-text); font-weight: 650; }
+    .stat-badge.primary { border-color: var(--ws-primary); background: var(--ws-primary-soft); color: var(--ws-primary); }
+    .stat-badge.primary strong { color: var(--ws-primary); }
+
+    /* ── Detail Tabs ── */
+    .detail-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--ws-border); margin-bottom: 20px; }
+    .detail-tab { padding: 11px 20px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--ws-muted); font-size: 14px; transition: all .16s ease; }
+    .detail-tab:hover { color: var(--ws-text); background: var(--ws-subtle); }
+    .detail-tab.active { color: var(--ws-primary); border-bottom-color: var(--ws-primary); font-weight: 600; }
+    .detail-tab-content { display: none; }
+    .detail-tab-content.visible { display: block; }
+
+    /* ── Source marker ── */
+    .source-marker { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+    .source-marker.rule { background: color-mix(in srgb, var(--ws-primary) 12%, transparent); color: var(--ws-primary); }
+    .source-marker.manual { background: color-mix(in srgb, var(--app-success) 12%, transparent); color: var(--app-success); }
+    .source-marker.relation { background: color-mix(in srgb, #876de2 14%, transparent); color: #7657cf; }
+
+    /* ── Exclude button ── */
+    .exclude-btn { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: transparent; color: var(--ws-muted); font-size: 12px; transition: all .16s ease; }
+    .exclude-btn:hover { border-color: var(--ws-danger); color: var(--ws-danger); background: var(--ws-danger-soft); }
+    .restore-btn { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: transparent; color: var(--ws-muted); font-size: 12px; transition: all .16s ease; }
+    .restore-btn:hover { border-color: var(--ws-primary); color: var(--ws-primary); background: var(--ws-primary-soft); }
+
+    /* ── Rules panel ── */
+    .rules-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+    .rules-header h3 { margin: 0; font-size: 15px; }
+    .add-rule-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border: 0; border-radius: var(--app-radius); background: var(--ws-primary); color: #fff; font-size: 13px; transition: background .16s ease; }
+    .add-rule-btn:hover { background: var(--app-primary-hover); }
+    .rule-card { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); margin-bottom: 10px; background: var(--ws-surface); transition: border-color .16s ease; }
+    .rule-card:hover { border-color: var(--ws-border-strong); }
+    .rule-card.disabled { opacity: .55; }
+    .rule-field { flex: none; min-width: 70px; padding: 3px 8px; border-radius: 5px; background: var(--ws-subtle); font-size: 12px; font-weight: 600; color: var(--ws-muted); text-align: center; }
+    .rule-operator { flex: none; color: var(--ws-muted); font-size: 13px; }
+    .rule-value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--ws-text); }
+    .rule-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+    .toggle-switch { position: relative; width: 36px; height: 20px; flex: none; border: 0; border-radius: 10px; background: var(--ws-border); transition: background .2s ease; cursor: pointer; }
+    .toggle-switch.on { background: var(--ws-primary); }
+    .toggle-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .2s ease; }
+    .toggle-switch.on::after { transform: translateX(16px); }
+    .rule-edit-btn, .rule-del-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 0; border-radius: var(--app-radius-sm); background: transparent; color: var(--ws-muted); font-size: 13px; transition: all .16s ease; }
+    .rule-edit-btn:hover { background: var(--ws-subtle); color: var(--ws-primary); }
+    .rule-del-btn:hover { background: var(--ws-danger-soft); color: var(--ws-danger); }
+
+    /* ── Exclusions panel ── */
+    .exclusions-header { margin-bottom: 16px; }
+    .exclusions-header h3 { margin: 0; font-size: 15px; }
+
+    /* ── 建议面板 ── */
+    .suggestions-header { margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+    .suggestions-header h3 { margin: 0; font-size: 15px; }
+    .suggestion-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; font-size: 10px; font-weight: 700; background: var(--ws-accent); color: #fff; margin-left: 4px; vertical-align: middle; }
+    .suggestion-card { display: flex; align-items: flex-start; gap: 12px; padding: 14px; margin-bottom: 8px; border: 1px solid var(--ws-border); border-radius: 10px; transition: border-color .2s; }
+    .suggestion-card:hover { border-color: var(--ws-accent); }
+    .suggestion-score { flex: none; width: 46px; text-align: center; }
+    .suggestion-score .score-value { display: block; font-size: 16px; font-weight: 700; color: var(--ws-accent); }
+    .suggestion-score .score-label { font-size: 9px; color: var(--ws-faint); }
+    .suggestion-info { flex: 1; min-width: 0; }
+    .suggestion-title { font-weight: 600; font-size: 13px; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .suggestion-meta { color: var(--ws-faint); font-size: 11px; }
+    .suggestion-reasons { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .suggestion-reason { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; background: color-mix(in srgb, var(--ws-accent) 12%, var(--ws-surface)); color: var(--ws-accent); }
+    .suggestion-actions { display: flex; gap: 6px; flex: none; align-items: center; }
+    .suggestion-actions button { padding: 5px 10px; border: 1px solid var(--ws-border); border-radius: 6px; font-size: 11px; cursor: pointer; background: var(--ws-bg); color: var(--ws-fg); transition: all .15s; }
+    .suggestion-actions .accept-btn { border-color: var(--ws-accent); color: var(--ws-accent); }
+    .suggestion-actions .accept-btn:hover { background: var(--ws-accent); color: #fff; }
+    .suggestion-actions .ignore-btn:hover { border-color: var(--ws-faint); color: var(--ws-faint); }
+    .suggestion-actions .reject-btn:hover { border-color: #e74c3c; color: #e74c3c; }
+    .exclusion-card { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); margin-bottom: 10px; background: var(--ws-surface); }
+    .exclusion-id { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-family: var(--app-font-mono); color: var(--ws-muted); }
+    .exclusion-reason { flex: none; padding: 2px 8px; border-radius: 5px; background: var(--ws-subtle); font-size: 12px; color: var(--ws-muted); }
+    .exclusion-date { flex: none; color: var(--ws-faint); font-size: 11px; white-space: nowrap; }
+
+    /* ── Overlay / Modal ── */
+    .modal-overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 1000; background: rgba(0,0,0,.35); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+    .modal-overlay.show { opacity: 1; pointer-events: all; }
+    .modal { width: min(480px, calc(100vw - 40px)); max-height: 85vh; display: flex; flex-direction: column; border-radius: var(--app-radius-lg); background: var(--ws-surface); box-shadow: 0 20px 60px rgba(0,0,0,.18); overflow: hidden; }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px 14px; border-bottom: 1px solid var(--ws-border); }
+    .modal-header h3 { margin: 0; font-size: 16px; }
+    .modal-close { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 0; border-radius: var(--app-radius-sm); background: transparent; color: var(--ws-muted); font-size: 18px; transition: all .16s ease; }
+    .modal-close:hover { background: var(--ws-subtle); color: var(--ws-text); transform: rotate(90deg); }
+    .modal-body { flex: 1; overflow-y: auto; padding: 18px 22px; }
+    .modal-footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 14px 22px 18px; border-top: 1px solid var(--ws-border); }
+    .form-group { margin-bottom: 16px; }
+    .form-group:last-child { margin-bottom: 0; }
+    .form-label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: var(--ws-text); }
+    .form-input, .form-select, .form-textarea { width: 100%; padding: 9px 12px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-subtle); color: var(--ws-text); transition: border-color .16s ease, box-shadow .16s ease; }
+    .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--ws-primary); box-shadow: 0 0 0 3px var(--ws-primary-soft); }
+    .form-textarea { resize: vertical; min-height: 70px; }
+    .form-row { display: flex; gap: 12px; }
+    .form-row .form-group { flex: 1; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border: 0; border-radius: var(--app-radius); font-size: 13px; transition: all .16s ease; }
+    .btn-primary { background: var(--ws-primary); color: #fff; }
+    .btn-primary:hover { background: var(--app-primary-hover); }
+    .btn-secondary { background: var(--ws-subtle); color: var(--ws-text); }
+    .btn-secondary:hover { background: var(--ws-surface-hover); }
+    .btn-danger { background: var(--ws-danger); color: #fff; }
+    .btn-danger:hover { opacity: .88; }
+
+    /* ── State ── */
     .state { display: grid; min-height: 300px; place-items: center; padding: 42px 24px; text-align: center; }
     .state-inner { max-width: 340px; }
     .state-icon { display: grid; width: 45px; height: 45px; place-items: center; margin: 0 auto 15px; border-radius: 14px; background: var(--ws-subtle); color: var(--ws-muted); }
     .state h3 { margin: 0; font-size: 16px; }
     .state p { margin: 8px 0 0; color: var(--ws-muted); }
-    .retry { margin-top: 17px; padding: 8px 13px; border: 0; border-radius: var(--app-radius); background: var(--ws-primary); color: #fff; }
+    .retry { margin-top: 17px; padding: 8px 13px; border: 0; border-radius: var(--app-radius); background: var(--ws-primary); color: #fff; cursor: pointer; }
+    .retry:hover { background: var(--app-primary-hover); }
     .loading { display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--ws-muted); }
     .spinner { width: 17px; height: 17px; border: 2px solid var(--ws-border); border-top-color: var(--ws-primary); border-radius: 50%; animation: spin .75s linear infinite; }
     .project-empty { padding: 18px; color: var(--ws-muted); font-size: 12px; text-align: center; }
+    .empty-state { padding: 40px 20px; color: var(--ws-muted); font-size: 13px; text-align: center; }
+    .error-message { padding: 10px 14px; border: 1px solid var(--ws-danger); border-radius: var(--app-radius); background: var(--ws-danger-soft); color: var(--ws-danger); font-size: 13px; margin-bottom: 12px; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    @media (max-width: 820px) { .shell { padding: 22px 18px; } .layout { grid-template-columns: 1fr; } .project-panel { position: static; } .hero { align-items: flex-start; flex-direction: column; } .toolbar { align-items: stretch; flex-direction: column; } .search { flex-basis: auto; } }
-    @media (max-width: 480px) { .shell { padding: 16px 12px; } .content-panel, .project-panel { border-radius: var(--app-radius); } .toolbar, .filters { padding-left: 15px; padding-right: 15px; } .item { grid-template-columns: auto minmax(0, 1fr); padding: 15px; } .item-date { grid-column: 2; padding-top: 0; } }
+
+    /* ── View toggle ── */
+    .view-toggle { display: inline-flex; align-items: center; gap: 0; border: 1px solid var(--ws-border); border-radius: var(--app-radius); overflow: hidden; }
+    .view-toggle button { padding: 6px 12px; border: 0; background: transparent; color: var(--ws-muted); font-size: 12px; transition: all .16s ease; }
+    .view-toggle button:hover { background: var(--ws-subtle); }
+    .view-toggle button.active { background: var(--ws-primary-soft); color: var(--ws-primary); font-weight: 600; }
+    .view-toggle button:not(:last-child) { border-right: 1px solid var(--ws-border); }
+
+    /* ── Kanban Board ── */
+    .kanban-board { display: none; gap: 14px; overflow-x: auto; padding: 4px 0 20px; min-height: 400px; }
+    .kanban-board.visible { display: flex; }
+    .kanban-col { flex: 1; min-width: 240px; max-width: 340px; display: flex; flex-direction: column; border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-subtle); }
+    .kanban-col-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; border-bottom: 1px solid var(--ws-border); }
+    .kanban-col-header h3 { margin: 0; font-size: 13px; font-weight: 650; }
+    .kanban-col-count { color: var(--ws-faint); font-size: 11px; }
+    .kanban-col-body { flex: 1; overflow-y: auto; padding: 8px; min-height: 80px; }
+    .kanban-col-body.drag-over { background: var(--ws-primary-soft); border-radius: var(--app-radius); }
+    .kanban-card { padding: 12px 14px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-surface); margin-bottom: 8px; cursor: grab; transition: box-shadow .16s ease, transform .16s ease; }
+    .kanban-card:last-child { margin-bottom: 0; }
+    .kanban-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    .kanban-card.dragging { opacity: .5; transform: rotate(2deg); }
+    .kanban-card .type-mark { width: 24px; height: 24px; font-size: 9px; border-radius: 6px; }
+    .kanban-card .card-header { display: flex; align-items: start; gap: 10px; }
+    .kanban-card .card-title { margin: 0; overflow: hidden; font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .kanban-card .card-meta { margin-top: 8px; color: var(--ws-faint); font-size: 11px; }
+    .kanban-card .card-meta .tag { margin-right: 4px; }
+    .kanban-card .card-actions { margin-top: 8px; display: flex; gap: 6px; }
+    .kanban-card .card-actions .exclude-btn { font-size: 11px; padding: 2px 8px; }
+
+    /* ── Column management ── */
+    .kanban-col-header .col-actions { display: flex; align-items: center; gap: 2px; opacity: 0; transition: opacity .16s ease; }
+    .kanban-col:hover .col-actions { opacity: 1; }
+    .col-action-btn { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: 0; border-radius: var(--app-radius-sm); background: transparent; color: var(--ws-muted); font-size: 12px; transition: all .16s ease; cursor: pointer; }
+    .col-action-btn:hover { background: var(--ws-subtle); }
+    .col-action-btn.rename:hover { color: var(--ws-primary); }
+    .col-action-btn.delete:hover { color: var(--ws-danger); }
+    .col-action-btn.delete.disabled { opacity: .35; cursor: not-allowed; }
+    .col-action-btn.delete.disabled:hover { background: transparent; color: var(--ws-muted); }
+    .kanban-add-col { flex: none; width: 56px; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--ws-border); border-radius: var(--app-radius-lg); background: transparent; color: var(--ws-faint); font-size: 24px; cursor: pointer; transition: all .2s ease; min-height: 80px; align-self: flex-start; }
+    .kanban-add-col:hover { border-color: var(--ws-primary); color: var(--ws-primary); background: var(--ws-primary-soft); }
+
+    /* ── Responsive ── */
+    .sidebar-toggle { display: none; }
+    @media (max-width: 820px) {
+      .sidebar { position: fixed; inset: 0; z-index: 900; width: 280px; transform: translateX(-100%); transition: transform .24s cubic-bezier(.4,0,.2,1); }
+      .sidebar.open { transform: translateX(0); }
+      .sidebar-collapse { display: flex; }
+      .sidebar-backdrop { display: block; position: fixed; inset: 0; z-index: 899; background: rgba(0,0,0,.25); opacity: 0; pointer-events: none; transition: opacity .24s ease; }
+      .sidebar-backdrop.show { opacity: 1; pointer-events: all; }
+      .sidebar-toggle { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-surface); color: var(--ws-text); font-size: 18px; margin-right: 10px; transition: all .16s ease; }
+      .sidebar-toggle:hover { border-color: var(--ws-primary); color: var(--ws-primary); }
+      .overview-view .shell-inner, .detail-view .shell-inner { padding: 22px 18px; }
+      .layout { grid-template-columns: 1fr; }
+      .project-panel { position: static; }
+      .hero { align-items: flex-start; flex-direction: column; }
+      .toolbar { align-items: stretch; flex-direction: column; }
+      .search { flex-basis: auto; }
+      .detail-header { flex-direction: column; }
+    }
+    @media (max-width: 480px) {
+      .overview-view .shell-inner, .detail-view .shell-inner { padding: 16px 12px; }
+      .content-panel, .project-panel { border-radius: var(--app-radius); }
+      .toolbar, .filters { padding-left: 15px; padding-right: 15px; }
+      .item { grid-template-columns: auto minmax(0, 1fr); padding: 15px; }
+      .item-date { grid-column: 2; padding-top: 0; }
+      .item-actions { grid-column: 1 / -1; justify-content: flex-end; }
+    }
+
+    /* ── 全局滚动条 ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--ws-border); border-radius: 999px; transition: background 0.2s ease; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--ws-faint); }
+    * { scrollbar-width: thin; scrollbar-color: var(--ws-border) transparent; }
   </style>
 </head>
 <body>
-  <main class="shell">
-    <header class="hero">
-      <div>
-        <p class="eyebrow">Workspace overview</p>
+  <div class="shell">
+    <!-- ── Backdrop (mobile) ── -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+    <!-- ── Sidebar ── -->
+    <aside class="sidebar" id="sidebar" aria-label="工作台列表">
+      <div class="sidebar-header">
         <h1>工作台</h1>
-        <p class="subtitle">从一个只读视图浏览已索引的剪藏、知识、待办和学习计划；这里不会修改你的任何内容或项目数据。</p>
+        <button class="sidebar-collapse" id="sidebarCollapse" type="button" aria-label="关闭侧边栏">&times;</button>
       </div>
-      <button class="refresh" id="refreshButton" type="button"><span aria-hidden="true">↻</span> 刷新索引</button>
-    </header>
-    <div class="layout">
-      <section class="content-panel" aria-labelledby="contentHeading">
-        <div class="toolbar">
-          <h2 class="toolbar-title" id="contentHeading">全部内容 <span class="result-count" id="resultCount"></span></h2>
-          <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg><input id="searchInput" type="search" placeholder="搜索标题、标签、分类或来源" autocomplete="off"></label>
+      <nav class="sidebar-nav">
+        <button class="sidebar-nav-item active" data-view="overview" type="button">
+          <span class="icon">&#9776;</span> 全部概览
+        </button>
+      </nav>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section">工作台</div>
+      <div class="sidebar-list" id="wsList" aria-live="polite"></div>
+      <div class="sidebar-footer">
+        <button class="new-btn" id="newWsBtn" type="button"><span class="icon">+</span> 新建工作台</button>
+      </div>
+    </aside>
+
+    <!-- ── Main Area ── -->
+    <main class="main-area">
+      <!-- Overview View -->
+      <div class="overview-view" id="overviewView">
+        <div class="shell-inner">
+          <header class="hero">
+            <div style="display:flex;align-items:center;gap:0">
+              <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="打开侧边栏">&#9776;</button>
+              <div>
+                <p class="eyebrow">Workspace overview</p>
+                <h1>工作台</h1>
+                <p class="subtitle">从一个只读视图浏览已索引的剪藏、知识、待办和学习计划；这里不会修改你的任何内容或项目数据。</p>
+              </div>
+            </div>
+            <button class="refresh" id="refreshButton" type="button"><span aria-hidden="true">↻</span> 刷新索引</button>
+          </header>
+          <div class="layout">
+            <section class="content-panel" aria-labelledby="contentHeading">
+              <div class="toolbar">
+                <h2 class="toolbar-title" id="contentHeading">全部内容 <span class="result-count" id="resultCount"></span></h2>
+                <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg><input id="searchInput" type="search" placeholder="搜索标题、标签、分类或来源" autocomplete="off"></label>
+              </div>
+              <div class="filters" id="filters" aria-label="内容类型筛选"></div>
+              <div class="list" id="contentList" aria-live="polite"></div>
+            </section>
+            <aside class="project-panel" aria-labelledby="projectHeading">
+              <div class="panel-heading"><h2 id="projectHeading">工作台摘要</h2><p>所有工作台状态概览</p></div>
+              <div id="workspaceSummary" class="ws-summary-cards"></div>
+              <div class="projects" id="projectList"></div>
+            </aside>
+          </div>
         </div>
-        <div class="filters" id="filters" aria-label="内容类型筛选"></div>
-        <div class="list" id="contentList" aria-live="polite"></div>
-      </section>
-      <aside class="project-panel" aria-labelledby="projectHeading">
-        <div class="panel-heading"><h2 id="projectHeading">项目摘要</h2><p>兼容读取已有项目索引</p></div>
-        <div class="projects" id="projectList"></div>
-      </aside>
+      </div>
+
+      <!-- ── Detail View ── -->
+      <div class="detail-view" id="detailView">
+        <div class="shell-inner">
+          <div style="display:flex;align-items:center;gap:0;margin-bottom:20px">
+            <button class="sidebar-toggle" id="sidebarToggle2" type="button" aria-label="打开侧边栏">&#9776;</button>
+          </div>
+          <div class="detail-header" id="detailHeader"></div>
+          <div class="error-message" id="detailError" style="display:none;margin-bottom:12px"></div>
+          <div class="detail-tabs" id="detailTabs">
+            <button class="detail-tab active" data-tab="content" type="button">内容</button>
+            <button class="detail-tab" data-tab="rules" type="button">规则</button>
+            <button class="detail-tab" data-tab="exclusions" type="button">排除</button>
+            <button class="detail-tab" data-tab="suggestions" type="button">建议 <span class="suggestion-badge" id="suggestionBadge" style="display:none"></span></button>
+          </div>
+          <!-- Content tab -->
+          <div class="detail-tab-content visible" data-tab="content" id="detailContent">
+            <div class="toolbar" style="padding:0 0 16px;border-bottom:1px solid var(--ws-border);margin-bottom:0">
+              <h2 class="toolbar-title">可见内容 <span class="result-count" id="detailResultCount"></span></h2>
+              <div style="display:flex;align-items:center;gap:10px">
+                <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg><input id="detailSearchInput" type="search" placeholder="搜索标题、标签" autocomplete="off"></label>
+                <div class="view-toggle" id="viewToggle">
+                  <button class="active" data-view="list" type="button" title="列表视图">&#9776; 列表</button>
+                  <button data-view="kanban" type="button" title="看板视图">&#9638; 看板</button>
+                </div>
+              </div>
+            </div>
+            <div class="list" id="detailContentList" style="margin-top:0" aria-live="polite"></div>
+            <div class="kanban-board" id="kanbanBoard" aria-live="polite"></div>
+          </div>
+          <!-- Rules tab -->
+          <div class="detail-tab-content" data-tab="rules" id="detailRules">
+            <div class="rules-header">
+              <h3>筛选规则</h3>
+              <button class="add-rule-btn" id="addRuleBtn" type="button">+ 添加规则</button>
+            </div>
+            <div class="error-message" id="rulesError" style="display:none"></div>
+            <div id="rulesList"></div>
+          </div>
+          <!-- Exclusions tab -->
+          <div class="detail-tab-content" data-tab="exclusions" id="detailExclusions">
+            <div class="exclusions-header">
+              <h3>已排除内容</h3>
+            </div>
+            <div class="error-message" id="exclusionsError" style="display:none"></div>
+            <div id="exclusionsList"></div>
+          </div>
+          <!-- Suggestions tab -->
+          <div class="detail-tab-content" data-tab="suggestions" id="detailSuggestions">
+            <div class="suggestions-header">
+              <h3>候选推荐 <span class="result-count" id="suggestionCount"></span></h3>
+            </div>
+            <div class="error-message" id="suggestionsError" style="display:none"></div>
+            <div id="suggestionsList"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ── New Workspace Modal ── -->
+  <div class="modal-overlay" id="newWsModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>新建工作台</h3>
+        <button class="modal-close" data-close="newWsModal" type="button">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="wsName">名称 <span style="color:var(--ws-danger)">*</span></label>
+          <input class="form-input" id="wsName" type="text" placeholder="输入工作台名称" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="wsDesc">描述</label>
+          <textarea class="form-textarea" id="wsDesc" rows="2" placeholder="可选描述"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="wsType">类型</label>
+            <select class="form-select" id="wsType">
+              <option value="general">通用</option>
+              <option value="project">项目</option>
+              <option value="learning">学习</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="wsColor">颜色</label>
+            <input class="form-input" id="wsColor" type="color" value="#2383e2" style="height:40px;padding:4px">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="newWsModal" type="button">取消</button>
+        <button class="btn btn-primary" id="confirmNewWs" type="button">创建</button>
+      </div>
     </div>
-  </main>
+  </div>
+
+  <!-- ── Rule Modal ── -->
+  <div class="modal-overlay" id="ruleModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="ruleModalTitle">添加规则</h3>
+        <button class="modal-close" data-close="ruleModal" type="button">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="ruleField">字段</label>
+            <select class="form-select" id="ruleField">
+              <option value="type">类型 (type)</option>
+              <option value="category">分类 (category)</option>
+              <option value="tag">标签 (tag)</option>
+              <option value="sourcePath">来源路径 (sourcePath)</option>
+              <option value="workflowStatus">工作流状态 (workflowStatus)</option>
+              <option value="updatedAt">更新时间 (updatedAt)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ruleOperator">操作符</label>
+            <select class="form-select" id="ruleOperator">
+              <option value="equals">等于</option>
+              <option value="contains">包含</option>
+              <option value="in">属于</option>
+              <option value="before">早于</option>
+              <option value="after">晚于</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ruleValue">值 <span style="color:var(--ws-danger)">*</span></label>
+          <input class="form-input" id="ruleValue" type="text" placeholder="输入规则值" autocomplete="off">
+          <p style="margin:4px 0 0;color:var(--ws-faint);font-size:11px">时间字段 (before/after) 格式: YYYY-MM-DDTHH:mm:ss</p>
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+            <input type="checkbox" id="ruleEnabled" checked> 启用规则
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="ruleModal" type="button">取消</button>
+        <button class="btn btn-primary" id="confirmRule" type="button">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Confirm Modal ── -->
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal" style="width:min(380px,calc(100vw-40px))">
+      <div class="modal-header">
+        <h3 id="confirmTitle">确认</h3>
+        <button class="modal-close" data-close="confirmModal" type="button">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="confirmMessage" style="margin:0;color:var(--ws-muted)"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="confirmModal" type="button">取消</button>
+        <button class="btn btn-danger" id="confirmAction" type="button">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Column Input Modal ── -->
+  <div class="modal-overlay" id="columnInputModal">
+    <div class="modal" style="width:min(400px,calc(100vw-40px))">
+      <div class="modal-header">
+        <h3 id="columnInputTitle">输入名称</h3>
+        <button class="modal-close" data-close="columnInputModal" type="button">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="columnInputValue">名称</label>
+          <input class="form-input" id="columnInputValue" type="text" placeholder="输入名称" autocomplete="off">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="columnInputModal" type="button">取消</button>
+        <button class="btn btn-primary" id="confirmColumnInput" type="button">确认</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     (() => {
-      const labels = { clip: '剪藏', knowledge: '知识', todo: '待办', 'learning-plan': '学习' };
-      const initials = { clip: '剪', knowledge: '知', todo: '待', 'learning-plan': '学' };
-      const state = { types: [], query: '', data: null, loading: false };
-      const list = document.getElementById('contentList');
-      const filters = document.getElementById('filters');
-      const projectList = document.getElementById('projectList');
-      const count = document.getElementById('resultCount');
-      const refreshButton = document.getElementById('refreshButton');
-      const searchInput = document.getElementById('searchInput');
-      let searchTimer;
+      'use strict';
 
+      /* ── Constants ── */
+      const LABELS = { clip: '剪藏', knowledge: '知识', todo: '待办', 'learning-plan': '学习' };
+      const INITIALS = { clip: '剪', knowledge: '知', todo: '待', 'learning-plan': '学' };
+      const FIELD_LABELS = { type: '类型', category: '分类', tag: '标签', sourcePath: '来源路径', workflowStatus: '工作流状态', updatedAt: '更新时间' };
+      const OPERATOR_LABELS = { equals: '等于', contains: '包含', in: '属于', before: '早于', after: '晚于' };
+      const TYPE_LABELS = { general: '通用', project: '项目', learning: '学习' };
+
+      /* ── DOM refs ── */
+      const $ = id => document.getElementById(id);
+      const sidebar = $('sidebar');
+      const sidebarBackdrop = $('sidebarBackdrop');
+      const sidebarToggle = $('sidebarToggle');
+      const sidebarToggle2 = $('sidebarToggle2');
+      const sidebarCollapse = $('sidebarCollapse');
+      const wsList = $('wsList');
+      const overviewView = $('overviewView');
+      const detailView = $('detailView');
+      const detailHeader = $('detailHeader');
+      const detailContent = $('detailContent');
+      const detailContentList = $('detailContentList');
+      const detailResultCount = $('detailResultCount');
+      const detailSearchInput = $('detailSearchInput');
+      const detailError = $('detailError');
+      const detailRules = $('detailRules');
+      const rulesList = $('rulesList');
+      const rulesError = $('rulesError');
+      const detailExclusions = $('detailExclusions');
+      const exclusionsList = $('exclusionsList');
+      const exclusionsError = $('exclusionsError');
+      const newWsModal = $('newWsModal');
+      const ruleModal = $('ruleModal');
+      const confirmModal = $('confirmModal');
+      const columnInputModal = $('columnInputModal');
+
+      /* ─── Overview state ─── */
+      const overviewState = { types: [], query: '', data: null, loading: false };
+
+      /* ─── Workspace state ─── */
+      let workspaces = [];
+      let activeWsId = null;
+      let wsLoading = false;
+
+      /* ─── Rule state ─── */
+      let editingRuleId = null;
+
+      /* ─── Helpers ─── */
       function escapeHtml(value) {
-        return String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
+        return String(value ?? '').replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[c]);
       }
       function formatDate(value) {
         if (!value) return '时间未知';
-        const date = new Date(value);
-        return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'short', day: 'numeric' });
+        const d = new Date(value);
+        return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'short', day: 'numeric' });
       }
-      function renderState(kind, title, detail) {
+      function formatDateTime(value) {
+        if (!value) return '时间未知';
+        const d = new Date(value);
+        return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString('zh-CN', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      }
+      function showModal(modal) { modal.classList.add('show'); }
+      function hideModal(modal) { modal.classList.remove('show'); }
+      function getWsName(id) {
+        const ws = workspaces.find(w => w.id === id);
+        return ws ? ws.name : '未知工作台';
+      }
+      function showDetailError(msg) {
+        detailError.textContent = msg;
+        detailError.style.display = 'block';
+        setTimeout(function() { detailError.style.display = 'none'; }, 5000);
+      }
+
+      /* ── Sidebar ── */
+      function openSidebar() {
+        sidebar.classList.add('open');
+        sidebarBackdrop.classList.add('show');
+      }
+      function closeSidebar() {
+        sidebar.classList.remove('open');
+        sidebarBackdrop.classList.remove('show');
+      }
+      sidebarToggle.addEventListener('click', openSidebar);
+      sidebarToggle2.addEventListener('click', openSidebar);
+      sidebarCollapse.addEventListener('click', closeSidebar);
+      sidebarBackdrop.addEventListener('click', closeSidebar);
+
+      /* ── Overview Functions ── */
+      function overviewRenderState(kind, title, detail) {
+        const list = $('contentList');
         const retry = kind === 'error' ? '<button class="retry" id="retryButton" type="button">重新尝试</button>' : '';
         const icon = kind === 'loading' ? '<div class="spinner"></div>' : kind === 'error' ? '!' : '○';
         list.innerHTML = `<div class="state"><div class="state-inner"><div class="state-icon">${icon}</div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(detail)}</p>${retry}</div></div>`;
-        document.getElementById('retryButton')?.addEventListener('click', loadOverview);
+        $('retryButton')?.addEventListener('click', loadOverview);
       }
-      function renderFilters() {
-        const types = state.data?.contentTypes || Object.keys(labels);
-        filters.innerHTML = types.map(type => `<button class="filter ${state.types.includes(type) ? 'active' : ''}" data-type="${escapeHtml(type)}" type="button">${escapeHtml(labels[type] || type)}</button>`).join('');
-        filters.querySelectorAll('.filter').forEach(button => button.addEventListener('click', () => {
-          const { type } = button.dataset;
-          state.types = state.types.includes(type) ? state.types.filter(item => item !== type) : [...state.types, type];
+      function overviewRenderFilters() {
+        const filters = $('filters');
+        const types = overviewState.data?.contentTypes || Object.keys(LABELS);
+        filters.innerHTML = types.map(t => `<button class="filter ${overviewState.types.includes(t) ? 'active' : ''}" data-type="${escapeHtml(t)}" type="button">${escapeHtml(LABELS[t] || t)}</button>`).join('');
+        filters.querySelectorAll('.filter').forEach(btn => btn.addEventListener('click', () => {
+          const { type } = btn.dataset;
+          overviewState.types = overviewState.types.includes(type) ? overviewState.types.filter(i => i !== type) : [...overviewState.types, type];
           loadOverview();
         }));
       }
-      function renderProjects(projects) {
-        if (!projects?.length) { projectList.innerHTML = '<div class="project-empty">暂无可读取的项目摘要</div>'; return; }
-        projectList.innerHTML = projects.map(project => `<article class="project"><h3 class="project-name"><i class="project-dot" style="--project-color:${escapeHtml(project.color || '')}"></i>${escapeHtml(project.name || '未命名项目')}</h3>${project.description ? `<p class="project-description">${escapeHtml(project.description)}</p>` : ''}<p class="project-status">${escapeHtml(project.status || '未标记状态')}</p></article>`).join('');
+      function overviewRenderProjects(projects) {
+        const list = $('projectList');
+        if (!projects?.length) { list.innerHTML = '<div class="project-empty">暂无可读取的项目摘要</div>'; return; }
+        list.innerHTML = projects.map(p => `<article class="project"><h3 class="project-name"><i class="project-dot" style="--project-color:${escapeHtml(p.color || '')}"></i>${escapeHtml(p.name || '未命名项目')}</h3>${p.description ? `<p class="project-description">${escapeHtml(p.description)}</p>` : ''}<p class="project-status">${escapeHtml(p.status || '未标记状态')}</p></article>`).join('');
       }
-      function renderContents(contents) {
+      function overviewRenderWorkspaceSummary(summary) {
+        const el = $('workspaceSummary');
+        if (!summary) { el.innerHTML = ''; return; }
+        const types = Object.entries(summary.types || {}).map(([k, v]) => `<div class="ws-summary-card"><span class="ws-card-value">${v}</span><span class="ws-card-label">${escapeHtml(k)}</span></div>`).join('');
+        el.innerHTML = `<div class="ws-summary-card"><span class="ws-card-value">${summary.total || 0}</span><span class="ws-card-label">总计</span></div>
+          <div class="ws-summary-card"><span class="ws-card-value">${summary.active || 0}</span><span class="ws-card-label">活跃</span></div>
+          <div class="ws-summary-card archived"><span class="ws-card-value">${summary.archived || 0}</span><span class="ws-card-label">已归档</span></div>${types}</div>`;
+      }
+      function overviewRenderContents(contents) {
+        const list = $('contentList');
+        const count = $('resultCount');
         count.textContent = `共 ${contents.length} 项`;
-        if (!contents.length) { renderState('empty', '没有匹配的内容', state.query || state.types.length ? '尝试清除筛选条件或更换关键词。' : '索引中暂时还没有可展示的内容。'); return; }
+        if (!contents.length) {
+          overviewRenderState('empty', '没有匹配的内容', overviewState.query || overviewState.types.length ? '尝试清除筛选条件或更换关键词。' : '索引中暂时还没有可展示的内容。');
+          return;
+        }
         list.innerHTML = contents.map(item => {
-          const meta = [item.category, ...(item.tags || []).map(tag => `#${tag}`), item.sourcePath].filter(Boolean).map(value => `<span class="tag">${escapeHtml(value)}</span>`).join('');
-          return `<article class="item"><div class="type-mark" data-type="${escapeHtml(item.type)}">${escapeHtml(initials[item.type] || '内')}</div><div><h3 class="item-title" title="${escapeHtml(item.title || '')}">${escapeHtml(item.title || '未命名内容')}</h3><div class="item-meta"><span>${escapeHtml(labels[item.type] || item.type || '内容')}</span>${meta}</div></div><time class="item-date" datetime="${escapeHtml(item.updatedAt || '')}">${escapeHtml(formatDate(item.updatedAt || item.createdAt))}</time></article>`;
+          const meta = [item.category, ...(item.tags || []).map(t => `#${t}`), item.sourcePath].filter(Boolean).map(v => `<span class="tag">${escapeHtml(v)}</span>`).join('');
+          return `<article class="item"><div class="type-mark" data-type="${escapeHtml(item.type)}">${escapeHtml(INITIALS[item.type] || '内')}</div><div class="item-body"><h3 class="item-title" title="${escapeHtml(item.title || '')}">${escapeHtml(item.title || '未命名内容')}</h3><div class="item-meta"><span>${escapeHtml(LABELS[item.type] || item.type || '内容')}</span>${meta}</div></div><time class="item-date" datetime="${escapeHtml(item.updatedAt || '')}">${escapeHtml(formatDate(item.updatedAt || item.createdAt))}</time></article>`;
         }).join('');
       }
       async function loadOverview() {
-        state.loading = true;
-        refreshButton.disabled = true;
-        renderState('loading', '正在读取内容索引', '请稍候，工作台只会读取已有索引。');
+        overviewState.loading = true;
+        $('refreshButton').disabled = true;
+        overviewRenderState('loading', '正在读取内容索引', '请稍候，工作台只会读取已有索引。');
         const params = new URLSearchParams();
-        state.types.forEach(type => params.append('types', type));
-        if (state.query) params.set('query', state.query);
+        overviewState.types.forEach(t => params.append('types', t));
+        if (overviewState.query) params.set('query', overviewState.query);
         try {
-          const response = await fetch(`/api/workspace/overview${params.size ? `?${params}` : ''}`, { headers: { Accept: 'application/json' } });
-          if (!response.ok) throw new Error(`请求失败（${response.status}）`);
-          state.data = await response.json();
-          renderFilters();
-          renderProjects(state.data.projects || []);
-          renderContents(state.data.contents || []);
-        } catch (error) {
-          count.textContent = '';
-          renderFilters();
-          renderProjects([]);
-          renderState('error', '暂时无法读取工作台', `${error.message || '后端服务不可用'}，请确认服务已启动后重试。`);
+          const r = await fetch(`/api/workspace/overview${params.size ? '?' + params : ''}`, { headers: { Accept: 'application/json' } });
+          if (!r.ok) throw new Error('请求失败（' + r.status + '）');
+          overviewState.data = await r.json();
+          overviewRenderFilters();
+          overviewRenderProjects(overviewState.data.projects || []);
+          overviewRenderWorkspaceSummary(overviewState.data.workspaceSummary);
+          overviewRenderContents(overviewState.data.contents || []);
+        } catch (e) {
+          $('resultCount').textContent = '';
+          overviewRenderFilters();
+          overviewRenderProjects([]);
+          overviewRenderState('error', '暂时无法读取工作台', (e.message || '后端服务不可用') + '，请确认服务已启动后重试。');
         } finally {
-          state.loading = false;
-          refreshButton.disabled = false;
+          overviewState.loading = false;
+          $('refreshButton').disabled = false;
         }
       }
-      refreshButton.addEventListener('click', loadOverview);
-      searchInput.addEventListener('input', event => {
-        window.clearTimeout(searchTimer);
-        searchTimer = window.setTimeout(() => { state.query = event.target.value.trim(); loadOverview(); }, 260);
+
+      /* ── Workspace List ── */
+      async function loadWorkspaces() {
+        try {
+          const r = await fetch('/api/workspace/list', { headers: { Accept: 'application/json' } });
+          if (!r.ok) return;
+          workspaces = await r.json();
+          renderWsList();
+        } catch (_) { /* ignore sidebar errors */ }
+      }
+      function renderWsList() {
+        if (!workspaces.length) {
+          wsList.innerHTML = '<div class="empty-state" style="padding:20px 12px;text-align:left">暂无工作台，点击下方新建。</div>';
+          return;
+        }
+        wsList.innerHTML = workspaces.map(ws =>
+          `<button class="sidebar-item ${activeWsId === ws.id ? 'active' : ''}" data-wsid="${escapeHtml(ws.id)}" type="button"><i class="ws-dot" style="background:${escapeHtml(ws.color || '#2383e2')}"></i><span class="ws-name">${escapeHtml(ws.name)}</span><span class="ws-type-tag">${escapeHtml(TYPE_LABELS[ws.type || 'general'] || '通用')}</span></button>`
+        ).join('');
+        wsList.querySelectorAll('.sidebar-item').forEach(btn => btn.addEventListener('click', () => selectWorkspace(btn.dataset.wsid)));
+      }
+
+      /* ── View Switching ── */
+      const navOverview = document.querySelector('.sidebar-nav-item');
+      navOverview.addEventListener('click', () => {
+        activeWsId = null;
+        navOverview.classList.add('active');
+        renderWsList();
+        overviewView.classList.remove('hidden');
+        detailView.classList.remove('visible');
       });
-      window.addEventListener('message', event => { if (event.data?.action === 'refresh') loadOverview(); });
-      window.addEventListener('message', event => { if (event.data?.action === 'themeChange') document.documentElement.setAttribute('data-theme', event.data.theme); });
+
+      function selectWorkspace(id) {
+        activeWsId = id;
+        navOverview.classList.remove('active');
+        renderWsList();
+        overviewView.classList.add('hidden');
+        detailView.classList.add('visible');
+        closeSidebar();
+        loadDetail();
+      }
+
+      /* ── Detail View ── */
+      let detailState = { contents: [], filtered: [], query: '' };
+      async function loadDetail() {
+        if (!activeWsId) return;
+        // Reset view to list
+        currentView = 'list';
+        viewToggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        viewToggle.querySelector('[data-view="list"]').classList.add('active');
+        $('detailContentList').style.display = 'grid';
+        kanbanBoard.classList.remove('visible');
+        detailColumns = [];
+        wsLoading = true;
+        detailHeader.innerHTML = '<div class="loading" style="padding:30px"><div class="spinner"></div> 加载中...</div>';
+        detailContentList.innerHTML = '<div class="empty-state">加载中...</div>';
+        rulesList.innerHTML = '<div class="empty-state">加载中...</div>';
+        exclusionsList.innerHTML = '<div class="empty-state">加载中...</div>';
+        try {
+          const ws = workspaces.find(w => w.id === activeWsId);
+          if (ws) {
+            detailHeader.innerHTML =
+              `<div class="detail-header-left"><i class="detail-color" style="background:${escapeHtml(ws.color || '#2383e2')}"></i><div class="detail-info"><h2>${escapeHtml(ws.name)}</h2><span class="detail-type">${escapeHtml(TYPE_LABELS[ws.type || 'general'] || '通用')}</span></div></div><div class="detail-stats" id="detailStats"></div>`;
+          }
+          const [resData, rulesData, exclusionsData] = await Promise.all([
+            fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/resolution`, { headers: { Accept: 'application/json' } }).then(r => r.ok ? r.json() : Promise.reject()),
+            fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/rules`, { headers: { Accept: 'application/json' } }).then(r => r.ok ? r.json() : Promise.reject()),
+            fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/exclusions`, { headers: { Accept: 'application/json' } }).then(r => r.ok ? r.json() : Promise.reject())
+          ]);
+          // Stats
+          const stats = $('detailStats');
+          stats.innerHTML =
+            `<span class="stat-badge primary"><strong>${resData.visibleCount || 0}</strong> 可见内容</span>` +
+            `<span class="stat-badge"><strong>${resData.ruleMatchedCount || 0}</strong> 规则命中</span>` +
+            `<span class="stat-badge"><strong>${resData.manualCount || 0}</strong> 手动</span>` +
+            `<span class="stat-badge"><strong>${resData.relationCount || 0}</strong> 关系</span>` +
+            `<span class="stat-badge"><strong>${resData.excludedCount || 0}</strong> 排除</span>`;
+          // Columns
+          detailColumns = resData.columns || [];
+          // Contents
+          detailState.contents = resData.contents || [];
+          detailState.filtered = [...detailState.contents];
+          renderDetailContents();
+          // If kanban view is active, re-render
+          if (currentView === 'kanban') renderKanbanBoard();
+          // Rules
+          renderRules(rulesData);
+          // Exclusions
+          renderExclusions(exclusionsData);
+        } catch (e) {
+          detailHeader.innerHTML = '<div class="error-message" style="margin:0">加载失败：' + escapeHtml(e.message || '后端服务不可用') + ' <button class="retry" style="margin:0 0 0 10px;display:inline-block;padding:4px 12px" id="retryLoadDetail">重试</button></div>';
+          const retryBtn = $('retryLoadDetail');
+          if (retryBtn) retryBtn.addEventListener('click', function() { loadDetail(); });
+        } finally {
+          wsLoading = false;
+        }
+      }
+
+      function renderDetailContents() {
+        const q = detailState.query.toLowerCase();
+        detailState.filtered = detailState.contents.filter(item => {
+          if (!q) return true;
+          return (item.title && item.title.toLowerCase().includes(q)) ||
+                 (item.category && item.category.toLowerCase().includes(q)) ||
+                 (item.tags || []).some(t => t.toLowerCase().includes(q));
+        });
+        detailResultCount.textContent = '共 ' + detailState.filtered.length + ' 项';
+        if (!detailState.filtered.length) {
+          detailContentList.innerHTML = '<div class="empty-state">' + (q ? '没有匹配的内容' : '暂无可展示的可见内容') + '</div>';
+          return;
+        }
+        const SOURCE_LABELS = { rule: '规则命中', manual: '手动加入', relation: '关系带入' };
+        detailContentList.innerHTML = detailState.filtered.map(item => {
+          const meta = [item.category, ...(item.tags || []).map(t => '#' + t), item.sourcePath].filter(Boolean).map(v => `<span class="tag">${escapeHtml(v)}</span>`).join('');
+          const sourceBadge = item.source ? `<span class="source-marker ${escapeHtml(item.source)}">${escapeHtml(SOURCE_LABELS[item.source] || item.source)}</span>` : '';
+          return `<article class="item"><div class="type-mark" data-type="${escapeHtml(item.type)}">${escapeHtml(INITIALS[item.type] || '内')}</div><div class="item-body"><h3 class="item-title" title="${escapeHtml(item.title || '')}">${escapeHtml(item.title || '未命名内容')}</h3><div class="item-meta"><span>${escapeHtml(LABELS[item.type] || item.type || '内容')}</span>${sourceBadge}${meta}</div></div><div class="item-actions"><button class="exclude-btn" data-content-id="${escapeHtml(item.id)}" data-content-title="${escapeHtml(item.title || '')}" type="button">排除</button></div></article>`;
+        }).join('');
+        detailContentList.querySelectorAll('.exclude-btn').forEach(btn => btn.addEventListener('click', () => excludeContent(btn.dataset.contentId, btn.dataset.contentTitle)));
+      }
+
+      /* ── Exclude / Restore ── */
+      async function excludeContent(contentId, title) {
+        if (!activeWsId) return;
+        try {
+          const r = await fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/exclusions`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contentId, reason: '手动排除' })
+          });
+          if (!r.ok) { showDetailError('排除失败'); return; }
+          loadDetail();
+        } catch (e) {
+          showDetailError('排除失败：' + (e.message || '后端服务不可用'));
+        }
+      }
+      async function restoreExclusion(contentId) {
+        if (!activeWsId) return;
+        try {
+          const r = await fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/exclusions/${encodeURIComponent(contentId)}`, { method: 'DELETE' });
+          if (!r.ok) { showDetailError('恢复失败'); return; }
+          loadDetail();
+        } catch (e) {
+          showDetailError('恢复失败：' + (e.message || '后端服务不可用'));
+        }
+      }
+
+      /* ── Rules ── */
+      function renderRules(rules) {
+        if (!rules?.length) {
+          rulesList.innerHTML = '<div class="empty-state">暂无筛选规则，点击上方添加。</div>';
+          return;
+        }
+        rulesList.innerHTML = rules.map(r =>
+          `<div class="rule-card ${r.enabled ? '' : 'disabled'}"><span class="rule-field">${escapeHtml(FIELD_LABELS[r.field] || r.field)}</span><span class="rule-operator">${escapeHtml(OPERATOR_LABELS[r.operator] || r.operator)}</span><span class="rule-value" title="${escapeHtml(r.value)}">${escapeHtml(r.value)}</span><div class="rule-actions"><button class="toggle-switch ${r.enabled ? 'on' : ''}" data-rule-id="${escapeHtml(r.id)}" data-enabled="${r.enabled}" type="button" aria-label="切换启用状态"></button><button class="rule-edit-btn" data-rule-id="${escapeHtml(r.id)}" type="button" title="编辑">&#9998;</button><button class="rule-del-btn" data-rule-id="${escapeHtml(r.id)}" type="button" title="删除">&times;</button></div></div>`
+        ).join('');
+        rulesList.querySelectorAll('.toggle-switch').forEach(btn => btn.addEventListener('click', () => toggleRule(btn.dataset.ruleId, btn.dataset.enabled === 'true')));
+        rulesList.querySelectorAll('.rule-edit-btn').forEach(btn => btn.addEventListener('click', () => openRuleModal(btn.dataset.ruleId)));
+        rulesList.querySelectorAll('.rule-del-btn').forEach(btn => btn.addEventListener('click', () => deleteRule(btn.dataset.ruleId)));
+      }
+      async function toggleRule(ruleId, currentEnabled) {
+        rulesError.style.display = 'none';
+        try {
+          const rules = await fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/rules`, { headers: { Accept: 'application/json' } }).then(r => r.ok ? r.json() : []);
+          const rule = rules.find(r => r.id === ruleId);
+          if (!rule) throw new Error('规则不存在');
+          const r = await fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/rules/${encodeURIComponent(ruleId)}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ field: rule.field, operator: rule.operator, value: rule.value, enabled: !currentEnabled })
+          });
+          if (!r.ok) throw new Error('更新失败');
+          loadDetail();
+        } catch (e) {
+          rulesError.textContent = '操作失败：' + (e.message || '后端服务不可用');
+          rulesError.style.display = 'block';
+        }
+      }
+      function openRuleModal(ruleId) {
+        editingRuleId = ruleId;
+        $('ruleModalTitle').textContent = ruleId ? '编辑规则' : '添加规则';
+        $('confirmRule').textContent = '保存';
+        if (ruleId) {
+          fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/rules`, { headers: { Accept: 'application/json' } })
+            .then(r => r.ok ? r.json() : [])
+            .then(rules => {
+              const rule = rules.find(r => r.id === ruleId);
+              if (rule) {
+                $('ruleField').value = rule.field;
+                $('ruleOperator').value = rule.operator;
+                $('ruleValue').value = rule.value;
+                $('ruleEnabled').checked = rule.enabled;
+              }
+            }).catch(() => {});
+        } else {
+          $('ruleField').value = 'type';
+          $('ruleOperator').value = 'equals';
+          $('ruleValue').value = '';
+          $('ruleEnabled').checked = true;
+        }
+        showModal(ruleModal);
+      }
+      $('addRuleBtn').addEventListener('click', () => openRuleModal(null));
+      $('confirmRule').addEventListener('click', async () => {
+        const field = $('ruleField').value;
+        const operator = $('ruleOperator').value;
+        const value = $('ruleValue').value.trim();
+        const enabled = $('ruleEnabled').checked;
+        if (!value) { showDetailError('请输入规则值'); return; }
+        rulesError.style.display = 'none';
+        try {
+          const url = editingRuleId
+            ? `/api/workspace/${encodeURIComponent(activeWsId)}/rules/${encodeURIComponent(editingRuleId)}`
+            : `/api/workspace/${encodeURIComponent(activeWsId)}/rules`;
+          const method = editingRuleId ? 'PUT' : 'POST';
+          const r = await fetch(url, {
+            method, headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ field, operator, value, enabled })
+          });
+          if (!r.ok) {
+            const err = await r.json().catch(() => ({}));
+            throw new Error(err.message || '保存失败');
+          }
+          hideModal(ruleModal);
+          loadDetail();
+        } catch (e) {
+          rulesError.textContent = '保存失败：' + (e.message || '后端服务不可用');
+          rulesError.style.display = 'block';
+        }
+      });
+      function deleteRule(ruleId) {
+        $('confirmTitle').textContent = '删除规则';
+        $('confirmMessage').textContent = '确定要删除此规则吗？删除后不可恢复。';
+        $('confirmAction').onclick = async () => {
+          hideModal(confirmModal);
+          rulesError.style.display = 'none';
+          try {
+            const r = await fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/rules/${encodeURIComponent(ruleId)}`, { method: 'DELETE' });
+            if (!r.ok) throw new Error('删除失败');
+            loadDetail();
+          } catch (e) {
+            rulesError.textContent = '删除失败：' + (e.message || '后端服务不可用');
+            rulesError.style.display = 'block';
+          }
+        };
+        showModal(confirmModal);
+      }
+
+      /* ── Exclusions ── */
+      function renderExclusions(exclusions) {
+        if (!exclusions?.length) {
+          exclusionsList.innerHTML = '<div class="empty-state">暂无已排除的内容。</div>';
+          return;
+        }
+        exclusionsList.innerHTML = exclusions.map(e =>
+          `<div class="exclusion-card"><span class="exclusion-id" title="${escapeHtml(e.contentId)}">${escapeHtml(e.contentId)}</span>${e.reason ? `<span class="exclusion-reason">${escapeHtml(e.reason)}</span>` : ''}<span class="exclusion-date">${escapeHtml(formatDateTime(e.updatedAt || e.createdAt))}</span><button class="restore-btn" data-content-id="${escapeHtml(e.contentId)}" type="button">恢复</button></div>`
+        ).join('');
+        exclusionsList.querySelectorAll('.restore-btn').forEach(btn => btn.addEventListener('click', () => restoreExclusion(btn.dataset.contentId)));
+      }
+
+      /* ── Suggestions ── */
+      const suggestionBadge = $('suggestionBadge');
+      const suggestionsList = $('suggestionsList');
+      const suggestionsError = $('suggestionsError');
+      const suggestionCount = $('suggestionCount');
+
+      const REASON_LABELS = { 'category-match': '分类匹配', 'tag-match': '标签匹配', 'directory-match': '目录匹配', 'member-pattern': '成员模式', 'habit-category': '习惯分类' };
+
+      async function loadSuggestions(wsId) {
+        if (!wsId) return;
+        try {
+          const r = await fetch(`/api/workspace/${encodeURIComponent(wsId)}/suggestions`);
+          if (!r.ok) throw new Error('加载建议失败');
+          const suggestions = await r.json();
+          renderSuggestions(suggestions);
+        } catch (err) {
+          suggestionsError.textContent = err.message;
+          suggestionsError.style.display = '';
+        }
+      }
+
+      function renderSuggestions(suggestions) {
+        suggestionBadge.style.display = suggestions?.length ? 'inline-flex' : 'none';
+        if (suggestionBadge.style.display !== 'none') suggestionBadge.textContent = suggestions.length;
+        suggestionCount.textContent = suggestions?.length || 0;
+        if (!suggestions?.length) {
+          suggestionsList.innerHTML = '<div class="empty-state">暂无候选推荐。继续使用后，系统会根据你的整理习惯生成建议。</div>';
+          return;
+        }
+        suggestionsList.innerHTML = suggestions.map(s => {
+          const reasons = (s.reasons || []).map(r => REASON_LABELS[r] || r).join(', ');
+          return `<div class="suggestion-card" data-id="${escapeHtml(s.id)}">
+            <div class="suggestion-score">
+              <span class="score-value">${Math.round(s.score * 100)}%</span>
+              <span class="score-label">匹配度</span>
+            </div>
+            <div class="suggestion-info">
+              <div class="suggestion-title">${escapeHtml(s.contentId)}</div>
+              <div class="suggestion-meta">${escapeHtml(reasons)}</div>
+              <div class="suggestion-reasons">${(s.reasons || []).map(r => `<span class="suggestion-reason">${REASON_LABELS[r] || r}</span>`).join('')}</div>
+            </div>
+            <div class="suggestion-actions">
+              <button class="accept-btn" data-id="${escapeHtml(s.id)}" type="button">接受</button>
+              <button class="ignore-btn" data-id="${escapeHtml(s.id)}" type="button">忽略</button>
+              <button class="reject-btn" data-id="${escapeHtml(s.id)}" type="button">拒绝</button>
+            </div>
+          </div>`;
+        }).join('');
+        suggestionsList.querySelectorAll('.accept-btn').forEach(btn => btn.addEventListener('click', () => acceptSuggestion(btn.dataset.id)));
+        suggestionsList.querySelectorAll('.ignore-btn').forEach(btn => btn.addEventListener('click', () => ignoreSuggestion(btn.dataset.id)));
+        suggestionsList.querySelectorAll('.reject-btn').forEach(btn => btn.addEventListener('click', () => rejectSuggestion(btn.dataset.id)));
+      }
+
+      async function acceptSuggestion(suggestionId) {
+        try {
+          const r = await fetch(`/api/workspace/suggestions/${encodeURIComponent(suggestionId)}/accept`, { method: 'PUT' });
+          if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.error || '接受失败'); }
+          if (activeWsId) { loadSuggestions(activeWsId); loadDetail(); }
+        } catch (err) { showDetailError(err.message); }
+      }
+
+      async function ignoreSuggestion(suggestionId) {
+        try {
+          const r = await fetch(`/api/workspace/suggestions/${encodeURIComponent(suggestionId)}/ignore`, { method: 'PUT' });
+          if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.error || '忽略失败'); }
+          if (activeWsId) loadSuggestions(activeWsId);
+        } catch (err) { showDetailError(err.message); }
+      }
+
+      async function rejectSuggestion(suggestionId) {
+        try {
+          const r = await fetch(`/api/workspace/suggestions/${encodeURIComponent(suggestionId)}/reject`, { method: 'PUT' });
+          if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.error || '拒绝失败'); }
+          if (activeWsId) loadSuggestions(activeWsId);
+        } catch (err) { showDetailError(err.message); }
+      }
+
+      /* ── New Workspace ── */
+      $('newWsBtn').addEventListener('click', () => {
+        $('wsName').value = '';
+        $('wsDesc').value = '';
+        $('wsType').value = 'general';
+        $('wsColor').value = '#2383e2';
+        showModal(newWsModal);
+      });
+      $('confirmNewWs').addEventListener('click', async () => {
+        const name = $('wsName').value.trim();
+        if (!name) { showDetailError('请输入工作台名称'); return; }
+        try {
+          const r = await fetch('/api/workspace', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, description: $('wsDesc').value.trim(), type: $('wsType').value, color: $('wsColor').value })
+          });
+          if (!r.ok) {
+            const err = await r.json().catch(() => ({}));
+            throw new Error(err.message || '创建失败');
+          }
+          const ws = await r.json();
+          hideModal(newWsModal);
+          // Reload workspace list and select new one
+          await loadWorkspaces();
+          selectWorkspace(ws.id);
+        } catch (e) {
+          showDetailError('创建失败：' + (e.message || '后端服务不可用'));
+        }
+      });
+
+      /* ── Modal close handlers ── */
+      document.querySelectorAll('[data-close]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const modal = $(btn.dataset.close);
+          if (modal) hideModal(modal);
+        });
+      });
+      document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', e => {
+          if (e.target === overlay) hideModal(overlay);
+        });
+      });
+
+      /* ── Tab switching ── */
+      document.querySelectorAll('.detail-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.detail-tab').forEach(t => t.classList.remove('active'));
+          document.querySelectorAll('.detail-tab-content').forEach(c => c.classList.remove('visible'));
+          tab.classList.add('active');
+          const content = document.querySelector('.detail-tab-content[data-tab="' + tab.dataset.tab + '"]');
+          if (content) content.classList.add('visible');
+          if (tab.dataset.tab === 'suggestions' && activeWsId) {
+            loadSuggestions(activeWsId);
+          }
+        });
+      });
+
+      /* ── View toggle & Kanban ── */
+      let currentView = 'list';
+      const viewToggle = $('viewToggle');
+      const kanbanBoard = $('kanbanBoard');
+      let detailColumns = [];
+
+      viewToggle.addEventListener('click', e => {
+        const btn = e.target.closest('button');
+        if (!btn || !btn.dataset.view) return;
+        const view = btn.dataset.view;
+        if (view === currentView) return;
+        currentView = view;
+        viewToggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        if (view === 'kanban') {
+          renderKanbanBoard();
+        }
+        $('detailContentList').style.display = view === 'list' ? 'grid' : 'none';
+        kanbanBoard.classList.toggle('visible', view === 'kanban');
+      });
+
+      function renderKanbanBoard() {
+        const cols = detailColumns;
+        if (!cols.length) {
+          kanbanBoard.innerHTML = '<div class="empty-state" style="width:100%;padding:50px 20px">暂无看板列数据</div>';
+          return;
+        }
+        // Group contents by boardColumnId
+        const grouped = {};
+        cols.forEach(c => { grouped[c.id] = []; });
+        const noCol = []; // contents without a column assignment
+        detailState.filtered.forEach(item => {
+          const colId = item.boardColumnId;
+          if (colId && grouped[colId] !== undefined) {
+            grouped[colId].push(item);
+          } else {
+            noCol.push(item);
+          }
+        });
+        // Put unassigned items in the first column
+        if (noCol.length && cols.length) {
+          grouped[cols[0].id] = [...noCol, ...grouped[cols[0].id]];
+        }
+
+        // Build columns HTML with action buttons
+        kanbanBoard.innerHTML = cols.map(col => {
+          const items = grouped[col.id] || [];
+          const delDisabled = col.isDefault ? ' disabled title="默认列不能删除"' : '';
+          return `<div class="kanban-col" data-col-id="${escapeHtml(col.id)}">
+            <div class="kanban-col-header">
+              <h3>${escapeHtml(col.name)} <span class="kanban-col-count">${items.length}</span></h3>
+              <div class="col-actions">
+                <button class="col-action-btn rename" data-col-id="${escapeHtml(col.id)}" title="重命名" type="button">&#9998;</button>
+                <button class="col-action-btn delete${col.isDefault ? ' disabled' : ''}" data-col-id="${escapeHtml(col.id)}" title="${col.isDefault ? '默认列不能删除' : '删除'}" type="button"${delDisabled}>&times;</button>
+              </div>
+            </div>
+            <div class="kanban-col-body" data-col-id="${escapeHtml(col.id)}">
+              ${items.length ? items.map(item => renderKanbanCard(item)).join('') : '<div class="empty-state" style="padding:20px 10px;font-size:12px">拖拽内容到此列</div>'}
+            </div>
+          </div>`;
+        }).join('') + '<div class="kanban-add-col" id="kanbanAddCol" title="添加看板列">+</div>';
+
+        // Attach column action handlers
+        kanbanBoard.querySelectorAll('.col-action-btn.rename').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const colId = btn.dataset.colId;
+            const col = detailColumns.find(c => c.id === colId);
+            if (!col) return;
+            $('columnInputTitle').textContent = '重命名看板列';
+            $('columnInputValue').value = col.name;
+            $('columnInputValue').placeholder = '输入新名称';
+            $('confirmColumnInput').onclick = function() {
+              const newName = $('columnInputValue').value.trim();
+              if (newName && newName !== col.name) {
+                renameColumn(colId, newName);
+              }
+              hideModal(columnInputModal);
+            };
+            showModal(columnInputModal);
+            setTimeout(function() { $('columnInputValue').focus(); }, 100);
+          });
+        });
+        kanbanBoard.querySelectorAll('.col-action-btn.delete:not(.disabled)').forEach(btn => {
+          btn.addEventListener('click', () => deleteColumn(btn.dataset.colId));
+        });
+        const addColBtn = kanbanBoard.querySelector('#kanbanAddCol');
+        if (addColBtn) {
+          addColBtn.addEventListener('click', () => {
+            $('columnInputTitle').textContent = '添加看板列';
+            $('columnInputValue').value = '';
+            $('columnInputValue').placeholder = '输入看板列名称';
+            $('confirmColumnInput').onclick = function() {
+              const name = $('columnInputValue').value.trim();
+              if (name) addColumn(name);
+              hideModal(columnInputModal);
+            };
+            showModal(columnInputModal);
+            setTimeout(function() { $('columnInputValue').focus(); }, 100);
+          });
+        }
+
+        // Attach drag events
+        kanbanBoard.querySelectorAll('.kanban-card').forEach(card => {
+          card.addEventListener('dragstart', onDragStart);
+          card.addEventListener('dragend', onDragEnd);
+        });
+        kanbanBoard.querySelectorAll('.kanban-col-body').forEach(body => {
+          body.addEventListener('dragover', onDragOver);
+          body.addEventListener('dragleave', onDragLeave);
+          body.addEventListener('drop', onDrop);
+        });
+        // Attach exclude button handlers
+        kanbanBoard.querySelectorAll('.exclude-btn').forEach(btn => {
+          btn.addEventListener('click', () => excludeContent(btn.dataset.contentId, btn.dataset.contentTitle));
+        });
+      }
+
+      function renderKanbanCard(item) {
+        const meta = [item.category, ...(item.tags || []).map(t => '#' + t)].filter(Boolean).join(' · ');
+        return `<div class="kanban-card" draggable="true" data-content-id="${escapeHtml(item.id)}" data-board-col-id="${escapeHtml(item.boardColumnId || '')}">
+          <div class="card-header">
+            <span class="type-mark" data-type="${escapeHtml(item.type)}">${escapeHtml(INITIALS[item.type] || '内')}</span>
+            <h4 class="card-title" title="${escapeHtml(item.title || '')}">${escapeHtml(item.title || '未命名内容')}</h4>
+          </div>
+          ${meta ? `<div class="card-meta"><span class="tag">${escapeHtml(meta)}</span></div>` : ''}
+          <div class="card-actions">
+            <button class="exclude-btn" data-content-id="${escapeHtml(item.id)}" data-content-title="${escapeHtml(item.title || '')}" type="button">排除</button>
+          </div>
+        </div>`;
+      }
+
+      /* ── Drag-and-drop ── */
+      let dragContentId = null;
+
+      function onDragStart(e) {
+        const card = e.target.closest('.kanban-card');
+        if (!card) return;
+        dragContentId = card.dataset.contentId;
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', dragContentId);
+      }
+
+      function onDragEnd(e) {
+        const card = e.target.closest('.kanban-card');
+        if (card) card.classList.remove('dragging');
+        kanbanBoard.querySelectorAll('.kanban-col-body').forEach(b => b.classList.remove('drag-over'));
+        dragContentId = null;
+      }
+
+      function onDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const body = e.currentTarget;
+        body.classList.add('drag-over');
+      }
+
+      function onDragLeave(e) {
+        const body = e.currentTarget;
+        // relatedTarget 可为 null（拖拽离开浏览器窗口时）
+        if (!e.relatedTarget || !body.contains(e.relatedTarget)) {
+          body.classList.remove('drag-over');
+        }
+      }
+
+      async function onDrop(e) {
+        e.preventDefault();
+        const body = e.currentTarget;
+        body.classList.remove('drag-over');
+        const targetColId = body.dataset.colId;
+        const contentId = e.dataTransfer.getData('text/plain') || dragContentId;
+        if (!contentId || !targetColId) return;
+        // Check if actually changed column
+        const card = kanbanBoard.querySelector(`.kanban-card[data-content-id="${contentId}"]`);
+        const currentColId = card ? card.dataset.boardColId : '';
+        if (currentColId === targetColId) return;
+        if (!activeWsId) return;
+        try {
+          const r = await fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/members/${encodeURIComponent(contentId)}/move`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ boardColumnId: targetColId, position: 0 })
+          });
+          if (!r.ok) throw new Error('移动失败');
+          // Update local state
+          const item = detailState.contents.find(i => i.id === contentId);
+          if (item) item.boardColumnId = targetColId;
+          // Re-render kanban
+          renderKanbanBoard();
+        } catch (err) {
+          showDetailError('移动失败：' + (err.message || '后端服务不可用'));
+        }
+      }
+
+      /* ── Column Management ── */
+
+      async function addColumn(name) {
+        if (!activeWsId) return;
+        try {
+          const r = await fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/columns`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+          });
+          if (!r.ok) throw new Error('创建失败');
+          const col = await r.json();
+          detailColumns.push(col);
+          detailColumns.sort((a, b) => a.position - b.position);
+          renderKanbanBoard();
+        } catch (err) {
+          alert('创建看板列失败：' + (err.message || '后端服务不可用'));
+        }
+      }
+
+      async function renameColumn(columnId, newName) {
+        if (!activeWsId) return;
+        try {
+          const col = detailColumns.find(c => c.id === columnId);
+          if (!col) return;
+          const r = await fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/columns/${encodeURIComponent(columnId)}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: col.key, name: newName })
+          });
+          if (!r.ok) throw new Error('重命名失败');
+          const updated = await r.json();
+          const idx = detailColumns.findIndex(c => c.id === columnId);
+          if (idx >= 0) detailColumns[idx] = updated;
+          renderKanbanBoard();
+        } catch (err) {
+          showDetailError('重命名失败：' + (err.message || '后端服务不可用'));
+        }
+      }
+
+      async function deleteColumn(columnId) {
+        if (!activeWsId) return;
+        const col = detailColumns.find(c => c.id === columnId);
+        if (!col || col.isDefault) return;
+        $('confirmTitle').textContent = '删除看板列';
+        $('confirmMessage').textContent = `确定要删除看板列"${col.name}"吗？该列中的内容将移至第一列。`;
+        $('confirmAction').onclick = async () => {
+          hideModal(confirmModal);
+          try {
+            const r = await fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/columns/${encodeURIComponent(columnId)}`, {
+              method: 'DELETE'
+            });
+            if (!r.ok) throw new Error('删除失败');
+            detailColumns = detailColumns.filter(c => c.id !== columnId);
+            // Reset boardColumnId for members in this column
+            detailState.contents.forEach(item => {
+              if (item.boardColumnId === columnId) item.boardColumnId = null;
+            });
+            renderKanbanBoard();
+          } catch (err) {
+            showDetailError('删除失败：' + (err.message || '后端服务不可用'));
+          }
+        };
+        showModal(confirmModal);
+      }
+
+      /* ── Detail search ── */
+      let detailSearchTimer;
+      detailSearchInput.addEventListener('input', () => {
+        clearTimeout(detailSearchTimer);
+        detailSearchTimer = setTimeout(() => {
+          detailState.query = detailSearchInput.value.trim();
+          renderDetailContents();
+          if (currentView === 'kanban') renderKanbanBoard();
+        }, 260);
+      });
+
+      /* ── Overview search ── */
+      let searchTimer;
+      $('searchInput').addEventListener('input', e => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => { overviewState.query = e.target.value.trim(); loadOverview(); }, 260);
+      });
+
+      /* ── Theme ── */
+      window.addEventListener('message', event => {
+        if (event.data?.action === 'themeChange') document.documentElement.setAttribute('data-theme', event.data.theme);
+        if (event.data?.action === 'refresh') loadOverview();
+      });
       document.documentElement.setAttribute('data-theme', localStorage.getItem('app_theme_v1') || 'notion');
+
+      /* ── Init ── */
       loadOverview();
+      loadWorkspaces();
     })();
   </script>
 </body>

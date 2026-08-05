@@ -346,21 +346,28 @@
 
   <input id="browserFileInput" type="file" hidden accept=".txt,.md,.json,.xml,.sql,.csv,.log,.yaml,.yml,.ini,.conf">
   <div class="editor-context-menu" id="editorContextMenu" hidden role="menu">
-    <button type="button" data-context-action="copy" role="menuitem">复制</button>
-    <button type="button" data-context-action="cut" role="menuitem">剪切</button>
-    <button type="button" data-context-action="paste" role="menuitem">粘贴</button>
-    <button type="button" data-context-action="selectAll" role="menuitem">全选</button>
+    <!-- ─── 编辑操作 ─── -->
+    <button type="button" data-context-action="copy" role="menuitem">📋 复制</button>
+    <button type="button" data-context-action="cut" role="menuitem">✂️ 剪切</button>
+    <button type="button" data-context-action="paste" role="menuitem">📄 粘贴</button>
+    <button type="button" data-context-action="selectAll" role="menuitem">🔍 全选</button>
     <div class="editor-context-divider"></div>
-    <button type="button" data-context-action="aiSearch" role="menuitem" id="aiSearchContextBtn">AI 搜索选中内容</button>
+
+    <!-- ─── AI 功能 ─── -->
+    <button type="button" data-context-action="aiSearch" role="menuitem" id="aiSearchContextBtn">🔎 AI 搜索选中内容</button>
     <button type="button" data-context-action="smartIngest" role="menuitem" id="smartIngestContextBtn">📥 智能入库</button>
     <button type="button" data-context-action="aiImportPassword" role="menuitem" id="aiImportPasswordContextBtn">🔑 AI 识别导入密码</button>
+    <button type="button" data-context-action="aiContextAnalysis" role="menuitem" id="aiContextAnalysisContextBtn">🧠 AI 分析上下文</button>
     <div class="editor-context-divider"></div>
+
+    <!-- ─── 翻译功能 ─── -->
     <button type="button" data-context-action="offlineTranslate" role="menuitem" id="offlineTranslateContextBtn">📖 离线翻译</button>
     <button type="button" data-context-action="onlineTranslate" role="menuitem" id="onlineTranslateContextBtn">🌐 在线翻译</button>
-    <button type="button" data-context-action="addEnglishTranslation" role="menuitem" id="addEnglishTranslationContextBtn">➕ 添加英文翻译</button>
+    <button type="button" data-context-action="addCustomMapping" role="menuitem" id="addCustomMappingContextBtn">📝 添加自定义词典</button>
+    <button type="button" data-context-action="addToDictLib" role="menuitem" id="addToDictLibContextBtn">📚 添加词典库</button>
     <div class="editor-context-divider"></div>
-    <button type="button" data-context-action="aiContextAnalysis" role="menuitem" id="aiContextAnalysisContextBtn">🤖 AI 分析上下文</button>
-    <div class="editor-context-divider"></div>
+
+    <!-- ─── 词典管理 ─── -->
     <button type="button" data-context-action="manageDictionary" role="menuitem" id="manageDictionaryContextBtn">📚 管理词典</button>
   </div>
   <div class="editor-context-menu" id="tabContextMenu" hidden role="menu"></div>
@@ -370,23 +377,38 @@
     <section class="modal-card dict-modal-card" role="dialog" aria-modal="true" aria-labelledby="dictModalTitle">
       <div class="panel-header">
         <div>
-          <h2 id="dictModalTitle">管理自定义词典</h2>
-          <p>添加、编辑或删除您的个人词典条目，支持中文↔英文互译映射</p>
+          <h2 id="dictModalTitle">管理词典</h2>
+          <p>管理自定义映射和词典库条目</p>
         </div>
         <button class="icon-close" data-close-modal="dictModal" aria-label="关闭">×</button>
       </div>
-      <div class="form-grid">
-        <label class="field-group wide">
-          <span class="field-label">源词（中文或英文）</span>
-          <input class="field-control" id="dictSourceInput" placeholder="例如：hello 或 你好">
-        </label>
-        <label class="field-group wide">
-          <span class="field-label">目标释义</span>
-          <input class="field-control" id="dictTargetInput" placeholder="例如：你好 或 hello">
-        </label>
+      <!-- 标签切换 -->
+      <div class="dict-tabs">
+        <button class="dict-tab active" data-dict-tab="mapping">自定义映射</button>
+        <button class="dict-tab" data-dict-tab="library">词典库</button>
       </div>
-      <button class="tool-btn primary" id="dictAddBtn">添加条目</button>
-      <div class="dict-list" id="dictList"></div>
+      <!-- 自定义映射面板 -->
+      <div class="dict-tab-content" id="dictTabMapping" style="display:block">
+        <div class="form-grid">
+          <label class="field-group wide">
+            <span class="field-label">源词（中文或英文）</span>
+            <input class="field-control" id="dictSourceInput" placeholder="例如：hello 或 你好">
+          </label>
+          <label class="field-group wide">
+            <span class="field-label">目标释义</span>
+            <input class="field-control" id="dictTargetInput" placeholder="例如：你好 或 hello">
+          </label>
+        </div>
+        <button class="tool-btn primary" id="dictAddBtn">添加条目</button>
+        <div class="dict-list" id="dictList"></div>
+      </div>
+      <!-- 词典库面板 -->
+      <div class="dict-tab-content" id="dictTabLibrary" style="display:none">
+        <div class="dict-tab-header">
+          <span class="dict-tab-hint">词典库用于存储常用翻译条目，支持快速添加</span>
+        </div>
+        <div class="dict-list" id="dictLibList"></div>
+      </div>
       <div class="panel-actions">
         <button class="tool-btn" data-close-modal="dictModal">关闭</button>
       </div>

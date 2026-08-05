@@ -27,8 +27,8 @@ class WorkspaceIndexServiceTest {
         WorkspaceIndexService service = new WorkspaceIndexService(tempDir);
         Workspace first = new Workspace("workspace-1", "Java", "学习", "#569cff", "project", "active", now, now);
         Workspace second = new Workspace("workspace-2", "生活", "", "#ff9f43", "general", "active", now, now);
-        WorkspaceMembership member = new WorkspaceMembership(first.id(), "clip:1", "manual", "用户手动加入", 1, now, now);
-        WorkspaceMembership otherMember = new WorkspaceMembership(second.id(), "clip:2", "manual", "用户手动加入", 1, now, now);
+        WorkspaceMembership member = new WorkspaceMembership(first.id(), "clip:1", "manual", "用户手动加入", 1.0, "", 1, now, now);
+        WorkspaceMembership otherMember = new WorkspaceMembership(second.id(), "clip:2", "manual", "用户手动加入", 1.0, "", 1, now, now);
 
         service.saveWorkspace(first);
         service.saveWorkspace(second);
@@ -71,13 +71,13 @@ class WorkspaceIndexServiceTest {
         WorkspaceIndexService service = new WorkspaceIndexService(tempDir);
         Workspace workspace = new Workspace("workspace-1", "Java", "学习", "#569cff", "project", "active", now, now);
         service.saveWorkspace(workspace);
-        service.addMember(new WorkspaceMembership(workspace.id(), "clip:manual", "manual", "手动", 1, now, now));
+        service.addMember(new WorkspaceMembership(workspace.id(), "clip:manual", "manual", "手动", 1.0, "", 1, now, now));
         List<ContentRef> refs = List.of(
                 ref("clip:manual", "手动内容"),
                 ref("clip:relation", "关联内容"));
 
         WorkspaceResolution resolution = service.resolveWorkspace(workspace.id(), refs,
-                List.of(new WorkspaceMembership(workspace.id(), "clip:relation", "relation", "关联", 1, now, now)));
+                List.of(new WorkspaceMembership(workspace.id(), "clip:relation", "relation", "关联", 1.0, "", 1, now, now)));
 
         assertEquals(List.of("clip:manual", "clip:relation"),
                 resolution.visible().stream().map(ContentRef::id).toList());
@@ -97,7 +97,7 @@ class WorkspaceIndexServiceTest {
             WorkspaceIndexService service = new WorkspaceIndexService(tempDir);
             Workspace workspace = new Workspace("workspace-1", "Java", "学习", "#569cff", "project", "active", now, now);
             service.saveWorkspace(workspace);
-            service.addMember(new WorkspaceMembership(workspace.id(), "clip:manual", "manual", "手动", 1, now, now));
+            service.addMember(new WorkspaceMembership(workspace.id(), "clip:manual", "manual", "手动", 1.0, "", 1, now, now));
             String sensitiveContent = "绝密正文-content-token";
             service.resolveWorkspace(workspace.id(), List.of(ref("clip:manual", sensitiveContent)), List.of());
             assertThrows(IllegalArgumentException.class,

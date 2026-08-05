@@ -1959,6 +1959,46 @@ select {
   margin-bottom: 8px;
 }
 
+/* 词典标签切换 */
+.dict-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--app-border);
+}
+.dict-tab {
+  flex: 1;
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  border-bottom: 2px solid transparent;
+  transition: all 120ms ease;
+}
+.dict-tab:hover {
+  color: var(--app-text);
+  background: var(--app-surface-hover);
+}
+.dict-tab.active {
+  color: var(--app-primary);
+  border-bottom-color: var(--app-primary);
+}
+.dict-tab-content {
+  display: none;
+}
+.dict-tab-content.active {
+  display: block;
+}
+.dict-tab-header {
+  margin-bottom: 8px;
+}
+.dict-tab-hint {
+  font-size: 11px;
+  color: var(--app-text-muted);
+}
+
 .dict-list {
   flex: 1;
   min-height: 0;

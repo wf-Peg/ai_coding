@@ -4,34 +4,22 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 学习计划模型。
- * <p>
- * 用户输入学习主题和参数后，AI 自动生成分阶段学习路线图。
- * 每个计划包含多个学习阶段，支持进度跟踪。
- * </p>
- */
 public class LearningPlan {
 
-    /** 唯一标识 */
     private Long id;
-    /** 学习主题，如 "Python 机器学习" */
     private String title;
-    /** 当前水平：zero / beginner / intermediate */
     private String level;
-    /** 学习目标：intro / project / job / portfolio */
     private String goal;
-    /** 每周投入小时数 */
     private int hoursPerWeek;
-    /** 预计总周数 */
     private int totalWeeks;
-    /** 学习阶段列表 */
     private List<Phase> phases = new ArrayList<>();
-    /** Mermaid 可视化路径图 */
     private String mermaidDiagram;
-    /** 创建时间 */
+    private String category;
+    private List<String> tags = new ArrayList<>();
+    private Integer mastery;
+    private LocalDateTime nextReviewAt;
+    private int reviewCount;
     private LocalDateTime createdAt;
-    /** 最后更新时间 */
     private LocalDateTime updatedAt;
 
     public LearningPlan() {
@@ -39,9 +27,6 @@ public class LearningPlan {
         this.updatedAt = LocalDateTime.now();
     }
 
-    // ===== 嵌套类 =====
-
-    /** 学习阶段 */
     public static class Phase {
         private int phaseNumber;
         private String title;
@@ -52,6 +37,8 @@ public class LearningPlan {
         private List<PracticeTask> practiceTasks = new ArrayList<>();
         private int progress;
         private boolean completed;
+        private LocalDateTime completedAt;
+        private LocalDateTime reviewedAt;
 
         public int getPhaseNumber() { return phaseNumber; }
         public void setPhaseNumber(int phaseNumber) { this.phaseNumber = phaseNumber; }
@@ -71,15 +58,18 @@ public class LearningPlan {
         public void setProgress(int progress) { this.progress = progress; }
         public boolean isCompleted() { return completed; }
         public void setCompleted(boolean completed) { this.completed = completed; }
+        public LocalDateTime getCompletedAt() { return completedAt; }
+        public void setCompletedAt(LocalDateTime completedAt) { this.completedAt = completedAt; }
+        public LocalDateTime getReviewedAt() { return reviewedAt; }
+        public void setReviewedAt(LocalDateTime reviewedAt) { this.reviewedAt = reviewedAt; }
     }
 
-    /** 推荐视频/文章资源 */
     public static class VideoResource {
         private String title;
         private String url;
         private String reason;
-        private String source;  // exa / ai
-        private String snippet; // 内容摘要
+        private String source;
+        private String snippet;
 
         public String getTitle() { return title; }
         public void setTitle(String title) { this.title = title; }
@@ -93,7 +83,6 @@ public class LearningPlan {
         public void setSnippet(String snippet) { this.snippet = snippet; }
     }
 
-    /** 知识作业题目 */
     public static class QuizQuestion {
         private String type;
         private String question;
@@ -107,7 +96,6 @@ public class LearningPlan {
         public void setOptions(List<String> options) { this.options = options; }
     }
 
-    /** 实战任务 */
     public static class PracticeTask {
         private String description;
         private int difficulty;
@@ -120,8 +108,6 @@ public class LearningPlan {
         public String getAcceptanceCriteria() { return acceptanceCriteria; }
         public void setAcceptanceCriteria(String acceptanceCriteria) { this.acceptanceCriteria = acceptanceCriteria; }
     }
-
-    // ===== Getters / Setters =====
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -139,6 +125,16 @@ public class LearningPlan {
     public void setPhases(List<Phase> phases) { this.phases = phases; }
     public String getMermaidDiagram() { return mermaidDiagram; }
     public void setMermaidDiagram(String mermaidDiagram) { this.mermaidDiagram = mermaidDiagram; }
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
+    public List<String> getTags() { return tags; }
+    public void setTags(List<String> tags) { this.tags = tags; }
+    public Integer getMastery() { return mastery; }
+    public void setMastery(Integer mastery) { this.mastery = mastery; }
+    public LocalDateTime getNextReviewAt() { return nextReviewAt; }
+    public void setNextReviewAt(LocalDateTime nextReviewAt) { this.nextReviewAt = nextReviewAt; }
+    public int getReviewCount() { return reviewCount; }
+    public void setReviewCount(int reviewCount) { this.reviewCount = reviewCount; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
