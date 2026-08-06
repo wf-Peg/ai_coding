@@ -196,7 +196,8 @@ public class PdfService {
             result.put("truncated", truncated);
 
             logger.info("[PdfService] 文本提取完成，页数={}, 截断={}", pages, truncated);
-        return result;
+            return result;
+        }
     }
 
     /**
