@@ -3,16 +3,16 @@ package com.example.clip.dto;
 import java.util.List;
 
 /**
- * 话题创建/更新请求（TopicRequest）DTO。
+ * 知识创建/更新请求（KnowledgeRequest）DTO。
  * <p>
- * 用于创建或更新话题。字段与 {@link com.example.clip.model.Topic Topic} 模型
- * 基本对应，但不包含 {@code likeCount}、{@code createdAt}、{@code updatedAt}
+ * 用于创建或更新知识条目。字段与 {@link com.example.clip.model.Knowledge Knowledge} 模型
+ * 基本对应，但不包含 {@code id}、{@code createdAt}、{@code updatedAt}
  * 等由服务端管理的字段。
  * </p>
  */
-public class TopicRequest {
+public class KnowledgeRequest {
 
-    /** 话题标题 */
+    /** 知识标题 */
     private String title;
 
     /** 一句话摘要 */
@@ -27,14 +27,14 @@ public class TopicRequest {
     /** 标签列表 */
     private List<String> tags;
 
-    /** 来源剪藏 ID（可选） */
-    private Long sourceClipId;
-
-    /** 是否发布 */
-    private boolean published;
+    /** 来源剪藏 ID 列表 */
+    private List<Long> sourceClipIds;
 
     /** 我的思考 */
     private String myThoughts;
+
+    /** 双向链接的知识条目 ID 列表 */
+    private List<Long> linkedKnowledgeIds;
 
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
@@ -51,12 +51,12 @@ public class TopicRequest {
     public List<String> getTags() { return tags; }
     public void setTags(List<String> tags) { this.tags = tags; }
 
-    public Long getSourceClipId() { return sourceClipId; }
-    public void setSourceClipId(Long sourceClipId) { this.sourceClipId = sourceClipId; }
-
-    public boolean isPublished() { return published; }
-    public void setPublished(boolean published) { this.published = published; }
+    public List<Long> getSourceClipIds() { return sourceClipIds; }
+    public void setSourceClipIds(List<Long> sourceClipIds) { this.sourceClipIds = sourceClipIds; }
 
     public String getMyThoughts() { return myThoughts; }
     public void setMyThoughts(String myThoughts) { this.myThoughts = myThoughts; }
+
+    public List<Long> getLinkedKnowledgeIds() { return linkedKnowledgeIds; }
+    public void setLinkedKnowledgeIds(List<Long> linkedKnowledgeIds) { this.linkedKnowledgeIds = linkedKnowledgeIds; }
 }

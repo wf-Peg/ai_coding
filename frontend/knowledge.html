@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>话题</title>
+    <title>知识</title>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -101,6 +101,23 @@
             background: var(--primary-dark);
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(63,140,255,0.3);
+        }
+        .btn-secondary {
+            background: var(--surface);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+            padding: 10px 20px;
+            border-radius: 24px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+        .btn-secondary:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            transform: translateY(-1px);
         }
 
         /* Filter Bar */
@@ -287,6 +304,15 @@
             background: #1f2328;
             box-shadow: 0 4px 12px rgba(31,35,40,0.3);
         }
+        html[data-theme="notion"] .btn-secondary {
+            background: #ffffff;
+            color: #6b6f76;
+            border-color: #dcdcd8;
+        }
+        html[data-theme="notion"] .btn-secondary:hover {
+            border-color: #2383e2;
+            color: #2383e2;
+        }
         html[data-theme="notion"] .loading .spinner {
             border-color: #e8e8e6;
             border-top-color: #2383e2;
@@ -327,6 +353,15 @@
         html[data-theme="dark"] .search-box svg { color: var(--text-muted); }
         html[data-theme="dark"] .btn-primary { background: var(--primary); color: #fff; }
         html[data-theme="dark"] .btn-primary:hover { background: var(--primary-dark); }
+        html[data-theme="dark"] .btn-secondary {
+            background: var(--surface);
+            color: var(--text-secondary);
+            border-color: var(--border);
+        }
+        html[data-theme="dark"] .btn-secondary:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
         html[data-theme="dark"] .filter-tag {
             background: var(--surface);
             border-color: var(--border);
@@ -357,14 +392,15 @@
 <body>
     <header class="header">
         <div class="header-inner">
-            <h1>话题/思考/碎碎念<span>.</span></h1>
+            <h1>知识库<span>.</span></h1>
             <div class="search-box">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
                 </svg>
-                <input type="text" id="searchInput" placeholder="搜索话题..." />
+                <input type="text" id="searchInput" placeholder="搜索知识..." />
             </div>
-            <button class="btn-primary" id="newTopicBtn">+ 新建话题</button>
+            <button class="btn-secondary" id="graphBtn">知识图谱</button>
+            <button class="btn-primary" id="newTopicBtn">+ 新建知识</button>
         </div>
     </header>
 
@@ -384,7 +420,7 @@
         </div>
     </div>
 
-    <script src="topic.js"></script>
+    <script src="knowledge.js"></script>
     <script>
       (function() {
         const THEME_KEY = 'app_theme_v1';

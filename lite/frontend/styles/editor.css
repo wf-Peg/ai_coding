@@ -1377,6 +1377,7 @@ select {
 }
 
 @keyframes ai-chat-cursor-blink { 50% { opacity: 0; } }
+.ai-chat-cancelled { color: var(--app-text-muted); font-style: italic; }
 .ai-chat-message-error { color: var(--app-danger); font-size: 11px; }
 
 .ai-chat-copy {

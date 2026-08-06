@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>编辑话题</title>
+    <title>编辑知识</title>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -50,6 +50,8 @@
             font-size: 0.9rem;
             color: var(--text-secondary);
             transition: var(--transition);
+            text-decoration: none;
+            display: inline-block;
         }
         .nav .back-btn:hover { background: var(--border); }
         .nav .page-title { font-size: 1.1rem; font-weight: 600; flex: 1; }
@@ -119,6 +121,12 @@
             font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
             font-size: 0.9rem;
         }
+        .form-group textarea#contentInput {
+            min-height: 300px;
+        }
+        .form-group textarea#myThoughtsInput {
+            min-height: 150px;
+        }
         .form-row {
             display: flex;
             gap: 16px;
@@ -169,6 +177,51 @@
             background: transparent;
         }
 
+        /* 关联来源 chips */
+        .source-chips-area {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--surface);
+            min-height: 42px;
+        }
+        .source-chip {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 10px;
+            border-radius: 16px;
+            background: #fef3c7;
+            color: #92400e;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        .source-chip .remove {
+            cursor: pointer;
+            font-size: 1rem;
+            line-height: 1;
+            opacity: 0.6;
+        }
+        .source-chip .remove:hover { opacity: 1; }
+        .source-chips-area .btn-add-source {
+            background: var(--surface);
+            border: 1px dashed var(--border);
+            padding: 4px 14px;
+            border-radius: 16px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: var(--transition);
+        }
+        .source-chips-area .btn-add-source:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
         /* Import clip */
         .import-section {
             margin-top: 20px;
@@ -212,6 +265,184 @@
         .clip-select-list .clip-option.selected { background: rgba(63,140,255,0.12); color: var(--primary); }
         .clip-select-list .clip-option .clip-option-title { font-weight: 500; }
         .clip-select-list .clip-option .clip-option-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+
+        /* Source Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-panel {
+            background: var(--surface);
+            border-radius: var(--radius);
+            width: 90%;
+            max-width: 520px;
+            max-height: 70vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+        }
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        .modal-header h3 {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.4rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: 0 4px;
+            line-height: 1;
+        }
+        .modal-close:hover { color: var(--text); }
+        .modal-body {
+            padding: 16px 20px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        .modal-search-input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 0.9rem;
+            outline: none;
+            margin-bottom: 12px;
+            background: var(--background);
+            color: var(--text);
+            transition: var(--transition);
+        }
+        .modal-search-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(63,140,255,0.1);
+        }
+        .modal-results {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+        }
+        .modal-results .modal-clip-item {
+            padding: 10px 14px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .modal-results .modal-clip-item:last-child { border-bottom: none; }
+        .modal-results .modal-clip-item:hover { background: rgba(63,140,255,0.06); }
+        .modal-results .modal-clip-item.selected { background: rgba(63,140,255,0.12); color: var(--primary); }
+        .modal-results .modal-clip-item .check-icon {
+            width: 18px; height: 18px;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            flex-shrink: 0;
+        }
+        .modal-results .modal-clip-item.selected .check-icon {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+        .modal-results .modal-clip-item .clip-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .modal-results .modal-clip-item .clip-info-title {
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .modal-results .modal-clip-item .clip-info-meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+        .modal-footer {
+            padding: 12px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+        .modal-footer .btn-confirm {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .modal-footer .btn-confirm:hover { background: var(--primary-dark); }
+        .modal-footer .btn-cancel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: var(--transition);
+        }
+        .modal-footer .btn-cancel:hover { background: var(--border); }
+
+        /* Wikilink dropdown */
+        .wikilink-dropdown {
+            display: none;
+            position: absolute;
+            z-index: 300;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+            max-height: 200px;
+            overflow-y: auto;
+            min-width: 240px;
+        }
+        .wikilink-dropdown.active { display: block; }
+        .wikilink-dropdown .wikilink-item {
+            padding: 8px 14px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.15s;
+        }
+        .wikilink-dropdown .wikilink-item:last-child { border-bottom: none; }
+        .wikilink-dropdown .wikilink-item:hover,
+        .wikilink-dropdown .wikilink-item.active {
+            background: rgba(63,140,255,0.1);
+            color: var(--primary);
+        }
+        .wikilink-dropdown .wikilink-item .wikilink-title {
+            font-weight: 500;
+        }
+        .wikilink-dropdown .wikilink-item .wikilink-category {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-left: 8px;
+        }
 
         /* Toast */
         .toast {
@@ -284,6 +515,30 @@
             background: #f1f1ef;
             color: #5f646c;
         }
+        html[data-theme="notion"] .source-chip {
+            background: #fef9e7;
+            color: #92400e;
+        }
+        html[data-theme="notion"] .source-chips-area {
+            border-color: #dcdcd8;
+            background: #ffffff;
+        }
+        html[data-theme="notion"] .source-chips-area .btn-add-source {
+            border-color: #dcdcd8;
+            color: #6b6f76;
+        }
+        html[data-theme="notion"] .source-chips-area .btn-add-source:hover {
+            border-color: #2383e2;
+            color: #2383e2;
+        }
+        html[data-theme="notion"] .modal-panel { border-color: #dcdcd8; }
+        html[data-theme="notion"] .modal-search-input { background: #f7f7f5; border-color: #dcdcd8; }
+        html[data-theme="notion"] .modal-results { border-color: #dcdcd8; }
+        html[data-theme="notion"] .modal-footer .btn-confirm {
+            background: #2f3437;
+            color: #ffffff;
+        }
+        html[data-theme="notion"] .modal-footer .btn-confirm:hover { background: #1f2328; }
         html[data-theme="notion"] .import-section {
             background: #f1f1ef;
             border-color: #2383e2;
@@ -325,6 +580,10 @@
         html[data-theme="dark"] .tags-input-wrapper:focus-within { border-color: var(--primary); }
         html[data-theme="dark"] .tags-input-wrapper input { background: transparent; color: #d4d4d4; }
         html[data-theme="dark"] .tag-item { background: #3a3a3a; color: #9a9a9a; }
+        html[data-theme="dark"] .source-chips-area { background: #3a3a3a; border-color: #4a4a4a; }
+        html[data-theme="dark"] .source-chip { background: #3d3520; color: #f0c36d; }
+        html[data-theme="dark"] .source-chips-area .btn-add-source { background: #3a3a3a; border-color: #4a4a4a; color: #9a9a9a; }
+        html[data-theme="dark"] .source-chips-area .btn-add-source:hover { border-color: var(--primary); color: var(--primary); }
         html[data-theme="dark"] .import-section { background: #2a2d3a; border-color: var(--primary); }
         html[data-theme="dark"] .import-section h3 { color: var(--primary); }
         html[data-theme="dark"] .import-section .btn-import { background: var(--primary); color: #fff; }
@@ -333,6 +592,22 @@
         html[data-theme="dark"] .clip-select-list .clip-option { border-bottom-color: #4a4a4a; color: #d4d4d4; }
         html[data-theme="dark"] .clip-select-list .clip-option:hover { background: rgba(86,156,255,0.12); }
         html[data-theme="dark"] .clip-select-list .clip-option.selected { background: rgba(86,156,255,0.2); color: var(--primary); }
+        html[data-theme="dark"] .modal-overlay { background: rgba(0,0,0,0.6); }
+        html[data-theme="dark"] .modal-panel { background: var(--surface); }
+        html[data-theme="dark"] .modal-header { border-bottom-color: var(--border); }
+        html[data-theme="dark"] .modal-footer { border-top-color: var(--border); }
+        html[data-theme="dark"] .modal-search-input { background: #3a3a3a; border-color: #4a4a4a; color: #d4d4d4; }
+        html[data-theme="dark"] .modal-results { border-color: #4a4a4a; }
+        html[data-theme="dark"] .modal-results .modal-clip-item { border-bottom-color: #4a4a4a; color: #d4d4d4; }
+        html[data-theme="dark"] .modal-results .modal-clip-item:hover { background: rgba(86,156,255,0.1); }
+        html[data-theme="dark"] .modal-results .modal-clip-item.selected { background: rgba(86,156,255,0.2); color: var(--primary); }
+        html[data-theme="dark"] .modal-results .modal-clip-item .check-icon { border-color: #4a4a4a; }
+        html[data-theme="dark"] .modal-footer .btn-cancel { background: var(--surface); border-color: var(--border); color: var(--text-secondary); }
+        html[data-theme="dark"] .modal-footer .btn-cancel:hover { background: #3a3a3a; }
+        html[data-theme="dark"] .wikilink-dropdown { background: var(--surface); border-color: var(--border); }
+        html[data-theme="dark"] .wikilink-dropdown .wikilink-item { border-bottom-color: var(--border); color: #d4d4d4; }
+        html[data-theme="dark"] .wikilink-dropdown .wikilink-item:hover,
+        html[data-theme="dark"] .wikilink-dropdown .wikilink-item.active { background: rgba(86,156,255,0.15); color: var(--primary); }
         html[data-theme="dark"] .btn { background: #3a3a3a; color: #d4d4d4; border-color: #4a4a4a; }
         html[data-theme="dark"] .btn-primary { background: #569cff; color: #fff; border-color: #569cff; }
         html[data-theme="dark"] .tag { background: #3a3a3a; color: #d4d4d4; }
@@ -340,6 +615,7 @@
         @media (max-width: 768px) {
             .form-row { flex-direction: column; }
             .container { padding: 16px; }
+            .modal-panel { width: 95%; max-height: 80vh; }
         }
 
         /* ===== Obsidian 风格全局滚动条 ===== */
@@ -355,8 +631,8 @@
 </head>
 <body>
     <nav class="nav">
-        <button class="back-btn" onclick="history.back()">← 返回</button>
-        <span class="page-title" id="pageTitle">新建话题</span>
+        <a href="knowledge.html" class="back-btn">← 返回</a>
+        <span class="page-title" id="pageTitle">新建知识</span>
         <button class="btn-secondary" id="saveDraftBtn" style="display:none;">保存草稿</button>
         <button class="btn-primary" id="publishBtn">发布</button>
     </nav>
@@ -371,12 +647,12 @@
 
         <div class="form-group" style="margin-top: 20px;">
             <label>标题</label>
-            <input type="text" id="titleInput" placeholder="给话题起个标题..." maxlength="120" />
+            <input type="text" id="titleInput" placeholder="给知识起个标题..." maxlength="120" />
         </div>
 
         <div class="form-group">
             <label>摘要（一句话描述）</label>
-            <input type="text" id="summaryInput" placeholder="用一句话概括这个话题..." maxlength="200" />
+            <input type="text" id="summaryInput" placeholder="用一句话概括这条知识..." maxlength="200" />
         </div>
 
         <div class="form-group">
@@ -399,21 +675,52 @@
         </div>
 
         <div class="form-group">
+            <label>关联来源</label>
+            <div class="source-chips-area" id="sourceChipsArea">
+                <span id="sourceChipsContainer"></span>
+                <button class="btn-add-source" id="addSourceBtn">+ 添加来源</button>
+            </div>
+        </div>
+
+        <div class="form-group">
             <label>AI对话内容（Markdown格式）</label>
             <textarea id="contentInput" placeholder="将你的AI对话记录粘贴到这里...
 支持Markdown格式，如：
 # 标题
 **加粗** *斜体*
-- 列表项"></textarea>
+- 列表项
+
+支持 [[ 维基链接 ]] 引用其他知识条目"></textarea>
         </div>
 
         <div class="form-group">
             <label>我的思考（Markdown格式）</label>
-            <textarea id="myThoughtsInput" placeholder="记录你对这个话题的思考、观点或总结..."></textarea>
+            <textarea id="myThoughtsInput" placeholder="记录你对这条知识的思考、观点或总结..."></textarea>
         </div>
     </div>
 
-    <script src="topic-editor.js"></script>
+    <!-- 关联来源选择弹窗 -->
+    <div class="modal-overlay" id="sourceModal">
+        <div class="modal-panel">
+            <div class="modal-header">
+                <h3>选择关联来源</h3>
+                <button class="modal-close" id="modalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="text" class="modal-search-input" id="modalSearchInput" placeholder="搜索剪藏..." autocomplete="off" />
+                <div class="modal-results" id="modalResults"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" id="modalCancel">取消</button>
+                <button class="btn-confirm" id="modalConfirm">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wikilink 自动补全下拉 -->
+    <div class="wikilink-dropdown" id="wikilinkDropdown"></div>
+
+    <script src="knowledge-editor.js"></script>
     <script>
       (function() {
         const THEME_KEY = 'app_theme_v1';

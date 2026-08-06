@@ -4,10 +4,10 @@ import com.example.clip.core.AiService;
 import com.example.clip.dto.ClipRequest;
 import com.example.clip.model.ClipContent;
 import com.example.clip.model.TodoContent;
-import com.example.clip.model.Topic;
+import com.example.clip.model.Knowledge;
 import com.example.clip.service.ClipService;
+import com.example.clip.service.KnowledgeService;
 import com.example.clip.service.TodoService;
-import com.example.clip.service.TopicService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -33,14 +33,14 @@ public class IngestController {
     private final AiService aiService;
     private final ClipService clipService;
     private final TodoService todoService;
-    private final TopicService topicService;
+    private final KnowledgeService knowledgeService;
 
     public IngestController(AiService aiService, ClipService clipService,
-                            TodoService todoService, TopicService topicService) {
+                            TodoService todoService, KnowledgeService knowledgeService) {
         this.aiService = aiService;
         this.clipService = clipService;
         this.todoService = todoService;
-        this.topicService = topicService;
+        this.knowledgeService = knowledgeService;
     }
 
     /**
@@ -123,7 +123,8 @@ public class IngestController {
             case "todo":
                 return saveAsTodo(fields, rawText, result);
             case "topic":
-                return saveAsTopic(fields, rawText, result);
+            case "knowledge":
+                return saveAsKnowledge(fields, rawText, result);
             case "clip":
             default:
                 return saveAsClip(fields, rawText, result, degraded);
@@ -155,26 +156,25 @@ public class IngestController {
     }
 
     /**
-     * 保存为话题。
+     * 保存为知识条目。
      */
-    private ResponseEntity<Map<String, Object>> saveAsTopic(Map<String, Object> fields, String rawText,
+    private ResponseEntity<Map<String, Object>> saveAsKnowledge(Map<String, Object> fields, String rawText,
                                                               Map<String, Object> result) {
-        Topic topic = new Topic();
-        topic.setTitle(getString(fields, "title", truncate(rawText, 50)));
-        topic.setSummary(getString(fields, "summary", null));
-        topic.setContent(getString(fields, "content", rawText));
-        topic.setCategory(getString(fields, "category", null));
-        topic.setTags(getStringList(fields, "tags"));
-        topic.setPublished(false);
+        Knowledge knowledge = new Knowledge();
+        knowledge.setTitle(getString(fields, "title", truncate(rawText, 50)));
+        knowledge.setSummary(getString(fields, "summary", null));
+        knowledge.setContent(getString(fields, "content", rawText));
+        knowledge.setCategory(getString(fields, "category", null));
+        knowledge.setTags(getStringList(fields, "tags"));
 
-        Topic saved = topicService.createTopic(topic);
+        Knowledge saved = knowledgeService.createKnowledge(knowledge);
         if (saved == null) {
-            return ResponseEntity.status(500).body(errorResponse("话题保存失败", "storage_failed"));
+            return ResponseEntity.status(500).body(errorResponse("知识保存失败", "storage_failed"));
         }
         result.put("id", saved.getId());
         result.put("title", saved.getTitle());
-        result.put("redirect", "/api/topic/" + saved.getId());
-        log.info("[Ingest] Saved as topic: id={}, title={}", saved.getId(), saved.getTitle());
+        result.put("redirect", "/api/knowledge/" + saved.getId());
+        log.info("[Ingest] Saved as knowledge: id={}, title={}", saved.getId(), saved.getTitle());
         return ResponseEntity.ok(result);
     }
 

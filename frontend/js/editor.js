@@ -1279,7 +1279,10 @@
    * 渲染 AI 助手消息内容（含代码块操作按钮增强）
    */
   function renderAiAssistantContent(message) {
-    if (!message.content) return '<span class="ai-chat-stream-cursor">▍</span>';
+    if (!message.content) {
+      if (message.streaming) return '<span class="ai-chat-stream-cursor">▍</span>';
+      return '<span class="ai-chat-cancelled">已停止生成</span>';
+    }
     if (!window.marked || typeof window.marked.parse !== 'function') {
       return escapeAiHtml(message.content);
     }
@@ -1832,7 +1835,6 @@
    * 离线词典智能查找：支持词形变化匹配
    */
   function lookupOfflineWord(word) {
-    if (!window.DICT) { return null; }
     var clean = word.replace(/[^a-z'-]/g, '').toLowerCase().trim();
     if (!clean) return null;
     // 0. 优先查用户自定义词典（大小写敏感 + 忽略大小写）
@@ -1856,80 +1858,83 @@
     if (window.DICT_CN && window.DICT_CN[word.trim()]) {
       return { word: word.trim(), meaning: window.DICT_CN[word.trim()], matchedAs: '中译英' };
     }
-    if (window.DICT[clean]) {
+    // 1. 精确查内置词典
+    if (window.DICT && window.DICT[clean]) {
       return { word: clean, meaning: window.DICT[clean], matchedAs: null };
     }
-    // 2. 尝试各种词形变化
-    var forms = [];
-    // 复数/三单 -s/-es/-ies
-    if (clean.endsWith('ies')) forms.push(clean.slice(0, -3) + 'y');
-    if (clean.endsWith('ves')) forms.push(clean.slice(0, -3) + 'f');
-    if (clean.endsWith('es')) forms.push(clean.slice(0, -2));
-    if (clean.endsWith('s') && !clean.endsWith('ss')) forms.push(clean.slice(0, -1));
-    // 进行时 -ing
-    if (clean.endsWith('ying')) forms.push(clean.slice(0, -4) + 'ie');
-    if (clean.endsWith('ming')) forms.push(clean.slice(0, -3));
-    if (clean.endsWith('ning') && clean.length > 6) forms.push(clean.slice(0, -4));
-    if (clean.endsWith('ing') && clean.length > 5) {
-      forms.push(clean.slice(0, -3));           // walk-ing → walk
-      forms.push(clean.slice(0, -3) + 'e');     // mak-ing → make
-    }
-    // 过去式 -ed
-    if (clean.endsWith('ied')) forms.push(clean.slice(0, -3) + 'y');
-    if (clean.endsWith('ed') && clean.length > 4) {
-      forms.push(clean.slice(0, -2));           // walk-ed → walk
-      forms.push(clean.slice(0, -1));           // dance-d → dance
-    }
-    if (clean.endsWith('d') && clean.length > 3) {
-      forms.push(clean.slice(0, -1));           // 简单-d 结尾
-    }
-    // 比较级/最高级 -er/-est
-    if (clean.endsWith('iest')) forms.push(clean.slice(0, -4) + 'y');
-    if (clean.endsWith('est') && clean.length > 5) forms.push(clean.slice(0, -3));
-    if (clean.endsWith('ier')) forms.push(clean.slice(0, -3) + 'y');
-    if (clean.endsWith('er') && clean.length > 4) forms.push(clean.slice(0, -2));
-    // 副词 -ly
-    if (clean.endsWith('ily')) forms.push(clean.slice(0, -3) + 'y');
-    if (clean.endsWith('ly') && clean.length > 5) forms.push(clean.slice(0, -2));
-    // 名词 -tion/-sion
-    if (clean.endsWith('ation')) forms.push(clean.slice(0, -5) + 'e');
-    if (clean.endsWith('ition')) forms.push(clean.slice(0, -5) + 'e');
-    if (clean.endsWith('tion')) forms.push(clean.slice(0, -4) + 'e');
-    if (clean.endsWith('sion')) forms.push(clean.slice(0, -4));
-    // 名词 -ment
-    if (clean.endsWith('ment')) forms.push(clean.slice(0, -4));
-    // 名词 -ness
-    if (clean.endsWith('iness')) forms.push(clean.slice(0, -5) + 'y');
-    if (clean.endsWith('ness')) forms.push(clean.slice(0, -4));
-    // 形容词 -able/-ible
-    if (clean.endsWith('able')) forms.push(clean.slice(0, -4));
-    if (clean.endsWith('ible')) forms.push(clean.slice(0, -4));
-    // 形容词 -ful
-    if (clean.endsWith('iful')) forms.push(clean.slice(0, -4) + 'y');
-    if (clean.endsWith('ful')) forms.push(clean.slice(0, -3));
-    // 形容词 -less
-    if (clean.endsWith('less')) forms.push(clean.slice(0, -4));
-    // 形容词 -ive
-    if (clean.endsWith('ative')) forms.push(clean.slice(0, -5) + 'e');
-    if (clean.endsWith('ive')) forms.push(clean.slice(0, -3));
-    // 去重
-    var seen = {};
-    var unique = [];
-    forms.forEach(function(f) {
-      if (f && f.length > 1 && !seen[f]) { seen[f] = true; unique.push(f); }
-    });
-    // 按匹配质量排序：越长越精确
-    unique.sort(function(a, b) { return b.length - a.length; });
-    for (var i = 0; i < unique.length; i++) {
-      if (window.DICT[unique[i]]) {
-        return { word: unique[i], meaning: window.DICT[unique[i]], matchedAs: clean };
+    // 2. 尝试各种词形变化（仅当内置词典可用时）
+    if (window.DICT) {
+      var forms = [];
+      // 复数/三单 -s/-es/-ies
+      if (clean.endsWith('ies')) forms.push(clean.slice(0, -3) + 'y');
+      if (clean.endsWith('ves')) forms.push(clean.slice(0, -3) + 'f');
+      if (clean.endsWith('es')) forms.push(clean.slice(0, -2));
+      if (clean.endsWith('s') && !clean.endsWith('ss')) forms.push(clean.slice(0, -1));
+      // 进行时 -ing
+      if (clean.endsWith('ying')) forms.push(clean.slice(0, -4) + 'ie');
+      if (clean.endsWith('ming')) forms.push(clean.slice(0, -3));
+      if (clean.endsWith('ning') && clean.length > 6) forms.push(clean.slice(0, -4));
+      if (clean.endsWith('ing') && clean.length > 5) {
+        forms.push(clean.slice(0, -3));
+        forms.push(clean.slice(0, -3) + 'e');
       }
-    }
-    // 3. 部分匹配：包含关系
-    var keys = Object.keys(window.DICT);
-    for (var j = 0; j < keys.length; j++) {
-      if (keys[j].indexOf(clean) !== -1 || clean.indexOf(keys[j]) !== -1) {
-        return { word: keys[j], meaning: window.DICT[keys[j]], matchedAs: '部分匹配' };
+      // 过去式 -ed
+      if (clean.endsWith('ied')) forms.push(clean.slice(0, -3) + 'y');
+      if (clean.endsWith('ed') && clean.length > 4) {
+        forms.push(clean.slice(0, -2));
+        forms.push(clean.slice(0, -1));
+      }
+      if (clean.endsWith('d') && clean.length > 3) {
+        forms.push(clean.slice(0, -1));
+      }
+      // 比较级/最高级 -er/-est
+      if (clean.endsWith('iest')) forms.push(clean.slice(0, -4) + 'y');
+      if (clean.endsWith('est') && clean.length > 5) forms.push(clean.slice(0, -3));
+      if (clean.endsWith('ier')) forms.push(clean.slice(0, -3) + 'y');
+      if (clean.endsWith('er') && clean.length > 4) forms.push(clean.slice(0, -2));
+      // 副词 -ly
+      if (clean.endsWith('ily')) forms.push(clean.slice(0, -3) + 'y');
+      if (clean.endsWith('ly') && clean.length > 5) forms.push(clean.slice(0, -2));
+      // 名词 -tion/-sion
+      if (clean.endsWith('ation')) forms.push(clean.slice(0, -5) + 'e');
+      if (clean.endsWith('ition')) forms.push(clean.slice(0, -5) + 'e');
+      if (clean.endsWith('tion')) forms.push(clean.slice(0, -4) + 'e');
+      if (clean.endsWith('sion')) forms.push(clean.slice(0, -4));
+      // 名词 -ment
+      if (clean.endsWith('ment')) forms.push(clean.slice(0, -4));
+      // 名词 -ness
+      if (clean.endsWith('iness')) forms.push(clean.slice(0, -5) + 'y');
+      if (clean.endsWith('ness')) forms.push(clean.slice(0, -4));
+      // 形容词 -able/-ible
+      if (clean.endsWith('able')) forms.push(clean.slice(0, -4));
+      if (clean.endsWith('ible')) forms.push(clean.slice(0, -4));
+      // 形容词 -ful
+      if (clean.endsWith('iful')) forms.push(clean.slice(0, -4) + 'y');
+      if (clean.endsWith('ful')) forms.push(clean.slice(0, -3));
+      // 形容词 -less
+      if (clean.endsWith('less')) forms.push(clean.slice(0, -4));
+      // 形容词 -ive
+      if (clean.endsWith('ative')) forms.push(clean.slice(0, -5) + 'e');
+      if (clean.endsWith('ive')) forms.push(clean.slice(0, -3));
+      // 去重
+      var seen = {};
+      var unique = [];
+      forms.forEach(function(f) {
+        if (f && f.length > 1 && !seen[f]) { seen[f] = true; unique.push(f); }
+      });
+      // 按匹配质量排序：越长越精确
+      unique.sort(function(a, b) { return b.length - a.length; });
+      for (var i = 0; i < unique.length; i++) {
+        if (window.DICT[unique[i]]) {
+          return { word: unique[i], meaning: window.DICT[unique[i]], matchedAs: clean };
+        }
+      }
+      // 3. 部分匹配：包含关系
+      var keys = Object.keys(window.DICT);
+      for (var j = 0; j < keys.length; j++) {
+        if (keys[j].indexOf(clean) !== -1 || clean.indexOf(keys[j]) !== -1) {
+          return { word: keys[j], meaning: window.DICT[keys[j]], matchedAs: '部分匹配' };
+        }
       }
     }
     return null;
@@ -2499,6 +2504,53 @@
     }
   }
 
+  /**
+   * 在新标签页中打开剪藏内容（类似 Ctrl+T + 打开文件）
+   */
+  async function loadClipInNewTab(clipId) {
+    if (!clipId) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/${clipId}`);
+      if (!response.ok) throw new Error(response.status === 404 ? '剪藏不存在' : `HTTP ${response.status}`);
+      const clip = await response.json();
+
+      // 保存当前标签快照，创建新标签
+      saveActiveTabSnapshot();
+      const newTab = createTabState();
+      tabs.push(newTab);
+      activeTabIndex = tabs.length - 1;
+      state = tabs[activeTabIndex];
+      ensureAiChatState(state);
+
+      state.clipId = clip.id;
+      state.clipType = clip.type || 'store-only';
+      state.clipMetadata = {
+        title: clip.title,
+        category: clip.category,
+        tags: clip.tags || [],
+        myThoughts: clip.myThoughts
+      };
+      const format = clip.contentFormat || EditorCore.detectLanguage(clip.sourceFileName || clip.title, clip.content);
+      setEditorContent(clip.content || '', {
+        fileName: clip.sourceFileName || `${clip.title || `clip-${clip.id}`}.${format === 'text' ? 'txt' : format}`,
+        displayPath: `剪藏 #${clip.id}`,
+        encoding: clip.sourceEncoding || 'UTF-8',
+        encodingConfidence: '剪藏元数据',
+        lineEnding: clip.sourceLineEnding || EditorCore.detectLineEnding(clip.content || ''),
+        language: format
+      });
+      state.clipId = clip.id;
+      state.clipType = clip.type || 'store-only';
+      updateDocumentIdentity();
+      renderTabBar();
+      renderAiChat();
+      mainEditor.focus();
+      showToast(`已在新标签打开剪藏 #${clip.id}`);
+    } catch (error) {
+      handleError('在新标签打开剪藏失败', error);
+    }
+  }
+
   function showToast(message, error, type) {
     // 类型：'success' | 'error' | 'info' | 'warning'
     var notificationType = type || (error ? 'error' : 'info');
@@ -2892,6 +2944,8 @@
       window.parent.postMessage({ type: 'editorReady' }, '*');
     } else if (data.action === 'openClipInEditor' || data.type === 'openClipInEditor') {
       loadClip(data.clipId);
+    } else if (data.action === 'openClipInNewTab' || data.type === 'openClipInNewTab') {
+      loadClipInNewTab(data.clipId);
     } else if (data.action === 'refresh') {
       if (state.clipId) loadClip(state.clipId);
     } else if (data.action === 'focusEditor') {

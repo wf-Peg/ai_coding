@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -184,8 +184,13 @@
             top: 0; left: 0;
             width: 100%;
             height: 100%;
+            opacity: 1;
+            transform: scale(1);
+            transition: opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1), transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .view-panel-hidden {
+            opacity: 0;
+            transform: scale(0.985);
             visibility: hidden;
             pointer-events: none;
         }
@@ -365,11 +370,11 @@
             </svg>
             剪藏
         </button>
-        <button class="nav-btn" data-view="topic">
+        <button class="nav-btn" data-view="knowledge">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
             </svg>
-            话题
+            知识
         </button>
         <button class="nav-btn" data-view="vault">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -437,9 +442,9 @@
                 <iframe id="clipFrame" data-src="clip.html" style="width:100%;height:100%;border:none;"></iframe>
             </div>
         </div>
-        <!-- 话题 -->
-        <div class="view-panel view-panel-hidden" id="topicView">
-            <iframe id="topicFrame" data-src="topic.html" style="width:100%;height:100%;border:none;"></iframe>
+        <!-- 知识 -->
+        <div class="view-panel view-panel-hidden" id="knowledgeView">
+            <iframe id="knowledgeFrame" data-src="knowledge.html" style="width:100%;height:100%;border:none;"></iframe>
         </div>
         <!-- 密码 -->
         <div class="view-panel view-panel-hidden" id="vaultView">
@@ -504,7 +509,7 @@
       }
 
       function broadcastThemeChange() {
-        [editorFrame, workspaceFrame, todoFrame, clipFrame, topicFrame, vaultFrame, settingsFrame, learningPlanFrame, pdfFrame, dataObservabilityFrame].forEach(frame => {
+        [editorFrame, workspaceFrame, todoFrame, clipFrame, knowledgeFrame, vaultFrame, settingsFrame, learningPlanFrame, pdfFrame, dataObservabilityFrame].forEach(frame => {
           try { if (frame && frame.contentWindow) frame.contentWindow.postMessage({ action: 'themeChange', theme: document.documentElement.getAttribute('data-theme') }, '*'); } catch(e) {}
         });
       }
@@ -533,9 +538,29 @@
         }
         if (event.data && event.data.type === 'openClipInEditor' && event.data.clipId) {
           pendingClipId = event.data.clipId;
+          pendingClipAction = 'openClipInEditor';
           renderView('editor');
           window.history.pushState({ view: 'editor' }, '', '/');
           sendPendingClipToEditor();
+        }
+        if (event.data && event.data.type === 'openClipInNewTab' && event.data.clipId) {
+          pendingClipId = event.data.clipId;
+          pendingClipAction = 'openClipInNewTab';
+          renderView('editor');
+          window.history.pushState({ view: 'editor' }, '', '/');
+          sendPendingClipToEditor();
+        }
+        if (event.data && event.data.type === 'navigateKnowledge' && event.data.knowledgeId) {
+          renderView('knowledge');
+          window.history.pushState({ view: 'knowledge' }, '', '/knowledge');
+          const kf = document.getElementById('knowledgeFrame');
+          if (kf) kf.src = `knowledge-detail.html?id=${event.data.knowledgeId}`;
+        }
+        if (event.data && event.data.type === 'navigateKnowledgeGraph') {
+          renderView('knowledge');
+          window.history.pushState({ view: 'knowledge' }, '', '/knowledge');
+          const kf = document.getElementById('knowledgeFrame');
+          if (kf) kf.src = 'knowledge-graph.html';
         }
         if (event.data && event.data.type === 'editorReady') {
           editorReady = true;
@@ -554,7 +579,7 @@
       const editorView = document.getElementById('editorView');
       const workspaceView = document.getElementById('workspaceView');
       const clipView = document.getElementById('clipView');
-      const topicView = document.getElementById('topicView');
+      const knowledgeView = document.getElementById('knowledgeView');
       const vaultView = document.getElementById('vaultView');
       const settingsView = document.getElementById('settingsView');
       const learningPlanView = document.getElementById('learningPlanView');
@@ -562,7 +587,7 @@
       const dataObservabilityView = document.getElementById('dataObservabilityView');
       const editorFrame = document.getElementById('editorFrame');
       const workspaceFrame = document.getElementById('workspaceFrame');
-      const topicFrame = document.getElementById('topicFrame');
+      const knowledgeFrame = document.getElementById('knowledgeFrame');
       const vaultFrame = document.getElementById('vaultFrame');
       const settingsFrame = document.getElementById('settingsFrame');
       const learningPlanFrame = document.getElementById('learningPlanFrame');
@@ -573,6 +598,7 @@
       let activeIframe = null;
       let currentView = 'editor';
       let pendingClipId = null;
+      let pendingClipAction = null;
       let editorReady = false;
       const todoFrame = document.getElementById('todoFrame');
       const clipFrame = document.getElementById('clipFrame');
@@ -583,7 +609,7 @@
         editor: editorView,
         workspace: workspaceView,
         clip: clipView,
-        topic: topicView,
+        knowledge: knowledgeView,
         vault: vaultView,
         settings: settingsView,
         'learning-plan': learningPlanView,
@@ -594,7 +620,7 @@
         editor: [editorFrame],
         workspace: [workspaceFrame],
         clip: [todoFrame, clipFrame],
-        topic: [topicFrame],
+        knowledge: [knowledgeFrame],
         vault: [vaultFrame],
         settings: [settingsFrame],
         'learning-plan': [learningPlanFrame],
@@ -633,7 +659,7 @@
         if (clean === '' || clean === '/editor') return 'editor';
         if (clean === '/workspace') return 'workspace';
         if (clean === '/clip') return 'clip';
-        if (clean === '/topic') return 'topic';
+        if (clean === '/knowledge') return 'knowledge';
         if (clean === '/settings') return 'settings';
         if (clean === '/vault') return 'vault';
         if (clean === '/learning-plan') return 'learning-plan';
@@ -684,8 +710,9 @@
 
       function sendPendingClipToEditor() {
         if (!pendingClipId || !editorReady || !editorFrame || !editorFrame.contentWindow) return;
-        editorFrame.contentWindow.postMessage({ action: 'openClipInEditor', clipId: pendingClipId }, '*');
+        editorFrame.contentWindow.postMessage({ action: pendingClipAction || 'openClipInEditor', clipId: pendingClipId }, '*');
         pendingClipId = null;
+        pendingClipAction = null;
       }
 
       editorFrame.addEventListener('load', () => {

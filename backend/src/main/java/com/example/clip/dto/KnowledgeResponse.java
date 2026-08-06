@@ -4,18 +4,19 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 话题响应（TopicResponse）DTO。
+ * 知识响应（KnowledgeResponse）DTO。
  * <p>
- * 用于话题列表/详情接口的响应，包含话题的完整信息，
- * 包括点赞数、创建时间、更新时间等由服务端管理的字段。
+ * 用于知识列表/详情接口的响应，包含知识条目的完整信息，
+ * 包括创建时间、更新时间等由服务端管理的字段，
+ * 以及计算字段 sourceCount 和 linkedCount。
  * </p>
  */
-public class TopicResponse {
+public class KnowledgeResponse {
 
-    /** 话题 ID */
+    /** 知识条目 ID */
     private Long id;
 
-    /** 话题标题 */
+    /** 知识标题 */
     private String title;
 
     /** 一句话摘要 */
@@ -30,17 +31,20 @@ public class TopicResponse {
     /** 标签列表 */
     private List<String> tags;
 
-    /** 来源剪藏 ID */
-    private Long sourceClipId;
-
-    /** 是否已发布 */
-    private boolean published;
+    /** 来源剪藏 ID 列表 */
+    private List<Long> sourceClipIds;
 
     /** 我的思考 */
     private String myThoughts;
 
-    /** 点赞数 */
-    private int likeCount;
+    /** 双向链接的知识条目 ID 列表 */
+    private List<Long> linkedKnowledgeIds;
+
+    /** 来源剪藏数量（计算字段） */
+    private int sourceCount;
+
+    /** 链接知识条目数量（计算字段） */
+    private int linkedCount;
 
     /** 创建时间 */
     private LocalDateTime createdAt;
@@ -66,17 +70,20 @@ public class TopicResponse {
     public List<String> getTags() { return tags; }
     public void setTags(List<String> tags) { this.tags = tags; }
 
-    public Long getSourceClipId() { return sourceClipId; }
-    public void setSourceClipId(Long sourceClipId) { this.sourceClipId = sourceClipId; }
-
-    public boolean isPublished() { return published; }
-    public void setPublished(boolean published) { this.published = published; }
+    public List<Long> getSourceClipIds() { return sourceClipIds; }
+    public void setSourceClipIds(List<Long> sourceClipIds) { this.sourceClipIds = sourceClipIds; }
 
     public String getMyThoughts() { return myThoughts; }
     public void setMyThoughts(String myThoughts) { this.myThoughts = myThoughts; }
 
-    public int getLikeCount() { return likeCount; }
-    public void setLikeCount(int likeCount) { this.likeCount = likeCount; }
+    public List<Long> getLinkedKnowledgeIds() { return linkedKnowledgeIds; }
+    public void setLinkedKnowledgeIds(List<Long> linkedKnowledgeIds) { this.linkedKnowledgeIds = linkedKnowledgeIds; }
+
+    public int getSourceCount() { return sourceCount; }
+    public void setSourceCount(int sourceCount) { this.sourceCount = sourceCount; }
+
+    public int getLinkedCount() { return linkedCount; }
+    public void setLinkedCount(int linkedCount) { this.linkedCount = linkedCount; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

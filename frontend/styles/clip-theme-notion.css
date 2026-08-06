@@ -253,6 +253,26 @@ select:focus {
     border-color: var(--border);
 }
 
+.linked-knowledge-section {
+    background: #fafaf9;
+    box-shadow: none;
+    border-color: var(--border);
+}
+
+.linked-knowledge-section h4 {
+    color: #1f2328 !important;
+    font-family: 'IBM Plex Sans', 'Noto Sans SC', sans-serif !important;
+    border-bottom-color: var(--border);
+}
+
+.linked-knowledge-item .knowledge-title a {
+    color: #2383e2;
+}
+
+.linked-knowledge-item .knowledge-title a:hover {
+    color: #1f76c9;
+}
+
 .content-section h4,
 .markdown-content h1,
 .markdown-content h2,
@@ -382,6 +402,10 @@ html[data-theme="dark"] .markdown-content h1,
 html[data-theme="dark"] .markdown-content h2,
 html[data-theme="dark"] .markdown-content h3,
 html[data-theme="dark"] .markdown-content h4 { color: #d4d4d4 !important; }
+html[data-theme="dark"] .linked-knowledge-section { background: #3a3a3a; border-color: var(--border); }
+html[data-theme="dark"] .linked-knowledge-section h4 { color: #d4d4d4 !important; }
+html[data-theme="dark"] .linked-knowledge-item .knowledge-title a { color: #569cff; }
+html[data-theme="dark"] .linked-knowledge-item .knowledge-title a:hover { color: #4a8ae8; }
 html[data-theme="dark"] .tag { background: #3a3a3a; color: #9a9a9a; border-color: #4a4a4a; }
 html[data-theme="dark"] .category-badge { background: #3a3a3a; color: #9a9a9a; border-color: #4a4a4a; }
 html[data-theme="dark"] .tag:hover { background: #4a4a4a; }

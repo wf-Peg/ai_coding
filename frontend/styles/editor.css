@@ -1484,22 +1484,24 @@ select {
 
 .ai-chat-action-btn,
 .ai-chat-close-btn {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border: 0;
   border-radius: 5px;
   background: transparent;
   color: var(--app-text-muted);
   cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   transition: all 120ms ease;
 }
 
-.ai-chat-action-btn:hover,
+.ai-chat-action-btn:hover {
+  background: rgba(var(--app-danger-rgb, 239, 68, 68), 0.12);
+  color: var(--app-danger);
+}
+
 .ai-chat-close-btn:hover {
   background: var(--app-surface-hover);
   color: var(--app-text);
@@ -1561,6 +1563,7 @@ select {
 }
 
 @keyframes ai-chat-cursor-blink { 50% { opacity: 0; } }
+.ai-chat-cancelled { color: var(--app-text-muted); font-style: italic; }
 .ai-chat-message-error { color: var(--app-danger); font-size: 11px; }
 
 .ai-chat-copy {

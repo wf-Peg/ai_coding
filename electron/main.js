@@ -61,27 +61,60 @@ log.info('isPackaged:', isPackaged);
 log.info('resourcesPath:', resourcesPath);
 log.info('APP_DIR:', APP_DIR);
 
-// Windows 通知要求：必须设置 AppUserModelId 且有 Start Menu 快捷方式
-if (process.platform === 'win32') {
-  app.setAppUserModelId(process.execPath);
+/**
+ * AppUserModelId（AUMID）策略：
+ * - 安装版（electron-builder NSIS，默认安装到 %LOCALAPPDATA%\Programs 或 Program Files）：
+ *   安装器生成的快捷方式自带 AUMID = appId（com.example.clip-demo），应用必须声明相同 AUMID，
+ *   否则快捷方式与运行窗口分组错乱。
+ * - 免安装便携版（win-unpacked 目录直跑，或用户自移目录）：
+ *   用户手动固定到任务栏的快捷方式 AUMID 为空，Windows 按 exe 路径分组；
+ *   此时应用若声明固定 AUMID，运行窗口无法关联到固定图标，会分裂成独立任务栏按钮
+ *   （表现为点击固定图标后应用出现在"另一个"新按钮下）。
+ *   因此便携版不声明 AUMID，让 Windows 按 exe 路径与固定快捷方式归组。
+ */
+const APP_USER_MODEL_ID = 'com.example.clip-demo';
 
-  // 自动创建 Start Menu 快捷方式（通知系统要求，否则通知不会弹出）
+/** 是否安装版（NSIS 默认安装目录）；便携版目录不在这些路径下，返回 false */
+function isInstalledBuild() {
+  if (process.platform !== 'win32' || !isPackaged) return false;
+  const exeLower = process.execPath.toLowerCase();
+  const installDirs = [
+    path.join(process.env.LOCALAPPDATA || '', 'Programs').toLowerCase(),
+    (process.env.ProgramFiles || 'C:\\Program Files').toLowerCase(),
+    (process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)').toLowerCase()
+  ];
+  return installDirs.some((dir) => dir && exeLower.startsWith(dir));
+}
+const installedBuild = isInstalledBuild();
+log.info('Installed build (AUMID enabled):', installedBuild);
+
+if (process.platform === 'win32') {
+  // 仅安装版声明固定 AUMID；便携版不声明（见上方策略说明）
+  if (installedBuild) {
+    app.setAppUserModelId(APP_USER_MODEL_ID);
+  }
+
+  // 自动创建 Start Menu 快捷方式：安装版附带 AUMID；便携版不附带，
+  // 避免"有 AUMID 的快捷方式"与"无 AUMID 的运行窗口"再次分组错乱。
+  // 使用 'replace' 每次覆盖，目录移动后目标路径自动跟随新位置。
   try {
     const shortcutDir = path.join(os.homedir(), 'AppData', 'Roaming', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'CutShelter');
     if (!fs.existsSync(shortcutDir)) {
       fs.mkdirSync(shortcutDir, { recursive: true });
     }
     const shortcutPath = path.join(shortcutDir, 'CutShelter.lnk');
-    if (!fs.existsSync(shortcutPath)) {
-      shell.writeShortcutLink(shortcutPath, 'create', {
-        target: process.execPath,
-        args: '',
-        description: 'CutShelter - AI 驱动的剪藏与内容整理工具',
-        icon: process.execPath,
-        iconIndex: 0
-      });
-      log.info('[Startup] Created Start Menu shortcut for notifications');
+    const shortcutOptions = {
+      target: process.execPath,
+      args: '',
+      description: 'CutShelter - AI 驱动的剪藏与内容整理工具',
+      icon: process.execPath,
+      iconIndex: 0
+    };
+    if (installedBuild) {
+      shortcutOptions.appUserModelId = APP_USER_MODEL_ID;
     }
+    shell.writeShortcutLink(shortcutPath, 'replace', shortcutOptions);
+    log.info('[Startup] Start Menu shortcut ready (AUMID:', installedBuild ? APP_USER_MODEL_ID : 'none', ')');
   } catch (e) {
     log.warn('[Startup] Failed to create Start Menu shortcut:', e.message);
   }
@@ -117,6 +150,7 @@ const DEFAULT_CONFIG = {
   storagePath: APP_DIR,           // Clip_Bed 父目录，clip-storage/clip-organized/weekly-report 为固定子目录
   configured: false,            // 是否已完成首次配置
   contextMenuRegistered: false,  // 右键菜单是否已注册
+  contextMenuPath: '',           // 右键菜单注册时的应用目录（用于目录移动后的路径检测）
   autoStart: false,             // 是否随系统登录自动启动
   mailEnabled: false,           // 邮件功能是否启用
   mailHost: '',
@@ -217,6 +251,25 @@ let tray = null;
  * 设为 true 后，close 事件将不再拦截，允许窗口正常关闭
  */
 let isQuitting = false;
+
+/**
+ * 主启动流程是否已完成（主窗口已创建、全局快捷键已注册）。
+ * 用于 second-instance 竞态防护：启动期间再次唤起应用时，
+ * 不重复创建窗口（避免双窗口/双任务栏图标），仅标记"启动后显示"。
+ */
+let appStartupComplete = false;
+
+/** second-instance 在启动期间到达时置位，主窗口创建后自动显示 */
+let pendingShowAfterStart = false;
+
+// 主进程兜底：任何未捕获异常只记录日志，不让应用直接崩溃退出。
+// 窗口隐藏/显示、快捷键等 UI 路径的偶发异常不应导致"应用被杀死"。
+process.on('uncaughtException', (err) => {
+  log.error('[Fatal] Uncaught exception (kept alive):', err);
+});
+process.on('unhandledRejection', (reason) => {
+  log.error('[Fatal] Unhandled rejection (kept alive):', reason);
+});
 
 /** 
  * 关闭窗口时的行为偏好
@@ -944,7 +997,43 @@ function stopFrontendServer() {
   }
 }
 
+// ==================== 右键菜单弹窗 ====================
+
+/**
+ * 弹出原生右键菜单（替代 Windows 静态级联菜单）
+ * Windows 11 新右键菜单不支持 SubCommands 级联展开，
+ * 因此注册单个扁平菜单项，点击后由 Electron 弹出原生菜单。
+ * @param {string|null} filePath - 右键的文件路径（桌面背景右键时为 null）
+ */
+function showContextMenuPopup(filePath) {
+  const isFile = !!filePath;
+  const menuTemplate = [
+    { label: '✂️ 添加到剪藏收件箱', enabled: isFile, click: () => dispatchActions([{ action: 'clip-file', path: filePath }], mainWindow) },
+    { label: '🧠 AI 解析文件并添加剪藏', enabled: isFile, click: () => dispatchActions([{ action: 'ai-clip-file', path: filePath }], mainWindow) },
+    { label: '📝 用编辑器打开文件', enabled: isFile, click: () => dispatchActions([{ action: 'open-editor', path: filePath }], mainWindow) },
+    { label: '📄 PDF OCR 识别', enabled: isFile && filePath.toLowerCase().endsWith('.pdf'), click: () => dispatchActions([{ action: 'pdf-ocr', path: filePath }], mainWindow) },
+    { type: 'separator' },
+    { label: '⚙️ 设置', click: () => dispatchActions([{ action: 'open-settings', path: null }], mainWindow) },
+  ];
+  const menu = Menu.buildFromTemplate(menuTemplate);
+  const cursorPos = screen.getCursorScreenPoint();
+  menu.popup({ x: cursorPos.x, y: cursorPos.y });
+}
+
 // ==================== 系统托盘 ====================
+
+/**
+ * 显示并聚焦主窗口（统一入口）
+ * 窗口最小化时先还原，再显示聚焦；隐藏时直接显示。
+ * 供托盘菜单、全局快捷键、second-instance、activate 等场景复用，
+ * 保证所有"唤起窗口"路径行为一致（符合常规任务栏交互）。
+ */
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
 
 /**
  * 创建系统托盘图标
@@ -982,10 +1071,9 @@ function createTray() {
     {
       label: '显示主窗口',
       click: () => {
-        if (mainWindow) {
-          // 窗口已存在（隐藏状态）：直接显示并聚焦
-          mainWindow.show();
-          mainWindow.focus();
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          // 窗口已存在（隐藏或最小化状态）：还原并聚焦
+          showMainWindow();
         } else {
           // 窗口已被销毁：重新创建
           const config = loadConfig();
@@ -997,9 +1085,8 @@ function createTray() {
     {
       label: '剪藏收件箱',
       click: () => {
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          showMainWindow();
           mainWindow.webContents.executeJavaScript(
             "window.location.href = '/clip'"
           ).catch(err => log.warn('[Tray] navigate to clip failed:', err));
@@ -1012,9 +1099,8 @@ function createTray() {
     {
       label: '密码管理',
       click: () => {
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          showMainWindow();
           // 通过 URL hash 触发前端跳转到 vault 视图
           mainWindow.webContents.executeJavaScript(
             "if (window.location.hash !== '#/vault') { window.history.pushState({view:'vault'}, '', '/vault'); window.dispatchEvent(new PopStateEvent('popstate')); }"
@@ -1029,9 +1115,8 @@ function createTray() {
     {
       label: '⚙️ 设置',
       click: () => {
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          showMainWindow();
           mainWindow.webContents.executeJavaScript(
             "window.location.href = '/settings'"
           ).catch(err => log.warn('[Tray] navigate to settings failed:', err));
@@ -1055,10 +1140,7 @@ function createTray() {
 
   // 双击托盘图标：快速恢复窗口
   tray.on('double-click', () => {
-    if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
-    }
+    showMainWindow();
   });
 }
 
@@ -1278,7 +1360,7 @@ async function showCloseDialog(win) {
           closeToTray = dialogResult.action === 'tray';
         }
         if (dialogResult.action === 'tray') {
-          if (parent) parent.hide();
+          if (parent) parent.minimize();
         } else {
           isQuitting = true;
           quitApp();
@@ -1356,13 +1438,13 @@ function createMainWindow(config) {
   // ===== 关闭窗口拦截 =====
   // 当用户点击关闭按钮时，行为取决于 closeToTray 状态：
   //   null  → 弹出对话框询问
-  //   true  → 直接隐藏到托盘
+  //   true  → 最小化到任务栏（与 Alt+X 一致，按钮与运行横线保留）
   //   false → 直接退出程序
   mainWindow.on('close', (event) => {
     if (!isQuitting) {
       event.preventDefault();  // 阻止默认关闭行为
       if (closeToTray === true) {
-        mainWindow.hide();
+        mainWindow.minimize();
       } else if (closeToTray === false) {
         isQuitting = true;
         quitApp();
@@ -1372,12 +1454,9 @@ function createMainWindow(config) {
     }
   });
 
-  // ===== 最小化拦截 =====
-  // 点击最小化按钮时，不缩小到任务栏，而是隐藏到系统托盘
-  mainWindow.on('minimize', (event) => {
-    event.preventDefault();
-    mainWindow.hide();
-  });
+  // ===== 最小化 =====
+  // 遵循标准窗口行为：最小化到任务栏（任务栏图标常驻，点击可恢复），
+  // 与 Chrome/微信等常规应用一致。关闭按钮仍走"关闭到托盘"逻辑（见 close 拦截）。
 
   // 最大化/还原状态变化时通知渲染进程（用于更新标题栏按钮图标）
   mainWindow.on('maximize', () => mainWindow.webContents.send('window-maximized', true));
@@ -1473,6 +1552,35 @@ function showConfigWindow(config) {
 }
 
 // ==================== 退出应用 ====================
+
+/**
+ * 确保系统右键菜单已注册且指向当前应用路径。
+ *
+ * 免安装/便携版可能从任意目录启动（win-unpacked、便携盘、安装版等），
+ * 目录移动或历史残留会导致注册表命令指向已失效的路径。
+ * 因此每次启动都执行一次覆盖式注册，确保右键菜单始终指向当前运行的 exe 位置，
+ * 从源头避免"config 记录与注册表实际内容不一致"。
+ *
+ * @param {Object} config - 配置对象（注册成功后原地更新并保存）
+ * @returns {boolean} 是否已注册成功
+ */
+function ensureContextMenuRegistered(config) {
+  try {
+    const registered = registerContextMenu(APP_DIR);
+    if (registered) {
+      config.contextMenuRegistered = true;
+      config.contextMenuPath = APP_DIR;
+      saveConfig(config);
+      log.info(`[ContextMenu] 系统右键菜单已注册（路径：${APP_DIR}）`);
+      return true;
+    }
+    log.warn('[ContextMenu] 注册未完成，将在下次启动重试');
+    return false;
+  } catch (e) {
+    log.warn('[ContextMenu] 注册失败:', e.message);
+    return false;
+  }
+}
 
 /**
  * 完整退出应用
@@ -1954,7 +2062,7 @@ function setupIPC() {
   // ===== 无边框窗口控制 =====
   // 这些 IPC 由前端标题栏的按钮触发
 
-  // 最小化窗口 → 触发 minimize 事件 → 隐藏到托盘
+  // 最小化窗口 → 最小化到任务栏（与 Alt+X 行为一致，任务栏按钮常驻、运行横线保留）
   ipcMain.handle('window-minimize', () => { mainWindow?.minimize(); });
 
   // 最大化/还原窗口切换
@@ -2224,13 +2332,22 @@ function registerGlobalShortcut() {
   globalShortcut.unregisterAll();
   try {
     const ret = globalShortcut.register(shortcutAccelerator, () => {
-      if (mainWindow) {
-        if (mainWindow.isVisible() && !mainWindow.isMinimized()) {
-          mainWindow.hide();
-        } else {
-          mainWindow.show();
-          mainWindow.focus();
-        }
+      // 窗口异常不存在时（应用未退出但主窗口被销毁）：重建/复用同一应用窗口，
+      // 保证快捷键始终作用于"同一个任务栏应用"，不产生第二个图标。
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        log.warn('[Shortcut] mainWindow missing, recreating (same app instance)');
+        const config = loadConfig();
+        createMainWindow(config);
+        return;
+      }
+      // Alt+X 为"切换最小化/唤醒"：可见时最小化到任务栏（按钮与运行横线保留），
+      // 最小化或隐藏时唤醒。不用 hide()，避免任务栏按钮和横线消失造成"应用被杀"错觉。
+      if (mainWindow.isVisible() && !mainWindow.isMinimized()) {
+        log.info('[Shortcut] Minimize to taskbar:', shortcutAccelerator);
+        mainWindow.minimize();
+      } else {
+        log.info('[Shortcut] Show window:', shortcutAccelerator);
+        showMainWindow();
       }
     });
     if (!ret) log.warn('[Shortcut] Registration failed:', shortcutAccelerator);
@@ -2675,15 +2792,70 @@ function stopReminderScheduler() {
 app.on('open-file', (event, filePath) => {
   event.preventDefault();
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.show();
-    mainWindow.focus();
+    showMainWindow();
     mainWindow.webContents.send('open-file-request', filePath);
   }
 });
 
+// ==================== 单实例锁 ====================
+// 防止用户点击任务栏图标或托盘菜单时启动第二个实例
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  // app.quit() 是异步的——不会立即停止 js 执行！
+  // 因此第二个实例仍会继续执行到 app.whenReady()，
+  // 必须在那里也加退出检查（见下方 whenReady 入口），
+  // 否则第二个实例会创建窗口，导致双任务栏图标。
+  app.quit();
+} else {
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    // 已有实例正在运行：还原（若最小化）并聚焦主窗口
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      log.info('[SecondInstance] Focusing existing window');
+      showMainWindow();
+    } else if (!appStartupComplete) {
+      // 启动流程进行中（主窗口尚未创建）：不重复创建窗口！
+      // 否则会与 whenReady 流程里的 createMainWindow 各建一个窗口，
+      // 产生两个任务栏图标。只标记"启动完成后自动显示"。
+      log.info('[SecondInstance] Startup in progress, will show after ready');
+      pendingShowAfterStart = true;
+      return;
+    } else {
+      // 启动已完成但主窗口异常不存在：重建（应用未退出，仍是同一实例）
+      log.warn('[SecondInstance] Recreating main window (same app instance)');
+      const config = loadConfig();
+      createMainWindow(config);
+      return;
+    }
+
+    // 解析命令行参数（系统右键菜单等触发的二次启动），转发到渲染进程
+    const actions = parseCommandLineArgs(commandLine);
+    if (actions.length > 0 && mainWindow && !mainWindow.isDestroyed()) {
+      // context-menu 动作由主进程弹出原生菜单，不经过 dispatchActions
+      const contextMenuAction = actions.find(a => a.action === 'context-menu');
+      const otherActions = actions.filter(a => a.action !== 'context-menu');
+      if (contextMenuAction) {
+        showContextMenuPopup(contextMenuAction.path);
+      }
+      if (otherActions.length > 0) {
+        dispatchActions(otherActions, mainWindow);
+      }
+    }
+  });
+}
+
 // ==================== 应用生命周期 ====================
 
 app.whenReady().then(async () => {
+  // 安全双保险：单实例锁未获取到（第二个实例），
+  // app.quit() 已在上面调用但它是异步的——js 仍会继续执行到这里。
+  // 必须立即 return，绝不创建任何窗口，否则第二个实例的窗口会
+  // 产生双任务栏图标（即"最小化后唤醒又多出了新的任务栏图标"问题）。
+  if (!gotTheLock) {
+    log.info('[Startup] Second instance detected, aborting startup');
+    return;
+  }
+
   // Fix console Chinese encoding on Windows
   if (process.platform === 'win32') {
     try { require('child_process').execSync('chcp 65001', { stdio: 'ignore' }); } catch {}
@@ -2777,19 +2949,8 @@ app.whenReady().then(async () => {
       saveConfig(nextConfig);
       applyAutoStartSetting(nextConfig.autoStart);
 
-      // 首次运行：注册系统右键菜单
-      if (!nextConfig.contextMenuRegistered) {
-        try {
-          const registered = registerContextMenu(APP_DIR);
-          if (registered) {
-            nextConfig.contextMenuRegistered = true;
-            saveConfig(nextConfig);
-            log.info('[ContextMenu] 系统右键菜单注册成功');
-          }
-        } catch (e) {
-          log.warn('[ContextMenu] 注册失败（可能需要管理员权限）:', e.message);
-        }
-      }
+      // 首次运行：注册系统右键菜单（路径变化时自动重新注册）
+      ensureContextMenuRegistered(nextConfig);
 
       // 同步 model-config.json 到 storagePath，保持与设置页面数据一致
       syncModelConfigJson(newConfig);
@@ -2811,9 +2972,11 @@ app.whenReady().then(async () => {
           log.info('Backend ready, closing config window');
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('startup-progress', '启动成功！');
+            const setupWin = mainWindow;
             setTimeout(() => {
-              mainWindow.close();
-              mainWindow = null;
+              // 只关闭配置窗口本身；不要重置全局 mainWindow，
+              // 因为下方 createMainWindow 已创建主窗口并接管该变量（防止引用丢失导致双窗口）
+              if (setupWin && !setupWin.isDestroyed()) setupWin.close();
             }, 800);
           }
           // 创建主窗口
@@ -2821,6 +2984,13 @@ app.whenReady().then(async () => {
           // 注册全局快捷键
           loadShortcutFromConfig();
           registerGlobalShortcut();
+          // 启动流程完成：处理启动期间到达的"唤起"请求
+          appStartupComplete = true;
+          if (pendingShowAfterStart) {
+            pendingShowAfterStart = false;
+            log.info('[Startup] Flushing pending show request');
+            showMainWindow();
+          }
           // 启动自动更新检查
           updateManager.startAutoCheck(async () => {
             await checkForUpdates(true);
@@ -2852,19 +3022,8 @@ app.whenReady().then(async () => {
       // 启动前同步 model-config.json，确保后端 AppConfigService 迁移时能读到 API Key
       syncModelConfigJson(config);
 
-      // 检查并注册右键菜单（如果尚未注册）
-      if (!config.contextMenuRegistered) {
-        try {
-          const registered = registerContextMenu(APP_DIR);
-          if (registered) {
-            config.contextMenuRegistered = true;
-            saveConfig(config);
-            log.info('[ContextMenu] 系统右键菜单注册成功');
-          }
-        } catch (e) {
-          log.warn('[ContextMenu] 注册失败:', e.message);
-        }
-      }
+      // 注册系统右键菜单（未注册或应用目录移动后自动重新注册，保证命令指向当前路径）
+      ensureContextMenuRegistered(config);
 
       await startFrontendServer(config);
 
@@ -2889,14 +3048,28 @@ app.whenReady().then(async () => {
       // 处理命令行参数（系统右键菜单传递的文件路径）
       const actions = parseCommandLineArgs(process.argv);
       if (actions.length > 0) {
-        // 等待窗口就绪后分发动作
+        // context-menu 动作在窗口加载完成后弹出原生菜单
+        const contextMenuAction = actions.find(a => a.action === 'context-menu');
+        const otherActions = actions.filter(a => a.action !== 'context-menu');
         mainWindow.webContents.on('did-finish-load', () => {
-          dispatchActions(actions, mainWindow);
+          if (contextMenuAction) {
+            showContextMenuPopup(contextMenuAction.path);
+          }
+          if (otherActions.length > 0) {
+            dispatchActions(otherActions, mainWindow);
+          }
         }, { once: true });
       }
       // 注册全局快捷键
       loadShortcutFromConfig();
       registerGlobalShortcut();
+      // 启动流程完成：处理启动期间到达的"唤起"请求
+      appStartupComplete = true;
+      if (pendingShowAfterStart) {
+        pendingShowAfterStart = false;
+        log.info('[Startup] Flushing pending show request');
+        showMainWindow();
+      }
       // 启动自动更新检查
       updateManager.startAutoCheck(async () => {
         await checkForUpdates(true);
@@ -2957,10 +3130,9 @@ app.on('will-quit', () => {
 
 // macOS Dock 图标点击或应用激活时
 app.on('activate', () => {
-  // 优先恢复隐藏的窗口（托盘场景）
+  // 优先恢复隐藏/最小化的窗口（托盘场景）
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.show();
-    mainWindow.focus();
+    showMainWindow();
   } else if (BrowserWindow.getAllWindows().length === 0) {
     // 无窗口存在时创建新窗口
     const config = loadConfig();

@@ -1247,6 +1247,49 @@ public class AiService {
         return sb.toString();
     }
 
+    // ==================== 知识合成 ====================
+
+    /**
+     * 综合多个剪藏内容，生成结构化的知识条目草稿。
+     * <p>
+     * 调用 LLM 对多条剪藏内容进行综合分析，提取共同主题、关键概念和矛盾点，
+     * 生成一个结构化的知识条目，包含标题、摘要和 Markdown 格式的正文内容。
+     * 结果以 JSON 形式返回，供前端编辑器预填充使用。
+     * </p>
+     *
+     * @param combinedContent 拼接后的多条剪藏内容，含分隔标记
+     * @return 包含 title、summary、content 的 Map；失败时返回 null
+     */
+    public Map<String, String> synthesizeKnowledgeContent(String combinedContent) {
+        String systemPrompt = "你是一个知识管理专家。请综合以下多条剪藏内容，提取共同主题、关键概念和矛盾点，"
+                + "生成一个结构化的知识条目。\n\n"
+                + "要求：\n"
+                + "1. title：精炼的标题，概括核心主题\n"
+                + "2. summary：1-2句话的摘要，概述知识要点\n"
+                + "3. content：Markdown格式的正文，包含以下章节：\n"
+                + "   - ## 核心概念（列出关键概念及其解释）\n"
+                + "   - ## 共同主题（分析各剪藏之间的关联）\n"
+                + "   - ## 关键洞察（提炼有价值的见解）\n"
+                + "   - ## 矛盾与讨论（如有不一致的观点，列出并分析）\n"
+                + "4. 只返回 JSON 格式，不要包含 markdown 代码块标记\n\n"
+                + "输出格式：\n"
+                + "{\"title\": \"...\", \"summary\": \"...\", \"content\": \"...\"}";
+
+        try {
+            String response = llmProvider.chat(systemPrompt, combinedContent);
+            if (response == null || response.trim().isEmpty()) {
+                return null;
+            }
+            String cleaned = cleanJsonWrapper(response);
+            ObjectMapper mapper = new ObjectMapper()
+                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            return mapper.readValue(cleaned, new TypeReference<Map<String, String>>() {});
+        } catch (Exception e) {
+            logger.error("[AI] synthesizeKnowledgeContent failed: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
     // ==================== 智能入库：意图识别与字段提取 ====================
 
     /**

@@ -3,6 +3,7 @@
  *
  * 解析系统右键菜单传递的 CLI 参数，通过 IPC 发送到渲染进程。
  * 支持的参数：
+ *   --context-menu ["path"] → 弹出原生菜单供用户选择具体功能
  *   --clip-file "path"     → 添加到剪藏收件箱
  *   --ai-clip-file "path"  → AI 解析文件并添加剪藏
  *   --open-editor "path"   → 用编辑器打开文件
@@ -27,7 +28,13 @@ function parseCommandLineArgs(argv) {
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (argMap[arg]) {
+    if (arg === '--context-menu') {
+      // --context-menu 可带可选文件路径参数
+      const filePath = (i + 1 < argv.length && !argv[i + 1].startsWith('-'))
+        ? argv[i + 1] : null;
+      actions.push({ action: 'context-menu', path: filePath });
+      if (filePath) i++;
+    } else if (argMap[arg]) {
       if (arg === '--open-settings') {
         actions.push({ action: 'open-settings', path: null });
       } else if (i + 1 < argv.length) {
@@ -49,6 +56,11 @@ function dispatchActions(actions, mainWindow) {
 
   for (const { action, path } of actions) {
     switch (action) {
+      case 'context-menu':
+        // 由主进程弹出原生菜单，不直接发送到渲染进程
+        // main.js 中的 showContextMenuPopup 函数会处理此动作
+        mainWindow.webContents.send('context-menu', path);
+        break;
       case 'clip-file':
         mainWindow.webContents.send('clip-file', path);
         break;

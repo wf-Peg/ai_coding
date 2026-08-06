@@ -1,11 +1,11 @@
-const API_BASE = 'http://127.0.0.1:8081/api/topic';
+const API_BASE = 'http://127.0.0.1:8081/api/knowledge';
 let currentCategory = '';
 let allTopics = [];
 let pageSize = 12;
 let currentIndex = 0;
 let isLoading = false;
 
-// 获取话题列表
+// 获取知识列表
 async function fetchTopics(keyword) {
   const list = document.getElementById('topicList');
   list.innerHTML = '<div class="loading"><div class="spinner"></div><p>加载中...</p></div>';
@@ -28,8 +28,8 @@ async function fetchTopics(keyword) {
       list.innerHTML = `
         <div class="empty-state">
           <div style="font-size:3rem;margin-bottom:16px;">&#128236;</div>
-          <h3>暂无话题</h3>
-          <p>点击右上角"新建话题"开始分享你的AI对话吧！</p>
+          <h3>暂无知识条目</h3>
+          <p>点击右上角"新建知识"开始构建你的知识库吧！</p>
         </div>`;
       return;
     }
@@ -37,7 +37,7 @@ async function fetchTopics(keyword) {
     list.innerHTML = '';
     loadMore();
   } catch (error) {
-    console.error('获取话题列表失败:', error);
+    console.error('获取知识列表失败:', error);
     list.innerHTML = `
       <div class="empty-state">
         <h3>加载失败</h3>
@@ -62,7 +62,7 @@ function loadMore() {
   isLoading = false;
 }
 
-// 创建话题列表项 — 纯文字，无封面
+// 创建知识列表项 — 纯文字，无封面
 function createTopicItem(topic) {
   const date = topic.createdAt ? new Date(topic.createdAt).toLocaleDateString('zh-CN', {
     month: '2-digit', day: '2-digit'
@@ -70,14 +70,21 @@ function createTopicItem(topic) {
 
   const tagsHtml = (topic.tags || []).slice(0, 3).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
 
+  const sourceCount = topic.sourceCount || 0;
+  const linkedCount = topic.linkedCount || 0;
+
   return `
-    <div class="topic-item" onclick="location.href='topic-detail.html?id=${topic.id}'">
+    <div class="topic-item" onclick="location.href='knowledge-detail.html?id=${topic.id}'">
       <div class="item-row">
         <div class="title">${escapeHtml(topic.title)}</div>
         <div class="date">${date}</div>
       </div>
       <div class="summary">${escapeHtml(topic.summary || '暂无摘要')}</div>
       <div class="tags">${tagsHtml}</div>
+      <div class="meta-row">
+        <span class="meta-stat">📎 ${sourceCount} 来源</span>
+        <span class="meta-stat">🔗 ${linkedCount} 关联</span>
+      </div>
     </div>`;
 }
 
@@ -89,12 +96,38 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// 注入 meta-stat 样式
+function injectMetaStyles() {
+  if (document.getElementById('meta-stat-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'meta-stat-styles';
+  style.textContent = `
+    .meta-row {
+      display: flex;
+      gap: 4px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+    .meta-stat {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-right: 12px;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
+  injectMetaStyles();
   fetchTopics();
 
   document.getElementById('newTopicBtn').addEventListener('click', () => {
-    location.href = 'topic-editor.html';
+    location.href = 'knowledge-editor.html';
+  });
+
+  document.getElementById('graphBtn').addEventListener('click', () => {
+    location.href = 'knowledge-graph.html';
   });
 
   const searchInput = document.getElementById('searchInput');

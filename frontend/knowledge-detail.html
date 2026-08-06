@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>话题详情</title>
+    <title>知识详情</title>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -184,6 +184,33 @@
         .topic-content a { color: var(--primary); text-decoration: underline; }
         .topic-content hr { border: none; border-top: 1px solid var(--border); margin: 1.5em 0; }
 
+        /* Wikilink 样式 — Obsidian 风格 */
+        .wikilink {
+            color: var(--primary);
+            text-decoration: none;
+            border-bottom: 1px dashed var(--primary);
+            padding: 0 2px;
+            border-radius: 2px;
+            transition: all 0.15s ease;
+            cursor: pointer;
+        }
+        .wikilink:hover {
+            background: rgba(63, 140, 255, 0.08);
+            border-bottom-style: solid;
+        }
+        .wikilink::before {
+            content: "[[";
+            color: var(--text-muted);
+            font-size: 0.85em;
+            opacity: 0.5;
+        }
+        .wikilink::after {
+            content: "]]";
+            color: var(--text-muted);
+            font-size: 0.85em;
+            opacity: 0.5;
+        }
+
         /* Loading */
         .loading { text-align: center; padding: 60px; color: var(--text-muted); }
         .spinner {
@@ -195,6 +222,82 @@
         @keyframes spin { to { transform: rotate(360deg); } }
 
         .radius-sm { border-radius: 8px; }
+
+        /* ===== 来源剪藏 & 关联知识 ===== */
+        .section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-top: 24px;
+        }
+        .clip-item {
+            padding: 12px 16px;
+            background: var(--background);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .clip-item:hover {
+            border-color: var(--primary);
+            color: var(--text);
+        }
+        .clip-item:last-child { margin-bottom: 0; }
+    .clip-item-summary {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .link-item {
+            padding: 8px 0;
+            font-size: 0.9rem;
+            color: var(--primary);
+            cursor: pointer;
+            text-decoration: underline;
+            transition: var(--transition);
+        }
+        .link-item:hover { color: var(--primary-dark); }
+        .section-empty {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 16px 0;
+            font-size: 0.9rem;
+        }
+        .section-empty small {
+            display: block;
+            margin-top: 8px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        .section-empty code {
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.85em;
+        }
+        .graph-link-row {
+            text-align: center;
+            padding: 12px 0 4px;
+            margin-top: 8px;
+            border-top: 1px dashed var(--border);
+        }
+
+        /* 深色主题 - 剪藏弹窗 */
+        html[data-theme="dark"] .section-empty code {
+            background: #3a3a3a;
+            color: #d4d4d4;
+        }
+        html[data-theme="dark"] .graph-link-row {
+            border-top-color: var(--border);
+        }
 
         /* Notion 主题 */
         html[data-theme="notion"] {
@@ -250,9 +353,26 @@
             background: #f1f1ef;
             color: #5f646c;
         }
+        html[data-theme="notion"] .section {
+            border-color: #e8e8e6;
+        }
+        html[data-theme="notion"] .clip-item {
+            background: #f7f7f5;
+            border-color: #e8e8e6;
+        }
+        html[data-theme="notion"] .clip-item:hover {
+            border-color: #2383e2;
+        }
         html[data-theme="notion"] .loading .spinner {
             border-color: #e8e8e6;
             border-top-color: #2383e2;
+        }
+        html[data-theme="notion"] .wikilink {
+            color: #2383e2;
+            border-bottom-color: #2383e2;
+        }
+        html[data-theme="notion"] .wikilink:hover {
+            background: rgba(35, 131, 226, 0.08);
         }
 
         @media (max-width: 768px) {
@@ -297,8 +417,12 @@
         html[data-theme="dark"] .topic-meta .tag { background: #3a3a3a; color: var(--text-secondary); }
         html[data-theme="dark"] .section { background: var(--surface); border-color: var(--border); }
         html[data-theme="dark"] .clip-item { background: #3a3a3a; border-color: var(--border); }
+        html[data-theme="dark"] .clip-item:hover { border-color: var(--primary); }
         html[data-theme="dark"] .loading { color: var(--text-muted); }
         html[data-theme="dark"] .spinner { border-color: var(--border); border-top-color: var(--primary); }
+        html[data-theme="dark"] .wikilink:hover {
+            background: rgba(86, 156, 255, 0.12);
+        }
 
         /* ===== Obsidian 风格全局滚动条 ===== */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -325,7 +449,7 @@
     @keyframes toastSlideIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
     @keyframes toastSlideOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(30px); } }
 
-    /* ===== 评论区域 ===== */
+    /* ===== 讨论区域 ===== */
     .comments-section {
         max-width: 800px;
         margin: 40px auto 0;
@@ -367,6 +491,89 @@
         line-height: 1.6;
         color: var(--text);
         word-break: break-word;
+    }
+    .comment-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+    }
+    .comment-actions .action-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        padding: 2px 8px;
+        border-radius: 4px;
+        transition: all 0.15s;
+    }
+    .comment-actions .action-btn:hover {
+        background: var(--surface);
+        color: var(--text);
+    }
+    .comment-actions .action-btn.danger:hover {
+        background: #fef2f2;
+        color: #ef4444;
+    }
+    html[data-theme="dark"] .comment-actions .action-btn.danger:hover {
+        background: #3b1a1a;
+        color: #f87171;
+    }
+    .comment-edit-textarea {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 0.95rem;
+        font-family: inherit;
+        background: var(--background);
+        color: var(--text);
+        outline: none;
+        resize: vertical;
+        min-height: 60px;
+        box-sizing: border-box;
+        transition: var(--transition);
+    }
+    .comment-edit-textarea:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(63,140,255,0.1);
+    }
+    .comment-edit-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 6px;
+    }
+    .comment-edit-actions .save-btn {
+        background: var(--primary);
+        color: white;
+        border: none;
+        padding: 4px 16px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: var(--transition);
+    }
+    .comment-edit-actions .save-btn:hover {
+        background: var(--primary-dark);
+    }
+    .comment-edit-actions .cancel-btn {
+        background: none;
+        border: 1px solid var(--border);
+        padding: 4px 16px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        color: var(--text-secondary);
+        transition: all 0.15s;
+    }
+    .comment-edit-actions .cancel-btn:hover {
+        border-color: var(--text-secondary);
+        color: var(--text);
+    }
+    .comment-body .edited-label {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-left: 4px;
     }
     .comment-form {
         background: var(--surface);
@@ -422,7 +629,7 @@
         font-size: 0.9rem;
     }
 
-    /* 深色主题 - 评论 */
+    /* 深色主题 - 讨论 */
     html[data-theme="dark"] .comments-section .section-title { color: var(--text); }
     html[data-theme="dark"] .comment-item { border-color: var(--border); }
     html[data-theme="dark"] .comment-time { color: #888; }
@@ -434,12 +641,12 @@
 </head>
 <body>
     <nav class="nav">
-        <button class="back-btn" onclick="location.href='topic.html'">← 返回</button>
+        <button class="back-btn" onclick="location.href='knowledge.html'">← 返回</button>
         <span class="title" id="navTitle">加载中...</span>
         <div class="actions">
             <button class="btn" id="openFolderBtn" title="打开文件存储目录">📂 打开目录</button>
             <button class="btn" id="exportPdfBtn" title="导出全页截图">📸 导出截图</button>
-            <button class="btn" id="editBtn">编辑</button>
+            <button class="btn" id="editBtn">编辑知识</button>
             <button class="btn danger" id="deleteBtn">删除</button>
         </div>
     </nav>
@@ -451,20 +658,36 @@
         </div>
     </div>
 
-    <!-- 评论区域 -->
+    <!-- 来源剪藏 -->
+    <div class="container" id="sourceClipsSection" style="display:none;">
+        <div class="section">
+            <div class="section-title">📎 来源剪藏</div>
+            <div id="sourceClipsList"></div>
+        </div>
+    </div>
+
+    <!-- 关联知识 -->
+    <div class="container" id="linkedKnowledgeSection" style="display:none;">
+        <div class="section">
+            <div class="section-title">🔗 关联知识</div>
+            <div id="linkedKnowledgeList"></div>
+        </div>
+    </div>
+
+    <!-- 讨论区域 -->
     <div class="comments-section" id="commentsSection">
-        <div class="section-title">评论 (<span id="commentCount">0</span>)</div>
+        <div class="section-title">讨论 (<span id="commentCount">0</span>)</div>
         <div class="comments-list" id="commentsList"></div>
         <div class="comment-form">
             <input type="text" id="commentAuthor" placeholder="你的昵称（选填）" maxlength="30" />
-            <textarea id="commentContent" placeholder="写下你的评论..." rows="3"></textarea>
-            <button id="submitCommentBtn" class="submit-btn">发布评论</button>
+            <textarea id="commentContent" placeholder="写下你的想法..." rows="3"></textarea>
+            <button id="submitCommentBtn" class="submit-btn">发布讨论</button>
         </div>
     </div>
 
     <script src="libs/marked.min.js"></script>
     <script src="libs/html2canvas.min.js"></script>
-    <script src="topic-detail.js"></script>
+    <script src="knowledge-detail.js"></script>
     <script>
       (function() {
         const THEME_KEY = 'app_theme_v1';

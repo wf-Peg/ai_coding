@@ -2,10 +2,11 @@ package com.example.clip.service;
 
 import com.example.clip.core.AiService;
 import com.example.clip.model.ClipContent;
+import com.example.clip.model.Comment;
 import com.example.clip.model.KnowledgeEntry;
 import com.example.clip.model.TodoContent;
+import com.example.clip.model.Knowledge;
 import com.example.clip.model.LearningPlan;
-import com.example.clip.model.Topic;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -45,7 +46,6 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * @see ClipService
  * @see TodoService
- * @see TopicService
  */
 @Service
 public class FileStorageService {
@@ -81,7 +81,7 @@ public class FileStorageService {
     }
 
     /**
-     * 生成全局唯一 ID，供外部服务（如 Comment）使用。
+     * 生成全局唯一 ID，供外部服务使用。
      *
      * @return 自增 ID
      */
@@ -113,6 +113,8 @@ public class FileStorageService {
             Files.createDirectories(storagePath.resolve("knowledge"));
             // 创建话题目录
             Files.createDirectories(storagePath.resolve("topic"));
+            // 创建知识库目录
+            Files.createDirectories(storagePath.resolve("knowledge-base"));
             // 创建学习计划目录
             Files.createDirectories(storagePath.resolve("learning-plan"));
         } catch (IOException e) {
@@ -146,8 +148,8 @@ public class FileStorageService {
             maxId = Math.max(maxId, scanMaxIdInDir("todoList", this::readTodoArrayFromFile, t -> t.getId() == null ? 0L : t.getId()));
             // 扫描知识条目
             maxId = Math.max(maxId, scanMaxIdInDir("knowledge", this::readKnowledgeArrayFromFile, e -> e.getId() == null ? 0L : e.getId()));
-            // 扫描话题（修复：之前漏扫 topic 表，导致 idGenerator 给新 clip 分配已存在的 topic id，造成 ID 冲突）
-            maxId = Math.max(maxId, scanMaxIdInDir("topic", this::readTopicArrayFromFile, t -> t.getId() == null ? 0L : t.getId()));
+            // 扫描知识库
+            maxId = Math.max(maxId, scanMaxIdInDir("knowledge-base", this::readKnowledgeBaseArrayFromFile, k -> k.getId() == null ? 0L : k.getId()));
             // 扫描学习计划
             maxId = Math.max(maxId, scanMaxIdInDir("learning-plan", this::readLearningPlanArrayFromFile, p -> p.getId() == null ? 0L : p.getId()));
             idGenerator.set(maxId + 1);
@@ -1017,193 +1019,6 @@ public class FileStorageService {
         return storagePath;
     }
 
-    /**
-     * 获取话题存储目录路径
-     *
-     * @return 话题存储路径（clip-storage/topic）
-     */
-    public Path getTopicStoragePath() {
-        return storagePath.resolve("topic");
-    }
-
-    // ==================== Topic 存储 ====================
-
-    /**
-     * 获取话题的日期文件路径
-     * <p>
-     * 格式：clip-storage/topic/{yyyy-MM-dd}.json
-     * 注意：话题使用 yyyy-MM-dd 格式（与剪藏的 yyMMdd 不同），
-     * 这种格式更易读，但需注意不同格式导致的问题。
-     * </p>
-     *
-     * @return 话题日期文件路径
-     */
-    private Path getTopicDateFilePath() {
-        String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-        return storagePath.resolve("topic").resolve(date + ".json");
-    }
-
-    /**
-     * 从文件中读取话题列表
-     *
-     * @param path JSON 文件路径
-     * @return 话题列表
-     */
-    private List<Topic> readTopicArrayFromFile(Path path) {
-        try {
-            if (!Files.exists(path)) {
-                return new ArrayList<>();
-            }
-            String content = Files.readString(path);
-            if (content == null || content.trim().isEmpty()) {
-                return new ArrayList<>();
-            }
-            return objectMapper.readValue(content, new TypeReference<List<Topic>>() {});
-        } catch (IOException e) {
-            e.printStackTrace();
-            return new ArrayList<>();
-        }
-    }
-
-    /**
-     * 将话题列表写入 JSON 文件
-     *
-     * @param path   目标文件路径
-     * @param topics 话题列表
-     */
-    private void writeTopicArrayToFile(Path path, List<Topic> topics) {
-        try {
-            Path parent = path.getParent();
-            if (!Files.exists(parent)) {
-                Files.createDirectories(parent);
-            }
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), topics);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    /**
-     * 保存话题（新增或更新）
-     * <p>
-     * 如果 ID 为 null 则生成新 ID，如果 ID 已存在则更新对应记录。
-     * </p>
-     *
-     * @param topic 话题对象
-     * @return 保存后的话题
-     */
-    public Topic saveTopic(Topic topic) {
-        try {
-            if (topic.getId() == null) {
-                topic.setId(idGenerator.getAndIncrement());
-            }
-
-            Path filePath = getTopicDateFilePath();
-            List<Topic> topics = readTopicArrayFromFile(filePath);
-
-            // 检查是否已存在相同 ID（更新场景）
-            boolean updated = false;
-            for (int i = 0; i < topics.size(); i++) {
-                if (topics.get(i).getId() != null && topics.get(i).getId().equals(topic.getId())) {
-                    topics.set(i, topic);
-                    updated = true;
-                    break;
-                }
-            }
-            if (!updated) {
-                topics.add(topic);
-            }
-
-            writeTopicArrayToFile(filePath, topics);
-            return topic;
-        } catch (Exception e) {
-            log.error("Failed to save topic", e);
-            return null;
-        }
-    }
-
-    /**
-     * 获取所有话题
-     * <p>
-     * 遍历 topic 目录下所有 JSON 文件，合并所有记录，
-     * 并按创建时间倒序排列（最新的在前）。
-     * </p>
-     *
-     * @return 所有话题列表（按创建时间倒序）
-     */
-    public List<Topic> getAllTopics() {
-        List<Topic> allTopics = new ArrayList<>();
-        try {
-            Path topicPath = storagePath.resolve("topic");
-            if (!Files.exists(topicPath)) {
-                return allTopics;
-            }
-
-            Files.walk(topicPath)
-                    .filter(Files::isRegularFile)
-                    .filter(path -> path.toString().endsWith(".json"))
-                    .forEach(path -> allTopics.addAll(readTopicArrayFromFile(path)));
-
-            // 按创建时间倒序排列（最新的在前）
-            allTopics.sort((a, b) -> {
-                if (a.getCreatedAt() == null && b.getCreatedAt() == null) return 0;
-                if (a.getCreatedAt() == null) return 1;   // null 排在后面
-                if (b.getCreatedAt() == null) return -1;  // null 排在后面
-                return b.getCreatedAt().compareTo(a.getCreatedAt());
-            });
-        } catch (IOException e) {
-            log.error("Failed to list topics", e);
-        }
-        return allTopics;
-    }
-
-    /**
-     * 根据 ID 获取话题
-     * <p>
-     * 使用 Stream 流式过滤，获取所有话题后按 ID 匹配。
-     * </p>
-     *
-     * @param id 话题 ID
-     * @return 匹配的话题；未找到返回 null
-     */
-    public Topic getTopicById(Long id) {
-        if (id == null) return null;
-        return getAllTopics().stream()
-                .filter(t -> t.getId() != null && t.getId().equals(id))
-                .findFirst()
-                .orElse(null);
-    }
-
-    /**
-     * 删除话题
-     * <p>
-     * 遍历所有话题文件，使用 removeIf 移除匹配 ID 的记录。
-     * </p>
-     *
-     * @param id 要删除的话题 ID
-     */
-    public void deleteTopic(Long id) {
-        if (id == null) return;
-        try {
-            Path topicPath = storagePath.resolve("topic");
-            if (!Files.exists(topicPath)) return;
-
-            Files.walk(topicPath)
-                    .filter(Files::isRegularFile)
-                    .filter(p -> p.toString().endsWith(".json"))
-                    .forEach(path -> {
-                        List<Topic> topics = readTopicArrayFromFile(path);
-                        // 使用 removeIf 移除匹配 ID 的记录
-                        boolean found = topics.removeIf(t -> t.getId() != null && t.getId().equals(id));
-                        if (found) {
-                            writeTopicArrayToFile(path, topics);
-                        }
-                    });
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
     // ==================== LearningPlan 存储 ====================
 
     private Path getLearningPlanDateFilePath() {
@@ -1299,5 +1114,336 @@ public class FileStorageService {
         } catch (IOException e) {
             log.error("Failed to delete learning plan", e);
         }
+    }
+
+    // ==================== Knowledge 存储 ====================
+
+    /**
+     * 获取知识库存储目录路径
+     *
+     * @return 知识库存储路径（clip-storage/knowledge-base）
+     */
+    public Path getKnowledgeStoragePath() {
+        return storagePath.resolve("knowledge-base");
+    }
+
+    /**
+     * 获取知识库的日期文件路径
+     * <p>
+     * 格式：clip-storage/knowledge-base/{yyyy-MM-dd}.json
+     * </p>
+     *
+     * @return 知识库日期文件路径
+     */
+    private Path getKnowledgeBaseDateFilePath() {
+        String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        return storagePath.resolve("knowledge-base").resolve(date + ".json");
+    }
+
+    /**
+     * 从文件中读取知识库列表
+     *
+     * @param path JSON 文件路径
+     * @return 知识列表
+     */
+    private List<Knowledge> readKnowledgeBaseArrayFromFile(Path path) {
+        try {
+            if (!Files.exists(path)) {
+                return new ArrayList<>();
+            }
+            String content = Files.readString(path);
+            if (content == null || content.trim().isEmpty()) {
+                return new ArrayList<>();
+            }
+            return objectMapper.readValue(content, new TypeReference<List<Knowledge>>() {});
+        } catch (IOException e) {
+            e.printStackTrace();
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * 将知识库列表写入 JSON 文件
+     *
+     * @param path       目标文件路径
+     * @param knowledges 知识列表
+     */
+    private void writeKnowledgeBaseArrayToFile(Path path, List<Knowledge> knowledges) {
+        try {
+            Path parent = path.getParent();
+            if (!Files.exists(parent)) {
+                Files.createDirectories(parent);
+            }
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), knowledges);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 保存知识条目（新增或更新）
+     * <p>
+     * 如果 ID 为 null 则生成新 ID，如果 ID 已存在则更新对应记录。
+     * </p>
+     *
+     * @param knowledge 知识对象
+     * @return 保存后的知识
+     */
+    public Knowledge saveKnowledge(Knowledge knowledge) {
+        try {
+            if (knowledge.getId() == null) {
+                knowledge.setId(idGenerator.getAndIncrement());
+            }
+
+            Path filePath = getKnowledgeBaseDateFilePath();
+            List<Knowledge> knowledges = readKnowledgeBaseArrayFromFile(filePath);
+
+            // 检查是否已存在相同 ID（更新场景）
+            boolean updated = false;
+            for (int i = 0; i < knowledges.size(); i++) {
+                if (knowledges.get(i).getId() != null && knowledges.get(i).getId().equals(knowledge.getId())) {
+                    knowledges.set(i, knowledge);
+                    updated = true;
+                    break;
+                }
+            }
+            if (!updated) {
+                knowledges.add(knowledge);
+            }
+
+            writeKnowledgeBaseArrayToFile(filePath, knowledges);
+            return knowledge;
+        } catch (Exception e) {
+            log.error("Failed to save knowledge", e);
+            return null;
+        }
+    }
+
+    /**
+     * 获取所有知识条目
+     * <p>
+     * 遍历 knowledge-base 目录下所有 JSON 文件，合并所有记录，
+     * 并按创建时间倒序排列（最新的在前）。
+     * </p>
+     *
+     * @return 所有知识条目列表（按创建时间倒序）
+     */
+    public List<Knowledge> getAllKnowledge() {
+        List<Knowledge> allKnowledge = new ArrayList<>();
+        try {
+            Path knowledgePath = storagePath.resolve("knowledge-base");
+            if (!Files.exists(knowledgePath)) {
+                return allKnowledge;
+            }
+
+            Files.walk(knowledgePath)
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".json"))
+                    .forEach(path -> allKnowledge.addAll(readKnowledgeBaseArrayFromFile(path)));
+
+            // 按创建时间倒序排列（最新的在前）
+            allKnowledge.sort((a, b) -> {
+                if (a.getCreatedAt() == null && b.getCreatedAt() == null) return 0;
+                if (a.getCreatedAt() == null) return 1;   // null 排在后面
+                if (b.getCreatedAt() == null) return -1;  // null 排在后面
+                return b.getCreatedAt().compareTo(a.getCreatedAt());
+            });
+        } catch (IOException e) {
+            log.error("Failed to list knowledge", e);
+        }
+        return allKnowledge;
+    }
+
+    /**
+     * 根据 ID 获取知识条目
+     * <p>
+     * 使用 Stream 流式过滤，获取所有知识后按 ID 匹配。
+     * </p>
+     *
+     * @param id 知识 ID
+     * @return 匹配的知识；未找到返回 null
+     */
+    public Knowledge getKnowledgeById(Long id) {
+        if (id == null) return null;
+        return getAllKnowledge().stream()
+                .filter(k -> k.getId() != null && k.getId().equals(id))
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * 删除知识条目
+     * <p>
+     * 遍历所有知识库文件，使用 removeIf 移除匹配 ID 的记录。
+     * </p>
+     *
+     * @param id 要删除的知识 ID
+     */
+    public void deleteKnowledge(Long id) {
+        if (id == null) return;
+        try {
+            Path knowledgePath = storagePath.resolve("knowledge-base");
+            if (!Files.exists(knowledgePath)) return;
+
+            Files.walk(knowledgePath)
+                    .filter(Files::isRegularFile)
+                    .filter(p -> p.toString().endsWith(".json"))
+                    .forEach(path -> {
+                        List<Knowledge> knowledges = readKnowledgeBaseArrayFromFile(path);
+                        boolean found = knowledges.removeIf(k -> k.getId() != null && k.getId().equals(id));
+                        if (found) {
+                            writeKnowledgeBaseArrayToFile(path, knowledges);
+                        }
+                    });
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // ==================== Comment 讨论存储 ====================
+
+    /**
+     * 获取评论文件路径
+     * <p>
+     * 格式：clip-storage/knowledge-base/comments/{knowledgeId}.json
+     * </p>
+     *
+     * @param knowledgeId 知识条目 ID
+     * @return 评论文件路径
+     */
+    private Path getCommentFilePath(Long knowledgeId) {
+        return storagePath.resolve("knowledge-base").resolve("comments").resolve(knowledgeId + ".json");
+    }
+
+    /**
+     * 从文件中读取评论列表
+     *
+     * @param path JSON 文件路径
+     * @return 评论列表
+     */
+    private List<Comment> readCommentArrayFromFile(Path path) {
+        try {
+            if (!Files.exists(path)) {
+                return new ArrayList<>();
+            }
+            String content = Files.readString(path);
+            if (content == null || content.trim().isEmpty()) {
+                return new ArrayList<>();
+            }
+            return objectMapper.readValue(content, new TypeReference<List<Comment>>() {});
+        } catch (IOException e) {
+            log.warn("Failed to read comments from {}", path, e);
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * 将评论列表写入 JSON 文件
+     *
+     * @param path     目标文件路径
+     * @param comments 评论列表
+     */
+    private void writeCommentArrayToFile(Path path, List<Comment> comments) {
+        try {
+            Path parent = path.getParent();
+            if (!Files.exists(parent)) {
+                Files.createDirectories(parent);
+            }
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), comments);
+        } catch (IOException e) {
+            log.error("Failed to write comments to {}", path, e);
+        }
+    }
+
+    /**
+     * 保存评论
+     * <p>
+     * 新评论自动分配 ID，追加到评论文件末尾。
+     * </p>
+     *
+     * @param comment 评论对象
+     * @return 保存后的评论
+     */
+    public Comment saveComment(Comment comment) {
+        try {
+            if (comment.getId() == null) {
+                comment.setId(idGenerator.getAndIncrement());
+            }
+            if (comment.getCreatedAt() == null) {
+                comment.setCreatedAt(java.time.LocalDateTime.now());
+            }
+
+            Path filePath = getCommentFilePath(comment.getKnowledgeId());
+            List<Comment> comments = readCommentArrayFromFile(filePath);
+
+            boolean updated = false;
+            for (int i = 0; i < comments.size(); i++) {
+                if (comments.get(i).getId() != null && comments.get(i).getId().equals(comment.getId())) {
+                    comment.setUpdatedAt(java.time.LocalDateTime.now());
+                    comments.set(i, comment);
+                    updated = true;
+                    break;
+                }
+            }
+            if (!updated) {
+                comments.add(comment);
+            }
+
+            writeCommentArrayToFile(filePath, comments);
+            return comment;
+        } catch (Exception e) {
+            log.error("Failed to save comment", e);
+            return null;
+        }
+    }
+
+    /**
+     * 获取指定知识条目的所有评论
+     *
+     * @param knowledgeId 知识条目 ID
+     * @return 评论列表（按创建时间正序）
+     */
+    public List<Comment> getCommentsByKnowledgeId(Long knowledgeId) {
+        Path filePath = getCommentFilePath(knowledgeId);
+        List<Comment> comments = readCommentArrayFromFile(filePath);
+        // 按创建时间正序排列
+        comments.sort((a, b) -> {
+            if (a.getCreatedAt() == null && b.getCreatedAt() == null) return 0;
+            if (a.getCreatedAt() == null) return -1;
+            if (b.getCreatedAt() == null) return 1;
+            return a.getCreatedAt().compareTo(b.getCreatedAt());
+        });
+        return comments;
+    }
+
+    /**
+     * 删除指定知识条目的所有评论
+     *
+     * @param knowledgeId 知识条目 ID
+     */
+    public void deleteCommentsByKnowledgeId(Long knowledgeId) {
+        try {
+            Path filePath = getCommentFilePath(knowledgeId);
+            Files.deleteIfExists(filePath);
+        } catch (IOException e) {
+            log.warn("Failed to delete comments for knowledge {}", knowledgeId, e);
+        }
+    }
+
+    /**
+     * 删除指定知识条目下的单条评论
+     *
+     * @param knowledgeId 知识条目 ID
+     * @param commentId 评论 ID
+     * @return true 如果删除成功，false 如果评论不存在
+     */
+    public boolean deleteComment(Long knowledgeId, Long commentId) {
+        Path filePath = getCommentFilePath(knowledgeId);
+        List<Comment> comments = readCommentArrayFromFile(filePath);
+        boolean removed = comments.removeIf(c -> c.getId() != null && c.getId().equals(commentId));
+        if (removed) {
+            writeCommentArrayToFile(filePath, comments);
+        }
+        return removed;
     }
 }

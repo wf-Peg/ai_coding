@@ -1154,7 +1154,10 @@
   }
 
   function renderAiAssistantContent(message) {
-    if (!message.content) return '<span class="ai-chat-stream-cursor">▍</span>';
+    if (!message.content) {
+      if (message.streaming) return '<span class="ai-chat-stream-cursor">▍</span>';
+      return '<span class="ai-chat-cancelled">已停止生成</span>';
+    }
     if (!window.marked || typeof window.marked.parse !== 'function') {
       return escapeAiHtml(message.content);
     }
