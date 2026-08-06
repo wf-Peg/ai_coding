@@ -89,7 +89,8 @@
     'aiChatResizeHandle', 'aiPetBtn', 'editorContextMenu', 'aiSearchContextBtn', 'smartIngestContextBtn', 'aiImportPasswordContextBtn',
     'offlineTranslateContextBtn', 'onlineTranslateContextBtn', 'addCustomMappingContextBtn', 'addToDictLibContextBtn', 'aiContextAnalysisContextBtn',
     'manageDictionaryContextBtn', 'aiChatContextBtn',
-    'dictModal', 'dictSourceInput', 'dictTargetInput', 'dictAddBtn', 'dictList', 'dictLibList', 'dictTabMapping', 'dictTabLibrary'
+    'dictModal', 'dictSourceInput', 'dictTargetInput', 'dictAddBtn', 'dictList', 'dictLibList', 'dictTabMapping', 'dictTabLibrary',
+    'aiChatSelectionHint', 'aiChatSelectionHintText', 'aiChatSelectionHintClear'
   ].map(id => [id, document.getElementById(id)]));
 
   function applyMascotPreference() {
@@ -1188,12 +1189,81 @@
     return template.innerHTML;
   }
 
+  // ══════════════════════════════════════════════════════════
+  // AI 代码块操作按钮（Phase 1）
+  // ══════════════════════════════════════════════════════════
+
+  /**
+   * 转义 HTML 属性值
+   */
+  function escapeAttr(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  /**
+   * 渲染 AI 代码块，附带操作按钮
+   */
+  function renderAiCodeBlock(code, language, messageId) {
+    const escapedCode = escapeAiHtml(code);
+    const escapedLang = escapeAiHtml(language || 'text');
+    const dataMsgId = escapeAttr(messageId || '');
+    const dataCode = escapeAttr(code);
+    return '<div class="ai-code-block" data-message-id="' + dataMsgId + '">'
+      + '<div class="ai-code-block-header">'
+      + '<span class="ai-code-block-lang">' + escapedLang + '</span>'
+      + '<div class="ai-code-block-actions">'
+      + '<button class="ai-code-btn" data-action="apply" data-code="' + dataCode + '" title="用 AI 代码替换整个编辑器内容">应用到编辑器</button>'
+      + '<button class="ai-code-btn" data-action="insert" data-code="' + dataCode + '" title="在光标位置插入">插入到光标</button>'
+      + '<button class="ai-code-btn" data-action="replace-selection" data-code="' + dataCode + '" title="用 AI 代码替换当前选中内容">替换选中</button>'
+      + '<button class="ai-code-btn" data-action="diff" data-code="' + dataCode + '" title="对比差异后审批">查看差异</button>'
+      + '</div>'
+      + '</div>'
+      + '<pre><code class="language-' + escapedLang + '">' + escapedCode + '</code></pre>'
+      + '</div>';
+  }
+
+  /**
+   * 在 Markdown 渲染后的 HTML 中查找代码块并添加操作按钮
+   * 仅对非 streaming（已完成）的消息做处理
+   */
+  function enhanceAiHtmlWithCodeBlocks(html, messageId) {
+    if (!html || !messageId) return html;
+    // 匹配 <pre><code class="language-XXX"> 或 <pre><code> 的内容块
+    return html.replace(
+      /<pre><code(?:\s+class="language-([^"]*)")?>([\s\S]*?)<\/code><\/pre>/g,
+      function(match, language, code) {
+        var lang = language || 'text';
+        // 解码 HTML 实体以获取原始代码
+        var decoded = code
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'");
+        return renderAiCodeBlock(decoded, lang, messageId);
+      }
+    );
+  }
+
+  /**
+   * 渲染 AI 助手消息内容（含代码块操作按钮增强）
+   */
   function renderAiAssistantContent(message) {
     if (!message.content) return '<span class="ai-chat-stream-cursor">▍</span>';
     if (!window.marked || typeof window.marked.parse !== 'function') {
       return escapeAiHtml(message.content);
     }
-    return sanitizeAiHtml(window.marked.parse(message.content));
+    var html = sanitizeAiHtml(window.marked.parse(message.content));
+    // 仅对已完成的消息添加代码块操作按钮
+    if (!message.streaming && message.id) {
+      html = enhanceAiHtmlWithCodeBlocks(html, message.id);
+    }
+    return html;
   }
 
   function renderAiChat() {
@@ -1237,6 +1307,212 @@
     elements.aiChatStopBtn.hidden = !busy;
     elements.aiChatInput.disabled = busy;
     elements.aiChatMessages.scrollTop = elements.aiChatMessages.scrollHeight;
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // Phase 2: 选中感知 AI 交互
+  // ══════════════════════════════════════════════════════════
+
+  /**
+   * 编辑器选中状态快照
+   */
+  var selectionState = { text: '', contextBefore: '', contextAfter: '', range: null };
+
+  /**
+   * 更新选中状态（由编辑器 selection change 事件触发）
+   */
+  function updateSelectionState() {
+    if (!mainEditor) return;
+    var selectedText = mainEditor.getSelectedText();
+    if (!selectedText) {
+      selectionState = { text: '', contextBefore: '', contextAfter: '', range: null };
+      updateAiSelectionHint(false, '');
+      return;
+    }
+    var range = mainEditor.getSelectionRange();
+    var content = mainEditor.getValue();
+    var lines = content.split('\n');
+    var beforeLines = lines.slice(Math.max(0, range.start.row - 5), range.start.row);
+    var afterLines = lines.slice(range.end.row + 1, range.end.row + 6);
+    selectionState = {
+      text: selectedText.slice(0, 2000),
+      contextBefore: beforeLines.join('\n').slice(-500),
+      contextAfter: afterLines.join('\n').slice(0, 500),
+      range: range
+    };
+    updateAiSelectionHint(true, selectedText.slice(0, 50) + (selectedText.length > 50 ? '…' : ''));
+  }
+
+  /**
+   * 更新 AI 面板选中提示条
+   */
+  function updateAiSelectionHint(visible, text) {
+    if (!elements.aiChatSelectionHint) return;
+    if (visible && text) {
+      elements.aiChatSelectionHint.classList.add('visible');
+      elements.aiChatSelectionHintText.textContent = '已选中: ' + text;
+    } else {
+      elements.aiChatSelectionHint.classList.remove('visible');
+      elements.aiChatSelectionHintText.textContent = '';
+    }
+  }
+
+  // 监听编辑器选中变化
+  mainEditor.selection.addEventListener('changeSelection', function() {
+    updateSelectionState();
+  });
+
+  /**
+   * 构建附带选中上下文信息的 AI 提示词
+   */
+  function buildContextualPrompt(userMessage) {
+    var sel = selectionState;
+    if (!sel.text) return userMessage;
+    var context = [];
+    context.push('当前选中文本：\n```\n' + sel.text.slice(0, 2000) + '\n```');
+    if (sel.contextBefore) {
+      context.push('选中前上下文：\n```\n' + sel.contextBefore + '\n```');
+    }
+    if (sel.contextAfter) {
+      context.push('选中后上下文：\n```\n' + sel.contextAfter + '\n```');
+    }
+    context.push('---\n用户请求：' + userMessage);
+    return context.join('\n\n');
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // Phase 3: AI 内容应用到编辑器 + 差异对比审批
+  // ══════════════════════════════════════════════════════════
+
+  /**
+   * 记录 AI 操作到历史（供撤销/重做使用）
+   * 利用 ACE 编辑器的 undo 栈：执行操作后标记文档已修改，
+   * ACE 的 undo 管理器会自动记录操作，用户可按 Ctrl+Z 撤销
+   */
+  function recordAiOperation(mode, oldContent, newContent, label) {
+    if (!state) return;
+    // 触发 ACE 的 change 事件以记录 undo 快照
+    mainEditor.session.getUndoManager().markClean();
+    state.modified = true;
+    updateDocumentIdentity();
+    // 记录到控制台日志，便于调试
+    var opLabel = label || 'AI 操作';
+    console.log('[AI操作] ' + opLabel + ' (' + mode + '): ' + (newContent.length || 0) + ' 字符');
+  }
+
+  /**
+   * 打开 AI 差异对比预览弹窗
+   * @param {Range|null} range - 要替换的选区范围，null 表示全文替换
+   * @param {string} newContent - AI 生成的新内容
+   */
+  function openAiDiffPreview(range, newContent) {
+    var oldContent = '';
+    if (range) {
+      oldContent = mainEditor.session.getTextRange(range);
+    } else {
+      oldContent = mainEditor.getValue();
+    }
+    // 填充差异对比弹窗内容
+    var originalEl = document.getElementById('originalContent');
+    var aiContentEl = document.getElementById('aiContent');
+    if (originalEl && aiContentEl) {
+      originalEl.textContent = oldContent;
+      aiContentEl.textContent = newContent;
+      // 简单行级差异高亮
+      var oldLines = oldContent.split('\n');
+      var newLines = newContent.split('\n');
+      originalEl.innerHTML = oldLines.map(function(line, i) {
+        var isDiff = i >= newLines.length || line !== newLines[i];
+        return isDiff ? '<div class="diff-removed">' + escapeAiHtml(line) + '</div>'
+                      : '<div>' + escapeAiHtml(line) + '</div>';
+      }).join('');
+      aiContentEl.innerHTML = newLines.map(function(line, i) {
+        var isDiff = i >= oldLines.length || line !== oldLines[i];
+        return isDiff ? '<div class="diff-added">' + escapeAiHtml(line) + '</div>'
+                      : '<div>' + escapeAiHtml(line) + '</div>';
+      }).join('');
+    }
+    // 存储 diff 上下文供接受按钮使用
+    document.getElementById('aiDiffModal').dataset.range = range ? JSON.stringify({start: range.start, end: range.end}) : '';
+    // 打开弹窗
+    document.getElementById('aiDiffModal').classList.add('is-visible');
+    showToast('请审阅 AI 差异对比后点击"接受修改"');
+  }
+
+  /**
+   * 将 AI 内容应用到编辑器
+   * @param {string} content - AI 生成的代码内容
+   * @param {string} mode - 应用模式：'replace'（全文替换）、'insert'（插入到光标）、'selection'（替换选中）
+   * @param {object} options - 可选配置
+   */
+  function applyAiContent(content, mode, options) {
+    options = options || {};
+    var showDiff = options.showDiff !== false;
+    if (mode === 'insert') {
+      var cursor = mainEditor.getCursorPosition();
+      mainEditor.session.insert(cursor, content);
+      recordAiOperation('insert', '', content, 'AI 插入内容');
+      showToast('AI 内容已插入到光标位置');
+      return;
+    }
+    if (mode === 'selection') {
+      var range = mainEditor.getSelectionRange();
+      if (range.isEmpty()) {
+        showToast('请先在编辑器中选择要替换的文本', true);
+        return;
+      }
+      if (showDiff) {
+        openAiDiffPreview(range, content);
+      } else {
+        var oldSel = mainEditor.session.getTextRange(range);
+        mainEditor.session.replace(range, content);
+        recordAiOperation('replace_selection', oldSel, content, 'AI 替换选中');
+        showToast('AI 内容已替换选中文本');
+      }
+      return;
+    }
+    // mode === 'replace'（全文替换）
+    if (showDiff) {
+      openAiDiffPreview(null, content);
+    } else {
+      var oldContent = mainEditor.getValue();
+      mainEditor.session.setValue(content);
+      recordAiOperation('replace', oldContent, content, 'AI 全文替换');
+      showToast('AI 内容已应用到编辑器');
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // 代码块操作按钮事件处理
+  // ══════════════════════════════════════════════════════════
+
+  /**
+   * 处理 AI 代码块按钮点击事件（事件委托）
+   */
+  function handleAiCodeBlockAction(event) {
+    var button = event.target.closest('.ai-code-btn');
+    if (!button) return;
+    event.preventDefault();
+    event.stopPropagation();
+    var action = button.dataset.action;
+    var code = button.dataset.code;
+    if (!code) { showToast('无法获取代码内容', true); return; }
+    switch (action) {
+      case 'apply':
+        applyAiContent(code, 'replace', { showDiff: true });
+        break;
+      case 'insert':
+        applyAiContent(code, 'insert');
+        break;
+      case 'replace-selection':
+        applyAiContent(code, 'selection', { showDiff: true });
+        break;
+      case 'diff':
+        applyAiContent(code, 'replace', { showDiff: true });
+        break;
+      default:
+        showToast('未知操作: ' + action, true);
+    }
   }
 
   function updateAiChatState(tab, action) {
@@ -1284,12 +1560,14 @@
       serverError: null,
       pendingDictAdd: capturedPendingAdd
     };
+    // 若用户有选中文本，自动构建上下文提示词
+    var contextualMessage = buildContextualPrompt(message);
     updateAiChatState(request.tab, {
       type: 'start',
       requestId: request.requestId,
       userId: request.userId,
       assistantId: request.assistantId,
-      content: message
+      content: contextualMessage
     });
     activeAiRequest = request;
     elements.aiChatInput.value = '';
@@ -1702,7 +1980,19 @@
     if (content.length > maxLen) {
       content = content.slice(0, maxLen) + '\n\n...(内容过长已截断)';
     }
-    var prompt = '请分析以下编辑器中的内容，提炼要点、指出问题或给出优化建议：\n\n```\n' + content + '\n```';
+    // 如果有选中文本，优先分析选中区域
+    var sel = selectionState;
+    var prompt;
+    if (sel.text) {
+      prompt = '请分析以下选中的文本内容，提炼要点、指出问题或给出优化建议：\n\n```\n'
+        + sel.text + '\n```';
+      if (sel.contextBefore || sel.contextAfter) {
+        prompt += '\n\n（上下文已自动附加到请求中）';
+      }
+    } else {
+      prompt = '请分析以下编辑器中的内容，提炼要点、指出问题或给出优化建议：\n\n```\n'
+        + content + '\n```';
+    }
     setAiChatPanelOpen(true);
     setTimeout(function() {
       sendAiMessage(prompt);
@@ -1750,6 +2040,48 @@
     });
     window.addEventListener('blur', closeEditorContextMenu);
 
+    // 选中提示条清除按钮
+    if (elements.aiChatSelectionHintClear) {
+      elements.aiChatSelectionHintClear.addEventListener('click', function() {
+        mainEditor.selection.clearSelection();
+        updateSelectionState();
+      });
+    }
+
+    // 接受 AI 差异对比修改（从差异弹窗应用）
+    document.getElementById('acceptAiDiffBtn').addEventListener('click', function() {
+      var aiContent = document.getElementById('aiContent');
+      if (!aiContent) return;
+      var newText = aiContent.textContent || aiContent.innerText;
+      if (!newText) { showToast('AI 建议内容为空', true); return; }
+      var modal = document.getElementById('aiDiffModal');
+      var rangeData = modal.dataset.range;
+      if (rangeData) {
+        try {
+          var rangeObj = JSON.parse(rangeData);
+          if (rangeObj.start && rangeObj.end) {
+            var range = new Range(rangeObj.start.row, rangeObj.start.column, rangeObj.end.row, rangeObj.end.column);
+            var oldSel = mainEditor.session.getTextRange(range);
+            mainEditor.session.replace(range, newText);
+            recordAiOperation('diff_accept_selection', oldSel, newText, 'AI 差异审批（选区）');
+          } else {
+            fullReplace();
+          }
+        } catch (_) {
+          fullReplace();
+        }
+      } else {
+        fullReplace();
+      }
+      function fullReplace() {
+        var oldContent = mainEditor.getValue();
+        mainEditor.session.setValue(newText);
+        recordAiOperation('diff_accept', oldContent, newText, 'AI 差异审批');
+      }
+      modal.classList.remove('is-visible');
+      showToast('AI 修改已接受并应用到编辑器');
+    });
+
     let dragStartX = 0;
     let dragStartWidth = 360;
     elements.aiChatResizeHandle.addEventListener('pointerdown', event => {
@@ -1767,6 +2099,8 @@
       window.addEventListener('pointermove', move);
       window.addEventListener('pointerup', stop, { once: true });
     });
+    // AI 代码块操作按钮事件委托（监听 AI 对话面板内的点击）
+    elements.aiChatMessages.addEventListener('click', handleAiCodeBlockAction);
     renderAiChat();
   }
 

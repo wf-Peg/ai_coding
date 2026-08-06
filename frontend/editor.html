@@ -130,6 +130,11 @@
             <button class="icon-close" id="aiChatCloseBtn" aria-label="关闭 AI 对话">×</button>
           </div>
         </header>
+        <!-- 选中上下文提示条（Phase 2） -->
+        <div class="ai-chat-selection-hint" id="aiChatSelectionHint">
+          <span class="hint-text" id="aiChatSelectionHintText">已选中文本</span>
+          <button class="hint-clear" id="aiChatSelectionHintClear" title="清除选中状态">×</button>
+        </div>
         <div class="ai-chat-messages" id="aiChatMessages" aria-live="polite"></div>
         <div class="ai-chat-composer">
           <textarea id="aiChatInput" rows="3" placeholder="输入问题，Enter 发送，Shift+Enter 换行"></textarea>
@@ -340,6 +345,33 @@
       </div>
       <div class="panel-actions">
         <button class="tool-btn primary" data-close-modal="settingsModal">关闭</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- AI 差异对比审批弹窗（Phase 3） -->
+  <div class="modal-backdrop" id="aiDiffModal">
+    <section class="modal-card ai-diff-modal-card" role="dialog" aria-modal="true" aria-labelledby="aiDiffTitle">
+      <div class="panel-header">
+        <div>
+          <h2 id="aiDiffTitle">AI 修改预览</h2>
+          <p>对比当前内容与 AI 建议，确认后应用到编辑器</p>
+        </div>
+        <button class="icon-close" data-close-modal="aiDiffModal" aria-label="关闭">×</button>
+      </div>
+      <div class="diff-preview-container">
+        <div class="diff-panel original-panel">
+          <div class="diff-panel-header">当前内容</div>
+          <div id="originalContent" class="diff-content"></div>
+        </div>
+        <div class="diff-panel ai-panel">
+          <div class="diff-panel-header">AI 建议</div>
+          <div id="aiContent" class="diff-content"></div>
+        </div>
+      </div>
+      <div class="panel-actions">
+        <button class="tool-btn" data-close-modal="aiDiffModal">取消</button>
+        <button class="tool-btn primary" id="acceptAiDiffBtn">接受修改</button>
       </div>
     </section>
   </div>
