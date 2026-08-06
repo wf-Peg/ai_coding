@@ -7,6 +7,8 @@
     "start": "electron .",
     "test:editor": "node --test electron/editor-file-service.test.js",
     "test:editor-ai": "node --test electron/editor-ai-chat-core.test.js",
+    "test:editor-ai-integration": "node --test electron/editor-ai-integration.test.js",
+    "test:editor-all": "node --test electron/editor-ai-chat-core.test.js electron/editor-ai-integration.test.js",
     "postinstall": "electron-builder install-app-deps",
     "generate-icons": "node scripts/generate-icons.js",
     "prebuild": "node scripts/generate-icons.js && node scripts/prebuild-clean.js",
