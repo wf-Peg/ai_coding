@@ -25,5 +25,17 @@ public final class EventTypes {
     public static final String SUGGESTION_IGNORED = "suggestion_ignored";
     public static final String SUGGESTION_REJECTED = "suggestion_rejected";
 
+    // ===== 桌面系统级集成事件 =====
+    public static final String FILE_ASSOCIATION_OPEN = "file_association_open";
+    public static final String CONTEXT_MENU_CLIP = "context_menu_clip";
+    public static final String CONTEXT_MENU_AI_CLIP = "context_menu_ai_clip";
+    public static final String CONTEXT_MENU_OPEN_EDITOR = "context_menu_open_editor";
+    public static final String CONTEXT_MENU_PDF_OCR = "context_menu_pdf_ocr";
+    public static final String CONTEXT_MENU_SETTINGS = "context_menu_settings";
+    public static final String CONTEXT_MENU_REGISTER = "context_menu_register";
+    public static final String PDF_OCR_RESULT = "pdf_ocr_result";
+    public static final String TRAY_OPEN_SETTINGS = "tray_open_settings";
+    public static final String TRAY_OPEN_CLIP_INBOX = "tray_open_clip_inbox";
+
     private EventTypes() {}
 }

@@ -21,6 +21,11 @@ const { EditorFileService } = require('./editor-file-service');
 // 更新管理器（自动更新 + 手动检查）
 const updateManager = require('./update-manager');
 
+// 右键菜单注册管理器
+const { registerContextMenu, unregisterContextMenu } = require('./context-menu-registry');
+// 命令行参数解析器
+const { parseCommandLineArgs, dispatchActions } = require('./command-line-handler');
+
 // 日志模块
 const log = require('./logger');
 
@@ -111,6 +116,7 @@ const DEFAULT_CONFIG = {
   dashscopeModel: 'qwen-plus',
   storagePath: APP_DIR,           // Clip_Bed 父目录，clip-storage/clip-organized/weekly-report 为固定子目录
   configured: false,            // 是否已完成首次配置
+  contextMenuRegistered: false,  // 右键菜单是否已注册
   autoStart: false,             // 是否随系统登录自动启动
   mailEnabled: false,           // 邮件功能是否启用
   mailHost: '',
@@ -989,6 +995,21 @@ function createTray() {
     },
     { type: 'separator' },
     {
+      label: '剪藏收件箱',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+          mainWindow.webContents.executeJavaScript(
+            "window.location.href = '/clip'"
+          ).catch(err => log.warn('[Tray] navigate to clip failed:', err));
+        } else {
+          const config = loadConfig();
+          createMainWindow(config);
+        }
+      }
+    },
+    {
       label: '密码管理',
       click: () => {
         if (mainWindow) {
@@ -998,6 +1019,22 @@ function createTray() {
           mainWindow.webContents.executeJavaScript(
             "if (window.location.hash !== '#/vault') { window.history.pushState({view:'vault'}, '', '/vault'); window.dispatchEvent(new PopStateEvent('popstate')); }"
           ).catch(err => log.warn('[Tray] navigate to vault failed:', err));
+        } else {
+          const config = loadConfig();
+          createMainWindow(config);
+        }
+      }
+    },
+    { type: 'separator' },
+    {
+      label: '⚙️ 设置',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+          mainWindow.webContents.executeJavaScript(
+            "window.location.href = '/settings'"
+          ).catch(err => log.warn('[Tray] navigate to settings failed:', err));
         } else {
           const config = loadConfig();
           createMainWindow(config);
@@ -1449,6 +1486,13 @@ function quitApp() {
 
   // 停止提醒调度器
   stopReminderScheduler();
+
+  // 清理系统右键菜单注册表
+  try {
+    unregisterContextMenu();
+  } catch (e) {
+    log.warn('[ContextMenu] 注销失败:', e.message);
+  }
 
   // 销毁系统托盘图标，防止退出后托盘残留
   if (tray) {
@@ -2625,6 +2669,18 @@ function stopReminderScheduler() {
   }
 }
 
+// ==================== macOS 系统事件 ====================
+
+// macOS: 通过系统 open-file 事件接收双击文件打开
+app.on('open-file', (event, filePath) => {
+  event.preventDefault();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.send('open-file-request', filePath);
+  }
+});
+
 // ==================== 应用生命周期 ====================
 
 app.whenReady().then(async () => {
@@ -2721,6 +2777,20 @@ app.whenReady().then(async () => {
       saveConfig(nextConfig);
       applyAutoStartSetting(nextConfig.autoStart);
 
+      // 首次运行：注册系统右键菜单
+      if (!nextConfig.contextMenuRegistered) {
+        try {
+          const registered = registerContextMenu(APP_DIR);
+          if (registered) {
+            nextConfig.contextMenuRegistered = true;
+            saveConfig(nextConfig);
+            log.info('[ContextMenu] 系统右键菜单注册成功');
+          }
+        } catch (e) {
+          log.warn('[ContextMenu] 注册失败（可能需要管理员权限）:', e.message);
+        }
+      }
+
       // 同步 model-config.json 到 storagePath，保持与设置页面数据一致
       syncModelConfigJson(newConfig);
 
@@ -2782,6 +2852,20 @@ app.whenReady().then(async () => {
       // 启动前同步 model-config.json，确保后端 AppConfigService 迁移时能读到 API Key
       syncModelConfigJson(config);
 
+      // 检查并注册右键菜单（如果尚未注册）
+      if (!config.contextMenuRegistered) {
+        try {
+          const registered = registerContextMenu(APP_DIR);
+          if (registered) {
+            config.contextMenuRegistered = true;
+            saveConfig(config);
+            log.info('[ContextMenu] 系统右键菜单注册成功');
+          }
+        } catch (e) {
+          log.warn('[ContextMenu] 注册失败:', e.message);
+        }
+      }
+
       await startFrontendServer(config);
 
       // 后端异步启动，不阻塞窗口创建
@@ -2802,6 +2886,14 @@ app.whenReady().then(async () => {
       });
 
       createMainWindow(config);
+      // 处理命令行参数（系统右键菜单传递的文件路径）
+      const actions = parseCommandLineArgs(process.argv);
+      if (actions.length > 0) {
+        // 等待窗口就绪后分发动作
+        mainWindow.webContents.on('did-finish-load', () => {
+          dispatchActions(actions, mainWindow);
+        }, { once: true });
+      }
       // 注册全局快捷键
       loadShortcutFromConfig();
       registerGlobalShortcut();

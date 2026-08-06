@@ -100,6 +100,109 @@
       "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "mac": {
+      "extendInfo": {
+        "NSServices": [
+          {
+            "NSMenuItem": { "default": "添加到剪藏收件箱" },
+            "NSMessage": "clipFile",
+            "NSPortName": "CutShelter",
+            "NSRequiredContext": { "NSEnd": "NSMenuItem" },
+            "NSSendTypes": ["NSFilenamesPboardType"]
+          },
+          {
+            "NSMenuItem": { "default": "AI 解析文件并添加剪藏" },
+            "NSMessage": "aiClipFile",
+            "NSPortName": "CutShelter",
+            "NSRequiredContext": { "NSEnd": "NSMenuItem" },
+            "NSSendTypes": ["NSFilenamesPboardType"]
+          },
+          {
+            "NSMenuItem": { "default": "用编辑器打开文件" },
+            "NSMessage": "openEditor",
+            "NSPortName": "CutShelter",
+            "NSRequiredContext": { "NSEnd": "NSMenuItem" },
+            "NSSendTypes": ["NSFilenamesPboardType"]
+          }
+        ]
+      },
+      "fileAssociations": [
+        {
+          "ext": "txt",
+          "name": "CutShelter 文本编辑器",
+          "description": "用 CutShelter 编辑器打开文本文件",
+          "role": "Editor"
+        },
+        {
+          "ext": "md",
+          "name": "CutShelter Markdown 编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "json",
+          "name": "CutShelter JSON 编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "xml",
+          "name": "CutShelter XML 编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "sql",
+          "name": "CutShelter SQL 编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "yml",
+          "name": "CutShelter YAML 编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "yaml",
+          "name": "CutShelter YAML 编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "ini",
+          "name": "CutShelter 配置文件编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "conf",
+          "name": "CutShelter 配置文件编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "log",
+          "name": "CutShelter 日志查看器",
+          "role": "Editor"
+        },
+        {
+          "ext": "csv",
+          "name": "CutShelter CSV 查看器",
+          "role": "Editor"
+        },
+        {
+          "ext": "js",
+          "name": "CutShelter JavaScript 编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "py",
+          "name": "CutShelter Python 编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "html",
+          "name": "CutShelter HTML 编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "css",
+          "name": "CutShelter CSS 编辑器",
+          "role": "Editor"
+        }
+      ],
       "target": [
         {
           "target": "dmg",

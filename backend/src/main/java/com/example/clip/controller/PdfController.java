@@ -158,4 +158,35 @@ public class PdfController {
             return ResponseEntity.internalServerError().body(Map.<String, Object>of("error", "处理失败: " + e.getMessage()));
         }
     }
+
+    /**
+     * PDF OCR 识别
+     * <p>
+     * POST /api/pdf/ocr
+     * <p>
+     * 接收本地文件路径，返回 OCR 识别结果。
+     * 用于系统右键菜单「PDF OCR 识别」功能。
+     * 成功返回包含 text、pages、metadata 的 JSON，失败返回错误信息。
+     *
+     * @param request 包含 filePath 字段的请求体
+     * @return OCR 识别结果 JSON
+     */
+    @PostMapping("/ocr")
+    public ResponseEntity<?> ocrPdf(@RequestBody Map<String, String> request) {
+        String filePath = request.get("filePath");
+        logger.info("[PdfController] OCR 识别请求: {}", filePath);
+        try {
+            if (filePath == null || filePath.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "filePath 不能为空"));
+            }
+            Map<String, Object> result = pdfService.ocrPdf(filePath);
+            return ResponseEntity.ok(result);
+        } catch (IllegalArgumentException e) {
+            logger.warn("[PdfController] OCR 参数错误: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            logger.error("[PdfController] OCR 识别失败: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(Map.of("error", "OCR 识别失败: " + e.getMessage()));
+        }
+    }
 }

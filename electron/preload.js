@@ -410,4 +410,36 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readClipboard: () => ipcRenderer.invoke('read-clipboard'),
   getShortcutConfig: () => ipcRenderer.invoke('get-shortcut-config'),
   setShortcutConfig: (config) => ipcRenderer.invoke('set-shortcut-config', config),
+
+  // ===================== 系统右键菜单事件监听 =====================
+
+  /**
+   * 监听系统右键「添加到剪藏收件箱」事件
+   * @param {Function} callback - 接收文件路径字符串的回调
+   */
+  onClipFile: (callback) => ipcRenderer.on('clip-file', (event, path) => callback(path)),
+
+  /**
+   * 监听系统右键「AI 解析文件并添加剪藏」事件
+   * @param {Function} callback - 接收文件路径字符串的回调
+   */
+  onAiClipFile: (callback) => ipcRenderer.on('ai-clip-file', (event, path) => callback(path)),
+
+  /**
+   * 监听系统右键「用编辑器打开文件」事件
+   * @param {Function} callback - 接收文件路径字符串的回调
+   */
+  onOpenFileRequest: (callback) => ipcRenderer.on('open-file-request', (event, path) => callback(path)),
+
+  /**
+   * 监听系统右键「PDF OCR 识别」事件
+   * @param {Function} callback - 接收文件路径字符串的回调
+   */
+  onPdfOcr: (callback) => ipcRenderer.on('pdf-ocr', (event, path) => callback(path)),
+
+  /**
+   * 监听系统右键「设置」事件
+   * @param {Function} callback - 无参数回调
+   */
+  onOpenSettings: (callback) => ipcRenderer.on('open-settings', () => callback()),
 });

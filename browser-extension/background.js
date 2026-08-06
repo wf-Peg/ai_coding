@@ -110,6 +110,21 @@ function createContextMenus() {
     contexts: ['page', 'selection', 'image']
   });
 
+  // ====== 桌面同步菜单（与桌面端右键菜单保持一致） ======
+  chrome.contextMenus.create({
+    id: 'clip-file-to-inbox',
+    parentId: 'clip-main',
+    title: '添加到剪藏收件箱',
+    contexts: ['page', 'selection']
+  });
+
+  chrome.contextMenus.create({
+    id: 'clip-ai-parse',
+    parentId: 'clip-main',
+    title: 'AI 解析文件内容',
+    contexts: ['page', 'selection']
+  });
+
   // ====== 密码管理菜单（独立根菜单） ======
   chrome.contextMenus.create({
     id: 'vault-main',
@@ -152,6 +167,14 @@ async function handleContextMenuClick(info, tab) {
         break;
       case 'clip-store-only':
         await clipWithType(tab, 'store-only', Boolean(info.selectionText));
+        break;
+      case 'clip-file-to-inbox':
+        // 将页面内容添加到剪藏收件箱（使用默认类型）
+        await clipWithType(tab, 'store-only', Boolean(info.selectionText));
+        break;
+      case 'clip-ai-parse':
+        // AI 解析并剪藏
+        await clipWithType(tab, 'ai-text', Boolean(info.selectionText));
         break;
       case 'clip-settings':
         openOptions();

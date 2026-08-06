@@ -4423,4 +4423,112 @@
   setTimeout(registerDictCompleter, 500);
 
   window.parent.postMessage({ type: 'editorReady' }, '*');
+
+  // ── 系统右键菜单事件处理 ──
+
+  var api = getElectronAPI();
+
+  // 监听系统文件打开事件（双击文件 / 右键「用编辑器打开」）
+  if (api && api.onOpenFileRequest) {
+    api.onOpenFileRequest(async function(filePath) {
+      log.info('[Editor] 收到系统文件打开请求:', filePath);
+      try {
+        var result = await api.openFileByPath(filePath);
+        if (result && !result.canceled) {
+          if (typeof openFileTab === 'function') {
+            openFileTab(result);
+          }
+        }
+      } catch (err) {
+        log.error('[Editor] 打开文件失败:', err);
+      }
+    });
+  }
+
+  // 添加到剪藏收件箱：读取文件内容并调用后端剪藏 API
+  if (api && api.onClipFile) {
+    api.onClipFile(async function(filePath) {
+      log.info('[System] 收到剪藏文件请求:', filePath);
+      try {
+        var result = await api.openFileByPath(filePath);
+        if (result && !result.canceled) {
+          var response = await fetch('http://127.0.0.1:8081/api/clip/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              content: result.text,
+              source: filePath,
+              title: result.fileName,
+              type: 'store-only',
+              captureMethod: 'context-menu'
+            })
+          });
+          var data = await response.json();
+          if (data.status === 'success') {
+            log.info('[System] 文件已添加到剪藏收件箱:', result.fileName);
+          }
+        }
+      } catch (err) {
+        log.error('[System] 剪藏文件失败:', err);
+      }
+    });
+  }
+
+  // AI 解析文件并添加剪藏
+  if (api && api.onAiClipFile) {
+    api.onAiClipFile(async function(filePath) {
+      log.info('[System] 收到 AI 解析文件请求:', filePath);
+      try {
+        var result = await api.openFileByPath(filePath);
+        if (result && !result.canceled) {
+          var response = await fetch('http://127.0.0.1:8081/api/ingest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              content: result.text,
+              source: filePath,
+              title: result.fileName
+            })
+          });
+          var data = await response.json();
+          if (data.success) {
+            log.info('[System] AI 解析完成，已添加到剪藏:', result.fileName);
+          }
+        }
+      } catch (err) {
+        log.error('[System] AI 解析文件失败:', err);
+      }
+    });
+  }
+
+  // PDF OCR 识别
+  if (api && api.onPdfOcr) {
+    api.onPdfOcr(async function(filePath) {
+      log.info('[System] 收到 PDF OCR 请求:', filePath);
+      try {
+        var response = await fetch('http://127.0.0.1:8081/api/pdf/ocr', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filePath: filePath })
+        });
+        var data = await response.json();
+        if (data.success) {
+          log.info('[System] PDF OCR 完成，共识别 ' + data.metadata.pageCount + ' 页');
+          if (typeof openNewTab === 'function') {
+            openNewTab(data.text, 'OCR 识别结果 - ' + filePath.split('/').pop().split('\\').pop());
+          }
+        }
+      } catch (err) {
+        log.error('[System] PDF OCR 失败:', err);
+      }
+    });
+  }
+
+  // 打开设置页面
+  if (api && api.onOpenSettings) {
+    api.onOpenSettings(function() {
+      log.info('[System] 收到打开设置请求');
+      window.location.href = '/settings';
+    });
+  }
 })();
