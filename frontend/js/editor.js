@@ -93,6 +93,31 @@
     'aiChatSelectionHint', 'aiChatSelectionHintText', 'aiChatSelectionHintClear'
   ].map(id => [id, document.getElementById(id)]));
 
+  /**
+   * 创建带图标的状态栏按钮
+   * @param {string} label - 按钮文字
+   * @param {string} icon - 图标字符（emoji 或 SVG）
+   * @param {string} title - 悬停提示（含快捷键）
+   * @param {string} shortcut - 快捷键后缀
+   * @returns {HTMLButtonElement}
+   */
+  function createStatusBtn(label, icon, title, shortcut) {
+    var btn = document.createElement('button');
+    btn.className = 'status-btn';
+    btn.title = (title || label) + (shortcut ? ' (' + shortcut + ')' : '');
+    if (icon) {
+      var iconSpan = document.createElement('span');
+      iconSpan.className = 'status-btn-icon';
+      iconSpan.textContent = icon;
+      btn.appendChild(iconSpan);
+    }
+    var labelSpan = document.createElement('span');
+    labelSpan.className = 'status-btn-label';
+    labelSpan.textContent = label;
+    btn.appendChild(labelSpan);
+    return btn;
+  }
+
   function applyMascotPreference() {
     try {
       const config = JSON.parse(localStorage.getItem('cut_shelter_mascot_v1') || '{}');
@@ -3377,10 +3402,7 @@
   }
 
   // 文件树按钮（在状态栏右侧添加一个按钮）
-  var fileTreeBtn = document.createElement('button');
-  fileTreeBtn.className = 'status-btn';
-  fileTreeBtn.title = '文件浏览器';
-  fileTreeBtn.textContent = '文件';
+  var fileTreeBtn = createStatusBtn('文件', '📁', '文件浏览器', 'Ctrl+Shift+E');
   fileTreeBtn.addEventListener('click', toggleFileTree);
   elements.runtimeStatus.parentNode.insertBefore(fileTreeBtn, elements.runtimeStatus);
 
@@ -3713,10 +3735,7 @@
   }
 
   // 历史按钮（在状态栏）
-  var historyBtn = document.createElement('button');
-  historyBtn.className = 'status-btn';
-  historyBtn.title = '编辑历史';
-  historyBtn.textContent = '历史';
+  var historyBtn = createStatusBtn('历史', '📋', '编辑历史', 'Ctrl+Shift+H');
   historyBtn.addEventListener('click', toggleHistoryPanel);
   elements.runtimeStatus.parentNode.insertBefore(historyBtn, elements.runtimeStatus);
 
@@ -3904,10 +3923,7 @@
   }
 
   // 最近打开按钮（状态栏，历史按钮旁）
-  var recentBtn = document.createElement('button');
-  recentBtn.className = 'status-btn';
-  recentBtn.title = '最近打开的文件';
-  recentBtn.textContent = '最近';
+  var recentBtn = createStatusBtn('最近', '🕐', '最近打开的文件', 'Ctrl+Shift+R');
   recentBtn.addEventListener('click', toggleRecentPanel);
   elements.runtimeStatus.parentNode.insertBefore(recentBtn, historyBtn);
 
@@ -4101,10 +4117,7 @@
   }
 
   // 收藏按钮（状态栏）
-  var favBtn = document.createElement('button');
-  favBtn.className = 'status-btn';
-  favBtn.title = '常用文件收藏';
-  favBtn.textContent = '☆';
+  var favBtn = createStatusBtn('收藏', '⭐', '常用文件收藏', 'Ctrl+Shift+F');
   favBtn.addEventListener('click', toggleFavPanel);
   elements.runtimeStatus.parentNode.insertBefore(favBtn, recentBtn);
 

@@ -121,13 +121,17 @@
         <div class="ai-chat-resize-handle" id="aiChatResizeHandle" role="separator" aria-orientation="vertical" aria-label="调整 AI 面板宽度"></div>
         <header class="ai-chat-header">
           <div class="ai-chat-heading">
-            <span class="ai-chat-title">Pet</span>
+            <span class="ai-chat-model-badge">AI</span>
+            <span class="ai-chat-title">Pet 助手</span>
             <span class="ai-chat-status" id="aiChatStatus">就绪</span>
           </div>
           <div class="ai-chat-actions">
-            <button class="inline-btn" id="aiChatContextBtn" title="读取编辑器上下文发送给AI">读取上下文</button>
-            <button class="inline-btn" id="aiChatClearBtn" title="清空当前标签会话">清空</button>
-            <button class="icon-close" id="aiChatCloseBtn" aria-label="关闭 AI 对话">×</button>
+            <button class="ai-chat-context-btn" id="aiChatContextBtn" title="读取编辑器上下文发送给AI">
+              <span class="context-dot"></span>
+              上下文
+            </button>
+            <button class="ai-chat-action-btn" id="aiChatClearBtn" title="清空会话">×</button>
+            <button class="ai-chat-close-btn" id="aiChatCloseBtn" title="关闭面板">×</button>
           </div>
         </header>
         <!-- 选中上下文提示条（Phase 2） -->
