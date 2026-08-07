@@ -605,7 +605,25 @@ select {
   position: absolute;
   border: 1px solid color-mix(in srgb, var(--app-primary) 70%, transparent);
   border-radius: 2px;
-  background: var(--app-primary-soft);
+  background: color-mix(in srgb, var(--app-primary) 22%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-primary) 10%, transparent);
+}
+
+/* ── 词级差异对比高亮（在行级底色之上再叠加词级标记） ── */
+.ace_marker-layer .diff-word-removed {
+  position: absolute;
+  background: rgba(209, 67, 67, 0.35);
+  border-radius: 2px;
+  border-left: 1px solid rgba(209, 67, 67, 0.5);
+  border-right: 1px solid rgba(209, 67, 67, 0.5);
+}
+
+.ace_marker-layer .diff-word-added {
+  position: absolute;
+  background: rgba(35, 139, 99, 0.35);
+  border-radius: 2px;
+  border-left: 1px solid rgba(35, 139, 99, 0.5);
+  border-right: 1px solid rgba(35, 139, 99, 0.5);
 }
 
 .editor-statusbar {

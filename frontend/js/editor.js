@@ -61,6 +61,7 @@
   const sharedState = {
     compareToken: null,
     diffMarkers: { main: [], compare: [] },
+    diffWordMarkers: { main: [], compare: [] },
     syncMarkers: { main: [], compare: [] },
     diffLocations: [],
     activeDiffIndex: -1,
@@ -1099,6 +1100,8 @@
     if (!shouldOpen) {
       clearMarkers(mainEditor, sharedState.diffMarkers.main);
       clearMarkers(compareEditor, sharedState.diffMarkers.compare);
+      clearMarkers(mainEditor, sharedState.diffWordMarkers.main);
+      clearMarkers(compareEditor, sharedState.diffWordMarkers.compare);
       sharedState.diffLocations = [];
       sharedState.activeDiffIndex = -1;
       elements.diffCounter.textContent = '无差异';
@@ -2187,6 +2190,8 @@
   function updateDiff() {
     clearMarkers(mainEditor, sharedState.diffMarkers.main);
     clearMarkers(compareEditor, sharedState.diffMarkers.compare);
+    clearMarkers(mainEditor, sharedState.diffWordMarkers.main);
+    clearMarkers(compareEditor, sharedState.diffWordMarkers.compare);
     sharedState.diffLocations = [];
     sharedState.activeDiffIndex = -1;
 
@@ -2199,6 +2204,8 @@
     let rightRow = 0;
     // 标记上一部分是否为 removed（用于合并 removed+added 为 1 处差异）
     let prevWasRemoved = false;
+    // 暂存被删除行的内容，用于后续词级对比
+    let pendingRemoved = null;
 
     parts.forEach(part => {
       const rows = countRows(part.value);
@@ -2206,13 +2213,65 @@
         // 纯删除：记录差异位置
         sharedState.diffMarkers.main.push(addFullLineMarker(mainEditor, leftRow, rows, 'diff-removed-line'));
         sharedState.diffLocations.push({ editor: mainEditor, row: leftRow });
+        // 暂存删除行内容供词级对比
+        pendingRemoved = {
+          lines: splitLines(part.value),
+          startRow: leftRow,
+          rowCount: rows
+        };
         leftRow += rows;
         prevWasRemoved = true;
       } else if (part.added && !part.removed) {
         // 纯新增
-        if (prevWasRemoved) {
-          // 上一部分是 removed，合并为同一次替换，不新增 diffLocations
+        if (prevWasRemoved && pendingRemoved) {
+          // 上一部分是 removed，合并为同一次替换，进行词级对比
+          const addedLines = splitLines(part.value);
+          const removedLines = pendingRemoved.lines;
+          const maxLines = Math.max(removedLines.length, addedLines.length);
+          for (let i = 0; i < maxLines; i++) {
+            const oldLine = i < removedLines.length ? removedLines[i] : '';
+            const newLine = i < addedLines.length ? addedLines[i] : '';
+            if (oldLine !== newLine) {
+              // 用 diffWords 逐行计算词级差异
+              const wordParts = window.Diff.diffWords(oldLine, newLine);
+              // 标记旧文件（左侧）删除的词
+              if (i < removedLines.length) {
+                const mRow = pendingRemoved.startRow + i;
+                let mCol = 0;
+                wordParts.forEach(function (wp) {
+                  if (wp.removed) {
+                    sharedState.diffWordMarkers.main.push(
+                      mainEditor.session.addMarker(
+                        new Range(mRow, mCol, mRow, mCol + wp.value.length),
+                        'diff-word-removed',
+                        'text'
+                      )
+                    );
+                  }
+                  if (!wp.added) mCol += wp.value.length;
+                });
+              }
+              // 标记新文件（右侧）新增的词
+              if (i < addedLines.length) {
+                const aRow = rightRow + i;
+                let aCol = 0;
+                wordParts.forEach(function (wp) {
+                  if (wp.added) {
+                    sharedState.diffWordMarkers.compare.push(
+                      compareEditor.session.addMarker(
+                        new Range(aRow, aCol, aRow, aCol + wp.value.length),
+                        'diff-word-added',
+                        'text'
+                      )
+                    );
+                  }
+                  if (!wp.removed) aCol += wp.value.length;
+                });
+              }
+            }
+          }
           prevWasRemoved = false;
+          pendingRemoved = null;
         } else {
           sharedState.diffLocations.push({ editor: compareEditor, row: rightRow });
         }
@@ -2223,11 +2282,23 @@
         leftRow += rows;
         rightRow += rows;
         prevWasRemoved = false;
+        pendingRemoved = null;
       }
     });
     elements.diffCounter.textContent = sharedState.diffLocations.length
       ? `${sharedState.diffLocations.length} 处差异`
       : '无差异';
+  }
+
+  /** 将字符串按行分割，过滤掉末尾空行 */
+  function splitLines(value) {
+    if (!value) return [];
+    var lines = value.split('\n');
+    // 如果末尾是空行（value 以 \n 结尾），去掉最后一个空元素
+    if (lines.length > 0 && lines[lines.length - 1] === '') {
+      lines.pop();
+    }
+    return lines;
   }
 
   function navigateDiff(direction) {
