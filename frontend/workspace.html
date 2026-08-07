@@ -55,9 +55,13 @@
     .eyebrow { margin: 0 0 8px; color: var(--ws-primary); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
     .hero h1 { margin: 0; font-size: clamp(24px, 3vw, 32px); line-height: 1.2; letter-spacing: -.035em; }
     .subtitle { max-width: 620px; margin: 10px 0 0; color: var(--ws-muted); }
-    .refresh { display: inline-flex; align-items: center; gap: 7px; flex: none; padding: 9px 13px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-surface); color: var(--ws-text); transition: border-color .16s ease, color .16s ease, transform .16s ease; }
+    .refresh { display: inline-flex; align-items: center; gap: 7px; flex: none; padding: 9px 13px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-surface); color: var(--ws-text); transition: border-color .16s ease, color .16s ease, transform .16s ease; position: relative; }
     .refresh:hover { border-color: var(--ws-primary); color: var(--ws-primary); transform: translateY(-1px); }
     .refresh:disabled { cursor: wait; opacity: .6; transform: none; }
+    .refresh-info { position: absolute; top: calc(100% + 6px); right: 0; padding: 6px 10px; border-radius: 6px; background: var(--ws-surface); border: 1px solid var(--ws-border); box-shadow: 0 4px 12px rgba(0,0,0,.1); font-size: 12px; color: var(--ws-muted); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .2s ease; z-index: 10; }
+    .refresh-info.show { opacity: 1; }
+    .refresh-info.success { color: var(--app-success); border-color: var(--app-success); }
+    .refresh-info.error { color: var(--ws-danger); border-color: var(--ws-danger); }
     .layout { display: grid; grid-template-columns: minmax(0, 1fr) 290px; align-items: start; gap: 20px; }
     .content-panel, .project-panel { overflow: hidden; border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-surface); box-shadow: var(--app-shadow); }
     .content-panel { min-height: 500px; }
@@ -106,16 +110,21 @@
     .detail-view { display: none; }
     .detail-view.visible { display: block; }
     .detail-view .shell-inner { width: min(1180px, 100%); margin: 0 auto; padding: 32px; }
+    /* ── Detail header ── */
     .detail-header { display: flex; align-items: start; justify-content: space-between; gap: 20px; margin-bottom: 24px; flex-wrap: wrap; }
     .detail-header-left { display: flex; align-items: center; gap: 14px; }
     .detail-color { width: 18px; height: 18px; border-radius: 50%; flex: none; }
     .detail-info h2 { margin: 0; font-size: 22px; letter-spacing: -.02em; }
     .detail-info .detail-type { display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 999px; background: var(--ws-subtle); color: var(--ws-muted); font-size: 11px; }
+    .detail-info .detail-desc { margin: 6px 0 0; font-size: 13px; color: var(--ws-muted); line-height: 1.5; max-width: 480px; }
     .detail-stats { display: flex; flex-wrap: wrap; gap: 8px; }
     .stat-badge { padding: 6px 12px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-surface); font-size: 12px; color: var(--ws-muted); white-space: nowrap; }
     .stat-badge strong { color: var(--ws-text); font-weight: 650; }
     .stat-badge.primary { border-color: var(--ws-primary); background: var(--ws-primary-soft); color: var(--ws-primary); }
     .stat-badge.primary strong { color: var(--ws-primary); }
+    .detail-header-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+    .delete-ws-btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: transparent; color: var(--ws-muted); font-size: 13px; transition: all .16s ease; }
+    .delete-ws-btn:hover { border-color: var(--ws-danger); color: var(--ws-danger); background: var(--ws-danger-soft); }
 
     /* ── Detail Tabs ── */
     .detail-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--ws-border); margin-bottom: 20px; }
@@ -300,6 +309,66 @@
     ::-webkit-scrollbar-thumb { background: var(--ws-border); border-radius: 999px; transition: background 0.2s ease; }
     ::-webkit-scrollbar-thumb:hover { background: var(--ws-faint); }
     * { scrollbar-width: thin; scrollbar-color: var(--ws-border) transparent; }
+
+    /* ── Tag Multi-Input ── */
+    .tag-multi-input { position: relative; display: flex; flex-wrap: wrap; gap: 6px; padding: 7px 10px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-subtle); cursor: text; transition: border-color .16s ease, box-shadow .16s ease; min-height: 40px; align-items: center; }
+    .tag-multi-input:focus-within { border-color: var(--ws-primary); box-shadow: 0 0 0 3px var(--ws-primary-soft); }
+    .tag-list { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+    .tag-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; background: var(--ws-primary-soft); color: var(--ws-primary); font-size: 12px; line-height: 1.4; max-width: 200px; animation: tagIn .18s cubic-bezier(.4,0,.2,1); }
+    .tag-chip-remove { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border: 0; border-radius: 50%; background: transparent; color: var(--ws-primary); font-size: 12px; line-height: 1; cursor: pointer; transition: all .12s ease; flex: none; }
+    .tag-chip-remove:hover { background: var(--ws-primary); color: #fff; }
+    .tag-input { flex: 1; min-width: 80px; border: 0; background: transparent; color: var(--ws-text); font-size: 13px; outline: none; padding: 2px 0; }
+    .tag-input::placeholder { color: var(--ws-faint); }
+    .tag-suggestions { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20; max-height: 200px; overflow-y: auto; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-surface); box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 4px; }
+    .tag-suggestion-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: var(--app-radius-sm); font-size: 13px; color: var(--ws-text); cursor: pointer; transition: background .1s ease; }
+    .tag-suggestion-item:hover, .tag-suggestion-item.active { background: var(--ws-subtle); }
+    .tag-suggestion-item .tag-suggestion-count { margin-left: auto; font-size: 11px; color: var(--ws-faint); }
+    @keyframes tagIn { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: scale(1); } }
+
+    /* ── Notion-style Date-Time Picker ── */
+    .date-time-picker { display: flex; gap: 10px; align-items: flex-start; }
+    .date-picker-field { position: relative; flex: 1; }
+    .date-input { cursor: pointer; caret-color: transparent; user-select: none; }
+    .date-input:focus { border-color: var(--ws-primary); box-shadow: 0 0 0 3px var(--ws-primary-soft); }
+    .time-input { width: 100px; flex: none; text-align: center; letter-spacing: .04em; font-family: var(--app-font-mono, monospace); }
+    .date-calendar { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; width: 280px; padding: 14px 16px 12px; border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-surface); box-shadow: 0 12px 40px rgba(0,0,0,.14); animation: calIn .2s cubic-bezier(.4,0,.2,1); }
+    .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .cal-header .cal-month-year { font-size: 14px; font-weight: 650; color: var(--ws-text); }
+    .cal-nav { display: inline-flex; align-items: center; gap: 2px; }
+    .cal-nav-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 0; border-radius: var(--app-radius-sm); background: transparent; color: var(--ws-muted); font-size: 16px; cursor: pointer; transition: all .12s ease; }
+    .cal-nav-btn:hover { background: var(--ws-subtle); color: var(--ws-text); }
+    .cal-grid { width: 100%; border-collapse: collapse; }
+    .cal-grid th { padding: 4px 0; font-size: 11px; font-weight: 600; color: var(--ws-faint); text-align: center; }
+    .cal-grid td { padding: 2px; text-align: center; }
+    .cal-day { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: var(--ws-text); font-size: 13px; cursor: pointer; transition: all .1s ease; }
+    .cal-day:hover { background: var(--ws-subtle); }
+    .cal-day.other-month { color: var(--ws-faint); opacity: .4; }
+    .cal-day.today { font-weight: 700; color: var(--ws-primary); }
+    .cal-day.selected { background: var(--ws-primary); color: #fff; font-weight: 600; }
+    .cal-day.selected:hover { background: var(--app-primary-hover); }
+    .cal-day.empty { pointer-events: none; }
+    .cal-footer { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--ws-border); }
+    .cal-footer-row { display: flex; align-items: center; justify-content: space-between; }
+    .cal-footer-btn { padding: 3px 10px; border: 0; border-radius: var(--app-radius-sm); background: transparent; color: var(--ws-primary); font-size: 12px; cursor: pointer; transition: all .12s ease; }
+    .cal-footer-btn:hover { background: var(--ws-primary-soft); }
+    .cal-time-quick { display: flex; flex-wrap: wrap; gap: 4px; }
+    .cal-time-btn { padding: 3px 8px; border: 1px solid var(--ws-border); border-radius: var(--app-radius-sm); background: transparent; color: var(--ws-muted); font-size: 11px; cursor: pointer; transition: all .12s ease; }
+    .cal-time-btn:hover { border-color: var(--ws-primary); color: var(--ws-primary); background: var(--ws-primary-soft); }
+    .cal-time-btn.active { border-color: var(--ws-primary); background: var(--ws-primary); color: #fff; }
+    @keyframes calIn { from { opacity: 0; transform: translateY(4px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+    /* ── Form hint ── */
+    .form-hint { margin: 6px 0 0; font-size: 12px; color: var(--ws-faint); line-height: 1.4; }
+
+    /* ── Operator pill ── */
+    .operator-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+    .operator-pill { padding: 5px 12px; border: 1px solid var(--ws-border); border-radius: 999px; background: transparent; color: var(--ws-muted); font-size: 12px; cursor: pointer; transition: all .14s ease; }
+    .operator-pill:hover { border-color: var(--ws-primary); color: var(--ws-primary); }
+    .operator-pill.active { border-color: var(--ws-primary); background: var(--ws-primary-soft); color: var(--ws-primary); font-weight: 600; }
+
+    /* ── Loading spinner button ── */
+    .btn-loading { position: relative; pointer-events: none; opacity: .75; }
+    .btn-loading::after { content: ''; display: inline-block; width: 14px; height: 14px; margin-left: 6px; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; }
   </style>
 </head>
 <body>
@@ -340,7 +409,7 @@
                 <p class="subtitle">从一个只读视图浏览已索引的剪藏、知识、待办和学习计划；这里不会修改你的任何内容或项目数据。</p>
               </div>
             </div>
-            <button class="refresh" id="refreshButton" type="button"><span aria-hidden="true">↻</span> 刷新索引</button>
+            <button class="refresh" id="refreshButton" type="button" title="重新从存储扫描并构建内容索引，反映最新数据变化"><span aria-hidden="true">↻</span> 刷新索引<span class="refresh-info" id="refreshInfo"></span></button>
           </header>
           <div class="layout">
             <section class="content-panel" aria-labelledby="contentHeading">
@@ -478,20 +547,31 @@
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label" for="ruleOperator">操作符</label>
-            <select class="form-select" id="ruleOperator">
-              <option value="equals">等于</option>
-              <option value="contains">包含</option>
-              <option value="in">属于</option>
-              <option value="before">早于</option>
-              <option value="after">晚于</option>
-            </select>
+            <label class="form-label">操作符</label>
+            <div class="operator-pills" id="ruleOperatorPills"></div>
           </div>
         </div>
         <div class="form-group">
           <label class="form-label" for="ruleValue">值 <span style="color:var(--ws-danger)">*</span></label>
-          <input class="form-input" id="ruleValue" type="text" placeholder="输入规则值" autocomplete="off">
-          <p style="margin:4px 0 0;color:var(--ws-faint);font-size:11px">时间字段 (before/after) 格式: YYYY-MM-DDTHH:mm:ss</p>
+          <!-- 下拉选择框 (type/category/workflowStatus) -->
+          <select class="form-select" id="ruleValueSelect" style="display:none" autocomplete="off"></select>
+          <!-- 文本框 (sourcePath) -->
+          <input class="form-input" id="ruleValueInput" type="text" placeholder="输入来源路径" autocomplete="off" style="display:none">
+          <!-- 标签多选输入 (tag) -->
+          <div class="tag-multi-input" id="ruleValueTags" style="display:none">
+            <div class="tag-list" id="tagList"></div>
+            <input class="tag-input" id="tagInput" type="text" placeholder="输入标签搜索..." autocomplete="off">
+            <div class="tag-suggestions" id="tagSuggestions" style="display:none"></div>
+          </div>
+          <!-- 时间选择器 (updatedAt) - Notion 风格 -->
+          <div class="date-time-picker" id="ruleValueDate" style="display:none">
+            <div class="date-picker-field">
+              <input class="form-input date-input" id="dateInput" type="text" placeholder="选择日期..." readonly>
+              <div class="date-calendar" id="dateCalendar" style="display:none"></div>
+            </div>
+            <input class="form-input time-input" id="timeInput" type="text" placeholder="HH:mm" maxlength="5" autocomplete="off">
+          </div>
+          <p class="form-hint" id="ruleValueHint"></p>
         </div>
         <div class="form-group">
           <label class="form-label" style="display:flex;align-items:center;gap:10px;cursor:pointer">
@@ -553,6 +633,7 @@
       const FIELD_LABELS = { type: '类型', category: '分类', tag: '标签', sourcePath: '来源路径', workflowStatus: '工作流状态', updatedAt: '更新时间' };
       const OPERATOR_LABELS = { equals: '等于', contains: '包含', in: '属于', before: '早于', after: '晚于' };
       const TYPE_LABELS = { general: '通用', project: '项目', learning: '学习' };
+      const FIELD_OPERATORS = { type: ['equals', 'in'], category: ['equals', 'contains', 'in'], tag: ['equals', 'contains', 'in'], sourcePath: ['equals', 'contains', 'in'], workflowStatus: ['equals', 'in'], updatedAt: ['before', 'after'] };
 
       /* ── DOM refs ── */
       const $ = id => document.getElementById(id);
@@ -589,8 +670,12 @@
       let activeWsId = null;
       let wsLoading = false;
 
-      /* ─── Rule state ─── */
+      /* ── Rule state ── */
       let editingRuleId = null;
+      let fieldValuesCache = null;
+      let selectedTags = [];
+      let calendarDate = new Date();
+      let selectedCalDate = null;
 
       /* ─── Helpers ─── */
       function escapeHtml(value) {
@@ -762,7 +847,41 @@
           const ws = workspaces.find(w => w.id === activeWsId);
           if (ws) {
             detailHeader.innerHTML =
-              `<div class="detail-header-left"><i class="detail-color" style="background:${escapeHtml(ws.color || '#2383e2')}"></i><div class="detail-info"><h2>${escapeHtml(ws.name)}</h2><span class="detail-type">${escapeHtml(TYPE_LABELS[ws.type || 'general'] || '通用')}</span></div></div><div class="detail-stats" id="detailStats"></div>`;
+              `<div class="detail-header-left"><i class="detail-color" style="background:${escapeHtml(ws.color || '#2383e2')}"></i><div class="detail-info"><h2>${escapeHtml(ws.name)}</h2><span class="detail-type">${escapeHtml(TYPE_LABELS[ws.type || 'general'] || '通用')}</span>${ws.description ? `<p class="detail-desc">${escapeHtml(ws.description)}</p>` : ''}</div></div><div class="detail-stats" id="detailStats"></div><div class="detail-header-actions"><button class="delete-ws-btn" id="deleteWsBtn" type="button" title="删除工作台">&#128465; 删除</button></div>`;
+          }
+          // Bind delete workspace handler
+          const deleteBtn = $('deleteWsBtn');
+          if (deleteBtn) {
+            deleteBtn.addEventListener('click', () => {
+              $('confirmTitle').textContent = '删除工作台';
+              $('confirmMessage').textContent = ws ? `确定要删除工作台"${ws.name}"吗？此操作将同时删除该工作台的所有规则、排除项和看板列，不可恢复。` : '确定要删除此工作台吗？此操作不可恢复。';
+              const confirmActionBtn = $('confirmAction');
+              confirmActionBtn.onclick = async () => {
+                hideModal(confirmModal);
+                // Show loading state on delete button
+                deleteBtn.disabled = true;
+                deleteBtn.innerHTML = '⏳ 删除中...';
+                try {
+                  const r = await fetch(`/api/workspace/${encodeURIComponent(activeWsId)}`, { method: 'DELETE' });
+                  const data = r.ok ? { message: '工作台已删除' } : await r.json().catch(() => ({}));
+                  if (!r.ok) throw new Error(data.message || '删除失败，请稍后重试');
+                  showDetailError('✓ ' + data.message);
+                  // Navigate back to overview
+                  activeWsId = null;
+                  navOverview.classList.add('active');
+                  renderWsList();
+                  overviewView.classList.remove('hidden');
+                  detailView.classList.remove('visible');
+                  await loadWorkspaces();
+                  await loadOverview();
+                } catch (e) {
+                  showDetailError('删除失败：' + (e.message || '后端服务不可用，请稍后重试'));
+                  deleteBtn.disabled = false;
+                  deleteBtn.innerHTML = '&#128465; 删除';
+                }
+              };
+              showModal(confirmModal);
+            });
           }
           const [resData, rulesData, exclusionsData] = await Promise.all([
             fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/resolution`, { headers: { Accept: 'application/json' } }).then(r => r.ok ? r.json() : Promise.reject()),
@@ -875,10 +994,250 @@
           rulesError.style.display = 'block';
         }
       }
+      function updateOperatorPills(field) {
+        const container = $('ruleOperatorPills');
+        const operators = FIELD_OPERATORS[field] || ['equals'];
+        const currentOp = container.querySelector('.active')?.dataset?.operator;
+        container.innerHTML = operators.map(op =>
+          `<button class="operator-pill ${op === (currentOp || operators[0]) ? 'active' : ''}" data-operator="${op}" type="button">${OPERATOR_LABELS[op] || op}</button>`
+        ).join('');
+        container.querySelectorAll('.operator-pill').forEach(pill => {
+          pill.addEventListener('click', function() {
+            container.querySelectorAll('.operator-pill').forEach(p => p.classList.remove('active'));
+            this.classList.add('active');
+          });
+        });
+      }
+
+      function getSelectedOperator() {
+        const active = $('ruleOperatorPills')?.querySelector('.active');
+        return active ? active.dataset.operator : 'equals';
+      }
+
+      /* ── Tag Multi-Select ── */
+      function addTag(tag) {
+        tag = tag.trim();
+        if (!tag || selectedTags.includes(tag)) return;
+        selectedTags.push(tag);
+        renderTagChips();
+        $('tagInput').value = '';
+        $('tagSuggestions').style.display = 'none';
+      }
+      function removeTag(tag) {
+        selectedTags = selectedTags.filter(t => t !== tag);
+        renderTagChips();
+        $('tagInput').focus();
+      }
+      function renderTagChips() {
+        const list = $('tagList');
+        if (!selectedTags.length) { list.innerHTML = ''; return; }
+        list.innerHTML = selectedTags.map(t =>
+          `<span class="tag-chip">${escapeHtml(t)}<button class="tag-chip-remove" data-tag="${escapeHtml(t)}" type="button">&times;</button></span>`
+        ).join('');
+        list.querySelectorAll('.tag-chip-remove').forEach(btn => {
+          btn.addEventListener('click', function(e) { e.stopPropagation(); removeTag(this.dataset.tag); });
+        });
+      }
+      function renderTagSuggestions(query) {
+        const suggestions = $('tagSuggestions');
+        if (!query || !fieldValuesCache?.tag?.length) { suggestions.style.display = 'none'; return; }
+        const q = query.toLowerCase();
+        const matches = fieldValuesCache.tag.filter(t => t.toLowerCase().includes(q) && !selectedTags.includes(t));
+        if (!matches.length) { suggestions.style.display = 'none'; return; }
+        suggestions.innerHTML = matches.map(t =>
+          `<div class="tag-suggestion-item" data-tag="${escapeHtml(t)}"><span>${escapeHtml(t)}</span></div>`
+        ).join('');
+        suggestions.style.display = '';
+        suggestions.querySelectorAll('.tag-suggestion-item').forEach(item => {
+          item.addEventListener('click', function() { addTag(this.dataset.tag); });
+        });
+      }
+
+      /* ── Notion-style Calendar ── */
+      function renderCalendar(year, month) {
+        const cal = $('dateCalendar');
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const startDay = firstDay.getDay();
+        const daysInMonth = lastDay.getDate();
+        const prevMonthDays = new Date(year, month, 0).getDate();
+        const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
+        const today = new Date();
+        const todayStr = today.getFullYear() + '-' + today.getMonth() + '-' + today.getDate();
+        const selStr = selectedCalDate ? selectedCalDate.getFullYear() + '-' + selectedCalDate.getMonth() + '-' + selectedCalDate.getDate() : '';
+        const currentTime = $('timeInput').value || '';
+
+        let html = `<div class="cal-header">
+          <span class="cal-month-year">${year}年 ${month + 1}月</span>
+          <div class="cal-nav">
+            <button class="cal-nav-btn" data-cal-action="prev-month" type="button">&lsaquo;</button>
+            <button class="cal-nav-btn" data-cal-action="next-month" type="button">&rsaquo;</button>
+          </div>
+        </div>
+        <table class="cal-grid"><thead><tr>${weekDays.map(d => `<th>${d}</th>`).join('')}</tr></thead><tbody><tr>`;
+
+        // Previous month padding
+        let col = 0;
+        for (let i = startDay - 1; i >= 0; i--) {
+          const d = prevMonthDays - i;
+          html += `<td><span class="cal-day other-month">${d}</span></td>`;
+          col++;
+        }
+        // Current month days
+        for (let d = 1; d <= daysInMonth; d++) {
+          if (col > 0 && col % 7 === 0) html += '</tr><tr>';
+          const dateStr = year + '-' + month + '-' + d;
+          const cls = ['cal-day'];
+          if (dateStr === todayStr) cls.push('today');
+          if (dateStr === selStr) cls.push('selected');
+          html += `<td><span class="${cls.join(' ')}" data-cal-day="${d}">${d}</span></td>`;
+          col++;
+        }
+        // Next month padding
+        let nextDay = 1;
+        while (col % 7 !== 0) {
+          html += `<td><span class="cal-day other-month">${nextDay}</span></td>`;
+          nextDay++; col++;
+        }
+        html += '</tr></tbody></table>';
+
+        // Footer with quick time picker
+        html += `<div class="cal-footer">
+          <div class="cal-footer-row">
+            <button class="cal-footer-btn" data-cal-action="today" type="button">今天</button>
+            <button class="cal-footer-btn" data-cal-action="clear" type="button">清除</button>
+          </div>
+          <div class="cal-time-quick">
+            <button class="cal-time-btn${!currentTime ? ' active' : ''}" data-cal-time="" type="button">现在</button>
+            <button class="cal-time-btn${currentTime === '00:00' ? ' active' : ''}" data-cal-time="00:00" type="button">00:00</button>
+            <button class="cal-time-btn${currentTime === '06:00' ? ' active' : ''}" data-cal-time="06:00" type="button">06:00</button>
+            <button class="cal-time-btn${currentTime === '12:00' ? ' active' : ''}" data-cal-time="12:00" type="button">12:00</button>
+            <button class="cal-time-btn${currentTime === '18:00' ? ' active' : ''}" data-cal-time="18:00" type="button">18:00</button>
+            <button class="cal-time-btn${currentTime === '23:59' ? ' active' : ''}" data-cal-time="23:59" type="button">23:59</button>
+          </div>
+        </div>`;
+
+        cal.innerHTML = html;
+
+        // Event handlers
+        cal.querySelectorAll('[data-cal-action]').forEach(btn => btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          const action = this.dataset.calAction;
+          if (action === 'prev-month') { calendarDate.setMonth(calendarDate.getMonth() - 1); renderCalendar(calendarDate.getFullYear(), calendarDate.getMonth()); }
+          else if (action === 'next-month') { calendarDate.setMonth(calendarDate.getMonth() + 1); renderCalendar(calendarDate.getFullYear(), calendarDate.getMonth()); }
+          else if (action === 'today') { selectCalDate(new Date()); }
+          else if (action === 'clear') { selectCalDate(null); }
+        }));
+        cal.querySelectorAll('[data-cal-day]').forEach(span => span.addEventListener('click', function() {
+          const day = parseInt(this.dataset.calDay);
+          const d = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), day);
+          selectCalDate(d);
+        }));
+        cal.querySelectorAll('[data-cal-time]').forEach(btn => btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          const time = this.dataset.calTime;
+          if (time) {
+            $('timeInput').value = time;
+          } else {
+            // "现在" - set to current time
+            const now = new Date();
+            $('timeInput').value = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+          }
+          // Update active state
+          cal.querySelectorAll('.cal-time-btn').forEach(b => b.classList.remove('active'));
+          this.classList.add('active');
+        }));
+      }
+
+      function selectCalDate(date) {
+        selectedCalDate = date;
+        const input = $('dateInput');
+        if (date) {
+          const y = date.getFullYear();
+          const m = String(date.getMonth() + 1).padStart(2, '0');
+          const d = String(date.getDate()).padStart(2, '0');
+          input.value = `${y}-${m}-${d}`;
+        } else {
+          input.value = '';
+          $('dateCalendar').style.display = 'none';
+        }
+        // Re-render calendar to update selected highlight, keep open for time selection
+        if ($('dateCalendar').style.display !== 'none') {
+          renderCalendar(calendarDate.getFullYear(), calendarDate.getMonth());
+        }
+      }
+
+      function openCalendar() {
+        const cal = $('dateCalendar');
+        cal.style.display = cal.style.display === 'none' ? '' : 'none';
+        if (cal.style.display !== 'none') {
+          calendarDate = selectedCalDate ? new Date(selectedCalDate) : new Date();
+          renderCalendar(calendarDate.getFullYear(), calendarDate.getMonth());
+        }
+      }
+
+      function closeCalendar() { $('dateCalendar').style.display = 'none'; }
+
+      function switchRuleValueInput(field) {
+        const select = $('ruleValueSelect');
+        const input = $('ruleValueInput');
+        const tags = $('ruleValueTags');
+        const date = $('ruleValueDate');
+        const hint = $('ruleValueHint');
+        [select, input, tags, date].forEach(el => { if (el) el.style.display = 'none'; });
+        hint.style.display = 'none';
+
+        // Update operator pills
+        updateOperatorPills(field);
+
+        if (field === 'sourcePath') {
+          input.style.display = '';
+          input.placeholder = '输入来源路径';
+          hint.style.display = '';
+          hint.textContent = '支持路径片段匹配，如 /clips/notes/';
+        } else if (field === 'updatedAt') {
+          date.style.display = '';
+          hint.style.display = '';
+          hint.textContent = '选择日期时间，用于比较早于/晚于';
+        } else if (field === 'tag') {
+          tags.style.display = '';
+          hint.style.display = '';
+          hint.textContent = '输入标签名称搜索，点击或回车添加多个标签';
+        } else {
+          select.style.display = '';
+          // Populate with values from cache
+          if (fieldValuesCache && fieldValuesCache[field]) {
+            const values = fieldValuesCache[field];
+            select.innerHTML = values.length ? values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('') : '<option value="">（无可用值）</option>';
+          } else {
+            select.innerHTML = '<option value="">加载中...</option>';
+            loadFieldValues().then(() => {
+              if (fieldValuesCache && fieldValuesCache[field]) {
+                select.innerHTML = fieldValuesCache[field].map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+              }
+            }).catch(() => {});
+          }
+        }
+      }
+
+      async function loadFieldValues() {
+        if (fieldValuesCache) return fieldValuesCache;
+        try {
+          const r = await fetch('/api/workspace/field-values', { headers: { Accept: 'application/json' } });
+          if (r.ok) fieldValuesCache = await r.json();
+        } catch (_) { fieldValuesCache = {}; }
+        return fieldValuesCache;
+      }
+
       function openRuleModal(ruleId) {
         editingRuleId = ruleId;
         $('ruleModalTitle').textContent = ruleId ? '编辑规则' : '添加规则';
         $('confirmRule').textContent = '保存';
+        // Reset tag state
+        selectedTags = [];
+        selectedCalDate = null;
+        // Pre-load field values
+        loadFieldValues();
         if (ruleId) {
           fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/rules`, { headers: { Accept: 'application/json' } })
             .then(r => r.ok ? r.json() : [])
@@ -886,27 +1245,120 @@
               const rule = rules.find(r => r.id === ruleId);
               if (rule) {
                 $('ruleField').value = rule.field;
-                $('ruleOperator').value = rule.operator;
-                $('ruleValue').value = rule.value;
                 $('ruleEnabled').checked = rule.enabled;
+                switchRuleValueInput(rule.field);
+                // Set the correct operator pill active
+                const pills = $('ruleOperatorPills');
+                pills.querySelectorAll('.operator-pill').forEach(p => {
+                  p.classList.toggle('active', p.dataset.operator === rule.operator);
+                });
+                // Set the value in the correct input
+                if (rule.field === 'updatedAt') {
+                  // Parse date/time from value
+                  const parts = rule.value.replace('T', ' ').split(' ');
+                  if (parts[0]) {
+                    const d = new Date(parts[0]);
+                    if (!isNaN(d.getTime())) {
+                      selectCalDate(d);
+                    } else {
+                      $('dateInput').value = parts[0];
+                    }
+                  }
+                  if (parts[1] && parts[1].length >= 5) {
+                    $('timeInput').value = parts[1].substring(0, 5);
+                  }
+                } else if (rule.field === 'sourcePath') {
+                  $('ruleValueInput').value = rule.value;
+                } else if (rule.field === 'tag') {
+                  selectedTags = rule.value ? rule.value.split(',').map(t => t.trim()).filter(Boolean) : [];
+                  renderTagChips();
+                } else {
+                  $('ruleValueSelect').value = rule.value;
+                }
               }
             }).catch(() => {});
         } else {
           $('ruleField').value = 'type';
-          $('ruleOperator').value = 'equals';
-          $('ruleValue').value = '';
+          $('ruleValueInput').value = '';
+          $('dateInput').value = '';
+          $('timeInput').value = '';
+          selectedTags = [];
+          renderTagChips();
+          switchRuleValueInput('type');
           $('ruleEnabled').checked = true;
         }
         showModal(ruleModal);
       }
       $('addRuleBtn').addEventListener('click', () => openRuleModal(null));
+      // Field change toggles value input type and operators
+      $('ruleField').addEventListener('change', function() {
+        switchRuleValueInput(this.value);
+      });
+      // Tag input events
+      $('tagInput').addEventListener('input', function() {
+        renderTagSuggestions(this.value);
+      });
+      $('tagInput').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          addTag(this.value);
+        } else if (e.key === 'Backspace' && !this.value && selectedTags.length) {
+          removeTag(selectedTags[selectedTags.length - 1]);
+        } else if (e.key === 'Escape') {
+          $('tagSuggestions').style.display = 'none';
+        }
+      });
+      $('tagInput').addEventListener('blur', function() {
+        setTimeout(() => { $('tagSuggestions').style.display = 'none'; }, 200);
+      });
+      // Date input events
+      $('dateInput').addEventListener('click', function(e) {
+        e.stopPropagation();
+        openCalendar();
+      });
+      $('timeInput').addEventListener('input', function() {
+        let v = this.value.replace(/[^0-9:]/g, '');
+        if (v.length === 2 && !v.includes(':') && this.value.length > 2) {
+          v = v.substring(0, 2) + ':' + v.substring(2);
+        }
+        this.value = v;
+      });
+      $('timeInput').addEventListener('blur', function() {
+        const m = this.value.match(/^(\d{1,2}):(\d{2})$/);
+        if (m) {
+          const h = String(Math.min(23, parseInt(m[1]))).padStart(2, '0');
+          const min = String(Math.min(59, parseInt(m[2]))).padStart(2, '0');
+          this.value = h + ':' + min;
+        } else if (this.value) {
+          this.value = '';
+        }
+      });
       $('confirmRule').addEventListener('click', async () => {
         const field = $('ruleField').value;
-        const operator = $('ruleOperator').value;
-        const value = $('ruleValue').value.trim();
+        const operator = getSelectedOperator();
+        // Read value from the currently visible input
+        let value;
+        if (field === 'sourcePath') {
+          value = $('ruleValueInput').value.trim();
+        } else if (field === 'updatedAt') {
+          const dateVal = $('dateInput').value;
+          const timeVal = $('timeInput').value;
+          if (dateVal) {
+            value = timeVal ? dateVal + 'T' + timeVal + ':00' : dateVal + 'T00:00:00';
+          } else {
+            value = '';
+          }
+        } else if (field === 'tag') {
+          value = selectedTags.join(',');
+        } else {
+          value = $('ruleValueSelect').value;
+        }
         const enabled = $('ruleEnabled').checked;
         if (!value) { showDetailError('请输入规则值'); return; }
         rulesError.style.display = 'none';
+        const confirmBtn = $('confirmRule');
+        confirmBtn.disabled = true;
+        confirmBtn.classList.add('btn-loading');
         try {
           const url = editingRuleId
             ? `/api/workspace/${encodeURIComponent(activeWsId)}/rules/${encodeURIComponent(editingRuleId)}`
@@ -925,14 +1377,20 @@
         } catch (e) {
           rulesError.textContent = '保存失败：' + (e.message || '后端服务不可用');
           rulesError.style.display = 'block';
+        } finally {
+          confirmBtn.disabled = false;
+          confirmBtn.classList.remove('btn-loading');
         }
       });
       function deleteRule(ruleId) {
         $('confirmTitle').textContent = '删除规则';
         $('confirmMessage').textContent = '确定要删除此规则吗？删除后不可恢复。';
-        $('confirmAction').onclick = async () => {
+        const confirmActionBtn = $('confirmAction');
+        confirmActionBtn.onclick = async () => {
           hideModal(confirmModal);
           rulesError.style.display = 'none';
+          confirmActionBtn.disabled = true;
+          confirmActionBtn.classList.add('btn-loading');
           try {
             const r = await fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/rules/${encodeURIComponent(ruleId)}`, { method: 'DELETE' });
             if (!r.ok) throw new Error('删除失败');
@@ -940,6 +1398,9 @@
           } catch (e) {
             rulesError.textContent = '删除失败：' + (e.message || '后端服务不可用');
             rulesError.style.display = 'block';
+          } finally {
+            confirmActionBtn.disabled = false;
+            confirmActionBtn.classList.remove('btn-loading');
           }
         };
         showModal(confirmModal);
@@ -1076,6 +1537,24 @@
           if (e.target === overlay) hideModal(overlay);
         });
       });
+
+      // Close calendar on outside click
+      document.addEventListener('click', function(e) {
+        const cal = $('dateCalendar');
+        if (cal && cal.style.display !== 'none' && !e.target.closest('.date-picker-field')) {
+          cal.style.display = 'none';
+        }
+      });
+
+      // Tag multi-input container click -> focus input
+      const tagContainer = $('ruleValueTags');
+      if (tagContainer) {
+        tagContainer.addEventListener('click', function(e) {
+          if (!e.target.closest('.tag-chip') && !e.target.closest('.tag-suggestions')) {
+            $('tagInput').focus();
+          }
+        });
+      }
 
       /* ── Tab switching ── */
       document.querySelectorAll('.detail-tab').forEach(tab => {
@@ -1372,6 +1851,32 @@
         if (event.data?.action === 'refresh') loadOverview();
       });
       document.documentElement.setAttribute('data-theme', localStorage.getItem('app_theme_v1') || 'notion');
+
+      /* ── Refresh button handler ── */
+      $('refreshButton').addEventListener('click', async function() {
+        const btn = this;
+        const info = $('refreshInfo');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;flex:none"></span> 重建索引中...';
+        info.className = 'refresh-info show';
+        info.textContent = '正在重建内容索引...';
+        try {
+          const r = await fetch('/api/data/rebuild', { method: 'POST' });
+          if (!r.ok) throw new Error('请求失败（' + r.status + '）');
+          const data = await r.json();
+          info.className = 'refresh-info show success';
+          info.textContent = '✓ 索引已重建，共 ' + data.count + ' 条内容';
+          // Reload overview data
+          await loadOverview();
+        } catch (e) {
+          info.className = 'refresh-info show error';
+          info.textContent = '✗ 重建失败：' + (e.message || '后端服务不可用');
+        } finally {
+          btn.innerHTML = '<span aria-hidden="true">↻</span> 刷新索引';
+          btn.disabled = false;
+          setTimeout(function() { info.classList.remove('show'); }, 3000);
+        }
+      });
 
       /* ── Init ── */
       loadOverview();

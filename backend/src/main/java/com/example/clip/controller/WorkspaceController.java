@@ -18,6 +18,8 @@ import com.example.clip.index.WorkspaceRule;
 import com.example.clip.index.WorkspaceSuggestionService;
 import com.example.clip.service.AppConfigService;
 import com.example.clip.service.UserActionEventRecorder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -48,6 +50,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/workspace")
 @CrossOrigin(origins = "*")
 public class WorkspaceController {
+    private static final Logger log = LoggerFactory.getLogger(WorkspaceController.class);
     private static final List<String> CONTENT_TYPES = List.of("clip", "knowledge", "todo", "learning-plan");
 
     private final AppConfigService appConfigService;
@@ -410,6 +413,22 @@ public class WorkspaceController {
         }
     }
 
+    @DeleteMapping("/{workspaceId}")
+    public ResponseEntity<?> deleteWorkspace(@PathVariable String workspaceId) {
+        log.info("event=deleteWorkspace.start workspaceId={}", workspaceId);
+        try {
+            WorkspaceIndexService indexService = workspaceIndexService();
+            requireWorkspace(indexService, workspaceId);
+            indexService.deleteWorkspace(workspaceId);
+            log.info("event=deleteWorkspace.success workspaceId={}", workspaceId);
+            return ResponseEntity.ok(Map.of("status", "ok", "message", "工作台已删除"));
+        } catch (RuntimeException error) {
+            log.warn("event=deleteWorkspace.error workspaceId={} errorType={} message={}",
+                    workspaceId, error.getClass().getSimpleName(), error.getMessage());
+            return errorResponse(error);
+        }
+    }
+
     @GetMapping("/{workspaceId}/resolution")
     public ResponseEntity<?> resolution(@PathVariable String workspaceId) {
         try {
@@ -420,6 +439,24 @@ public class WorkspaceController {
             return ResponseEntity.ok(resolution.body());
         } catch (RuntimeException error) {
             return errorResponse(error);
+        }
+    }
+
+    @GetMapping("/field-values")
+    public ResponseEntity<Map<String, List<String>>> fieldValues() {
+        try {
+            Path indexDir = indexDir();
+            ContentIndexService contentIndex = new ContentIndexService(indexDir.resolve("content-index.json"));
+            List<ContentRef> allRefs = contentIndex.readAll();
+            Map<String, List<String>> result = new LinkedHashMap<>();
+            // types: from WorkspaceRule.FIELDS minus sourcePath and updatedAt
+            result.put("type", allRefs.stream().map(ContentRef::type).filter(t -> t != null).distinct().sorted().toList());
+            result.put("category", allRefs.stream().map(ContentRef::category).filter(c -> c != null && !c.isBlank()).distinct().sorted().toList());
+            result.put("tag", allRefs.stream().flatMap(ref -> ref.tags().stream()).filter(t -> t != null && !t.isBlank()).distinct().sorted().toList());
+            result.put("workflowStatus", allRefs.stream().map(ContentRef::workflowStatus).filter(s -> s != null && !s.isBlank()).distinct().sorted().toList());
+            return ResponseEntity.ok(result);
+        } catch (RuntimeException error) {
+            return ResponseEntity.ok(Map.of());
         }
     }
 

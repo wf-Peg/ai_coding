@@ -67,6 +67,7 @@ build.bat       # Windows
 - Markdown 渲染：`libs/marked.min.js`
 - API 调用：`fetch('http://127.0.0.1:8081/api/...')`
 - 每个页面独立 HTML 文件，逻辑内嵌或独立 JS 文件
+- 设计上参考obsidian，notion等，做出高级感并贴合全局主题
 
 ### LLM 提供者
 
