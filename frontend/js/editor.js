@@ -2950,6 +2950,23 @@
       if (state.clipId) loadClip(state.clipId);
     } else if (data.action === 'focusEditor') {
       mainEditor.focus();
+    } else if (data.type === 'openFile') {
+      // 系统右键菜单「用编辑器打开」→ 父页面 postMessage 传递文件路径
+      var api = getElectronAPI();
+      if (api && api.openFileByPath) {
+        api.openFileByPath(data.filePath).then(function(result) {
+          if (result && !result.canceled && typeof openFileTab === 'function') {
+            openFileTab(result);
+          }
+        }).catch(function(err) {
+          log.error('[Editor] postMessage openFile 失败:', err);
+        });
+      }
+    } else if (data.type === 'openText') {
+      // 系统右键菜单「PDF OCR」→ 在编辑器新标签页打开识别结果
+      if (typeof openNewTab === 'function') {
+        openNewTab(data.text, data.title || 'OCR 识别结果');
+      }
     }
   });
 

@@ -3,8 +3,9 @@
  *
  * 职责：
  * 1. Windows: 通过写入注册表添加右键菜单项（写入 HKCU\Software\Classes，无需管理员权限）
- * 2. 注册单个「剪藏」菜单项，点击后由 Electron 弹出原生菜单（Menu.popup）
- *    —— 兼容 Windows 11 新右键菜单（静态 SubCommands 级联在 Win11 上不可靠）
+ * 2. 注册多个扁平菜单项（用「剪藏 |」前缀分组），直接可点击执行
+ *    —— Windows 11 25H2 静态 SubCommands 级联已不可靠，
+ *       所有成熟产品（7-Zip 等）均使用 COM DLL 方式，本项目不引入原生 DLL
  * 3. macOS: 通过 Info.plist 的 NSServices 注册 Finder 服务
  * 4. 卸载时清理注册表项
  *
@@ -25,9 +26,6 @@ const fs = require('fs');
  */
 const USER_CLASSES_ROOT = 'HKEY_CURRENT_USER\\Software\\Classes';
 
-/** 顶级菜单名称（右键 → 剪藏 → 弹出子菜单） */
-const PARENT_MENU_NAME = '剪藏';
-
 /** 所有菜单项 id（注册/注销共用） */
 const MENU_IDS = [
   'CutShelter',
@@ -38,7 +36,7 @@ const MENU_IDS = [
   'CutShelterSettings'
 ];
 
-/** CommandStore 子命令键名（旧版残留清理） */
+/** 旧版独立子命令键名（清理残留） */
 const LEGACY_SUBKEYS = ['CutShelter.FileMenu', 'CutShelter.DesktopMenu'];
 
 /**
@@ -79,46 +77,49 @@ function getExeCommand(appDir) {
 }
 
 /**
- * 注册单个扁平菜单项（文件右键 / 桌面背景右键）
+ * 注册一个扁平菜单项
  * 结构：
- *   {root}\shell\CutShelter
- *       (Default) = "剪藏"
+ *   {root}\shell\{itemId}
+ *       (Default) = 显示名
  *       Icon = "exe,0"
- *   {root}\shell\CutShelter\command
- *       (Default) = "exe" --context-menu "%1"
- *
- * 点击后由 Electron 主进程弹出原生 Menu.popup 菜单，
- * 用户选择具体功能后再分发动作。兼容 Windows 11 新右键菜单。
+ *   {root}\shell\{itemId}\command
+ *       (Default) = 命令
  *
  * @param {string} root - 注册表根（如 * 或 Directory\Background）
  * @param {string} exe - 命令前缀
+ * @param {Object} item - 菜单项配置 { id, label, arg, appliesTo }
  * @param {boolean} isDesktopBg - 是否为桌面/文件夹背景右键（不需要 %1）
  * @returns {boolean} 是否成功
  */
-function registerFlatMenuItem(root, exe, isDesktopBg) {
-  const itemPath = `${USER_CLASSES_ROOT}\\${root}\\shell\\CutShelter`;
+function registerFlatItem(root, exe, item, isDesktopBg) {
+  const itemPath = `${USER_CLASSES_ROOT}\\${root}\\shell\\${item.id}`;
 
   // 菜单显示名
-  if (!runReg(['add', itemPath, '/ve', '/t', 'REG_SZ', '/d', PARENT_MENU_NAME, '/f'])) return false;
+  if (!runReg(['add', itemPath, '/ve', '/t', 'REG_SZ', '/d', item.label, '/f'])) return false;
 
   // 菜单图标
   const exeToken = exe.match(/^(".*?"|\S+)/);
   const iconPath = exeToken ? exeToken[1] : exe;
   if (!runReg(['add', itemPath, '/v', 'Icon', '/t', 'REG_SZ', '/d', `${iconPath},0`, '/f'])) return false;
 
-  // 命令：--context-menu 触发 Electron 弹出原生菜单
-  const cmdValue = isDesktopBg
-    ? `${exe} --context-menu`
-    : `${exe} --context-menu "%1"`;
+  // 命令
+  const cmdValue = (isDesktopBg || item.arg === '--open-settings')
+    ? `${exe} ${item.arg}`
+    : `${exe} ${item.arg} "%1"`;
   if (!runReg(['add', `${itemPath}\\command`, '/ve', '/t', 'REG_SZ', '/d', cmdValue, '/f'])) return false;
+
+  // AppliesTo 过滤（仅对 PDF 等）
+  if (item.appliesTo) {
+    if (!runReg(['add', itemPath, '/v', 'AppliesTo', '/t', 'REG_SZ', '/d', item.appliesTo, '/f'])) return false;
+  }
 
   return true;
 }
 
 /**
- * Windows: 注册右键菜单到注册表
- * 1. 文件右键: HKCU\Software\Classes\*\shell\CutShelter（剪藏 → 弹出菜单）
- * 2. 桌面/文件夹背景右键: HKCU\Software\Classes\Directory\Background\shell\CutShelter
+ * Windows: 注册右键菜单到注册表（扁平菜单项，用前缀分组）
+ * 1. 文件右键: HKCU\Software\Classes\*\shell\CutShelter{XXX}
+ * 2. 桌面/文件夹背景右键: HKCU\Software\Classes\Directory\Background\shell\CutShelterSettings
  *
  * @param {string} appDir - 应用根目录
  * @returns {boolean} 是否成功
@@ -126,27 +127,56 @@ function registerFlatMenuItem(root, exe, isDesktopBg) {
 function registerWindowsContextMenu(appDir) {
   const exe = getExeCommand(appDir);
 
-  // 1. 文件右键菜单
-  const fileOk = registerFlatMenuItem('*', exe, false);
-  // 2. 桌面/文件夹背景右键菜单
-  const desktopOk = registerFlatMenuItem('Directory\\Background', exe, true);
+  // 文件右键菜单项（用「剪藏 |」前缀分组，在经典菜单中相邻排列）
+  const menuItems = [
+    { id: 'CutShelterClip', label: '✂️ 剪藏 | 添加到收件箱', arg: '--clip-file', appliesTo: null },
+    { id: 'CutShelterAIClip', label: '🧠 剪藏 | AI 解析并添加', arg: '--ai-clip-file', appliesTo: null },
+    { id: 'CutShelterOpen', label: '📝 剪藏 | 用编辑器打开', arg: '--open-editor', appliesTo: null },
+    { id: 'CutShelterOCRPdf', label: '📄 剪藏 | PDF OCR 识别', arg: '--pdf-ocr', appliesTo: 'System.FileName:.pdf' },
+    { id: 'CutShelterSettings', label: '⚙️ 剪藏 | 设置', arg: '--open-settings', appliesTo: null },
+  ];
 
-  if (fileOk && desktopOk) {
-    console.log('[ContextMenu] 系统右键菜单注册成功（扁平菜单 + Electron 弹窗）');
+  // 桌面背景右键菜单项（仅需无文件路径的项）
+  const desktopBgItems = [
+    { id: 'CutShelterSettings', label: '⚙️ 剪藏 | 设置', arg: '--open-settings', appliesTo: null },
+  ];
+
+  let allOk = true;
+
+  // 1. 文件右键菜单
+  for (const item of menuItems) {
+    if (!registerFlatItem('*', exe, item, false)) {
+      console.error(`[ContextMenu] Failed to register ${item.id}`);
+      allOk = false;
+    }
   }
-  return fileOk && desktopOk;
+
+  // 2. 桌面/文件夹背景右键菜单
+  for (const item of desktopBgItems) {
+    if (!registerFlatItem('Directory\\Background', exe, item, true)) {
+      console.error(`[ContextMenu] Failed to register desktop ${item.id}`);
+      allOk = false;
+    }
+  }
+
+  if (allOk) {
+    console.log('[ContextMenu] 系统右键菜单注册成功（扁平菜单项）');
+  }
+  return allOk;
 }
 
 /**
  * Windows: 注销右键菜单
- * 删除 HKCU 级联结构、旧版平铺结构，以及 HKLM 版 HKCR 残留项
+ * 删除 HKCU 菜单项、旧版级联结构、旧版独立子命令键，以及 HKLM 版 HKCR 残留项
  */
 function unregisterWindowsContextMenu() {
   const roots = ['*', 'Directory\\Background'];
 
-  // 1. 删除 HKCU 菜单项（自动递归删除所有子项）
+  // 1. 删除 HKCU 所有菜单项（含级联顶级键 CutShelter 和各扁平子项）
   for (const root of roots) {
-    runReg(['delete', `${USER_CLASSES_ROOT}\\${root}\\shell\\CutShelter`, '/f']);
+    for (const id of MENU_IDS) {
+      runReg(['delete', `${USER_CLASSES_ROOT}\\${root}\\shell\\${id}`, '/f']);
+    }
   }
 
   // 2. 删除旧版独立子命令键（前期实现残留）
@@ -154,18 +184,10 @@ function unregisterWindowsContextMenu() {
     runReg(['delete', `${USER_CLASSES_ROOT}\\${subKey}`, '/f']);
   }
 
-  // 3. 删除 HKCU 旧版平铺结构（单独注册的子项）
-  for (const root of roots) {
-    for (const id of MENU_IDS) {
-      runReg(['delete', `${USER_CLASSES_ROOT}\\${root}\\shell\\${id}`, '/f']);
-    }
-  }
-
-  // 4. 兼容清理：旧版本写入的 HKLM 版 HKCR 项（若之前以管理员权限注册过）
+  // 3. 兼容清理：旧版本写入的 HKLM 版 HKCR 项（若之前以管理员权限注册过）
   const legacyRoots = ['HKEY_CLASSES_ROOT', 'HKEY_LOCAL_MACHINE\\Software\\Classes'];
   for (const root of legacyRoots) {
     for (const scope of ['*', 'Directory\\Background']) {
-      runReg(['delete', `${root}\\${scope}\\shell\\CutShelter`, '/f']);
       for (const id of MENU_IDS) {
         runReg(['delete', `${root}\\${scope}\\shell\\${id}`, '/f']);
       }

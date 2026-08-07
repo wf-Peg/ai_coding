@@ -851,6 +851,111 @@
             icon.innerHTML = '<rect x="2.5" y="0.5" width="8" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="0.5" y="2.5" width="8" height="8" rx="1" fill="var(--titlebar-bg)" stroke="currentColor" stroke-width="1.2"/>';
           }
         });
+
+        // ── 系统右键菜单事件处理 ──
+        // 主页注册 IPC 监听器，处理右键菜单触发的功能跳转
+        // editor.js 中也有同名监听器，但仅在编辑器 iframe 加载后才注册
+
+        // 添加到剪藏收件箱
+        if (window.electronAPI.onClipFile) {
+          window.electronAPI.onClipFile(async function(filePath) {
+            console.log('[System] 收到剪藏文件请求:', filePath);
+            // 切换到剪藏视图
+            renderView('clip');
+            try {
+              var fileName = filePath.split(/[/\\]/).pop();
+              var response = await fetch('http://127.0.0.1:8081/api/clip/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: '', source: filePath, title: fileName, type: 'store-only', captureMethod: 'context-menu' })
+              });
+              var data = await response.json();
+              if (data.status === 'success') {
+                console.log('[System] 文件已添加到剪藏收件箱:', fileName);
+              }
+            } catch (err) {
+              console.error('[System] 剪藏文件失败:', err);
+            }
+          });
+        }
+
+        // AI 解析文件并添加剪藏
+        if (window.electronAPI.onAiClipFile) {
+          window.electronAPI.onAiClipFile(async function(filePath) {
+            console.log('[System] 收到 AI 解析文件请求:', filePath);
+            renderView('clip');
+            try {
+              var fileName = filePath.split(/[/\\]/).pop();
+              var response = await fetch('http://127.0.0.1:8081/api/ingest', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: '', source: filePath, title: fileName })
+              });
+              var data = await response.json();
+              if (data.success) {
+                console.log('[System] AI 解析完成，已添加到剪藏:', fileName);
+              }
+            } catch (err) {
+              console.error('[System] AI 解析文件失败:', err);
+            }
+          });
+        }
+
+        // 用编辑器打开文件 → 切换到编辑器视图并通知 iframe 打开文件
+        if (window.electronAPI.onOpenFileRequest) {
+          window.electronAPI.onOpenFileRequest(async function(filePath) {
+            console.log('[System] 收到编辑器打开请求:', filePath);
+            renderView('editor');
+            // 等 iframe 加载后通过 postMessage 传递文件路径
+            var editorFrame = document.getElementById('editorFrame');
+            var sendOpenFile = function() {
+              editorFrame.contentWindow.postMessage({ type: 'openFile', filePath: filePath }, '*');
+            };
+            if (editorFrame.contentWindow && editorFrame.contentWindow.document.readyState === 'complete') {
+              sendOpenFile();
+            } else {
+              editorFrame.addEventListener('load', sendOpenFile, { once: true });
+            }
+          });
+        }
+
+        // PDF OCR 识别
+        if (window.electronAPI.onPdfOcr) {
+          window.electronAPI.onPdfOcr(async function(filePath) {
+            console.log('[System] 收到 PDF OCR 请求:', filePath);
+            try {
+              var response = await fetch('http://127.0.0.1:8081/api/pdf/ocr', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filePath: filePath })
+              });
+              var data = await response.json();
+              if (data.success) {
+                console.log('[System] PDF OCR 完成');
+                renderView('editor');
+                var editorFrame = document.getElementById('editorFrame');
+                var sendOcrResult = function() {
+                  editorFrame.contentWindow.postMessage({ type: 'openText', text: data.text, title: 'OCR 识别结果' }, '*');
+                };
+                if (editorFrame.contentWindow && editorFrame.contentWindow.document.readyState === 'complete') {
+                  sendOcrResult();
+                } else {
+                  editorFrame.addEventListener('load', sendOcrResult, { once: true });
+                }
+              }
+            } catch (err) {
+              console.error('[System] PDF OCR 失败:', err);
+            }
+          });
+        }
+
+        // 打开设置页面
+        if (window.electronAPI.onOpenSettings) {
+          window.electronAPI.onOpenSettings(function() {
+            console.log('[System] 收到打开设置请求');
+            renderView('settings');
+          });
+        }
       } else {
         // 浏览器环境：隐藏遮罩 + 窗口控制按钮 + 直接加载 iframe
         lazyLoadIframes();

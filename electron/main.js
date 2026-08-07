@@ -997,29 +997,6 @@ function stopFrontendServer() {
   }
 }
 
-// ==================== 右键菜单弹窗 ====================
-
-/**
- * 弹出原生右键菜单（替代 Windows 静态级联菜单）
- * Windows 11 新右键菜单不支持 SubCommands 级联展开，
- * 因此注册单个扁平菜单项，点击后由 Electron 弹出原生菜单。
- * @param {string|null} filePath - 右键的文件路径（桌面背景右键时为 null）
- */
-function showContextMenuPopup(filePath) {
-  const isFile = !!filePath;
-  const menuTemplate = [
-    { label: '✂️ 添加到剪藏收件箱', enabled: isFile, click: () => dispatchActions([{ action: 'clip-file', path: filePath }], mainWindow) },
-    { label: '🧠 AI 解析文件并添加剪藏', enabled: isFile, click: () => dispatchActions([{ action: 'ai-clip-file', path: filePath }], mainWindow) },
-    { label: '📝 用编辑器打开文件', enabled: isFile, click: () => dispatchActions([{ action: 'open-editor', path: filePath }], mainWindow) },
-    { label: '📄 PDF OCR 识别', enabled: isFile && filePath.toLowerCase().endsWith('.pdf'), click: () => dispatchActions([{ action: 'pdf-ocr', path: filePath }], mainWindow) },
-    { type: 'separator' },
-    { label: '⚙️ 设置', click: () => dispatchActions([{ action: 'open-settings', path: null }], mainWindow) },
-  ];
-  const menu = Menu.buildFromTemplate(menuTemplate);
-  const cursorPos = screen.getCursorScreenPoint();
-  menu.popup({ x: cursorPos.x, y: cursorPos.y });
-}
-
 // ==================== 系统托盘 ====================
 
 /**
@@ -2831,15 +2808,7 @@ if (!gotTheLock) {
     // 解析命令行参数（系统右键菜单等触发的二次启动），转发到渲染进程
     const actions = parseCommandLineArgs(commandLine);
     if (actions.length > 0 && mainWindow && !mainWindow.isDestroyed()) {
-      // context-menu 动作由主进程弹出原生菜单，不经过 dispatchActions
-      const contextMenuAction = actions.find(a => a.action === 'context-menu');
-      const otherActions = actions.filter(a => a.action !== 'context-menu');
-      if (contextMenuAction) {
-        showContextMenuPopup(contextMenuAction.path);
-      }
-      if (otherActions.length > 0) {
-        dispatchActions(otherActions, mainWindow);
-      }
+      dispatchActions(actions, mainWindow);
     }
   });
 }
@@ -3048,16 +3017,9 @@ app.whenReady().then(async () => {
       // 处理命令行参数（系统右键菜单传递的文件路径）
       const actions = parseCommandLineArgs(process.argv);
       if (actions.length > 0) {
-        // context-menu 动作在窗口加载完成后弹出原生菜单
-        const contextMenuAction = actions.find(a => a.action === 'context-menu');
-        const otherActions = actions.filter(a => a.action !== 'context-menu');
+        // 等待窗口就绪后分发动作
         mainWindow.webContents.on('did-finish-load', () => {
-          if (contextMenuAction) {
-            showContextMenuPopup(contextMenuAction.path);
-          }
-          if (otherActions.length > 0) {
-            dispatchActions(otherActions, mainWindow);
-          }
+          dispatchActions(actions, mainWindow);
         }, { once: true });
       }
       // 注册全局快捷键
