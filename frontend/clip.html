@@ -847,41 +847,229 @@
             gap: 10px;
         }
 
-        .synthesize-btn {
+        /* ── 优雅圆形复选框 ── */
+        .clip-checkbox {
+            display: none;
+        }
+        .clip-checkbox + .check-visual {
+            width: 22px;
+            height: 22px;
+            flex-shrink: 0;
+            border-radius: 50%;
+            border: 2px solid var(--border);
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.3;
+        }
+        .clip-checkbox + .check-visual:hover {
+            opacity: 0.8;
+            border-color: var(--primary);
+            background: rgba(86, 156, 255, 0.08);
+            transform: scale(1.08);
+        }
+        .clip-checkbox:checked + .check-visual {
+            opacity: 1;
+            border-color: var(--primary);
+            background: var(--primary);
+            box-shadow: 0 0 0 4px rgba(86, 156, 255, 0.15), 0 2px 12px rgba(86, 156, 255, 0.3);
+            transform: scale(1);
+        }
+        .clip-checkbox:checked + .check-visual::after {
+            content: '';
+            display: block;
+            width: 7px;
+            height: 11px;
+            border: solid #fff;
+            border-width: 0 2.5px 2.5px 0;
+            transform: rotate(45deg) translateY(-1px);
+            animation: checkPop 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        @keyframes checkPop {
+            0% { transform: rotate(45deg) translateY(-1px) scale(0); }
+            50% { transform: rotate(45deg) translateY(-1px) scale(1.15); }
+            100% { transform: rotate(45deg) translateY(-1px) scale(1); }
+        }
+
+        /* ── 剪藏项选中状态 ── */
+        .clip-item.selected {
+            border-color: var(--primary);
+            background: rgba(86, 156, 255, 0.04);
+            box-shadow: 0 0 0 1px rgba(86, 156, 255, 0.15), 0 4px 20px rgba(86, 156, 255, 0.08);
+        }
+
+        .clip-item .check-area {
+            display: flex;
+            align-items: center;
+            margin-right: 10px;
+            flex-shrink: 0;
+        }
+        .clip-item:hover .check-area .clip-checkbox + .check-visual {
+            opacity: 0.7;
+        }
+        .clip-item:hover .check-area .clip-checkbox:checked + .check-visual {
+            opacity: 1;
+        }
+        .clip-item.selected .check-area .clip-checkbox + .check-visual {
+            opacity: 1;
+        }
+
+        html[data-theme="dark"] .clip-item.selected {
+            background: rgba(86, 156, 255, 0.06);
+            box-shadow: 0 0 0 1px rgba(86, 156, 255, 0.2), 0 4px 20px rgba(0,0,0,0.3);
+        }
+        html[data-theme="dark"] .clip-checkbox + .check-visual {
+            border-color: #555;
+        }
+        html[data-theme="dark"] .clip-checkbox + .check-visual:hover {
+            border-color: var(--primary-light);
+            background: rgba(86, 156, 255, 0.12);
+        }
+        html[data-theme="dark"] .clip-checkbox:checked + .check-visual {
+            border-color: var(--primary);
+            background: var(--primary);
+            box-shadow: 0 0 0 4px rgba(86, 156, 255, 0.2), 0 2px 12px rgba(86, 156, 255, 0.25);
+        }
+
+        /* ── 浮动操作栏（玻璃质感） ── */
+        .float-bar {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 12px 20px;
+            background: rgba(255, 255, 255, 0.88);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
+            z-index: 999;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            font-family: inherit;
+        }
+        .float-bar.visible {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateX(-50%) translateY(0);
+        }
+        .float-bar .float-bar-count {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text);
+            font-size: 0.85rem;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .float-bar .float-bar-count .count-num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 24px;
+            height: 24px;
+            padding: 0 6px;
+            border-radius: 12px;
+            background: var(--primary);
+            color: #fff;
+            font-size: 0.75rem;
+            font-weight: 600;
+            line-height: 1;
+        }
+        .float-bar .float-bar-divider {
+            width: 1px;
+            height: 24px;
+            background: var(--border);
+        }
+        .float-bar .float-bar-btn {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            padding: 8px 16px;
-            background: linear-gradient(135deg, #a855f7, #7c3aed);
+            padding: 8px 18px;
+            background: var(--primary);
             color: #fff;
             border: none;
             border-radius: 10px;
             cursor: pointer;
             font-size: 0.85rem;
             font-weight: 600;
+            transition: all 0.2s ease;
+            font-family: inherit;
             white-space: nowrap;
-            transition: var(--transition);
-            box-shadow: 0 4px 12px rgba(168, 85, 247, 0.3);
         }
-        .synthesize-btn:hover:not(:disabled) {
-            background: linear-gradient(135deg, #9333ea, #6d28d9);
+        .float-bar .float-bar-btn:hover:not(:disabled) {
+            background: var(--primary-dark);
             transform: translateY(-1px);
-            box-shadow: 0 6px 16px rgba(168, 85, 247, 0.4);
+            box-shadow: 0 4px 16px rgba(86, 156, 255, 0.35);
         }
-        .synthesize-btn:disabled {
-            background: #d1d5db;
-            color: #9ca3af;
+        .float-bar .float-bar-btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        .float-bar .float-bar-btn:disabled {
+            opacity: 0.5;
             cursor: not-allowed;
-            box-shadow: none;
-            transform: none;
+        }
+        .float-bar .float-bar-btn .btn-icon {
+            width: 16px;
+            height: 16px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .float-bar .float-bar-cancel {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 500;
+            padding: 6px 12px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+        .float-bar .float-bar-cancel:hover {
+            color: var(--text);
+            background: rgba(0, 0, 0, 0.05);
+        }
+        .float-bar .float-bar-loading {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        @keyframes floatBarSpin {
+            to { transform: rotate(360deg); }
+        }
+        .float-bar .float-bar-loading .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: floatBarSpin 0.6s linear infinite;
         }
 
-        .clip-checkbox {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-            accent-color: #a855f7;
-            flex-shrink: 0;
+        html[data-theme="dark"] .float-bar {
+            background: rgba(30, 30, 30, 0.88);
+            border-color: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05);
+        }
+        html[data-theme="dark"] .float-bar .float-bar-cancel:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+        html[data-theme="dark"] .float-bar .float-bar-divider {
+            background: #444;
         }
 
         .workflow-filter {
@@ -2162,6 +2350,32 @@
                 flex-direction: column;
                 align-items: stretch;
             }
+
+            .float-bar {
+                bottom: 16px;
+                left: 16px;
+                right: 16px;
+                transform: translateY(20px);
+                width: auto;
+                padding: 10px 14px;
+                gap: 10px;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            .float-bar.visible {
+                transform: translateY(0);
+            }
+            .float-bar .float-bar-count {
+                font-size: 0.8rem;
+            }
+            .float-bar .float-bar-btn {
+                padding: 7px 14px;
+                font-size: 0.8rem;
+            }
+            .float-bar .float-bar-cancel {
+                font-size: 0.75rem;
+                padding: 4px 10px;
+            }
         }
 
         @media (max-width: 480px) {
@@ -2615,9 +2829,6 @@
         <div class="list-header">
             <h2>剪藏列表</h2>
             <div class="list-controls">
-                <button class="synthesize-btn" id="synthesize-btn" onclick="synthesizeKnowledge()" disabled title="选择2个以上剪藏后合成知识条目">
-                    ✨ 合成知识条目
-                </button>
                 <select id="workflow-filter" class="workflow-filter">
                     <option value="">全部流程</option>
                     <option value="inbox">仅收件箱（待整理）</option>
@@ -2636,6 +2847,22 @@
         </div>
         <div id="search-results" class="clip-items"></div>
     </div>
+
+    <!-- 浮动操作栏 -->
+    <div class="float-bar" id="float-bar">
+        <div class="float-bar-count">
+            已选 <span class="count-num" id="float-bar-count-num">0</span> 项
+        </div>
+        <div class="float-bar-divider"></div>
+        <button class="float-bar-btn" id="float-bar-synthesize-btn" onclick="synthesizeKnowledge()" disabled>
+            <svg class="btn-icon" viewBox="0 0 24 24">
+                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+            </svg>
+            <span id="float-bar-btn-text">合成知识</span>
+        </button>
+        <button class="float-bar-cancel" onclick="clearAllSelection()">取消选择</button>
+    </div>
+
 </div>
 
 <script src="libs/axios.min.js"></script>
@@ -3256,6 +3483,7 @@
     }
 
     function backToList() {
+        clearAllSelection();
         document.getElementById('search-results-page').style.display = 'none';
         document.getElementById('clip-list').style.display = 'block';
     }
@@ -3263,6 +3491,7 @@
     let currentMode = 'add-clip';
 
     function toggleMode() {
+        clearAllSelection();
         const toggleBtn = document.getElementById('toggle-btn');
         const toggleText = document.getElementById('toggle-text');
         const addClipSection = document.getElementById('add-clip-section');
@@ -3357,7 +3586,7 @@
         try {
             // 重置选中状态
             selectedClipIds.clear();
-            updateSynthesizeBtn();
+            updateFloatBar();
 
             const workflowFilter = document.getElementById('workflow-filter');
             const workflowStatus = workflowFilter ? workflowFilter.value : '';
@@ -3497,7 +3726,10 @@
 
         clipItem.innerHTML = `
                 <div class="clip-header">
-                    <input type="checkbox" class="clip-checkbox" data-clip-id="${clip.id}" onchange="onClipCheckboxChange(this)" title="选择此剪藏用于合成知识">
+                    <div class="check-area" id="check-area-${clip.id}">
+                        <input type="checkbox" class="clip-checkbox" id="check-${clip.id}" data-clip-id="${clip.id}">
+                        <label for="check-${clip.id}" class="check-visual" title="选择用于合成知识"></label>
+                    </div>
                     ${getSourceBadge(clip.source)}
                     <span class="category-badge">📁 ${categoryLabel}</span>
                     ${clip.myThoughts ? '<span class="category-badge" style="background: rgba(168,85,247,0.1); color: #a855f7; border-color: rgba(168,85,247,0.2);">💭 有思考</span>' : ''}
@@ -4637,40 +4869,66 @@ window.addEventListener('message', (e) => {
   }
 });
 
-// ====== 知识合成 ======
+// ====== 选择与知识合成（浮动操作栏） ======
 let selectedClipIds = new Set();
 
-function onClipCheckboxChange(checkbox) {
+// 使用事件委托监听复选框变化
+document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('clip-checkbox')) {
+        handleCheckboxChange(e.target);
+    }
+});
+
+function handleCheckboxChange(checkbox) {
     const clipId = parseInt(checkbox.dataset.clipId);
+    const clipItem = checkbox.closest('.clip-item');
     if (checkbox.checked) {
         selectedClipIds.add(clipId);
+        if (clipItem) clipItem.classList.add('selected');
     } else {
         selectedClipIds.delete(clipId);
+        if (clipItem) clipItem.classList.remove('selected');
     }
-    updateSynthesizeBtn();
+    updateFloatBar();
 }
 
-function updateSynthesizeBtn() {
-    const btn = document.getElementById('synthesize-btn');
-    if (btn) {
-        btn.disabled = selectedClipIds.size < 2;
-        if (selectedClipIds.size >= 2) {
-            btn.textContent = '✨ 合成知识条目 (' + selectedClipIds.size + ')';
-        } else {
-            btn.textContent = '✨ 合成知识条目';
-        }
+function updateFloatBar() {
+    const bar = document.getElementById('float-bar');
+    const countNum = document.getElementById('float-bar-count-num');
+    const btn = document.getElementById('float-bar-synthesize-btn');
+    const count = selectedClipIds.size;
+
+    countNum.textContent = count;
+    if (count > 0) {
+        bar.classList.add('visible');
+        btn.disabled = count < 2;
+    } else {
+        bar.classList.remove('visible');
+        btn.disabled = true;
     }
+}
+
+function clearAllSelection() {
+    selectedClipIds.clear();
+    document.querySelectorAll('.clip-checkbox').forEach(function(cb) {
+        cb.checked = false;
+    });
+    document.querySelectorAll('.clip-item.selected').forEach(function(item) {
+        item.classList.remove('selected');
+    });
+    updateFloatBar();
 }
 
 async function synthesizeKnowledge() {
     if (selectedClipIds.size < 2) {
-        showToast('请至少选择2个剪藏');
+        showToast('请至少选择 2 个剪藏以合成知识');
         return;
     }
 
-    const btn = document.getElementById('synthesize-btn');
+    const btn = document.getElementById('float-bar-synthesize-btn');
+    const btnText = document.getElementById('float-bar-btn-text');
     btn.disabled = true;
-    btn.textContent = '⏳ AI 合成中...';
+    btnText.innerHTML = '<span class="float-bar-loading"><span class="spinner"></span>AI 合成中…</span>';
 
     try {
         const response = await axios.post(KNOWLEDGE_API_BASE_URL + '/synthesize', {
@@ -4681,7 +4939,7 @@ async function synthesizeKnowledge() {
         if (data.error) {
             showToast(data.error);
             btn.disabled = false;
-            updateSynthesizeBtn();
+            btnText.textContent = '合成知识';
             return;
         }
 
@@ -4700,7 +4958,7 @@ async function synthesizeKnowledge() {
         const errMsg = error.response?.data?.error || 'AI 合成失败，请稍后重试或手动创建知识条目';
         showToast(errMsg);
         btn.disabled = false;
-        updateSynthesizeBtn();
+        btnText.textContent = '合成知识';
     }
 }
 
