@@ -241,8 +241,8 @@ public class LearningPlanController {
     @PostMapping("/open-folder")
     public ResponseEntity<?> openStorageFolder() {
         try {
-            String storagePath = fileStorageService.getStorageParentPath().toString();
-            Path folderPath = Paths.get(storagePath, "learning-plan");
+            Path storageRoot = fileStorageService.getStoragePath();
+            Path folderPath = storageRoot.resolve("learning-plan");
 
             if (!Files.exists(folderPath)) {
                 Files.createDirectories(folderPath);

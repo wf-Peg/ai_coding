@@ -100,9 +100,16 @@ async function loadConfig() {
     document.getElementById('gitPassword').value = config.gitPassword || '';
     document.getElementById('gitBranch').value = config.gitBranch || 'main';
 
-    // Exa 搜索配置
+    // Exa 搜索配置（未配置时默认关闭）
     document.getElementById('exaApiKey').value = config.exaApiKey || '';
-    document.getElementById('exaEnabled').checked = config.exaEnabled !== false;
+    document.getElementById('exaEnabled').checked = config.exaEnabled === true;
+
+    // PDF OCR 配置
+    document.getElementById('pdfOcrBaseUrl').value = config.pdfOcrBaseUrl || '';
+    document.getElementById('pdfOcrApiKey').value = config.pdfOcrApiKey || '';
+    document.getElementById('pdfOcrEnabled').checked = config.pdfOcrEnabled !== false;
+    document.getElementById('pdfOcrModel').value = config.pdfOcrModel || 'qwen-vl-plus';
+    document.getElementById('pdfOcrMinTextLength').value = config.pdfOcrMinTextLength || 15;
 
     // 存储路径（可配置）
     const rootPath = config.storagePath || '';
@@ -496,6 +503,12 @@ async function saveConfig() {
     // Exa 搜索
     exaApiKey: document.getElementById('exaApiKey').value,
     exaEnabled: document.getElementById('exaEnabled').checked,
+    // PDF OCR
+    pdfOcrBaseUrl: document.getElementById('pdfOcrBaseUrl').value,
+    pdfOcrApiKey: document.getElementById('pdfOcrApiKey').value,
+    pdfOcrEnabled: document.getElementById('pdfOcrEnabled').checked,
+    pdfOcrModel: document.getElementById('pdfOcrModel').value,
+    pdfOcrMinTextLength: parseInt(document.getElementById('pdfOcrMinTextLength').value) || 15,
     storagePath: document.getElementById('storagePath').value,
     autoStart: document.getElementById('autoStartToggle')?.checked === true
   };

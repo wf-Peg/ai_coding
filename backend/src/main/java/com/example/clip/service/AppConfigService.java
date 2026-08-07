@@ -221,6 +221,12 @@ public class AppConfigService {
             mc.setCustomBaseUrl(config.getCustomBaseUrl());
             mc.setCustomApiKey(config.getCustomApiKey());
             mc.setCustomModel(config.getCustomModel());
+            // PDF OCR 配置
+            mc.setPdfOcrBaseUrl(config.getPdfOcrBaseUrl());
+            mc.setPdfOcrApiKey(config.getPdfOcrApiKey());
+            mc.setPdfOcrEnabled(config.isPdfOcrEnabled());
+            mc.setPdfOcrModel(config.getPdfOcrModel());
+            mc.setPdfOcrMinTextLength(config.getPdfOcrMinTextLength());
             modelConfigService.saveConfig(mc);
             log.debug("Synced to ModelConfigService");
         } catch (Exception e) {
@@ -267,6 +273,12 @@ public class AppConfigService {
                 config.setCustomBaseUrl(mc.getCustomBaseUrl());
                 config.setCustomApiKey(mc.getCustomApiKey());
                 config.setCustomModel(mc.getCustomModel());
+                // PDF OCR 配置
+                config.setPdfOcrBaseUrl(mc.getPdfOcrBaseUrl());
+                config.setPdfOcrApiKey(mc.getPdfOcrApiKey());
+                config.setPdfOcrEnabled(mc.isPdfOcrEnabled());
+                config.setPdfOcrModel(mc.getPdfOcrModel());
+                config.setPdfOcrMinTextLength(mc.getPdfOcrMinTextLength());
             } catch (Exception e) {
                 log.debug("No legacy model config to migrate: {}", e.getMessage());
             }

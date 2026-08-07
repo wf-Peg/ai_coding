@@ -89,7 +89,7 @@
             gap: 8px;
         }
         .input-row input { flex: 1; }
-        input[type="text"], input[type="password"], select {
+        input[type="text"], input[type="password"], input[type="number"], select {
             width: 100%;
             padding: 10px 14px;
             border: 1px solid var(--border);
@@ -111,6 +111,18 @@
         }
         .port-input::-webkit-outer-spin-button,
         .port-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .threshold-input {
+            max-width: 160px;
+            -moz-appearance: textfield;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.02em;
+            caret-color: var(--primary);
+        }
+        .threshold-input::-webkit-outer-spin-button,
+        .threshold-input::-webkit-inner-spin-button {
             -webkit-appearance: none;
             margin: 0;
         }
@@ -419,6 +431,7 @@
         }
         html[data-theme="notion"] input[type="text"],
         html[data-theme="notion"] input[type="password"],
+        html[data-theme="notion"] input[type="number"],
         html[data-theme="notion"] select {
             border-color: #dcdcd8;
             background: #ffffff;
@@ -461,6 +474,7 @@
         }
         html[data-theme="dark"] input[type="text"],
         html[data-theme="dark"] input[type="password"],
+        html[data-theme="dark"] input[type="number"],
         html[data-theme="dark"] select {
             border-color: #4a4a4a;
             background: #3a3a3a;
@@ -856,6 +870,61 @@
                         <div class="input-row">
                             <input type="password" id="exaApiKey" placeholder="exa-xxxxxxxxxxxxxxxxxxxxxxxx" />
                             <button class="btn btn-outline" onclick="toggleVisibility('exaApiKey')">显示</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PDF OCR 配置 -->
+            <div class="config-subsection">
+                <div class="config-subsection-title collapsible" onclick="toggleSection(this)">
+                    <span class="toggle-icon collapsed">▼</span>
+                    📄 PDF OCR 配置
+                </div>
+                <div class="subsection-body collapsed">
+                    <div class="form-group">
+                        <label class="form-label">
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <label class="toggle-switch" style="margin-bottom:0;">
+                                    <input type="checkbox" id="pdfOcrEnabled">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>启用 AI 视觉模型识别扫描版 PDF</span>
+                            </div>
+                        </label>
+                        <div class="form-hint" style="margin-top:6px;font-size:12px;color:var(--text-secondary);">
+                            文字版 PDF 直接用 PDFBox 提取文字层（不消耗 Token）；扫描版/图片型 PDF 自动渲染为图片调用视觉模型识别。关闭后仅提取文字层。
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">API 地址</label>
+                        <input type="text" id="pdfOcrBaseUrl" class="setting-input" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" />
+                        <div class="form-hint" style="margin-top:6px;font-size:12px;color:var(--text-secondary);">
+                            视觉模型 API 地址（OpenAI 兼容格式），支持 DashScope、DeepSeek、自定义中转站等。留空时默认使用阿里云 DashScope 兼容地址
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">API Key（视觉模型专用）</label>
+                        <div class="input-row">
+                            <input type="password" id="pdfOcrApiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" />
+                            <button class="btn btn-outline" onclick="toggleVisibility('pdfOcrApiKey')">显示</button>
+                        </div>
+                        <div class="form-hint" style="margin-top:6px;font-size:12px;color:var(--text-secondary);">
+                            部分 API Key 不支持视觉模型，请填写支持视觉能力的模型服务 API Key。留空时自动回退使用上方 DashScope API Key
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">视觉识别模型</label>
+                        <input type="text" id="pdfOcrModel" class="setting-input" placeholder="qwen-vl-plus / gpt-4o / gemini-2.0-flash..." />
+                        <div class="form-hint" style="margin-top:6px;font-size:12px;color:var(--text-secondary);">
+                            支持视觉能力的模型名称，如 qwen-vl-plus、gpt-4o、gemini-2.0-flash 等（取决于所选 API 服务）
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">AI 触发阈值（字符数）</label>
+                        <input type="number" id="pdfOcrMinTextLength" class="setting-input threshold-input" min="1" max="1000" value="15" />
+                        <div class="form-hint" style="margin-top:6px;font-size:12px;color:var(--text-secondary);">
+                            单页提取文本少于该字符数时判定为扫描版，触发 AI 视觉识别
                         </div>
                     </div>
                 </div>

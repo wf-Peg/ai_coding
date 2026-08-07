@@ -562,6 +562,12 @@
           const kf = document.getElementById('knowledgeFrame');
           if (kf) kf.src = 'knowledge-graph.html';
         }
+        if (event.data && event.data.type === 'navigateKnowledgeCreate') {
+          renderView('knowledge');
+          window.history.pushState({ view: 'knowledge' }, '', '/knowledge');
+          const kf = document.getElementById('knowledgeFrame');
+          if (kf) kf.src = 'knowledge-editor.html';
+        }
         if (event.data && event.data.type === 'editorReady') {
           editorReady = true;
           sendPendingClipToEditor();
@@ -571,6 +577,14 @@
         }
         if (event.data && event.data.type === 'mascotChanged') {
           try { editorFrame.contentWindow.postMessage(event.data, '*'); } catch (e) {}
+        }
+        if (event.data && event.data.type === 'saveMarkdownFile' && event.data.text) {
+          if (window.electronAPI && window.electronAPI.saveMarkdownFile) {
+            window.electronAPI.saveMarkdownFile({
+              text: event.data.text,
+              suggestedName: event.data.suggestedName || '学习计划'
+            });
+          }
         }
       });
 
@@ -715,6 +729,27 @@
         pendingClipAction = null;
       }
 
+      // 发送消息到编辑器 iframe；编辑器未就绪时等待其加载完成再发送
+      function sendToEditor(payload) {
+        if (!editorFrame) return;
+        const send = () => {
+          try { editorFrame.contentWindow.postMessage(payload, '*'); } catch (e) {}
+        };
+        if (editorReady && editorFrame.contentWindow && editorFrame.contentWindow.document.readyState === 'complete') {
+          send();
+          return;
+        }
+        // 编辑器尚未就绪：轮询等待 editorReady 标志置位
+        let attempts = 0;
+        const timer = setInterval(() => {
+          attempts++;
+          if (editorReady || attempts > 50) {
+            clearInterval(timer);
+            send();
+          }
+        }, 100);
+      }
+
       editorFrame.addEventListener('load', () => {
         editorReady = false;
         // 子页脚本可能在 iframe load 事件前已发送 ready；主动握手可消除该时序窗口。
@@ -731,6 +766,44 @@
       }
 
       if (window.electronAPI) {
+        // 后端就绪标志：右键菜单动作需要调用后端 API，首启时后端可能尚未就绪
+        let backendReadyFlag = false;
+        function waitForBackend(timeoutMs) {
+          return new Promise(resolve => {
+            if (backendReadyFlag) return resolve(true);
+            const start = Date.now();
+            const timer = setInterval(() => {
+              if (backendReadyFlag || Date.now() - start > timeoutMs) {
+                clearInterval(timer);
+                resolve(backendReadyFlag);
+              }
+            }, 200);
+          });
+        }
+        // 简单 Toast 提示（成功/失败），让右键菜单动作结果可见
+        function showToast(message, isError) {
+          let toast = document.getElementById('systemToast');
+          if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'systemToast';
+            toast.style.cssText = 'position:fixed;left:50%;bottom:40px;transform:translateX(-50%);z-index:99999;padding:10px 20px;border-radius:8px;font-size:13px;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.2);opacity:0;transition:opacity .25s;pointer-events:none;max-width:80vw;word-break:break-all;';
+            document.body.appendChild(toast);
+          }
+          toast.style.background = isError ? '#dc2626' : '#16a34a';
+          toast.textContent = message;
+          toast.style.opacity = '1';
+          clearTimeout(toast._t);
+          toast._t = setTimeout(function() { toast.style.opacity = '0'; }, 2500);
+        }
+        // 将常见网络错误替换为友好的中文提示
+        function friendlyError(err) {
+          const msg = String((err && err.message) || err);
+          if (/Failed to fetch|fetch failed|NetworkError|ECONNREFUSED/i.test(msg)) {
+            return '无法连接本地服务，请确认应用已正常启动';
+          }
+          return msg;
+        }
+
         // 启动遮罩：监听后端状态
         const overlay = document.getElementById('startupOverlay');
         const startupMsg = document.getElementById('startupMsg');
@@ -742,6 +815,7 @@
         });
 
         window.electronAPI.onBackendReady(() => {
+          backendReadyFlag = true;
           startupMsg.textContent = '启动完成';
           startupDots.style.display = 'none';
           startupBar.style.display = 'none';
@@ -853,77 +927,107 @@
         });
 
         // ── 系统右键菜单事件处理 ──
-        // 主页注册 IPC 监听器，处理右键菜单触发的功能跳转
-        // editor.js 中也有同名监听器，但仅在编辑器 iframe 加载后才注册
+        // 主页是唯一 IPC 监听者（编辑器 iframe 可能尚未加载，编辑器内不再重复监听），
+        // 统一读取文件内容 → 请求后端 → 通过 postMessage 转发到对应视图执行业务功能。
 
-        // 添加到剪藏收件箱
+        // 添加到剪藏收件箱：读取文件内容 → 后端入库 → 映射到编辑区
         if (window.electronAPI.onClipFile) {
           window.electronAPI.onClipFile(async function(filePath) {
             console.log('[System] 收到剪藏文件请求:', filePath);
-            // 切换到剪藏视图
-            renderView('clip');
             try {
-              var fileName = filePath.split(/[/\\]/).pop();
+              var result = await window.electronAPI.openFileByPath(filePath);
+              if (!result || result.canceled) return;
+              // 首启场景后端可能尚未就绪，等待就绪后再请求
+              await waitForBackend(15000);
               var response = await fetch('http://127.0.0.1:8081/api/clip/add', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content: '', source: filePath, title: fileName, type: 'store-only', captureMethod: 'context-menu' })
+                body: JSON.stringify({
+                  content: result.text,
+                  source: filePath,
+                  title: result.fileName,
+                  type: 'store-only',
+                  captureMethod: 'context-menu'
+                })
               });
               var data = await response.json();
               if (data.status === 'success') {
-                console.log('[System] 文件已添加到剪藏收件箱:', fileName);
+                console.log('[System] 文件已添加到剪藏收件箱:', result.fileName);
+                showToast('已添加到收件箱：' + result.fileName);
+              } else {
+                showToast('添加到收件箱失败：' + (data.error || '未知错误'), true);
               }
+              // 映射到编辑区：新标签页打开文件内容
+              renderView('editor');
+              window.history.pushState({ view: 'editor' }, '', '/');
+              sendToEditor({ type: 'openFileData', fileData: result });
             } catch (err) {
               console.error('[System] 剪藏文件失败:', err);
+              showToast('添加到收件箱失败：' + friendlyError(err), true);
             }
           });
         }
 
-        // AI 解析文件并添加剪藏
+        // AI 解析并添加：读取文件内容 → 后端 AI 解析入库 → 映射到编辑区
         if (window.electronAPI.onAiClipFile) {
           window.electronAPI.onAiClipFile(async function(filePath) {
             console.log('[System] 收到 AI 解析文件请求:', filePath);
-            renderView('clip');
             try {
-              var fileName = filePath.split(/[/\\]/).pop();
+              var result = await window.electronAPI.openFileByPath(filePath);
+              if (!result || result.canceled) return;
+              // 首启场景后端可能尚未就绪，等待就绪后再请求
+              await waitForBackend(15000);
+              // /api/ingest 需要 text 字段（AI 自动识别意图后路由入库）
               var response = await fetch('http://127.0.0.1:8081/api/ingest', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content: '', source: filePath, title: fileName })
+                body: JSON.stringify({
+                  text: result.text,
+                  source: filePath,
+                  title: result.fileName
+                })
               });
               var data = await response.json();
               if (data.success) {
-                console.log('[System] AI 解析完成，已添加到剪藏:', fileName);
+                console.log('[System] AI 解析完成，已添加到剪藏:', result.fileName);
+                showToast('AI 解析完成，已入库：' + result.fileName);
+              } else {
+                showToast('AI 解析失败：' + (data.error || '未知错误'), true);
               }
+              // 映射到编辑区：新标签页打开文件内容
+              renderView('editor');
+              window.history.pushState({ view: 'editor' }, '', '/');
+              sendToEditor({ type: 'openFileData', fileData: result });
             } catch (err) {
               console.error('[System] AI 解析文件失败:', err);
+              showToast('AI 解析失败：' + friendlyError(err), true);
             }
           });
         }
 
-        // 用编辑器打开文件 → 切换到编辑器视图并通知 iframe 打开文件
+        // 用编辑器打开：读取文件内容并在新标签页打开（Ctrl+T 风格，不覆盖当前编辑区）
         if (window.electronAPI.onOpenFileRequest) {
           window.electronAPI.onOpenFileRequest(async function(filePath) {
             console.log('[System] 收到编辑器打开请求:', filePath);
-            renderView('editor');
-            // 等 iframe 加载后通过 postMessage 传递文件路径
-            var editorFrame = document.getElementById('editorFrame');
-            var sendOpenFile = function() {
-              editorFrame.contentWindow.postMessage({ type: 'openFile', filePath: filePath }, '*');
-            };
-            if (editorFrame.contentWindow && editorFrame.contentWindow.document.readyState === 'complete') {
-              sendOpenFile();
-            } else {
-              editorFrame.addEventListener('load', sendOpenFile, { once: true });
+            try {
+              var result = await window.electronAPI.openFileByPath(filePath);
+              if (!result || result.canceled) return;
+              renderView('editor');
+              window.history.pushState({ view: 'editor' }, '', '/');
+              sendToEditor({ type: 'openFileData', fileData: result });
+            } catch (err) {
+              console.error('[System] 打开文件失败:', err);
             }
           });
         }
 
-        // PDF OCR 识别
+        // PDF OCR 识别：请求后端 → 在新标签页打开识别结果
         if (window.electronAPI.onPdfOcr) {
           window.electronAPI.onPdfOcr(async function(filePath) {
             console.log('[System] 收到 PDF OCR 请求:', filePath);
             try {
+              // 首启场景后端可能尚未就绪，等待就绪后再请求
+              await waitForBackend(15000);
               var response = await fetch('http://127.0.0.1:8081/api/pdf/ocr', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -932,19 +1036,21 @@
               var data = await response.json();
               if (data.success) {
                 console.log('[System] PDF OCR 完成');
-                renderView('editor');
-                var editorFrame = document.getElementById('editorFrame');
-                var sendOcrResult = function() {
-                  editorFrame.contentWindow.postMessage({ type: 'openText', text: data.text, title: 'OCR 识别结果' }, '*');
-                };
-                if (editorFrame.contentWindow && editorFrame.contentWindow.document.readyState === 'complete') {
-                  sendOcrResult();
+                var title = 'OCR 识别结果 - ' + filePath.split(/[/\\]/).pop();
+                if (!data.text || data.text.trim().length === 0) {
+                  showToast('OCR 未识别到文字（可能为空白页或加密 PDF）', true);
                 } else {
-                  editorFrame.addEventListener('load', sendOcrResult, { once: true });
+                  showToast('PDF OCR 完成：' + filePath.split(/[/\\]/).pop());
                 }
+                renderView('editor');
+                window.history.pushState({ view: 'editor' }, '', '/');
+                sendToEditor({ type: 'openTextData', text: data.text || '', title: title });
+              } else {
+                showToast('PDF OCR 失败：' + (data.error || '未知错误'), true);
               }
             } catch (err) {
               console.error('[System] PDF OCR 失败:', err);
+              showToast('PDF OCR 失败：' + friendlyError(err), true);
             }
           });
         }
@@ -954,6 +1060,7 @@
           window.electronAPI.onOpenSettings(function() {
             console.log('[System] 收到打开设置请求');
             renderView('settings');
+            window.history.pushState({ view: 'settings' }, '', '/settings');
           });
         }
       } else {

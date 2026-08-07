@@ -46,7 +46,14 @@ public class AppConfig {
 
     // ===== Exa 搜索配置 =====
     private String exaApiKey = "";
-    private boolean exaEnabled = true;
+    private boolean exaEnabled = false;
+
+    // ===== PDF OCR 配置 =====
+    private String pdfOcrBaseUrl = "";
+    private String pdfOcrApiKey = "";
+    private boolean pdfOcrEnabled = true;
+    private String pdfOcrModel = "qwen-vl-plus";
+    private int pdfOcrMinTextLength = 15;
 
     // ===== 存储路径（可配置） =====
     private String storagePath = "";
@@ -222,6 +229,48 @@ public class AppConfig {
 
     public void setExaEnabled(boolean exaEnabled) {
         this.exaEnabled = exaEnabled;
+    }
+
+    // ===== PDF OCR =====
+
+    public String getPdfOcrBaseUrl() {
+        return pdfOcrBaseUrl;
+    }
+
+    public void setPdfOcrBaseUrl(String pdfOcrBaseUrl) {
+        this.pdfOcrBaseUrl = pdfOcrBaseUrl;
+    }
+
+    public String getPdfOcrApiKey() {
+        return pdfOcrApiKey;
+    }
+
+    public void setPdfOcrApiKey(String pdfOcrApiKey) {
+        this.pdfOcrApiKey = pdfOcrApiKey;
+    }
+
+    public boolean isPdfOcrEnabled() {
+        return pdfOcrEnabled;
+    }
+
+    public void setPdfOcrEnabled(boolean pdfOcrEnabled) {
+        this.pdfOcrEnabled = pdfOcrEnabled;
+    }
+
+    public String getPdfOcrModel() {
+        return pdfOcrModel;
+    }
+
+    public void setPdfOcrModel(String pdfOcrModel) {
+        this.pdfOcrModel = pdfOcrModel;
+    }
+
+    public int getPdfOcrMinTextLength() {
+        return pdfOcrMinTextLength;
+    }
+
+    public void setPdfOcrMinTextLength(int pdfOcrMinTextLength) {
+        this.pdfOcrMinTextLength = pdfOcrMinTextLength;
     }
 
     // ===== 存储路径 =====

@@ -86,6 +86,28 @@
     @media (max-width: 520px) { .hero { display: block; } .actions { margin-top: 14px; } .stats { grid-template-columns: repeat(2, 1fr); } .bar-row { grid-template-columns: 76px minmax(40px, 1fr) 25px; } }
     html[data-theme="dark"] .stat, html[data-theme="dark"] .panel, html[data-theme="dark"] button { box-shadow: none; }
 
+    /* ── 全局弹窗样式 ── */
+    .obs-modal { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:2000; }
+    .obs-modal-content { background:var(--obs-card); border-radius:14px; width:90%; max-width:400px; box-shadow:0 8px 32px rgba(0,0,0,0.18); animation:obsSlideIn 0.3s ease-out; }
+    .obs-modal-header { display:flex; justify-content:space-between; align-items:center; padding:20px 24px; border-bottom:1px solid var(--obs-border); }
+    .obs-modal-header h3 { margin:0; font-size:1.1rem; font-weight:600; color:var(--obs-text); }
+    .obs-modal-close { background:transparent; border:none; color:var(--obs-muted); font-size:1.5rem; cursor:pointer; width:30px; height:30px; display:flex; align-items:center; justify-content:center; border-radius:6px; transition:.18s ease; }
+    .obs-modal-close:hover { color:var(--obs-text); background:color-mix(in srgb, var(--obs-border) 50%, transparent); }
+    .obs-modal-body { padding:24px; }
+    .obs-modal-body p { margin:0; font-size:0.95rem; line-height:1.6; color:var(--obs-text); }
+    .obs-modal-footer { display:flex; gap:12px; justify-content:flex-end; padding:20px 24px; border-top:1px solid var(--obs-border); }
+    .obs-modal-footer button { flex:1; min-width:120px; }
+    .obs-btn-primary { border-color:var(--obs-accent); background:var(--obs-accent); color:#fff; border-radius:9px; padding:10px 20px; font-weight:600; cursor:pointer; transition:.18s ease; border:1px solid transparent; }
+    .obs-btn-primary:hover { filter:brightness(1.1); transform:translateY(-1px); }
+    .obs-btn-secondary { border:1px solid var(--obs-border); border-radius:9px; padding:10px 20px; background:var(--obs-card); color:var(--obs-text); font-weight:500; cursor:pointer; transition:.18s ease; }
+    .obs-btn-secondary:hover { border-color:var(--obs-accent); color:var(--obs-accent); transform:translateY(-1px); }
+    @keyframes obsSlideIn { from { opacity:0; transform:translateY(-16px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }
+    html[data-theme="dark"] .obs-modal-content { background:#2d2d2d; border-color:#3e3e3e; }
+    html[data-theme="dark"] .obs-modal-header { border-color:#3e3e3e; }
+    html[data-theme="dark"] .obs-modal-footer { border-color:#3e3e3e; }
+    html[data-theme="dark"] .obs-btn-secondary { background:#3a3a3a; border-color:#4a4a4a; color:#d4d4d4; }
+    html[data-theme="dark"] .obs-btn-secondary:hover { background:#4a4a4a; }
+
     /* ── 全局滚动条 ── */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -98,7 +120,7 @@
   <main class="shell">
     <header class="hero">
       <div><h1>数据观测</h1><p class="subtitle">看见你的整理节奏，让建议有据可依。</p></div>
-      <div><div class="actions"><button id="refreshBtn">刷新数据</button><button class="primary" id="rebuildBtn">重建内容索引</button><button id="pruneBtn">清理旧事件</button></div><div class="status" id="status"></div></div>
+      <div><div class="actions"><button id="refreshBtn" title="重新加载所有观测数据">刷新数据</button><button class="primary" id="rebuildBtn" title="扫描业务目录，重建内容索引文件">重建内容索引</button><button id="pruneBtn" title="清理 90 天前的本地事件记录">清理旧事件</button></div><div class="status" id="status"></div></div>
     </header>
     <section class="stats" id="stats"></section>
     <div class="grid">
@@ -111,11 +133,27 @@
         <section class="panel"><h2>常用分类 <small>最多展示 8 项</small></h2><div id="categories"></div></section>
         <section class="panel"><h2>常用标签 <small>最多展示 8 项</small></h2><div id="tags"></div></section>
         <section class="panel" id="workspacePanel"><h2>工作台数据流 <small>内容来源分布</small></h2><div class="empty">加载中…</div></section>
-        <section class="panel"><h2>事件趋势 <small>近 7 / 30 天</small></h2><div id="trendsSection"><div class="trends-stats"><div class="trend-stat"><span class="trend-stat-label">近 7 天</span><span class="trend-stat-value">-</span></div><div class="trend-stat"><span class="trend-stat-label">近 30 天</span><span class="trend-stat-value">-</span></div><div class="trend-stat"><span class="trend-stat-label">跳过行</span><span class="trend-stat-value">-</span></div></div></div><div id="trendChart7d"></div><div class="panel-section"><div class="section-title">事件类型分布</div><div id="typeDistribution"></div></div><div class="panel-section"><div class="section-title">事件来源分布</div><div id="sourceDistribution"></div></div></section>
+        <section class="panel"><h2>事件趋势 <small>近 7 / 30 天</small></h2><div id="trendsSection"><div class="trends-stats"><div class="trend-stat"><span class="trend-stat-label">近 7 天</span><span class="trend-stat-value">-</span></div><div class="trend-stat"><span class="trend-stat-label">近 30 天</span><span class="trend-stat-value">-</span></div><div class="trend-stat"><span class="trend-stat-label">跳过行</span><span class="trend-stat-value">-</span></div></div></div><div id="trendChart7d"></div><div id="trendChart30d"></div><div class="panel-section"><div class="section-title">事件类型分布</div><div id="typeDistribution"></div></div><div class="panel-section"><div class="section-title">事件来源分布</div><div id="sourceDistribution"></div></div></section>
         <section class="panel"><h2>使用说明</h2><div class="callout">这些数据只保存在本机，用于搜索、整理和项目建议；不会自动移动、删除或修改你的原始内容。</div></section>
       </div>
     </div>
   </main>
+  <!-- 确认弹窗 -->
+  <div id="confirmModal" class="obs-modal" style="display:none;">
+    <div class="obs-modal-content">
+      <div class="obs-modal-header">
+        <h3>确认操作</h3>
+        <button class="obs-modal-close" id="confirmCloseBtn">&times;</button>
+      </div>
+      <div class="obs-modal-body">
+        <p id="confirmMessage">确定要清理 90 天前的事件数据？此操作不可撤销。</p>
+      </div>
+      <div class="obs-modal-footer">
+        <button class="obs-btn-secondary" id="confirmCancelBtn">取消</button>
+        <button class="obs-btn-primary" id="confirmOkBtn">确认</button>
+      </div>
+    </div>
+  </div>
   <script src="js/data-observability.js"></script>
 </body>
 </html>

@@ -87,6 +87,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** 在文件管理器中显示指定文件所在目录。 */
   showItemInFolder: (filePath) => ipcRenderer.invoke('show-item-in-folder', filePath),
 
+  /** 学习计划导出为 Markdown 文件（弹出保存对话框，默认 tmp 目录）。 */
+  saveMarkdownFile: (payload) => ipcRenderer.invoke('learning-plan-save-markdown', payload),
+
   // ===================== 后端服务管理 =====================
 
   /**

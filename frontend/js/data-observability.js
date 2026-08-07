@@ -154,12 +154,37 @@
     finally { button.disabled = false; button.textContent = '重建内容索引'; }
   });
 
-  $('pruneBtn').addEventListener('click', async function () {
-    if (!confirm('确定清理 90 天前的事件数据？此操作不可撤销。')) return;
-    var button = $('pruneBtn'); button.disabled = true; button.textContent = '清理中…';
-    try { var result = await request('/prune?days=90', { method: 'POST' }); $('status').textContent = result.message; await load(); }
-    catch (error) { $('status').textContent = error.message; }
-    finally { button.disabled = false; button.textContent = '清理旧事件'; }
+  $('pruneBtn').addEventListener('click', function () {
+    showConfirmModal('确定清理 90 天前的事件数据？此操作不可撤销。', async function () {
+      var button = $('pruneBtn'); button.disabled = true; button.textContent = '清理中…';
+      try { var result = await request('/prune?days=90', { method: 'POST' }); $('status').textContent = result.message; await load(); }
+      catch (error) { $('status').textContent = error.message; }
+      finally { button.disabled = false; button.textContent = '清理旧事件'; }
+    });
+  });
+
+  var confirmCallback = null;
+
+  function showConfirmModal(message, callback) {
+    $('confirmMessage').textContent = message;
+    $('confirmModal').style.display = 'flex';
+    confirmCallback = callback;
+  }
+
+  function closeConfirmModal() {
+    $('confirmModal').style.display = 'none';
+    confirmCallback = null;
+  }
+
+  $('confirmOkBtn').addEventListener('click', function () {
+    var cb = confirmCallback;
+    closeConfirmModal();
+    if (cb) cb();
+  });
+  $('confirmCancelBtn').addEventListener('click', closeConfirmModal);
+  $('confirmCloseBtn').addEventListener('click', closeConfirmModal);
+  $('confirmModal').addEventListener('click', function (e) {
+    if (e.target === this) closeConfirmModal();
   });
 
   window.addEventListener('message', function (event) {

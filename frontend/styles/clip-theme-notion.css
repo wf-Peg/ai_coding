@@ -297,6 +297,54 @@ select:focus {
     font-weight: 500;
 }
 
+/* 剪藏头部信息条：Notion 风格精致化 */
+.clip-header-left .category-badge {
+    padding: 5px 12px;
+    font-size: 0.76rem;
+    border-radius: 999px;
+}
+
+.clip-header-left .thoughts-badge {
+    background: #f3f0fa !important;
+    color: #7a5fc0 !important;
+    border-color: #e6dff5 !important;
+}
+
+.clip-header .expand-btn {
+    height: 26px;
+    padding: 0 10px;
+    font-size: 0.74rem;
+    border-radius: 6px;
+    gap: 5px;
+    color: #6b6f76;
+    background: #ffffff;
+    border: 1px solid #d9d9d6;
+    box-shadow: none;
+    min-width: auto;
+}
+
+.clip-header .expand-btn:hover {
+    background: #f1f1ef;
+    border-color: #c2c2bd;
+    color: #2f3437;
+    transform: none;
+}
+
+.clip-header .expand-btn .icon {
+    font-size: 0.6rem;
+    color: #a1a1aa;
+}
+
+.clip-header .expand-btn:hover .icon {
+    color: #2f3437;
+}
+
+.clip-header .more-actions-wrapper .expand-btn.expanded {
+    background: #f1f1ef;
+    border-color: #c2c2bd;
+    color: #2f3437;
+}
+
 .tag:hover {
     background: #eaeae8;
     transform: none;
@@ -408,6 +456,11 @@ html[data-theme="dark"] .linked-knowledge-item .knowledge-title a { color: #569c
 html[data-theme="dark"] .linked-knowledge-item .knowledge-title a:hover { color: #4a8ae8; }
 html[data-theme="dark"] .tag { background: #3a3a3a; color: #9a9a9a; border-color: #4a4a4a; }
 html[data-theme="dark"] .category-badge { background: #3a3a3a; color: #9a9a9a; border-color: #4a4a4a; }
+html[data-theme="dark"] .clip-header-left .thoughts-badge { background: rgba(168, 85, 247, 0.16) !important; color: #c084fc !important; border-color: rgba(168, 85, 247, 0.38) !important; }
+html[data-theme="dark"] .clip-header .expand-btn { color: #9a9a9a; background: #3a3a3a; border-color: #555; }
+html[data-theme="dark"] .clip-header .expand-btn:hover { background: #454545; border-color: #6a6a6a; color: #e0e0e0; }
+html[data-theme="dark"] .clip-header .expand-btn .icon { color: #7d7d7d; }
+html[data-theme="dark"] .clip-header .more-actions-wrapper .expand-btn.expanded { background: #454545; border-color: #6a6a6a; color: #e0e0e0; }
 html[data-theme="dark"] .tag:hover { background: #4a4a4a; }
 html[data-theme="dark"] .tags-display .tag { background: #3a3a3a; color: #9a9a9a; }
 html[data-theme="dark"] .tag-expand-btn { background: #3a3a3a; color: #9a9a9a; border-color: #4a4a4a; }

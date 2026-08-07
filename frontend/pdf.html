@@ -359,6 +359,22 @@
         body.dark-theme .result-textarea {
             background: var(--bg-elevated);
         }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; transition: background 0.2s ease; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
+        html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: var(--border); }
+        html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
+
+        /* result-textarea 专属滚动条 */
+        .result-textarea::-webkit-scrollbar { width: 6px; }
+        .result-textarea::-webkit-scrollbar-track { background: transparent; }
+        .result-textarea::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; transition: background 0.2s ease; }
+        .result-textarea::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
+        html[data-theme="dark"] .result-textarea::-webkit-scrollbar-thumb { background: var(--border); }
+        html[data-theme="dark"] .result-textarea::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
     </style>
 </head>
 <body>

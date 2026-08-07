@@ -905,7 +905,6 @@
         .clip-item .check-area {
             display: flex;
             align-items: center;
-            margin-right: 10px;
             flex-shrink: 0;
         }
         .clip-item:hover .check-area .clip-checkbox + .check-visual {
@@ -1131,7 +1130,18 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
+            gap: 12px;
             margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .clip-header-left {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            min-width: 0;
+            flex: 1 1 auto;
         }
 
         .clip-item:hover {
@@ -1147,11 +1157,12 @@
             display: flex;
             gap: 8px;
             z-index: 10;
-            margin-bottom: 10px;
+            margin-bottom: 0;
             justify-content: flex-end;
-            max-width: 40%;
             margin-left: auto;
             align-items: center;
+            flex-shrink: 0;
+            max-width: none;
         }
 
         .clip-summary {
@@ -1353,6 +1364,83 @@
 
         .expand-btn.expanded .icon {
             transform: rotate(180deg);
+        }
+
+        /* ── 剪藏头部信息条：Obsidian / Notion 风格全局水平对齐 ── */
+        .clip-header-left .check-area {
+            transform: translateY(4px);
+        }
+
+        .clip-header-left .source-badge {
+            margin-right: 0;
+        }
+
+        .clip-header-left .category-badge {
+            font-size: 0.76rem;
+            padding: 5px 11px;
+            border-radius: 999px;
+            letter-spacing: 0.01em;
+            white-space: nowrap;
+        }
+
+        .clip-header-left .thoughts-badge {
+            background: rgba(168, 85, 247, 0.08);
+            color: #a855f7;
+            border-color: rgba(168, 85, 247, 0.22);
+        }
+
+        .clip-header .expand-btn {
+            height: 28px;
+            padding: 0 10px;
+            font-size: 0.75rem;
+            border-radius: 8px;
+            gap: 5px;
+            color: var(--text-secondary);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            box-shadow: none;
+            min-width: auto;
+        }
+
+        .clip-header .expand-btn:hover {
+            color: var(--text);
+            border-color: #d8d8d4;
+            background: var(--surface-hover);
+            transform: none;
+            box-shadow: none;
+        }
+
+        .clip-header .expand-btn .icon {
+            font-size: 0.6rem;
+            color: var(--text-secondary);
+        }
+
+        .clip-header .expand-btn:hover .icon {
+            color: var(--text);
+        }
+
+        .clip-header .more-actions-wrapper .expand-btn.expanded {
+            color: var(--primary);
+            border-color: rgba(63, 140, 255, 0.4);
+            background: rgba(63, 140, 255, 0.06);
+        }
+
+        html[data-theme="dark"] .clip-header-left .thoughts-badge {
+            background: rgba(168, 85, 247, 0.16);
+            color: #c084fc;
+            border-color: rgba(168, 85, 247, 0.38);
+        }
+
+        html[data-theme="dark"] .clip-header .expand-btn {
+            color: var(--text-secondary);
+            background: var(--surface);
+            border-color: var(--border);
+        }
+
+        html[data-theme="dark"] .clip-header .expand-btn:hover {
+            color: var(--text);
+            border-color: #555;
+            background: var(--surface-hover);
         }
 
         .more-actions-wrapper {
@@ -1572,6 +1660,80 @@
 
         .linked-knowledge-section .empty-state button:hover {
             background: var(--primary-dark);
+        }
+
+        /* ===== 已关联知识 - 高级感空状态 ===== */
+        .linked-knowledge-section .empty-knowledge-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 32px 16px 24px;
+            text-align: center;
+        }
+
+        .linked-knowledge-section .empty-knowledge-state .empty-state-icon {
+            width: 72px;
+            height: 72px;
+            margin-bottom: 16px;
+            opacity: 0.6;
+        }
+
+        .linked-knowledge-section .empty-knowledge-state .empty-state-title {
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: var(--text);
+            margin: 0 0 6px 0;
+        }
+
+        .linked-knowledge-section .empty-knowledge-state .empty-state-desc {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            margin: 0 0 20px 0;
+            line-height: 1.5;
+            max-width: 220px;
+        }
+
+        .linked-knowledge-section .empty-knowledge-state .create-knowledge-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 9px 24px;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+            letter-spacing: 0.3px;
+        }
+
+        .linked-knowledge-section .empty-knowledge-state .create-knowledge-action:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+        }
+
+        .linked-knowledge-section .empty-knowledge-state .create-knowledge-action:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 4px rgba(59, 130, 246, 0.2);
+        }
+
+        .linked-knowledge-section .empty-knowledge-state .create-knowledge-action.loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        .linked-knowledge-section .empty-knowledge-state .create-knowledge-action .spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
         }
 
         /* 确保markdown内容样式优先级更高 - 使用!important */
@@ -2347,8 +2509,9 @@
             }
 
             .clip-actions {
-                flex-direction: column;
-                align-items: stretch;
+                flex-direction: row;
+                align-items: center;
+                flex-wrap: wrap;
             }
 
             .float-bar {
@@ -3726,13 +3889,15 @@
 
         clipItem.innerHTML = `
                 <div class="clip-header">
-                    <div class="check-area" id="check-area-${clip.id}">
-                        <input type="checkbox" class="clip-checkbox" id="check-${clip.id}" data-clip-id="${clip.id}">
-                        <label for="check-${clip.id}" class="check-visual" title="选择用于合成知识"></label>
+                    <div class="clip-header-left">
+                        <div class="check-area" id="check-area-${clip.id}">
+                            <input type="checkbox" class="clip-checkbox" id="check-${clip.id}" data-clip-id="${clip.id}">
+                            <label for="check-${clip.id}" class="check-visual" title="选择用于合成知识"></label>
+                        </div>
+                        ${getSourceBadge(clip.source)}
+                        <span class="category-badge">📁 ${categoryLabel}</span>
+                        ${clip.myThoughts ? '<span class="category-badge thoughts-badge">💭 有思考</span>' : ''}
                     </div>
-                    ${getSourceBadge(clip.source)}
-                    <span class="category-badge">📁 ${categoryLabel}</span>
-                    ${clip.myThoughts ? '<span class="category-badge" style="background: rgba(168,85,247,0.1); color: #a855f7; border-color: rgba(168,85,247,0.2);">💭 有思考</span>' : ''}
                     <div class="clip-actions">
                         <div class="more-actions-wrapper">
                             <button class="expand-btn" onclick="toggleMoreActions(this, event)" title="更多功能">
@@ -3820,8 +3985,24 @@
                             <!-- Dynamically populated by JS -->
                         </div>
                         <div id="noLinkedKnowledge-${clip.id}" style="display:none;">
-                            <p>暂无关联知识</p>
-                            <button onclick="createKnowledgeFromClip(${clip.id})">创建知识条目</button>
+                            <div class="empty-knowledge-state">
+                                <svg class="empty-state-icon" viewBox="0 0 80 80" fill="none">
+                                    <circle cx="40" cy="40" r="28" stroke="currentColor" stroke-width="1.5" opacity="0.2"/>
+                                    <path d="M32 35h16M32 40h12M32 45h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.35"/>
+                                    <path d="M40 28l-12 8v16h24V36l-12-8z" stroke="currentColor" stroke-width="1.5" fill="none" opacity="0.15"/>
+                                    <path d="M40 28l-12 8v8l12-8 12 8v-8l-12-8z" stroke="currentColor" stroke-width="1.5" fill="none" opacity="0.3"/>
+                                    <circle cx="52" cy="32" r="4" fill="currentColor" opacity="0.12"/>
+                                    <path d="M40 44v10M35 54h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.2"/>
+                                </svg>
+                                <p class="empty-state-title">暂无关联知识</p>
+                                <p class="empty-state-desc">将这条剪藏的内容提炼为知识条目，构建你的知识体系</p>
+                                <button class="create-knowledge-action" onclick="createKnowledgeFromClip(event, ${clip.id})">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 5v14M5 12h14"/>
+                                    </svg>
+                                    创建知识条目
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -4951,8 +5132,8 @@ async function synthesizeKnowledge() {
             sourceClipIds: data.sourceClipIds || []
         }));
 
-        // 跳转到知识编辑器
-        window.location.href = 'knowledge-editor.html?synthesized=true';
+        // 通知父框架切换到知识模块并打开知识编辑器，保持应用头部导航栏
+        window.parent.postMessage({ type: 'navigateKnowledgeCreate' }, '*');
     } catch (error) {
         console.error('知识合成失败:', error);
         const errMsg = error.response?.data?.error || 'AI 合成失败，请稍后重试或手动创建知识条目';
@@ -5009,18 +5190,50 @@ async function renderLinkedKnowledge(clipId) {
     }
 }
 
-async function createKnowledgeFromClip(clipId) {
+async function createKnowledgeFromClip(event, clipId) {
+    let savedHtml = null;
+    if (event) {
+        event.stopPropagation();
+        const btn = event.currentTarget;
+        savedHtml = btn.innerHTML;
+        btn.classList.add('loading');
+        btn.innerHTML = '<span class="spinner"></span> 加载中…';
+    }
+
     try {
-        const response = await axios.post(`${KNOWLEDGE_API_BASE_URL}/from-clip/${clipId}`);
-        const newKnowledgeId = response.data?.id;
-        if (newKnowledgeId) {
-            window.location.href = `knowledge-editor.html?id=${newKnowledgeId}`;
-        } else {
-            alert('创建知识条目失败');
+        // 获取剪藏数据
+        const clipResp = await axios.get(`${API_BASE_URL}/${clipId}`);
+        const clip = clipResp.data;
+        if (!clip) {
+            showToast('获取剪藏数据失败');
+            _resetCreateBtn(event, savedHtml);
+            return;
         }
+
+        // 组装知识草稿数据，存入 sessionStorage
+        const knowledgeDraft = {
+            title: clip.title || clip.summary || ('来自剪藏 #' + clip.id),
+            summary: clip.summary || '',
+            content: clip.content || '',
+            sourceClipIds: [clip.id]
+        };
+        sessionStorage.setItem('synthesizedKnowledge', JSON.stringify(knowledgeDraft));
+
+        showToast('正在跳转到知识编辑器...');
+        // 通知父框架切换到知识模块并打开知识编辑器，保持应用头部导航栏
+        window.parent.postMessage({ type: 'navigateKnowledgeCreate' }, '*');
     } catch (error) {
-        console.error('创建知识条目失败:', error);
-        alert('创建知识条目失败');
+        console.error('获取剪藏数据失败:', error);
+        showToast('获取剪藏数据失败，请稍后重试');
+        _resetCreateBtn(event, savedHtml);
+    }
+}
+
+function _resetCreateBtn(event, savedHtml) {
+    if (event && savedHtml) {
+        const btn = event.currentTarget;
+        btn.classList.remove('loading');
+        btn.innerHTML = savedHtml;
     }
 }
 </script>

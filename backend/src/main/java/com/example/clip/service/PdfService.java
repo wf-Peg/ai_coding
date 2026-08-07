@@ -1,25 +1,36 @@
 package com.example.clip.service;
 
+import com.example.clip.core.ModelConfig;
 import org.apache.pdfbox.multipdf.PDFMergerUtility;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
+
 import org.apache.pdfbox.rendering.PDFRenderer;
 
 /**
@@ -41,6 +52,29 @@ public class PdfService {
 
     /** 文本提取结果的最大字符数限制 */
     private static final int MAX_TEXT_LENGTH = 50000;
+
+    /** AI 视觉 OCR 单页文本过少阈值（字符数） */
+    private static final int AI_OCR_MIN_TEXT_LENGTH = 15;
+
+    /** AI 视觉 OCR 默认模型 */
+    private static final String DEFAULT_OCR_MODEL = "qwen-vl-plus";
+
+    /** AI 视觉 OCR 默认 API 地址（OpenAI 兼容格式：DashScope 兼容模式） */
+    private static final String DEFAULT_OCR_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+
+    /** AI 视觉 OCR 渲染 DPI */
+    private static final int AI_OCR_DPI = 150;
+
+    /** AI 视觉 OCR 图片最大边长 */
+    private static final int AI_OCR_MAX_EDGE = 1600;
+
+    /** 模型配置服务：用于获取 DashScope API Key（AI 视觉 OCR 用） */
+    @Autowired(required = false)
+    private ModelConfigService modelConfigService;
+
+    /** DashScope yml 默认配置（用户未配置 API Key 时回退） */
+    @Autowired(required = false)
+    private com.example.clip.core.DashScopeConfig dashScopeConfig;
 
     /**
      * 加载 PDF 文件，将解析失败转为 IllegalArgumentException（400 错误）
@@ -219,31 +253,62 @@ public class PdfService {
             throw new IllegalArgumentException("文件不存在: " + filePath);
         }
 
+        // 读取用户配置：OCR 开关、触发阈值、视觉模型（未配置时使用默认值）
+        ModelConfig mc = modelConfigService != null ? modelConfigService.getConfig() : null;
+        boolean aiEnabled = mc == null || mc.isPdfOcrEnabled();
+        int minTextLength = (mc != null && mc.getPdfOcrMinTextLength() > 0)
+            ? mc.getPdfOcrMinTextLength() : AI_OCR_MIN_TEXT_LENGTH;
+        String ocrModel = (mc != null && mc.getPdfOcrModel() != null && !mc.getPdfOcrModel().isBlank())
+            ? mc.getPdfOcrModel().trim() : DEFAULT_OCR_MODEL;
+
+        // API Key 优先级：PDF OCR 专用 Key（部分 Key 不支持视觉模型）→ 全局 DashScope Key → yml 默认
+        String apiKey = null;
+        if (mc != null && mc.getPdfOcrApiKey() != null && !mc.getPdfOcrApiKey().isBlank()) {
+            apiKey = mc.getPdfOcrApiKey().trim();
+        } else if (mc != null && mc.getDashscopeApiKey() != null && !mc.getDashscopeApiKey().isBlank()) {
+            apiKey = mc.getDashscopeApiKey().trim();
+        }
+        if (apiKey == null || apiKey.isBlank()) {
+            apiKey = dashScopeConfig != null ? dashScopeConfig.getApiKey() : null;
+        }
+        if (apiKey != null && apiKey.startsWith("${")) apiKey = null;
+
+        // 视觉模型 API 地址（OpenAI 兼容格式）：用户配置优先，为空时默认 DashScope 兼容模式
+        String baseUrl = (mc != null && mc.getPdfOcrBaseUrl() != null && !mc.getPdfOcrBaseUrl().isBlank())
+            ? mc.getPdfOcrBaseUrl().trim() : DEFAULT_OCR_BASE_URL;
+
         try (PDDocument document = PDDocument.load(pdfFile)) {
             PDFRenderer renderer = new PDFRenderer(document);
             int totalPages = document.getNumberOfPages();
 
             List<Map<String, Object>> pageResults = new ArrayList<>();
             StringBuilder fullText = new StringBuilder();
+            int aiOcrPages = 0;
 
             for (int i = 0; i < totalPages; i++) {
-                // 渲染当前页为图片（300 DPI 保证识别质量）
-                BufferedImage pageImage = renderer.renderImageWithDPI(i, 300);
-
-                // OCR 识别：此处预留接口，实际实现可使用 Tess4J 或调用 AI 视觉模型
-                // 当前回退到 PDFTextStripper 提取的文本（后续可替换为真实 OCR）
+                // 第一层：PDFTextStripper 直接提取文本（文字版 PDF 秒出结果）
                 PDFTextStripper stripper = new PDFTextStripper();
                 stripper.setStartPage(i + 1);
                 stripper.setEndPage(i + 1);
                 stripper.setSortByPosition(true);
                 String pageText = stripper.getText(document);
 
+                // 第二层：文本过少（扫描版/图片型 PDF）且启用 AI → 渲染为图片交给视觉模型 OCR
+                boolean textTooShort = pageText == null || pageText.trim().length() < minTextLength;
+                if (aiEnabled && textTooShort) {
+                    String aiText = aiOcrPage(renderer, i, ocrModel, apiKey, baseUrl);
+                    if (aiText != null && !aiText.isBlank()) {
+                        pageText = aiText;
+                        aiOcrPages++;
+                    }
+                }
+
                 Map<String, Object> pageResult = new HashMap<>();
                 pageResult.put("pageNumber", i + 1);
-                pageResult.put("text", pageText);
+                pageResult.put("text", pageText == null ? "" : pageText);
                 pageResults.add(pageResult);
 
-                if (fullText.length() < MAX_TEXT_LENGTH) {
+                if (pageText != null && fullText.length() < MAX_TEXT_LENGTH) {
                     fullText.append(pageText).append("\n");
                 }
             }
@@ -256,14 +321,150 @@ public class PdfService {
             result.put("success", true);
             result.put("text", resultText);
             result.put("pages", pageResults);
+            result.put("aiOcrPages", aiOcrPages);
             result.put("metadata", Map.of(
                 "pageCount", totalPages,
                 "fileSize", pdfFile.length()
             ));
 
-            logger.info("[PdfService] OCR 识别完成，页数={}", totalPages);
+            logger.info("[PdfService] OCR 识别完成，页数={}, AI OCR 页数={}", totalPages, aiOcrPages);
             return result;
         }
+    }
+
+    /**
+     * AI 视觉 OCR：将 PDF 单页渲染为图片，调用 OpenAI 兼容格式的视觉模型识别文字。
+     * <p>
+     * 用于扫描版/图片型 PDF（PDFTextStripper 提取不到文字的场景）。
+     * 通过 OpenAI 兼容的 /chat/completions 接口调用，支持 DashScope 兼容模式、
+     * DeepSeek、自定义中转站等任意支持视觉能力的模型服务。
+     * 未配置 API Key 或调用失败时返回 null，由调用方保持文本提取结果。
+     * </p>
+     *
+     * @param renderer  PDFRenderer（页面渲染器）
+     * @param pageIndex 页索引（从 0 开始）
+     * @param model     视觉模型名称（如 qwen-vl-plus、gpt-4o、gemini-2.0-flash 等）
+     * @param apiKey    API Key（已按优先级解析，可能为 null）
+     * @param baseUrl   OpenAI 兼容 API 地址（末尾不含 /chat/completions）
+     * @return 识别出的文本，失败或未配置时返回 null
+     */
+    private String aiOcrPage(PDFRenderer renderer, int pageIndex, String model, String apiKey, String baseUrl) {
+        try {
+            if (apiKey == null || apiKey.isBlank()) {
+                logger.warn("[PdfService] 未配置视觉模型 API Key，跳过 AI OCR 第 {} 页", pageIndex + 1);
+                return null;
+            }
+
+            logger.info("[PdfService] AI OCR 调用第 {} 页（model={}）", pageIndex + 1, model);
+
+            // 渲染当前页为图片并压缩尺寸（控制请求体积）
+            BufferedImage pageImage = renderer.renderImageWithDPI(pageIndex, AI_OCR_DPI);
+            pageImage = scaleImage(pageImage, AI_OCR_MAX_EDGE);
+            String base64 = imageToBase64Png(pageImage);
+            if (base64.length() > 4_500_000) {
+                logger.warn("[PdfService] AI OCR 图片过大已跳过第 {} 页", pageIndex + 1);
+                return null;
+            }
+
+            // OpenAI 兼容请求体：messages[0].content 为 text + image_url 数组
+            Map<String, Object> textPart = new LinkedHashMap<>();
+            textPart.put("type", "text");
+            textPart.put("text", "请识别这张图片中的所有文字，按原文输出，不要添加任何解释、注释或格式符号。");
+
+            Map<String, Object> imageUrlPart = new LinkedHashMap<>();
+            imageUrlPart.put("url", "data:image/png;base64," + base64);
+            Map<String, Object> imagePart = new LinkedHashMap<>();
+            imagePart.put("type", "image_url");
+            imagePart.put("image_url", imageUrlPart);
+
+            Map<String, Object> userMsg = new LinkedHashMap<>();
+            userMsg.put("role", "user");
+            userMsg.put("content", Arrays.asList(textPart, imagePart));
+
+            Map<String, Object> requestBody = new LinkedHashMap<>();
+            requestBody.put("model", model != null && !model.isBlank() ? model : DEFAULT_OCR_MODEL);
+            requestBody.put("messages", Arrays.asList(userMsg));
+            requestBody.put("temperature", 0);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(apiKey);
+
+            String url = baseUrl.replaceAll("/+$", "") + "/chat/completions";
+            RestTemplate restTemplate = new RestTemplate();
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
+
+            String text = extractTextFromContent(response.getBody());
+            return (text == null || text.isBlank()) ? null : text.trim();
+        } catch (Exception e) {
+            logger.warn("[PdfService] AI OCR 第 {} 页失败: {}", pageIndex + 1, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 从 OpenAI 兼容的 chat/completions 响应中提取文本。
+     * <p>
+     * content 可能为字符串，也可能为分段数组（如 [{"type":"text","text":"..."}]），
+     * 部分模型（推理类）content 可能为 null，此时返回 null。
+     * </p>
+     *
+     * @param body chat/completions 响应体
+     * @return 识别文本，无法解析时返回 null
+     */
+    @SuppressWarnings("unchecked")
+    private String extractTextFromContent(Map<String, Object> body) {
+        if (body == null) return null;
+        Object choicesObj = body.get("choices");
+        if (!(choicesObj instanceof List) || ((List<?>) choicesObj).isEmpty()) return null;
+        Object choiceObj = ((List<?>) choicesObj).get(0);
+        if (!(choiceObj instanceof Map)) return null;
+        Object messageObj = ((Map<?, ?>) choiceObj).get("message");
+        if (!(messageObj instanceof Map)) return null;
+        Object content = ((Map<?, ?>) messageObj).get("content");
+        if (content instanceof String) {
+            return ((String) content).trim();
+        }
+        if (content instanceof List) {
+            StringBuilder sb = new StringBuilder();
+            for (Object part : (List<?>) content) {
+                if (part instanceof Map && ((Map<?, ?>) part).get("text") != null) {
+                    sb.append(((Map<?, ?>) part).get("text"));
+                }
+            }
+            return sb.toString().trim();
+        }
+        return null;
+    }
+
+    /**
+     * 等比缩放图片，控制最长边不超过 maxEdge 像素。
+     */
+    private BufferedImage scaleImage(BufferedImage src, int maxEdge) {
+        int w = src.getWidth();
+        int h = src.getHeight();
+        int max = Math.max(w, h);
+        if (max <= maxEdge) return src;
+        double ratio = (double) maxEdge / max;
+        int nw = Math.max(1, (int) (w * ratio));
+        int nh = Math.max(1, (int) (h * ratio));
+        BufferedImage scaled = new BufferedImage(nw, nh, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = scaled.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g.drawImage(src, 0, 0, nw, nh, null);
+        g.dispose();
+        return scaled;
+    }
+
+    /**
+     * 将 BufferedImage 编码为 PNG Base64 字符串。
+     */
+    private String imageToBase64Png(BufferedImage image) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", out);
+        return Base64.getEncoder().encodeToString(out.toByteArray());
     }
 
     /**

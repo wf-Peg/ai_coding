@@ -59,6 +59,23 @@ public class ModelConfig {
     /** 自定义中转站模型名称 */
     private String customModel = "";
 
+    // ===== 新增：PDF OCR 配置 =====
+
+    /** PDF OCR 视觉模型 API 地址（OpenAI 兼容格式，如 dashscope 兼容模式 / deepseek / 自定义中转站；为空时默认 DashScope 兼容地址） */
+    private String pdfOcrBaseUrl = "";
+
+    /** PDF OCR 专用 API Key（部分 Key 不支持视觉模型，独立配置；为空时回退全局 DashScope Key） */
+    private String pdfOcrApiKey = "";
+
+    /** PDF OCR 开关：是否启用 AI 视觉模型识别（false 时仅用 PDFBox 提取文字层） */
+    private boolean pdfOcrEnabled = true;
+
+    /** PDF OCR 使用的 DashScope 视觉模型名称 */
+    private String pdfOcrModel = "qwen-vl-plus";
+
+    /** PDF OCR AI 触发阈值：单页提取文本少于该字符数时调用视觉模型识别 */
+    private int pdfOcrMinTextLength = 15;
+
     /** 无参构造器，用于 JSON 反序列化 */
     public ModelConfig() {}
 
@@ -136,6 +153,48 @@ public class ModelConfig {
 
     public void setCustomModel(String customModel) {
         this.customModel = customModel;
+    }
+
+    // ==================== PDF OCR getters / setters ====================
+
+    public String getPdfOcrBaseUrl() {
+        return pdfOcrBaseUrl;
+    }
+
+    public void setPdfOcrBaseUrl(String pdfOcrBaseUrl) {
+        this.pdfOcrBaseUrl = pdfOcrBaseUrl;
+    }
+
+    public String getPdfOcrApiKey() {
+        return pdfOcrApiKey;
+    }
+
+    public void setPdfOcrApiKey(String pdfOcrApiKey) {
+        this.pdfOcrApiKey = pdfOcrApiKey;
+    }
+
+    public boolean isPdfOcrEnabled() {
+        return pdfOcrEnabled;
+    }
+
+    public void setPdfOcrEnabled(boolean pdfOcrEnabled) {
+        this.pdfOcrEnabled = pdfOcrEnabled;
+    }
+
+    public String getPdfOcrModel() {
+        return pdfOcrModel;
+    }
+
+    public void setPdfOcrModel(String pdfOcrModel) {
+        this.pdfOcrModel = pdfOcrModel;
+    }
+
+    public int getPdfOcrMinTextLength() {
+        return pdfOcrMinTextLength;
+    }
+
+    public void setPdfOcrMinTextLength(int pdfOcrMinTextLength) {
+        this.pdfOcrMinTextLength = pdfOcrMinTextLength;
     }
 
     // ==================== 便捷方法 ====================

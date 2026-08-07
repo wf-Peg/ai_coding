@@ -1065,7 +1065,7 @@ function createTray() {
         if (mainWindow && !mainWindow.isDestroyed()) {
           showMainWindow();
           mainWindow.webContents.executeJavaScript(
-            "window.location.href = '/clip'"
+            "window.history.pushState({view:'clip'}, '', '/clip'); window.dispatchEvent(new PopStateEvent('popstate'));"
           ).catch(err => log.warn('[Tray] navigate to clip failed:', err));
         } else {
           const config = loadConfig();
@@ -1095,7 +1095,7 @@ function createTray() {
         if (mainWindow && !mainWindow.isDestroyed()) {
           showMainWindow();
           mainWindow.webContents.executeJavaScript(
-            "window.location.href = '/settings'"
+            "window.history.pushState({view:'settings'}, '', '/settings'); window.dispatchEvent(new PopStateEvent('popstate'));"
           ).catch(err => log.warn('[Tray] navigate to settings failed:', err));
         } else {
           const config = loadConfig();
@@ -1674,6 +1674,34 @@ function setupIPC() {
       { name: '所有文件', extensions: ['*'] }
     ];
   }
+
+  // ===== 学习计划 Markdown 导出 =====
+  ipcMain.handle('learning-plan-save-markdown', async (event, payload) => {
+    const defaultDirectory = getEditorDefaultDirectory();
+    const suggestedName = (payload?.suggestedName || '学习计划').replace(/[\\/:*?"<>|]/g, '_') + '.md';
+    const options = {
+      title: '导出为 Markdown',
+      defaultPath: path.join(defaultDirectory, suggestedName),
+      filters: [
+        { name: 'Markdown', extensions: ['md'] },
+        { name: '文本文件', extensions: ['txt'] },
+        { name: '所有文件', extensions: ['*'] }
+      ]
+    };
+    const result = mainWindow
+      ? await dialog.showSaveDialog(mainWindow, options)
+      : await dialog.showSaveDialog(options);
+    if (result.canceled || !result.filePath) return { canceled: true };
+    try {
+      fs.mkdirSync(path.dirname(result.filePath), { recursive: true });
+      fs.writeFileSync(result.filePath, payload?.text || '', 'utf-8');
+      log.info('[LearningPlan] markdown saved to', result.filePath);
+      return { canceled: false, filePath: result.filePath };
+    } catch (e) {
+      log.error('[LearningPlan] save markdown failed:', e.message);
+      return { canceled: true, error: e.message };
+    }
+  });
 
   ipcMain.handle('editor-open-text-file', async () => {
     const defaultDirectory = getEditorDefaultDirectory();
@@ -2806,7 +2834,7 @@ if (!gotTheLock) {
     }
 
     // 解析命令行参数（系统右键菜单等触发的二次启动），转发到渲染进程
-    const actions = parseCommandLineArgs(commandLine);
+    const actions = parseCommandLineArgs(commandLine, APP_DIR);
     if (actions.length > 0 && mainWindow && !mainWindow.isDestroyed()) {
       dispatchActions(actions, mainWindow);
     }
@@ -3015,7 +3043,7 @@ app.whenReady().then(async () => {
 
       createMainWindow(config);
       // 处理命令行参数（系统右键菜单传递的文件路径）
-      const actions = parseCommandLineArgs(process.argv);
+      const actions = parseCommandLineArgs(process.argv, APP_DIR);
       if (actions.length > 0) {
         // 等待窗口就绪后分发动作
         mainWindow.webContents.on('did-finish-load', () => {
