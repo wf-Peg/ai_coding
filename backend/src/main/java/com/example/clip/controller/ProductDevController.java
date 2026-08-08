@@ -9,11 +9,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -294,6 +297,56 @@ public class ProductDevController {
         } catch (Exception e) {
             log.error("[ProductDevController] 创建归档条目失败: {}", e.getMessage(), e);
             return errorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "创建归档条目失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 更新需求的阶段（看板拖拽切换）
+     * <p>
+     * PUT /api/product-dev/requirements/{id}/phase
+     * 更新指定需求的 phase 字段，用于看板拖拽切换阶段。
+     * </p>
+     *
+     * @param id   需求记录的 ID
+     * @param body 请求体：{ phase: "analysis"|"design"|"implementation"|"testing"|"completed" }
+     * @return 更新后的记录
+     */
+    @PutMapping("/requirements/{id}/phase")
+    public ResponseEntity<Map<String, Object>> updateRequirementPhase(@PathVariable String id,
+                                                                       @RequestBody Map<String, Object> body) {
+        log.info("[ProductDevController] PUT /api/product-dev/requirements/{}/phase - body: {}", id, body);
+        try {
+            String phase = (String) body.get("phase");
+            if (phase == null || phase.isBlank()) {
+                return errorResponse(HttpStatus.BAD_REQUEST, "phase 不能为空");
+            }
+            List<String> validPhases = List.of("analysis", "design", "implementation", "testing", "completed");
+            if (!validPhases.contains(phase)) {
+                return errorResponse(HttpStatus.BAD_REQUEST, "无效的 phase 值: " + phase);
+            }
+
+            ProductDevRecord existing = productDevService.getRecordById(id);
+            if (existing == null) {
+                return errorResponse(HttpStatus.NOT_FOUND, "需求记录不存在: " + id);
+            }
+
+            existing.setPhase(phase);
+            existing.setUpdatedAt(LocalDateTime.now());
+            ProductDevRecord saved = productDevService.saveRecord(existing);
+            if (saved != null) {
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("success", true);
+                result.put("id", saved.getId());
+                result.put("phase", saved.getPhase());
+                result.put("message", "阶段已更新");
+                log.info("[ProductDevController] 需求阶段更新成功: id={}, phase={}", id, phase);
+                return ResponseEntity.ok(result);
+            } else {
+                return errorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "保存更新失败");
+            }
+        } catch (Exception e) {
+            log.error("[ProductDevController] 更新需求阶段失败: {}", e.getMessage(), e);
+            return errorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "更新需求阶段失败: " + e.getMessage());
         }
     }
 

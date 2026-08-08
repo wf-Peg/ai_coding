@@ -1,6 +1,9 @@
 package com.example.clip.service;
 
+import com.example.clip.model.ClipContent;
+import com.example.clip.model.Knowledge;
 import com.example.clip.model.ProductDevRecord;
+import com.example.clip.model.TodoContent;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -60,14 +63,32 @@ public class ProductDevService {
     /** 文件存储服务，用于获取 storagePath */
     private final FileStorageService fileStorageService;
 
+    /** 剪藏服务，用于联动创建剪藏记录 */
+    private final ClipService clipService;
+
+    /** 知识服务，用于联动创建知识条目 */
+    private final KnowledgeService knowledgeService;
+
+    /** 待办服务，用于联动创建待办事项 */
+    private final TodoService todoService;
+
     /**
      * 构造器，初始化 Jackson ObjectMapper（注册 JavaTimeModule 支持 LocalDateTime）
      *
      * @param fileStorageService 文件存储服务
+     * @param clipService        剪藏服务
+     * @param knowledgeService   知识服务
+     * @param todoService        待办服务
      */
     @Autowired
-    public ProductDevService(FileStorageService fileStorageService) {
+    public ProductDevService(FileStorageService fileStorageService,
+                             ClipService clipService,
+                             KnowledgeService knowledgeService,
+                             TodoService todoService) {
         this.fileStorageService = fileStorageService;
+        this.clipService = clipService;
+        this.knowledgeService = knowledgeService;
+        this.todoService = todoService;
         this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new JavaTimeModule());
         this.objectMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -218,10 +239,86 @@ public class ProductDevService {
             }
             writeAllRecords(records);
             log.info("[ProductDevService] 已保存记录: id={}, title={}, type={}", record.getId(), record.getTitle(), record.getType());
+
+            // 联动同步到真实服务（剪藏、知识、待办）
+            syncToRealServices(record, updated);
+
             return record;
         } catch (Exception e) {
             log.error("[ProductDevService] 保存记录失败: {}", e.getMessage(), e);
             return null;
+        }
+    }
+
+    /**
+     * 联动同步到真实服务（剪藏、知识、待办）
+     * <p>
+     * 根据记录类型，将 ProductDevRecord 同步到对应的真实业务服务中。
+     * 新记录时创建对应条目，更新时暂不处理（避免重复创建）。
+     * </p>
+     *
+     * @param record  已保存的产品开发记录
+     * @param updated true 表示更新操作，false 表示新增操作
+     */
+    private void syncToRealServices(ProductDevRecord record, boolean updated) {
+        if (record == null) return;
+        try {
+            String type = record.getType() != null ? record.getType() : "requirement";
+            String title = record.getTitle() != null ? record.getTitle() : "未命名";
+            String content = record.getContent() != null ? record.getContent() : "";
+            String description = record.getDescription() != null ? record.getDescription() : "";
+            String phase = record.getPhase() != null ? record.getPhase() : "analysis";
+            List<String> tags = record.getTags() != null ? record.getTags() : List.of();
+
+            // 新记录时创建对应真实服务条目
+            if (!updated) {
+                switch (type) {
+                    case "requirement":
+                    case "clip":
+                        // 同步到剪藏服务
+                        ClipContent clip = new ClipContent(
+                                title + "\n\n" + description + "\n\n" + content,
+                                "product-dev",
+                                "product-dev-archive",
+                                "product-dev"
+                        );
+                        clip.setTags(tags);
+                        clipService.saveClip(clip);
+                        log.info("[ProductDevService] 已同步到剪藏: title={}", title);
+                        break;
+
+                    case "knowledge":
+                        // 同步到知识服务
+                        Knowledge knowledge = new Knowledge();
+                        knowledge.setTitle(title);
+                        knowledge.setSummary(description);
+                        knowledge.setContent(content);
+                        knowledge.setCategory("product-dev");
+                        knowledge.setTags(tags);
+                        knowledgeService.createKnowledge(knowledge);
+                        log.info("[ProductDevService] 已同步到知识: title={}", title);
+                        break;
+
+                    case "todo":
+                        // 同步到待办服务
+                        TodoContent todo = new TodoContent();
+                        todo.setTitle(title);
+                        todo.setCategory("product-dev");
+                        String status = record.getStatus() != null ? record.getStatus() : "todo";
+                        todo.setCompleted("done".equals(status));
+                        todoService.saveTodo(todo);
+                        log.info("[ProductDevService] 已同步到待办: title={}", title);
+                        break;
+
+                    default:
+                        log.debug("[ProductDevService] 未匹配同步类型: type={}", type);
+                        break;
+                }
+            } else {
+                log.debug("[ProductDevService] 更新操作跳过真实服务同步: id={}", record.getId());
+            }
+        } catch (Exception e) {
+            log.error("[ProductDevService] 同步到真实服务失败: {}", e.getMessage(), e);
         }
     }
 

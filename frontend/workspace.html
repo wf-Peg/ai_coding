@@ -6,6 +6,7 @@
   <title>工作台 - CutShelter</title>
   <link rel="stylesheet" href="styles/design-tokens.css">
   <script src="libs/chart.umd.min.js" defer></script>
+  <script src="libs/d3.min.js" defer></script>
   <style>
     :root { --ws-bg: var(--app-bg); --ws-surface: var(--app-surface); --ws-subtle: var(--app-surface-subtle); --ws-border: var(--app-border); --ws-text: var(--app-text); --ws-muted: var(--app-text-secondary); --ws-faint: var(--app-text-muted); --ws-primary: var(--app-primary); --ws-primary-soft: var(--app-primary-soft); --ws-danger: var(--app-danger); --ws-danger-soft: var(--app-danger-soft); }
     * { box-sizing: border-box; }
@@ -299,6 +300,19 @@
     .pd-kanban-card-title { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pd-kanban-card-meta { margin-top: 6px; font-size: 11px; color: var(--ws-faint); }
     .pd-kanban-card-meta .pd-tag { display: inline-block; padding: 1px 6px; border-radius: 4px; background: var(--ws-primary-soft); color: var(--ws-primary); font-size: 10px; margin-right: 4px; }
+    .pd-kanban-card.dragging { opacity: .45; transform: rotate(2deg); }
+    .pd-kanban-col-body.drag-over { background: var(--ws-primary-soft); border-radius: var(--app-radius); min-height: 80px; }
+
+    /* 需求详情弹窗 */
+    .pd-req-detail-section { margin-bottom: 16px; }
+    .pd-req-detail-section:last-child { margin-bottom: 0; }
+    .pd-req-detail-label { font-size: 11px; font-weight: 700; color: var(--ws-faint); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+    .pd-req-detail-value { font-size: 13px; color: var(--ws-text); line-height: 1.55; }
+    .pd-req-detail-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+    .pd-req-detail-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; background: var(--ws-primary-soft); color: var(--ws-primary); }
+    .pd-req-detail-phase { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .pd-req-detail-phase-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; color: #fff; }
+    .pd-req-detail-divider { height: 1px; margin: 14px 0; background: var(--ws-border); }
 
     /* 知识图谱 */
     .pd-graph-toolbar { margin-bottom: 12px; }
@@ -306,10 +320,42 @@
     .pd-legend-req { display: inline-block; padding: 1px 6px; border-radius: 4px; background: #2383e2; color: #fff; font-size: 10px; margin: 0 2px; }
     .pd-legend-kn { display: inline-block; padding: 1px 6px; border-radius: 4px; background: #10b981; color: #fff; font-size: 10px; margin: 0 2px; }
     .pd-legend-todo { display: inline-block; padding: 1px 6px; border-radius: 4px; background: #f59e0b; color: #fff; font-size: 10px; margin: 0 2px; }
-    .pd-graph-container { width: 100%; height: 450px; border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-surface); overflow: hidden; }
+    .pd-graph-container { width: 100%; height: 450px; border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-surface); overflow: hidden; position: relative; }
+    .pd-graph-tooltip { position: absolute; pointer-events: none; background: var(--ws-surface); border: 1px solid var(--ws-border); border-radius: var(--app-radius); padding: 10px 14px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.12); opacity: 0; transition: opacity .15s ease; z-index: 100; max-width: 260px; line-height: 1.5; }
+    .pd-graph-tooltip.visible { opacity: 1; }
+    .pd-graph-tooltip .tt-title { font-weight: 650; font-size: 13px; margin-bottom: 4px; }
+    .pd-graph-tooltip .tt-meta { color: var(--ws-muted); font-size: 11px; }
+    .pd-graph-tooltip .tt-type { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; margin-top: 4px; color: #fff; }
 
-    /* 时间线 */
-    .pd-timeline-container { min-height: 300px; }
+    /* 甘特图 */
+    .pd-gantt-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+    .pd-gantt-zoom { display: flex; gap: 2px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); overflow: hidden; }
+    .pd-gantt-zoom-btn { padding: 6px 14px; border: 0; background: var(--ws-surface); color: var(--ws-muted); font-size: 12px; cursor: pointer; transition: all .16s ease; }
+    .pd-gantt-zoom-btn:hover { background: var(--ws-subtle); color: var(--ws-text); }
+    .pd-gantt-zoom-btn.active { background: var(--ws-primary); color: #fff; }
+    .pd-gantt-legend { display: flex; gap: 10px; flex-wrap: wrap; }
+    .pd-gantt-legend-item { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--ws-muted); }
+    .pd-gantt-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+    .pd-gantt-container { overflow-x: auto; overflow-y: auto; border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-surface); min-height: 300px; max-height: 600px; }
+    .pd-gantt-chart { position: relative; min-width: 100%; }
+    .pd-gantt-header { position: sticky; top: 0; z-index: 10; background: var(--ws-surface); border-bottom: 1px solid var(--ws-border); }
+    .pd-gantt-header-row { display: flex; }
+    .pd-gantt-label-col { flex: none; width: 200px; border-right: 1px solid var(--ws-border); padding: 8px 12px; font-size: 11px; font-weight: 700; color: var(--ws-faint); text-transform: uppercase; letter-spacing: .05em; }
+    .pd-gantt-grid-col { flex: none; border-right: 1px solid var(--ws-border); padding: 8px 4px; font-size: 10px; color: var(--ws-faint); text-align: center; white-space: nowrap; }
+    .pd-gantt-header-row .pd-gantt-grid-col { background: var(--ws-subtle); }
+    .pd-gantt-header-row .pd-gantt-grid-col.weekend { background: color-mix(in srgb, var(--ws-subtle) 80%, #e74c3c); }
+    .pd-gantt-body { position: relative; }
+    .pd-gantt-row { display: flex; border-bottom: 1px solid var(--ws-border); transition: background .16s ease; }
+    .pd-gantt-row:hover { background: var(--ws-subtle); }
+    .pd-gantt-row-label { flex: none; width: 200px; border-right: 1px solid var(--ws-border); padding: 8px 12px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+    .pd-gantt-row-label .pd-gantt-phase-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+    .pd-gantt-row-cells { display: flex; flex: 1; min-width: 0; }
+    .pd-gantt-cell { flex: none; border-right: 1px solid var(--ws-border); min-height: 32px; position: relative; }
+    .pd-gantt-cell.weekend { background: color-mix(in srgb, var(--ws-subtle) 50%, transparent); }
+    .pd-gantt-bar { position: absolute; top: 4px; height: 24px; border-radius: 4px; opacity: .85; cursor: pointer; transition: opacity .16s ease, box-shadow .16s ease; display: flex; align-items: center; padding: 0 6px; font-size: 10px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 4px; }
+    .pd-gantt-bar:hover { opacity: 1; box-shadow: 0 2px 8px rgba(0,0,0,.15); z-index: 5; }
+    .pd-gantt-bar-tooltip { position: fixed; z-index: 1050; background: var(--ws-surface); border: 1px solid var(--ws-border); border-radius: var(--app-radius); padding: 8px 12px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.12); pointer-events: none; opacity: 0; transition: opacity .15s ease; max-width: 280px; line-height: 1.5; }
+    .pd-gantt-bar-tooltip.visible { opacity: 1; }
 
     /* 归档列表 */
     .pd-archive-toolbar { margin-bottom: 14px; }
@@ -660,7 +706,21 @@
 
       <!-- ── 时间线 Timeline ── -->
       <div class="pd-tab-content" data-pd-content="timeline">
-        <div class="pd-timeline-container" id="pdTimelineContainer">
+        <div class="pd-gantt-toolbar">
+          <div class="pd-gantt-zoom">
+            <button class="pd-gantt-zoom-btn active" data-zoom="day" type="button">日视图</button>
+            <button class="pd-gantt-zoom-btn" data-zoom="week" type="button">周视图</button>
+            <button class="pd-gantt-zoom-btn" data-zoom="month" type="button">月视图</button>
+          </div>
+          <div class="pd-gantt-legend">
+            <span class="pd-gantt-legend-item"><span class="pd-gantt-legend-dot" style="background:#2383e2"></span>需求分析</span>
+            <span class="pd-gantt-legend-item"><span class="pd-gantt-legend-dot" style="background:#876de2"></span>设计</span>
+            <span class="pd-gantt-legend-item"><span class="pd-gantt-legend-dot" style="background:#f59e0b"></span>实现</span>
+            <span class="pd-gantt-legend-item"><span class="pd-gantt-legend-dot" style="background:#e74c3c"></span>测试</span>
+            <span class="pd-gantt-legend-item"><span class="pd-gantt-legend-dot" style="background:#10b981"></span>已完成</span>
+          </div>
+        </div>
+        <div class="pd-gantt-container" id="pdGanttContainer">
           <div class="empty-state">暂无时间线数据，完成需求归档后将自动生成。</div>
         </div>
       </div>
@@ -806,6 +866,22 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" data-close="columnInputModal" type="button">取消</button>
         <button class="btn btn-primary" id="confirmColumnInput" type="button">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 需求详情弹窗 ── -->
+  <div class="modal-overlay" id="pdRequirementModal">
+    <div class="modal" style="width:min(560px,calc(100vw-40px))">
+      <div class="modal-header">
+        <h3 id="pdReqModalTitle">需求详情</h3>
+        <button class="modal-close" data-close="pdRequirementModal" type="button">&times;</button>
+      </div>
+      <div class="modal-body" id="pdReqModalBody">
+        <div class="pd-req-detail-loading" style="text-align:center;padding:30px;color:var(--ws-muted)">加载中...</div>
+      </div>
+      <div class="modal-footer" id="pdReqModalFooter">
+        <button class="btn btn-secondary" data-close="pdRequirementModal" type="button">关闭</button>
       </div>
     </div>
   </div>
@@ -2211,8 +2287,15 @@
         // 后端返回格式：[{phase: "analysis", count: 2, items: [...]}, ...]
         // 转为对象格式：{analysis: items, ...}
         var grouped = {};
+        pdRequirementsCache = {};
         if (requirements && Array.isArray(requirements)) {
-          requirements.forEach(function(g) { grouped[g.phase] = g.items || []; });
+          requirements.forEach(function(g) {
+            grouped[g.phase] = g.items || [];
+            // 缓存所有需求项，用于详情弹窗
+            (g.items || []).forEach(function(item) {
+              if (item.id) pdRequirementsCache[item.id] = item;
+            });
+          });
         }
         var hasData = Object.keys(grouped).length > 0;
         if (!hasData) {
@@ -2233,91 +2316,528 @@
                    (item.description && item.description.toLowerCase().includes(searchQ)) ||
                    (item.tags || []).some(function(t) { return t.toLowerCase().includes(searchQ); });
           });
-          return '<div class="pd-kanban-col"><div class="pd-kanban-col-header"><h3 style="color:' + phaseColors[phase] + '">' + phaseLabels[phase] + '</h3><span class="pd-kanban-col-count">' + items.length + '</span></div><div class="pd-kanban-col-body">' +
+          return '<div class="pd-kanban-col"><div class="pd-kanban-col-header"><h3 style="color:' + phaseColors[phase] + '">' + phaseLabels[phase] + '</h3><span class="pd-kanban-col-count">' + items.length + '</span></div><div class="pd-kanban-col-body" data-phase="' + phase + '">' +
             (items.length ? items.map(function(item) {
               var tags = (item.tags || []).map(function(t) { return '<span class="pd-tag">' + escapeHtml(t) + '</span>'; }).join('');
-              return '<div class="pd-kanban-card"><div class="pd-kanban-card-title">' + escapeHtml(item.title || '未命名') + '</div><div class="pd-kanban-card-meta">' + tags + (item.status ? '<span>' + escapeHtml(item.status) + '</span>' : '') + '</div></div>';
+              return '<div class="pd-kanban-card" draggable="true" data-req-id="' + escapeHtml(item.id) + '" data-phase="' + phase + '"><div class="pd-kanban-card-title">' + escapeHtml(item.title || '未命名') + '</div><div class="pd-kanban-card-meta">' + tags + (item.status ? '<span>' + escapeHtml(item.status) + '</span>' : '') + '</div></div>';
             }).join('') : '<div class="empty-state" style="padding:20px 10px;font-size:12px">暂无需求</div>') +
             '</div></div>';
         }).join('');
+
+        // 绑定拖拽事件
+        el.querySelectorAll('.pd-kanban-card').forEach(function(card) {
+          card.addEventListener('dragstart', onPdDragStart);
+          card.addEventListener('dragend', onPdDragEnd);
+          card.addEventListener('click', onPdCardClick);
+        });
+        el.querySelectorAll('.pd-kanban-col-body').forEach(function(body) {
+          body.addEventListener('dragover', onPdDragOver);
+          body.addEventListener('dragleave', onPdDragLeave);
+          body.addEventListener('drop', onPdDrop);
+        });
+      }
+
+      /* ── pd-kanban 拖拽 ── */
+      var pdDragReqId = null;
+
+      function onPdDragStart(e) {
+        var card = e.target.closest('.pd-kanban-card');
+        if (!card) return;
+        pdDragReqId = card.dataset.reqId;
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', pdDragReqId);
+      }
+
+      function onPdDragEnd(e) {
+        var card = e.target.closest('.pd-kanban-card');
+        if (card) card.classList.remove('dragging');
+        document.querySelectorAll('.pd-kanban-col-body').forEach(function(b) { b.classList.remove('drag-over'); });
+        pdDragReqId = null;
+      }
+
+      function onPdDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        e.currentTarget.classList.add('drag-over');
+      }
+
+      function onPdDragLeave(e) {
+        var body = e.currentTarget;
+        if (!e.relatedTarget || !body.contains(e.relatedTarget)) {
+          body.classList.remove('drag-over');
+        }
+      }
+
+      async function onPdDrop(e) {
+        e.preventDefault();
+        var body = e.currentTarget;
+        body.classList.remove('drag-over');
+        var targetPhase = body.dataset.phase;
+        var reqId = e.dataTransfer.getData('text/plain') || pdDragReqId;
+        if (!reqId || !targetPhase) return;
+        // 检查是否已在该阶段
+        var card = document.querySelector('.pd-kanban-card[data-req-id="' + reqId + '"]');
+        var currentPhase = card ? card.dataset.phase : '';
+        if (currentPhase === targetPhase) return;
+        try {
+          var r = await fetch('/api/product-dev/requirements/' + encodeURIComponent(reqId) + '/phase', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phase: targetPhase })
+          });
+          if (!r.ok) {
+            var err = await r.json().catch(function() { return {}; });
+            throw new Error(err.message || '移动失败');
+          }
+          // 重新加载看板数据
+          loadPdData();
+        } catch (err) {
+          alert('移动失败：' + (err.message || '后端服务不可用'));
+        }
+      }
+
+      /* ── pd-kanban 卡片点击详情弹窗 ── */
+      var pdRequirementsCache = {};
+
+      function onPdCardClick(e) {
+        var card = e.target.closest('.pd-kanban-card');
+        if (!card) return;
+        var reqId = card.dataset.reqId;
+        if (!reqId) return;
+        showPdRequirementDetail(reqId);
+      }
+
+      function showPdRequirementDetail(reqId) {
+        var item = pdRequirementsCache[reqId];
+        if (!item) {
+          $('pdReqModalBody').innerHTML = '<div class="empty-state" style="padding:30px">未找到需求数据</div>';
+          showModal($('pdRequirementModal'));
+          return;
+        }
+        var phaseLabels = { analysis: '需求分析', design: '设计', implementation: '实现', testing: '测试', completed: '已完成' };
+        var phaseColors = { analysis: '#2383e2', design: '#876de2', implementation: '#f59e0b', testing: '#e74c3c', completed: '#10b981' };
+        var phase = item.phase || 'analysis';
+        var phaseLabel = phaseLabels[phase] || phase;
+        var phaseColor = phaseColors[phase] || '#999';
+        var tags = (item.tags || []).map(function(t) { return '<span class="pd-req-detail-tag">' + escapeHtml(t) + '</span>'; }).join('');
+        var desc = item.description || '暂无描述';
+        var content = item.content || '';
+        var status = item.status || 'todo';
+        var statusLabels = { todo: '待开始', 'in-progress': '进行中', done: '已完成' };
+        var statusLabel = statusLabels[status] || status;
+        var createdAt = formatDateTime(item.createdAt);
+        var updatedAt = formatDateTime(item.updatedAt);
+        var source = item.source || 'manual';
+        var sourceLabels = { manual: '手动创建', archive: '归档', migrate: '历史迁移' };
+        var sourceLabel = sourceLabels[source] || source;
+
+        $('pdReqModalTitle').textContent = item.title || '需求详情';
+        $('pdReqModalBody').innerHTML =
+          '<div class="pd-req-detail-section">' +
+            '<div class="pd-req-detail-label">阶段</div>' +
+            '<div class="pd-req-detail-phase-badge" style="background:' + phaseColor + '">' + escapeHtml(phaseLabel) + '</div>' +
+          '</div>' +
+          '<div class="pd-req-detail-divider"></div>' +
+          '<div class="pd-req-detail-section">' +
+            '<div class="pd-req-detail-label">描述</div>' +
+            '<div class="pd-req-detail-value">' + escapeHtml(desc) + '</div>' +
+          '</div>' +
+          (content ? '<div class="pd-req-detail-section"><div class="pd-req-detail-label">详细内容</div><div class="pd-req-detail-value" style="white-space:pre-wrap">' + escapeHtml(content) + '</div></div>' : '') +
+          (tags ? '<div class="pd-req-detail-section"><div class="pd-req-detail-label">标签</div><div class="pd-req-detail-tags">' + tags + '</div></div>' : '') +
+          '<div class="pd-req-detail-divider"></div>' +
+          '<div class="pd-req-detail-section" style="display:flex;gap:20px;flex-wrap:wrap">' +
+            '<div><div class="pd-req-detail-label">状态</div><div class="pd-req-detail-value">' + escapeHtml(statusLabel) + '</div></div>' +
+            '<div><div class="pd-req-detail-label">来源</div><div class="pd-req-detail-value">' + escapeHtml(sourceLabel) + '</div></div>' +
+            '<div><div class="pd-req-detail-label">创建时间</div><div class="pd-req-detail-value">' + escapeHtml(createdAt) + '</div></div>' +
+            '<div><div class="pd-req-detail-label">更新时间</div><div class="pd-req-detail-value">' + escapeHtml(updatedAt) + '</div></div>' +
+          '</div>';
+
+        showModal($('pdRequirementModal'));
       }
 
       function renderPdGraph(graph) {
         var container = $('pdGraphContainer');
-        var svg = $('pdGraphSvg');
-        if (!container || !svg) return;
-        var nodes = (graph.nodes || []).slice(0, 30);
-        var edges = (graph.edges || []).slice(0, 60);
+        if (!container) return;
+        var nodes = (graph.nodes || []).slice(0, 50);
+        var edges = (graph.edges || []).slice(0, 100);
         if (!nodes.length) {
-          svg.innerHTML = '';
           container.innerHTML = '<div class="empty-state" style="height:100%;display:flex;align-items:center;justify-content:center">暂无关联数据，完成需求归档后将生成知识图谱。</div>';
           return;
         }
-        // 简单力导向布局
+        // 清空容器，保留 tooltip
+        var existingTooltip = container.querySelector('.pd-graph-tooltip');
+        container.innerHTML = '';
+        if (existingTooltip) container.appendChild(existingTooltip);
+
+        var tooltip = document.createElement('div');
+        tooltip.className = 'pd-graph-tooltip';
+        container.appendChild(tooltip);
+
         var w = container.clientWidth || 600;
         var h = container.clientHeight || 450;
-        var cx = w / 2, cy = h / 2;
-        var radius = Math.min(w, h) * 0.35;
-        var nodePositions = {};
-        nodes.forEach(function(n, i) {
-          var angle = (i / nodes.length) * 2 * Math.PI - Math.PI / 2;
-          nodePositions[n.id] = { x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) };
-        });
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', w);
+        svg.setAttribute('height', h);
+        svg.style.width = '100%';
+        svg.style.height = '100%';
+        container.appendChild(svg);
 
         var nodeColors = { requirement: '#2383e2', knowledge: '#10b981', todo: '#f59e0b', archive: '#876de2' };
-        var nodeSizes = { requirement: 10, knowledge: 8, todo: 6, archive: 7 };
+        var nodeTypeLabels = { requirement: '需求', knowledge: '知识', todo: '待办', archive: '归档' };
 
-        var lines = edges.map(function(e) {
-          var src = nodePositions[e.source];
-          var tgt = nodePositions[e.target];
-          if (!src || !tgt) return '';
-          return '<line x1="' + src.x + '" y1="' + src.y + '" x2="' + tgt.x + '" y2="' + tgt.y + '" stroke="rgba(0,0,0,0.1)" stroke-width="1.5"/>';
-        }).join('');
+        // 如果 D3 不可用，降级为简单 SVG
+        if (typeof d3 === 'undefined') {
+          var cx = w / 2, cy = h / 2;
+          var radius = Math.min(w, h) * 0.35;
+          var ns = 'http://www.w3.org/2000/svg';
+          var g = document.createElementNS(ns, 'g');
+          g.setAttribute('transform', 'translate(' + cx + ',' + cy + ')');
+          edges.forEach(function(e) {
+            var srcIdx = nodes.findIndex(function(n) { return n.id === e.source; });
+            var tgtIdx = nodes.findIndex(function(n) { return n.id === e.target; });
+            if (srcIdx < 0 || tgtIdx < 0) return;
+            var a1 = (srcIdx / nodes.length) * 2 * Math.PI - Math.PI / 2;
+            var a2 = (tgtIdx / nodes.length) * 2 * Math.PI - Math.PI / 2;
+            var line = document.createElementNS(ns, 'line');
+            line.setAttribute('x1', radius * Math.cos(a1));
+            line.setAttribute('y1', radius * Math.sin(a1));
+            line.setAttribute('x2', radius * Math.cos(a2));
+            line.setAttribute('y2', radius * Math.sin(a2));
+            line.setAttribute('stroke', 'rgba(0,0,0,0.08)');
+            line.setAttribute('stroke-width', '1.5');
+            g.appendChild(line);
+          });
+          nodes.forEach(function(n, i) {
+            var a = (i / nodes.length) * 2 * Math.PI - Math.PI / 2;
+            var x = radius * Math.cos(a), y = radius * Math.sin(a);
+            var color = nodeColors[n.type] || '#999';
+            var size = (n.type === 'requirement') ? 10 : (n.type === 'knowledge' ? 8 : 6);
+            var circle = document.createElementNS(ns, 'circle');
+            circle.setAttribute('cx', x); circle.setAttribute('cy', y);
+            circle.setAttribute('r', size); circle.setAttribute('fill', color);
+            circle.setAttribute('opacity', '0.85');
+            circle.addEventListener('mouseenter', function(ev) { showGraphTooltip(ev, n, tooltip, nodeTypeLabels, nodeColors); });
+            circle.addEventListener('mouseleave', function() { hideGraphTooltip(tooltip); });
+            g.appendChild(circle);
+            var text = document.createElementNS(ns, 'text');
+            text.setAttribute('x', x + 12); text.setAttribute('y', y + 4);
+            text.setAttribute('font-size', '10');
+            text.setAttribute('fill', 'var(--ws-muted)');
+            text.textContent = (n.label || n.title || '').substring(0, 12);
+            g.appendChild(text);
+          });
+          svg.appendChild(g);
+          return;
+        }
 
-        var circles = nodes.map(function(n) {
-          var pos = nodePositions[n.id];
-          if (!pos) return '';
-          var color = nodeColors[n.type] || '#999';
-          var size = nodeSizes[n.type] || 6;
-          return '<circle cx="' + pos.x + '" cy="' + pos.y + '" r="' + size + '" fill="' + color + '" opacity="0.85"><title>' + escapeHtml(n.title || n.label || '') + '</title></circle>';
-        }).join('');
+        // D3 力导向图
+        var width = w, height = h;
+        var color = function(type) { return nodeColors[type] || '#999'; };
 
-        var labels = nodes.map(function(n) {
-          var pos = nodePositions[n.id];
-          if (!pos) return '';
-          return '<text x="' + (pos.x + 12) + '" y="' + (pos.y + 4) + '" font-size="10" fill="var(--ws-muted)" font-family="var(--app-font)">' + escapeHtml((n.title || n.label || '').substring(0, 12)) + '</text>';
-        }).join('');
+        var simulation = d3.forceSimulation(nodes)
+            .force('link', d3.forceLink(edges).id(function(d) { return d.id; }).distance(100))
+            .force('charge', d3.forceManyBody().strength(-200))
+            .force('center', d3.forceCenter(width / 2, height / 2))
+            .force('collision', d3.forceCollide().radius(function(d) { return (d.type === 'requirement' ? 14 : 10); }));
 
-        svg.innerHTML = lines + circles + labels;
-        container.innerHTML = '';
-        container.appendChild(svg);
+        var defs = d3.select(svg).append('defs');
+        // 箭头标记
+        edges.forEach(function(e, i) {
+          defs.append('marker')
+            .attr('id', 'arrow-' + i)
+            .attr('viewBox', '0 -5 10 10')
+            .attr('refX', 20)
+            .attr('refY', 0)
+            .attr('markerWidth', 6)
+            .attr('markerHeight', 6)
+            .attr('orient', 'auto')
+            .append('path')
+            .attr('d', 'M0,-5L10,0L0,5')
+            .attr('fill', 'rgba(0,0,0,0.12)');
+        });
+
+        var link = d3.select(svg).append('g')
+            .selectAll('line')
+            .data(edges)
+            .join('line')
+            .attr('stroke', 'rgba(0,0,0,0.08)')
+            .attr('stroke-width', 1.5)
+            .attr('marker-end', function(_, i) { return 'url(#arrow-' + i + ')'; });
+
+        var node = d3.select(svg).append('g')
+            .selectAll('circle')
+            .data(nodes)
+            .join('circle')
+            .attr('r', function(d) { return d.type === 'requirement' ? 10 : d.type === 'knowledge' ? 8 : 6; })
+            .attr('fill', function(d) { return color(d.type); })
+            .attr('opacity', 0.85)
+            .attr('stroke', '#fff')
+            .attr('stroke-width', 1.5)
+            .style('cursor', 'pointer')
+            .on('mouseenter', function(ev, d) { showGraphTooltip(ev, d, tooltip, nodeTypeLabels, nodeColors); })
+            .on('mouseleave', function() { hideGraphTooltip(tooltip); })
+            .call(d3.drag()
+              .on('start', function(ev, d) {
+                if (!ev.active) simulation.alphaTarget(0.3).restart();
+                d.fx = d.x; d.fy = d.y;
+              })
+              .on('drag', function(ev, d) {
+                d.fx = ev.x; d.fy = ev.y;
+              })
+              .on('end', function(ev, d) {
+                if (!ev.active) simulation.alphaTarget(0);
+                d.fx = null; d.fy = null;
+              })
+            );
+
+        var label = d3.select(svg).append('g')
+            .selectAll('text')
+            .data(nodes)
+            .join('text')
+            .attr('font-size', 10)
+            .attr('fill', 'var(--ws-muted)')
+            .attr('dx', 14)
+            .attr('dy', 4)
+            .text(function(d) { return (d.label || d.title || '').substring(0, 14); });
+
+        simulation.on('tick', function() {
+          link
+            .attr('x1', function(d) { return d.source.x; })
+            .attr('y1', function(d) { return d.source.y; })
+            .attr('x2', function(d) { return d.target.x; })
+            .attr('y2', function(d) { return d.target.y; });
+          node
+            .attr('cx', function(d) { return d.x; })
+            .attr('cy', function(d) { return d.y; });
+          label
+            .attr('x', function(d) { return d.x; })
+            .attr('y', function(d) { return d.y; });
+        });
+
+        // 保存 simulation 引用以便后续清理
+        container._simulation = simulation;
+      }
+
+      function showGraphTooltip(ev, d, tooltip, labels, colors) {
+        var type = d.type || 'unknown';
+        var typeLabel = labels[type] || type;
+        var typeColor = colors[type] || '#999';
+        tooltip.innerHTML = '<div class="tt-title">' + escapeHtml(d.label || d.title || '') + '</div>' +
+          '<div class="tt-meta">' + escapeHtml(typeLabel) + (d.phase ? ' · ' + escapeHtml(d.phase) : '') + '</div>' +
+          '<span class="tt-type" style="background:' + typeColor + '">' + escapeHtml(typeLabel) + '</span>';
+        tooltip.classList.add('visible');
+        var rect = container.getBoundingClientRect();
+        var tx = ev.clientX - rect.left + 12;
+        var ty = ev.clientY - rect.top - 10;
+        if (tx + 260 > rect.width) tx = ev.clientX - rect.left - 260;
+        if (ty < 0) ty = 10;
+        tooltip.style.left = tx + 'px';
+        tooltip.style.top = ty + 'px';
+      }
+
+      function hideGraphTooltip(tooltip) {
+        tooltip.classList.remove('visible');
       }
 
       function renderPdTimeline(timeline) {
-        var el = $('pdTimelineContainer');
+        var el = $('pdGanttContainer');
         if (!timeline || !timeline.length) {
           el.innerHTML = '<div class="empty-state">暂无时间线数据，完成需求归档后将自动生成。</div>';
           return;
         }
-        // 按日期分组
-        var groups = {};
-        timeline.forEach(function(item) {
-          var date = item.createdAt ? item.createdAt.substring(0, 10) : '未知日期';
-          if (!groups[date]) groups[date] = [];
-          groups[date].push(item);
-        });
-        var sortedDates = Object.keys(groups).sort().reverse();
+
+        // 解析数据，为每个 item 确定 start/end
+        var phaseDuration = { analysis: 3, design: 3, implementation: 5, testing: 3, completed: 1 };
         var phaseColors = { analysis: '#2383e2', design: '#876de2', implementation: '#f59e0b', testing: '#e74c3c', completed: '#10b981', archived: '#6b7280' };
-        el.innerHTML = sortedDates.map(function(date) {
-          var items = groups[date].map(function(item) {
-            var color = phaseColors[item.phase] || '#2383e2';
-            return '<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-left:3px solid ' + color + ';margin:6px 0 6px 20px;background:var(--ws-surface);border-radius:0 var(--app-radius) var(--app-radius) 0;font-size:13px">' +
-              '<span style="font-weight:600;font-size:11px;color:' + color + '">' + escapeHtml(item.phase || '') + '</span>' +
-              '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(item.title || '') + '</span>' +
-              '<span style="flex:none;color:var(--ws-faint);font-size:11px">' + escapeHtml(item.type || '') + '</span></div>';
-          }).join('');
-          return '<div style="margin-bottom:16px"><div style="font-size:13px;font-weight:650;color:var(--ws-text);padding:4px 0;margin-bottom:4px">' + escapeHtml(date) + '</div>' + items + '</div>';
-        }).join('');
+        var phaseLabels = { analysis: '需求分析', design: '设计', implementation: '实现', testing: '测试', completed: '已完成' };
+
+        var items = [];
+        var minDate = null, maxDate = null;
+
+        timeline.forEach(function(item) {
+          var start = item.createdAt ? new Date(item.createdAt) : new Date();
+          if (isNaN(start.getTime())) start = new Date();
+          // 计算结束日期：如果有 updatedAt 且不同于 createdAt，用 updatedAt；否则按阶段估算
+          var end = null;
+          if (item.updatedAt && item.updatedAt !== item.createdAt) {
+            end = new Date(item.updatedAt);
+            if (isNaN(end.getTime())) end = null;
+          }
+          if (!end) {
+            end = new Date(start);
+            var days = phaseDuration[item.phase] || 3;
+            end.setDate(end.getDate() + days);
+          }
+          if (end < start) end = new Date(start);
+
+          // 用阶段颜色
+          var color = phaseColors[item.phase] || '#2383e2';
+          var label = phaseLabels[item.phase] || item.phase;
+
+          items.push({
+            id: item.id,
+            title: item.title || '未命名',
+            type: item.type || '',
+            phase: item.phase || '',
+            phaseLabel: label,
+            phaseColor: color,
+            start: start,
+            end: end,
+            status: item.status || '',
+            source: item.source || ''
+          });
+
+          if (!minDate || start < minDate) minDate = new Date(start);
+          if (!maxDate || end > maxDate) maxDate = new Date(end);
+        });
+
+        // 给一些 padding
+        if (minDate) {
+          minDate.setDate(minDate.getDate() - 2);
+          minDate.setHours(0, 0, 0, 0);
+        }
+        if (maxDate) {
+          maxDate.setDate(maxDate.getDate() + 2);
+          maxDate.setHours(23, 59, 59, 999);
+        }
+
+        // 获取当前 zoom 级别
+        var zoomLevel = pdGanttZoom || 'day';
+        renderGanttChart(el, items, minDate, maxDate, zoomLevel, phaseColors, phaseLabels);
+      }
+
+      /* ── 甘特图渲染 ── */
+      var pdGanttZoom = 'day';
+      var pdGanttTooltip = null;
+
+      function renderGanttChart(container, items, minDate, maxDate, zoom, phaseColors, phaseLabels) {
+        // 生成时间列
+        var columns = [];
+        var cursor = new Date(minDate);
+        var colWidth = zoom === 'day' ? 60 : zoom === 'week' ? 120 : 200;
+        var dateFormat = zoom === 'day' ? 'MM/dd' : zoom === 'week' ? 'MM/dd' : 'yyyy/MM';
+        var dayFormat = zoom === 'day' ? 'dd' : '';
+
+        while (cursor <= maxDate) {
+          var col = { date: new Date(cursor), label: '', isWeekend: false };
+          if (zoom === 'day') {
+            var day = cursor.getDay();
+            col.isWeekend = (day === 0 || day === 6);
+            col.label = (cursor.getMonth() + 1) + '/' + cursor.getDate();
+          } else if (zoom === 'week') {
+            var weekStart = new Date(cursor);
+            weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+            var weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekEnd.getDate() + 6);
+            col.label = (weekStart.getMonth() + 1) + '/' + weekStart.getDate() + '-' + (weekEnd.getMonth() + 1) + '/' + weekEnd.getDate();
+            cursor.setDate(cursor.getDate() + 6);
+          } else { // month
+            col.label = (cursor.getFullYear()) + '/' + (cursor.getMonth() + 1);
+            cursor.setMonth(cursor.getMonth() + 1);
+          }
+          columns.push(col);
+          if (zoom !== 'day') continue;
+          cursor.setDate(cursor.getDate() + 1);
+        }
+
+        var totalWidth = columns.length * colWidth;
+
+        // 构建 HTML
+        var html = '<div class="pd-gantt-chart">';
+
+        // Header
+        html += '<div class="pd-gantt-header"><div class="pd-gantt-header-row">';
+        html += '<div class="pd-gantt-label-col">任务名称</div>';
+        columns.forEach(function(col) {
+          html += '<div class="pd-gantt-grid-col' + (col.isWeekend ? ' weekend' : '') + '" style="width:' + colWidth + 'px;min-width:' + colWidth + 'px">' + escapeHtml(col.label) + '</div>';
+        });
+        html += '</div></div>';
+
+        // Body
+        html += '<div class="pd-gantt-body">';
+        items.forEach(function(item) {
+          html += '<div class="pd-gantt-row">';
+          html += '<div class="pd-gantt-row-label" title="' + escapeHtml(item.title) + '"><span class="pd-gantt-phase-dot" style="background:' + item.phaseColor + '"></span>' + escapeHtml(item.title) + '</div>';
+          html += '<div class="pd-gantt-row-cells" style="position:relative">';
+
+          // 绘制时间格背景
+          columns.forEach(function(col) {
+            html += '<div class="pd-gantt-cell' + (col.isWeekend ? ' weekend' : '') + '" style="width:' + colWidth + 'px;min-width:' + colWidth + 'px"></div>';
+          });
+
+          // 计算 bar 位置
+          var chartStart = minDate.getTime();
+          var chartEnd = maxDate.getTime();
+          var chartRange = chartEnd - chartStart;
+          var itemStart = item.start.getTime();
+          var itemEnd = item.end.getTime();
+          var leftPct = Math.max(0, (itemStart - chartStart) / chartRange * 100);
+          var rightPct = Math.min(100, (itemEnd - chartStart) / chartRange * 100);
+          var widthPct = Math.max(2, rightPct - leftPct);
+
+          // 计算 tooltip 内容
+          var phaseLabel = phaseLabels[item.phase] || item.phase || '';
+          var startStr = formatDate(item.start);
+          var endStr = formatDate(item.end);
+
+          html += '<div class="pd-gantt-bar" style="left:' + leftPct + '%;width:' + widthPct + '%;background:' + item.phaseColor + '" data-title="' + escapeHtml(item.title) + '" data-phase="' + escapeHtml(phaseLabel) + '" data-start="' + escapeHtml(startStr) + '" data-end="' + escapeHtml(endStr) + '" data-type="' + escapeHtml(item.type) + '" data-status="' + escapeHtml(item.status) + '">' + escapeHtml(item.title.substring(0, Math.floor(widthPct / 8))) + '</div>';
+
+          html += '</div></div>';
+        });
+        html += '</div></div>';
+
+        container.innerHTML = html;
+
+        // Tooltip logic
+        if (!pdGanttTooltip) {
+          pdGanttTooltip = document.createElement('div');
+          pdGanttTooltip.className = 'pd-gantt-bar-tooltip';
+          document.body.appendChild(pdGanttTooltip);
+        }
+
+        container.querySelectorAll('.pd-gantt-bar').forEach(function(bar) {
+          bar.addEventListener('mouseenter', function(e) {
+            var title = bar.dataset.title || '';
+            var phase = bar.dataset.phase || '';
+            var start = bar.dataset.start || '';
+            var end = bar.dataset.end || '';
+            var type = bar.dataset.type || '';
+            var status = bar.dataset.status || '';
+            var statusLabels = { todo: '待开始', 'in-progress': '进行中', done: '已完成' };
+            var statusLabel = statusLabels[status] || status;
+            var typeLabels = { requirement: '需求', knowledge: '知识', todo: '待办', archive: '归档' };
+            var typeLabel = typeLabels[type] || type;
+
+            pdGanttTooltip.innerHTML =
+              '<div style="font-weight:650;font-size:13px;margin-bottom:2px">' + escapeHtml(title) + '</div>' +
+              '<div style="font-size:11px;color:var(--ws-muted)">' +
+              '阶段: ' + escapeHtml(phase) + '<br>' +
+              '类型: ' + escapeHtml(typeLabel) + '<br>' +
+              '状态: ' + escapeHtml(statusLabel) + '<br>' +
+              '周期: ' + escapeHtml(start) + ' ~ ' + escapeHtml(end) +
+              '</div>';
+            pdGanttTooltip.classList.add('visible');
+            positionGanttTooltip(e);
+          });
+          bar.addEventListener('mousemove', function(e) { positionGanttTooltip(e); });
+          bar.addEventListener('mouseleave', function() {
+            pdGanttTooltip.classList.remove('visible');
+          });
+        });
+      }
+
+      function positionGanttTooltip(e) {
+        if (!pdGanttTooltip) return;
+        var x = e.clientX + 12;
+        var y = e.clientY - 10;
+        var tw = pdGanttTooltip.offsetWidth || 200;
+        var th = pdGanttTooltip.offsetHeight || 100;
+        if (x + tw > window.innerWidth - 10) x = e.clientX - tw - 12;
+        if (y < 10) y = 10;
+        if (y + th > window.innerHeight - 10) y = window.innerHeight - th - 10;
+        pdGanttTooltip.style.left = x + 'px';
+        pdGanttTooltip.style.top = y + 'px';
       }
 
       function renderPdArchives(archives) {
@@ -2345,6 +2865,19 @@
           }).catch(function() {});
         });
       }
+
+      // 甘特图缩放按钮
+      document.querySelectorAll('.pd-gantt-zoom-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          document.querySelectorAll('.pd-gantt-zoom-btn').forEach(function(b) { b.classList.remove('active'); });
+          this.classList.add('active');
+          pdGanttZoom = this.dataset.zoom;
+          // 重新加载甘特图
+          fetch('/api/product-dev/timeline').then(function(r) { return r.ok ? r.json() : []; }).then(function(timeline) {
+            renderPdTimeline(timeline);
+          }).catch(function() {});
+        });
+      });
 
       // 历史迁移按钮
       var pdHistoryMigrateBtn = $('pdHistoryMigrateBtn');
