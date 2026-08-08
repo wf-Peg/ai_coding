@@ -139,3 +139,30 @@ TODO/
 - 记录内容：现象、原因、修复方式、经验教训
 - 记录时机：每次 bug 修复完成后立即追加
 - 用途：后续可依据 bug 历史更新 agent.md 约束，避免同类问题重复出现
+
+## 产品开发归档
+
+### 概述
+
+每次完成一个需求或子任务后，**必须自动执行** `product-dev-archive` skill，将需求的全流程数据按固定格式写入本地文件。后端启动时扫描该目录，自动解析为产品开发工作区的结构化数据。
+
+### 归档约束
+
+1. **归档时机**：每个子任务完成时立即归档当前知识点和待办状态；整个需求完成时归档完整需求链。
+2. **归档格式**：遵循 `product-dev-archive/SKILL.md` 中定义的 JSON 结构，写入 `{storagePath}/product-dev/archives/{yyMMdd-HHmmss}-{需求标识}.json`。
+3. **内容要求**：
+   - 需求分析阶段：归档需求描述、分析结论、相关链接
+   - 设计阶段：归档技术方案、架构设计、接口定义
+   - 实现阶段：归档核心代码逻辑、关键决策、遇到的问题和解决方案
+   - 测试阶段：归档测试方案、测试结果、验收清单
+   - 完成阶段：归档完整的知识总结、待办完成情况
+4. **接口调用**：每次归档后，调用后端 API 通知索引更新：
+   - `POST /api/product-dev/archive` — 创建归档条目（若需求大则拆分为多条剪藏）
+   - `POST /api/knowledge/add` — 将知识整合为一条知识条目
+   - `POST /api/todo/update` — 完成待办时调用接口标记完成
+5. **历史迁移**：当用户执行"历史迁移"操作时，调用 `POST /api/product-dev/migrate` 触发后端扫描 TODO/ 和 .trae/specs/ 目录。
+
+### 关联技能
+
+- `.trae/skills/product-dev-archive/` — 每次任务完成后自动执行的归档 skill
+- `.trae/skills/product-dev-history-migrate/` — 处理历史存量需求文档的迁移 skill
