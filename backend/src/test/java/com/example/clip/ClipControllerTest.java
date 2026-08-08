@@ -9,8 +9,9 @@ import com.example.clip.service.ClipService;
 import com.example.clip.service.ContentOrganizeService;
 import com.example.clip.service.PromptConfigService;
 import com.example.clip.service.SearchService;
-import com.example.clip.service.TodoService;
+import com.example.clip.service.ExceptionLogService;
 import com.example.clip.service.WeeklyReportService;
+import com.example.clip.service.TodoService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -60,6 +61,9 @@ public class ClipControllerTest {
 
     @MockBean
     private TodoService todoService;
+
+    @MockBean
+    private ExceptionLogService exceptionLogService;
 
     /**
      * 测试获取分类列表

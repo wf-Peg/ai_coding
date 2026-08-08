@@ -3,6 +3,7 @@ package com.example.clip;
 import com.example.clip.controller.ModelConfigController;
 import com.example.clip.core.DashScopeConfig;
 import com.example.clip.service.ModelConfigService;
+import com.example.clip.service.ExceptionLogService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -33,6 +34,9 @@ class ModelConfigControllerCustomTest {
 
     @MockBean
     private ModelConfigService modelConfigService;
+
+    @MockBean
+    private ExceptionLogService exceptionLogService;
 
     @Test
     void getPresets_returnsPresetList() throws Exception {
