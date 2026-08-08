@@ -9,14 +9,17 @@ import com.example.clip.index.Workspace;
 import com.example.clip.index.WorkspaceIndexService;
 import com.example.clip.index.WorkspaceMembership;
 import com.example.clip.service.AppConfigService;
+import com.example.clip.service.ExceptionLogService;
 import com.example.clip.service.FileStorageService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -40,11 +43,14 @@ import java.util.stream.Collectors;
 public class DataObservabilityController {
     private final AppConfigService appConfigService;
     private final FileStorageService fileStorageService;
+    private final ExceptionLogService exceptionLogService;
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
-    public DataObservabilityController(AppConfigService appConfigService, FileStorageService fileStorageService) {
+    public DataObservabilityController(AppConfigService appConfigService, FileStorageService fileStorageService,
+                                       ExceptionLogService exceptionLogService) {
         this.appConfigService = appConfigService;
         this.fileStorageService = fileStorageService;
+        this.exceptionLogService = exceptionLogService;
     }
 
     @GetMapping("/overview")
@@ -217,6 +223,57 @@ public class DataObservabilityController {
         result.put("count", indexService.readAll().size());
         result.put("message", "内容索引已重建");
         return ResponseEntity.ok(result);
+    }
+
+    // ===== 异常日志 API =====
+
+    /**
+     * 查询异常日志（分页 + 筛选）
+     */
+    @GetMapping("/exception-logs")
+    public ResponseEntity<Map<String, Object>> queryExceptionLogs(
+            @RequestParam(required = false) String date,
+            @RequestParam(required = false) String source,
+            @RequestParam(required = false) String level,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(exceptionLogService.queryLogs(date, source, level, page, size));
+    }
+
+    /**
+     * 获取异常日志统计信息
+     */
+    @GetMapping("/exception-logs/stats")
+    public ResponseEntity<Map<String, Object>> exceptionLogStats() {
+        return ResponseEntity.ok(exceptionLogService.getStats());
+    }
+
+    /**
+     * 接收前端/Electron 上报的异常
+     */
+    @PostMapping("/exception-logs")
+    public ResponseEntity<Map<String, Object>> reportExceptionLog(@RequestBody Map<String, String> body) {
+        String source = body.getOrDefault("source", "frontend");
+        String sourceDetail = body.getOrDefault("sourceDetail", "");
+        String message = body.getOrDefault("message", "");
+        String stackTrace = body.getOrDefault("stackTrace", "");
+        String level = body.getOrDefault("level", "ERROR");
+        String thread = body.getOrDefault("thread", "");
+        String requestUri = body.getOrDefault("requestUri", "");
+        exceptionLogService.record(source, sourceDetail, message, stackTrace, level, thread, requestUri);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("success", true);
+        result.put("message", "异常已记录");
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * 清理异常日志
+     */
+    @DeleteMapping("/exception-logs")
+    public ResponseEntity<Map<String, Object>> pruneExceptionLogs(
+            @RequestParam(defaultValue = "90") int days) {
+        return ResponseEntity.ok(exceptionLogService.pruneLogs(days));
     }
 
     private Path indexDir() {

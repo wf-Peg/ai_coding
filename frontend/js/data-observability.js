@@ -195,5 +195,186 @@
     var parentTheme = window.parent && window.parent.document && window.parent.document.documentElement.getAttribute('data-theme');
     if (parentTheme) document.documentElement.dataset.theme = parentTheme;
   } catch (_) {}
+
+  // ===== 异常日志模块 =====
+  var exceptionState = {
+    page: 1,
+    size: 20,
+    source: '',
+    level: '',
+    date: ''
+  };
+
+  function renderExceptionTrendChart(stats) {
+    var chart = $('exceptionTrendChart');
+    if (!chart) return;
+    var daily = stats && stats.dailyCount7d ? stats.dailyCount7d : {};
+    var entries = Object.entries(daily);
+    if (!entries.length) { chart.innerHTML = '<div class="exception-empty">暂无趋势数据。</div>'; return; }
+    var max = Math.max.apply(null, entries.map(function (e) { return e[1]; }), 1);
+    var html = '';
+    for (var i = 0; i < entries.length; i++) {
+      var day = entries[i][0], count = entries[i][1];
+      var pct = Math.round(count / max * 100);
+      var shortDay = day.slice(5);
+      html += '<div class="exception-trend-bar" title="' + day + ': ' + count + ' 条"><div class="exception-trend-count">' + count + '</div><div class="exception-trend-track"><div class="exception-trend-fill" style="height:' + pct + '%"></div></div><div class="exception-trend-label">' + shortDay + '</div></div>';
+    }
+    chart.innerHTML = html;
+  }
+
+  function renderExceptionStats(stats) {
+    if (!$('todayCount')) return;
+    $('todayCount').textContent = stats ? (stats.todayCount || 0) : '-';
+    var weekTotal = 0;
+    if (stats && stats.dailyCount7d) {
+      weekTotal = Object.values(stats.dailyCount7d).reduce(function (a, b) { return a + b; }, 0);
+    }
+    $('weekCount').textContent = stats ? weekTotal : '-';
+    $('totalCount').textContent = stats ? (stats.totalCount || 0) : '-';
+  }
+
+  function formatExceptionTime(ts) {
+    if (!ts) return '-';
+    var parts = ts.split(' ');
+    return parts.length > 1 ? parts[1].substring(0, 8) : ts;
+  }
+
+  function renderExceptionList(data) {
+    var list = $('exceptionList');
+    if (!list) return;
+    var items = data && data.items ? data.items : [];
+    if (!items.length) {
+      list.innerHTML = '<div class="exception-empty">暂无匹配的异常日志。</div>';
+      return;
+    }
+    list.innerHTML = items.map(function (item) {
+      var levelClass = 'exception-item-level-' + (item.level || 'ERROR');
+      var sourceLabel = ({ backend: '后端', electron: 'Electron', frontend: '前端' })[item.source] || item.source;
+      return '<div class="exception-item" data-id="' + (item.id || '') + '" onclick="showExceptionDetail(' + "'" + encodeURIComponent(JSON.stringify(item)) + "'" + ')">' +
+        '<span class="exception-item-time">' + formatExceptionTime(item.timestamp) + '</span>' +
+        '<span class="exception-item-source">' + sourceLabel + '</span>' +
+        '<span class="exception-item-level ' + levelClass + '">' + (item.level || 'ERROR') + '</span>' +
+        '<span class="exception-item-message" title="' + (item.message || '') + '">' + (item.message || '') + '</span>' +
+        '</div>';
+    }).join('');
+  }
+
+  // 异常详情弹窗（暴露到全局供 onclick 调用）
+  window.showExceptionDetail = function (encoded) {
+    var item;
+    try { item = JSON.parse(decodeURIComponent(encoded)); } catch (e) { return; }
+    var content = $('exceptionDetailContent');
+    if (!content) return;
+    var sourceLabel = ({ backend: '后端', electron: 'Electron', frontend: '前端' })[item.source] || item.source;
+    var stackHtml = item.stackTrace ? '<div class="exception-detail-field"><label>堆栈信息</label><div class="exception-detail-stack">' + escapeHtml(item.stackTrace) + '</div></div>' : '';
+    content.innerHTML =
+      '<div class="exception-detail-field"><label>ID</label><div class="value">' + (item.id || '-') + '</div></div>' +
+      '<div class="exception-detail-field"><label>时间</label><div class="value">' + (item.timestamp || '-') + '</div></div>' +
+      '<div class="exception-detail-field"><label>级别</label><div class="value">' + (item.level || '-') + '</div></div>' +
+      '<div class="exception-detail-field"><label>来源</label><div class="value">' + sourceLabel + '</div></div>' +
+      '<div class="exception-detail-field"><label>来源详情</label><div class="value">' + (item.sourceDetail || '-') + '</div></div>' +
+      '<div class="exception-detail-field"><label>消息</label><div class="value">' + escapeHtml(item.message || '-') + '</div></div>' +
+      '<div class="exception-detail-field"><label>线程</label><div class="value">' + (item.thread || '-') + '</div></div>' +
+      (item.requestUri ? '<div class="exception-detail-field"><label>请求路径</label><div class="value">' + item.requestUri + '</div></div>' : '') +
+      stackHtml;
+    $('exceptionDetailModal').style.display = 'flex';
+  };
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function renderExceptionPagination(data) {
+    var pagination = $('exceptionPagination');
+    if (!pagination) return;
+    var total = data.total || 0;
+    var page = data.page || 1;
+    var totalPages = data.totalPages || 0;
+    if (totalPages <= 1) { pagination.innerHTML = ''; return; }
+    pagination.innerHTML =
+      '<button class="exception-page-btn" id="exceptionPrevPage" ' + (page <= 1 ? 'disabled' : '') + '>上一页</button>' +
+      '<span class="exception-page-info">第 ' + page + ' / ' + totalPages + ' 页（共 ' + total + ' 条）</span>' +
+      '<button class="exception-page-btn" id="exceptionNextPage" ' + (page >= totalPages ? 'disabled' : '') + '>下一页</button>';
+    $('exceptionPrevPage').addEventListener('click', function () { exceptionState.page--; loadExceptionLogs(); });
+    $('exceptionNextPage').addEventListener('click', function () { exceptionState.page++; loadExceptionLogs(); });
+  }
+
+  async function loadExceptionLogs() {
+    try {
+      // 加载统计
+      var stats = await request('/exception-logs/stats');
+      renderExceptionStats(stats);
+      renderExceptionTrendChart(stats);
+
+      // 加载列表
+      var params = '?page=' + exceptionState.page + '&size=' + exceptionState.size;
+      if (exceptionState.source) params += '&source=' + exceptionState.source;
+      if (exceptionState.level) params += '&level=' + exceptionState.level;
+      if (exceptionState.date) params += '&date=' + exceptionState.date;
+      var data = await request('/exception-logs' + params);
+      renderExceptionList(data);
+      renderExceptionPagination(data);
+    } catch (e) {
+      if ($('exceptionList')) $('exceptionList').innerHTML = '<div class="exception-empty">加载异常日志失败: ' + e.message + '</div>';
+    }
+  }
+
+  // 异常日志事件绑定
+  if ($('exceptionRefreshBtn')) {
+    $('exceptionRefreshBtn').addEventListener('click', function () {
+      exceptionState.page = 1;
+      loadExceptionLogs();
+    });
+  }
+  if ($('filterSource')) {
+    $('filterSource').addEventListener('change', function () {
+      exceptionState.source = this.value;
+      exceptionState.page = 1;
+      loadExceptionLogs();
+    });
+  }
+  if ($('filterLevel')) {
+    $('filterLevel').addEventListener('change', function () {
+      exceptionState.level = this.value;
+      exceptionState.page = 1;
+      loadExceptionLogs();
+    });
+  }
+  if ($('filterDate')) {
+    $('filterDate').addEventListener('change', function () {
+      exceptionState.date = this.value;
+      exceptionState.page = 1;
+      loadExceptionLogs();
+    });
+  }
+  if ($('exceptionPruneBtn')) {
+    $('exceptionPruneBtn').addEventListener('click', function () {
+      showConfirmModal('确定清理 90 天前的异常日志文件？此操作不可撤销。', async function () {
+        var btn = $('exceptionPruneBtn'); btn.disabled = true; btn.textContent = '清理中…';
+        try {
+          var result = await request('/exception-logs?days=90', { method: 'DELETE' });
+          $('exceptionList').innerHTML = '<div class="exception-empty">' + (result.message || '清理完成') + '</div>';
+          loadExceptionLogs();
+        } catch (e) {
+          $('exceptionList').innerHTML = '<div class="exception-empty">清理失败: ' + e.message + '</div>';
+        }
+        finally { btn.disabled = false; btn.textContent = '清理旧日志'; }
+      });
+    });
+  }
+  // 异常详情弹窗关闭
+  if ($('exceptionDetailCloseBtn')) {
+    $('exceptionDetailCloseBtn').addEventListener('click', function () { $('exceptionDetailModal').style.display = 'none'; });
+  }
+  if ($('exceptionDetailCloseBtn2')) {
+    $('exceptionDetailCloseBtn2').addEventListener('click', function () { $('exceptionDetailModal').style.display = 'none'; });
+  }
+  if ($('exceptionDetailModal')) {
+    $('exceptionDetailModal').addEventListener('click', function (e) { if (e.target === this) this.style.display = 'none'; });
+  }
+
   load();
+  // 延迟加载异常日志（不阻塞主数据加载）
+  setTimeout(loadExceptionLogs, 500);
 })();

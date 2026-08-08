@@ -666,6 +666,11 @@
         ensureFramesLoaded(normalizedView);
         viewMap[normalizedView].classList.remove('view-panel-hidden');
         activeIframe = normalizedView === 'clip' ? null : (VIEW_IFRAME[normalizedView]?.[0] || null);
+
+        // 切回剪藏视图时通知剪藏页刷新关联知识（解决创建知识后卡在"加载中…"的问题）
+        if (normalizedView === 'clip' && clipFrame && clipFrame.contentWindow) {
+          clipFrame.contentWindow.postMessage({ action: 'refreshKnowledge' }, '*');
+        }
       }
 
       function pathToView(path) {

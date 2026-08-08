@@ -266,9 +266,13 @@ let pendingShowAfterStart = false;
 // 窗口隐藏/显示、快捷键等 UI 路径的偶发异常不应导致"应用被杀死"。
 process.on('uncaughtException', (err) => {
   log.error('[Fatal] Uncaught exception (kept alive):', err);
+  log.writeExceptionLog('electron', err.message || String(err), err.stack || '', 'ERROR');
 });
 process.on('unhandledRejection', (reason) => {
   log.error('[Fatal] Unhandled rejection (kept alive):', reason);
+  const msg = reason instanceof Error ? reason.message : String(reason);
+  const stack = reason instanceof Error ? reason.stack : '';
+  log.writeExceptionLog('electron', msg, stack, 'ERROR');
 });
 
 /** 
@@ -2967,6 +2971,11 @@ app.whenReady().then(async () => {
         // 后端异步启动，不阻塞窗口创建
         startBackend(newConfig).then(() => {
           log.info('Backend ready, closing config window');
+          // 初始化异常日志模块
+          const clipStoragePath = newConfig.storagePath.endsWith('clip-storage') || newConfig.storagePath.endsWith('clip-storage\\')
+            ? newConfig.storagePath
+            : path.join(newConfig.storagePath, 'clip-storage');
+          log.initExceptionLogger(clipStoragePath);
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('startup-progress', '启动成功！');
             const setupWin = mainWindow;
@@ -3028,6 +3037,11 @@ app.whenReady().then(async () => {
       startBackend(config).then(() => {
         log.info('Backend ready, notifying renderer');
         backendStarted = true;
+        // 初始化异常日志模块（写入 clip-storage/tmp/exception-logs/）
+        const clipStoragePath = config.storagePath.endsWith('clip-storage') || config.storagePath.endsWith('clip-storage\\')
+          ? config.storagePath
+          : path.join(config.storagePath, 'clip-storage');
+        log.initExceptionLogger(clipStoragePath);
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('backend-ready');
         }

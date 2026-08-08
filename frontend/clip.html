@@ -1172,6 +1172,11 @@
             color: var(--text);
             font-weight: 500;
             padding-right: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 100%;
+            display: block;
         }
 
         .clip-meta {
@@ -3875,7 +3880,7 @@
         const originalContent = clip.content || '';
         const analysisContent = clip.analysis || '';
         const fanButtons = [
-            buildFanActionButton('edit-in-editor', clip.id, '在编辑器打开', renderFanActionIcon('editInEditor')),
+            buildFanActionButton('edit-in-editor', clip.id, '在编辑器打开原文', renderFanActionIcon('editInEditor')),
             buildFanActionButton('organize-auto', clip.id, '快速AI整理', renderFanActionIcon('organizeAuto')),
             buildFanActionButton('organize-manual', clip.id, '编辑', renderFanActionIcon('organizeManual')),
             buildFanActionButton('to-todo', clip.id, '转待办', renderFanActionIcon('toTodo')),
@@ -4168,7 +4173,7 @@
     function getMoreActionLabel(action) {
         switch (action) {
             case 'edit-in-editor':
-                return '在编辑器打开';
+                return '在编辑器打开原文';
             case 'organize-auto':
                 return '快速整理';
             case 'organize-manual':
@@ -5047,6 +5052,11 @@ window.addEventListener('message', (e) => {
     location.reload();
   } else if (e.data.action === 'themeChange') {
     applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME, false);
+  } else if (e.data.action === 'refreshKnowledge') {
+    document.querySelectorAll('.clip-detail.expanded').forEach(detail => {
+      const clipId = detail.dataset.clipId;
+      if (clipId) renderLinkedKnowledge(parseInt(clipId));
+    });
   }
 });
 
@@ -5182,11 +5192,21 @@ async function renderLinkedKnowledge(clipId) {
         } else {
             listEl.style.display = 'none';
             noDataEl.style.display = 'block';
+            const btn = noDataEl.querySelector('.create-knowledge-action');
+            if (btn) {
+                btn.classList.remove('loading');
+                btn.innerHTML = '创建知识条目';
+            }
         }
     } catch (error) {
         console.error('获取已关联知识失败:', error);
         listEl.style.display = 'none';
         noDataEl.style.display = 'block';
+        const btn = noDataEl.querySelector('.create-knowledge-action');
+        if (btn) {
+            btn.classList.remove('loading');
+            btn.innerHTML = '创建知识条目';
+        }
     }
 }
 

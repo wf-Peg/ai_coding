@@ -114,6 +114,49 @@
     ::-webkit-scrollbar-thumb { background: var(--obs-border); border-radius: 999px; transition: background 0.2s ease; }
     ::-webkit-scrollbar-thumb:hover { background: var(--obs-muted); }
     * { scrollbar-width: thin; scrollbar-color: var(--obs-border) transparent; }
+
+    /* ── 异常日志面板 ── */
+    .exception-panel { margin-top: 16px; }
+    .exception-stats { display: flex; gap: 12px; margin-bottom: 14px; }
+    .exception-stat { flex: 1; padding: 12px; border: 1px solid var(--obs-border); border-radius: 10px; text-align: center; }
+    .exception-stat-label { display: block; color: var(--obs-muted); font-size: 11px; margin-bottom: 4px; }
+    .exception-stat-value { font-size: 22px; font-weight: 700; color: var(--obs-warn); }
+    .exception-controls { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+    .exception-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .exception-filters select, .exception-filters input { border: 1px solid var(--obs-border); border-radius: 7px; padding: 6px 10px; background: var(--obs-card); color: var(--obs-text); font: inherit; font-size: 12px; }
+    .exception-filters input[type="date"] { width: 140px; }
+    .exception-btn { border: 1px solid var(--obs-border); border-radius: 7px; padding: 6px 12px; background: var(--obs-card); color: var(--obs-text); cursor: pointer; font: inherit; font-size: 12px; transition: .15s ease; }
+    .exception-btn:hover { border-color: var(--obs-accent); color: var(--obs-accent); }
+    .exception-btn-danger { color: var(--obs-warn); }
+    .exception-btn-danger:hover { border-color: var(--obs-warn); color: var(--obs-warn); }
+    .exception-trend { display: flex; align-items: flex-end; gap: 3px; min-height: 50px; margin-bottom: 12px; padding: 6px 0; }
+    .exception-trend-bar { flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+    .exception-trend-label { color: var(--obs-muted); font-size: 9px; margin-top: 2px; white-space: nowrap; }
+    .exception-trend-track { width: 100%; max-width: 20px; flex: 1; display: flex; flex-direction: column; justify-content: flex-end; background: color-mix(in srgb, var(--obs-border) 50%, transparent); border-radius: 2px 2px 0 0; min-height: 3px; }
+    .exception-trend-fill { width: 100%; border-radius: 2px 2px 0 0; background: var(--obs-warn); transition: height .3s ease; }
+    .exception-trend-count { color: var(--obs-muted); font-size: 9px; }
+    .exception-list { display: grid; gap: 4px; max-height: 400px; overflow-y: auto; }
+    .exception-item { display: grid; grid-template-columns: 60px 60px 1fr auto; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--obs-border); border-radius: 8px; cursor: pointer; transition: .15s ease; }
+    .exception-item:hover { border-color: var(--obs-accent); background: color-mix(in srgb, var(--obs-accent) 5%, var(--obs-card)); }
+    .exception-item-time { color: var(--obs-muted); font-size: 11px; font-family: ui-monospace, monospace; }
+    .exception-item-source { font-size: 11px; font-weight: 600; color: var(--obs-accent); }
+    .exception-item-level { font-size: 11px; font-weight: 700; }
+    .exception-item-level-ERROR { color: var(--obs-warn); }
+    .exception-item-level-WARN { color: var(--obs-warn); opacity: .7; }
+    .exception-item-message { overflow: hidden; color: var(--obs-text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .exception-empty { padding: 20px 8px; color: var(--obs-muted); text-align: center; font-size: 12px; }
+    .exception-pagination { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 10px; }
+    .exception-page-btn { border: 1px solid var(--obs-border); border-radius: 6px; padding: 4px 10px; background: var(--obs-card); color: var(--obs-text); cursor: pointer; font-size: 12px; transition: .15s ease; }
+    .exception-page-btn:hover { border-color: var(--obs-accent); color: var(--obs-accent); }
+    .exception-page-btn:disabled { opacity: .4; cursor: default; }
+    .exception-page-info { color: var(--obs-muted); font-size: 11px; }
+
+    /* ── 异常详情弹窗 ── */
+    .exception-detail-content { max-height: 60vh; overflow-y: auto; }
+    .exception-detail-field { margin-bottom: 12px; }
+    .exception-detail-field label { display: block; color: var(--obs-muted); font-size: 11px; margin-bottom: 3px; }
+    .exception-detail-field .value { font-size: 12px; line-height: 1.5; word-break: break-all; }
+    .exception-detail-stack { background: color-mix(in srgb, var(--obs-border) 30%, transparent); border-radius: 6px; padding: 10px; font-family: ui-monospace, monospace; font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow: auto; }
   </style>
 </head>
 <body>
@@ -137,6 +180,32 @@
         <section class="panel"><h2>使用说明</h2><div class="callout">这些数据只保存在本机，用于搜索、整理和项目建议；不会自动移动、删除或修改你的原始内容。</div></section>
       </div>
     </div>
+
+    <!-- ── 异常日志面板 ── -->
+    <section class="panel exception-panel" id="exceptionLogPanel">
+      <h2>异常日志 <small>统一记录三端异常，便于排查</small></h2>
+      <div class="exception-stats" id="exceptionStats">
+        <div class="exception-stat"><span class="exception-stat-label">今日异常</span><span class="exception-stat-value" id="todayCount">-</span></div>
+        <div class="exception-stat"><span class="exception-stat-label">近7天</span><span class="exception-stat-value" id="weekCount">-</span></div>
+        <div class="exception-stat"><span class="exception-stat-label">总计</span><span class="exception-stat-value" id="totalCount">-</span></div>
+      </div>
+      <div class="exception-controls">
+        <div class="exception-filters">
+          <select id="filterSource"><option value="">全部来源</option><option value="backend">后端</option><option value="electron">Electron</option><option value="frontend">前端</option></select>
+          <select id="filterLevel"><option value="">全部级别</option><option value="ERROR">ERROR</option><option value="WARN">WARN</option></select>
+          <input type="date" id="filterDate" title="按日期筛选">
+          <button id="exceptionRefreshBtn" class="exception-btn" title="刷新异常日志">刷新</button>
+        </div>
+        <div class="exception-actions">
+          <button id="exceptionPruneBtn" class="exception-btn exception-btn-danger" title="清理 90 天前的异常日志">清理旧日志</button>
+        </div>
+      </div>
+      <div class="exception-trend" id="exceptionTrendChart"></div>
+      <div class="exception-list" id="exceptionList">
+        <div class="exception-empty">暂无异常日志。</div>
+      </div>
+      <div class="exception-pagination" id="exceptionPagination"></div>
+    </section>
   </main>
   <!-- 确认弹窗 -->
   <div id="confirmModal" class="obs-modal" style="display:none;">
@@ -151,6 +220,21 @@
       <div class="obs-modal-footer">
         <button class="obs-btn-secondary" id="confirmCancelBtn">取消</button>
         <button class="obs-btn-primary" id="confirmOkBtn">确认</button>
+      </div>
+    </div>
+  </div>
+  <!-- 异常详情弹窗 -->
+  <div id="exceptionDetailModal" class="obs-modal" style="display:none;">
+    <div class="obs-modal-content">
+      <div class="obs-modal-header">
+        <h3>异常详情</h3>
+        <button class="obs-modal-close" id="exceptionDetailCloseBtn">&times;</button>
+      </div>
+      <div class="obs-modal-body">
+        <div class="exception-detail-content" id="exceptionDetailContent"></div>
+      </div>
+      <div class="obs-modal-footer">
+        <button class="obs-btn-secondary" id="exceptionDetailCloseBtn2">关闭</button>
       </div>
     </div>
   </div>

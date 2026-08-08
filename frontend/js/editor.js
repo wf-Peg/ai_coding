@@ -2446,12 +2446,15 @@
     elements.clipScopeDescription.textContent = state.clipId
       ? '将当前全文更新回原剪藏，AI 分析与附件不会被覆盖。'
       : (context.selection ? `保存当前选区，共 ${context.content.length} 字符。` : `保存当前全文，共 ${context.content.length} 字符。`);
+    const parsed = !state.clipId ? parseStructuredContent(context.content) : { summary: null, tags: [], title: null };
     elements.clipTitleInput.value = state.clipMetadata?.title
+      || parsed.title
       || state.fileName.replace(/\.[^.]+$/, '')
       || '编辑器内容';
     elements.clipModeSelect.value = state.clipType || 'store-only';
     elements.clipModeSelect.disabled = Boolean(state.clipId);
-    elements.clipTagsInput.value = (state.clipMetadata?.tags || []).join(', ');
+    elements.clipTagsInput.value = (state.clipMetadata?.tags && state.clipMetadata.tags.length > 0
+      ? state.clipMetadata.tags : parsed.tags).join(', ');
     elements.clipThoughtsInput.value = state.clipMetadata?.myThoughts || '';
     elements.submitClipBtn.textContent = state.clipId ? '更新剪藏' : '保存到剪藏';
     await loadCategories();
@@ -2484,6 +2487,36 @@
     }
   }
 
+  function parseStructuredContent(fullText) {
+    const result = { summary: null, tags: [], title: null };
+    if (!fullText || !fullText.includes('###')) return result;
+
+    const summaryMatch = fullText.match(/###\s*摘要\s*\n([\s\S]*?)(?=\n###\s|$)/);
+    if (summaryMatch) {
+      result.summary = summaryMatch[1].trim();
+    }
+
+    const tagsMatch = fullText.match(/###\s*标签\s*\n([\s\S]*?)(?=\n###\s|$)/);
+    if (tagsMatch) {
+      const tagText = tagsMatch[1].trim();
+      const backtickTags = tagText.match(/`[^`]+`/g);
+      if (backtickTags) {
+        result.tags = backtickTags.map(t => t.replace(/`/g, '').trim()).filter(Boolean);
+      } else {
+        result.tags = tagText.split(/[,\n]/).map(t => t.trim()).filter(Boolean);
+      }
+    }
+
+    const firstHeading = fullText.indexOf('###');
+    if (firstHeading > 0) {
+      const beforeHeading = fullText.substring(0, firstHeading).trim();
+      const firstLine = beforeHeading.split('\n')[0].trim();
+      if (firstLine) result.title = firstLine;
+    }
+
+    return result;
+  }
+
   async function submitClip() {
     const context = buildClipContext();
     if (!context.content.trim()) {
@@ -2492,14 +2525,17 @@
     }
     const type = state.clipId ? state.clipType : elements.clipModeSelect.value;
     const tags = elements.clipTagsInput.value.split(/[,，]/).map(tag => tag.trim()).filter(Boolean).slice(0, 10);
+    const parsed = parseStructuredContent(context.content);
+    const effectiveTags = tags.length > 0 ? tags : parsed.tags.slice(0, 10);
     const payload = {
       content: context.content,
-      title: elements.clipTitleInput.value.trim() || state.fileName,
+      title: elements.clipTitleInput.value.trim() || parsed.title || state.fileName,
       type,
       source: 'editor',
       category: elements.clipCategorySelect.value || null,
-      tags,
-      useAiTags: type === 'ai-text' && tags.length === 0,
+      tags: effectiveTags,
+      summary: parsed.summary,
+      useAiTags: type === 'ai-text' && effectiveTags.length === 0,
       workflowStatus: type === 'store-only' ? 'inbox' : 'organized',
       captureMethod: context.selection ? 'editor-selection' : 'editor-document',
       selectedText: context.selectedText,

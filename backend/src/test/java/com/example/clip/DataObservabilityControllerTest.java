@@ -2,6 +2,7 @@ package com.example.clip;
 
 import com.example.clip.controller.DataObservabilityController;
 import com.example.clip.service.AppConfigService;
+import com.example.clip.service.ExceptionLogService;
 import com.example.clip.service.FileStorageService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -21,7 +22,7 @@ class DataObservabilityControllerTest {
     void overviewReportsEmptyIndexDirectoryWithoutFailing() {
         AppConfigService configService = mock(AppConfigService.class);
         when(configService.getConfigDirPath()).thenReturn(tempDir.toString());
-        DataObservabilityController controller = new DataObservabilityController(configService, mock(FileStorageService.class));
+        DataObservabilityController controller = new DataObservabilityController(configService, mock(FileStorageService.class), mock(ExceptionLogService.class));
 
         var response = controller.overview();
 
