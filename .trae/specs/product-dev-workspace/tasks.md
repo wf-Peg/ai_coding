@@ -74,16 +74,29 @@
 
 ## 任务 3：产品开发工作区归档 Skill
 
-### 3.1 创建 Skill 目录结构
+### 3.1 创建增量归档 Skill（product-dev-archive）
 - [ ] 创建 `.trae/skills/product-dev-archive/` 目录
 - [ ] 创建 `SKILL.md` 定义文件
 - [ ] 创建 `template.json` 归档模板
 
-### 3.2 Skill 逻辑实现
+### 3.2 增量归档 Skill 逻辑实现
 - [ ] 定义归档文件路径 `~/.cutshelter/product-dev-archive.json`
 - [ ] 定义数据格式（剪藏/知识/待办/Wiki 的字段映射）
-- [ ] 实现写入逻辑
+- [ ] 实现 Agent 完成任务后的自动调用逻辑
 - [ ] 实现后端 API 调用逻辑
+
+### 3.3 创建存量迁移 Skill（product-dev-history-migrate）
+- [ ] 创建 `.trae/skills/product-dev-history-migrate/` 目录
+- [ ] 创建 `SKILL.md` 定义文件（含 TODO/ 和 .trae/specs/ 目录扫描规则）
+- [ ] 创建 `template.json` 迁移模板
+
+### 3.4 存量迁移 Skill 逻辑实现
+- [ ] 实现 TODO/ 目录扫描与解析逻辑
+- [ ] 实现 .trae/specs/ 目录扫描与解析逻辑
+- [ ] 实现文件名到目标类型的映射规则（01-主线→需求+知识, 02-规格→知识, 03-任务→待办, 04-验收→待办）
+- [ ] 实现 bug-history.md 解析为剪藏
+- [ ] 实现 commit_history.log 解析为时间线事件
+- [ ] 实现与增量归档共用同一输出文件（区分 source 字段）
 
 ---
 
@@ -91,9 +104,10 @@
 
 ### 4.1 追加归档约束
 - [ ] 添加「产品开发工作区归档约束」章节
-- [ ] 描述归档触发时机
-- [ ] 描述数据格式规范
+- [ ] 描述增量归档（product-dev-archive）的触发时机和数据格式
+- [ ] 描述存量迁移（product-dev-history-migrate）的用途和调用方式
 - [ ] 提供剪藏/知识/待办/Wiki 的 API 调用示例
+- [ ] 说明两个 Skill 共用同一个归档文件，通过 source 字段区分
 
 ---
 

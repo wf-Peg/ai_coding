@@ -69,15 +69,22 @@
 
 ## Skill 验收
 
-### Skill 定义
+### 增量归档 Skill（product-dev-archive）
 - [ ] `SKILL.md` 文件存在，内容完整
-- [ ] 触发时机描述正确
+- [ ] 触发时机描述正确（Agent 完成任务后自动执行）
 - [ ] 数据格式规范完整
-
-### 归档功能
-- [ ] 归档文件写入路径正确
-- [ ] 归档数据格式符合规范
+- [ ] 归档文件写入路径正确 `~/.cutshelter/product-dev-archive.json`
 - [ ] 剪藏、知识、待办、Wiki 字段映射正确
+- [ ] 后端 API 调用逻辑正确
+
+### 存量迁移 Skill（product-dev-history-migrate）
+- [ ] `SKILL.md` 文件存在，内容完整
+- [ ] TODO/ 目录扫描逻辑正确
+- [ ] .trae/specs/ 目录扫描逻辑正确
+- [ ] 文件名到目标类型的映射规则正确（01-主线→需求+知识, 02-规格→知识, 03-任务→待办, 04-验收→待办）
+- [ ] bug-history.md 解析为剪藏正确
+- [ ] commit_history.log 解析为时间线事件正确
+- [ ] 与增量归档共用同一输出文件，source 字段区分正确
 
 ---
 

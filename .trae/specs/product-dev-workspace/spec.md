@@ -8,13 +8,15 @@
 - **数据可视化**：需求进度、待办完成率、知识积累等统计图表
 - **跨模块全链路打通**：剪藏、知识、待办、Wiki 模块的有机联动
 - **自动归档机制**：Agent 完成任务后自动将过程数据写入产品开发工作区
+- **历史存量迁移**：将 TODO/ 和 .trae/ 目录下的历史需求文档一键迁移到产品开发工作区
 
 ### 1.2 目标
 1. **增强工作台 tab**：在现有工作台模块中新增「产品开发」子视图，兼容现有 tab 结构
 2. **数据可视化**：需求看板、进度统计、甘特图、知识图谱预览
 3. **扩展通用性**：模块化设计，支持后续扩展更多工作区类型
 4. **自动归档 Skill**：Agent 完成后自动归档到剪藏、知识、待办、Wiki
-5. **agent.md 更新**：约束 Agent 每次完成任务后执行归档
+5. **历史存量迁移 Skill**：处理 TODO/ 和 .trae/ 目录下的历史需求文档，自动映射为可导入的格式文件
+6. **agent.md 更新**：约束 Agent 每次完成任务后执行归档，以及存量迁移的触发方式
 
 ---
 
@@ -378,9 +380,18 @@ POST /api/todo/add
 - 标记已处理条目
 - 记录处理日志
 
-### 3.3 Skill
+### 3.3 Skill 设计
 
-#### 3.3.1 文件结构
+共设计两个 Skill，分工明确：
+
+| Skill | 触发时机 | 用途 |
+|-------|---------|------|
+| `product-dev-archive` | 每次 Agent 完成开发任务后自动执行 | 增量归档当前需求 |
+| `product-dev-history-migrate` | 用户手动调用 / 首次启动时一键执行 | 存量迁移历史需求 |
+
+#### 3.3.1 product-dev-archive（增量归档 Skill）
+
+**文件结构**
 ```
 .trae/skills/product-dev-archive/
 ├── SKILL.md          # Skill 定义
@@ -388,13 +399,132 @@ POST /api/todo/add
 └── template.json     # 归档模板
 ```
 
-#### 3.3.2 执行流程
+**执行流程**
 1. Agent 完成开发任务
 2. 自动调用 `product-dev-archive` skill
 3. Skill 读取当前完成的需求信息
 4. 按格式写入 `~/.cutshelter/product-dev-archive.json`
 5. 调用后端 API 创建数据
 6. 更新 agent.md 中的归档记录
+
+#### 3.3.2 product-dev-history-migrate（存量迁移 Skill）
+
+**用途**
+将项目中已有的历史需求文档（TODO/ 目录和 .trae/specs/ 目录下的 .md 文件）一键迁移到产品开发工作区，补齐存量数据，使产品开发工作区从一开始就拥有完整的历史记录。
+
+**文件结构**
+```
+.trae/skills/product-dev-history-migrate/
+├── SKILL.md              # Skill 定义
+├── migrate.sh            # 迁移脚本（可选）
+└── template.json         # 迁移模板
+```
+
+**执行流程**
+1. 用户手动调用 `product-dev-history-migrate` skill（或首次启动时自动检测）
+2. Skill 扫描以下目录结构：
+
+```
+TODO/
+├── <需求目录>/
+│   ├── 01-主线任务说明.md     → 解析为需求本身 + 知识（设计文档）
+│   ├── 02-子任务规格.md       → 解析为知识（规格文档）
+│   ├── 03-子任务实施任务.md    → 解析为待办列表
+│   ├── 04-子任务验收清单.md    → 解析为待办（验收项）
+│   └── ...其他.md
+├── bugs/
+│   └── bug-history.md        → 解析为剪藏（Bug 记录）
+└── 其他需求/...
+
+.trae/specs/<change-id>/
+├── spec.md                   → 解析为知识（规格文档）
+├── tasks.md                  → 解析为待办列表
+└── checklist.md              → 解析为待办（验收项）
+```
+
+3. 解析规则：
+
+| 源文件 | 目标类型 | 映射逻辑 |
+|--------|---------|---------|
+| `01-主线任务说明.md` | 需求 + 知识 | 文件名作为需求标题，内容作为剪藏，提取设计决策作为知识 |
+| `02-子任务规格.md` | 知识 | 规格详情作为知识条目 |
+| `03-子任务实施任务.md` | 待办 | 每个任务项拆分为一个待办 |
+| `04-子任务验收清单.md` | 待办 | 每个验收项拆分为一个待办，标记为验收类 |
+| `bug-history.md` | 剪藏 | 每条 Bug 记录作为一条剪藏 |
+| `spec.md` | 知识 | 完整规格文档作为知识 |
+| `tasks.md` | 待办 | 任务列表作为待办 |
+| `checklist.md` | 待办 | 验收项作为待办 |
+| `commit_history.log` | 时间线 | 提交记录作为需求时间线的事件 |
+
+4. 输出格式
+
+```json
+{
+  "version": "1.0",
+  "generatedAt": "2026-08-08T10:00:00Z",
+  "source": "history-migration",
+  "migrationSummary": {
+    "totalRequirements": 5,
+    "totalClips": 15,
+    "totalKnowledge": 8,
+    "totalTodos": 42,
+    "totalWikiPages": 3
+  },
+  "requirements": [
+    {
+      "requirementId": "req-history-001",
+      "title": "工作台与数据层重构需求",
+      "sourcePath": "TODO/工作台与数据层重构需求/",
+      "description": "从主线任务说明中提取的摘要...",
+      "phase": "completed",
+      "completedAt": "2026-07-15T00:00:00Z",
+      "clips": [
+        {
+          "title": "主线任务：工作台与数据层重构",
+          "content": "从 01-主线任务说明.md 读取的完整内容",
+          "category": "product-dev/requirements",
+          "tags": ["product-dev", "历史迁移", "工作台"],
+          "source": "product-dev-history-migrate"
+        }
+      ],
+      "knowledge": [
+        {
+          "title": "规格文档：工作台只读骨架",
+          "summary": "从 02-子任务规格.md 提取的摘要",
+          "content": "完整 Markdown 内容",
+          "category": "product-dev/spec",
+          "tags": ["product-dev", "历史迁移", "规格"],
+          "sourceClipIds": []
+        }
+      ],
+      "todos": [
+        {
+          "title": "实现内容索引加载",
+          "priority": "high",
+          "category": "product-dev",
+          "completed": true,
+          "source": "03-子任务实施任务.md"
+        },
+        {
+          "title": "验收：内容索引加载正常",
+          "priority": "medium",
+          "category": "product-dev/checklist",
+          "completed": true,
+          "source": "04-子任务验收清单.md"
+        }
+      ]
+    }
+  ]
+}
+```
+
+5. 写入统一的归档文件：`~/.cutshelter/product-dev-archive.json`（与增量归档 Skill 共用同一文件）
+6. 后端启动时统一解析，区分 source 字段（`product-dev-archive` vs `product-dev-history-migrate`）
+
+**使用场景**
+- 首次部署产品开发工作区时，一键迁移所有历史需求
+- 后续新增历史项目时，手动调用迁移指定目录
+- 支持通过参数指定扫描路径：`product-dev-history-migrate --path=TODO/某个历史需求`
 
 ---
 
