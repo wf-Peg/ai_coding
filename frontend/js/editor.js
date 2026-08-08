@@ -4983,6 +4983,151 @@
 
   window.parent.postMessage({ type: 'editorReady' }, '*');
 
+  // ── 后端服务状态管理 ──
+  // 状态常量
+  var BACKEND_STATE = { STOPPED: 'stopped', STARTING: 'starting', READY: 'ready', ERROR: 'error' };
+  var backendState = BACKEND_STATE.STOPPED;
+
+  // DOM 元素引用
+  var backendIndicator = document.getElementById('backendIndicator');
+  var backendStatusLabel = document.getElementById('backendStatusLabel');
+  var startBackendBtn = document.getElementById('startBackendBtn');
+
+  /**
+   * 更新后端状态 UI
+   * @param {string} state - 状态枚举值
+   * @param {string} label - 状态文字描述
+   */
+  function setBackendState(state, label) {
+    backendState = state;
+    if (backendIndicator) {
+      backendIndicator.className = 'status-btn-icon backend-indicator ' + state;
+    }
+    if (backendStatusLabel) {
+      backendStatusLabel.textContent = label || state;
+    }
+    if (startBackendBtn) {
+      startBackendBtn.style.display = (state === BACKEND_STATE.STOPPED) ? '' : 'none';
+    }
+  }
+
+  /**
+   * 手动启动后端服务
+   */
+  function handleStartBackend() {
+    if (backendState === BACKEND_STATE.STARTING) return;
+    setBackendState(BACKEND_STATE.STARTING, '后端启动中...');
+    startBackendBtn.style.display = 'none';
+    if (window.electronAPI && typeof window.electronAPI.startBackend === 'function') {
+      window.electronAPI.startBackend().then(function(result) {
+        if (result && result.success) {
+          setBackendState(BACKEND_STATE.READY, '后端已就绪');
+          showToast('后端服务启动成功', false, 'success');
+        } else {
+          setBackendState(BACKEND_STATE.ERROR, '后端启动失败');
+          showToast('后端启动失败: ' + (result ? result.message : '未知错误'), true);
+        }
+      }).catch(function(err) {
+        setBackendState(BACKEND_STATE.ERROR, '后端启动失败');
+        showToast('后端启动失败: ' + (err.message || '未知错误'), true);
+      });
+    } else {
+      // 非 Electron 环境：模拟启动
+      setBackendState(BACKEND_STATE.READY, '后端已就绪');
+      showToast('非 Electron 环境，模拟后端启动', false, 'info');
+    }
+  }
+
+  // 绑定启动按钮事件
+  if (startBackendBtn) {
+    startBackendBtn.addEventListener('click', handleStartBackend);
+  }
+
+  /**
+   * 后端健康检查轮询
+   * 每 15 秒检测一次后端端口是否可访问
+   */
+  function startBackendHealthCheck() {
+    // 如果后端已就绪，不需要轮询
+    if (backendState === BACKEND_STATE.READY) return;
+    // 每 15 秒检查一次
+    setInterval(function() {
+      // 如果已就绪，停止轮询
+      if (backendState === BACKEND_STATE.READY) return;
+      var xhr = new XMLHttpRequest();
+      xhr.timeout = 3000;
+      xhr.open('GET', 'http://127.0.0.1:8081/api/health', true);
+      xhr.onload = function() {
+        if (xhr.status >= 200 && xhr.status < 400) {
+          setBackendState(BACKEND_STATE.READY, '后端已就绪');
+          showToast('后端服务已就绪', false, 'success');
+        }
+      };
+      xhr.onerror = function() {
+        // 健康检查失败不更新状态，保持当前状态
+      };
+      xhr.send();
+    }, 15000);
+  }
+
+  // 初始化：检查后端状态
+  function initBackendStatus() {
+    // 先检查 Electron IPC
+    if (window.electronAPI && typeof window.electronAPI.getStartupMode === 'function') {
+      window.electronAPI.getStartupMode().then(function(mode) {
+        if (mode === 'full' || mode === 'frontend-async-backend') {
+          // 这些模式下后端正在启动中
+          setBackendState(BACKEND_STATE.STARTING, '后端启动中...');
+        }
+        // 检查后端是否已运行
+        if (window.electronAPI && typeof window.electronAPI.isBackendRunning === 'function') {
+          return window.electronAPI.isBackendRunning();
+        }
+      }).then(function(running) {
+        if (running) {
+          setBackendState(BACKEND_STATE.READY, '后端已就绪');
+        } else {
+          // 启动健康检查轮询
+          startBackendHealthCheck();
+        }
+      }).catch(function() {
+        // 降级：直接启动健康检查
+        startBackendHealthCheck();
+      });
+    } else {
+      // 非 Electron 环境，直接轮询
+      startBackendHealthCheck();
+    }
+
+    // 监听后端就绪事件
+    if (window.electronAPI && typeof window.electronAPI.onBackendReady === 'function') {
+      window.electronAPI.onBackendReady(function() {
+        setBackendState(BACKEND_STATE.READY, '后端已就绪');
+        showToast('后端服务已就绪', false, 'success');
+      });
+    }
+
+    // 监听后端错误事件
+    if (window.electronAPI && typeof window.electronAPI.onBackendError === 'function') {
+      window.electronAPI.onBackendError(function(msg) {
+        setBackendState(BACKEND_STATE.ERROR, '后端启动失败');
+        showToast('后端启动失败: ' + (msg || '未知错误'), true);
+      });
+    }
+
+    // 监听系统通知事件（来自主进程）
+    if (window.electronAPI && typeof window.electronAPI.onShowNotification === 'function') {
+      window.electronAPI.onShowNotification(function(data) {
+        if (data && data.title && data.body) {
+          showToast(data.title + ': ' + data.body, false, 'info');
+        }
+      });
+    }
+  }
+
+  // 延迟初始化，等 DOM 完全加载
+  setTimeout(initBackendStatus, 1000);
+
   // ── 系统右键菜单事件处理 ──
   // 注意：右键菜单的 IPC 事件统一由父页面（index.html）监听并处理，
   // 父页面读取文件内容后通过 postMessage（openFileData / openTextData）转发到本编辑器。

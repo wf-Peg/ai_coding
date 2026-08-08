@@ -175,6 +175,15 @@
       <span id="selectionStatus">0 字符</span>
       <span id="matchStatus">未选择词语</span>
       <button class="status-btn" id="autosaveStatus" title="自动保存已开启：每 10 秒保存一次，点击关闭">自动保存</button>
+      <span class="status-separator"></span>
+      <span class="status-btn backend-indicator-wrapper" id="backendStatusBtn" title="后端服务状态">
+        <span class="status-btn-icon backend-indicator stopped" id="backendIndicator"></span>
+        <span class="status-btn-label" id="backendStatusLabel">后端未启动</span>
+      </span>
+      <button class="status-btn" id="startBackendBtn" title="手动启动后端服务" style="display:none">
+        <span class="status-btn-icon">▶</span>
+        <span class="status-btn-label">启动后端</span>
+      </button>
       <span class="status-spacer"></span>
       <button class="ai-pet-button" id="aiPetBtn" type="button" title="打开Pet" aria-label="打开Pet">
         <svg class="ai-pet-svg" viewBox="0 0 64 64" aria-hidden="true">

@@ -398,6 +398,37 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   onBackendProgress: (callback) => ipcRenderer.on('backend-progress', (event, data) => callback(data)),
 
+  /**
+   * 手动启动后端服务（由前端按钮触发）
+   * @returns {Promise<{success: boolean, message: string}>}
+   */
+  startBackend: () => ipcRenderer.invoke('start-backend'),
+
+  /**
+   * 检查后端是否正在运行
+   * @returns {Promise<boolean>}
+   */
+  isBackendRunning: () => ipcRenderer.invoke('is-backend-running'),
+
+  /**
+   * 获取当前启动模式
+   * @returns {Promise<string>} 'full' | 'frontend-only' | 'frontend-async-backend'
+   */
+  getStartupMode: () => ipcRenderer.invoke('get-startup-mode'),
+
+  /**
+   * 保存配置项
+   * @param {Object} partialConfig - 部分配置对象，会合并到现有配置中
+   * @returns {Promise<{success: boolean}>}
+   */
+  saveConfig: (partialConfig) => ipcRenderer.invoke('save-config', partialConfig),
+
+  /**
+   * 监听系统通知事件（后端就绪/失败等）
+   * @param {Function} callback - 接收 { title, body } 对象
+   */
+  onShowNotification: (callback) => ipcRenderer.on('show-notification', (event, data) => callback(data)),
+
   // ===================== 日志 =====================
 
   /**

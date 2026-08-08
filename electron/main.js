@@ -152,6 +152,8 @@ const DEFAULT_CONFIG = {
   contextMenuRegistered: false,  // 右键菜单是否已注册
   contextMenuPath: '',           // 右键菜单注册时的应用目录（用于目录移动后的路径检测）
   autoStart: false,             // 是否随系统登录自动启动
+  // 启动模式：'full' = 完全启动（前后端同步），'frontend-only' = 只启动前端（默认，手动启动后端），'frontend-async-backend' = 前端快速启动，后端异步自动启动
+  startupMode: 'frontend-only',
   mailEnabled: false,           // 邮件功能是否启用
   mailHost: '',
   mailPort: 465,
@@ -1623,6 +1625,47 @@ function setupIPC() {
     }
   });
 
+  /**
+   * 手动启动后端（由 frontend-only 模式下的按钮触发）
+   */
+  ipcMain.handle('start-backend', async () => {
+    if (backendStarted) {
+      return { success: true, message: '后端服务已在运行中' };
+    }
+    const config = loadConfig();
+    try {
+      await startBackend(config);
+      backendStarted = true;
+      const clipStoragePath = config.storagePath.endsWith('clip-storage') || config.storagePath.endsWith('clip-storage\\')
+        ? config.storagePath
+        : path.join(config.storagePath, 'clip-storage');
+      log.initExceptionLogger(clipStoragePath);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('backend-ready');
+      }
+      startReminderScheduler();
+      return { success: true, message: '后端服务启动成功' };
+    } catch (e) {
+      log.error('Manual backend start failed:', e);
+      return { success: false, message: e.message };
+    }
+  });
+
+  /**
+   * 检查后端是否在运行
+   */
+  ipcMain.handle('is-backend-running', () => {
+    return backendStarted;
+  });
+
+  /**
+   * 获取当前启动模式
+   */
+  ipcMain.handle('get-startup-mode', () => {
+    const config = loadConfig();
+    return config.startupMode || 'frontend-only';
+  });
+
   ipcMain.handle('get-auto-start', () => {
     return app.getLoginItemSettings().openAtLogin;
   });
@@ -3031,13 +3074,15 @@ app.whenReady().then(async () => {
       // 注册系统右键菜单（未注册或应用目录移动后自动重新注册，保证命令指向当前路径）
       ensureContextMenuRegistered(config);
 
+      // 始终启动前端
       await startFrontendServer(config);
 
-      // 后端异步启动，不阻塞窗口创建
-      startBackend(config).then(() => {
-        log.info('Backend ready, notifying renderer');
+      // 根据启动模式决定后端行为
+      if (config.startupMode === 'full') {
+        // 模式1: 完全启动 — 后端同步启动，阻塞窗口创建
+        log.info('[Startup] Mode: full - starting backend synchronously');
+        await startBackend(config);
         backendStarted = true;
-        // 初始化异常日志模块（写入 clip-storage/tmp/exception-logs/）
         const clipStoragePath = config.storagePath.endsWith('clip-storage') || config.storagePath.endsWith('clip-storage\\')
           ? config.storagePath
           : path.join(config.storagePath, 'clip-storage');
@@ -3045,15 +3090,42 @@ app.whenReady().then(async () => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('backend-ready');
         }
-        // 后端就绪后才启动提醒调度器
-        log.info('[Reminder] Backend ready (configured path), about to start scheduler');
         startReminderScheduler();
-      }).catch(e => {
-        log.error('Backend start failed:', e);
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('backend-error', e.message);
-        }
-      });
+      } else if (config.startupMode === 'frontend-async-backend') {
+        // 模式2: 启动前端后异步启动后端，就绪后系统通知
+        log.info('[Startup] Mode: frontend-async-backend - starting backend asynchronously');
+        startBackend(config).then(() => {
+          backendStarted = true;
+          const clipStoragePath = config.storagePath.endsWith('clip-storage') || config.storagePath.endsWith('clip-storage\\')
+            ? config.storagePath
+            : path.join(config.storagePath, 'clip-storage');
+          log.initExceptionLogger(clipStoragePath);
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('backend-ready');
+          }
+          // 后端就绪后弹出系统通知
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('show-notification', {
+              title: '后端服务已就绪',
+              body: '所有功能现在可以使用，包括 AI 对话、剪藏、知识库等'
+            });
+          }
+          log.info('[Reminder] Backend ready (async mode), about to start scheduler');
+          startReminderScheduler();
+        }).catch(e => {
+          log.error('Backend async start failed:', e);
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('backend-error', e.message);
+            mainWindow.webContents.send('show-notification', {
+              title: '后端启动失败',
+              body: '请检查配置后重试，或在编辑器状态栏点击启动按钮手动启动'
+            });
+          }
+        });
+      } else {
+        // 模式3: frontend-only — 只启动前端，不启动后端
+        log.info('[Startup] Mode: frontend-only, backend will be started manually');
+      }
 
       createMainWindow(config);
       // 处理命令行参数（系统右键菜单传递的文件路径）

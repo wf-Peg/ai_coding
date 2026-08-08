@@ -864,6 +864,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   loadMascotConfig();
   loadShortcutConfig();
+  loadStartupMode();
   initUpdateUI();
 });
 
@@ -1467,6 +1468,55 @@ async function browseDirectory(inputId) {
     }
   } else {
     showToast('目录浏览仅在桌面客户端中可用，请手动输入路径');
+  }
+}
+
+// ==================== 启动模式管理 ====================
+
+/**
+ * 加载启动模式配置
+ * 从 Electron 主进程获取当前启动模式并设置下拉框
+ */
+function loadStartupMode() {
+  var api = getElectronAPI();
+  if (!api || typeof api.getStartupMode !== 'function') {
+    // 非 Electron 环境，隐藏启动模式设置
+    var select = document.getElementById('startupModeSelect');
+    if (select) {
+      var row = select.closest('.setting-row');
+      if (row) row.style.display = 'none';
+    }
+    return;
+  }
+  api.getStartupMode().then(function(mode) {
+    var select = document.getElementById('startupModeSelect');
+    if (select) {
+      select.value = mode || 'frontend-only';
+    }
+  }).catch(function(e) {
+    console.warn('加载启动模式失败:', e);
+  });
+}
+
+/**
+ * 启动模式变更时保存
+ */
+function onStartupModeChange() {
+  var select = document.getElementById('startupModeSelect');
+  if (!select) return;
+  var mode = select.value;
+  var api = getElectronAPI();
+  if (api && typeof api.saveConfig === 'function') {
+    api.saveConfig({ startupMode: mode }).then(function(result) {
+      if (result && result.success) {
+        showToast('启动模式已保存，重启应用后生效');
+      } else {
+        showToast('保存启动模式失败', true);
+      }
+    }).catch(function(e) {
+      console.error('保存启动模式失败:', e);
+      showToast('保存启动模式失败: ' + (e.message || '未知错误'), true);
+    });
   }
 }
 

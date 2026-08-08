@@ -700,6 +700,41 @@ select {
   background: var(--app-border);
 }
 
+/* ── 后端状态分隔线 ── */
+.status-separator {
+  width: 1px;
+  height: 14px;
+  background: var(--app-border);
+  flex-shrink: 0;
+}
+
+/* ── 后端状态指示灯 ── */
+.backend-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+.backend-indicator.stopped { background: var(--app-text-muted); }
+.backend-indicator.starting { background: #f59e0b; animation: backend-pulse 1.2s infinite; }
+.backend-indicator.ready { background: #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.5); }
+.backend-indicator.error { background: #ef4444; }
+
+@keyframes backend-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ── 后端状态按钮文字 ── */
+.backend-indicator-wrapper {
+  cursor: default;
+}
+.backend-indicator-wrapper:hover {
+  transform: none;
+  box-shadow: none;
+}
+
 .status-select {
   height: 20px;
   padding: 0 4px;

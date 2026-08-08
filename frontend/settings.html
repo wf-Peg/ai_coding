@@ -650,7 +650,7 @@
                 启动行为
                 <span class="section-badge immediate">即时生效</span>
             </div>
-            <div class="setting-row" style="border-bottom: none;">
+            <div class="setting-row">
                 <div class="setting-label">
                     <div class="setting-title">开机自动启动</div>
                     <div class="setting-desc">登录系统后自动启动 CutShelter，并在后台保持运行</div>
@@ -660,6 +660,19 @@
                         <input type="checkbox" id="autoStartToggle" onchange="onAutoStartChange()">
                         <span class="toggle-slider"></span>
                     </label>
+                </div>
+            </div>
+            <div class="setting-row" style="border-bottom: none;">
+                <div class="setting-label">
+                    <div class="setting-title">后端启动模式</div>
+                    <div class="setting-desc">控制应用启动时后端服务的启动方式，修改后需重启应用生效</div>
+                </div>
+                <div class="setting-control">
+                    <select id="startupModeSelect" onchange="onStartupModeChange()" style="width: 240px;">
+                        <option value="frontend-only">只启动前端（默认，手动启动后端）</option>
+                        <option value="frontend-async-backend">启动前端后异步启动后端</option>
+                        <option value="full">完全启动（前后端同时启动）</option>
+                    </select>
                 </div>
             </div>
         </div>
