@@ -304,7 +304,127 @@
     }
     .startup-error .retry-btn:hover { opacity: 0.85; }
 
-    /* ====== 浮动滚动工具 ====== */
+    /* ====== 全局后端状态指示器（标题栏） ====== */
+        .backend-global-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 0 10px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            -webkit-app-region: no-drag;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            height: 100%;
+        }
+        .backend-global-indicator:hover {
+            background: rgba(0,0,0,0.04);
+        }
+        .backend-global-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            transition: background 0.3s ease, box-shadow 0.3s ease;
+            flex-shrink: 0;
+        }
+        .backend-global-dot.stopped { background: #9ca3af; }
+        .backend-global-dot.starting { background: #f59e0b; animation: global-dot-pulse 1.2s infinite; }
+        .backend-global-dot.ready { background: #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.5); }
+        .backend-global-dot.error { background: #ef4444; }
+        @keyframes global-dot-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .backend-global-label {
+            white-space: nowrap;
+            font-size: 10px;
+        }
+        .backend-global-start-btn {
+            display: none;
+            padding: 2px 8px;
+            border: 1px solid var(--primary);
+            border-radius: 4px;
+            background: transparent;
+            color: var(--primary);
+            font-size: 10px;
+            cursor: pointer;
+            font-family: inherit;
+            white-space: nowrap;
+            transition: all 0.15s;
+        }
+        .backend-global-start-btn:hover {
+            background: var(--primary);
+            color: #fff;
+        }
+        .backend-global-indicator.show-start .backend-global-start-btn {
+            display: inline-block;
+        }
+
+        /* ====== 全局通知栏 ====== */
+        .global-notification-bar {
+            position: fixed;
+            top: var(--titlebar-height);
+            left: 0;
+            right: 0;
+            z-index: 9998;
+            display: none;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            text-align: center;
+            animation: notif-slide-down 0.25s ease;
+            cursor: pointer;
+        }
+        .global-notification-bar.info {
+            background: #eff6ff;
+            color: #1e40af;
+            border-bottom: 1px solid #bfdbfe;
+        }
+        .global-notification-bar.success {
+            background: #f0fdf4;
+            color: #166534;
+            border-bottom: 1px solid #bbf7d0;
+        }
+        .global-notification-bar.warning {
+            background: #fef3c7;
+            color: #92400e;
+            border-bottom: 1px solid #fde68a;
+        }
+        .global-notification-bar.error {
+            background: #fef2f2;
+            color: #991b1b;
+            border-bottom: 1px solid #fecaca;
+        }
+        html[data-theme="dark"] .global-notification-bar.info {
+            background: #1e293b; color: #93c5fd; border-color: #334155;
+        }
+        html[data-theme="dark"] .global-notification-bar.success {
+            background: #052e16; color: #6ee7b7; border-color: #166534;
+        }
+        html[data-theme="dark"] .global-notification-bar.warning {
+            background: #451a03; color: #fcd34d; border-color: #78350f;
+        }
+        html[data-theme="dark"] .global-notification-bar.error {
+            background: #450a0a; color: #fca5a5; border-color: #7f1d1d;
+        }
+        .global-notification-bar .notif-close {
+            float: right;
+            background: none;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            opacity: 0.6;
+            padding: 0 4px;
+            color: inherit;
+        }
+        .global-notification-bar .notif-close:hover { opacity: 1; }
+        @keyframes notif-slide-down {
+            from { transform: translateY(-100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        /* ====== 浮动滚动工具 ====== */
     .scroll-tools {
         position: fixed; bottom: 24px; right: 24px; z-index: 9999;
         display: flex; flex-direction: column; gap: 8px;
@@ -342,6 +462,11 @@
     </div>
   </div>
 </div>
+<!-- ====== 全局通知栏 ====== -->
+<div class="global-notification-bar" id="globalNotificationBar">
+  <button class="notif-close" id="notifCloseBtn">&times;</button>
+  <span id="notifMessage"></span>
+</div>
 <!-- ====== 自定义标题栏（Obsidian 风格） ====== -->
 <div class="titlebar" id="titlebar">
     <div class="titlebar-brand">
@@ -349,6 +474,11 @@
             <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
         <span>碎碎记 <small class="brand-subtitle">CutShelter</small></span>
+    </div>
+    <div class="backend-global-indicator" id="backendGlobalIndicator" title="后端服务状态，点击启动">
+        <span class="backend-global-dot stopped" id="backendGlobalDot"></span>
+        <span class="backend-global-label" id="backendGlobalLabel">后端未启动</span>
+        <button class="backend-global-start-btn" id="backendGlobalStartBtn">启动后端</button>
     </div>
     <nav class="titlebar-nav" id="titlebarNav">
         <button class="nav-btn active" data-view="editor">
@@ -788,13 +918,119 @@
       }
 
       if (window.electronAPI) {
-        // 后端就绪标志：右键菜单动作需要调用后端 API，首启时后端可能尚未就绪
-        let backendReadyFlag = false;
+        // ====== 全局后端状态管理 ======
+        var BACKEND_STATE = { STOPPED: 'stopped', STARTING: 'starting', READY: 'ready', ERROR: 'error' };
+        var globalBackendState = BACKEND_STATE.STOPPED;
+
+        // 全局后端状态 DOM
+        var globalDot = document.getElementById('backendGlobalDot');
+        var globalLabel = document.getElementById('backendGlobalLabel');
+        var globalIndicator = document.getElementById('backendGlobalIndicator');
+        var globalStartBtn = document.getElementById('backendGlobalStartBtn');
+
+        // 全局通知栏
+        var notifBar = document.getElementById('globalNotificationBar');
+        var notifMsg = document.getElementById('notifMessage');
+
+        /**
+         * 更新全局后端状态指示器
+         */
+        function setGlobalBackendState(state, label) {
+          globalBackendState = state;
+          if (globalDot) {
+            globalDot.className = 'backend-global-dot ' + state;
+          }
+          if (globalLabel) {
+            globalLabel.textContent = label || state;
+          }
+          if (globalIndicator) {
+            if (state === BACKEND_STATE.STOPPED) {
+              globalIndicator.classList.add('show-start');
+              globalIndicator.title = '后端服务未启动，点击启动';
+            } else {
+              globalIndicator.classList.remove('show-start');
+              globalIndicator.title = '后端服务状态: ' + (label || state);
+            }
+          }
+        }
+
+        /**
+         * 显示全局通知栏
+         */
+        function showGlobalNotification(message, type) {
+          if (!notifBar || !notifMsg) return;
+          notifMsg.textContent = message;
+          notifBar.className = 'global-notification-bar ' + (type || 'info');
+          notifBar.style.display = 'block';
+          clearTimeout(notifBar._timer);
+          // 自动隐藏
+          notifBar._timer = setTimeout(function() {
+            notifBar.style.display = 'none';
+          }, 6000);
+        }
+
+        /**
+         * 隐藏全局通知栏
+         */
+        function hideGlobalNotification() {
+          if (notifBar) {
+            notifBar.style.display = 'none';
+            clearTimeout(notifBar._timer);
+          }
+        }
+
+        // 关闭通知栏按钮
+        document.getElementById('notifCloseBtn')?.addEventListener('click', hideGlobalNotification);
+
+        // 点击通知栏关闭
+        notifBar?.addEventListener('click', function(e) {
+          if (e.target === notifBar || e.target === notifMsg) {
+            hideGlobalNotification();
+          }
+        });
+
+        /**
+         * 手动启动后端（全局指示器）
+         */
+        function handleGlobalStartBackend() {
+          if (globalBackendState === BACKEND_STATE.STARTING || globalBackendState === BACKEND_STATE.READY) return;
+          setGlobalBackendState(BACKEND_STATE.STARTING, '后端启动中...');
+          showGlobalNotification('正在启动后端服务，请稍候...', 'info');
+          if (typeof window.electronAPI.startBackend === 'function') {
+            window.electronAPI.startBackend().then(function(result) {
+              if (result && result.success) {
+                setGlobalBackendState(BACKEND_STATE.READY, '后端已就绪');
+                showGlobalNotification('后端服务已就绪，所有功能可用', 'success');
+              } else {
+                setGlobalBackendState(BACKEND_STATE.ERROR, '后端启动失败');
+                showGlobalNotification('后端启动失败: ' + (result ? result.message : '未知错误') + '，请检查配置后重试', 'error');
+              }
+            }).catch(function(err) {
+              setGlobalBackendState(BACKEND_STATE.ERROR, '后端启动失败');
+              showGlobalNotification('后端启动失败: ' + (err.message || '未知错误') + '，请检查配置后重试', 'error');
+            });
+          }
+        }
+
+        // 全局启动按钮点击
+        globalStartBtn?.addEventListener('click', function(e) {
+          e.stopPropagation();
+          handleGlobalStartBackend();
+        });
+        // 指示器区域点击（点击标签也触发启动）
+        globalIndicator?.addEventListener('click', function() {
+          if (globalBackendState === BACKEND_STATE.STOPPED) {
+            handleGlobalStartBackend();
+          }
+        });
+
+        // 后端就绪标志：右键菜单动作需要调用后端 API
+        var backendReadyFlag = false;
         function waitForBackend(timeoutMs) {
-          return new Promise(resolve => {
+          return new Promise(function(resolve) {
             if (backendReadyFlag) return resolve(true);
-            const start = Date.now();
-            const timer = setInterval(() => {
+            var start = Date.now();
+            var timer = setInterval(function() {
               if (backendReadyFlag || Date.now() - start > timeoutMs) {
                 clearInterval(timer);
                 resolve(backendReadyFlag);
@@ -802,9 +1038,10 @@
             }, 200);
           });
         }
+
         // 简单 Toast 提示（成功/失败），让右键菜单动作结果可见
         function showToast(message, isError) {
-          let toast = document.getElementById('systemToast');
+          var toast = document.getElementById('systemToast');
           if (!toast) {
             toast = document.createElement('div');
             toast.id = 'systemToast';
@@ -819,40 +1056,131 @@
         }
         // 将常见网络错误替换为友好的中文提示
         function friendlyError(err) {
-          const msg = String((err && err.message) || err);
+          var msg = String((err && err.message) || err);
           if (/Failed to fetch|fetch failed|NetworkError|ECONNREFUSED/i.test(msg)) {
-            return '无法连接本地服务，请确认应用已正常启动';
+            return '无法连接本地服务，请确认后端已启动（在标题栏点击"启动后端"）';
           }
           return msg;
         }
 
-        // 启动遮罩：监听后端状态
-        const overlay = document.getElementById('startupOverlay');
-        const startupMsg = document.getElementById('startupMsg');
-        const startupDots = document.getElementById('startupDots');
-        const startupBar = document.getElementById('startupBar');
+        // ====== 启动流程 ======
+        function dismissStartupOverlay() {
+          var overlay = document.getElementById('startupOverlay');
+          if (overlay) {
+            overlay.classList.add('hidden');
+            setTimeout(function() { overlay.style.display = 'none'; }, 500);
+          }
+        }
 
-        window.electronAPI.onBackendProgress((data) => {
-          startupMsg.textContent = data.message;
-        });
+        // 加载子页面 iframe
+        function lazyLoadIframes() {
+          document.querySelectorAll('iframe[data-src]').forEach(function(iframe) {
+            iframe.src = iframe.dataset.src;
+            iframe.removeAttribute('data-src');
+          });
+        }
 
-        window.electronAPI.onBackendReady(() => {
-          backendReadyFlag = true;
-          startupMsg.textContent = '启动完成';
-          startupDots.style.display = 'none';
-          startupBar.style.display = 'none';
-          // 加载子页面 iframe（后端就绪后才加载，避免 404 重试）
-          lazyLoadIframes();
-          setTimeout(() => overlay.classList.add('hidden'), 600);
-        });
+        var overlay = document.getElementById('startupOverlay');
+        var startupMsg = document.getElementById('startupMsg');
+        var startupDots = document.getElementById('startupDots');
+        var startupBar = document.getElementById('startupBar');
 
-        window.electronAPI.onBackendError((msg) => {
-          startupDots.style.display = 'none';
-          startupBar.style.display = 'none';
-          startupMsg.style.display = 'none';
-          const status = document.getElementById('startupStatus');
-          status.innerHTML = `<div class="startup-error">启动失败: ${msg}<br><button class="retry-btn" onclick="location.reload()">重试</button></div>`;
-        });
+        // 始终先加载 iframe（前端页面不需要后端就绪）
+        lazyLoadIframes();
+
+        // 获取启动模式，决定后端行为
+        if (typeof window.electronAPI.getStartupMode === 'function') {
+          window.electronAPI.getStartupMode().then(function(mode) {
+            if (mode === 'full') {
+              // 完全启动模式：等待后端就绪再关闭遮罩
+              startupMsg.textContent = '正在启动后端服务...';
+              // 后端进度监听
+              window.electronAPI.onBackendProgress(function(data) {
+                startupMsg.textContent = data.message;
+              });
+              window.electronAPI.onBackendReady(function() {
+                backendReadyFlag = true;
+                setGlobalBackendState(BACKEND_STATE.READY, '后端已就绪');
+                dismissStartupOverlay();
+              });
+              window.electronAPI.onBackendError(function(msg) {
+                startupDots.style.display = 'none';
+                startupBar.style.display = 'none';
+                startupMsg.style.display = 'none';
+                var status = document.getElementById('startupStatus');
+                status.innerHTML = '<div class="startup-error">启动失败: ' + msg + '<br><button class="retry-btn" onclick="location.reload()">重试</button></div>';
+                setGlobalBackendState(BACKEND_STATE.ERROR, '后端启动失败');
+                showGlobalNotification('后端启动失败: ' + msg + '，请检查配置后重试', 'error');
+              });
+            } else if (mode === 'frontend-async-backend') {
+              // 前端异步启动后端：快速关闭遮罩，后端后台启动
+              startupMsg.textContent = '启动完成';
+              startupDots.style.display = 'none';
+              startupBar.style.display = 'none';
+              setGlobalBackendState(BACKEND_STATE.STARTING, '后端启动中...');
+              dismissStartupOverlay();
+              showGlobalNotification('应用已启动，后端服务正在后台启动...', 'info');
+              // 监听后端就绪
+              window.electronAPI.onBackendReady(function() {
+                backendReadyFlag = true;
+                setGlobalBackendState(BACKEND_STATE.READY, '后端已就绪');
+                showGlobalNotification('后端服务已就绪，所有功能可用', 'success');
+              });
+              window.electronAPI.onBackendError(function(msg) {
+                setGlobalBackendState(BACKEND_STATE.ERROR, '后端启动失败');
+                showGlobalNotification('后端启动失败: ' + msg + '，请在标题栏点击"启动后端"重试', 'error');
+              });
+            } else {
+              // frontend-only 模式：只启动前端，不启动后端
+              startupMsg.textContent = '启动完成';
+              startupDots.style.display = 'none';
+              startupBar.style.display = 'none';
+              dismissStartupOverlay();
+              setGlobalBackendState(BACKEND_STATE.STOPPED, '后端未启动');
+              // 检查后端是否意外已运行
+              if (typeof window.electronAPI.isBackendRunning === 'function') {
+                window.electronAPI.isBackendRunning().then(function(running) {
+                  if (running) {
+                    backendReadyFlag = true;
+                    setGlobalBackendState(BACKEND_STATE.READY, '后端已就绪');
+                  } else {
+                    showGlobalNotification('后端服务未启动，部分功能（AI、剪藏、知识库等）不可用，可在标题栏点击启动', 'warning');
+                  }
+                });
+              }
+            }
+          }).catch(function() {
+            // 获取模式失败，降级为 frontend-only
+            dismissStartupOverlay();
+            setGlobalBackendState(BACKEND_STATE.STOPPED, '后端未启动');
+          });
+        } else {
+          // 非 Electron 环境，直接关闭遮罩
+          dismissStartupOverlay();
+        }
+
+        // 统一监听后端就绪/错误事件（无论哪种模式，后端启动后都会触发）
+        if (typeof window.electronAPI.onBackendReady === 'function') {
+          window.electronAPI.onBackendReady(function() {
+            backendReadyFlag = true;
+            setGlobalBackendState(BACKEND_STATE.READY, '后端已就绪');
+            showGlobalNotification('后端服务已就绪，所有功能可用', 'success');
+          });
+        }
+        if (typeof window.electronAPI.onBackendError === 'function') {
+          window.electronAPI.onBackendError(function(msg) {
+            setGlobalBackendState(BACKEND_STATE.ERROR, '后端启动失败');
+            showGlobalNotification('后端启动失败: ' + msg + '，请在标题栏点击"启动后端"重试', 'error');
+          });
+        }
+        // 监听系统通知（来自主进程的 show-notification 事件）
+        if (typeof window.electronAPI.onShowNotification === 'function') {
+          window.electronAPI.onShowNotification(function(data) {
+            if (data && data.title && data.body) {
+              showGlobalNotification(data.title + '：' + data.body, data.type || 'info');
+            }
+          });
+        }
 
         document.getElementById('btnMinimize').addEventListener('click', () => window.electronAPI.windowMinimize());
         document.getElementById('btnMaximize').addEventListener('click', () => window.electronAPI.windowMaximize());
@@ -863,6 +1191,7 @@
           if (e.target.closest('.titlebar-brand')) return;
           if (e.target.closest('#titlebarNav')) return;
           if (e.target.closest('#windowControls')) return;
+          if (e.target.closest('#backendGlobalIndicator')) return;
           window.electronAPI.windowMaximize();
         });
 
@@ -960,7 +1289,11 @@
               var result = await window.electronAPI.openFileByPath(filePath);
               if (!result || result.canceled) return;
               // 首启场景后端可能尚未就绪，等待就绪后再请求
-              await waitForBackend(15000);
+              if (!backendReadyFlag) {
+                showToast('后端服务未就绪，请稍后重试', true);
+                showGlobalNotification('后端服务未就绪，请在标题栏启动后端后再试', 'warning');
+                return;
+              }
               var response = await fetch('http://127.0.0.1:8081/api/clip/add', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -998,7 +1331,11 @@
               var result = await window.electronAPI.openFileByPath(filePath);
               if (!result || result.canceled) return;
               // 首启场景后端可能尚未就绪，等待就绪后再请求
-              await waitForBackend(15000);
+              if (!backendReadyFlag) {
+                showToast('后端服务未就绪，请稍后重试', true);
+                showGlobalNotification('后端服务未就绪，请在标题栏启动后端后再试', 'warning');
+                return;
+              }
               // /api/ingest 需要 text 字段（AI 自动识别意图后路由入库）
               var response = await fetch('http://127.0.0.1:8081/api/ingest', {
                 method: 'POST',
@@ -1048,8 +1385,11 @@
           window.electronAPI.onPdfOcr(async function(filePath) {
             console.log('[System] 收到 PDF OCR 请求:', filePath);
             try {
-              // 首启场景后端可能尚未就绪，等待就绪后再请求
-              await waitForBackend(15000);
+              if (!backendReadyFlag) {
+                showToast('后端服务未就绪，请稍后重试', true);
+                showGlobalNotification('后端服务未就绪，请在标题栏启动后端后再试', 'warning');
+                return;
+              }
               var response = await fetch('http://127.0.0.1:8081/api/pdf/ocr', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
