@@ -20,10 +20,8 @@
         .header {
             background: var(--card);
             border-bottom: 1px solid var(--border);
-            padding: 14px 32px;
-            position: sticky;
-            top: 0;
-            z-index: 100;
+            padding: 12px 24px;
+            position: relative;
             backdrop-filter: blur(10px);
             background: rgba(255,255,255,0.9);
         }
@@ -56,7 +54,7 @@
             font-weight: 500;
             cursor: pointer;
             border-radius: 8px;
-            transition: var(--transition);
+            transition: all 0.2s ease;
             font-family: inherit;
         }
         .tab-btn:hover { background: var(--accent-light); color: var(--fg); }
@@ -67,20 +65,31 @@
 
         /* Container */
         .container {
-            max-width: 900px;
+            max-width: 100%;
             margin: 0 auto;
-            padding: 24px 32px 64px;
+            padding: 16px 20px 40px;
         }
-        .tab-panel { display: none; }
+        .tab-panel {
+            display: none;
+            animation: tabFadeIn 0.2s ease;
+        }
         .tab-panel.active { display: block; }
+        @keyframes tabFadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
 
         /* Card */
         .card {
             background: var(--card);
             border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 20px 24px;
-            margin-bottom: 16px;
+            border-radius: 10px;
+            padding: 18px 22px;
+            margin-bottom: 14px;
+            transition: box-shadow 0.2s ease, transform 0.15s ease;
+        }
+        .card:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
         }
         .card h2 {
             font-size: 1.05rem;
@@ -118,7 +127,7 @@
         }
         textarea:focus, input[type="text"]:focus {
             border-color: var(--primary);
-            box-shadow: 0 0 0 3px var(--primary-glow);
+            box-shadow: 0 0 0 3px rgba(63, 140, 255, 0.15);
         }
         .btn {
             padding: 10px 18px;
@@ -127,23 +136,29 @@
             font-size: 0.9rem;
             font-weight: 500;
             cursor: pointer;
-            transition: var(--transition);
+            transition: all 0.2s ease;
             font-family: inherit;
             white-space: nowrap;
+        }
+        .btn:active {
+            transform: scale(0.97);
         }
         .btn-primary {
             background: #2f3437;
             color: #ffffff;
+            transition: all 0.2s ease;
         }
         .btn-primary:hover { background: #1f2328; }
         .btn-primary:disabled {
             background: var(--fg-muted);
             cursor: not-allowed;
+            opacity: 0.6;
         }
         .btn-secondary {
             background: var(--card);
             color: var(--fg-secondary);
             border: 1px solid var(--border);
+            transition: all 0.2s ease;
         }
         .btn-secondary:hover {
             background: var(--accent-light);
@@ -379,7 +394,7 @@
         }
 
         /* Scrollbar */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; }
         ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }

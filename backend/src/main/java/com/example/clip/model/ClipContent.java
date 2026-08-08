@@ -100,6 +100,17 @@ public class ClipContent {
      */
     private String sourceFilePath;
 
+    /**
+     * Web Clipper 同步的原始正文内容（不含 frontmatter）。
+     * <p>
+     * 当剪藏来源于 Obsidian Web Clipper 同步时，存储 frontmatter 之后的
+     * Markdown 正文内容，用于前端展示和 AI 分析。与 {@link #content} 不同，
+     * content 保留 wiki-link 引用 {@code [[sources/文件名|标题]]} 用于 Obsidian
+     * 集成，bodyContent 存储实际可读的正文内容。
+     * </p>
+     */
+    private String bodyContent;
+
     /** 编辑器内容类型：text/json/xml/sql，用于再次打开时恢复语法模式 */
     private String contentFormat;
 
@@ -315,12 +326,30 @@ public class ClipContent {
     }
 
     /**
+     * 返回 Web Clipper 同步的原始正文内容。
+     *
+     * @return 正文内容（不含 frontmatter）；非同步剪藏返回 null
+     */
+    public String getBodyContent() {
+        return bodyContent;
+    }
+
+    /**
      * 设置 Web Clipper 同步的源文件相对路径。
      *
      * @param sourceFilePath 源文件路径
      */
     public void setSourceFilePath(String sourceFilePath) {
         this.sourceFilePath = sourceFilePath;
+    }
+
+    /**
+     * 设置 Web Clipper 同步的原始正文内容。
+     *
+     * @param bodyContent 正文内容
+     */
+    public void setBodyContent(String bodyContent) {
+        this.bodyContent = bodyContent;
     }
 
     public String getContentFormat() {

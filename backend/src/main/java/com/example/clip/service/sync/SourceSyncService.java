@@ -182,8 +182,15 @@ public class SourceSyncService {
                 try {
                     String content = Files.readString(file, StandardCharsets.UTF_8);
                     ClipContent clip = parser.toClipContent(content, fileName);
-                    String title = clip.getTitle() != null ? clip.getTitle() : stripMdExtension(fileName);
-                    clip.setContent(buildWikiLink(fileName, title));
+                    // content 保留 wiki-link 引用（用于 Obsidian 集成）
+                    clip.setContent(buildWikiLink(fileName, clip.getTitle()));
+                    // bodyContent 存储实际正文（不含 frontmatter），用于前端展示和 AI 分析
+                    String bodyContent = parser.extractBodyContent(content);
+                    if (bodyContent != null && !bodyContent.isBlank()) {
+                        clip.setBodyContent(bodyContent);
+                    } else if (clip.getSummary() != null && !clip.getSummary().isBlank()) {
+                        clip.setBodyContent(clip.getSummary());
+                    }
                     clip.setSourceFilePath("sources/" + fileName);
                     fileStorageService.saveClip(clip);
                     markAsSynced(fileName);

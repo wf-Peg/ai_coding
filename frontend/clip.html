@@ -3877,7 +3877,7 @@
         const displaySummary = clip.summary || '暂无摘要';
         const isStoreOnly = clip.type === 'store-only';
         const summaryClass = isStoreOnly ? 'store-only-summary' : '';
-        const originalContent = clip.content || '';
+        const originalContent = clip.bodyContent || clip.content || '';
         const analysisContent = clip.analysis || '';
         const fanButtons = [
             buildFanActionButton('edit-in-editor', clip.id, '在编辑器打开原文', renderFanActionIcon('editInEditor')),
@@ -3935,6 +3935,20 @@
                         <button class="copy-btn" onclick="copyToClipboard('${escapeJs(originalContent)}')">
                             📋 复制原文
                         </button>
+                    ${clip.sourceUrl ? `
+                    <div class="source-link" style="margin-top: 8px; transition: opacity 0.2s ease;">
+                        <a href="${escapeHtml(clip.sourceUrl)}" target="_blank" rel="noopener" style="font-size:0.85rem;color:var(--primary);text-decoration:none;display:inline-flex;align-items:center;gap:4px;transition:color 0.2s ease;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                            查看原始网页
+                        </a>
+                    </div>
+                    ` : ''}
+                    ${clip.sourceFilePath ? `
+                    <div class="source-file" style="font-size:0.82rem;color:var(--text-secondary);margin-top:4px;display:flex;align-items:center;gap:4px;padding:2px 0;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        源文件: ${escapeHtml(clip.sourceFilePath)}
+                    </div>
+                    ` : ''}
                     </div>
                     ${clip.myThoughts ? `
                     <div class="content-section" style="border-left: 3px solid #a855f7; background: linear-gradient(135deg, rgba(168,85,247,0.04), transparent);">
@@ -4210,16 +4224,9 @@
         return `<span class="source-badge ${badge.cls}">${escapeHtml(badge.label)}</span>`;
     }
 
-    // 渲染剪藏内容：检测 [[path|display]] 或 [[path]] 格式的 wiki-link
+    // 渲染剪藏内容：直接显示纯文本，不再渲染 wiki-link 为可点击链接
     function renderContent(content) {
         if (!content) return '';
-        const wikiLinkMatch = content.match(/^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/);
-        if (wikiLinkMatch) {
-            const path = wikiLinkMatch[1].trim();
-            const display = (wikiLinkMatch[2] || path).trim();
-            const escapedPath = escapeJs(path);
-            return `<a class="wiki-link" href="#" onclick="openInObsidian('${escapedPath}'); return false;">${escapeHtml(display)}</a>`;
-        }
         return escapeHtml(content);
     }
 

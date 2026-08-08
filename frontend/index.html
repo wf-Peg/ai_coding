@@ -376,6 +376,14 @@
             </svg>
             知识
         </button>
+        <button class="nav-btn" data-view="wiki">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                <path d="M8 7h8M8 11h6M8 15h4"/>
+            </svg>
+            Wiki
+        </button>
         <button class="nav-btn" data-view="vault">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="11" width="18" height="11" rx="2"/>
@@ -446,6 +454,10 @@
         <div class="view-panel view-panel-hidden" id="knowledgeView">
             <iframe id="knowledgeFrame" data-src="knowledge.html" style="width:100%;height:100%;border:none;"></iframe>
         </div>
+        <!-- Wiki 知识库 -->
+        <div class="view-panel view-panel-hidden" id="wikiView">
+            <iframe id="wikiFrame" data-src="wiki.html" style="width:100%;height:100%;border:none;"></iframe>
+        </div>
         <!-- 密码 -->
         <div class="view-panel view-panel-hidden" id="vaultView">
             <iframe id="vaultFrame" data-src="vault.html" style="width:100%;height:100%;border:none;"></iframe>
@@ -509,7 +521,7 @@
       }
 
       function broadcastThemeChange() {
-        [editorFrame, workspaceFrame, todoFrame, clipFrame, knowledgeFrame, vaultFrame, settingsFrame, learningPlanFrame, pdfFrame, dataObservabilityFrame].forEach(frame => {
+        [editorFrame, workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, settingsFrame, learningPlanFrame, pdfFrame, dataObservabilityFrame].forEach(frame => {
           try { if (frame && frame.contentWindow) frame.contentWindow.postMessage({ action: 'themeChange', theme: document.documentElement.getAttribute('data-theme') }, '*'); } catch(e) {}
         });
       }
@@ -594,6 +606,8 @@
       const workspaceView = document.getElementById('workspaceView');
       const clipView = document.getElementById('clipView');
       const knowledgeView = document.getElementById('knowledgeView');
+      const wikiView = document.getElementById('wikiView');
+      const wikiFrame = document.getElementById('wikiFrame');
       const vaultView = document.getElementById('vaultView');
       const settingsView = document.getElementById('settingsView');
       const learningPlanView = document.getElementById('learningPlanView');
@@ -624,6 +638,7 @@
         workspace: workspaceView,
         clip: clipView,
         knowledge: knowledgeView,
+        wiki: wikiView,
         vault: vaultView,
         settings: settingsView,
         'learning-plan': learningPlanView,
@@ -635,6 +650,7 @@
         workspace: [workspaceFrame],
         clip: [todoFrame, clipFrame],
         knowledge: [knowledgeFrame],
+        wiki: [wikiFrame],
         vault: [vaultFrame],
         settings: [settingsFrame],
         'learning-plan': [learningPlanFrame],
@@ -679,6 +695,7 @@
         if (clean === '/workspace') return 'workspace';
         if (clean === '/clip') return 'clip';
         if (clean === '/knowledge') return 'knowledge';
+        if (clean === '/wiki') return 'wiki';
         if (clean === '/settings') return 'settings';
         if (clean === '/vault') return 'vault';
         if (clean === '/learning-plan') return 'learning-plan';

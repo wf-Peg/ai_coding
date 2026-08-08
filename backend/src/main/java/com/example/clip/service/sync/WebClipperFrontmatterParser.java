@@ -215,6 +215,37 @@ public class WebClipperFrontmatterParser {
     }
 
     /**
+     * 从 Markdown 文件内容中提取 frontmatter 之后的正文。
+     * <p>
+     * 检测文件开头是否以 {@code ---\n} 开头，找到第二个 {@code ---} 作为结束标记，
+     * 返回结束标记之后的内容（去除首尾空白）。如果没有 frontmatter，返回全部内容。
+     * 如果只有 frontmatter 没有正文，返回空字符串。
+     * </p>
+     *
+     * @param fileContent 文件内容
+     * @return 正文内容；没有正文返回空字符串
+     */
+    public String extractBodyContent(String fileContent) {
+        if (fileContent == null || fileContent.isBlank()) {
+            return "";
+        }
+        String frontmatterStart = FRONTMATTER_DELIMITER + "\n";
+        if (!fileContent.startsWith(frontmatterStart)) {
+            return fileContent.trim();
+        }
+        int startIdx = frontmatterStart.length();
+        int endIdx = fileContent.indexOf("\n" + FRONTMATTER_DELIMITER, startIdx);
+        if (endIdx == -1) {
+            return fileContent.trim();
+        }
+        int bodyStart = endIdx + 4; // skip \n---\n
+        if (bodyStart >= fileContent.length()) {
+            return "";
+        }
+        return fileContent.substring(bodyStart).trim();
+    }
+
+    /**
      * 解析 tags 字段，兼容 YAML 列表和逗号分隔字符串。
      *
      * @param tagsValue tags 字段原始值（可能是 List 或 String）
