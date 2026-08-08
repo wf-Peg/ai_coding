@@ -98,10 +98,11 @@ public class SourceSyncService {
     }
 
     /**
-     * 启动后初始化：加载已同步文件列表，若启用同步则启动周期扫描。
+     * 启动后初始化：确保目录存在，加载已同步文件列表，若启用同步则启动周期扫描。
      */
     @PostConstruct
     public void init() {
+        ensureDirectories();
         loadSyncedFiles();
         if (wikiConfig.isSyncEnabled()) {
             startScheduler();
@@ -159,6 +160,7 @@ public class SourceSyncService {
         Map<String, Object> result = new LinkedHashMap<>();
         try {
             Path sourcesDir = getSourcesDir();
+            ensureSourceDir(sourcesDir);
             if (!Files.exists(sourcesDir) || !Files.isDirectory(sourcesDir)) {
                 result.put("syncedCount", 0);
                 result.put("skippedCount", 0);
@@ -292,6 +294,43 @@ public class SourceSyncService {
                     StandardOpenOption.APPEND);
         } catch (IOException e) {
             log.error("[Sync] Failed to persist synced file [{}]: {}", fileName, e.getMessage());
+        }
+    }
+
+    /**
+     * 确保 vault 下所有必需目录存在。
+     * <p>
+     * 包括 {@code sources/}（Web Clipper 写入目录）和 {@code wiki/}（持久化状态文件目录），
+     * 在启动时和同步前自动创建，避免用户手动创建。
+     * </p>
+     */
+    private void ensureDirectories() {
+        ensureSourceDir(getSourcesDir());
+        Path store = getSyncedFilesPath();
+        Path parent = store.getParent();
+        if (parent != null && !Files.exists(parent)) {
+            try {
+                Files.createDirectories(parent);
+                log.info("[Sync] Created wiki directory: {}", parent);
+            } catch (IOException e) {
+                log.warn("[Sync] Failed to create wiki directory [{}]: {}", parent, e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * 确保 sources 目录存在，不存在则自动创建。
+     *
+     * @param sourcesDir sources 目录路径
+     */
+    private void ensureSourceDir(Path sourcesDir) {
+        if (!Files.exists(sourcesDir)) {
+            try {
+                Files.createDirectories(sourcesDir);
+                log.info("[Sync] Created sources directory: {}", sourcesDir);
+            } catch (IOException e) {
+                log.warn("[Sync] Failed to create sources directory [{}]: {}", sourcesDir, e.getMessage());
+            }
         }
     }
 

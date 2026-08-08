@@ -90,7 +90,7 @@ obsidian:
 
 # LLM Wiki 配置（基于 Obsidian Vault 的 LLM 知识库）
 wiki:
-  vault-path: ./obsidian-vault  # Obsidian Vault 根路径
+  vault-path: ./obsidian-vault  # Obsidian Vault 根路径（可选，相对路径自动解析为 {storagePath}/obsidian-vault）
   wiki-dir-name: wiki  # Vault 内 Wiki 目录名
   sources-dir-name: sources  # Vault 内 sources 目录名（待入库的原始 Markdown）
   batch-size: 5  # 批量入库窗口大小
