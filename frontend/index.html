@@ -1063,6 +1063,26 @@
           return msg;
         }
 
+        // ====== 后端就绪 → 自动刷新子页面 ======
+        // 最近一次后端就绪刷新的时间戳（去重：多个 onBackendReady 回调只触发一次刷新）
+        var lastBackendRefreshAt = 0;
+        function handleBackendReady() {
+          backendReadyFlag = true;
+          setGlobalBackendState(BACKEND_STATE.READY, '后端已就绪');
+          showGlobalNotification('后端服务已就绪，所有功能可用', 'success');
+          // 去重保护：5 秒内只广播一次
+          var now = Date.now();
+          if (now - lastBackendRefreshAt < 5000) return;
+          lastBackendRefreshAt = now;
+          refreshAllSubPages();
+        }
+        function refreshAllSubPages() {
+          // 注意：不刷新 editorFrame（避免打断用户正在编辑的内容）
+          [workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, learningPlanFrame, pdfFrame, dataObservabilityFrame, settingsFrame].forEach(function(frame) {
+            try { if (frame && frame.contentWindow) frame.contentWindow.postMessage({ action: 'refresh' }, '*'); } catch (e) {}
+          });
+        }
+
         // ====== 启动流程 ======
         function dismissStartupOverlay() {
           var overlay = document.getElementById('startupOverlay');
@@ -1099,9 +1119,8 @@
                 startupMsg.textContent = data.message;
               });
               window.electronAPI.onBackendReady(function() {
-                backendReadyFlag = true;
-                setGlobalBackendState(BACKEND_STATE.READY, '后端已就绪');
                 dismissStartupOverlay();
+                handleBackendReady();
               });
               window.electronAPI.onBackendError(function(msg) {
                 startupDots.style.display = 'none';
@@ -1122,9 +1141,7 @@
               showGlobalNotification('应用已启动，后端服务正在后台启动...', 'info');
               // 监听后端就绪
               window.electronAPI.onBackendReady(function() {
-                backendReadyFlag = true;
-                setGlobalBackendState(BACKEND_STATE.READY, '后端已就绪');
-                showGlobalNotification('后端服务已就绪，所有功能可用', 'success');
+                handleBackendReady();
               });
               window.electronAPI.onBackendError(function(msg) {
                 setGlobalBackendState(BACKEND_STATE.ERROR, '后端启动失败');
@@ -1141,8 +1158,7 @@
               if (typeof window.electronAPI.isBackendRunning === 'function') {
                 window.electronAPI.isBackendRunning().then(function(running) {
                   if (running) {
-                    backendReadyFlag = true;
-                    setGlobalBackendState(BACKEND_STATE.READY, '后端已就绪');
+                    handleBackendReady();
                   } else {
                     showGlobalNotification('后端服务未启动，部分功能（AI、剪藏、知识库等）不可用，可在标题栏点击启动', 'warning');
                   }
@@ -1162,9 +1178,7 @@
         // 统一监听后端就绪/错误事件（无论哪种模式，后端启动后都会触发）
         if (typeof window.electronAPI.onBackendReady === 'function') {
           window.electronAPI.onBackendReady(function() {
-            backendReadyFlag = true;
-            setGlobalBackendState(BACKEND_STATE.READY, '后端已就绪');
-            showGlobalNotification('后端服务已就绪，所有功能可用', 'success');
+            handleBackendReady();
           });
         }
         if (typeof window.electronAPI.onBackendError === 'function') {
@@ -1181,6 +1195,16 @@
             }
           });
         }
+
+        // 时序竞态兜底：子页面 iframe 在 backend-ready 事件之后才加载完成时，补发一次刷新
+        [workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, learningPlanFrame, pdfFrame, dataObservabilityFrame, settingsFrame].forEach(function(frame) {
+          if (!frame) return;
+          frame.addEventListener('load', function() {
+            try {
+              if (backendReadyFlag && frame.contentWindow) frame.contentWindow.postMessage({ action: 'refresh' }, '*');
+            } catch (e) {}
+          });
+        });
 
         document.getElementById('btnMinimize').addEventListener('click', () => window.electronAPI.windowMinimize());
         document.getElementById('btnMaximize').addEventListener('click', () => window.electronAPI.windowMaximize());

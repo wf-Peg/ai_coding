@@ -539,6 +539,13 @@
     </div>
 
     <script src="libs/marked.min.js"></script>
+    <script src="js/logger.js"></script>
+    <script>
+        // 接收主框架消息：后端就绪后自动刷新数据
+        window.addEventListener('message', (e) => {
+            if (e.data && e.data.action === 'refresh') location.reload();
+        });
+    </script>
     <script>
         if (typeof marked !== 'undefined') {
             marked.setOptions({ breaks: true, gfm: true });

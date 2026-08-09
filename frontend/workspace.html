@@ -239,7 +239,14 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ── 产品开发工作区样式 ── */
-    .product-dev-view { display: none; }
+    .product-dev-view {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 60;            /* 覆盖 .shell 及其侧边栏 */
+      background: var(--ws-bg);
+      overflow-y: auto;       /* 页面内容自身滚动 */
+    }
     .product-dev-view.visible { display: block; }
     .pd-shell { width: min(1280px, 100%); margin: 0 auto; padding: 28px 32px; }
 
@@ -2134,7 +2141,11 @@
       /* ── Theme ── */
       window.addEventListener('message', event => {
         if (event.data?.action === 'themeChange') document.documentElement.setAttribute('data-theme', event.data.theme);
-        if (event.data?.action === 'refresh') loadOverview();
+        if (event.data?.action === 'refresh') {
+          loadOverview();
+          loadWorkspaces();
+          if (productDevView && productDevView.classList.contains('visible')) loadProductDev();
+        }
       });
       document.documentElement.setAttribute('data-theme', localStorage.getItem('app_theme_v1') || 'notion');
 
@@ -2166,6 +2177,17 @@
 
       /* ── 产品开发工作区 ── */
       let pdChartInstances = {};
+
+      /* ── 产品开发 Tab 切换 ── */
+      document.querySelectorAll('.pd-tab').forEach(function(tab) {
+        tab.addEventListener('click', function() {
+          document.querySelectorAll('.pd-tab').forEach(function(t) { t.classList.remove('active'); });
+          document.querySelectorAll('.pd-tab-content').forEach(function(c) { c.classList.remove('visible'); });
+          tab.classList.add('active');
+          var content = document.querySelector('.pd-tab-content[data-pd-content="' + tab.dataset.pdTab + '"]');
+          if (content) content.classList.add('visible');
+        });
+      });
 
       async function loadProductDev() {
         // Reset chart instances
@@ -2945,5 +2967,6 @@
       loadWorkspaces();
     })();
   </script>
+  <script src="js/logger.js"></script>
 </body>
 </html>
