@@ -241,11 +241,7 @@
     /* ── 产品开发工作区样式 ── */
     .product-dev-view {
       display: none;
-      position: fixed;
-      inset: 0;
-      z-index: 60;            /* 覆盖 .shell 及其侧边栏 */
       background: var(--ws-bg);
-      overflow-y: auto;       /* 页面内容自身滚动 */
     }
     .product-dev-view.visible { display: block; }
     .pd-shell { width: min(1280px, 100%); margin: 0 auto; padding: 28px 32px; }
@@ -265,6 +261,14 @@
     .pd-tab.active { color: var(--ws-primary); border-bottom-color: var(--ws-primary); font-weight: 600; }
     .pd-tab-content { display: none; }
     .pd-tab-content.visible { display: block; }
+
+    /* 标签筛选条 */
+    .pd-tag-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -6px 0 18px; }
+    .pd-tag-filter-label { color: var(--ws-faint); font-size: 12px; margin-right: 2px; }
+    .pd-tag-pill { padding: 4px 11px; border: 1px solid var(--ws-border); border-radius: 999px; background: transparent; color: var(--ws-muted); font-size: 12px; cursor: pointer; transition: all .16s ease; }
+    .pd-tag-pill:hover { border-color: var(--ws-primary); color: var(--ws-primary); }
+    .pd-tag-pill.active { border-color: var(--ws-primary); background: var(--ws-primary-soft); color: var(--ws-primary); font-weight: 600; }
+    .pd-tag-filter:empty { display: none; }
 
     /* 仪表盘卡片 */
     .pd-dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px; }
@@ -532,13 +536,13 @@
     <aside class="sidebar" id="sidebar" aria-label="工作台列表">
       <div class="sidebar-header">
         <h1>工作台</h1>
-        <button class="sidebar-collapse" id="sidebarCollapse" type="button" aria-label="关闭侧边栏">&times;</button>
+        <button class="sidebar-collapse" id="sidebarCollapse" type="button" aria-label="关闭侧边栏" title="收起侧边栏" data-func-tag="功能:收起侧边栏">&times;</button>
       </div>
       <nav class="sidebar-nav">
-        <button class="sidebar-nav-item active" data-view="overview" type="button">
+        <button class="sidebar-nav-item active" data-view="overview" type="button" data-func-tag="功能:全部概览" title="查看剪藏、知识、待办、学习计划等所有类型内容的统一概览">
           <span class="icon">&#9776;</span> 全部概览
         </button>
-        <button class="sidebar-nav-item" data-view="product-dev" type="button">
+        <button class="sidebar-nav-item" data-view="product-dev" type="button" data-func-tag="功能:产品开发工作区" title="进入产品开发工作区，管理需求看板、知识图谱、时间线与归档">
           <span class="icon">&#9881;</span> 产品开发
         </button>
       </nav>
@@ -546,7 +550,7 @@
       <div class="sidebar-section">工作台</div>
       <div class="sidebar-list" id="wsList" aria-live="polite"></div>
       <div class="sidebar-footer">
-        <button class="new-btn" id="newWsBtn" type="button"><span class="icon">+</span> 新建工作台</button>
+        <button class="new-btn" id="newWsBtn" type="button" data-func-tag="功能:新建工作台" title="新建工作台"><span class="icon">+</span> 新建工作台</button>
       </div>
     </aside>
 
@@ -557,14 +561,14 @@
         <div class="shell-inner">
           <header class="hero">
             <div style="display:flex;align-items:center;gap:0">
-              <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="打开侧边栏">&#9776;</button>
+              <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="打开侧边栏" title="展开侧边栏">&#9776;</button>
               <div>
                 <p class="eyebrow">Workspace overview</p>
                 <h1>工作台</h1>
                 <p class="subtitle">从一个只读视图浏览已索引的剪藏、知识、待办和学习计划；这里不会修改你的任何内容或项目数据。</p>
               </div>
             </div>
-            <button class="refresh" id="refreshButton" type="button" title="重新从存储扫描并构建内容索引，反映最新数据变化"><span aria-hidden="true">↻</span> 刷新索引<span class="refresh-info" id="refreshInfo"></span></button>
+            <button class="refresh" id="refreshButton" type="button" title="重新从存储扫描并构建内容索引，反映最新数据变化" data-func-tag="功能:刷新索引"><span aria-hidden="true">↻</span> 刷新索引<span class="refresh-info" id="refreshInfo"></span></button>
           </header>
           <div class="layout">
             <section class="content-panel" aria-labelledby="contentHeading">
@@ -588,15 +592,15 @@
       <div class="detail-view" id="detailView">
         <div class="shell-inner">
           <div style="display:flex;align-items:center;gap:0;margin-bottom:20px">
-            <button class="sidebar-toggle" id="sidebarToggle2" type="button" aria-label="打开侧边栏">&#9776;</button>
+            <button class="sidebar-toggle" id="sidebarToggle2" type="button" aria-label="打开侧边栏" title="展开侧边栏">&#9776;</button>
           </div>
           <div class="detail-header" id="detailHeader"></div>
           <div class="error-message" id="detailError" style="display:none;margin-bottom:12px"></div>
           <div class="detail-tabs" id="detailTabs">
-            <button class="detail-tab active" data-tab="content" type="button">内容</button>
-            <button class="detail-tab" data-tab="rules" type="button">规则</button>
-            <button class="detail-tab" data-tab="exclusions" type="button">排除</button>
-            <button class="detail-tab" data-tab="suggestions" type="button">建议 <span class="suggestion-badge" id="suggestionBadge" style="display:none"></span></button>
+            <button class="detail-tab active" data-tab="content" type="button" data-func-tag="功能:工作台详情-内容" title="查看该工作台可见内容与排除入口">内容</button>
+            <button class="detail-tab" data-tab="rules" type="button" data-func-tag="功能:工作台详情-规则" title="管理自动筛选规则">规则</button>
+            <button class="detail-tab" data-tab="exclusions" type="button" data-func-tag="功能:工作台详情-排除" title="查看已排除内容并支持恢复">排除</button>
+            <button class="detail-tab" data-tab="suggestions" type="button" data-func-tag="功能:工作台详情-建议" title="基于使用习惯的候选推荐">建议 <span class="suggestion-badge" id="suggestionBadge" style="display:none"></span></button>
           </div>
           <!-- Content tab -->
           <div class="detail-tab-content visible" data-tab="content" id="detailContent">
@@ -605,8 +609,8 @@
               <div style="display:flex;align-items:center;gap:10px">
                 <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg><input id="detailSearchInput" type="search" placeholder="搜索标题、标签" autocomplete="off"></label>
                 <div class="view-toggle" id="viewToggle">
-                  <button class="active" data-view="list" type="button" title="列表视图">&#9776; 列表</button>
-                  <button data-view="kanban" type="button" title="看板视图">&#9638; 看板</button>
+                  <button class="active" data-view="list" type="button" title="列表视图" data-func-tag="功能:列表视图">&#9776; 列表</button>
+                  <button data-view="kanban" type="button" title="看板视图" data-func-tag="功能:看板视图">&#9638; 看板</button>
                 </div>
               </div>
             </div>
@@ -617,7 +621,7 @@
           <div class="detail-tab-content" data-tab="rules" id="detailRules">
             <div class="rules-header">
               <h3>筛选规则</h3>
-              <button class="add-rule-btn" id="addRuleBtn" type="button">+ 添加规则</button>
+              <button class="add-rule-btn" id="addRuleBtn" type="button" data-func-tag="功能:添加规则" title="为当前工作台添加自动筛选规则">+ 添加规则</button>
             </div>
             <div class="error-message" id="rulesError" style="display:none"></div>
             <div id="rulesList"></div>
@@ -640,33 +644,33 @@
           </div>
         </div>
       </div>
-    </main>
-  </div>
-
   <!-- ── 产品开发工作区视图 ── -->
   <div class="product-dev-view" id="productDevView">
     <div class="pd-shell">
       <!-- 顶部导航 -->
       <div class="pd-header">
-        <button class="sidebar-toggle" id="pdSidebarToggle" type="button" aria-label="打开侧边栏">&#9776;</button>
+        <button class="sidebar-toggle" id="pdSidebarToggle" type="button" aria-label="打开侧边栏" title="展开侧边栏">&#9776;</button>
         <div class="pd-header-left">
           <p class="eyebrow">Product Development</p>
           <h1>产品开发工作区</h1>
         </div>
         <div class="pd-header-actions">
-          <button class="pd-btn pd-btn-secondary" id="pdHistoryMigrateBtn" type="button" title="将 TODO/ 和 .trae/specs/ 下的历史需求文档迁移到产品开发工作区">&#128194; 历史迁移</button>
-          <button class="pd-btn pd-btn-primary" id="pdNewRequirementBtn" type="button">+ 新建需求</button>
+          <button class="pd-btn pd-btn-secondary" id="pdHistoryMigrateBtn" type="button" title="将 TODO/ 和 .trae/specs/ 下的历史需求文档迁移到产品开发工作区" data-func-tag="功能:历史迁移">&#128194; 历史迁移</button>
+          <button class="pd-btn pd-btn-primary" id="pdNewRequirementBtn" type="button" data-func-tag="功能:新建需求" title="创建一条新需求并进入需求池">+ 新建需求</button>
         </div>
       </div>
 
       <!-- 子导航 tabs -->
       <div class="pd-tabs">
-        <button class="pd-tab active" data-pd-tab="dashboard" type="button">&#128202; 总览</button>
-        <button class="pd-tab" data-pd-tab="kanban" type="button">&#9776; 需求看板</button>
-        <button class="pd-tab" data-pd-tab="graph" type="button">&#9671; 知识图谱</button>
-        <button class="pd-tab" data-pd-tab="timeline" type="button">&#128197; 时间线</button>
-        <button class="pd-tab" data-pd-tab="archive" type="button">&#128451; 归档</button>
+        <button class="pd-tab active" data-pd-tab="dashboard" type="button" data-func-tag="功能:产品开发-总览" title="总览：数据仪表盘与最近活动">&#128202; 总览</button>
+        <button class="pd-tab" data-pd-tab="kanban" type="button" data-func-tag="功能:产品开发-需求看板" title="需求看板：按阶段拖拽管理需求">&#9776; 需求看板</button>
+        <button class="pd-tab" data-pd-tab="graph" type="button" data-func-tag="功能:产品开发-知识图谱" title="知识图谱：需求-知识关联网络">&#9671; 知识图谱</button>
+        <button class="pd-tab" data-pd-tab="timeline" type="button" data-func-tag="功能:产品开发-时间线" title="时间线：甘特图展示开发周期">&#128197; 时间线</button>
+        <button class="pd-tab" data-pd-tab="archive" type="button" data-func-tag="功能:产品开发-归档" title="归档：历史需求归档记录">&#128451; 归档</button>
       </div>
+
+      <!-- 标签筛选条 -->
+      <div class="pd-tag-filter" id="pdTagFilter" aria-label="标签筛选"></div>
 
       <!-- ── 总览 Dashboard ── -->
       <div class="pd-tab-content visible" data-pd-content="dashboard">
@@ -715,9 +719,9 @@
       <div class="pd-tab-content" data-pd-content="timeline">
         <div class="pd-gantt-toolbar">
           <div class="pd-gantt-zoom">
-            <button class="pd-gantt-zoom-btn active" data-zoom="day" type="button">日视图</button>
-            <button class="pd-gantt-zoom-btn" data-zoom="week" type="button">周视图</button>
-            <button class="pd-gantt-zoom-btn" data-zoom="month" type="button">月视图</button>
+            <button class="pd-gantt-zoom-btn active" data-zoom="day" type="button" data-func-tag="功能:甘特图-日视图" title="日视图：按天展示时间线">日视图</button>
+            <button class="pd-gantt-zoom-btn" data-zoom="week" type="button" data-func-tag="功能:甘特图-周视图" title="周视图：按周展示时间线">周视图</button>
+            <button class="pd-gantt-zoom-btn" data-zoom="month" type="button" data-func-tag="功能:甘特图-月视图" title="月视图：按月展示时间线">月视图</button>
           </div>
           <div class="pd-gantt-legend">
             <span class="pd-gantt-legend-item"><span class="pd-gantt-legend-dot" style="background:#2383e2"></span>需求分析</span>
@@ -741,6 +745,10 @@
       </div>
     </div>
   </div>
+
+    </main>
+  </div>
+
 
   <!-- ── New Workspace Modal ── -->
   <div class="modal-overlay" id="newWsModal">
@@ -986,6 +994,7 @@
       sidebarToggle2.addEventListener('click', openSidebar);
       sidebarCollapse.addEventListener('click', closeSidebar);
       sidebarBackdrop.addEventListener('click', closeSidebar);
+      $('pdSidebarToggle')?.addEventListener('click', openSidebar);
 
       /* ── Overview Functions ── */
       function overviewRenderState(kind, title, detail) {
@@ -998,7 +1007,7 @@
       function overviewRenderFilters() {
         const filters = $('filters');
         const types = overviewState.data?.contentTypes || Object.keys(LABELS);
-        filters.innerHTML = types.map(t => `<button class="filter ${overviewState.types.includes(t) ? 'active' : ''}" data-type="${escapeHtml(t)}" type="button">${escapeHtml(LABELS[t] || t)}</button>`).join('');
+        filters.innerHTML = types.map(t => `<button class="filter ${overviewState.types.includes(t) ? 'active' : ''}" data-type="${escapeHtml(t)}" type="button" data-func-tag="功能:概览筛选-${escapeHtml(LABELS[t] || t)}" title="按内容类型筛选">${escapeHtml(LABELS[t] || t)}</button>`).join('');
         filters.querySelectorAll('.filter').forEach(btn => btn.addEventListener('click', () => {
           const { type } = btn.dataset;
           overviewState.types = overviewState.types.includes(type) ? overviewState.types.filter(i => i !== type) : [...overviewState.types, type];
@@ -1091,32 +1100,32 @@
         });
       }
 
-      navOverview.addEventListener('click', () => {
-        activeWsId = null;
+      function showView(view) {
         hideAllViews();
-        navOverview.classList.add('active');
-        renderWsList();
-        overviewView.classList.remove('hidden');
+        if (view === 'overview') {
+          activeWsId = null;
+          navOverview.classList.add('active');
+          renderWsList();
+          overviewView.classList.remove('hidden');
+        } else if (view === 'product-dev') {
+          activeWsId = null;
+          navProductDev.classList.add('active');
+          productDevView.classList.add('visible');
+          loadProductDev();
+        } else if (view === 'detail') {
+          navOverview.classList.add('active');
+          renderWsList();
+          detailView.classList.add('visible');
+        }
         closeSidebar();
-      });
+      }
 
-      navProductDev.addEventListener('click', function() {
-        activeWsId = null;
-        hideAllViews();
-        navProductDev.classList.add('active');
-        productDevView.classList.add('visible');
-        closeSidebar();
-        loadProductDev();
-      });
+      navOverview.addEventListener('click', () => showView('overview'));
+      navProductDev.addEventListener('click', () => showView('product-dev'));
 
       function selectWorkspace(id) {
         activeWsId = id;
-        hideAllViews();
-        navOverview.classList.add('active');
-        renderWsList();
-        overviewView.classList.add('hidden');
-        detailView.classList.add('visible');
-        closeSidebar();
+        showView('detail');
         loadDetail();
       }
 
@@ -1227,7 +1236,7 @@
         detailContentList.innerHTML = detailState.filtered.map(item => {
           const meta = [item.category, ...(item.tags || []).map(t => '#' + t), item.sourcePath].filter(Boolean).map(v => `<span class="tag">${escapeHtml(v)}</span>`).join('');
           const sourceBadge = item.source ? `<span class="source-marker ${escapeHtml(item.source)}">${escapeHtml(SOURCE_LABELS[item.source] || item.source)}</span>` : '';
-          return `<article class="item"><div class="type-mark" data-type="${escapeHtml(item.type)}">${escapeHtml(INITIALS[item.type] || '内')}</div><div class="item-body"><h3 class="item-title" title="${escapeHtml(item.title || '')}">${escapeHtml(item.title || '未命名内容')}</h3><div class="item-meta"><span>${escapeHtml(LABELS[item.type] || item.type || '内容')}</span>${sourceBadge}${meta}</div></div><div class="item-actions"><button class="exclude-btn" data-content-id="${escapeHtml(item.id)}" data-content-title="${escapeHtml(item.title || '')}" type="button">排除</button></div></article>`;
+          return `<article class="item"><div class="type-mark" data-type="${escapeHtml(item.type)}">${escapeHtml(INITIALS[item.type] || '内')}</div><div class="item-body"><h3 class="item-title" title="${escapeHtml(item.title || '')}">${escapeHtml(item.title || '未命名内容')}</h3><div class="item-meta"><span>${escapeHtml(LABELS[item.type] || item.type || '内容')}</span>${sourceBadge}${meta}</div></div><div class="item-actions"><button class="exclude-btn" data-content-id="${escapeHtml(item.id)}" data-content-title="${escapeHtml(item.title || '')}" type="button" data-func-tag="功能:排除内容" title="将内容从当前工作台排除">排除</button></div></article>`;
         }).join('');
         detailContentList.querySelectorAll('.exclude-btn').forEach(btn => btn.addEventListener('click', () => excludeContent(btn.dataset.contentId, btn.dataset.contentTitle)));
       }
@@ -1264,7 +1273,7 @@
           return;
         }
         rulesList.innerHTML = rules.map(r =>
-          `<div class="rule-card ${r.enabled ? '' : 'disabled'}"><span class="rule-field">${escapeHtml(FIELD_LABELS[r.field] || r.field)}</span><span class="rule-operator">${escapeHtml(OPERATOR_LABELS[r.operator] || r.operator)}</span><span class="rule-value" title="${escapeHtml(r.value)}">${escapeHtml(r.value)}</span><div class="rule-actions"><button class="toggle-switch ${r.enabled ? 'on' : ''}" data-rule-id="${escapeHtml(r.id)}" data-enabled="${r.enabled}" type="button" aria-label="切换启用状态"></button><button class="rule-edit-btn" data-rule-id="${escapeHtml(r.id)}" type="button" title="编辑">&#9998;</button><button class="rule-del-btn" data-rule-id="${escapeHtml(r.id)}" type="button" title="删除">&times;</button></div></div>`
+          `<div class="rule-card ${r.enabled ? '' : 'disabled'}"><span class="rule-field">${escapeHtml(FIELD_LABELS[r.field] || r.field)}</span><span class="rule-operator">${escapeHtml(OPERATOR_LABELS[r.operator] || r.operator)}</span><span class="rule-value" title="${escapeHtml(r.value)}">${escapeHtml(r.value)}</span><div class="rule-actions"><button class="toggle-switch ${r.enabled ? 'on' : ''}" data-rule-id="${escapeHtml(r.id)}" data-enabled="${r.enabled}" type="button" aria-label="切换启用状态" data-func-tag="功能:规则开关" title="启用/禁用规则"></button><button class="rule-edit-btn" data-rule-id="${escapeHtml(r.id)}" type="button" title="编辑" data-func-tag="功能:编辑规则">&#9998;</button><button class="rule-del-btn" data-rule-id="${escapeHtml(r.id)}" type="button" title="删除" data-func-tag="功能:删除规则">&times;</button></div></div>`
         ).join('');
         rulesList.querySelectorAll('.toggle-switch').forEach(btn => btn.addEventListener('click', () => toggleRule(btn.dataset.ruleId, btn.dataset.enabled === 'true')));
         rulesList.querySelectorAll('.rule-edit-btn').forEach(btn => btn.addEventListener('click', () => openRuleModal(btn.dataset.ruleId)));
@@ -1706,7 +1715,7 @@
           return;
         }
         exclusionsList.innerHTML = exclusions.map(e =>
-          `<div class="exclusion-card"><span class="exclusion-id" title="${escapeHtml(e.contentId)}">${escapeHtml(e.contentId)}</span>${e.reason ? `<span class="exclusion-reason">${escapeHtml(e.reason)}</span>` : ''}<span class="exclusion-date">${escapeHtml(formatDateTime(e.updatedAt || e.createdAt))}</span><button class="restore-btn" data-content-id="${escapeHtml(e.contentId)}" type="button">恢复</button></div>`
+          `<div class="exclusion-card"><span class="exclusion-id" title="${escapeHtml(e.contentId)}">${escapeHtml(e.contentId)}</span>${e.reason ? `<span class="exclusion-reason">${escapeHtml(e.reason)}</span>` : ''}<span class="exclusion-date">${escapeHtml(formatDateTime(e.updatedAt || e.createdAt))}</span><button class="restore-btn" data-content-id="${escapeHtml(e.contentId)}" type="button" data-func-tag="功能:恢复排除" title="将内容恢复回工作台">恢复</button></div>`
         ).join('');
         exclusionsList.querySelectorAll('.restore-btn').forEach(btn => btn.addEventListener('click', () => restoreExclusion(btn.dataset.contentId)));
       }
@@ -1753,9 +1762,9 @@
               <div class="suggestion-reasons">${(s.reasons || []).map(r => `<span class="suggestion-reason">${REASON_LABELS[r] || r}</span>`).join('')}</div>
             </div>
             <div class="suggestion-actions">
-              <button class="accept-btn" data-id="${escapeHtml(s.id)}" type="button">接受</button>
-              <button class="ignore-btn" data-id="${escapeHtml(s.id)}" type="button">忽略</button>
-              <button class="reject-btn" data-id="${escapeHtml(s.id)}" type="button">拒绝</button>
+              <button class="accept-btn" data-id="${escapeHtml(s.id)}" type="button" data-func-tag="功能:接受建议" title="采纳该建议内容">接受</button>
+              <button class="ignore-btn" data-id="${escapeHtml(s.id)}" type="button" data-func-tag="功能:忽略建议" title="忽略该建议">忽略</button>
+              <button class="reject-btn" data-id="${escapeHtml(s.id)}" type="button" data-func-tag="功能:拒绝建议" title="拒绝该建议">拒绝</button>
             </div>
           </div>`;
         }).join('');
@@ -1915,15 +1924,15 @@
             <div class="kanban-col-header">
               <h3>${escapeHtml(col.name)} <span class="kanban-col-count">${items.length}</span></h3>
               <div class="col-actions">
-                <button class="col-action-btn rename" data-col-id="${escapeHtml(col.id)}" title="重命名" type="button">&#9998;</button>
-                <button class="col-action-btn delete${col.isDefault ? ' disabled' : ''}" data-col-id="${escapeHtml(col.id)}" title="${col.isDefault ? '默认列不能删除' : '删除'}" type="button"${delDisabled}>&times;</button>
+                <button class="col-action-btn rename" data-col-id="${escapeHtml(col.id)}" title="重命名" type="button" data-func-tag="功能:重命名看板列">&#9998;</button>
+                <button class="col-action-btn delete${col.isDefault ? ' disabled' : ''}" data-col-id="${escapeHtml(col.id)}" title="${col.isDefault ? '默认列不能删除' : '删除'}" type="button"${delDisabled} data-func-tag="功能:删除看板列">&times;</button>
               </div>
             </div>
             <div class="kanban-col-body" data-col-id="${escapeHtml(col.id)}">
               ${items.length ? items.map(item => renderKanbanCard(item)).join('') : '<div class="empty-state" style="padding:20px 10px;font-size:12px">拖拽内容到此列</div>'}
             </div>
           </div>`;
-        }).join('') + '<div class="kanban-add-col" id="kanbanAddCol" title="添加看板列">+</div>';
+        }).join('') + '<div class="kanban-add-col" id="kanbanAddCol" title="添加看板列" data-func-tag="功能:添加看板列">+</div>';
 
         // Attach column action handlers
         kanbanBoard.querySelectorAll('.col-action-btn.rename').forEach(btn => {
@@ -1989,7 +1998,7 @@
           </div>
           ${meta ? `<div class="card-meta"><span class="tag">${escapeHtml(meta)}</span></div>` : ''}
           <div class="card-actions">
-            <button class="exclude-btn" data-content-id="${escapeHtml(item.id)}" data-content-title="${escapeHtml(item.title || '')}" type="button">排除</button>
+            <button class="exclude-btn" data-content-id="${escapeHtml(item.id)}" data-content-title="${escapeHtml(item.title || '')}" type="button" data-func-tag="功能:排除内容" title="将内容从当前工作台排除">排除</button>
           </div>
         </div>`;
       }
@@ -2189,23 +2198,54 @@
         });
       });
 
+      var activePdTag = '';
+
+      function pdUrl(path) {
+        return activePdTag ? path + '?tag=' + encodeURIComponent(activePdTag) : path;
+      }
+
+      function renderPdTagFilter(tags) {
+        var el = $('pdTagFilter');
+        if (!el) return;
+        if (!tags || !tags.length) {
+          el.innerHTML = '';
+          return;
+        }
+        var pills = ['<span class="pd-tag-filter-label">标签筛选：</span>'];
+        pills.push('<button class="pd-tag-pill' + (activePdTag ? '' : ' active') + '" data-tag="" type="button">全部</button>');
+        tags.forEach(function(t) {
+          pills.push('<button class="pd-tag-pill' + (activePdTag === t ? ' active' : '') + '" data-tag="' + escapeHtml(t) + '" type="button">' + escapeHtml(t) + '</button>');
+        });
+        el.innerHTML = pills.join('');
+      }
+
+      // 标签筛选条点击
+      document.addEventListener('click', function(e) {
+        var pill = e.target.closest && e.target.closest('#pdTagFilter .pd-tag-pill');
+        if (!pill) return;
+        activePdTag = pill.dataset.tag || '';
+        loadProductDev();
+      });
+
       async function loadProductDev() {
         // Reset chart instances
         Object.values(pdChartInstances).forEach(function(c) { if (c) c.destroy(); });
         pdChartInstances = {};
         try {
           // 并行加载数据
-          const [stats, phaseDist, todoCompletion, knowledgeTrend, activities, requirements, graph, timeline, archives] = await Promise.all([
-            fetch('/api/product-dev/stats').then(r => r.ok ? r.json() : {}),
-            fetch('/api/product-dev/phase-distribution').then(r => r.ok ? r.json() : []),
-            fetch('/api/product-dev/todo-completion').then(r => r.ok ? r.json() : {}),
-            fetch('/api/product-dev/knowledge-trend').then(r => r.ok ? r.json() : []),
-            fetch('/api/product-dev/activities').then(r => r.ok ? r.json() : []),
-            fetch('/api/product-dev/requirements').then(r => r.ok ? r.json() : {}),
-            fetch('/api/product-dev/graph').then(r => r.ok ? r.json() : { nodes: [], edges: [] }),
-            fetch('/api/product-dev/timeline').then(r => r.ok ? r.json() : []),
-            fetch('/api/product-dev/archives').then(r => r.ok ? r.json() : [])
+          const [tags, stats, phaseDist, todoCompletion, knowledgeTrend, activities, requirements, graph, timeline, archives] = await Promise.all([
+            fetch('/api/product-dev/tags').then(r => r.ok ? r.json() : []),
+            fetch(pdUrl('/api/product-dev/stats')).then(r => r.ok ? r.json() : {}),
+            fetch(pdUrl('/api/product-dev/phase-distribution')).then(r => r.ok ? r.json() : []),
+            fetch(pdUrl('/api/product-dev/todo-completion')).then(r => r.ok ? r.json() : {}),
+            fetch(pdUrl('/api/product-dev/knowledge-trend')).then(r => r.ok ? r.json() : []),
+            fetch(pdUrl('/api/product-dev/activities')).then(r => r.ok ? r.json() : []),
+            fetch(pdUrl('/api/product-dev/requirements')).then(r => r.ok ? r.json() : {}),
+            fetch(pdUrl('/api/product-dev/graph')).then(r => r.ok ? r.json() : { nodes: [], edges: [] }),
+            fetch(pdUrl('/api/product-dev/timeline')).then(r => r.ok ? r.json() : []),
+            fetch(pdUrl('/api/product-dev/archives')).then(r => r.ok ? r.json() : [])
           ]);
+          renderPdTagFilter(tags);
           renderPdDashboard(stats);
           renderPdCharts(phaseDist, todoCompletion, knowledgeTrend);
           renderPdActivities(activities);
@@ -2882,7 +2922,7 @@
       if (pdKanbanSearch) {
         pdKanbanSearch.addEventListener('input', function() {
           // 重新加载看板，使用当前搜索词
-          fetch('/api/product-dev/requirements').then(function(r) { return r.ok ? r.json() : {}; }).then(function(requirements) {
+          fetch(pdUrl('/api/product-dev/requirements')).then(function(r) { return r.ok ? r.json() : {}; }).then(function(requirements) {
             renderPdKanban(requirements);
           }).catch(function() {});
         });
@@ -2895,7 +2935,7 @@
           this.classList.add('active');
           pdGanttZoom = this.dataset.zoom;
           // 重新加载甘特图
-          fetch('/api/product-dev/timeline').then(function(r) { return r.ok ? r.json() : []; }).then(function(timeline) {
+          fetch(pdUrl('/api/product-dev/timeline')).then(function(r) { return r.ok ? r.json() : []; }).then(function(timeline) {
             renderPdTimeline(timeline);
           }).catch(function() {});
         });
@@ -2961,6 +3001,26 @@
           showModal(newWsModal);
         });
       }
+
+      /* ── 功能按钮点击埋点 ── */
+      function trackFunctionClick(btn) {
+        var tag = btn.dataset.funcTag;
+        if (!tag) return;
+        fetch('/api/data/action-events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tag: tag,
+            label: btn.dataset.funcLabel || tag,
+            buttonId: btn.id || btn.className || '',
+            page: 'workspace'
+          })
+        }).catch(function() {});
+      }
+      document.addEventListener('click', function(e) {
+        var btn = e.target.closest && e.target.closest('[data-func-tag]');
+        if (btn) trackFunctionClick(btn);
+      });
 
       /* ── Init ── */
       loadOverview();

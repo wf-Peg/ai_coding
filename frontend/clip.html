@@ -3932,22 +3932,22 @@
                 <div class="clip-detail" data-clip-id="${clip.id}">
                     <div class="content-section">
                         <h4>原文</h4>
-                        <div class="content-text truncated">${renderContent(originalContent)}</div>
+                        <div class="content-text truncated">${renderContent(originalContent, clip.id)}</div>
                         <button class="copy-btn" onclick="copyToClipboard('${escapeJs(originalContent)}')">
                             📋 复制原文
                         </button>
                     ${clip.sourceUrl ? `
                     <div class="source-link" style="margin-top: 8px; transition: opacity 0.2s ease;">
-                        <a href="${escapeHtml(clip.sourceUrl)}" target="_blank" rel="noopener" style="font-size:0.85rem;color:var(--primary);text-decoration:none;display:inline-flex;align-items:center;gap:4px;transition:color 0.2s ease;">
+                        <button class="wiki-link view-original-btn" type="button" onclick="openClipInEditorNewTab(${clip.id})" title="在编辑器中打开原文" style="font-size:0.85rem;color:var(--primary);text-decoration:underline;background:none;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:4px;padding:0;min-width:auto;transition:color 0.2s ease;flex:none;">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                            查看原始网页
-                        </a>
+                            查看
+                        </button>
                     </div>
                     ` : ''}
                     ${clip.sourceFilePath ? `
                     <div class="source-file" style="font-size:0.82rem;color:var(--text-secondary);margin-top:4px;display:flex;align-items:center;gap:4px;padding:2px 0;">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                        源文件: ${escapeHtml(clip.sourceFilePath)}
+                        <span class="wiki-link" onclick="openClipInEditorNewTab(${clip.id})" title="在编辑器中打开 Clipper 文档" style="cursor:pointer;color:var(--primary);text-decoration:underline;">${renderWikiLink(clip.content, clip.id, clip.sourceFilePath)}</span>
                     </div>
                     ` : ''}
                     </div>
@@ -4225,10 +4225,33 @@
         return `<span class="source-badge ${badge.cls}">${escapeHtml(badge.label)}</span>`;
     }
 
-    // 渲染剪藏内容：直接显示纯文本，不再渲染 wiki-link 为可点击链接
-    function renderContent(content) {
+    // 渲染剪藏内容：将 [[path|title]] wiki-link 渲染为可点击链接（点击跳编辑器新标签打开该剪藏），其余部分转义
+    function renderContent(content, clipId) {
         if (!content) return '';
-        return escapeHtml(content);
+        const escaped = escapeHtml(content);
+        if (!clipId) return escaped;
+        // 将 [[path|title]] 或 [[path]] 渲染为可点击链接
+        return escaped.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (full, path, title) => {
+            const label = title || path;
+            return `<a class="wiki-link" href="#" onclick="event.preventDefault(); event.stopPropagation(); openClipInEditorNewTab(${clipId}); return false;" title="在编辑器中打开 ${escapeHtml(path)}">[[${escapeHtml(path)}|${escapeHtml(label)}]]</a>`;
+        });
+    }
+
+    // 渲染 wiki-link：将 [[sources/文件名|标题]] 渲染为可点击链接，点击后在编辑器新标签页打开该 Clipper 文档
+    function renderWikiLink(content, clipId, fallbackLabel) {
+        const match = content && content.match(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/);
+        if (!match) {
+            if (fallbackLabel) return escapeHtml(fallbackLabel);
+            return '';
+        }
+        const path = match[1];
+        const title = match[2] || path;
+        return `<a class="wiki-link" href="#" onclick="event.preventDefault(); event.stopPropagation(); openClipInEditorNewTab(${clipId}); return false;" title="在编辑器中打开 ${escapeHtml(path)}">[[${escapeHtml(path)}|${escapeHtml(title)}]]</a>`;
+    }
+
+    // 跳转编辑器模块：在新标签页（类似 Ctrl+T）打开该剪藏文档
+    function openClipInEditorNewTab(clipId) {
+        window.parent.postMessage({ type: 'openClipInNewTab', clipId }, '*');
     }
 
     // 在 Obsidian 中打开指定路径的笔记

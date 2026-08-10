@@ -302,12 +302,30 @@ public class FileStorageService {
             }
             JsonNode root = objectMapper.readTree(content);
             if (root.isArray()) {
-                return objectMapper.convertValue(root, new TypeReference<List<ClipContent>>() {});
+                List<ClipContent> result = new ArrayList<>();
+                for (int i = 0; i < root.size(); i++) {
+                    try {
+                        ClipContent clip = objectMapper.treeToValue(root.get(i), ClipContent.class);
+                        result.add(clip);
+                    } catch (Exception e) {
+                        log.warn("[FileStorageService] Skipping clip entry at index {} in file {}: {}", i, path, e.getMessage());
+                    }
+                }
+                return result;
             }
             if (root.isObject()) {
                 JsonNode clipsNode = root.get("clips");
                 if (clipsNode != null && clipsNode.isArray()) {
-                    return objectMapper.convertValue(clipsNode, new TypeReference<List<ClipContent>>() {});
+                    List<ClipContent> result = new ArrayList<>();
+                    for (int i = 0; i < clipsNode.size(); i++) {
+                        try {
+                            ClipContent clip = objectMapper.treeToValue(clipsNode.get(i), ClipContent.class);
+                            result.add(clip);
+                        } catch (Exception e) {
+                            log.warn("[FileStorageService] Skipping clip entry at index {} in clips node of file {}: {}", i, path, e.getMessage());
+                        }
+                    }
+                    return result;
                 }
                 if (!root.has("id") && !root.has("content") && !root.has("title")) {
                     log.warn("[FileStorageService] Skipping non-clip JSON file: {}", path);

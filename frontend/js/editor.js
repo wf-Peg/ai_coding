@@ -2527,8 +2527,11 @@
     const tags = elements.clipTagsInput.value.split(/[,，]/).map(tag => tag.trim()).filter(Boolean).slice(0, 10);
     const parsed = parseStructuredContent(context.content);
     const effectiveTags = tags.length > 0 ? tags : parsed.tags.slice(0, 10);
+    // 编辑 Web Clipper 剪藏时，正文写回 bodyContent（保留 content 中的 wiki-link）
+    const isWebClipperEdit = state.clipId && state.clipMetadata && state.clipMetadata.hasBodyContent;
     const payload = {
-      content: context.content,
+      content: isWebClipperEdit ? (state.originalClipContent || '') : context.content,
+      bodyContent: isWebClipperEdit ? context.content : undefined,
       title: elements.clipTitleInput.value.trim() || parsed.title || state.fileName,
       type,
       source: 'editor',
@@ -2586,19 +2589,23 @@
       const clip = await response.json();
       state.clipId = clip.id;
       state.clipType = clip.type || 'store-only';
+      state.originalClipContent = clip.content || '';
       state.clipMetadata = {
         title: clip.title,
         category: clip.category,
         tags: clip.tags || [],
-        myThoughts: clip.myThoughts
+        myThoughts: clip.myThoughts,
+        hasBodyContent: !!(clip.bodyContent && clip.bodyContent.trim())
       };
-      const format = clip.contentFormat || EditorCore.detectLanguage(clip.sourceFileName || clip.title, clip.content);
-      setEditorContent(clip.content || '', {
+      // 优先显示源文件正文（Web Clipper 文档），否则显示 content（可能为 wiki-link）
+      const editorContent = (clip.bodyContent && clip.bodyContent.trim()) ? clip.bodyContent : (clip.content || '');
+      const format = clip.contentFormat || EditorCore.detectLanguage(clip.sourceFileName || clip.title, editorContent);
+      setEditorContent(editorContent, {
         fileName: clip.sourceFileName || `${clip.title || `clip-${clip.id}`}.${format === 'text' ? 'txt' : format}`,
         displayPath: `剪藏 #${clip.id}`,
         encoding: clip.sourceEncoding || 'UTF-8',
         encodingConfidence: '剪藏元数据',
-        lineEnding: clip.sourceLineEnding || EditorCore.detectLineEnding(clip.content || ''),
+        lineEnding: clip.sourceLineEnding || EditorCore.detectLineEnding(editorContent),
         language: format
       });
       state.clipId = clip.id;
@@ -2631,19 +2638,23 @@
 
       state.clipId = clip.id;
       state.clipType = clip.type || 'store-only';
+      state.originalClipContent = clip.content || '';
       state.clipMetadata = {
         title: clip.title,
         category: clip.category,
         tags: clip.tags || [],
-        myThoughts: clip.myThoughts
+        myThoughts: clip.myThoughts,
+        hasBodyContent: !!(clip.bodyContent && clip.bodyContent.trim())
       };
-      const format = clip.contentFormat || EditorCore.detectLanguage(clip.sourceFileName || clip.title, clip.content);
-      setEditorContent(clip.content || '', {
+      // 优先显示源文件正文（Web Clipper 文档），否则显示 content（可能为 wiki-link）
+      const editorContent = (clip.bodyContent && clip.bodyContent.trim()) ? clip.bodyContent : (clip.content || '');
+      const format = clip.contentFormat || EditorCore.detectLanguage(clip.sourceFileName || clip.title, editorContent);
+      setEditorContent(editorContent, {
         fileName: clip.sourceFileName || `${clip.title || `clip-${clip.id}`}.${format === 'text' ? 'txt' : format}`,
         displayPath: `剪藏 #${clip.id}`,
         encoding: clip.sourceEncoding || 'UTF-8',
         encodingConfidence: '剪藏元数据',
-        lineEnding: clip.sourceLineEnding || EditorCore.detectLineEnding(clip.content || ''),
+        lineEnding: clip.sourceLineEnding || EditorCore.detectLineEnding(editorContent),
         language: format
       });
       state.clipId = clip.id;

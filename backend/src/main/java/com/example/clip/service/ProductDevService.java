@@ -812,15 +812,52 @@ public class ProductDevService {
     // ==================== 统计与仪表盘数据 ====================
 
     /**
+     * 按标签过滤记录列表
+     * <p>
+     * 对 {@code ProductDevRecord.tags} 做精确匹配；tag 为空或 null 时不过滤。
+     * </p>
+     *
+     * @param records 原始记录列表
+     * @param tag     标签值（可为空）
+     * @return 过滤后的记录列表
+     */
+    private List<ProductDevRecord> filterByTag(List<ProductDevRecord> records, String tag) {
+        if (tag == null || tag.isBlank()) return records;
+        return records.stream()
+                .filter(r -> r.getTags() != null && r.getTags().contains(tag))
+                .toList();
+    }
+
+    /**
+     * 获取所有记录中的去重标签列表
+     * <p>
+     * 供产品开发工作区标签筛选条渲染使用，不受当前筛选影响，按字典序排序。
+     * </p>
+     *
+     * @return 去重后的标签列表
+     */
+    public List<String> getTags() {
+        return readAllRecords().stream()
+                .map(ProductDevRecord::getTags)
+                .filter(tags -> tags != null)
+                .flatMap(List::stream)
+                .filter(tag -> tag != null && !tag.isBlank())
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    /**
      * 获取仪表盘统计数据
      * <p>
      * 返回总数、各阶段数量、归档数量、知识数量、待办数量等。
      * </p>
      *
+     * @param tag 标签筛选（可为空）
      * @return 统计数据 Map
      */
-    public Map<String, Object> getStats() {
-        List<ProductDevRecord> records = readAllRecords();
+    public Map<String, Object> getStats(String tag) {
+        List<ProductDevRecord> records = filterByTag(readAllRecords(), tag);
         Map<String, Object> stats = new LinkedHashMap<>();
 
         long total = records.size();
@@ -856,10 +893,11 @@ public class ProductDevService {
      * 按 phase 字段分组统计数量，用于柱状图展示。
      * </p>
      *
+     * @param tag 标签筛选（可为空）
      * @return 阶段分布列表，每个元素包含 phase 名称和对应数量
      */
-    public List<Map<String, Object>> getPhaseDistribution() {
-        List<ProductDevRecord> records = readAllRecords();
+    public List<Map<String, Object>> getPhaseDistribution(String tag) {
+        List<ProductDevRecord> records = filterByTag(readAllRecords(), tag);
         // 仅统计 requirement 类型，按 phase 分组
         Map<String, Long> phaseCounts = records.stream()
                 .filter(r -> "requirement".equals(r.getType()))
@@ -896,10 +934,11 @@ public class ProductDevService {
      * 统计所有 type=todo 的记录中，status=done 的比例。
      * </p>
      *
+     * @param tag 标签筛选（可为空）
      * @return 待办完成率 Map（包含已完成数、总数、百分比）
      */
-    public Map<String, Object> getTodoCompletion() {
-        List<ProductDevRecord> records = readAllRecords();
+    public Map<String, Object> getTodoCompletion(String tag) {
+        List<ProductDevRecord> records = filterByTag(readAllRecords(), tag);
         List<ProductDevRecord> todos = records.stream()
                 .filter(r -> "todo".equals(r.getType()))
                 .toList();
@@ -921,10 +960,11 @@ public class ProductDevService {
      * 按月统计 type=knowledge 的记录数量，用于折线图展示。
      * </p>
      *
+     * @param tag 标签筛选（可为空）
      * @return 知识趋势列表，每个元素包含月份和数量
      */
-    public List<Map<String, Object>> getKnowledgeTrend() {
-        List<ProductDevRecord> records = readAllRecords();
+    public List<Map<String, Object>> getKnowledgeTrend(String tag) {
+        List<ProductDevRecord> records = filterByTag(readAllRecords(), tag);
         List<ProductDevRecord> knowledgeRecords = records.stream()
                 .filter(r -> "knowledge".equals(r.getType()))
                 .filter(r -> r.getCreatedAt() != null)
@@ -956,10 +996,11 @@ public class ProductDevService {
      * 按 updatedAt 时间倒序排列，最多返回 20 条。
      * </p>
      *
+     * @param tag 标签筛选（可为空）
      * @return 最近活动记录列表
      */
-    public List<Map<String, Object>> getActivities() {
-        List<ProductDevRecord> records = readAllRecords();
+    public List<Map<String, Object>> getActivities(String tag) {
+        List<ProductDevRecord> records = filterByTag(readAllRecords(), tag);
         return records.stream()
                 .filter(r -> r.getUpdatedAt() != null)
                 .sorted((a, b) -> b.getUpdatedAt().compareTo(a.getUpdatedAt()))
@@ -984,10 +1025,11 @@ public class ProductDevService {
      * 按 phase 分组，返回所有 type=requirement 的记录。
      * </p>
      *
+     * @param tag 标签筛选（可为空）
      * @return 需求列表（按看板阶段分组）
      */
-    public List<Map<String, Object>> getRequirements() {
-        List<ProductDevRecord> records = readAllRecords();
+    public List<Map<String, Object>> getRequirements(String tag) {
+        List<ProductDevRecord> records = filterByTag(readAllRecords(), tag);
         List<ProductDevRecord> requirements = records.stream()
                 .filter(r -> "requirement".equals(r.getType()))
                 .toList();
@@ -1042,10 +1084,11 @@ public class ProductDevService {
      * 通过 relatedId 关联关系构建边。
      * </p>
      *
+     * @param tag 标签筛选（可为空）
      * @return 图谱数据 Map（包含 nodes 和 edges）
      */
-    public Map<String, Object> getGraph() {
-        List<ProductDevRecord> records = readAllRecords();
+    public Map<String, Object> getGraph(String tag) {
+        List<ProductDevRecord> records = filterByTag(readAllRecords(), tag);
         List<Map<String, Object>> nodes = new ArrayList<>();
         List<Map<String, Object>> edges = new ArrayList<>();
 
@@ -1097,10 +1140,11 @@ public class ProductDevService {
      * 按 createdAt 时间排序的所有记录，用于甘特图展示。
      * </p>
      *
+     * @param tag 标签筛选（可为空）
      * @return 时间线数据列表
      */
-    public List<Map<String, Object>> getTimeline() {
-        List<ProductDevRecord> records = readAllRecords();
+    public List<Map<String, Object>> getTimeline(String tag) {
+        List<ProductDevRecord> records = filterByTag(readAllRecords(), tag);
         return records.stream()
                 .filter(r -> r.getCreatedAt() != null)
                 .sorted(Comparator.comparing(ProductDevRecord::getCreatedAt))
@@ -1125,10 +1169,11 @@ public class ProductDevService {
      * 返回所有 source=archive 或 source=migrate 的记录，按更新时间倒序排列。
      * </p>
      *
+     * @param tag 标签筛选（可为空）
      * @return 归档记录列表
      */
-    public List<Map<String, Object>> getArchives() {
-        List<ProductDevRecord> records = readAllRecords();
+    public List<Map<String, Object>> getArchives(String tag) {
+        List<ProductDevRecord> records = filterByTag(readAllRecords(), tag);
         return records.stream()
                 .filter(r -> "archive".equals(r.getSource()) || "migrate".equals(r.getSource()))
                 .sorted((a, b) -> {

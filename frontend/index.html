@@ -478,35 +478,35 @@
     <div class="backend-global-indicator" id="backendGlobalIndicator" title="后端服务状态，点击启动">
         <span class="backend-global-dot stopped" id="backendGlobalDot"></span>
         <span class="backend-global-label" id="backendGlobalLabel">后端未启动</span>
-        <button class="backend-global-start-btn" id="backendGlobalStartBtn">启动后端</button>
+        <button class="backend-global-start-btn" id="backendGlobalStartBtn" title="启动本地后端服务，建立数据读写通道">启动后端</button>
     </div>
     <nav class="titlebar-nav" id="titlebarNav">
-        <button class="nav-btn active" data-view="editor">
+        <button class="nav-btn active" data-view="editor" title="编辑器主页：查看与编辑剪藏内容">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/>
             </svg>
             编辑
         </button>
-        <button class="nav-btn" data-view="workspace">
+        <button class="nav-btn" data-view="workspace" title="工作台：工作区概览、规则筛选与产品开发工作区">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M8 4v16"/>
             </svg>
             工作台
         </button>
-        <button class="nav-btn" data-view="clip">
+        <button class="nav-btn" data-view="clip" title="剪藏与待办：管理收集的内容与待办事项">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
                 <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
             </svg>
             剪藏
         </button>
-        <button class="nav-btn" data-view="knowledge">
+        <button class="nav-btn" data-view="knowledge" title="知识库管理：维护知识笔记与标签">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
             </svg>
             知识
         </button>
-        <button class="nav-btn" data-view="wiki">
+        <button class="nav-btn" data-view="wiki" title="Wiki 知识库：结构化文档协作空间">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
                 <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
@@ -514,34 +514,34 @@
             </svg>
             Wiki
         </button>
-        <button class="nav-btn" data-view="vault">
+        <button class="nav-btn" data-view="vault" title="密码保险库：查看与搜索凭据记录">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="11" width="18" height="11" rx="2"/>
                 <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
             </svg>
             密码
         </button>
-        <button class="nav-btn" data-view="learning-plan">
+        <button class="nav-btn" data-view="learning-plan" title="学习计划：维护学习目标与计划">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 14l9-5-9-5-9 5 9 5z"/>
                 <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/>
             </svg>
             学习
         </button>
-        <button class="nav-btn" data-view="pdf">
+        <button class="nav-btn" data-view="pdf" title="PDF 工具：读取、OCR 与转换 PDF 文档">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                 <polyline points="14 2 14 8 20 8"/>
             </svg>
             PDF
         </button>
-        <button class="nav-btn" data-view="data-observability">
+        <button class="nav-btn" data-view="data-observability" title="数据观测台：查看使用习惯与事件统计">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M4 19V5M4 19h16"/><path d="M7 15l3-4 3 2 5-7"/><circle cx="7" cy="15" r="1"/><circle cx="10" cy="11" r="1"/><circle cx="13" cy="13" r="1"/><circle cx="18" cy="6" r="1"/>
             </svg>
             观测
         </button>
-        <button class="nav-btn" data-view="settings">
+        <button class="nav-btn" data-view="settings" title="应用设置：调整偏好与全局配置">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
             </svg>
@@ -1066,6 +1066,11 @@
         // ====== 后端就绪 → 自动刷新子页面 ======
         // 最近一次后端就绪刷新的时间戳（去重：多个 onBackendReady 回调只触发一次刷新）
         var lastBackendRefreshAt = 0;
+        // 已广播过 refresh 的 frame 集合，用于切断「refresh → 子页 reload → load → refresh」的无限循环
+        var refreshedFrameSet = new Set();
+        function frameLoaded(frame) {
+          try { return frame && frame.contentDocument && frame.contentDocument.readyState === 'complete'; } catch (e) { return false; }
+        }
         function handleBackendReady() {
           backendReadyFlag = true;
           setGlobalBackendState(BACKEND_STATE.READY, '后端已就绪');
@@ -1079,7 +1084,13 @@
         function refreshAllSubPages() {
           // 注意：不刷新 editorFrame（避免打断用户正在编辑的内容）
           [workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, learningPlanFrame, pdfFrame, dataObservabilityFrame, settingsFrame].forEach(function(frame) {
-            try { if (frame && frame.contentWindow) frame.contentWindow.postMessage({ action: 'refresh' }, '*'); } catch (e) {}
+            try {
+              if (frame && frame.contentWindow) {
+                frame.contentWindow.postMessage({ action: 'refresh' }, '*');
+                // 仅当 frame 已加载完成才标记为已广播；未加载完的交给下方 load 兜底补发
+                if (frameLoaded(frame)) refreshedFrameSet.add(frame);
+              }
+            } catch (e) {}
           });
         }
 
@@ -1196,12 +1207,16 @@
           });
         }
 
-        // 时序竞态兜底：子页面 iframe 在 backend-ready 事件之后才加载完成时，补发一次刷新
+        // 时序竞态兜底：子页面 iframe 在 backend-ready 事件之后才加载完成时，补发一次刷新。
+        // 仅对「未被 refreshAllSubPages 广播过」的 frame 补发，避免 refresh → reload → load → refresh 无限循环
         [workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, learningPlanFrame, pdfFrame, dataObservabilityFrame, settingsFrame].forEach(function(frame) {
           if (!frame) return;
           frame.addEventListener('load', function() {
             try {
-              if (backendReadyFlag && frame.contentWindow) frame.contentWindow.postMessage({ action: 'refresh' }, '*');
+              if (backendReadyFlag && frame.contentWindow && !refreshedFrameSet.has(frame)) {
+                refreshedFrameSet.add(frame);
+                frame.contentWindow.postMessage({ action: 'refresh' }, '*');
+              }
             } catch (e) {}
           });
         });

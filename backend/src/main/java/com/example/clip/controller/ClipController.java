@@ -395,8 +395,8 @@ public class ClipController {
             return ResponseEntity.ok(clip.getDivergentSummary());
         }
 
-        // 调用 AI 生成发散性总结，并将结果持久化到数据库
-        String summary = aiService.generateDivergentSummary(clip.getContent(), clip.getCategory(), clip.getTags());
+        // 调用 AI 生成发散性总结，并将结果持久化到数据库（Web Clipper 剪藏优先使用 bodyContent 正文）
+        String summary = aiService.generateDivergentSummary(clipService.resolveAiSourceText(clip), clip.getCategory(), clip.getTags());
         clip.setDivergentSummary(summary);
         clipService.saveClip(clip);
         return ResponseEntity.ok(summary);

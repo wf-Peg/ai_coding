@@ -11,6 +11,7 @@ import java.util.List;
 public class ClipEditRequest {
 
     private String content;
+    private String bodyContent;
     private String title;
     private String type;
     private String category;
@@ -27,6 +28,8 @@ public class ClipEditRequest {
 
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
+    public String getBodyContent() { return bodyContent; }
+    public void setBodyContent(String bodyContent) { this.bodyContent = bodyContent; }
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
     public String getType() { return type; }

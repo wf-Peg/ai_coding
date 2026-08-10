@@ -917,13 +917,15 @@ function startFrontendServer(config) {
       const urlPath = req.url || '';
       if (urlPath.startsWith('/api/')) {
         const isAiStream = urlPath.startsWith('/api/ai/chat/stream');
+        const isWikiQuery = urlPath.startsWith('/api/wiki/query');
+        const noTimeout = isAiStream || isWikiQuery;
         const proxyReq = http.request({
           hostname: '127.0.0.1',
           port: config.backendPort,
           path: urlPath,
           method: req.method,
           headers: req.headers,
-          timeout: isAiStream ? 0 : 30000
+          timeout: noTimeout ? 0 : 30000
         }, (proxyRes) => {
           const responseHeaders = { ...proxyRes.headers };
           if (isAiStream) {

@@ -412,11 +412,12 @@ public class ClipService {
         try {
             // 检测是否有用户思考，有则使用带思考的 AI 分析方法
             String myThoughts = clipContent.getMyThoughts();
+            String sourceText = resolveAiSourceText(clipContent);
             Map<String, Object> aiResult;
             if (myThoughts != null && !myThoughts.trim().isEmpty()) {
-                aiResult = aiService.processClipContent(clipContent.getContent(), useAiCategory, myThoughts);
+                aiResult = aiService.processClipContent(sourceText, useAiCategory, myThoughts);
             } else {
-                aiResult = aiService.processClipContent(clipContent.getContent(), useAiCategory);
+                aiResult = aiService.processClipContent(sourceText, useAiCategory);
             }
             // 提取各字段，若 AI 未返回则使用默认值
             clipContent.setSummary((String) aiResult.getOrDefault("summary", "摘要生成失败"));
@@ -516,6 +517,10 @@ public class ClipService {
                     && (clip.getSummary() == null || clip.getSummary().equals(previousContent))) {
                 clip.setSummary(request.getContent());
             }
+        }
+        // Web Clipper 剪藏：正文单独存于 bodyContent，编辑保存时更新正文并保留 content 中的 wiki-link
+        if (request.getBodyContent() != null) {
+            clip.setBodyContent(request.getBodyContent());
         }
         if (request.getTitle() != null) {
             clip.setTitle(request.getTitle().trim());
@@ -758,6 +763,27 @@ public class ClipService {
     }
 
     /**
+     * 获取用于 AI 分析的源文本。
+     * <p>
+     * Web Clipper 同步的剪藏中 {@code content} 仅保留 Obsidian wiki-link 引用，
+     * 真实正文存放在 {@code bodyContent}。AI 整理、发散总结等方法应优先使用
+     * bodyContent，避免把 wiki-link 文本直接交给大模型。
+     * </p>
+     *
+     * @param clip 剪藏对象
+     * @return AI 分析用的源文本（bodyContent 非空时优先，否则退回 content）
+     */
+    public String resolveAiSourceText(ClipContent clip) {
+        if (clip == null) {
+            return null;
+        }
+        if (clip.getBodyContent() != null && !clip.getBodyContent().isBlank()) {
+            return clip.getBodyContent();
+        }
+        return clip.getContent();
+    }
+
+    /**
      * 自动整理单个剪藏（轻量版，仅设置分类和标签）
      * <p>
      * 调用 AI 的 smartOrganize 方法，仅获取分类和标签建议。
@@ -765,11 +791,12 @@ public class ClipService {
      * </p>
      */
     private void applyAutoOrganize(ClipContent clip) {
-        if (clip == null || clip.getContent() == null || clip.getContent().isBlank()) {
+        String sourceText = resolveAiSourceText(clip);
+        if (sourceText == null || sourceText.isBlank()) {
             return;
         }
 
-        Map<String, Object> aiResult = aiService.smartOrganize(clip.getContent());
+        Map<String, Object> aiResult = aiService.smartOrganize(sourceText);
         Object category = aiResult.get("category");
         // 仅当剪藏未设置分类时才覆盖
         if ((clip.getCategory() == null || clip.getCategory().isBlank()) && category instanceof String cat && !cat.isBlank()) {
@@ -803,11 +830,12 @@ public class ClipService {
      * </p>
      */
     private void applyFullAiOrganize(ClipContent clip) {
-        if (clip == null || clip.getContent() == null || clip.getContent().isBlank()) {
+        String sourceText = resolveAiSourceText(clip);
+        if (sourceText == null || sourceText.isBlank()) {
             return;
         }
 
-        Map<String, Object> aiResult = aiService.processClipContent(clip.getContent(), true);
+        Map<String, Object> aiResult = aiService.processClipContent(sourceText, true);
         // 使用类型安全的方式提取各字段
         Object summary = aiResult.get("summary");
         if (summary instanceof String value && !value.isBlank()) {
@@ -1000,8 +1028,9 @@ public class ClipService {
             ClipContent clip = storageService.getClipById(clipId.toString());
             if (clip != null) {
                 // 分别调用 AI 生成摘要和分析
-                String summary = aiService.generateSummary(clip.getContent());
-                String analysis = aiService.analyzeContent(clip.getContent());
+                String sourceText = resolveAiSourceText(clip);
+                String summary = aiService.generateSummary(sourceText);
+                String analysis = aiService.analyzeContent(sourceText);
                 clip.setSummary(summary);
                 clip.setAnalysis(analysis);
                 storageService.saveClip(clip);

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
@@ -31,8 +32,9 @@ import java.util.UUID;
  *
  * <h3>端点汇总</h3>
  * <ul>
- *   <li>GET  /api/product-dev/stats               - 仪表盘统计数据</li>
- *   <li>GET  /api/product-dev/phase-distribution   - 各阶段需求分布</li>
+ *   <li>GET  /api/product-dev/tags               - 全部记录的去重标签列表</li>
+ *   <li>GET  /api/product-dev/stats              - 仪表盘统计数据</li>
+ *   <li>GET  /api/product-dev/phase-distribution  - 各阶段需求分布</li>
  *   <li>GET  /api/product-dev/todo-completion      - 待办完成率</li>
  *   <li>GET  /api/product-dev/knowledge-trend      - 知识积累趋势</li>
  *   <li>GET  /api/product-dev/activities           - 最近活动记录</li>
@@ -43,6 +45,7 @@ import java.util.UUID;
  *   <li>POST /api/product-dev/archive              - 创建归档条目</li>
  *   <li>POST /api/product-dev/migrate              - 触发历史迁移</li>
  * </ul>
+ * <p>除 /tags 外的 GET 接口均支持可选查询参数 {@code tag}，按记录 tags 精确匹配过滤。</p>
  *
  * @see ProductDevService
  * @see ProductDevRecord
@@ -67,18 +70,38 @@ public class ProductDevController {
     }
 
     /**
+     * 获取全部记录的去重标签列表
+     * <p>
+     * 返回 records.json 中所有记录标签的去重排序结果，供前端标签筛选条渲染。
+     * </p>
+     *
+     * @return 去重标签列表
+     */
+    @GetMapping("/tags")
+    public ResponseEntity<List<String>> getTags() {
+        log.info("[ProductDevController] GET /api/product-dev/tags");
+        try {
+            return ResponseEntity.ok(productDevService.getTags());
+        } catch (Exception e) {
+            log.error("[ProductDevController] 获取标签列表失败: {}", e.getMessage(), e);
+            return ResponseEntity.ok(List.of());
+        }
+    }
+
+    /**
      * 获取仪表盘统计数据
      * <p>
      * 返回总数、各阶段数量、归档数量、知识数量、待办数量等。
      * </p>
      *
+     * @param tag 标签筛选（可为空）
      * @return 统计数据 Map
      */
     @GetMapping("/stats")
-    public ResponseEntity<Map<String, Object>> getStats() {
-        log.info("[ProductDevController] GET /api/product-dev/stats");
+    public ResponseEntity<Map<String, Object>> getStats(@RequestParam(required = false) String tag) {
+        log.info("[ProductDevController] GET /api/product-dev/stats tag={}", tag);
         try {
-            Map<String, Object> stats = productDevService.getStats();
+            Map<String, Object> stats = productDevService.getStats(tag);
             return ResponseEntity.ok(stats);
         } catch (Exception e) {
             log.error("[ProductDevController] 获取统计数据失败: {}", e.getMessage(), e);
@@ -92,13 +115,14 @@ public class ProductDevController {
      * 按 phase 字段分组统计数量，用于柱状图展示。
      * </p>
      *
+     * @param tag 标签筛选（可为空）
      * @return 阶段分布列表
      */
     @GetMapping("/phase-distribution")
-    public ResponseEntity<List<Map<String, Object>>> getPhaseDistribution() {
-        log.info("[ProductDevController] GET /api/product-dev/phase-distribution");
+    public ResponseEntity<List<Map<String, Object>>> getPhaseDistribution(@RequestParam(required = false) String tag) {
+        log.info("[ProductDevController] GET /api/product-dev/phase-distribution tag={}", tag);
         try {
-            List<Map<String, Object>> distribution = productDevService.getPhaseDistribution();
+            List<Map<String, Object>> distribution = productDevService.getPhaseDistribution(tag);
             return ResponseEntity.ok(distribution);
         } catch (Exception e) {
             log.error("[ProductDevController] 获取阶段分布失败: {}", e.getMessage(), e);
@@ -112,13 +136,14 @@ public class ProductDevController {
      * 统计所有 type=todo 的记录中，status=done 的比例。
      * </p>
      *
+     * @param tag 标签筛选（可为空）
      * @return 待办完成率 Map（包含已完成数、总数、百分比）
      */
     @GetMapping("/todo-completion")
-    public ResponseEntity<Map<String, Object>> getTodoCompletion() {
-        log.info("[ProductDevController] GET /api/product-dev/todo-completion");
+    public ResponseEntity<Map<String, Object>> getTodoCompletion(@RequestParam(required = false) String tag) {
+        log.info("[ProductDevController] GET /api/product-dev/todo-completion tag={}", tag);
         try {
-            Map<String, Object> completion = productDevService.getTodoCompletion();
+            Map<String, Object> completion = productDevService.getTodoCompletion(tag);
             return ResponseEntity.ok(completion);
         } catch (Exception e) {
             log.error("[ProductDevController] 获取待办完成率失败: {}", e.getMessage(), e);
@@ -132,13 +157,14 @@ public class ProductDevController {
      * 按月统计 type=knowledge 的记录数量，用于折线图展示。
      * </p>
      *
+     * @param tag 标签筛选（可为空）
      * @return 知识趋势列表
      */
     @GetMapping("/knowledge-trend")
-    public ResponseEntity<List<Map<String, Object>>> getKnowledgeTrend() {
-        log.info("[ProductDevController] GET /api/product-dev/knowledge-trend");
+    public ResponseEntity<List<Map<String, Object>>> getKnowledgeTrend(@RequestParam(required = false) String tag) {
+        log.info("[ProductDevController] GET /api/product-dev/knowledge-trend tag={}", tag);
         try {
-            List<Map<String, Object>> trend = productDevService.getKnowledgeTrend();
+            List<Map<String, Object>> trend = productDevService.getKnowledgeTrend(tag);
             return ResponseEntity.ok(trend);
         } catch (Exception e) {
             log.error("[ProductDevController] 获取知识趋势失败: {}", e.getMessage(), e);
@@ -152,13 +178,14 @@ public class ProductDevController {
      * 按 updatedAt 时间倒序排列，最多返回 20 条。
      * </p>
      *
+     * @param tag 标签筛选（可为空）
      * @return 最近活动记录列表
      */
     @GetMapping("/activities")
-    public ResponseEntity<List<Map<String, Object>>> getActivities() {
-        log.info("[ProductDevController] GET /api/product-dev/activities");
+    public ResponseEntity<List<Map<String, Object>>> getActivities(@RequestParam(required = false) String tag) {
+        log.info("[ProductDevController] GET /api/product-dev/activities tag={}", tag);
         try {
-            List<Map<String, Object>> activities = productDevService.getActivities();
+            List<Map<String, Object>> activities = productDevService.getActivities(tag);
             return ResponseEntity.ok(activities);
         } catch (Exception e) {
             log.error("[ProductDevController] 获取活动记录失败: {}", e.getMessage(), e);
@@ -172,13 +199,14 @@ public class ProductDevController {
      * 按 phase 分组返回所有 type=requirement 的记录，用于看板展示。
      * </p>
      *
+     * @param tag 标签筛选（可为空）
      * @return 需求列表（按看板阶段分组）
      */
     @GetMapping("/requirements")
-    public ResponseEntity<List<Map<String, Object>>> getRequirements() {
-        log.info("[ProductDevController] GET /api/product-dev/requirements");
+    public ResponseEntity<List<Map<String, Object>>> getRequirements(@RequestParam(required = false) String tag) {
+        log.info("[ProductDevController] GET /api/product-dev/requirements tag={}", tag);
         try {
-            List<Map<String, Object>> requirements = productDevService.getRequirements();
+            List<Map<String, Object>> requirements = productDevService.getRequirements(tag);
             return ResponseEntity.ok(requirements);
         } catch (Exception e) {
             log.error("[ProductDevController] 获取需求列表失败: {}", e.getMessage(), e);
@@ -193,13 +221,14 @@ public class ProductDevController {
      * 通过 relatedId 关联关系构建边，用于力导向图展示。
      * </p>
      *
+     * @param tag 标签筛选（可为空）
      * @return 图谱数据 Map（包含 nodes 和 edges）
      */
     @GetMapping("/graph")
-    public ResponseEntity<Map<String, Object>> getGraph() {
-        log.info("[ProductDevController] GET /api/product-dev/graph");
+    public ResponseEntity<Map<String, Object>> getGraph(@RequestParam(required = false) String tag) {
+        log.info("[ProductDevController] GET /api/product-dev/graph tag={}", tag);
         try {
-            Map<String, Object> graph = productDevService.getGraph();
+            Map<String, Object> graph = productDevService.getGraph(tag);
             return ResponseEntity.ok(graph);
         } catch (Exception e) {
             log.error("[ProductDevController] 获取知识图谱失败: {}", e.getMessage(), e);
@@ -213,13 +242,14 @@ public class ProductDevController {
      * 按 createdAt 时间排序的所有记录，用于甘特图展示。
      * </p>
      *
+     * @param tag 标签筛选（可为空）
      * @return 时间线数据列表
      */
     @GetMapping("/timeline")
-    public ResponseEntity<List<Map<String, Object>>> getTimeline() {
-        log.info("[ProductDevController] GET /api/product-dev/timeline");
+    public ResponseEntity<List<Map<String, Object>>> getTimeline(@RequestParam(required = false) String tag) {
+        log.info("[ProductDevController] GET /api/product-dev/timeline tag={}", tag);
         try {
-            List<Map<String, Object>> timeline = productDevService.getTimeline();
+            List<Map<String, Object>> timeline = productDevService.getTimeline(tag);
             return ResponseEntity.ok(timeline);
         } catch (Exception e) {
             log.error("[ProductDevController] 获取时间线数据失败: {}", e.getMessage(), e);
@@ -233,13 +263,14 @@ public class ProductDevController {
      * 返回所有 source=archive 或 source=migrate 的记录，按更新时间倒序排列。
      * </p>
      *
+     * @param tag 标签筛选（可为空）
      * @return 归档记录列表
      */
     @GetMapping("/archives")
-    public ResponseEntity<List<Map<String, Object>>> getArchives() {
-        log.info("[ProductDevController] GET /api/product-dev/archives");
+    public ResponseEntity<List<Map<String, Object>>> getArchives(@RequestParam(required = false) String tag) {
+        log.info("[ProductDevController] GET /api/product-dev/archives tag={}", tag);
         try {
-            List<Map<String, Object>> archives = productDevService.getArchives();
+            List<Map<String, Object>> archives = productDevService.getArchives(tag);
             return ResponseEntity.ok(archives);
         } catch (Exception e) {
             log.error("[ProductDevController] 获取归档列表失败: {}", e.getMessage(), e);

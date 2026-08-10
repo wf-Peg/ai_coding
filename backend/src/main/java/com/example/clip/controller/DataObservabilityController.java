@@ -3,6 +3,7 @@ package com.example.clip.controller;
 import com.example.clip.index.ActionEvent;
 import com.example.clip.index.ActionEventService;
 import com.example.clip.index.ContentIndexService;
+import com.example.clip.index.EventTypes;
 import com.example.clip.index.HabitProfile;
 import com.example.clip.index.HabitProfileService;
 import com.example.clip.index.Workspace;
@@ -11,6 +12,7 @@ import com.example.clip.index.WorkspaceMembership;
 import com.example.clip.service.AppConfigService;
 import com.example.clip.service.ExceptionLogService;
 import com.example.clip.service.FileStorageService;
+import com.example.clip.service.UserActionEventRecorder;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -44,13 +46,16 @@ public class DataObservabilityController {
     private final AppConfigService appConfigService;
     private final FileStorageService fileStorageService;
     private final ExceptionLogService exceptionLogService;
+    private final UserActionEventRecorder userActionEventRecorder;
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     public DataObservabilityController(AppConfigService appConfigService, FileStorageService fileStorageService,
-                                       ExceptionLogService exceptionLogService) {
+                                       ExceptionLogService exceptionLogService,
+                                       UserActionEventRecorder userActionEventRecorder) {
         this.appConfigService = appConfigService;
         this.fileStorageService = fileStorageService;
         this.exceptionLogService = exceptionLogService;
+        this.userActionEventRecorder = userActionEventRecorder;
     }
 
     @GetMapping("/overview")
@@ -174,6 +179,38 @@ public class DataObservabilityController {
             result.put("workspaceCount", 0);
             result.put("error", e.getMessage());
         }
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * 接收前端功能按钮点击埋点
+     * <p>
+     * 每个功能按钮点击记录为一条 {@link EventTypes#BUTTON_CLICKED} 事件，
+     * 功能标签（tag）存入 metadata，为后续功能标签设计逻辑与学习模块细化做准备。
+     * 请求体：{ tag, label, buttonId, page }，best-effort 记录，失败不阻断业务。
+     * </p>
+     *
+     * @param body 埋点数据
+     * @return 记录结果
+     */
+    @PostMapping("/action-events")
+    public ResponseEntity<Map<String, Object>> recordActionEvent(@RequestBody Map<String, String> body) {
+        String tag = body.getOrDefault("tag", "");
+        String label = body.getOrDefault("label", tag);
+        String buttonId = body.getOrDefault("buttonId", "");
+        String page = body.getOrDefault("page", "workspace");
+        String source = body.getOrDefault("source", "frontend");
+
+        Map<String, String> metadata = new LinkedHashMap<>();
+        metadata.put("tag", tag);
+        metadata.put("label", label);
+        metadata.put("buttonId", buttonId);
+        metadata.put("page", page);
+        userActionEventRecorder.record(EventTypes.BUTTON_CLICKED, null, null, source, metadata);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("success", true);
+        result.put("message", "已记录");
         return ResponseEntity.ok(result);
     }
 
