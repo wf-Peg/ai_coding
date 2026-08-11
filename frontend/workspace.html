@@ -57,13 +57,17 @@
     .eyebrow { margin: 0 0 8px; color: var(--ws-primary); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
     .hero h1 { margin: 0; font-size: clamp(24px, 3vw, 32px); line-height: 1.2; letter-spacing: -.035em; }
     .subtitle { max-width: 620px; margin: 10px 0 0; color: var(--ws-muted); }
-    .refresh { display: inline-flex; align-items: center; gap: 7px; flex: none; padding: 9px 13px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-surface); color: var(--ws-text); transition: border-color .16s ease, color .16s ease, transform .16s ease; position: relative; }
-    .refresh:hover { border-color: var(--ws-primary); color: var(--ws-primary); transform: translateY(-1px); }
-    .refresh:disabled { cursor: wait; opacity: .6; transform: none; }
     .refresh-info { position: absolute; top: calc(100% + 6px); right: 0; padding: 6px 10px; border-radius: 6px; background: var(--ws-surface); border: 1px solid var(--ws-border); box-shadow: 0 4px 12px rgba(0,0,0,.1); font-size: 12px; color: var(--ws-muted); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .2s ease; z-index: 10; }
     .refresh-info.show { opacity: 1; }
     .refresh-info.success { color: var(--app-success); border-color: var(--app-success); }
     .refresh-info.error { color: var(--ws-danger); border-color: var(--ws-danger); }
+    /* ── Detail View ── */
+    .detail-view { display: none; }
+    .detail-view.visible { display: block; }
+    .detail-view .shell-inner { width: min(1180px, 100%); margin: 0 auto; padding: 32px; }
+    .refresh { display: inline-flex; align-items: center; gap: 7px; flex: none; padding: 9px 13px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-surface); color: var(--ws-text); transition: border-color .16s ease, color .16s ease, transform .16s ease; position: relative; }
+    .refresh:hover { border-color: var(--ws-primary); color: var(--ws-primary); transform: translateY(-1px); }
+    .refresh:disabled { cursor: wait; opacity: .6; transform: none; }
     .layout { display: grid; grid-template-columns: minmax(0, 1fr) 290px; align-items: start; gap: 20px; }
     .content-panel, .project-panel { overflow: hidden; border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-surface); box-shadow: var(--app-shadow); }
     .content-panel { min-height: 500px; }
@@ -108,10 +112,6 @@
     .project-description { display: -webkit-box; margin: 5px 0 0 16px; overflow: hidden; color: var(--ws-muted); font-size: 12px; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     .project-status { margin: 7px 0 0 16px; color: var(--ws-faint); font-size: 11px; }
 
-    /* ── Detail View ── */
-    .detail-view { display: none; }
-    .detail-view.visible { display: block; }
-    .detail-view .shell-inner { width: min(1180px, 100%); margin: 0 auto; padding: 32px; }
     /* ── Detail header ── */
     .detail-header { display: flex; align-items: start; justify-content: space-between; gap: 20px; margin-bottom: 24px; flex-wrap: wrap; }
     .detail-header-left { display: flex; align-items: center; gap: 14px; }
@@ -149,10 +149,18 @@
     .restore-btn:hover { border-color: var(--ws-primary); color: var(--ws-primary); background: var(--ws-primary-soft); }
 
     /* ── Rules panel ── */
-    .rules-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+    .rules-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
     .rules-header h3 { margin: 0; font-size: 15px; }
+    .rules-header-actions { display: flex; align-items: center; gap: 8px; }
     .add-rule-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border: 0; border-radius: var(--app-radius); background: var(--ws-primary); color: #fff; font-size: 13px; transition: background .16s ease; }
     .add-rule-btn:hover { background: var(--app-primary-hover); }
+    .add-rule-btn.secondary { background: var(--ws-surface); color: var(--ws-primary); border: 1px solid var(--ws-primary); }
+    .add-rule-btn.secondary:hover { background: var(--ws-primary-soft); }
+    .rules-root-relation { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 10px 14px; background: var(--ws-subtle); border: 1px solid var(--ws-border); border-radius: var(--app-radius); }
+    .root-label { font-size: 12px; color: var(--ws-faint); flex: none; }
+    .root-rel-btn { padding: 5px 12px; border: 1px solid var(--ws-border); border-radius: 6px; background: var(--ws-surface); font-size: 12px; color: var(--ws-text); cursor: pointer; transition: all .16s ease; }
+    .root-rel-btn:hover { border-color: var(--ws-primary); }
+    .root-rel-btn.active { background: var(--ws-primary); color: #fff; border-color: var(--ws-primary); }
     .rule-card { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); margin-bottom: 10px; background: var(--ws-surface); transition: border-color .16s ease; }
     .rule-card:hover { border-color: var(--ws-border-strong); }
     .rule-card.disabled { opacity: .55; }
@@ -162,6 +170,8 @@
     .rule-group-relation { padding: 3px 8px; border: 1px solid var(--ws-border); border-radius: 6px; font-size: 12px; color: var(--ws-text); background: var(--ws-surface); }
     .rule-group-add { margin-left: auto; padding: 3px 10px; border: 1px solid var(--ws-border); border-radius: 6px; font-size: 12px; color: var(--ws-primary); background: var(--ws-surface); cursor: pointer; }
     .rule-group-add:hover { border-color: var(--ws-primary); }
+    .rule-group-del { padding: 3px 8px; border: 1px solid var(--ws-border); border-radius: 6px; font-size: 12px; color: var(--ws-danger); background: var(--ws-surface); cursor: pointer; transition: all .16s ease; }
+    .rule-group-del:hover { border-color: var(--ws-danger); background: var(--ws-danger-soft); }
     .rule-group-list { padding: 6px 14px; }
     .rule-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px dashed var(--ws-border); }
     .rule-row:last-child { border-bottom: 0; }
@@ -248,160 +258,6 @@
     .error-message { padding: 10px 14px; border: 1px solid var(--ws-danger); border-radius: var(--app-radius); background: var(--ws-danger-soft); color: var(--ws-danger); font-size: 13px; margin-bottom: 12px; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── 产品开发工作区样式 ── */
-    .product-dev-view {
-      display: none;
-      background: var(--ws-bg);
-    }
-    .product-dev-view.visible { display: block; }
-    .pd-shell { width: min(1280px, 100%); margin: 0 auto; padding: 28px 32px; }
-
-    .pd-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
-    .pd-header-left h1 { margin: 0; font-size: clamp(20px, 2.5vw, 28px); letter-spacing: -.03em; }
-    .pd-header-actions { display: flex; gap: 10px; flex: none; }
-    .pd-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border: 0; border-radius: var(--app-radius); font-size: 13px; cursor: pointer; transition: all .16s ease; }
-    .pd-btn-primary { background: var(--ws-primary); color: #fff; }
-    .pd-btn-primary:hover { background: var(--app-primary-hover); }
-    .pd-btn-secondary { background: var(--ws-subtle); color: var(--ws-text); border: 1px solid var(--ws-border); }
-    .pd-btn-secondary:hover { border-color: var(--ws-primary); color: var(--ws-primary); }
-
-    .pd-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--ws-border); margin-bottom: 20px; }
-    .pd-tab { padding: 10px 18px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--ws-muted); font-size: 13px; cursor: pointer; transition: all .16s ease; }
-    .pd-tab:hover { color: var(--ws-text); background: var(--ws-subtle); }
-    .pd-tab.active { color: var(--ws-primary); border-bottom-color: var(--ws-primary); font-weight: 600; }
-    .pd-tab-content { display: none; }
-    .pd-tab-content.visible { display: block; }
-
-    /* 标签筛选条 */
-    .pd-tag-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -6px 0 18px; }
-    .pd-tag-filter-label { color: var(--ws-faint); font-size: 12px; margin-right: 2px; }
-    .pd-tag-pill { padding: 4px 11px; border: 1px solid var(--ws-border); border-radius: 999px; background: transparent; color: var(--ws-muted); font-size: 12px; cursor: pointer; transition: all .16s ease; }
-    .pd-tag-pill:hover { border-color: var(--ws-primary); color: var(--ws-primary); }
-    .pd-tag-pill.active { border-color: var(--ws-primary); background: var(--ws-primary-soft); color: var(--ws-primary); font-weight: 600; }
-    .pd-tag-filter:empty { display: none; }
-
-    /* 仪表盘卡片 */
-    .pd-dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px; }
-    .pd-dash-card { padding: 18px 20px; border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-surface); }
-    .pd-dash-card-value { font-size: 26px; font-weight: 700; color: var(--ws-primary); line-height: 1.2; }
-    .pd-dash-card-label { font-size: 12px; color: var(--ws-muted); margin-top: 4px; }
-    .pd-dash-card-sub { font-size: 11px; color: var(--ws-faint); margin-top: 6px; }
-
-    /* 图表行 */
-    .pd-chart-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 20px; }
-    .pd-chart-card { border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-surface); overflow: hidden; }
-    .pd-chart-card-header { padding: 14px 18px 8px; font-size: 13px; font-weight: 650; color: var(--ws-text); border-bottom: 1px solid var(--ws-border); }
-    .pd-chart-container { padding: 12px 14px; height: 200px; position: relative; }
-    .pd-chart-container canvas { width: 100% !important; height: 100% !important; }
-
-    /* 最近活动 */
-    .pd-section { margin-bottom: 20px; }
-    .pd-section-header { font-size: 14px; font-weight: 650; margin-bottom: 10px; color: var(--ws-text); }
-    .pd-activity-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); margin-bottom: 6px; background: var(--ws-surface); font-size: 13px; }
-    .pd-activity-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-    .pd-activity-dot.archived { background: #10b981; }
-    .pd-activity-dot.created { background: var(--ws-primary); }
-    .pd-activity-dot.migrated { background: #f59e0b; }
-    .pd-activity-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pd-activity-time { flex: none; color: var(--ws-faint); font-size: 11px; white-space: nowrap; }
-
-    /* 需求看板 */
-    .pd-kanban-toolbar { margin-bottom: 14px; }
-    .pd-search-input { width: 100%; max-width: 320px; padding: 8px 12px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-subtle); color: var(--ws-text); font-size: 13px; outline: none; transition: border-color .16s ease; }
-    .pd-search-input:focus { border-color: var(--ws-primary); }
-    .pd-kanban { display: flex; gap: 12px; overflow-x: auto; padding: 8px 0 20px; min-height: 400px; }
-    .pd-kanban-col { flex: 1; min-width: 200px; max-width: 280px; display: flex; flex-direction: column; border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-subtle); }
-    .pd-kanban-col-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px; border-bottom: 1px solid var(--ws-border); }
-    .pd-kanban-col-header h3 { margin: 0; font-size: 13px; font-weight: 650; }
-    .pd-kanban-col-count { color: var(--ws-faint); font-size: 11px; }
-    .pd-kanban-col-body { flex: 1; overflow-y: auto; padding: 8px; min-height: 60px; }
-    .pd-kanban-card { padding: 12px 14px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-surface); margin-bottom: 8px; cursor: grab; transition: box-shadow .16s ease; }
-    .pd-kanban-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
-    .pd-kanban-card:last-child { margin-bottom: 0; }
-    .pd-kanban-card-title { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pd-kanban-card-meta { margin-top: 6px; font-size: 11px; color: var(--ws-faint); }
-    .pd-kanban-card-meta .pd-tag { display: inline-block; padding: 1px 6px; border-radius: 4px; background: var(--ws-primary-soft); color: var(--ws-primary); font-size: 10px; margin-right: 4px; }
-    .pd-kanban-card.dragging { opacity: .45; transform: rotate(2deg); }
-    .pd-kanban-col-body.drag-over { background: var(--ws-primary-soft); border-radius: var(--app-radius); min-height: 80px; }
-
-    /* 需求详情弹窗 */
-    .pd-req-detail-section { margin-bottom: 16px; }
-    .pd-req-detail-section:last-child { margin-bottom: 0; }
-    .pd-req-detail-label { font-size: 11px; font-weight: 700; color: var(--ws-faint); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
-    .pd-req-detail-value { font-size: 13px; color: var(--ws-text); line-height: 1.55; }
-    .pd-req-detail-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
-    .pd-req-detail-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; background: var(--ws-primary-soft); color: var(--ws-primary); }
-    .pd-req-detail-phase { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; }
-    .pd-req-detail-phase-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; color: #fff; }
-    .pd-req-detail-divider { height: 1px; margin: 14px 0; background: var(--ws-border); }
-
-    /* 知识图谱 */
-    .pd-graph-toolbar { margin-bottom: 12px; }
-    .pd-graph-hint { font-size: 12px; color: var(--ws-muted); }
-    .pd-legend-req { display: inline-block; padding: 1px 6px; border-radius: 4px; background: #2383e2; color: #fff; font-size: 10px; margin: 0 2px; }
-    .pd-legend-kn { display: inline-block; padding: 1px 6px; border-radius: 4px; background: #10b981; color: #fff; font-size: 10px; margin: 0 2px; }
-    .pd-legend-todo { display: inline-block; padding: 1px 6px; border-radius: 4px; background: #f59e0b; color: #fff; font-size: 10px; margin: 0 2px; }
-    .pd-graph-container { width: 100%; height: 450px; border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-surface); overflow: hidden; position: relative; }
-    .pd-graph-tooltip { position: absolute; pointer-events: none; background: var(--ws-surface); border: 1px solid var(--ws-border); border-radius: var(--app-radius); padding: 10px 14px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.12); opacity: 0; transition: opacity .15s ease; z-index: 100; max-width: 260px; line-height: 1.5; }
-    .pd-graph-tooltip.visible { opacity: 1; }
-    .pd-graph-tooltip .tt-title { font-weight: 650; font-size: 13px; margin-bottom: 4px; }
-    .pd-graph-tooltip .tt-meta { color: var(--ws-muted); font-size: 11px; }
-    .pd-graph-tooltip .tt-type { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; margin-top: 4px; color: #fff; }
-
-    /* 甘特图 */
-    .pd-gantt-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
-    .pd-gantt-zoom { display: flex; gap: 2px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); overflow: hidden; }
-    .pd-gantt-zoom-btn { padding: 6px 14px; border: 0; background: var(--ws-surface); color: var(--ws-muted); font-size: 12px; cursor: pointer; transition: all .16s ease; }
-    .pd-gantt-zoom-btn:hover { background: var(--ws-subtle); color: var(--ws-text); }
-    .pd-gantt-zoom-btn.active { background: var(--ws-primary); color: #fff; }
-    .pd-gantt-legend { display: flex; gap: 10px; flex-wrap: wrap; }
-    .pd-gantt-legend-item { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--ws-muted); }
-    .pd-gantt-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-    .pd-gantt-container { overflow-x: auto; overflow-y: auto; border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-surface); min-height: 300px; max-height: 600px; }
-    .pd-gantt-chart { position: relative; min-width: 100%; }
-    .pd-gantt-header { position: sticky; top: 0; z-index: 10; background: var(--ws-surface); border-bottom: 1px solid var(--ws-border); }
-    .pd-gantt-header-row { display: flex; }
-    .pd-gantt-label-col { flex: none; width: 200px; border-right: 1px solid var(--ws-border); padding: 8px 12px; font-size: 11px; font-weight: 700; color: var(--ws-faint); text-transform: uppercase; letter-spacing: .05em; }
-    .pd-gantt-grid-col { flex: none; border-right: 1px solid var(--ws-border); padding: 8px 4px; font-size: 10px; color: var(--ws-faint); text-align: center; white-space: nowrap; }
-    .pd-gantt-header-row .pd-gantt-grid-col { background: var(--ws-subtle); }
-    .pd-gantt-header-row .pd-gantt-grid-col.weekend { background: color-mix(in srgb, var(--ws-subtle) 80%, #e74c3c); }
-    .pd-gantt-body { position: relative; }
-    .pd-gantt-row { display: flex; border-bottom: 1px solid var(--ws-border); transition: background .16s ease; }
-    .pd-gantt-row:hover { background: var(--ws-subtle); }
-    .pd-gantt-row-label { flex: none; width: 200px; border-right: 1px solid var(--ws-border); padding: 8px 12px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
-    .pd-gantt-row-label .pd-gantt-phase-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-    .pd-gantt-row-cells { display: flex; flex: 1; min-width: 0; }
-    .pd-gantt-cell { flex: none; border-right: 1px solid var(--ws-border); min-height: 32px; position: relative; }
-    .pd-gantt-cell.weekend { background: color-mix(in srgb, var(--ws-subtle) 50%, transparent); }
-    .pd-gantt-bar { position: absolute; top: 4px; height: 24px; border-radius: 4px; opacity: .85; cursor: pointer; transition: opacity .16s ease, box-shadow .16s ease; display: flex; align-items: center; padding: 0 6px; font-size: 10px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 4px; }
-    .pd-gantt-bar:hover { opacity: 1; box-shadow: 0 2px 8px rgba(0,0,0,.15); z-index: 5; }
-    .pd-gantt-bar-tooltip { position: fixed; z-index: 1050; background: var(--ws-surface); border: 1px solid var(--ws-border); border-radius: var(--app-radius); padding: 8px 12px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.12); pointer-events: none; opacity: 0; transition: opacity .15s ease; max-width: 280px; line-height: 1.5; }
-    .pd-gantt-bar-tooltip.visible { opacity: 1; }
-
-    /* 归档列表 */
-    .pd-archive-toolbar { margin-bottom: 14px; }
-    .pd-section-title { font-size: 14px; font-weight: 650; color: var(--ws-text); }
-    .pd-archive-item { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); margin-bottom: 8px; background: var(--ws-surface); transition: border-color .16s ease; }
-    .pd-archive-item:hover { border-color: var(--ws-primary); }
-    .pd-archive-icon { font-size: 18px; flex: none; }
-    .pd-archive-info { flex: 1; min-width: 0; }
-    .pd-archive-title { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pd-archive-meta { font-size: 11px; color: var(--ws-faint); margin-top: 3px; }
-    .pd-archive-source { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; margin-left: 6px; }
-    .pd-archive-source.archive { background: color-mix(in srgb, var(--ws-primary) 12%, transparent); color: var(--ws-primary); }
-    .pd-archive-source.migrate { background: color-mix(in srgb, #f59e0b 12%, transparent); color: #d97706; }
-
-    /* 空状态覆盖 */
-    .product-dev-view .empty-state { padding: 40px 20px; color: var(--ws-muted); font-size: 13px; text-align: center; }
-
-    @media (max-width: 820px) {
-      .pd-shell { padding: 18px 14px; }
-      .pd-chart-row { grid-template-columns: 1fr; }
-      .pd-dashboard { grid-template-columns: repeat(2, 1fr); }
-      .pd-kanban { flex-direction: column; }
-      .pd-kanban-col { max-width: none; }
-    }
-
     /* ── View toggle ── */
     .view-toggle { display: inline-flex; align-items: center; gap: 0; border: 1px solid var(--ws-border); border-radius: var(--app-radius); overflow: hidden; }
     .view-toggle button { padding: 6px 12px; border: 0; background: transparent; color: var(--ws-muted); font-size: 12px; transition: all .16s ease; }
@@ -453,9 +309,9 @@
       .sidebar-toggle { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-surface); color: var(--ws-text); font-size: 18px; margin-right: 10px; transition: all .16s ease; }
       .sidebar-toggle:hover { border-color: var(--ws-primary); color: var(--ws-primary); }
       .overview-view .shell-inner, .detail-view .shell-inner { padding: 22px 18px; }
+      .hero { align-items: flex-start; flex-direction: column; }
       .layout { grid-template-columns: 1fr; }
       .project-panel { position: static; }
-      .hero { align-items: flex-start; flex-direction: column; }
       .toolbar { align-items: stretch; flex-direction: column; }
       .search { flex-basis: auto; }
       .detail-header { flex-direction: column; }
@@ -560,15 +416,7 @@
         <h1>工作台</h1>
         <button class="sidebar-collapse" id="sidebarCollapse" type="button" aria-label="关闭侧边栏" title="收起侧边栏" data-func-tag="功能:收起侧边栏">&times;</button>
       </div>
-      <nav class="sidebar-nav">
-        <button class="sidebar-nav-item active" data-view="overview" type="button" data-func-tag="功能:全部概览" title="查看剪藏、知识、待办、学习计划等所有类型内容的统一概览">
-          <span class="icon">&#9776;</span> 全部概览
-        </button>
-        <button class="sidebar-nav-item" data-view="product-dev" type="button" data-func-tag="功能:产品开发工作区" title="进入产品开发工作区，管理需求看板、知识图谱、时间线与归档">
-          <span class="icon">&#9881;</span> 产品开发
-        </button>
-      </nav>
-      <div class="sidebar-divider"></div>
+      
       <div class="sidebar-section">工作台</div>
       <div class="sidebar-list" id="wsList" aria-live="polite"></div>
       <div class="sidebar-footer">
@@ -578,7 +426,8 @@
 
     <!-- ── Main Area ── -->
     <main class="main-area">
-      <!-- Overview View -->
+
+      <!-- ── Overview View ── -->
       <div class="overview-view" id="overviewView">
         <div class="shell-inner">
           <header class="hero">
@@ -599,7 +448,7 @@
                 <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg><input id="searchInput" type="search" placeholder="搜索标题、标签、分类或来源" autocomplete="off"></label>
               </div>
               <div class="filters" id="filters" aria-label="内容类型筛选"></div>
-              <div id="overviewScopeBanner" class="scope-banner" hidden style="display:flex;align-items:center;gap:8px;margin:0 0 10px;padding:6px 12px;background:var(--ws-primary-soft);border-radius:6px;font-size:13px;color:var(--ws-primary);">
+              <div id="overviewScopeBanner" class="scope-banner" hidden style="align-items:center;gap:8px;margin:0 0 10px;padding:6px 12px;background:var(--ws-primary-soft);border-radius:6px;font-size:13px;color:var(--ws-primary);">
                 <span id="scopeBannerText"></span>
               </div>
               <div class="list" id="contentList" aria-live="polite"></div>
@@ -622,13 +471,39 @@
           <div class="detail-header" id="detailHeader"></div>
           <div class="error-message" id="detailError" style="display:none;margin-bottom:12px"></div>
           <div class="detail-tabs" id="detailTabs">
-            <button class="detail-tab active" data-tab="content" type="button" data-func-tag="功能:工作台详情-内容" title="查看该工作台可见内容与排除入口">内容</button>
+            <button class="detail-tab active" data-tab="overview" type="button" data-func-tag="功能:工作台详情-概览" title="工作台概览统计">概览</button>
+            <button class="detail-tab" data-tab="content" type="button" data-func-tag="功能:工作台详情-内容" title="查看该工作台可见内容与排除入口">内容</button>
             <button class="detail-tab" data-tab="rules" type="button" data-func-tag="功能:工作台详情-规则" title="管理自动筛选规则">规则</button>
             <button class="detail-tab" data-tab="exclusions" type="button" data-func-tag="功能:工作台详情-排除" title="查看已排除内容并支持恢复">排除</button>
             <button class="detail-tab" data-tab="suggestions" type="button" data-func-tag="功能:工作台详情-建议" title="基于使用习惯的候选推荐">建议 <span class="suggestion-badge" id="suggestionBadge" style="display:none"></span></button>
           </div>
+          <!-- Overview tab -->
+          <div class="detail-tab-content visible" data-tab="overview" id="detailOverview">
+            <div class="layout" style="grid-template-columns:minmax(0,1fr) 290px">
+              <section class="content-panel" style="min-height:auto">
+                <div class="toolbar" style="padding:18px 22px 14px;border-bottom:0">
+                  <h2 class="toolbar-title">概览统计 <span class="result-count" id="overviewResultCount"></span></h2>
+                </div>
+                <div id="overviewSummaryCards" class="ws-summary-cards" style="padding:8px 14px 14px"></div>
+                <div class="toolbar" style="padding:6px 22px 12px;border-bottom:0">
+                  <h2 class="toolbar-title" style="font-size:14px">类型分布</h2>
+                </div>
+                <div class="filters" id="overviewTypeFilters" style="border-bottom:0;padding:2px 22px 14px"></div>
+                <div class="toolbar" style="padding:6px 22px 12px;border-bottom:1px solid var(--ws-border)">
+                  <h2 class="toolbar-title" style="font-size:14px">快捷操作</h2>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;padding:8px 22px 18px">
+                  <button class="refresh" id="detailRefreshButton" type="button" style="padding:8px 16px" title="重新从存储扫描并构建内容索引，反映最新数据变化" data-func-tag="功能:刷新索引"><span aria-hidden="true">↻</span> 刷新索引</button>
+                </div>
+              </section>
+              <aside class="project-panel" aria-labelledby="overviewProjectHeading">
+                <div class="panel-heading"><h2 id="overviewProjectHeading">项目摘要</h2><p>工作台关联项目状态概览</p></div>
+                <div id="overviewProjectList" class="projects"></div>
+              </aside>
+            </div>
+          </div>
           <!-- Content tab -->
-          <div class="detail-tab-content visible" data-tab="content" id="detailContent">
+          <div class="detail-tab-content" data-tab="content" id="detailContent">
             <div class="toolbar" style="padding:0 0 16px;border-bottom:1px solid var(--ws-border);margin-bottom:0">
               <h2 class="toolbar-title">可见内容 <span class="result-count" id="detailResultCount"></span></h2>
               <div style="display:flex;align-items:center;gap:10px">
@@ -646,11 +521,14 @@
           <div class="detail-tab-content" data-tab="rules" id="detailRules">
             <div class="rules-header">
               <h3>筛选规则</h3>
-              <button class="add-rule-btn" id="addRuleBtn" type="button" data-func-tag="功能:添加规则" title="为当前工作台添加自动筛选规则">+ 添加规则</button>
+              <div class="rules-header-actions">
+                <button class="add-rule-btn secondary" id="addGroupBtn" type="button" data-func-tag="功能:添加分组" title="新建一个规则分组，用于表达更复杂的组合逻辑">+ 添加分组</button>
+                <button class="add-rule-btn" id="addRuleBtn" type="button" data-func-tag="功能:添加规则" title="为当前工作台添加自动筛选规则">+ 添加规则</button>
+              </div>
             </div>
+            <div id="rulesRootRelation" class="rules-root-relation"></div>
             <div class="error-message" id="rulesError" style="display:none"></div>
             <div id="rulesList"></div>
-            <div id="workspaceSettings" class="settings-container"></div>
           </div>
           <!-- Exclusions tab -->
           <div class="detail-tab-content" data-tab="exclusions" id="detailExclusions">
@@ -670,107 +548,7 @@
           </div>
         </div>
       </div>
-  <!-- ── 产品开发工作区视图 ── -->
-  <div class="product-dev-view" id="productDevView">
-    <div class="pd-shell">
-      <!-- 顶部导航 -->
-      <div class="pd-header">
-        <button class="sidebar-toggle" id="pdSidebarToggle" type="button" aria-label="打开侧边栏" title="展开侧边栏">&#9776;</button>
-        <div class="pd-header-left">
-          <p class="eyebrow">Product Development</p>
-          <h1>产品开发工作区</h1>
-        </div>
-        <div class="pd-header-actions">
-          <button class="pd-btn pd-btn-secondary" id="pdHistoryMigrateBtn" type="button" title="将 TODO/ 和 .trae/specs/ 下的历史需求文档迁移到产品开发工作区" data-func-tag="功能:历史迁移">&#128194; 历史迁移</button>
-          <button class="pd-btn pd-btn-primary" id="pdNewRequirementBtn" type="button" data-func-tag="功能:新建需求" title="创建一条新需求并进入需求池">+ 新建需求</button>
-        </div>
-      </div>
-
-      <!-- 子导航 tabs -->
-      <div class="pd-tabs">
-        <button class="pd-tab active" data-pd-tab="dashboard" type="button" data-func-tag="功能:产品开发-总览" title="总览：数据仪表盘与最近活动">&#128202; 总览</button>
-        <button class="pd-tab" data-pd-tab="kanban" type="button" data-func-tag="功能:产品开发-需求看板" title="需求看板：按阶段拖拽管理需求">&#9776; 需求看板</button>
-        <button class="pd-tab" data-pd-tab="graph" type="button" data-func-tag="功能:产品开发-知识图谱" title="知识图谱：需求-知识关联网络（二期）" style="display:none">&#9671; 知识图谱</button>
-        <button class="pd-tab" data-pd-tab="timeline" type="button" data-func-tag="功能:产品开发-时间线" title="时间线：甘特图展示开发周期（二期）" style="display:none">&#128197; 时间线</button>
-        <button class="pd-tab" data-pd-tab="archive" type="button" data-func-tag="功能:产品开发-归档" title="归档：历史需求归档记录">&#128451; 归档</button>
-      </div>
-
-      <!-- 标签筛选条 -->
-      <div class="pd-tag-filter" id="pdTagFilter" aria-label="标签筛选"></div>
-
-      <!-- ── 总览 Dashboard ── -->
-      <div class="pd-tab-content visible" data-pd-content="dashboard">
-        <div class="pd-dashboard" id="pdDashboardCards"></div>
-        <div class="pd-chart-row">
-          <div class="pd-chart-card">
-            <div class="pd-chart-card-header">各阶段需求分布</div>
-            <div class="pd-chart-container"><canvas id="pdPhaseChart"></canvas></div>
-          </div>
-          <div class="pd-chart-card">
-            <div class="pd-chart-card-header">待办完成率</div>
-            <div class="pd-chart-container"><canvas id="pdTodoChart"></canvas></div>
-          </div>
-          <div class="pd-chart-card">
-            <div class="pd-chart-card-header">知识积累趋势</div>
-            <div class="pd-chart-container"><canvas id="pdKnowledgeChart"></canvas></div>
-          </div>
-        </div>
-        <div class="pd-section">
-          <div class="pd-section-header">最近活动</div>
-          <div class="pd-activity-list" id="pdActivityList"><div class="empty-state">暂无活动记录</div></div>
-        </div>
-      </div>
-
-      <!-- ── 需求看板 Kanban ── -->
-      <div class="pd-tab-content" data-pd-content="kanban">
-        <div class="pd-kanban-toolbar">
-          <div class="pd-kanban-filter">
-            <input class="pd-search-input" id="pdKanbanSearch" type="search" placeholder="搜索需求..." autocomplete="off">
-          </div>
-        </div>
-        <div class="pd-kanban" id="pdKanbanBoard"></div>
-      </div>
-
-      <!-- ── 知识图谱 Graph ── -->
-      <div class="pd-tab-content" data-pd-content="graph">
-        <div class="pd-graph-toolbar">
-          <span class="pd-graph-hint">展示需求与知识的关联网络，节点颜色：<span class="pd-legend-req">需求</span> <span class="pd-legend-kn">知识</span> <span class="pd-legend-todo">待办</span></span>
-        </div>
-        <div class="pd-graph-container" id="pdGraphContainer">
-          <svg id="pdGraphSvg" width="100%" height="100%"></svg>
-        </div>
-      </div>
-
-      <!-- ── 时间线 Timeline ── -->
-      <div class="pd-tab-content" data-pd-content="timeline">
-        <div class="pd-gantt-toolbar">
-          <div class="pd-gantt-zoom">
-            <button class="pd-gantt-zoom-btn active" data-zoom="day" type="button" data-func-tag="功能:甘特图-日视图" title="日视图：按天展示时间线">日视图</button>
-            <button class="pd-gantt-zoom-btn" data-zoom="week" type="button" data-func-tag="功能:甘特图-周视图" title="周视图：按周展示时间线">周视图</button>
-            <button class="pd-gantt-zoom-btn" data-zoom="month" type="button" data-func-tag="功能:甘特图-月视图" title="月视图：按月展示时间线">月视图</button>
-          </div>
-          <div class="pd-gantt-legend">
-            <span class="pd-gantt-legend-item"><span class="pd-gantt-legend-dot" style="background:#2383e2"></span>需求分析</span>
-            <span class="pd-gantt-legend-item"><span class="pd-gantt-legend-dot" style="background:#876de2"></span>设计</span>
-            <span class="pd-gantt-legend-item"><span class="pd-gantt-legend-dot" style="background:#f59e0b"></span>实现</span>
-            <span class="pd-gantt-legend-item"><span class="pd-gantt-legend-dot" style="background:#e74c3c"></span>测试</span>
-            <span class="pd-gantt-legend-item"><span class="pd-gantt-legend-dot" style="background:#10b981"></span>已完成</span>
-          </div>
-        </div>
-        <div class="pd-gantt-container" id="pdGanttContainer">
-          <div class="empty-state">暂无时间线数据，完成需求归档后将自动生成。</div>
-        </div>
-      </div>
-
-      <!-- ── 归档 Archive ── -->
-      <div class="pd-tab-content" data-pd-content="archive">
-        <div class="pd-archive-toolbar">
-          <span class="pd-section-title">历史归档记录</span>
-        </div>
-        <div class="pd-archive-list" id="pdArchiveList"><div class="empty-state">暂无归档记录</div></div>
-      </div>
-    </div>
-  </div>
+  
 
     </main>
   </div>
@@ -915,21 +693,7 @@
     </div>
   </div>
 
-  <!-- ── 需求详情弹窗 ── -->
-  <div class="modal-overlay" id="pdRequirementModal">
-    <div class="modal" style="width:min(560px,calc(100vw-40px))">
-      <div class="modal-header">
-        <h3 id="pdReqModalTitle">需求详情</h3>
-        <button class="modal-close" data-close="pdRequirementModal" type="button">&times;</button>
-      </div>
-      <div class="modal-body" id="pdReqModalBody">
-        <div class="pd-req-detail-loading" style="text-align:center;padding:30px;color:var(--ws-muted)">加载中...</div>
-      </div>
-      <div class="modal-footer" id="pdReqModalFooter">
-        <button class="btn btn-secondary" data-close="pdRequirementModal" type="button">关闭</button>
-      </div>
-    </div>
-  </div>
+  
 
   <script>
     (() => {
@@ -969,6 +733,13 @@
       const ruleModal = $('ruleModal');
       const confirmModal = $('confirmModal');
       const columnInputModal = $('columnInputModal');
+      // Overview tab refs
+      const detailOverview = $('detailOverview');
+      const overviewSummaryCards = $('overviewSummaryCards');
+      const overviewTypeFilters = $('overviewTypeFilters');
+      const overviewProjectList = $('overviewProjectList');
+      const overviewResultCount = $('overviewResultCount');
+      const refreshButton = $('refreshButton');
 
       /* ─── Overview state ─── */
       const overviewState = { types: [], query: '', data: null, loading: false };
@@ -1023,25 +794,26 @@
         sidebar.classList.remove('open');
         sidebarBackdrop.classList.remove('show');
       }
-      sidebarToggle.addEventListener('click', openSidebar);
+      sidebarToggle?.addEventListener('click', openSidebar);
       sidebarToggle2.addEventListener('click', openSidebar);
       sidebarCollapse.addEventListener('click', closeSidebar);
       sidebarBackdrop.addEventListener('click', closeSidebar);
-      $('pdSidebarToggle')?.addEventListener('click', openSidebar);
 
-      /* ── Overview Functions ── */
+      /* ── Overview View Functions ── */
       function overviewRenderScopeBanner(data) {
         const banner = $('overviewScopeBanner');
         if (!banner) return;
         if (data && data.scoped && overviewWorkspaceId) {
           const ws = workspaces.find(w => w.id === overviewWorkspaceId);
           banner.hidden = false;
+          banner.style.display = 'flex';
           const text = $('scopeBannerText');
           if (text) {
             text.innerHTML = '当前作用域：<strong>' + escapeHtml(ws ? ws.name : overviewWorkspaceId) + '</strong>（仅显示该工作台规则命中的内容）';
           }
         } else {
           banner.hidden = true;
+          banner.style.display = '';
         }
       }
 
@@ -1049,61 +821,73 @@
         const list = $('contentList');
         const retry = kind === 'error' ? '<button class="retry" id="retryButton" type="button">重新尝试</button>' : '';
         const icon = kind === 'loading' ? '<div class="spinner"></div>' : kind === 'error' ? '!' : '○';
-        list.innerHTML = `<div class="state"><div class="state-inner"><div class="state-icon">${icon}</div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(detail)}</p>${retry}</div></div>`;
+        list.innerHTML = '<div class="state"><div class="state-inner"><div class="state-icon">' + icon + '</div><h3>' + escapeHtml(title) + '</h3><p>' + escapeHtml(detail) + '</p>' + retry + '</div></div>';
         $('retryButton')?.addEventListener('click', loadOverview);
       }
+
       function overviewRenderFilters() {
         const filters = $('filters');
         const types = overviewState.data?.contentTypes || Object.keys(LABELS);
-        filters.innerHTML = types.map(t => `<button class="filter ${overviewState.types.includes(t) ? 'active' : ''}" data-type="${escapeHtml(t)}" type="button" data-func-tag="功能:概览筛选-${escapeHtml(LABELS[t] || t)}" title="按内容类型筛选">${escapeHtml(LABELS[t] || t)}</button>`).join('');
-        filters.querySelectorAll('.filter').forEach(btn => btn.addEventListener('click', () => {
-          const { type } = btn.dataset;
-          overviewState.types = overviewState.types.includes(type) ? overviewState.types.filter(i => i !== type) : [...overviewState.types, type];
-          loadOverview();
-        }));
+        filters.innerHTML = types.map(function(t) {
+          return '<button class="filter ' + (overviewState.types.includes(t) ? 'active' : '') + '" data-type="' + escapeHtml(t) + '" type="button" data-func-tag="功能:概览筛选-' + escapeHtml(LABELS[t] || t) + '" title="按内容类型筛选">' + escapeHtml(LABELS[t] || t) + '</button>';
+        }).join('');
+        filters.querySelectorAll('.filter').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            const type = btn.dataset.type;
+            overviewState.types = overviewState.types.includes(type) ? overviewState.types.filter(function(i) { return i !== type; }) : [].concat(overviewState.types, [type]);
+            loadOverview();
+          });
+        });
       }
+
       function overviewRenderProjects(projects) {
         const list = $('projectList');
         if (!projects?.length) { list.innerHTML = '<div class="project-empty">暂无可读取的项目摘要</div>'; return; }
-        list.innerHTML = projects.map(p => `<article class="project"><h3 class="project-name"><i class="project-dot" style="--project-color:${escapeHtml(p.color || '')}"></i>${escapeHtml(p.name || '未命名项目')}</h3>${p.description ? `<p class="project-description">${escapeHtml(p.description)}</p>` : ''}<p class="project-status">${escapeHtml(p.status || '未标记状态')}</p></article>`).join('');
+        list.innerHTML = projects.map(function(p) {
+          return '<article class="project"><h3 class="project-name"><i class="project-dot" style="--project-color:' + escapeHtml(p.color || '') + '"></i>' + escapeHtml(p.name || '未命名项目') + '</h3>' + (p.description ? '<p class="project-description">' + escapeHtml(p.description) + '</p>' : '') + '<p class="project-status">' + escapeHtml(p.status || '未标记状态') + '</p></article>';
+        }).join('');
       }
+
       function overviewRenderWorkspaceSummary(summary) {
         const el = $('workspaceSummary');
         if (!summary) { el.innerHTML = ''; return; }
-        const types = Object.entries(summary.types || {}).map(([k, v]) => `<div class="ws-summary-card"><span class="ws-card-value">${v}</span><span class="ws-card-label">${escapeHtml(k)}</span></div>`).join('');
-        el.innerHTML = `<div class="ws-summary-card"><span class="ws-card-value">${summary.total || 0}</span><span class="ws-card-label">总计</span></div>
-          <div class="ws-summary-card"><span class="ws-card-value">${summary.active || 0}</span><span class="ws-card-label">活跃</span></div>
-          <div class="ws-summary-card archived"><span class="ws-card-value">${summary.archived || 0}</span><span class="ws-card-label">已归档</span></div>${types}</div>`;
+        const types = Object.entries(summary.types || {}).map(function(_ref) {
+          var k = _ref[0], v = _ref[1];
+          return '<div class="ws-summary-card"><span class="ws-card-value">' + v + '</span><span class="ws-card-label">' + escapeHtml(k) + '</span></div>';
+        }).join('');
+        el.innerHTML = '<div class="ws-summary-card"><span class="ws-card-value">' + (summary.total || 0) + '</span><span class="ws-card-label">总计</span></div><div class="ws-summary-card"><span class="ws-card-value">' + (summary.active || 0) + '</span><span class="ws-card-label">活跃</span></div><div class="ws-summary-card archived"><span class="ws-card-value">' + (summary.archived || 0) + '</span><span class="ws-card-label">已归档</span></div>' + types;
       }
+
       function overviewRenderContents(contents) {
         const list = $('contentList');
         const count = $('resultCount');
-        count.textContent = `共 ${contents.length} 项`;
+        count.textContent = '共 ' + contents.length + ' 项';
         if (!contents.length) {
           if (overviewWorkspaceId) {
-            const ws = workspaces.find(w => w.id === overviewWorkspaceId);
+            const ws = workspaces.find(function(w) { return w.id === overviewWorkspaceId; });
             overviewRenderState('empty', '没有匹配的内容', '当前工作台「' + (ws ? ws.name : overviewWorkspaceId) + '」的规则未命中任何内容，请检查规则配置或手动添加成员。');
           } else {
             overviewRenderState('empty', '没有匹配的内容', overviewState.query || overviewState.types.length ? '尝试清除筛选条件或更换关键词。' : '索引中暂时还没有可展示的内容。');
           }
           return;
         }
-        list.innerHTML = contents.map(item => {
-          const meta = [item.category, ...(item.tags || []).map(t => `#${t}`), item.sourcePath].filter(Boolean).map(v => `<span class="tag">${escapeHtml(v)}</span>`).join('');
-          return `<article class="item"><div class="type-mark" data-type="${escapeHtml(item.type)}">${escapeHtml(INITIALS[item.type] || '内')}</div><div class="item-body"><h3 class="item-title" title="${escapeHtml(item.title || '无标题')}">${escapeHtml(item.title || '无标题')}</h3><div class="item-meta"><span>${escapeHtml(LABELS[item.type] || item.type || '内容')}</span>${meta}</div></div><time class="item-date" datetime="${escapeHtml(item.updatedAt || '')}">${escapeHtml(formatDate(item.updatedAt || item.createdAt))}</time></article>`;
+        list.innerHTML = contents.map(function(item) {
+          var meta = [item.category].concat(item.tags || []).map(function(t) { return '#' + t; }).concat([item.sourcePath]).filter(Boolean).map(function(v) { return '<span class="tag">' + escapeHtml(v) + '</span>'; }).join('');
+          return '<article class="item"><div class="type-mark" data-type="' + escapeHtml(item.type) + '">' + escapeHtml(INITIALS[item.type] || '内') + '</div><div class="item-body"><h3 class="item-title" title="' + escapeHtml(item.title || '无标题') + '">' + escapeHtml(item.title || '无标题') + '</h3><div class="item-meta"><span>' + escapeHtml(LABELS[item.type] || item.type || '内容') + '</span>' + meta + '</div></div><time class="item-date" datetime="' + escapeHtml(item.updatedAt || '') + '">' + escapeHtml(formatDate(item.updatedAt || item.createdAt)) + '</time></article>';
         }).join('');
       }
+
       async function loadOverview() {
         const requestId = ++overviewRequestId;
         overviewState.loading = true;
         $('refreshButton').disabled = true;
         overviewRenderState('loading', '正在读取内容索引', '请稍候，工作台只会读取已有索引。');
         const params = new URLSearchParams();
-        overviewState.types.forEach(t => params.append('types', t));
+        overviewState.types.forEach(function(t) { params.append('types', t); });
         if (overviewState.query) params.set('query', overviewState.query);
         if (overviewWorkspaceId) params.set('workspaceId', overviewWorkspaceId);
         try {
-          const r = await fetch(`/api/workspace/overview${params.size ? '?' + params : ''}`, { headers: { Accept: 'application/json' } });
+          const r = await fetch('/api/workspace/overview' + (params.size ? '?' + params : ''), { headers: { Accept: 'application/json' } });
           if (!r.ok) throw new Error('请求失败（' + r.status + '）');
           if (requestId !== overviewRequestId) return;
           overviewState.data = await r.json();
@@ -1125,6 +909,38 @@
         }
       }
 
+      /* ── Detail Overview Tab Functions ── */
+      async function loadDetailOverview() {
+        const wsId = activeWsId ? activeWsId : null;
+        overviewSummaryCards.innerHTML = '<div class="loading" style="grid-column:1/-1;padding:20px"><div class="spinner"></div> 加载中...</div>';
+        overviewProjectList.innerHTML = '';
+        if (overviewResultCount) overviewResultCount.textContent = '';
+        try {
+          const params = wsId ? '?workspaceId=' + encodeURIComponent(wsId) : '';
+          const r = await fetch('/api/workspace/overview' + params, { headers: { Accept: 'application/json' } });
+          if (!r.ok) throw new Error('请求失败（' + r.status + '）');
+          const data = await r.json();
+          // Summary cards
+          const summary = data.workspaceSummary || {};
+          const types = Object.entries(summary.types || {}).map(([k, v]) => `<div class="ws-summary-card"><span class="ws-card-value">${v}</span><span class="ws-card-label">${escapeHtml(k)}</span></div>`).join('');
+          overviewSummaryCards.innerHTML = `<div class="ws-summary-card"><span class="ws-card-value">${summary.total || 0}</span><span class="ws-card-label">总计</span></div>
+            <div class="ws-summary-card"><span class="ws-card-value">${summary.active || 0}</span><span class="ws-card-label">活跃</span></div>
+            <div class="ws-summary-card archived"><span class="ws-card-value">${summary.archived || 0}</span><span class="ws-card-label">已归档</span></div>${types}`;
+          if (overviewResultCount) overviewResultCount.textContent = '共 ' + (summary.total || 0) + ' 项';
+          // Type filters (read-only distribution)
+          const contentTypes = data.contentTypes || Object.keys(LABELS);
+          overviewTypeFilters.innerHTML = contentTypes.map(t => `<span class="filter" style="cursor:default;opacity:.8">${escapeHtml(LABELS[t] || t)}</span>`).join('');
+          // Projects
+          const projects = data.projects || [];
+          overviewProjectList.innerHTML = projects.length
+            ? projects.map(p => `<article class="project"><h3 class="project-name"><i class="project-dot" style="--project-color:${escapeHtml(p.color || '')}"></i>${escapeHtml(p.name || '未命名项目')}</h3>${p.description ? `<p class="project-description">${escapeHtml(p.description)}</p>` : ''}<p class="project-status">${escapeHtml(p.status || '未标记状态')}</p></article>`).join('')
+            : '<div class="project-empty">暂无可读取的项目摘要</div>';
+        } catch (e) {
+          overviewSummaryCards.innerHTML = `<div class="ws-summary-card" style="grid-column:1/-1;color:var(--ws-danger)"><span class="ws-card-value">!</span><span class="ws-card-label">加载失败</span></div>`;
+          overviewProjectList.innerHTML = '<div class="project-empty">加载失败：' + escapeHtml(e.message || '后端服务不可用') + '</div>';
+        }
+      }
+
       /* ── Workspace List ── */
       async function loadWorkspaces() {
         try {
@@ -1134,8 +950,10 @@
           const savedWsId = localStorage.getItem('active_workspace_id');
           if (savedWsId && workspaces.some(w => w.id === savedWsId)) {
             overviewWorkspaceId = savedWsId;
+            activeWsId = null;
           } else {
             overviewWorkspaceId = null;
+            activeWsId = null;
           }
           renderWsList();
         } catch (_) { /* ignore sidebar errors */ }
@@ -1147,76 +965,65 @@
         }
         const isOverview = !overviewView.classList.contains('hidden');
         const isDefaultActive = isOverview ? overviewWorkspaceId === null : activeWsId === null;
-        const defaultHtml = `<button class="sidebar-item ${isDefaultActive ? 'active' : ''}" data-wsid="" type="button"><i class="ws-dot" style="background:#888"></i><span class="ws-name">默认工作台</span><span class="ws-type-tag">全部</span></button>`;
-        wsList.innerHTML = defaultHtml + workspaces.map(ws => {
+        const defaultHtml = '<button class="sidebar-item ' + (isDefaultActive ? 'active' : '') + '" data-wsid="" type="button"><i class="ws-dot" style="background:#888"></i><span class="ws-name">全部</span><span class="ws-type-tag">全部工作台</span></button>';
+        wsList.innerHTML = defaultHtml + workspaces.map(function(ws) {
           const isActive = isOverview ? overviewWorkspaceId === ws.id : activeWsId === ws.id;
-          return `<button class="sidebar-item ${isActive ? 'active' : ''}" data-wsid="${escapeHtml(ws.id)}" type="button"><i class="ws-dot" style="background:${escapeHtml(ws.color || '#2383e2')}"></i><span class="ws-name">${escapeHtml(ws.name)}</span><span class="ws-type-tag">${escapeHtml(TYPE_LABELS[ws.type || 'general'] || '通用')}</span></button>`;
+          return '<button class="sidebar-item ' + (isActive ? 'active' : '') + '" data-wsid="' + escapeHtml(ws.id) + '" type="button" draggable="true"><i class="ws-dot" style="background:' + escapeHtml(ws.color || '#2383e2') + '"></i><span class="ws-name">' + escapeHtml(ws.name) + '</span>' + (ws.isDefault ? '<span style="margin-left:auto;font-size:10px;color:var(--app-success)">●</span>' : '') + '<span class="ws-type-tag">' + escapeHtml(TYPE_LABELS[ws.type || 'general'] || '通用') + '</span></button>';
         }).join('');
-        wsList.querySelectorAll('.sidebar-item').forEach(btn => btn.addEventListener('click', () => selectWorkspace(btn.dataset.wsid)));
+        wsList.querySelectorAll('.sidebar-item').forEach(function(btn) { btn.addEventListener('click', function() { selectWorkspace(btn.dataset.wsid); }); });
       }
 
       /* ── View Switching ── */
-      const navOverview = document.querySelector('.sidebar-nav-item[data-view="overview"]');
-      const navProductDev = document.querySelector('.sidebar-nav-item[data-view="product-dev"]');
-      const productDevView = $('productDevView');
-
-      function hideAllViews() {
-        overviewView.classList.add('hidden');
-        detailView.classList.remove('visible');
-        productDevView.classList.remove('visible');
-        document.querySelectorAll('.sidebar-nav-item').forEach(function(item) {
-          item.classList.remove('active');
-        });
-      }
-
-      function showView(view) {
-        hideAllViews();
-        if (view === 'overview') {
-          activeWsId = null;
-          navOverview.classList.add('active');
-          renderWsList();
-          overviewView.classList.remove('hidden');
-          loadOverview();
-        } else if (view === 'product-dev') {
-          activeWsId = null;
-          navProductDev.classList.add('active');
-          productDevView.classList.add('visible');
-          loadProductDev();
-        } else if (view === 'detail') {
-          if (!activeWsId) return;
-          navOverview.classList.add('active');
-          renderWsList();
-          detailView.classList.add('visible');
-        }
-        closeSidebar();
-      }
-
-      navOverview.addEventListener('click', () => showView('overview'));
-      navProductDev.addEventListener('click', () => showView('product-dev'));
-
       function selectWorkspace(id) {
         if (!id) {
+          // "全部" — 显示 overview 视图
           overviewWorkspaceId = null;
           activeWsId = null;
-          showView('overview');
+          overviewView.classList.remove('hidden');
+          detailView.classList.remove('visible');
+          renderWsList();
+          loadOverview();
+          closeSidebar();
           localStorage.setItem('active_workspace_id', '');
           try { window.parent.postMessage({ type: 'workspaceChanged', workspaceId: '' }, '*'); } catch(e) {}
           return;
         }
-        const isOverview = !overviewView.classList.contains('hidden');
-        if (isOverview) {
-          overviewWorkspaceId = id;
-          activeWsId = null;
-          renderWsList();
-          loadOverview();
-          localStorage.setItem('active_workspace_id', id);
-          try { window.parent.postMessage({ type: 'workspaceChanged', workspaceId: id }, '*'); } catch(e) {}
-        } else {
-          activeWsId = id;
-          overviewWorkspaceId = null;
-          renderWsList();
-          showView('detail');
-          loadDetail();
+        // 具体工作台 — 进入 detail 视图，概览以该工作台维度统计数据
+        overviewWorkspaceId = null;
+        activeWsId = id;
+        overviewView.classList.add('hidden');
+        detailView.classList.add('visible');
+        updateTabVisibility();
+        renderWsList();
+        switchToTab('overview');
+        loadDetailOverview();
+        loadDetail();
+        closeSidebar();
+        localStorage.setItem('active_workspace_id', id);
+        try { window.parent.postMessage({ type: 'workspaceChanged', workspaceId: id }, '*'); } catch(e) {}
+      }
+
+      /** "全部"（无活动工作台）时隐藏规则/排除 Tab，具体工作台恢复显示 */
+      function updateTabVisibility() {
+        const isAll = !activeWsId || activeWsId === 'all';
+        document.querySelectorAll('.detail-tab[data-tab="rules"], .detail-tab[data-tab="exclusions"]')
+          .forEach(t => { t.style.display = isAll ? 'none' : ''; });
+      }
+
+      function switchToTab(tabName) {
+        updateTabVisibility();
+        // "全部"（无活动工作台）没有规则/排除数据，强制回到概览
+        if ((!activeWsId || activeWsId === 'all') && (tabName === 'rules' || tabName === 'exclusions')) {
+          tabName = 'overview';
+        }
+        document.querySelectorAll('.detail-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.detail-tab-content').forEach(c => c.classList.remove('visible'));
+        const tab = document.querySelector('.detail-tab[data-tab="' + tabName + '"]');
+        const content = document.querySelector('.detail-tab-content[data-tab="' + tabName + '"]');
+        if (tab) tab.classList.add('active');
+        if (content) content.classList.add('visible');
+        if (tabName === 'suggestions' && activeWsId) {
+          loadSuggestions(activeWsId);
         }
       }
 
@@ -1260,9 +1067,8 @@
                   if (!r.ok) throw new Error(data.message || '删除失败，请稍后重试');
                   showDetailError('✓ ' + data.message);
                   // Navigate back to overview
+                  overviewWorkspaceId = null;
                   activeWsId = null;
-                  navOverview.classList.add('active');
-                  renderWsList();
                   overviewView.classList.remove('hidden');
                   detailView.classList.remove('visible');
                   await loadWorkspaces();
@@ -1302,7 +1108,7 @@
           currentExpression = exprResp.ok ? await exprResp.json() : { workspaceId: activeWsId, relation: 'OR', groups: [] };
           // Rules
           renderExpression(rulesData);
-          renderWorkspaceSettings(ws);
+          renderRootRelation();
           // Exclusions
           renderExclusions(exclusionsData);
         } catch (e) {
@@ -1393,6 +1199,7 @@
                   <option value="OR" ${group.relation === 'OR' ? 'selected' : ''}>组内任一命中（OR）</option>
                   <option value="AND" ${group.relation === 'AND' ? 'selected' : ''}>组内全部命中（AND）</option>
                 </select>
+                <button class="rule-group-del" data-group-id="${escapeHtml(group.id)}" data-count="${(group.ruleIds || []).length}" type="button" title="删除分组（连同组内规则）" data-func-tag="功能:删除分组">删除分组</button>
                 <button class="rule-group-add" data-group-id="${escapeHtml(group.id)}" type="button" title="向此分组添加规则" data-func-tag="功能:添加规则到分组">+ 添加规则</button>
               </div>
               <div class="rule-group-list">${rows || '<span class="rule-group-empty">空分组（不参与匹配）</span>'}</div>
@@ -1404,6 +1211,7 @@
         container.querySelectorAll('.rule-del-btn').forEach(btn => btn.addEventListener('click', () => deleteRule(btn.dataset.ruleId)));
         container.querySelectorAll('.rule-group-relation').forEach(sel => sel.addEventListener('change', () => updateGroupRelation(sel.dataset.groupId, sel.value)));
         container.querySelectorAll('.rule-group-add').forEach(btn => btn.addEventListener('click', () => openRuleModal(null, btn.dataset.groupId)));
+        container.querySelectorAll('.rule-group-del').forEach(btn => btn.addEventListener('click', () => deleteGroup(btn.dataset.groupId, parseInt(btn.dataset.count || '0'))));
       }
 
       async function updateGroupRelation(groupId, relation) {
@@ -1423,41 +1231,81 @@
         }
       }
 
-      /* ── Workspace Settings ── */
-      function renderWorkspaceSettings(ws) {
-        const settingsEl = $('workspaceSettings');
-        if (!settingsEl) return;
-        const rootRelation = (currentExpression && currentExpression.relation) || 'OR';
-        settingsEl.innerHTML = `
-          <div class="settings-section">
-            <h4>规则匹配模式（组间关系）</h4>
-            <label class="toggle-label">
-              <input type="checkbox" id="matchAllToggle" ${rootRelation === 'AND' ? 'checked' : ''}>
-              <span class="toggle-slider"></span>
-              <span class="toggle-text">${rootRelation === 'AND' ? '所有分组必须全部命中（组间 AND）' : '任一分组命中即可（组间 OR）'}</span>
-            </label>
-            <p class="settings-hint">组间关系控制分组之间的连接方式；每个分组内部还可单独设置 AND/OR（见下方规则分组）。手动加入和关系带入的内容不受影响。</p>
-          </div>
-        `;
-        const toggle = $('matchAllToggle');
-        if (toggle) {
-          toggle.addEventListener('change', async () => {
-            const newRelation = toggle.checked ? 'AND' : 'OR';
-            const groups = (currentExpression && currentExpression.groups) || [];
-            try {
-              const r = await fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/rule-expression`, {
-                method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ relation: newRelation, groups })
-              });
-              if (!r.ok) throw new Error('保存失败');
-              currentExpression = await r.json();
-              await loadDetail();
-            } catch (e) {
-              showDetailError('保存设置失败：' + (e.message || '后端服务不可用'));
-              toggle.checked = newRelation !== 'AND';
-            }
+      /* ── Root relation（组间关系）── */
+      function renderRootRelation() {
+        const el = $('rulesRootRelation');
+        if (!el) return;
+        const rel = (currentExpression && currentExpression.relation) || 'OR';
+        el.innerHTML = `
+          <span class="root-label">匹配模式</span>
+          <button class="root-rel-btn ${rel === 'AND' ? 'active' : ''}" data-rel="AND" type="button" data-func-tag="功能:组间AND" title="所有分组必须全部命中">所有条件满足（AND）</button>
+          <button class="root-rel-btn ${rel === 'OR' ? 'active' : ''}" data-rel="OR" type="button" data-func-tag="功能:组间OR" title="任一分组命中即可">任一条件满足（OR）</button>
+          <span class="root-label" style="margin-left:auto">分组间关系：分组可增删，组内可独立设置 AND/OR，等价于 SQL 的 (A OR B) AND (C OR D)</span>`;
+        el.querySelectorAll('.root-rel-btn').forEach(btn => btn.addEventListener('click', () => updateRootRelation(btn.dataset.rel)));
+      }
+
+      async function updateRootRelation(newRelation) {
+        if (!currentExpression) return;
+        if (currentExpression.relation === newRelation) return;
+        const groups = (currentExpression.groups) || [];
+        try {
+          const r = await fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/rule-expression`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ relation: newRelation, groups })
           });
+          if (!r.ok) throw new Error('保存失败');
+          currentExpression = await r.json();
+          await loadDetail();
+        } catch (e) {
+          showDetailError('保存分组间关系失败：' + (e.message || '后端服务不可用'));
         }
+      }
+
+      /* ── Group CRUD（添加/删除分组）── */
+      async function addGroup() {
+        if (!activeWsId || activeWsId === 'all') return;
+        try {
+          const r = await fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/rule-expression/groups`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ relation: 'OR' })
+          });
+          if (!r.ok) {
+            const err = await r.json().catch(() => ({}));
+            throw new Error(err.message || '创建分组失败');
+          }
+          currentExpression = await r.json();
+          await loadDetail();
+        } catch (e) {
+          showDetailError('创建分组失败：' + (e.message || '后端服务不可用'));
+        }
+      }
+
+      function deleteGroup(groupId, count) {
+        if (!activeWsId || activeWsId === 'all') return;
+        $('confirmTitle').textContent = '删除分组';
+        $('confirmMessage').textContent = count > 0
+          ? `确定删除此分组吗？将同时删除组内 ${count} 条规则，不可恢复。`
+          : '确定删除此分组吗？删除后不可恢复。';
+        const confirmActionBtn = $('confirmAction');
+        confirmActionBtn.onclick = async () => {
+          hideModal(confirmModal);
+          rulesError.style.display = 'none';
+          confirmActionBtn.disabled = true;
+          confirmActionBtn.classList.add('btn-loading');
+          try {
+            const r = await fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/rule-expression/groups/${encodeURIComponent(groupId)}`, { method: 'DELETE' });
+            if (!r.ok) throw new Error('删除失败');
+            currentExpression = await r.json();
+            await loadDetail();
+          } catch (e) {
+            rulesError.textContent = '删除分组失败：' + (e.message || '后端服务不可用');
+            rulesError.style.display = 'block';
+          } finally {
+            confirmActionBtn.disabled = false;
+            confirmActionBtn.classList.remove('btn-loading');
+          }
+        };
+        showModal(confirmModal);
       }
 
       async function toggleRule(ruleId, currentEnabled) {
@@ -1783,6 +1631,8 @@
         showModal(ruleModal);
       }
       $('addRuleBtn').addEventListener('click', () => openRuleModal(null));
+      const addGroupBtn = $('addGroupBtn');
+      if (addGroupBtn) addGroupBtn.addEventListener('click', addGroup);
       // Field change toggles value input type and operators
       $('ruleField').addEventListener('change', function() {
         switchRuleValueInput(this.value);
@@ -2056,14 +1906,7 @@
       /* ── Tab switching ── */
       document.querySelectorAll('.detail-tab').forEach(tab => {
         tab.addEventListener('click', () => {
-          document.querySelectorAll('.detail-tab').forEach(t => t.classList.remove('active'));
-          document.querySelectorAll('.detail-tab-content').forEach(c => c.classList.remove('visible'));
-          tab.classList.add('active');
-          const content = document.querySelector('.detail-tab-content[data-tab="' + tab.dataset.tab + '"]');
-          if (content) content.classList.add('visible');
-          if (tab.dataset.tab === 'suggestions' && activeWsId) {
-            loadSuggestions(activeWsId);
-          }
+          switchToTab(tab.dataset.tab);
         });
       });
 
@@ -2335,54 +2178,71 @@
         }, 260);
       });
 
-      /* ── Overview search ── */
-      let searchTimer;
-      $('searchInput').addEventListener('input', e => {
-        clearTimeout(searchTimer);
-        searchTimer = setTimeout(() => { overviewState.query = e.target.value.trim(); loadOverview(); }, 260);
-      });
-
       /* ── Theme ── */
       window.addEventListener('message', event => {
         if (event.data?.action === 'themeChange') document.documentElement.setAttribute('data-theme', event.data.theme);
         if (event.data?.action === 'refresh') {
-          loadOverview();
+          if (overviewView.classList.contains('hidden')) {
+            loadDetailOverview();
+            if (activeWsId) {
+              loadDetail();
+            }
+          } else {
+            loadOverview();
+          }
           loadWorkspaces();
-          if (productDevView && productDevView.classList.contains('visible')) loadProductDev();
         }
       });
       document.documentElement.setAttribute('data-theme', localStorage.getItem('app_theme_v1') || 'notion');
 
       /* ── Refresh button handler ── */
-      $('refreshButton').addEventListener('click', async function() {
-        const btn = this;
-        const info = $('refreshInfo');
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;flex:none"></span> 重建索引中...';
-        info.className = 'refresh-info show';
-        info.textContent = '正在重建内容索引...';
-        try {
-          const r = await fetch('/api/data/rebuild', { method: 'POST' });
-          if (!r.ok) throw new Error('请求失败（' + r.status + '）');
-          const data = await r.json();
-          info.className = 'refresh-info show success';
-          info.textContent = '✓ 索引已重建，共 ' + data.count + ' 条内容';
-          // Reload overview data
-          await loadOverview();
-        } catch (e) {
-          info.className = 'refresh-info show error';
-          info.textContent = '✗ 重建失败：' + (e.message || '后端服务不可用');
-        } finally {
-          btn.innerHTML = '<span aria-hidden="true">↻</span> 刷新索引';
-          btn.disabled = false;
-          setTimeout(function() { info.classList.remove('show'); }, 3000);
-        }
-      });
+      if (refreshButton) {
+        refreshButton.addEventListener('click', async function() {
+          const btn = this;
+          btn.disabled = true;
+          btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;flex:none"></span> 重建索引中...';
+          const info = $('refreshInfo');
+          if (info) { info.textContent = '索引重建中...'; info.className = 'refresh-info show'; }
+          try {
+            const r = await fetch('/api/data/rebuild', { method: 'POST' });
+            if (!r.ok) throw new Error('请求失败（' + r.status + '）');
+            const data = await r.json();
+            btn.innerHTML = '<span aria-hidden="true">↻</span> 刷新索引 ✓';
+            if (info) { info.textContent = '✓ ' + (data.message || '索引已重建'); info.className = 'refresh-info show success'; }
+            await loadOverview();
+          } catch (e) {
+            btn.innerHTML = '<span aria-hidden="true">↻</span> 刷新索引 ✗';
+            if (info) { info.textContent = '✗ ' + (e.message || '重建失败'); info.className = 'refresh-info show error'; }
+          } finally {
+            setTimeout(function() { btn.innerHTML = '<span aria-hidden="true">↻</span> 刷新索引'; btn.disabled = false; if (info) { info.className = 'refresh-info'; } }, 1500);
+          }
+        });
+      }
+      // Detail view refresh button
+      const detailRefreshBtn = $('detailRefreshButton');
+      if (detailRefreshBtn) {
+        detailRefreshBtn.addEventListener('click', async function() {
+          const btn = this;
+          btn.disabled = true;
+          btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;flex:none"></span> 重建索引中...';
+          try {
+            const r = await fetch('/api/data/rebuild', { method: 'POST' });
+            if (!r.ok) throw new Error('请求失败（' + r.status + '）');
+            const data = await r.json();
+            btn.innerHTML = '<span aria-hidden="true">↻</span> 刷新索引 ✓';
+            await loadDetailOverview();
+            if (activeWsId) {
+              await loadDetail();
+            }
+          } catch (e) {
+            btn.innerHTML = '<span aria-hidden="true">↻</span> 刷新索引 ✗';
+          } finally {
+            setTimeout(function() { btn.innerHTML = '<span aria-hidden="true">↻</span> 刷新索引'; btn.disabled = false; }, 1500);
+          }
+        });
+      }
 
-      /* ── 产品开发工作区 ── */
-      let pdChartInstances = {};
-
-      /* ── 产品开发 Tab 切换 ── */
+      /* ── 产品开发工作区 ── (已移除) */
       document.querySelectorAll('.pd-tab').forEach(function(tab) {
         tab.addEventListener('click', function() {
           document.querySelectorAll('.pd-tab').forEach(function(t) { t.classList.remove('active'); });
@@ -3167,6 +3027,19 @@
         await loadWorkspaces();
         loadOverview();
       })();
+
+      /* ── Overview search ── */
+      var overviewSearchTimer = null;
+      var searchInput = $('searchInput');
+      if (searchInput) {
+        searchInput.addEventListener('input', function() {
+          clearTimeout(overviewSearchTimer);
+          overviewSearchTimer = setTimeout(function() {
+            overviewState.query = searchInput.value.trim();
+            loadOverview();
+          }, 260);
+        });
+      }
     })();
   </script>
   <script src="js/logger.js"></script>
