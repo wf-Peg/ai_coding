@@ -1,131 +1,78 @@
-# 产品开发工作区 — 实施任务
+# 产品开发工作台 — 实施任务（MVP 重写）
 
-## 任务 1：前端视图改造（workspace.html）
+> 本文档与 `spec.md`（MVP 重写版）配套。原版 tasks 引用已废弃的独立 ProductDevController 数据源，本版聚焦：Agent 归档 → 后端扫描落库 → 工作台规则展示。
 
-### 1.1 侧边栏新增「产品开发」入口
-- [ ] 在 `sidebar-nav` 中新增 `data-view="product-dev"` 按钮
-- [ ] 添加点击事件切换到产品开发视图
-- [ ] 更新导航高亮逻辑
+## 任务 1：后端扫描落库（TodoScannerService）
 
-### 1.2 产品开发视图 HTML 结构
-- [ ] 新增 `product-dev-view` 容器
-- [ ] 实现仪表盘区域（统计卡片 + 图表容器）
-- [ ] 实现需求看板区域（6 列 Kanban）
-- [ ] 实现知识图谱容器
-- [ ] 实现甘特图区域
-- [ ] 实现归档列表区域
+### 1.1 feature-points.json 解析
+- [ ] 解析 `requirement` 对象（title/summary/tags/phase），兼容缺失时降级为目录名
+- [ ] 解析 `featurePoints[].clips[]`，字段约定：`title` / `contentFile` / `section`（可选）/ `category` / `tags`
+- [ ] 解析 `featurePoints[].todos[]`，字段约定：`title` / `priority` / `status`（`todo` / `done`）
+- [ ] 读取 `config`（clipCategory / todoCategory / autoTag），缺失时默认 `product-dev`
+- [ ] `section` 指定时按章节截取 md 内容，章节不存在时降级为全文
 
-### 1.3 数据可视化组件
-- [ ] 引入 Chart.js CDN
-- [ ] 实现统计卡片渲染
-- [ ] 实现环形图（待办完成率）
-- [ ] 实现折线图（知识积累趋势）
-- [ ] 实现柱状图（各阶段分布）
-- [ ] 引入 D3.js CDN 实现力导向图
-- [ ] 实现甘特图（纯 CSS/SVG）
+### 1.2 落库逻辑
+- [ ] 剪藏：`ClipService.saveClip()`，type=`text`，source=`product-dev-archive`，category 取 clipDef.category 或 config.clipCategory
+- [ ] 剪藏标签 = autoTag + requirement.tags + clipDef.tags（去重）
+- [ ] 待办：`TodoService.saveTodo()`，status=`done` 映射 `completed=true`
+- [ ] 待办 category 取 config.todoCategory
 
-### 1.4 交互逻辑
-- [ ] 需求看板拖拽切换阶段
-- [ ] 需求卡片点击显示详情弹窗
-- [ ] 知识图谱悬停显示详情
-- [ ] 甘特图缩放到时间范围
+### 1.3 重复导入防护（增量）
+- [ ] `.imported` 标记写入 JSON：`{ importedAt, featurePointIds[] }`
+- [ ] 按 `featurePoints[].id` 幂等去重，已导入的功能点跳过
+- [ ] 旧版纯文本 `.imported` 解析失败时视为全新导入
+- [ ] 扫描结果记录：扫描/导入/跳过目录数、剪藏/待办创建数、错误列表
 
-### 1.5 样式
-- [ ] 产品开发视图样式（仪表盘卡片、看板、图表等）
-- [ ] 响应式适配
-- [ ] 与现有主题系统一致
+### 1.4 配置
+- [ ] `application_templete.yml` 增加 `product-dev.todo-dir`（默认 `./TODO`）
+- [ ] Electron `main.js` `generateApplicationYml()` 注入 `product-dev.todo-dir = {APP_DIR}/TODO`
 
----
+## 任务 2：内置工作台初始化（唯一初始化器）
 
-## 任务 2：后端 API（Java）
+- [ ] 保留 `ProductDevWorkspaceInitializer`（CommandLineRunner），删除 `ProductDevStartupInitializer`
+- [ ] 工作台属性对齐 spec 5.1：id=`pd-builtin`、name=`产品开发`、color=`#2383e2`、type=`project`、desc=系统内置描述
+- [ ] 三条内置规则对齐 spec 5.2：`tag equals product-dev`、`type in clip,todo`、`category contains product-dev`
+- [ ] 幂等：工作台已存在时仅补齐缺失规则
+- [ ] `Workspace.TYPES` 保持 `general/project/learning`（不新增 product-dev 类型）
 
-### 2.1 创建 ProductDevController
-- [ ] 新建 `ProductDevController.java`，路径 `/api/workspace/product-dev`
-- [ ] 实现统计接口 `GET /stats`
-- [ ] 实现待办统计接口 `GET /todo-stats`
-- [ ] 实现知识趋势接口 `GET /knowledge-trend`
-- [ ] 实现阶段分布接口 `GET /phase-distribution`
-- [ ] 实现关系图接口 `GET /relation-graph`
-- [ ] 实现时间线接口 `GET /timeline`
-- [ ] 实现需求 CRUD 接口
-- [ ] 实现归档接口 `POST /archive`
-- [ ] 实现归档列表接口 `GET /archive/list`
+## 任务 3：前端改造（workspace.html）
 
-### 2.2 创建 ProductDevService
-- [ ] 新建 `ProductDevService.java`
-- [ ] 实现需求 CRUD 方法
-- [ ] 实现统计数据聚合方法
-- [ ] 实现归档文件解析方法
-- [ ] 实现与 ClipService、KnowledgeService、TodoService 的联动
+### 3.1 视图结构
+- [ ] `product-dev-view` 移入 `.main-area` 内部，改为普通视图显隐切换（`display:none` / `.visible`）
+- [ ] 删除 `position: fixed; inset: 0; z-index: 60` 全屏覆盖
+- [ ] 绑定 `pdSidebarToggle` 按钮事件（移动端抽屉）
+- [ ] 统一 `showView(view)` 切换逻辑（overview / product-dev / detail）
 
-### 2.3 创建 ProductDevRequirement 模型
-- [ ] 新建 `ProductDevRequirement.java` 模型类
-- [ ] 定义所有字段（id, title, description, phase, priority, tags, relatedIds, timeline, milestones, archive 等）
-- [ ] 集成 FileStorageService 持久化
+### 3.2 数据源切换
+- [ ] `loadProductDev()` 改用 `/api/workspace/{pd-builtin}/resolve` 获取数据
+- [ ] 移除对 `/api/product-dev/*`（旧独立接口）的 9 个 fetch 调用
+- [ ] 仪表盘统计卡片从 `WorkspaceResolution` 解析结果计算
+- [ ] 看板从 `WorkspaceMembership.boardColumnId` 映射
+- [ ] 归档列表改为展示最近导入的 TODO 目录（可通过后端扫描接口或解析结果推导）
+- [ ] 标签筛选条改为对 resolve 结果本地过滤（`activePdTag`）
 
-### 2.4 创建 ProductDevArchiveService
-- [ ] 新建 `ProductDevArchiveService.java`
-- [ ] 实现启动时扫描归档文件
-- [ ] 实现解析并调用各 service 创建数据
-- [ ] 实现已处理条目标记
-- [ ] 实现处理日志记录
+### 3.3 二期功能隐藏
+- [ ] 知识图谱 tab 隐藏（`display: none`）
+- [ ] 甘特图 tab 隐藏（`display: none`）
 
----
+## 任务 4：旧体系清理
 
-## 任务 3：产品开发工作区归档 Skill
+- [ ] 评估 `ProductDevController` / `ProductDevService` / `ProductDevRecord` 是否存在其他引用
+- [ ] 确认前端无 `/api/product-dev/*` 调用后，删除旧 Controller/Service/Model（或标注废弃）
+- [ ] 回归验证：工作台其余交互不受影响
 
-### 3.1 创建增量归档 Skill（product-dev-archive）
-- [ ] 创建 `.trae/skills/product-dev-archive/` 目录
-- [ ] 创建 `SKILL.md` 定义文件
-- [ ] 创建 `template.json` 归档模板
+## 任务 5：文档同步
 
-### 3.2 增量归档 Skill 逻辑实现
-- [ ] 定义归档文件路径 `~/.cutshelter/product-dev-archive.json`
-- [ ] 定义数据格式（剪藏/知识/待办/Wiki 的字段映射）
-- [ ] 实现 Agent 完成任务后的自动调用逻辑
-- [ ] 实现后端 API 调用逻辑
+- [ ] `todo-directory-specification.md` 的 `.imported` 格式与实现一致（JSON）
+- [ ] `product-dev-workspace-builtin-rules.md` 规则与 spec 5.2 / 初始化器一致
+- [ ] `agent.md` 归档约束与 SKILL.md 一致
+- [ ] 补 wiki 模块现状说明、学习模块边界声明（参考审阅评估文档）
 
-### 3.3 创建存量迁移 Skill（product-dev-history-migrate）
-- [ ] 创建 `.trae/skills/product-dev-history-migrate/` 目录
-- [ ] 创建 `SKILL.md` 定义文件（含 TODO/ 和 .trae/specs/ 目录扫描规则）
-- [ ] 创建 `template.json` 迁移模板
+## 任务 6：全链路验证
 
-### 3.4 存量迁移 Skill 逻辑实现
-- [ ] 实现 TODO/ 目录扫描与解析逻辑
-- [ ] 实现 .trae/specs/ 目录扫描与解析逻辑
-- [ ] 实现文件名到目标类型的映射规则（01-主线→需求+知识, 02-规格→知识, 03-任务→待办, 04-验收→待办）
-- [ ] 实现 bug-history.md 解析为剪藏
-- [ ] 实现 commit_history.log 解析为时间线事件
-- [ ] 实现与增量归档共用同一输出文件（区分 source 字段）
-
----
-
-## 任务 4：agent.md 更新
-
-### 4.1 追加归档约束
-- [ ] 添加「产品开发工作区归档约束」章节
-- [ ] 描述增量归档（product-dev-archive）的触发时机和数据格式
-- [ ] 描述存量迁移（product-dev-history-migrate）的用途和调用方式
-- [ ] 提供剪藏/知识/待办/Wiki 的 API 调用示例
-- [ ] 说明两个 Skill 共用同一个归档文件，通过 source 字段区分
-
----
-
-## 任务 5：集成测试
-
-### 5.1 前端测试
-- [ ] 产品开发视图加载正常
-- [ ] 图表渲染正常
-- [ ] 需求看板拖拽正常
-- [ ] 响应式布局正常
-
-### 5.2 后端测试
-- [ ] 所有 API 接口返回正确状态码
-- [ ] 数据存储读取正常
-- [ ] 归档解析正常
-
-### 5.3 集成测试
-- [ ] 前端调用后端 API 正常
-- [ ] Skill 归档文件写入正常
-- [ ] 后端解析归档文件正常
-- [ ] 不破坏现有功能
+- [ ] 构造最小 `feature-points.json` 示例（含 requirement 对象、1 个 featurePoint、1 clip + 1 todo）
+- [ ] 启动后端，确认扫描落库成功（剪藏 + 待办创建）
+- [ ] 再次启动，确认幂等跳过（不重复导入）
+- [ ] 修改 json 新增功能点，确认增量导入生效
+- [ ] 确认 `pd-builtin` 工作台自动创建、三条规则存在
+- [ ] 前端产品开发视图显示导入的剪藏和待办

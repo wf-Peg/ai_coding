@@ -144,23 +144,64 @@ TODO/
 
 ### 概述
 
-每次完成一个需求或子任务后，**必须自动执行** `product-dev-archive` skill，将需求的全流程数据按固定格式写入本地文件。后端启动时扫描该目录，自动解析为产品开发工作区的结构化数据。
+每次完成一个需求或子任务后，**必须自动执行** `product-dev-archive` skill，将需求的全流程数据按约定格式写入 `TODO/{需求中文概述}/` 目录。后端启动时扫描 TODO 目录，解析 `feature-points.json`，自动落库为剪藏和待办，通过产品开发工作台规则筛选展示。
+
+### 核心链路
+
+```
+Agent 完成编码任务
+    ↓ 自动调用 product-dev-archive skill
+写入 TODO/{需求中文概述}/
+    ├── feature-points.json     ← ★ 核心约定文件
+    ├── 01-需求分析.md          ← → 剪藏
+    ├── 02-设计文档.md          ← → 剪藏
+    ├── 03-实施任务.md          ← → 待办
+    └── 04-验收清单.md          ← → 待办
+    ↓ 后端启动时扫描
+自动落库到剪藏和待办模块
+    ↓
+产品开发工作台（规则: tag=product-dev）展示
+```
+
+### 归档时机
+
+- **每个子任务完成时**：增量归档当前子任务，追加 featurePoints、更新待办状态
+- **整个需求完成时**：归档完整需求，更新 phase 为 `completed`
+- **Bug 修复完成时**：在对应需求目录下追加修复记录
+
+### TODO 目录规范
+
+```
+TODO/
+├── {需求中文概述}/                    # 子目录名即需求概述
+│   ├── feature-points.json          # ★ 核心约定文件（前后端共享解析规则）
+│   ├── 01-需求分析.md              # 原始需求、分析结论、会话摘要
+│   ├── 02-设计文档.md              # 技术方案、架构设计、接口定义
+│   ├── 03-实施任务.md              # 可拆分的子任务列表
+│   ├── 04-验收清单.md              # 验收项 checklist
+│   └── .imported                    # 导入标记文件（后端写入）
+├── bugs/
+│   └── bug-history.md
+└── ... (其他存量目录)
+```
+
+### feature-points.json 核心结构
+
+详见 `.trae/skills/product-dev-archive/SKILL.md`，关键字段：
+
+- `requirement`：需求元信息（title, tags, phase, createdAt, completedAt）
+- `featurePoints[]`：功能点列表，每个功能点含 id, name, layer, clips[], todos[]
+- `config`：落库配置（clipCategory, todoCategory, autoTag）
+- **所有 tags 必须包含 `"product-dev"`**
 
 ### 归档约束
 
-1. **归档时机**：每个子任务完成时立即归档当前知识点和待办状态；整个需求完成时归档完整需求链。
-2. **归档格式**：遵循 `product-dev-archive/SKILL.md` 中定义的 JSON 结构，写入 `{storagePath}/product-dev/archives/{yyMMdd-HHmmss}-{需求标识}.json`。
-3. **内容要求**：
-   - 需求分析阶段：归档需求描述、分析结论、相关链接
-   - 设计阶段：归档技术方案、架构设计、接口定义
-   - 实现阶段：归档核心代码逻辑、关键决策、遇到的问题和解决方案
-   - 测试阶段：归档测试方案、测试结果、验收清单
-   - 完成阶段：归档完整的知识总结、待办完成情况
-4. **接口调用**：每次归档后，调用后端 API 通知索引更新：
-   - `POST /api/product-dev/archive` — 创建归档条目（若需求大则拆分为多条剪藏）
-   - `POST /api/knowledge/add` — 将知识整合为一条知识条目
-   - `POST /api/todo/update` — 完成待办时调用接口标记完成
-5. **历史迁移**：当用户执行"历史迁移"操作时，调用 `POST /api/product-dev/migrate` 触发后端扫描 TODO/ 和 .trae/specs/ 目录。
+1. **功能点拆分**：大需求按功能点拆分为多个 featurePoints，每个功能点独立产出剪藏和待办。id 格式 `fp-001`，按数字递增。
+2. **内容文件**：按类型写入对应 md 文件（01-需求分析、02-设计文档、03-实施任务、04-验收清单），文件内按功能点分章节。
+3. **剪藏**：做源内容存储，不做 AI 自动分析。`contentFile` 指向同目录 md 文件，`section` 可选指定章节。
+4. **待办**：使用计划模式，开发完成后标记 `status: "done"`。
+5. **标签预留**：`featurePoints[].tags` 为后续自动整合为知识做铺垫，本期不开发。
+6. **存量迁移**：首次使用时通过 `product-dev-history-migrate` skill 为存量 TODO 目录生成 `feature-points.json`。
 
 ### 关联技能
 

@@ -538,6 +538,10 @@ function generateApplicationYml(config) {
       storage: { path: clipStoragePath },
       'organized-storage': { path: path.join(config.storagePath, 'clip-organized') },
       'clip-weekly-report': { path: path.join(config.storagePath, 'weekly-report') }
+    },
+    'product-dev': {
+      // Agent 产出自动落库的 TODO 目录（产品开发工作台数据源）
+      'todo-dir': path.join(APP_DIR, 'TODO')
     }
   };
 

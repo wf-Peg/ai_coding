@@ -1,80 +1,91 @@
 ---
 name: product-dev-history-migrate
-description: 历史存量需求迁移 — 扫描 TODO/ 和 .trae/specs/ 目录下的历史需求文档，解析并映射为产品开发工作区可导入的格式文件。
+description: 历史存量需求迁移 — 扫描 TODO/ 目录下的历史需求文档，解析并生成 feature-points.json，供后端扫描落库使用。
 ---
 
 # 历史存量需求迁移 Skill
 
 ## 概述
 
-当用户执行"历史迁移"操作时，此 skill 扫描 `TODO/` 和 `.trae/specs/` 目录下的历史需求文档，解析 Markdown 文件内容，提取结构化信息，生成 `{storagePath}/product-dev/migrations/` 目录下的导入格式文件。后端启动时扫描该目录，自动解析入库。
+当用户执行"历史迁移"操作时，此 skill 扫描 `TODO/` 目录下的历史需求文档（排除已有 `feature-points.json` 的目录），解析 Markdown 文件内容，提取结构化信息，生成 `feature-points.json` 文件。后端启动时扫描 TODO 目录，自动将这些存量需求落库为剪藏和待办。
 
 ## 扫描规则
 
 ### 扫描目录
 
-| 目录 | 说明 | 映射类型 |
+| 目录 | 说明 | 处理方式 |
 |------|------|---------|
-| `TODO/` | 中长需求目录，含主线任务说明、子任务规格等 | 需求 + 知识 |
-| `.trae/specs/` | 已完成的 spec 文档目录 | 知识 + 待办 |
-| `.trae/documents/` | 项目文档目录 | 知识 |
+| `TODO/{需求目录}/` | 中长需求目录，含主线任务说明、子任务规格等 | 解析为需求 + 功能点 |
+| `TODO/bugs/` | Bug 历史目录 | 跳过，不处理 |
+
+### 跳过条件
+
+- 目录下已存在 `feature-points.json` → 跳过
+- 目录下已存在 `.imported` 标记文件 → 跳过
+- 目录下无任何 md 文件 → 跳过
 
 ### 文件解析规则
 
-对于每个 Markdown 文件：
+对于每个 Markdown 文件，按文件名前缀和内容关键词映射：
 
-1. **读取 frontmatter**（如果有）：提取 title, tags, type 等元数据
-2. **解析 Markdown 标题**：提取 h1/h2/h3 作为结构化章节
-3. **内容映射**：
-   - 包含"需求分析"、"spec"、"规格"等关键词 → 映射为 requirement（phase: analysis）
-   - 包含"设计"、"架构"、"技术方案"等关键词 → 映射为 knowledge
-   - 包含"待办"、"TODO"、"任务"等关键词 → 映射为 todo
-   - 包含"实现"、"编码"、"开发"等关键词 → 映射为 requirement（phase: implementation）
-   - 包含"测试"、"验收"、"checklist"等关键词 → 映射为 requirement（phase: testing）
+| 文件名模式 | 内容关键词 | 映射类型 |
+|-----------|-----------|---------|
+| `01-*.md` 主线任务 | 需求、计划、目标 | requirement（需求分析） |
+| `02-*.md` 规格 | 规格、spec、设计 | design（设计文档） |
+| `03-*.md` 实施 | 任务、实施、开发 | 待办项 |
+| `04-*.md` 验收 | 验收、checklist、测试 | 待办项（验收） |
+| 其他 `.md` | 包含"设计/架构" | 设计文档 |
+| 其他 `.md` | 包含"需求/分析" | 需求分析 |
+| 其他 `.md` | 包含"任务/待办" | 待办项 |
 
-### 输出格式
+### 解析策略
 
-写入 `{storagePath}/product-dev/migrations/{yyMMdd-HHmmss}-migrate-{source}.json`：
+1. **读取文件内容**：完整读取 Markdown 文件
+2. **提取标题**：解析 h1/h2/h3 作为章节结构
+3. **提取列表项**：解析 `- [ ]` / `- [x]` 作为待办项
+4. **生成 featurePoints**：
+   - 每个子任务（如"子任务1：xxx"）映射为一个 featurePoint
+   - 每个 featurePoint 关联对应的 clips 和 todos
+   - 按层级（前端/后端）分类
 
-```json
-{
-  "source": "TODO/xxx/01-xxx.md 等",
-  "records": [
-    {
-      "type": "requirement|knowledge|todo",
-      "title": "标题",
-      "description": "描述",
-      "phase": "analysis|design|implementation|testing|completed",
-      "tags": ["标签"],
-      "content": "完整 Markdown 内容",
-      "sourcePath": "原始文件路径"
-    }
-  ]
-}
-```
+## 输出
 
-### 执行流程
+### 生成的 feature-points.json
+
+写入 `TODO/{需求目录}/feature-points.json`，格式与 `product-dev-archive` skill 一致。
+
+### 迁移报告
+
+迁移完成后输出摘要：
 
 ```
-用户点击"历史迁移"按钮
-    ↓
-扫描 TODO/、.trae/specs/、.trae/documents/ 目录
-    ↓
-对每个 Markdown 文件：
-    ├── 读取 frontmatter 元数据
-    ├── 按标题结构解析内容
-    ├── 按关键词匹配映射为目标类型
-    └── 生成结构化记录
-    ↓
-写入 migrations 目录下的 JSON 文件
-    ↓
-调用后端 POST /api/product-dev/migrate 触发入库
-    ↓
-显示迁移结果（成功数/失败数）
+历史迁移完成
+- 扫描目录数: 5
+- 生成 feature-points.json: 3
+- 跳过（已有）: 1
+- 跳过（无内容）: 1
+- 提取功能点: 12
+- 提取剪藏: 15
+- 提取待办: 42
 ```
 
-### 注意事项
+## 执行流程
 
-- 不修改原始文件，只读取不写入
-- 重复迁移检测：检查目标文件是否已存在，避免重复导入
-- 迁移完成后，在活动日志中记录迁移操作
+```
+1. 扫描 TODO/ 目录下的子目录
+2. 对每个子目录：
+   a. 检查是否已有 feature-points.json 或 .imported → 跳过
+   b. 读取目录下所有 md 文件
+   c. 按文件名前缀和内容关键词分类
+   d. 提取需求标题、摘要、功能点
+   e. 生成 feature-points.json
+   f. 写入 .imported 标记文件
+3. 输出迁移报告
+```
+
+## 注意事项
+
+- 不修改原始文件，只读取不写入（除 feature-points.json 和 .imported）
+- 重复迁移检测：通过 `feature-points.json` 和 `.imported` 存在性判断
+- 迁移完成后，后端启动时自动扫描 TODO 目录并落库
+- 如果存量目录结构不规范，尽量按最佳匹配解析，标记 `phase: "completed"`（历史需求视为已完成）

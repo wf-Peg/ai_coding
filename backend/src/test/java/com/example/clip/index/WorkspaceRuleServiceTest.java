@@ -79,6 +79,61 @@ class WorkspaceRuleServiceTest {
         assertEquals(1, resolution.visibleCount());
     }
 
+    @Test
+    void resolve_withNestedGroups() {
+        WorkspaceRuleService service = new WorkspaceRuleService(tempDir);
+        LocalDateTime now = LocalDateTime.of(2026, 8, 4, 10, 0);
+        service.saveRule(new WorkspaceRule("r1", "w", "tag", "equals", "java", true, now, now));
+        service.saveRule(new WorkspaceRule("r2", "w", "category", "equals", "开发", true, now, now));
+        service.saveRule(new WorkspaceRule("r3", "w", "type", "in", "clip,todo", true, now, now));
+        service.saveExpression(new RuleExpression("w", "AND",
+                List.of(new RuleGroup("g1", "OR", List.of("r1", "r2")),
+                        new RuleGroup("g2", "AND", List.of("r3")))));
+
+        List<ContentRef> refs = List.of(
+                ref("clip:1", "clip", "Java 后端开发", "开发", List.of("Java"), now),
+                ref("clip:2", "knowledge", "Spring Boot 入门", "开发", List.of("Java"), now.minusDays(2)),
+                ref("clip:3", "todo", "采购清单", "生活", List.of("采购"), now.plusDays(1))
+        );
+        // r1: tag=java（clip:1, clip:2 命中）; r2: category=开发（clip:1, clip:2 命中）; r3: type in clip,todo（clip:1, clip:3 命中）
+        // AND: 组1 OR 命中 && 组2 AND 命中 → clip:1 通过（组1 r1/r2 命中、组2 r3 命中）；clip:2 组2 失败；clip:3 组1 失败
+        WorkspaceResolution resolution = service.resolve("w", refs, List.of(), List.of());
+
+        assertEquals(1, resolution.visibleCount(), "仅 clip:1 使整个表达式为 true");
+        assertTrue(resolution.visible().stream().anyMatch(ref -> ref.id().equals("clip:1")));
+        assertFalse(resolution.visible().stream().anyMatch(ref -> ref.id().equals("clip:2")));
+        assertFalse(resolution.visible().stream().anyMatch(ref -> ref.id().equals("clip:3")));
+        assertEquals("rule", resolution.contentSources().get("clip:1"));
+    }
+
+    @Test
+    void resolve_emptyExpression_onlyBypassMembers() {
+        WorkspaceRuleService service = new WorkspaceRuleService(tempDir);
+        LocalDateTime now = LocalDateTime.of(2026, 8, 4, 10, 0);
+        List<ContentRef> refs = List.of(
+                ref("clip:1", "clip", "Java 开发", "开发", List.of("Java"), now));
+        WorkspaceResolution resolution = service.resolve("w", refs,
+                List.of(new WorkspaceMembership("w", "clip:1", "manual", "手动", 1.0, "", 1, now, now)),
+                List.of());
+        assertEquals(1, resolution.visibleCount(), "无表达式时仅 manual 成员可见");
+        assertEquals("manual", resolution.contentSources().get("clip:1"));
+    }
+
+    @Test
+    void resolve_legacyRules_migrateToSingleOrGroup() {
+        WorkspaceRuleService service = new WorkspaceRuleService(tempDir);
+        LocalDateTime now = LocalDateTime.of(2026, 8, 4, 10, 0);
+        service.saveRule(new WorkspaceRule("r1", "w", "tag", "equals", "Java", true, now, now));
+        service.saveRule(new WorkspaceRule("r2", "w", "category", "equals", "开发", true, now, now));
+        // 未写表达式 → getExpression 惰性迁移为单组 OR
+        List<ContentRef> refs = List.of(
+                ref("clip:1", "clip", "Java 后端", "其他", List.of("Java"), now),
+                ref("clip:3", "todo", "采购", "生活", List.of("采购"), now));
+        WorkspaceResolution resolution = service.resolve("w", refs, List.of(), List.of());
+        assertEquals(1, resolution.visibleCount(), "迁移后单组 OR：任一规则命中即可见（仅 clip:1 命中 r1）");
+        assertTrue(resolution.visible().stream().anyMatch(ref -> ref.id().equals("clip:1")));
+    }
+
     private ContentRef ref(String id, String type, String title, String category, List<String> tags, LocalDateTime updatedAt) {
         return new ContentRef(id, type, id, title, category, tags, "source/" + id, updatedAt.minusDays(1), updatedAt, "body");
     }

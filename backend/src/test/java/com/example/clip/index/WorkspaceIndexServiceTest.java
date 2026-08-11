@@ -25,8 +25,8 @@ class WorkspaceIndexServiceTest {
     void persistsWorkspaceAndMembershipsIdempotentlyAndDeletesInIsolation() throws Exception {
         LocalDateTime now = LocalDateTime.now();
         WorkspaceIndexService service = new WorkspaceIndexService(tempDir);
-        Workspace first = new Workspace("workspace-1", "Java", "学习", "#569cff", "project", "active", now, now);
-        Workspace second = new Workspace("workspace-2", "生活", "", "#ff9f43", "general", "active", now, now);
+        Workspace first = new Workspace("workspace-1", "Java", "学习", "#569cff", "project", "active", false, now, now);
+        Workspace second = new Workspace("workspace-2", "生活", "", "#ff9f43", "general", "active", false, now, now);
         WorkspaceMembership member = new WorkspaceMembership(first.id(), "clip:1", "manual", "用户手动加入", 1.0, "", 1, now, now);
         WorkspaceMembership otherMember = new WorkspaceMembership(second.id(), "clip:2", "manual", "用户手动加入", 1.0, "", 1, now, now);
 
@@ -55,13 +55,13 @@ class WorkspaceIndexServiceTest {
         LocalDateTime now = LocalDateTime.now();
 
         assertThrows(IllegalArgumentException.class,
-                () -> service.saveWorkspace(new Workspace("", "名称", "", "", "general", "active", now, now)));
+                () -> service.saveWorkspace(new Workspace("", "名称", "", "", "general", "active", false, now, now)));
         assertThrows(IllegalArgumentException.class,
-                () -> service.saveWorkspace(new Workspace("id", "", "", "", "general", "active", now, now)));
+                () -> service.saveWorkspace(new Workspace("id", "", "", "", "general", "active", false, now, now)));
         assertThrows(IllegalArgumentException.class,
-                () -> service.saveWorkspace(new Workspace("id", "名称", "", "", "invalid", "active", now, now)));
+                () -> service.saveWorkspace(new Workspace("id", "名称", "", "", "invalid", "active", false, now, now)));
         assertThrows(IllegalArgumentException.class,
-                () -> service.saveWorkspace(new Workspace("id", "名称", "", "", "general", "invalid", now, now)));
+                () -> service.saveWorkspace(new Workspace("id", "名称", "", "", "general", "invalid", false, now, now)));
         assertFalse(Files.exists(tempDir.resolve("workspace.json")));
     }
 
@@ -69,7 +69,7 @@ class WorkspaceIndexServiceTest {
     void resolvesWorkspaceUsingPersistedManualMembersAndPassedRelationMembersWithoutWritingMembers() throws Exception {
         LocalDateTime now = LocalDateTime.now();
         WorkspaceIndexService service = new WorkspaceIndexService(tempDir);
-        Workspace workspace = new Workspace("workspace-1", "Java", "学习", "#569cff", "project", "active", now, now);
+        Workspace workspace = new Workspace("workspace-1", "Java", "学习", "#569cff", "project", "active", false, now, now);
         service.saveWorkspace(workspace);
         service.addMember(new WorkspaceMembership(workspace.id(), "clip:manual", "manual", "手动", 1.0, "", 1, now, now));
         List<ContentRef> refs = List.of(
@@ -95,7 +95,7 @@ class WorkspaceIndexServiceTest {
         try {
             LocalDateTime now = LocalDateTime.now();
             WorkspaceIndexService service = new WorkspaceIndexService(tempDir);
-            Workspace workspace = new Workspace("workspace-1", "Java", "学习", "#569cff", "project", "active", now, now);
+            Workspace workspace = new Workspace("workspace-1", "Java", "学习", "#569cff", "project", "active", false, now, now);
             service.saveWorkspace(workspace);
             service.addMember(new WorkspaceMembership(workspace.id(), "clip:manual", "manual", "手动", 1.0, "", 1, now, now));
             String sensitiveContent = "绝密正文-content-token";

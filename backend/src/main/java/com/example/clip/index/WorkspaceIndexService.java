@@ -20,7 +20,7 @@ import java.util.UUID;
 
 public class WorkspaceIndexService {
     private static final Logger log = LoggerFactory.getLogger(WorkspaceIndexService.class);
-    private static final Set<String> WORKSPACE_TYPES = Set.of("general", "project", "learning");
+    private static final Set<String> WORKSPACE_TYPES = Workspace.TYPES;
     private static final Set<String> WORKSPACE_STATUSES = Set.of("active", "archived");
 
     private static final List<DefaultColumnDef> DEFAULT_COLUMNS = List.of(

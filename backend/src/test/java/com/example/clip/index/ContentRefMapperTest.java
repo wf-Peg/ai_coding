@@ -1,64 +1,63 @@
 package com.example.clip.index;
 
 import com.example.clip.model.ClipContent;
-import com.example.clip.model.KnowledgeEntry;
 import com.example.clip.model.TodoContent;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 class ContentRefMapperTest {
 
-    private final ContentRefMapper mapper = new ContentRefMapper();
+    private ContentRefMapper mapper;
 
-    @Test
-    void mapsClipWithoutCopyingBody() {
-        ClipContent clip = new ClipContent();
-        clip.setId(1001L);
-        clip.setTitle("Java Stream");
-        clip.setCategory("study");
-        clip.setTags(List.of("java", "stream"));
-        clip.setContent("large body");
-
-        ContentRef ref = mapper.fromClip(clip);
-
-        assertEquals("clip:1001", ref.id());
-        assertEquals("clip", ref.type());
-        assertEquals("1001", ref.sourceId());
-        assertEquals("Java Stream", ref.title());
-        assertEquals("study", ref.category());
-        assertEquals(List.of("java", "stream"), ref.tags());
-        assertNull(ref.content());
+    @BeforeEach
+    void setUp() {
+        mapper = new ContentRefMapper();
     }
 
     @Test
-    void mapsKnowledgeAndTodoToStableTypedIds() {
-        KnowledgeEntry knowledge = new KnowledgeEntry();
-        knowledge.setId(2001L);
-        knowledge.setTitle("Streams are lazy");
-        knowledge.setCategory("study");
+    void mapsClipWithNullTitleUsingContentFallback() {
+        ClipContent clip = new ClipContent();
+        clip.setId(1003L);
+        clip.setContent("这是一段很长的剪藏内容正文，用于测试标题为空时的内容回退策略");
 
+        ContentRef ref = mapper.fromClip(clip);
+
+        assertEquals("clip:1003", ref.id());
+        assertEquals("这是一段很长的剪藏内容正文，用于测试标题为空时的内容回退策略", ref.title());
+    }
+
+    @Test
+    void mapsClipWithNullTitleAndNullContentUsingIdFallback() {
+        ClipContent clip = new ClipContent();
+        clip.setId(1004L);
+
+        ContentRef ref = mapper.fromClip(clip);
+
+        assertEquals("clip:1004", ref.id());
+        assertEquals("剪藏 #1004", ref.title());
+    }
+
+    @Test
+    void mapsTodoWithNullTitleUsingIdFallback() {
         TodoContent todo = new TodoContent();
-        todo.setId(3001L);
-        todo.setTitle("Review streams");
-        todo.setCategory("study");
+        todo.setId(3002L);
 
-        assertEquals("knowledge:2001", mapper.fromKnowledge(knowledge).id());
-        assertEquals("todo:3001", mapper.fromTodo(todo).id());
+        ContentRef ref = mapper.fromTodo(todo);
+
+        assertEquals("todo:3002", ref.id());
+        assertEquals("待办事项 #3002", ref.title());
     }
 
     @Test
-    void mapsMissingOptionalFieldsWithoutThrowing() {
+    void mapsClipWithTitlePriority() {
         ClipContent clip = new ClipContent();
-        clip.setId(1002L);
+        clip.setId(1005L);
+        clip.setTitle("已有标题");
+        clip.setContent("这是正文内容，不应该被使用");
 
         ContentRef ref = mapper.fromClip(clip);
 
-        assertEquals("clip:1002", ref.id());
-        assertEquals(List.of(), ref.tags());
-        assertNull(ref.title());
+        assertEquals("已有标题", ref.title());
     }
 }

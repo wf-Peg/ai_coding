@@ -41,7 +41,7 @@ class WorkspaceControllerTest {
         ));
         new ProjectIndexService(indexDir).saveProject(new Project("project:1", "Java 项目", "只读摘要", "#569cff", "active", LocalDateTime.now(), LocalDateTime.now()));
 
-        var response = controller().overview(List.of("clip"), "后端");
+        var response = controller().overview(null, List.of("clip"), "后端");
 
         assertEquals(200, response.getStatusCode().value());
         assertNotNull(response.getBody());
@@ -57,9 +57,9 @@ class WorkspaceControllerTest {
     void rulesCanBeCreatedAndReturnedWithServerOwnedFields() {
         WorkspaceIndexService indexService = new WorkspaceIndexService(tempDir.resolve("index"));
         LocalDateTime now = LocalDateTime.now();
-        indexService.saveWorkspace(new Workspace("ws-1", "工作台", "", "#fff", "general", "active", now, now));
+        indexService.saveWorkspace(new Workspace("ws-1", "工作台", "", "#fff", "general", "active", false, now, now));
 
-        var response = controller().createRule("ws-1", new WorkspaceController.RuleRequest("tag", "contains", "Java", true));
+        var response = controller().createRule("ws-1", new WorkspaceController.RuleRequest("tag", "contains", "Java", true, null));
 
         assertEquals(201, response.getStatusCode().value());
         assertNotNull(response.getBody());
@@ -74,8 +74,8 @@ class WorkspaceControllerTest {
     void invalidRuleReturnsUnifiedBadRequest() {
         LocalDateTime now = LocalDateTime.now();
         new WorkspaceIndexService(tempDir.resolve("index")).saveWorkspace(
-                new Workspace("ws-1", "工作台", "", "#fff", "general", "active", now, now));
-        var response = controller().createRule("ws-1", new WorkspaceController.RuleRequest("invalid", "contains", "Java", true));
+                new Workspace("ws-1", "工作台", "", "#fff", "general", "active", false, now, now));
+        var response = controller().createRule("ws-1", new WorkspaceController.RuleRequest("invalid", "contains", "Java", true, null));
 
         assertEquals(400, response.getStatusCode().value());
         Map<String, Object> body = (Map<String, Object>) response.getBody();
@@ -87,11 +87,11 @@ class WorkspaceControllerTest {
     void resolutionOmitsContentBodiesAndIncludesStatistics() {
         Path indexDir = tempDir.resolve("index");
         LocalDateTime now = LocalDateTime.now();
-        new WorkspaceIndexService(indexDir).saveWorkspace(new Workspace("ws-1", "工作台", "", "#fff", "general", "active", now, now));
+        new WorkspaceIndexService(indexDir).saveWorkspace(new Workspace("ws-1", "工作台", "", "#fff", "general", "active", false, now, now));
         new ContentIndexService(indexDir.resolve("content-index.json")).rebuild(List.of(
                 new ContentRef("clip:1", "clip", "1", "Java", "", List.of(), "clips/1.json", now, now, "正文")
         ));
-        controller().createRule("ws-1", new WorkspaceController.RuleRequest("type", "equals", "clip", true));
+        controller().createRule("ws-1", new WorkspaceController.RuleRequest("type", "equals", "clip", true, null));
 
         var response = controller().resolution("ws-1");
 
@@ -113,7 +113,7 @@ class WorkspaceControllerTest {
 
     @Test
     void overviewReturnsEmptyDataWhenIndexesDoNotExist() {
-        var response = controller().overview(List.of(), "");
+        var response = controller().overview(null, List.of(), "");
 
         assertEquals(200, response.getStatusCode().value());
         assertEquals(0, response.getBody().get("count"));
@@ -127,7 +127,7 @@ class WorkspaceControllerTest {
         Files.createDirectories(indexDir);
         Files.writeString(indexDir.resolve("content-index.json"), "not-json");
 
-        var response = controller().overview(List.of(), "");
+        var response = controller().overview(null, List.of(), "");
 
         assertEquals(503, response.getStatusCode().value());
         assertEquals("error", response.getBody().get("status"));

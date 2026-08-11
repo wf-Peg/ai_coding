@@ -18,7 +18,7 @@ public class ContentRefMapper {
                 typedId("clip", clip.getId()),
                 "clip",
                 String.valueOf(clip.getId()),
-                clip.getTitle(),
+                resolveTitle(clip.getTitle(), clip.getContent(), "clip", clip.getId()),
                 clip.getCategory(),
                 safeTags(clip.getTags()),
                 clip.getSourceFilePath(),
@@ -37,7 +37,7 @@ public class ContentRefMapper {
                 typedId("knowledge", knowledge.getId()),
                 "knowledge",
                 String.valueOf(knowledge.getId()),
-                knowledge.getTitle(),
+                resolveTitle(knowledge.getTitle(), null, "knowledge", knowledge.getId()),
                 knowledge.getCategory(),
                 safeTags(knowledge.getTags()),
                 null,
@@ -55,7 +55,7 @@ public class ContentRefMapper {
                 typedId("todo", todo.getId()),
                 "todo",
                 String.valueOf(todo.getId()),
-                todo.getTitle(),
+                resolveTitle(todo.getTitle(), null, "todo", todo.getId()),
                 todo.getCategory(),
                 List.of(),
                 null,
@@ -73,7 +73,7 @@ public class ContentRefMapper {
                 typedId("learning-plan", plan.getId()),
                 "learning-plan",
                 String.valueOf(plan.getId()),
-                plan.getTitle(),
+                resolveTitle(plan.getTitle(), null, "learning-plan", plan.getId()),
                 plan.getCategory(),
                 safeTags(plan.getTags()),
                 null,
@@ -81,6 +81,29 @@ public class ContentRefMapper {
                 plan.getUpdatedAt(),
                 null
         );
+    }
+
+    private static String resolveTitle(String title, String content, String entityType, Long id) {
+        if (title != null && !title.isBlank()) {
+            return title;
+        }
+        if (content != null && !content.isBlank()) {
+            String truncated = content.replaceAll("<[^>]+>", "").trim();
+            if (truncated.length() > 60) {
+                truncated = truncated.substring(0, 60) + "...";
+            }
+            if (!truncated.isBlank()) {
+                return truncated;
+            }
+        }
+        String label = switch (entityType) {
+            case "clip" -> "剪藏";
+            case "todo" -> "待办事项";
+            case "knowledge" -> "知识条目";
+            case "learning-plan" -> "学习计划";
+            default -> "内容";
+        };
+        return label + " #" + id;
     }
 
     private static String typedId(String type, Long id) {

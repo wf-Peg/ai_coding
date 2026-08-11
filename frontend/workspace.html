@@ -156,6 +156,16 @@
     .rule-card { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); margin-bottom: 10px; background: var(--ws-surface); transition: border-color .16s ease; }
     .rule-card:hover { border-color: var(--ws-border-strong); }
     .rule-card.disabled { opacity: .55; }
+    .rule-group { border: 1px solid var(--ws-border); border-radius: var(--app-radius); margin-bottom: 12px; background: var(--ws-surface); overflow: hidden; }
+    .rule-group-header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--ws-subtle); border-bottom: 1px solid var(--ws-border); }
+    .rule-group-title { font-size: 13px; font-weight: 600; color: var(--ws-text); flex: none; }
+    .rule-group-relation { padding: 3px 8px; border: 1px solid var(--ws-border); border-radius: 6px; font-size: 12px; color: var(--ws-text); background: var(--ws-surface); }
+    .rule-group-add { margin-left: auto; padding: 3px 10px; border: 1px solid var(--ws-border); border-radius: 6px; font-size: 12px; color: var(--ws-primary); background: var(--ws-surface); cursor: pointer; }
+    .rule-group-add:hover { border-color: var(--ws-primary); }
+    .rule-group-list { padding: 6px 14px; }
+    .rule-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px dashed var(--ws-border); }
+    .rule-row:last-child { border-bottom: 0; }
+    .rule-group-empty { font-size: 12px; color: var(--ws-faint); }
     .rule-field { flex: none; min-width: 70px; padding: 3px 8px; border-radius: 5px; background: var(--ws-subtle); font-size: 12px; font-weight: 600; color: var(--ws-muted); text-align: center; }
     .rule-operator { flex: none; color: var(--ws-muted); font-size: 13px; }
     .rule-value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--ws-text); }
@@ -466,6 +476,18 @@
     ::-webkit-scrollbar-thumb:hover { background: var(--ws-faint); }
     * { scrollbar-width: thin; scrollbar-color: var(--ws-border) transparent; }
 
+    /* ── Workspace Settings ── */
+    .settings-container { padding: 16px 20px; border-top: 1px solid var(--ws-border); margin-top: 12px; }
+    .settings-section h4 { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--ws-text); }
+    .toggle-label { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+    .toggle-slider { width: 36px; height: 20px; background: var(--ws-border); border-radius: 10px; position: relative; transition: background .2s; flex: none; }
+    .toggle-slider::after { content: ''; position: absolute; width: 16px; height: 16px; background: white; border-radius: 50%; top: 2px; left: 2px; transition: transform .2s; }
+    .toggle-label input:checked + .toggle-slider { background: var(--ws-primary); }
+    .toggle-label input:checked + .toggle-slider::after { transform: translateX(16px); }
+    .toggle-label input { display: none; }
+    .toggle-text { font-size: 13px; color: var(--ws-text); }
+    .settings-hint { margin: 8px 0 0; font-size: 12px; color: var(--ws-faint); line-height: 1.5; }
+
     /* ── Tag Multi-Input ── */
     .tag-multi-input { position: relative; display: flex; flex-wrap: wrap; gap: 6px; padding: 7px 10px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-subtle); cursor: text; transition: border-color .16s ease, box-shadow .16s ease; min-height: 40px; align-items: center; }
     .tag-multi-input:focus-within { border-color: var(--ws-primary); box-shadow: 0 0 0 3px var(--ws-primary-soft); }
@@ -577,6 +599,9 @@
                 <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg><input id="searchInput" type="search" placeholder="搜索标题、标签、分类或来源" autocomplete="off"></label>
               </div>
               <div class="filters" id="filters" aria-label="内容类型筛选"></div>
+              <div id="overviewScopeBanner" class="scope-banner" hidden style="display:flex;align-items:center;gap:8px;margin:0 0 10px;padding:6px 12px;background:var(--ws-primary-soft);border-radius:6px;font-size:13px;color:var(--ws-primary);">
+                <span id="scopeBannerText"></span>
+              </div>
               <div class="list" id="contentList" aria-live="polite"></div>
             </section>
             <aside class="project-panel" aria-labelledby="projectHeading">
@@ -625,6 +650,7 @@
             </div>
             <div class="error-message" id="rulesError" style="display:none"></div>
             <div id="rulesList"></div>
+            <div id="workspaceSettings" class="settings-container"></div>
           </div>
           <!-- Exclusions tab -->
           <div class="detail-tab-content" data-tab="exclusions" id="detailExclusions">
@@ -664,8 +690,8 @@
       <div class="pd-tabs">
         <button class="pd-tab active" data-pd-tab="dashboard" type="button" data-func-tag="功能:产品开发-总览" title="总览：数据仪表盘与最近活动">&#128202; 总览</button>
         <button class="pd-tab" data-pd-tab="kanban" type="button" data-func-tag="功能:产品开发-需求看板" title="需求看板：按阶段拖拽管理需求">&#9776; 需求看板</button>
-        <button class="pd-tab" data-pd-tab="graph" type="button" data-func-tag="功能:产品开发-知识图谱" title="知识图谱：需求-知识关联网络">&#9671; 知识图谱</button>
-        <button class="pd-tab" data-pd-tab="timeline" type="button" data-func-tag="功能:产品开发-时间线" title="时间线：甘特图展示开发周期">&#128197; 时间线</button>
+        <button class="pd-tab" data-pd-tab="graph" type="button" data-func-tag="功能:产品开发-知识图谱" title="知识图谱：需求-知识关联网络（二期）" style="display:none">&#9671; 知识图谱</button>
+        <button class="pd-tab" data-pd-tab="timeline" type="button" data-func-tag="功能:产品开发-时间线" title="时间线：甘特图展示开发周期（二期）" style="display:none">&#128197; 时间线</button>
         <button class="pd-tab" data-pd-tab="archive" type="button" data-func-tag="功能:产品开发-归档" title="归档：历史需求归档记录">&#128451; 归档</button>
       </div>
 
@@ -797,6 +823,10 @@
       </div>
       <div class="modal-body">
         <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="ruleModalGroup">目标分组</label>
+            <select class="form-select" id="ruleModalGroup"></select>
+          </div>
           <div class="form-group">
             <label class="form-label" for="ruleField">字段</label>
             <select class="form-select" id="ruleField">
@@ -942,11 +972,14 @@
 
       /* ─── Overview state ─── */
       const overviewState = { types: [], query: '', data: null, loading: false };
+      let overviewWorkspaceId = null;
+      let overviewRequestId = 0;
 
       /* ─── Workspace state ─── */
       let workspaces = [];
       let activeWsId = null;
       let wsLoading = false;
+      let currentExpression = null;
 
       /* ── Rule state ── */
       let editingRuleId = null;
@@ -997,6 +1030,21 @@
       $('pdSidebarToggle')?.addEventListener('click', openSidebar);
 
       /* ── Overview Functions ── */
+      function overviewRenderScopeBanner(data) {
+        const banner = $('overviewScopeBanner');
+        if (!banner) return;
+        if (data && data.scoped && overviewWorkspaceId) {
+          const ws = workspaces.find(w => w.id === overviewWorkspaceId);
+          banner.hidden = false;
+          const text = $('scopeBannerText');
+          if (text) {
+            text.innerHTML = '当前作用域：<strong>' + escapeHtml(ws ? ws.name : overviewWorkspaceId) + '</strong>（仅显示该工作台规则命中的内容）';
+          }
+        } else {
+          banner.hidden = true;
+        }
+      }
+
       function overviewRenderState(kind, title, detail) {
         const list = $('contentList');
         const retry = kind === 'error' ? '<button class="retry" id="retryButton" type="button">重新尝试</button>' : '';
@@ -1032,35 +1080,46 @@
         const count = $('resultCount');
         count.textContent = `共 ${contents.length} 项`;
         if (!contents.length) {
-          overviewRenderState('empty', '没有匹配的内容', overviewState.query || overviewState.types.length ? '尝试清除筛选条件或更换关键词。' : '索引中暂时还没有可展示的内容。');
+          if (overviewWorkspaceId) {
+            const ws = workspaces.find(w => w.id === overviewWorkspaceId);
+            overviewRenderState('empty', '没有匹配的内容', '当前工作台「' + (ws ? ws.name : overviewWorkspaceId) + '」的规则未命中任何内容，请检查规则配置或手动添加成员。');
+          } else {
+            overviewRenderState('empty', '没有匹配的内容', overviewState.query || overviewState.types.length ? '尝试清除筛选条件或更换关键词。' : '索引中暂时还没有可展示的内容。');
+          }
           return;
         }
         list.innerHTML = contents.map(item => {
           const meta = [item.category, ...(item.tags || []).map(t => `#${t}`), item.sourcePath].filter(Boolean).map(v => `<span class="tag">${escapeHtml(v)}</span>`).join('');
-          return `<article class="item"><div class="type-mark" data-type="${escapeHtml(item.type)}">${escapeHtml(INITIALS[item.type] || '内')}</div><div class="item-body"><h3 class="item-title" title="${escapeHtml(item.title || '')}">${escapeHtml(item.title || '未命名内容')}</h3><div class="item-meta"><span>${escapeHtml(LABELS[item.type] || item.type || '内容')}</span>${meta}</div></div><time class="item-date" datetime="${escapeHtml(item.updatedAt || '')}">${escapeHtml(formatDate(item.updatedAt || item.createdAt))}</time></article>`;
+          return `<article class="item"><div class="type-mark" data-type="${escapeHtml(item.type)}">${escapeHtml(INITIALS[item.type] || '内')}</div><div class="item-body"><h3 class="item-title" title="${escapeHtml(item.title || '无标题')}">${escapeHtml(item.title || '无标题')}</h3><div class="item-meta"><span>${escapeHtml(LABELS[item.type] || item.type || '内容')}</span>${meta}</div></div><time class="item-date" datetime="${escapeHtml(item.updatedAt || '')}">${escapeHtml(formatDate(item.updatedAt || item.createdAt))}</time></article>`;
         }).join('');
       }
       async function loadOverview() {
+        const requestId = ++overviewRequestId;
         overviewState.loading = true;
         $('refreshButton').disabled = true;
         overviewRenderState('loading', '正在读取内容索引', '请稍候，工作台只会读取已有索引。');
         const params = new URLSearchParams();
         overviewState.types.forEach(t => params.append('types', t));
         if (overviewState.query) params.set('query', overviewState.query);
+        if (overviewWorkspaceId) params.set('workspaceId', overviewWorkspaceId);
         try {
           const r = await fetch(`/api/workspace/overview${params.size ? '?' + params : ''}`, { headers: { Accept: 'application/json' } });
           if (!r.ok) throw new Error('请求失败（' + r.status + '）');
+          if (requestId !== overviewRequestId) return;
           overviewState.data = await r.json();
           overviewRenderFilters();
           overviewRenderProjects(overviewState.data.projects || []);
           overviewRenderWorkspaceSummary(overviewState.data.workspaceSummary);
+          overviewRenderScopeBanner(overviewState.data);
           overviewRenderContents(overviewState.data.contents || []);
         } catch (e) {
+          if (requestId !== overviewRequestId) return;
           $('resultCount').textContent = '';
           overviewRenderFilters();
           overviewRenderProjects([]);
           overviewRenderState('error', '暂时无法读取工作台', (e.message || '后端服务不可用') + '，请确认服务已启动后重试。');
         } finally {
+          if (requestId !== overviewRequestId) return;
           overviewState.loading = false;
           $('refreshButton').disabled = false;
         }
@@ -1072,6 +1131,12 @@
           const r = await fetch('/api/workspace/list', { headers: { Accept: 'application/json' } });
           if (!r.ok) return;
           workspaces = await r.json();
+          const savedWsId = localStorage.getItem('active_workspace_id');
+          if (savedWsId && workspaces.some(w => w.id === savedWsId)) {
+            overviewWorkspaceId = savedWsId;
+          } else {
+            overviewWorkspaceId = null;
+          }
           renderWsList();
         } catch (_) { /* ignore sidebar errors */ }
       }
@@ -1080,9 +1145,13 @@
           wsList.innerHTML = '<div class="empty-state" style="padding:20px 12px;text-align:left">暂无工作台，点击下方新建。</div>';
           return;
         }
-        wsList.innerHTML = workspaces.map(ws =>
-          `<button class="sidebar-item ${activeWsId === ws.id ? 'active' : ''}" data-wsid="${escapeHtml(ws.id)}" type="button"><i class="ws-dot" style="background:${escapeHtml(ws.color || '#2383e2')}"></i><span class="ws-name">${escapeHtml(ws.name)}</span><span class="ws-type-tag">${escapeHtml(TYPE_LABELS[ws.type || 'general'] || '通用')}</span></button>`
-        ).join('');
+        const isOverview = !overviewView.classList.contains('hidden');
+        const isDefaultActive = isOverview ? overviewWorkspaceId === null : activeWsId === null;
+        const defaultHtml = `<button class="sidebar-item ${isDefaultActive ? 'active' : ''}" data-wsid="" type="button"><i class="ws-dot" style="background:#888"></i><span class="ws-name">默认工作台</span><span class="ws-type-tag">全部</span></button>`;
+        wsList.innerHTML = defaultHtml + workspaces.map(ws => {
+          const isActive = isOverview ? overviewWorkspaceId === ws.id : activeWsId === ws.id;
+          return `<button class="sidebar-item ${isActive ? 'active' : ''}" data-wsid="${escapeHtml(ws.id)}" type="button"><i class="ws-dot" style="background:${escapeHtml(ws.color || '#2383e2')}"></i><span class="ws-name">${escapeHtml(ws.name)}</span><span class="ws-type-tag">${escapeHtml(TYPE_LABELS[ws.type || 'general'] || '通用')}</span></button>`;
+        }).join('');
         wsList.querySelectorAll('.sidebar-item').forEach(btn => btn.addEventListener('click', () => selectWorkspace(btn.dataset.wsid)));
       }
 
@@ -1107,12 +1176,14 @@
           navOverview.classList.add('active');
           renderWsList();
           overviewView.classList.remove('hidden');
+          loadOverview();
         } else if (view === 'product-dev') {
           activeWsId = null;
           navProductDev.classList.add('active');
           productDevView.classList.add('visible');
           loadProductDev();
         } else if (view === 'detail') {
+          if (!activeWsId) return;
           navOverview.classList.add('active');
           renderWsList();
           detailView.classList.add('visible');
@@ -1124,9 +1195,29 @@
       navProductDev.addEventListener('click', () => showView('product-dev'));
 
       function selectWorkspace(id) {
-        activeWsId = id;
-        showView('detail');
-        loadDetail();
+        if (!id) {
+          overviewWorkspaceId = null;
+          activeWsId = null;
+          showView('overview');
+          localStorage.setItem('active_workspace_id', '');
+          try { window.parent.postMessage({ type: 'workspaceChanged', workspaceId: '' }, '*'); } catch(e) {}
+          return;
+        }
+        const isOverview = !overviewView.classList.contains('hidden');
+        if (isOverview) {
+          overviewWorkspaceId = id;
+          activeWsId = null;
+          renderWsList();
+          loadOverview();
+          localStorage.setItem('active_workspace_id', id);
+          try { window.parent.postMessage({ type: 'workspaceChanged', workspaceId: id }, '*'); } catch(e) {}
+        } else {
+          activeWsId = id;
+          overviewWorkspaceId = null;
+          renderWsList();
+          showView('detail');
+          loadDetail();
+        }
       }
 
       /* ── Detail View ── */
@@ -1206,8 +1297,12 @@
           renderDetailContents();
           // If kanban view is active, re-render
           if (currentView === 'kanban') renderKanbanBoard();
+          // Expression
+          const exprResp = await fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/rule-expression`, { headers: { Accept: 'application/json' } });
+          currentExpression = exprResp.ok ? await exprResp.json() : { workspaceId: activeWsId, relation: 'OR', groups: [] };
           // Rules
-          renderRules(rulesData);
+          renderExpression(rulesData);
+          renderWorkspaceSettings(ws);
           // Exclusions
           renderExclusions(exclusionsData);
         } catch (e) {
@@ -1236,7 +1331,7 @@
         detailContentList.innerHTML = detailState.filtered.map(item => {
           const meta = [item.category, ...(item.tags || []).map(t => '#' + t), item.sourcePath].filter(Boolean).map(v => `<span class="tag">${escapeHtml(v)}</span>`).join('');
           const sourceBadge = item.source ? `<span class="source-marker ${escapeHtml(item.source)}">${escapeHtml(SOURCE_LABELS[item.source] || item.source)}</span>` : '';
-          return `<article class="item"><div class="type-mark" data-type="${escapeHtml(item.type)}">${escapeHtml(INITIALS[item.type] || '内')}</div><div class="item-body"><h3 class="item-title" title="${escapeHtml(item.title || '')}">${escapeHtml(item.title || '未命名内容')}</h3><div class="item-meta"><span>${escapeHtml(LABELS[item.type] || item.type || '内容')}</span>${sourceBadge}${meta}</div></div><div class="item-actions"><button class="exclude-btn" data-content-id="${escapeHtml(item.id)}" data-content-title="${escapeHtml(item.title || '')}" type="button" data-func-tag="功能:排除内容" title="将内容从当前工作台排除">排除</button></div></article>`;
+          return `<article class="item"><div class="type-mark" data-type="${escapeHtml(item.type)}">${escapeHtml(INITIALS[item.type] || '内')}</div><div class="item-body"><h3 class="item-title" title="${escapeHtml(item.title || '无标题')}">${escapeHtml(item.title || '无标题')}</h3><div class="item-meta"><span>${escapeHtml(LABELS[item.type] || item.type || '内容')}</span>${sourceBadge}${meta}</div></div><div class="item-actions"><button class="exclude-btn" data-content-id="${escapeHtml(item.id)}" data-content-title="${escapeHtml(item.title || '')}" type="button" data-func-tag="功能:排除内容" title="将内容从当前工作台排除">排除</button></div></article>`;
         }).join('');
         detailContentList.querySelectorAll('.exclude-btn').forEach(btn => btn.addEventListener('click', () => excludeContent(btn.dataset.contentId, btn.dataset.contentTitle)));
       }
@@ -1266,19 +1361,105 @@
         }
       }
 
-      /* ── Rules ── */
-      function renderRules(rules) {
-        if (!rules?.length) {
-          rulesList.innerHTML = '<div class="empty-state">暂无筛选规则，点击上方添加。</div>';
+      /* ── Rules（分组渲染）── */
+      function renderExpression(rulesData) {
+        const rules = rulesData || [];
+        const rulesById = {};
+        rules.forEach(r => { rulesById[r.id] = r; });
+        const container = $('rulesList');
+        if (!currentExpression || !currentExpression.groups || !currentExpression.groups.length) {
+          container.innerHTML = '<div class="empty-state">暂无规则，点击上方添加。</div>';
           return;
         }
-        rulesList.innerHTML = rules.map(r =>
-          `<div class="rule-card ${r.enabled ? '' : 'disabled'}"><span class="rule-field">${escapeHtml(FIELD_LABELS[r.field] || r.field)}</span><span class="rule-operator">${escapeHtml(OPERATOR_LABELS[r.operator] || r.operator)}</span><span class="rule-value" title="${escapeHtml(r.value)}">${escapeHtml(r.value)}</span><div class="rule-actions"><button class="toggle-switch ${r.enabled ? 'on' : ''}" data-rule-id="${escapeHtml(r.id)}" data-enabled="${r.enabled}" type="button" aria-label="切换启用状态" data-func-tag="功能:规则开关" title="启用/禁用规则"></button><button class="rule-edit-btn" data-rule-id="${escapeHtml(r.id)}" type="button" title="编辑" data-func-tag="功能:编辑规则">&#9998;</button><button class="rule-del-btn" data-rule-id="${escapeHtml(r.id)}" type="button" title="删除" data-func-tag="功能:删除规则">&times;</button></div></div>`
-        ).join('');
-        rulesList.querySelectorAll('.toggle-switch').forEach(btn => btn.addEventListener('click', () => toggleRule(btn.dataset.ruleId, btn.dataset.enabled === 'true')));
-        rulesList.querySelectorAll('.rule-edit-btn').forEach(btn => btn.addEventListener('click', () => openRuleModal(btn.dataset.ruleId)));
-        rulesList.querySelectorAll('.rule-del-btn').forEach(btn => btn.addEventListener('click', () => deleteRule(btn.dataset.ruleId)));
+        container.innerHTML = currentExpression.groups.map((group, gi) => {
+          const rows = (group.ruleIds || [])
+            .map(rid => rulesById[rid])
+            .filter(Boolean)
+            .map((r, ri) => `
+              <div class="rule-row">
+                <span class="rule-field">${escapeHtml(FIELD_LABELS[r.field] || r.field)}</span>
+                <span class="rule-operator">${escapeHtml(OPERATOR_LABELS[r.operator] || r.operator)}</span>
+                <span class="rule-value" title="${escapeHtml(r.value)}">${escapeHtml(r.value)}</span>
+                <button class="toggle-switch ${r.enabled ? 'on' : ''}" data-rule-id="${escapeHtml(r.id)}" data-enabled="${r.enabled}" type="button" aria-label="切换启用状态" data-func-tag="功能:规则开关" title="启用/禁用规则"></button>
+                <button class="rule-edit-btn" data-rule-id="${escapeHtml(r.id)}" data-group-id="${escapeHtml(group.id)}" type="button" title="编辑" data-func-tag="功能:编辑规则">&#9998;</button>
+                <button class="rule-del-btn" data-rule-id="${escapeHtml(r.id)}" type="button" title="删除" data-func-tag="功能:删除规则">&times;</button>
+              </div>`)
+            .join('');
+          return `
+            <div class="rule-group">
+              <div class="rule-group-header">
+                <span class="rule-group-title">分组 ${gi + 1}</span>
+                <select class="rule-group-relation" data-group-id="${escapeHtml(group.id)}">
+                  <option value="OR" ${group.relation === 'OR' ? 'selected' : ''}>组内任一命中（OR）</option>
+                  <option value="AND" ${group.relation === 'AND' ? 'selected' : ''}>组内全部命中（AND）</option>
+                </select>
+                <button class="rule-group-add" data-group-id="${escapeHtml(group.id)}" type="button" title="向此分组添加规则" data-func-tag="功能:添加规则到分组">+ 添加规则</button>
+              </div>
+              <div class="rule-group-list">${rows || '<span class="rule-group-empty">空分组（不参与匹配）</span>'}</div>
+            </div>`;
+        }).join('');
+
+        container.querySelectorAll('.toggle-switch').forEach(btn => btn.addEventListener('click', () => toggleRule(btn.dataset.ruleId, btn.dataset.enabled === 'true')));
+        container.querySelectorAll('.rule-edit-btn').forEach(btn => btn.addEventListener('click', () => openRuleModal(btn.dataset.ruleId, btn.dataset.groupId)));
+        container.querySelectorAll('.rule-del-btn').forEach(btn => btn.addEventListener('click', () => deleteRule(btn.dataset.ruleId)));
+        container.querySelectorAll('.rule-group-relation').forEach(sel => sel.addEventListener('change', () => updateGroupRelation(sel.dataset.groupId, sel.value)));
+        container.querySelectorAll('.rule-group-add').forEach(btn => btn.addEventListener('click', () => openRuleModal(null, btn.dataset.groupId)));
       }
+
+      async function updateGroupRelation(groupId, relation) {
+        if (!currentExpression) return;
+        const groups = currentExpression.groups.map(g =>
+          g.id === groupId ? { id: g.id, relation, ruleIds: g.ruleIds } : g);
+        try {
+          const r = await fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/rule-expression`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ relation: currentExpression.relation, groups })
+          });
+          if (!r.ok) throw new Error('保存失败');
+          currentExpression = await r.json();
+          await loadDetail();
+        } catch (e) {
+          showDetailError('保存分组关系失败：' + (e.message || '后端服务不可用'));
+        }
+      }
+
+      /* ── Workspace Settings ── */
+      function renderWorkspaceSettings(ws) {
+        const settingsEl = $('workspaceSettings');
+        if (!settingsEl) return;
+        const rootRelation = (currentExpression && currentExpression.relation) || 'OR';
+        settingsEl.innerHTML = `
+          <div class="settings-section">
+            <h4>规则匹配模式（组间关系）</h4>
+            <label class="toggle-label">
+              <input type="checkbox" id="matchAllToggle" ${rootRelation === 'AND' ? 'checked' : ''}>
+              <span class="toggle-slider"></span>
+              <span class="toggle-text">${rootRelation === 'AND' ? '所有分组必须全部命中（组间 AND）' : '任一分组命中即可（组间 OR）'}</span>
+            </label>
+            <p class="settings-hint">组间关系控制分组之间的连接方式；每个分组内部还可单独设置 AND/OR（见下方规则分组）。手动加入和关系带入的内容不受影响。</p>
+          </div>
+        `;
+        const toggle = $('matchAllToggle');
+        if (toggle) {
+          toggle.addEventListener('change', async () => {
+            const newRelation = toggle.checked ? 'AND' : 'OR';
+            const groups = (currentExpression && currentExpression.groups) || [];
+            try {
+              const r = await fetch(`/api/workspace/${encodeURIComponent(activeWsId)}/rule-expression`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ relation: newRelation, groups })
+              });
+              if (!r.ok) throw new Error('保存失败');
+              currentExpression = await r.json();
+              await loadDetail();
+            } catch (e) {
+              showDetailError('保存设置失败：' + (e.message || '后端服务不可用'));
+              toggle.checked = newRelation !== 'AND';
+            }
+          });
+        }
+      }
+
       async function toggleRule(ruleId, currentEnabled) {
         rulesError.style.display = 'none';
         try {
@@ -1531,13 +1712,23 @@
         return fieldValuesCache;
       }
 
-      function openRuleModal(ruleId) {
+      function openRuleModal(ruleId, groupId) {
         editingRuleId = ruleId;
         $('ruleModalTitle').textContent = ruleId ? '编辑规则' : '添加规则';
         $('confirmRule').textContent = '保存';
         // Reset tag state
         selectedTags = [];
         selectedCalDate = null;
+        // Populate target group dropdown
+        const groupSelect = $('ruleModalGroup');
+        if (groupSelect && currentExpression && currentExpression.groups && currentExpression.groups.length) {
+          groupSelect.innerHTML = currentExpression.groups.map((g, i) =>
+            `<option value="${escapeHtml(g.id)}">分组 ${i + 1}（${g.relation === 'AND' ? 'AND' : 'OR'}，${(g.ruleIds || []).length} 条）</option>`).join('');
+          groupSelect.value = groupId || currentExpression.groups[0].id || '';
+        } else if (groupSelect) {
+          groupSelect.innerHTML = '<option value="">（自动创建分组）</option>';
+          groupSelect.value = '';
+        }
         // Pre-load field values
         loadFieldValues();
         if (ruleId) {
@@ -1666,9 +1857,13 @@
             ? `/api/workspace/${encodeURIComponent(activeWsId)}/rules/${encodeURIComponent(editingRuleId)}`
             : `/api/workspace/${encodeURIComponent(activeWsId)}/rules`;
           const method = editingRuleId ? 'PUT' : 'POST';
+          const body = { field, operator, value, enabled };
+          if (!editingRuleId && $('ruleModalGroup')) {
+            body.groupId = $('ruleModalGroup').value;
+          }
           const r = await fetch(url, {
             method, headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ field, operator, value, enabled })
+            body: JSON.stringify(body)
           });
           if (!r.ok) {
             const err = await r.json().catch(() => ({}));
@@ -1994,7 +2189,7 @@
         return `<div class="kanban-card" draggable="true" data-content-id="${escapeHtml(item.id)}" data-board-col-id="${escapeHtml(item.boardColumnId || '')}">
           <div class="card-header">
             <span class="type-mark" data-type="${escapeHtml(item.type)}">${escapeHtml(INITIALS[item.type] || '内')}</span>
-            <h4 class="card-title" title="${escapeHtml(item.title || '')}">${escapeHtml(item.title || '未命名内容')}</h4>
+            <h4 class="card-title" title="${escapeHtml(item.title || '无标题')}">${escapeHtml(item.title || '无标题')}</h4>
           </div>
           ${meta ? `<div class="card-meta"><span class="tag">${escapeHtml(meta)}</span></div>` : ''}
           <div class="card-actions">
@@ -2219,7 +2414,7 @@
         el.innerHTML = pills.join('');
       }
 
-      // 标签筛选条点击
+      // 标签筛选条点击（本地过滤，无需重新请求）
       document.addEventListener('click', function(e) {
         var pill = e.target.closest && e.target.closest('#pdTagFilter .pd-tag-pill');
         if (!pill) return;
@@ -2232,27 +2427,56 @@
         Object.values(pdChartInstances).forEach(function(c) { if (c) c.destroy(); });
         pdChartInstances = {};
         try {
-          // 并行加载数据
-          const [tags, stats, phaseDist, todoCompletion, knowledgeTrend, activities, requirements, graph, timeline, archives] = await Promise.all([
-            fetch('/api/product-dev/tags').then(r => r.ok ? r.json() : []),
-            fetch(pdUrl('/api/product-dev/stats')).then(r => r.ok ? r.json() : {}),
-            fetch(pdUrl('/api/product-dev/phase-distribution')).then(r => r.ok ? r.json() : []),
-            fetch(pdUrl('/api/product-dev/todo-completion')).then(r => r.ok ? r.json() : {}),
-            fetch(pdUrl('/api/product-dev/knowledge-trend')).then(r => r.ok ? r.json() : []),
-            fetch(pdUrl('/api/product-dev/activities')).then(r => r.ok ? r.json() : []),
-            fetch(pdUrl('/api/product-dev/requirements')).then(r => r.ok ? r.json() : {}),
-            fetch(pdUrl('/api/product-dev/graph')).then(r => r.ok ? r.json() : { nodes: [], edges: [] }),
-            fetch(pdUrl('/api/product-dev/timeline')).then(r => r.ok ? r.json() : []),
-            fetch(pdUrl('/api/product-dev/archives')).then(r => r.ok ? r.json() : [])
-          ]);
-          renderPdTagFilter(tags);
-          renderPdDashboard(stats);
-          renderPdCharts(phaseDist, todoCompletion, knowledgeTrend);
-          renderPdActivities(activities);
-          renderPdKanban(requirements);
-          renderPdGraph(graph);
-          renderPdTimeline(timeline);
-          renderPdArchives(archives);
+          // MVP 数据源：复用 workspace 规则系统（pd-builtin 内置工作台）
+          const r = await fetch('/api/workspace/pd-builtin/resolution');
+          if (!r.ok) {
+            var errBody = await r.json().catch(function() { return {}; });
+            throw new Error(errBody.error || '工作台解析失败');
+          }
+          const res = await r.json();
+          const contents = res.contents || [];
+
+          // 标签筛选：对解析结果本地过滤
+          const filtered = activePdTag
+            ? contents.filter(function(c) { return (c.tags || []).indexOf(activePdTag) >= 0; })
+            : contents;
+
+          // 标签集合（用于筛选条）
+          const tagSet = {};
+          contents.forEach(function(c) { (c.tags || []).forEach(function(t) { if (t) tagSet[t] = 1; }); });
+          renderPdTagFilter(Object.keys(tagSet).sort());
+
+          // 统计卡片（基于 WorkspaceResolution 解析结果）
+          const clips = filtered.filter(function(c) { return c.type === 'clip'; });
+          const todos = filtered.filter(function(c) { return c.type === 'todo'; });
+          renderPdDashboard({
+            total: filtered.length,
+            requirements: clips.length,
+            done: todos.filter(function(t) { return t.source === 'rule'; }).length,
+            knowledge: 0,
+            todos: todos.length,
+            archived: 0
+          });
+
+          // 图表（MVP 简化：仅待办完成率有数据，阶段/知识趋势二期）
+          renderPdCharts([], { completed: 0, total: Math.max(todos.length, 1) }, []);
+
+          // 最近活动（从解析结果推导）
+          renderPdActivities(filtered.slice(0, 8).map(function(c) {
+            return { action: 'created', title: c.title || '', description: c.type === 'clip' ? '剪藏' : '待办', time: c.createdAt || '' };
+          }));
+
+          // 看板（按类型分组展示）
+          renderPdKanban(filtered);
+
+          // 二期功能：知识图谱 / 甘特图隐藏，空数据占位
+          renderPdGraph({ nodes: [], edges: [] });
+          renderPdTimeline([]);
+
+          // 归档列表（展示当前工作台解析到的内容）
+          renderPdArchives(filtered.map(function(c) {
+            return { type: c.type, title: c.title || '', source: c.source === 'rule' ? 'archive' : 'manual', createdAt: c.createdAt || '' };
+          }));
         } catch (e) {
           console.error('产品开发工作区加载失败:', e);
           $('pdDashboardCards').innerHTML = '<div class="state" style="grid-column:1/-1"><div class="state-inner"><div class="state-icon">!</div><h3>加载失败</h3><p>' + escapeHtml(e.message || '后端服务不可用') + '</p></div></div>';
@@ -2344,59 +2568,34 @@
         }).join('');
       }
 
-      function renderPdKanban(requirements) {
+      function renderPdKanban(contents) {
         var el = $('pdKanbanBoard');
-        // 后端返回格式：[{phase: "analysis", count: 2, items: [...]}, ...]
-        // 转为对象格式：{analysis: items, ...}
-        var grouped = {};
-        pdRequirementsCache = {};
-        if (requirements && Array.isArray(requirements)) {
-          requirements.forEach(function(g) {
-            grouped[g.phase] = g.items || [];
-            // 缓存所有需求项，用于详情弹窗
-            (g.items || []).forEach(function(item) {
-              if (item.id) pdRequirementsCache[item.id] = item;
-            });
-          });
-        }
-        var hasData = Object.keys(grouped).length > 0;
-        if (!hasData) {
-          el.innerHTML = '<div class="empty-state" style="width:100%;padding:50px 20px">暂无需求数据，请先创建需求或执行历史迁移。</div>';
+        // MVP：contents 为 WorkspaceResolution 解析结果（{type, title, tags, category, ...}）
+        // 按类型分组展示：剪藏 / 待办
+        var clips = (contents || []).filter(function(c) { return c.type === 'clip'; });
+        var todos = (contents || []).filter(function(c) { return c.type === 'todo'; });
+        if (!clips.length && !todos.length) {
+          el.innerHTML = '<div class="empty-state" style="width:100%;padding:50px 20px">暂无数据，Agent 归档后将自动展示。</div>';
           return;
         }
-        var phaseOrder = ['analysis', 'design', 'implementation', 'testing', 'completed'];
-        var phaseLabels = { analysis: '需求分析', design: '设计', implementation: '实现', testing: '测试', completed: '已完成' };
-        var phaseColors = { analysis: '#2383e2', design: '#876de2', implementation: '#f59e0b', testing: '#e74c3c', completed: '#10b981' };
-
-        // 搜索过滤
         var searchQ = ($('pdKanbanSearch')?.value || '').trim().toLowerCase();
-
-        el.innerHTML = phaseOrder.map(function(phase) {
-          var items = (grouped[phase] || []).filter(function(item) {
+        var groups = [
+          { key: 'clip', label: '剪藏', color: '#2383e2', items: clips },
+          { key: 'todo', label: '待办', color: '#f59e0b', items: todos }
+        ];
+        el.innerHTML = groups.map(function(g) {
+          var items = (g.items || []).filter(function(item) {
             if (!searchQ) return true;
             return (item.title && item.title.toLowerCase().includes(searchQ)) ||
-                   (item.description && item.description.toLowerCase().includes(searchQ)) ||
                    (item.tags || []).some(function(t) { return t.toLowerCase().includes(searchQ); });
           });
-          return '<div class="pd-kanban-col"><div class="pd-kanban-col-header"><h3 style="color:' + phaseColors[phase] + '">' + phaseLabels[phase] + '</h3><span class="pd-kanban-col-count">' + items.length + '</span></div><div class="pd-kanban-col-body" data-phase="' + phase + '">' +
+          return '<div class="pd-kanban-col"><div class="pd-kanban-col-header"><h3 style="color:' + g.color + '">' + g.label + '</h3><span class="pd-kanban-col-count">' + items.length + '</span></div><div class="pd-kanban-col-body" data-phase="' + g.key + '">' +
             (items.length ? items.map(function(item) {
               var tags = (item.tags || []).map(function(t) { return '<span class="pd-tag">' + escapeHtml(t) + '</span>'; }).join('');
-              return '<div class="pd-kanban-card" draggable="true" data-req-id="' + escapeHtml(item.id) + '" data-phase="' + phase + '"><div class="pd-kanban-card-title">' + escapeHtml(item.title || '未命名') + '</div><div class="pd-kanban-card-meta">' + tags + (item.status ? '<span>' + escapeHtml(item.status) + '</span>' : '') + '</div></div>';
-            }).join('') : '<div class="empty-state" style="padding:20px 10px;font-size:12px">暂无需求</div>') +
+              return '<div class="pd-kanban-card" data-req-id="' + escapeHtml(item.id) + '" data-phase="' + g.key + '"><div class="pd-kanban-card-title">' + escapeHtml(item.title || '无标题') + '</div><div class="pd-kanban-card-meta">' + tags + (item.category ? '<span>' + escapeHtml(item.category) + '</span>' : '') + '</div></div>';
+            }).join('') : '<div class="empty-state" style="padding:20px 10px;font-size:12px">暂无内容</div>') +
             '</div></div>';
         }).join('');
-
-        // 绑定拖拽事件
-        el.querySelectorAll('.pd-kanban-card').forEach(function(card) {
-          card.addEventListener('dragstart', onPdDragStart);
-          card.addEventListener('dragend', onPdDragEnd);
-          card.addEventListener('click', onPdCardClick);
-        });
-        el.querySelectorAll('.pd-kanban-col-body').forEach(function(body) {
-          body.addEventListener('dragover', onPdDragOver);
-          body.addEventListener('dragleave', onPdDragLeave);
-          body.addEventListener('drop', onPdDrop);
-        });
       }
 
       /* ── pd-kanban 拖拽 ── */
@@ -2431,32 +2630,12 @@
         }
       }
 
-      async function onPdDrop(e) {
+      function onPdDrop(e) {
         e.preventDefault();
         var body = e.currentTarget;
         body.classList.remove('drag-over');
-        var targetPhase = body.dataset.phase;
-        var reqId = e.dataTransfer.getData('text/plain') || pdDragReqId;
-        if (!reqId || !targetPhase) return;
-        // 检查是否已在该阶段
-        var card = document.querySelector('.pd-kanban-card[data-req-id="' + reqId + '"]');
-        var currentPhase = card ? card.dataset.phase : '';
-        if (currentPhase === targetPhase) return;
-        try {
-          var r = await fetch('/api/product-dev/requirements/' + encodeURIComponent(reqId) + '/phase', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phase: targetPhase })
-          });
-          if (!r.ok) {
-            var err = await r.json().catch(function() { return {}; });
-            throw new Error(err.message || '移动失败');
-          }
-          // 重新加载看板数据
-          loadPdData();
-        } catch (err) {
-          alert('移动失败：' + (err.message || '后端服务不可用'));
-        }
+        // MVP 阶段看板仅作展示，不支持拖拽改状态（后续版本支持）
+        return;
       }
 
       /* ── pd-kanban 卡片点击详情弹窗 ── */
@@ -2917,88 +3096,49 @@
         }).join('');
       }
 
-      // 需求看板搜索
+      // 需求看板搜索（本地过滤解析结果）
       var pdKanbanSearch = $('pdKanbanSearch');
       if (pdKanbanSearch) {
         pdKanbanSearch.addEventListener('input', function() {
-          // 重新加载看板，使用当前搜索词
-          fetch(pdUrl('/api/product-dev/requirements')).then(function(r) { return r.ok ? r.json() : {}; }).then(function(requirements) {
-            renderPdKanban(requirements);
-          }).catch(function() {});
+          loadProductDev();
         });
       }
 
-      // 甘特图缩放按钮
+      // 甘特图缩放按钮（二期功能，tab 已隐藏，禁用旧接口调用）
       document.querySelectorAll('.pd-gantt-zoom-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
           document.querySelectorAll('.pd-gantt-zoom-btn').forEach(function(b) { b.classList.remove('active'); });
           this.classList.add('active');
           pdGanttZoom = this.dataset.zoom;
-          // 重新加载甘特图
-          fetch(pdUrl('/api/product-dev/timeline')).then(function(r) { return r.ok ? r.json() : []; }).then(function(timeline) {
-            renderPdTimeline(timeline);
-          }).catch(function() {});
         });
       });
 
-      // 历史迁移按钮
+      // 立即扫描按钮（触发 TODO 目录扫描落库）
       var pdHistoryMigrateBtn = $('pdHistoryMigrateBtn');
       if (pdHistoryMigrateBtn) {
         pdHistoryMigrateBtn.addEventListener('click', async function() {
           var btn = this;
           btn.disabled = true;
-          btn.innerHTML = '⏳ 迁移中...';
+          btn.innerHTML = '⏳ 扫描中...';
           try {
-            var r = await fetch('/api/product-dev/migrate', { method: 'POST' });
-            var data = r.ok ? await r.json() : { message: '迁移失败' };
-            alert(data.message || '迁移完成');
+            var r = await fetch('/api/todo-scan', { method: 'POST' });
+            var data = r.ok ? await r.json() : { message: '扫描失败' };
+            alert(data.message || '扫描完成');
             loadProductDev();
           } catch (e) {
-            alert('迁移失败：' + (e.message || '后端服务不可用'));
+            alert('扫描失败：' + (e.message || '后端服务不可用'));
           } finally {
             btn.disabled = false;
-            btn.innerHTML = '&#128194; 历史迁移';
+            btn.innerHTML = '&#128194; 立即扫描';
           }
         });
       }
 
-      // 新建需求按钮
+      // 新建需求按钮（MVP：提示通过归档流程产生，不再调用旧接口）
       var pdNewRequirementBtn = $('pdNewRequirementBtn');
       if (pdNewRequirementBtn) {
         pdNewRequirementBtn.addEventListener('click', function() {
-          $('wsName').value = '';
-          $('wsDesc').value = '';
-          $('wsType').value = 'general';
-          $('wsColor').value = '#2383e2';
-          // 修改对话框为新建需求
-          var title = document.querySelector('#newWsModal .modal-header h3');
-          if (title) title.textContent = '新建需求';
-          var confirmBtn = $('confirmNewWs');
-          if (confirmBtn) {
-            confirmBtn.textContent = '创建需求';
-            confirmBtn.onclick = async function() {
-              var name = $('wsName').value.trim();
-              if (!name) { alert('请输入需求标题'); return; }
-              try {
-                var r = await fetch('/api/product-dev/archive', {
-                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ title: name, description: $('wsDesc').value.trim(), type: 'requirement', phase: 'analysis', status: 'todo', source: 'manual', tags: [], content: '' })
-                });
-                if (!r.ok) throw new Error('创建失败');
-                hideModal(newWsModal);
-                loadProductDev();
-                // 恢复标题
-                title.textContent = '新建工作台';
-                confirmBtn.textContent = '创建';
-              } catch (e) {
-                alert('创建失败：' + (e.message || '后端服务不可用'));
-              } finally {
-                title.textContent = '新建工作台';
-                confirmBtn.textContent = '创建';
-              }
-            };
-          }
-          showModal(newWsModal);
+          alert('MVP 阶段需求由 Agent 完成编码任务后自动归档产生。如需手工录入，请在剪藏/待办模块创建并打上 product-dev 标签。');
         });
       }
 
@@ -3023,8 +3163,10 @@
       });
 
       /* ── Init ── */
-      loadOverview();
-      loadWorkspaces();
+      (async function init() {
+        await loadWorkspaces();
+        loadOverview();
+      })();
     })();
   </script>
   <script src="js/logger.js"></script>

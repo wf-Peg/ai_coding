@@ -17,6 +17,8 @@ async function fetchTopics(keyword) {
     const params = new URLSearchParams();
     if (keyword) params.set('keyword', keyword);
     if (currentCategory) params.set('category', currentCategory);
+    const wsId = localStorage.getItem('active_workspace_id');
+    if (wsId) params.set('workspaceId', wsId);
     if (params.toString()) url += '?' + params.toString();
 
     const response = await fetch(url);
@@ -121,6 +123,7 @@ function injectMetaStyles() {
 document.addEventListener('DOMContentLoaded', () => {
   injectMetaStyles();
   fetchTopics();
+  updateWorkspaceBanner();
 
   document.getElementById('newTopicBtn').addEventListener('click', () => {
     location.href = 'knowledge-editor.html';
@@ -160,7 +163,30 @@ document.addEventListener('DOMContentLoaded', () => {
   observer.observe(sentinel);
 });
 
-// ====== 接收主框架消息：滚动到顶部 / 刷新 ======
+// ====== 工作台筛选横幅 ======
+async function updateWorkspaceBanner() {
+    const banner = document.getElementById('workspaceBanner');
+    const nameEl = document.getElementById('wsBannerName');
+    const wsId = localStorage.getItem('active_workspace_id');
+    if (wsId) {
+        try {
+            const r = await fetch(`/api/workspace/${wsId}/resolution`, { headers: { Accept: 'application/json' } });
+            if (r.ok) nameEl.textContent = wsId;
+        } catch(_) {}
+        banner.style.display = '';
+    } else {
+        banner.style.display = 'none';
+    }
+}
+function clearWorkspaceFilter() {
+    localStorage.removeItem('active_workspace_id');
+    document.getElementById('workspaceBanner').style.display = 'none';
+    try { window.parent.postMessage({ action: 'workspaceChange', workspaceId: '' }, '*'); } catch(e) {}
+    fetchTopics();
+}
+// ====== 工作台筛选横幅结束 ======
+
+// ====== 接收主框架消息：滚动到顶部 / 刷新 / 工作台切换 ======
 window.addEventListener('message', (e) => {
   if (e.data.action === 'scrollToTop') {
     document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
@@ -168,5 +194,14 @@ window.addEventListener('message', (e) => {
     location.reload();
   } else if (e.data.action === 'themeChange') {
     if (typeof window.applyTheme === 'function') window.applyTheme();
+  } else if (e.data.action === 'workspaceChange') {
+    const wsId = e.data.workspaceId;
+    if (wsId) {
+      localStorage.setItem('active_workspace_id', wsId);
+    } else {
+      localStorage.removeItem('active_workspace_id');
+    }
+    updateWorkspaceBanner();
+    fetchTopics();
   }
 });

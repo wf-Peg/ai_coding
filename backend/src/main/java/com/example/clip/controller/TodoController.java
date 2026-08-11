@@ -1,8 +1,10 @@
 package com.example.clip.controller;
 
 import com.example.clip.model.TodoContent;
+import com.example.clip.service.AppConfigService;
 import com.example.clip.service.TodoService;
 import com.example.clip.service.UserActionEventRecorder;
+import com.example.clip.util.WorkspaceFilterUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +18,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 待办事项 REST 控制器
@@ -44,6 +47,9 @@ public class TodoController {
     /** 待办事项核心业务服务 */
     private final TodoService todoService;
 
+    /** 应用配置服务，用于获取配置目录路径 */
+    private final AppConfigService appConfigService;
+
     @Autowired(required = false)
     private UserActionEventRecorder actionEventRecorder;
 
@@ -51,9 +57,11 @@ public class TodoController {
      * 构造函数，通过依赖注入初始化服务组件
      *
      * @param todoService 待办事项服务
+     * @param appConfigService 应用配置服务
      */
-    public TodoController(TodoService todoService) {
+    public TodoController(TodoService todoService, AppConfigService appConfigService) {
         this.todoService = todoService;
+        this.appConfigService = appConfigService;
     }
 
     /**
@@ -69,6 +77,13 @@ public class TodoController {
     }
 
     /**
+     * 根据工作台规则筛选待办列表，委托给 {@link WorkspaceFilterUtils} 共享工具类。
+     */
+    private List<TodoContent> filterByWorkspace(List<TodoContent> items, String workspaceId) {
+        return WorkspaceFilterUtils.filterByWorkspace(items, workspaceId, appConfigService, TodoContent::getId);
+    }
+
+    /**
      * 获取所有待办事项列表
      * <p>
      * GET /api/todo/list
@@ -76,8 +91,12 @@ public class TodoController {
      * @return 全部待办事项列表
      */
     @GetMapping("/list")
-    public ResponseEntity<List<TodoContent>> getTodoList() {
+    public ResponseEntity<List<TodoContent>> getTodoList(
+            @RequestParam(required = false) String workspaceId) {
         List<TodoContent> todos = todoService.getAllTodos();
+        if (workspaceId != null && !workspaceId.isBlank()) {
+            todos = filterByWorkspace(todos, workspaceId);
+        }
         return ResponseEntity.ok(todos);
     }
 

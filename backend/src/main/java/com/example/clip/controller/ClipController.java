@@ -11,6 +11,7 @@ import com.example.clip.dto.OrganizeInboxRequest;
 import com.example.clip.dto.TagRequest;
 import com.example.clip.model.ClipContent;
 import com.example.clip.model.TodoContent;
+import com.example.clip.service.AppConfigService;
 import com.example.clip.service.ClipService;
 import com.example.clip.service.ContentOrganizeService;
 import com.example.clip.service.PromptConfigService;
@@ -18,6 +19,7 @@ import com.example.clip.service.SearchService;
 import com.example.clip.service.TodoService;
 import com.example.clip.service.WeeklyReportService;
 import com.example.clip.service.UserActionEventRecorder;
+import com.example.clip.util.WorkspaceFilterUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +31,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 剪藏内容 REST 控制器
@@ -73,6 +76,8 @@ public class ClipController {
     private final PromptConfigService promptConfigService;
     /** 待办事项服务，用于剪藏转待办功能 */
     private final TodoService todoService;
+    /** 应用配置服务，用于获取配置目录路径 */
+    private final AppConfigService appConfigService;
     @Autowired(required = false)
     private UserActionEventRecorder actionEventRecorder;
 
@@ -86,10 +91,12 @@ public class ClipController {
      * @param weeklyReportService    周报服务
      * @param promptConfigService    Prompt 配置服务
      * @param todoService            待办事项服务
+     * @param appConfigService       应用配置服务
      */
     public ClipController(ClipService clipService, SearchService searchService, AiService aiService,
                           ContentOrganizeService contentOrganizeService, WeeklyReportService weeklyReportService,
-                          PromptConfigService promptConfigService, TodoService todoService) {
+                          PromptConfigService promptConfigService, TodoService todoService,
+                          AppConfigService appConfigService) {
         this.clipService = clipService;
         this.searchService = searchService;
         this.aiService = aiService;
@@ -97,6 +104,7 @@ public class ClipController {
         this.weeklyReportService = weeklyReportService;
         this.promptConfigService = promptConfigService;
         this.todoService = todoService;
+        this.appConfigService = appConfigService;
     }
 
     /**
@@ -232,11 +240,16 @@ public class ClipController {
      * @return 剪藏内容列表
      */
     @GetMapping("/list")
-    public ResponseEntity<List<ClipContent>> getClipList(@RequestParam(required = false) String workflowStatus) {
+    public ResponseEntity<List<ClipContent>> getClipList(
+            @RequestParam(required = false) String workflowStatus,
+            @RequestParam(required = false) String workspaceId) {
         // 根据是否传入 workflowStatus 决定调用哪个查询方法
         List<ClipContent> clips = (workflowStatus == null || workflowStatus.isBlank())
                 ? clipService.getAllClips()
                 : clipService.getClipsByWorkflowStatus(workflowStatus);
+        if (workspaceId != null && !workspaceId.isBlank()) {
+            clips = filterByWorkspace(clips, workspaceId);
+        }
         return ResponseEntity.ok(clips);
     }
 
@@ -667,6 +680,28 @@ public class ClipController {
     @PostMapping("/prompt-config/reset")
     public ResponseEntity<PromptConfig> resetPromptConfig() {
         return ResponseEntity.ok(promptConfigService.resetToDefault());
+    }
+
+    /**
+     * 根据工作台规则筛选内容列表。
+     * <p>
+     * 委托给 {@link WorkspaceFilterUtils} 共享工具类。
+     * </p>
+     *
+     * @param items       内容列表
+     * @param workspaceId 工作台 ID
+     * @param <T>         内容类型泛型
+     * @return 筛选后的内容列表
+     */
+    private <T> List<T> filterByWorkspace(List<T> items, String workspaceId) {
+        return WorkspaceFilterUtils.filterByWorkspace(items, workspaceId, appConfigService,
+                item -> {
+                    if (item instanceof ClipContent) return ((ClipContent) item).getId();
+                    if (item instanceof com.example.clip.model.TodoContent) return ((com.example.clip.model.TodoContent) item).getId();
+                    if (item instanceof com.example.clip.model.Knowledge) return ((com.example.clip.model.Knowledge) item).getId();
+                    if (item instanceof com.example.clip.model.LearningPlan) return ((com.example.clip.model.LearningPlan) item).getId();
+                    return null;
+                });
     }
 
     /**

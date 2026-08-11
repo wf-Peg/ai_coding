@@ -1,131 +1,73 @@
-# 产品开发工作区 — 验收清单
+# 产品开发工作台 — 验收清单（MVP 重写）
+
+> 本文档与 `spec.md`（MVP 重写版）、`tasks.md` 配套。验收项聚焦：Agent 归档链路 → 后端扫描落库 → 工作台规则展示。
+
+## 后端验收
+
+### 扫描落库（TodoScannerService）
+- [ ] 启动时扫描 TODO 目录，解析 `feature-points.json`
+- [ ] `requirement` 对象正确解析（title/summary/tags/phase），缺失时降级为目录名不抛异常
+- [ ] 剪藏创建成功：category 取自 clipDef.category 或 config.clipCategory，标签含 `product-dev`
+- [ ] 剪藏内容来自 `contentFile` 指向的 md 文件；`section` 指定时按章节截取
+- [ ] 待办创建成功：`status: "done"` 正确映射为已完成
+- [ ] 待办 category 取自 config.todoCategory
+- [ ] 剪藏/待办均带有 `product-dev` 标签或分类，可被工作台规则命中
+
+### 重复导入防护
+- [ ] 首次导入后写入 `.imported`（JSON：importedAt + featurePointIds）
+- [ ] 二次启动不重复导入（按 featurePoints[].id 幂等）
+- [ ] 新增功能点后重启，仅增量导入新增功能点
+- [ ] 旧版纯文本 `.imported` 解析失败时降级为全新导入，不崩溃
+
+### 配置
+- [ ] `application_templete.yml` 含 `product-dev.todo-dir`
+- [ ] Electron `generateApplicationYml()` 输出含 `product-dev.todo-dir`
+
+## 内置工作台验收
+
+- [ ] 首次启动自动创建 `pd-builtin` 工作台（name=产品开发、color=#2383e2、type=project）
+- [ ] 三条内置规则存在：`tag equals product-dev`、`type in clip,todo`、`category contains product-dev`
+- [ ] 二次启动不重复创建，规则缺失时自动补齐
+- [ ] 仅存在一个初始化器（无重复扫描）
+- [ ] `Workspace.TYPES` 不含 product-dev（复用 project 类型）
 
 ## 前端验收
 
 ### 视图结构
-- [ ] 侧边栏「产品开发」入口可见，点击可切换到产品开发视图
-- [ ] 产品开发视图包含仪表盘、需求看板、知识图谱、甘特图、归档列表
-- [ ] 切换回其他视图正常，不影响现有功能
+- [ ] 产品开发视图在 `.main-area` 内部，不遮挡侧边栏
+- [ ] 侧边栏「产品开发」入口可见可点击，切换正常
+- [ ] 移动端汉堡按钮可打开侧边栏抽屉
+- [ ] 返回「全部概览」/其他工作台正常
 
-### 仪表盘
-- [ ] 统计卡片显示正确的数据（总需求、进行中、已完成、待办完成率）
-- [ ] 环形图正确显示待办完成比例
-- [ ] 折线图正确显示知识积累趋势
-- [ ] 柱状图正确显示各阶段需求分布
-
-### 需求看板
-- [ ] 6 列看板正确显示各阶段需求
-- [ ] 拖拽需求卡片可切换阶段
-- [ ] 点击卡片显示需求详情弹窗
-- [ ] 需求数量实时更新
-
-### 知识图谱
-- [ ] 力导向图正确显示节点和边
-- [ ] 节点颜色区分类型
-- [ ] 悬停显示详情
-- [ ] 点击节点（可选）跳转
-
-### 甘特图
-- [ ] 正确显示需求的时间范围
-- [ ] 里程碑标记可见
-- [ ] 支持水平滚动查看完整时间线
-
-### 样式
-- [ ] 与现有工作台设计系统一致
-- [ ] 响应式布局正常
-- [ ] 暗色/亮色主题切换正常
-
----
-
-## 后端验收
-
-### 接口可用性
-- [ ] `GET /api/workspace/product-dev/stats` 返回正确数据
-- [ ] `GET /api/workspace/product-dev/todo-stats` 返回正确数据
-- [ ] `GET /api/workspace/product-dev/knowledge-trend` 返回正确数据
-- [ ] `GET /api/workspace/product-dev/phase-distribution` 返回正确数据
-- [ ] `GET /api/workspace/product-dev/relation-graph` 返回正确数据
-- [ ] `GET /api/workspace/product-dev/timeline` 返回正确数据
-- [ ] `GET /api/workspace/product-dev/requirements` 返回需求列表
-- [ ] `POST /api/workspace/product-dev/requirements` 创建需求成功
-- [ ] `PUT /api/workspace/product-dev/requirements/{id}` 更新需求成功
-- [ ] `DELETE /api/workspace/product-dev/requirements/{id}` 删除需求成功
-- [ ] `POST /api/workspace/product-dev/archive` 归档成功
-- [ ] `GET /api/workspace/product-dev/archive/list` 返回归档列表
-
-### 数据持久化
-- [ ] 需求数据正确写入 `{configDir}/index/product-dev.json`
-- [ ] 数据读取正确
-- [ ] 更新/删除后数据一致性
-
-### 归档解析
-- [ ] 启动时扫描 `~/.cutshelter/product-dev-archive.json`
-- [ ] 正确解析归档数据
-- [ ] 调用各 service 创建数据成功
-- [ ] 已处理条目标记正确
-- [ ] 处理日志记录完整
-
----
+### 数据展示
+- [ ] 产品开发视图数据来自 `/api/workspace/pd-builtin/resolve`（非 `/api/product-dev/*`）
+- [ ] 导入的剪藏和待办在产品开发视图可见
+- [ ] 知识图谱、甘特图 tab 已隐藏
+- [ ] 标签筛选按 resolve 结果本地过滤，子视图联动
+- [ ] 页面无控制台报错
 
 ## Skill 验收
 
-### 增量归档 Skill（product-dev-archive）
-- [ ] `SKILL.md` 文件存在，内容完整
-- [ ] 触发时机描述正确（Agent 完成任务后自动执行）
-- [ ] 数据格式规范完整
-- [ ] 归档文件写入路径正确 `~/.cutshelter/product-dev-archive.json`
-- [ ] 剪藏、知识、待办、Wiki 字段映射正确
-- [ ] 后端 API 调用逻辑正确
+### product-dev-archive
+- [ ] SKILL.md 中 feature-points.json 字段约定与后端解析器一致（contentFile/title/category/status）
+- [ ] 归档时机描述正确（子任务完成时增量归档）
 
-### 存量迁移 Skill（product-dev-history-migrate）
-- [ ] `SKILL.md` 文件存在，内容完整
-- [ ] TODO/ 目录扫描逻辑正确
-- [ ] .trae/specs/ 目录扫描逻辑正确
-- [ ] 文件名到目标类型的映射规则正确（01-主线→需求+知识, 02-规格→知识, 03-任务→待办, 04-验收→待办）
-- [ ] bug-history.md 解析为剪藏正确
-- [ ] commit_history.log 解析为时间线事件正确
-- [ ] 与增量归档共用同一输出文件，source 字段区分正确
-
----
-
-## agent.md 验收
-
-### 文档更新
-- [ ] 「产品开发工作区归档约束」章节已添加
-- [ ] 归档触发时机描述正确
-- [ ] 数据格式规范完整
-- [ ] API 调用示例正确
-- [ ] 不破坏现有约束规则
-
----
+### product-dev-history-migrate
+- [ ] 生成的 feature-points.json 可被后端正确导入
+- [ ] 存量目录迁移后不重复导入
 
 ## 集成验收
 
-### 前后端联调
-- [ ] 前端所有图表数据来自后端 API
-- [ ] 需求 CRUD 前端→后端→存储 链路正常
-- [ ] 拖拽看板更新同步到后端
+- [ ] 全链路走通：构造最小 feature-points.json → 启动后端 → 剪藏/待办落库 → pd-builtin 规则命中 → 前端可见
+- [ ] 再次启动幂等跳过
+- [ ] 修改 json 新增功能点后增量导入生效
+- [ ] 现有剪藏/待办/工作台功能不受影响
+- [ ] `mvn test` 后端测试通过
 
-### 兼容性
-- [ ] 现有工作台功能不受影响
-- [ ] 现有 API 接口不受影响
-- [ ] 现有数据文件不受影响
+## 文档验收
 
-### 异常处理
-- [ ] 后端服务不可用时有友好提示
-- [ ] 数据格式错误时有日志记录
-- [ ] 归档文件不存在时优雅降级
-
----
-
-## 性能验收
-
-### 加载速度
-- [ ] 产品开发视图首次加载 < 2 秒
-- [ ] 图表渲染 < 500ms
-- [ ] 需求列表分页加载 < 1 秒
-
-### 资源占用
-- [ ] 图表库按需加载（CDN）
-- [ ] 无内存泄漏（定时器正确清理）
-- [ ] 后端接口响应 < 200ms（缓存优化）
+- [ ] spec.md / tasks.md / checklist.md 三方一致（MVP 版本）
+- [ ] `todo-directory-specification.md` 的 `.imported` 格式与实际实现一致
+- [ ] `product-dev-workspace-builtin-rules.md` 规则与代码一致
+- [ ] agent.md 归档约束与 SKILL.md 一致
+- [ ] 审阅评估文档中列出的阻断级问题均已关闭

@@ -1205,6 +1205,12 @@
     </div>
   </div>
 
+  <!-- 工作台筛选横幅 -->
+  <div id="workspaceBanner" style="display:none; padding:6px 12px; background:#e3f2fd; border-radius:4px; margin-bottom:8px; font-size:13px; color:#1565c0;">
+    当前显示工作台 <strong id="wsBannerName">...</strong> 筛选后的数据
+    <button onclick="clearWorkspaceFilter()" style="margin-left:10px; padding:2px 8px; font-size:12px; cursor:pointer; border:1px solid #90caf9; border-radius:3px; background:#fff; color:#1565c0;">显示全部</button>
+  </div>
+
   <!-- Timeline -->
   <div class="timeline" id="timeline"></div>
 </div>
@@ -1386,9 +1392,40 @@
   }
 
   // ── Data ──
-  async function fetchTodos() {
+  // ====== 工作台筛选横幅 ======
+    async function updateWorkspaceBanner() {
+        const banner = document.getElementById('workspaceBanner');
+        const nameEl = document.getElementById('wsBannerName');
+        const wsId = localStorage.getItem('active_workspace_id');
+        if (wsId) {
+            try {
+                const r = await fetch(`/api/workspace/${wsId}/resolution`, { headers: { Accept: 'application/json' } });
+                if (r.ok) nameEl.textContent = wsId;
+            } catch(_) {}
+            banner.style.display = '';
+        } else {
+            banner.style.display = 'none';
+        }
+    }
+    function clearWorkspaceFilter() {
+        localStorage.removeItem('active_workspace_id');
+        document.getElementById('workspaceBanner').style.display = 'none';
+        try { window.parent.postMessage({ action: 'workspaceChange', workspaceId: '' }, '*'); } catch(e) {}
+        fetchTodos();
+    }
+    // ====== 工作台筛选横幅结束 ======
+
+    async function fetchTodos() {
     try {
-      const response = await axios.get(`${TODO_API_BASE_URL}/list`);
+      let url = `${TODO_API_BASE_URL}/list`;
+      const params = new URLSearchParams();
+      const wsId = localStorage.getItem('active_workspace_id');
+      if (wsId) {
+        params.set('workspaceId', wsId);
+      }
+      const paramsStr = params.toString();
+      if (paramsStr) url += '?' + paramsStr;
+      const response = await axios.get(url);
       todos = response.data.map(todo => {
         if (!todo.createdAt) {
           todo.createdAt = todo.createdAtTimestamp || Date.now();
@@ -1996,19 +2033,29 @@
   // ── Init ──
   applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME, false);
   fetchTodos();
+  updateWorkspaceBanner();
 
+  // ====== 接收主框架消息：滚动到顶部 / 刷新 ======
+  window.addEventListener('message', (e) => {
+    if (e.data.action === 'scrollToTop') {
+      const scrollEl = document.querySelector('.timeline');
+      if (scrollEl) scrollEl.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (e.data.action === 'refresh') {
+      location.reload();
+    } else if (e.data.action === 'themeChange') {
+      applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME, false);
+    } else if (e.data.action === 'workspaceChange') {
+      const wsId = e.data.workspaceId;
+      if (wsId) {
+        localStorage.setItem('active_workspace_id', wsId);
+      } else {
+        localStorage.removeItem('active_workspace_id');
+      }
+      updateWorkspaceBanner();
+      fetchTodos();
+    }
+  });
 })();
-// ====== 接收主框架消息：滚动到顶部 / 刷新 ======
-window.addEventListener('message', (e) => {
-  if (e.data.action === 'scrollToTop') {
-    const scrollEl = document.querySelector('.timeline');
-    if (scrollEl) scrollEl.scrollTo({ top: 0, behavior: 'smooth' });
-  } else if (e.data.action === 'refresh') {
-    location.reload();
-  } else if (e.data.action === 'themeChange') {
-    applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME, false);
-  }
-});
 </script>
 <script src="js/logger.js"></script>
 

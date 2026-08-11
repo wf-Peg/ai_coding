@@ -1,9 +1,11 @@
 package com.example.clip.controller;
 
 import com.example.clip.model.LearningPlan;
+import com.example.clip.service.AppConfigService;
 import com.example.clip.service.FileStorageService;
 import com.example.clip.service.LearningPlanService;
 import com.example.clip.service.PdfGenerator;
+import com.example.clip.util.WorkspaceFilterUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -17,6 +19,7 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 学习计划 REST API 控制器。
@@ -35,13 +38,16 @@ public class LearningPlanController {
     private final LearningPlanService learningPlanService;
     private final FileStorageService fileStorageService;
     private final PdfGenerator pdfGenerator;
+    private final AppConfigService appConfigService;
 
     public LearningPlanController(LearningPlanService learningPlanService,
                                   FileStorageService fileStorageService,
-                                  PdfGenerator pdfGenerator) {
+                                  PdfGenerator pdfGenerator,
+                                  AppConfigService appConfigService) {
         this.learningPlanService = learningPlanService;
         this.fileStorageService = fileStorageService;
         this.pdfGenerator = pdfGenerator;
+        this.appConfigService = appConfigService;
     }
 
     /**
@@ -85,8 +91,13 @@ public class LearningPlanController {
      * @return 学习计划列表（按创建时间倒序）
      */
     @GetMapping
-    public ResponseEntity<List<LearningPlan>> getAllPlans() {
-        return ResponseEntity.ok(learningPlanService.getAllPlans());
+    public ResponseEntity<List<LearningPlan>> getAllPlans(
+            @RequestParam(required = false) String workspaceId) {
+        List<LearningPlan> plans = learningPlanService.getAllPlans();
+        if (workspaceId != null && !workspaceId.isBlank()) {
+            plans = filterByWorkspace(plans, workspaceId);
+        }
+        return ResponseEntity.ok(plans);
     }
 
     /**
@@ -309,6 +320,13 @@ public class LearningPlanController {
             log.error("[LearningPlan] PDF export failed for plan {}", id, e);
             return ResponseEntity.internalServerError().body(Map.of("error", "PDF 导出失败: " + e.getMessage()));
         }
+    }
+
+    /**
+     * 根据工作台规则筛选学习计划列表，委托给 {@link WorkspaceFilterUtils} 共享工具类。
+     */
+    private List<LearningPlan> filterByWorkspace(List<LearningPlan> items, String workspaceId) {
+        return WorkspaceFilterUtils.filterByWorkspace(items, workspaceId, appConfigService, LearningPlan::getId);
     }
 
     private int toInt(Object value, int defaultValue) {

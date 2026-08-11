@@ -1,11 +1,17 @@
 package com.example.clip.core;
 
+import com.example.clip.index.ContentIndexService;
+import com.example.clip.service.AppConfigService;
 import com.example.clip.service.ContentOrganizeService;
+import com.example.clip.service.FileStorageService;
+import com.example.clip.service.TodoScannerService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+
+import java.nio.file.Path;
 
 /**
  * 定时任务调度组件。
@@ -40,14 +46,32 @@ public class ScheduledTasks {
     /** 内容整理服务，负责具体的整理逻辑 */
     private final ContentOrganizeService contentOrganizeService;
 
+    /** 待办事项扫描服务，负责 TODO 目录的 feature-points.json 导入 */
+    private final TodoScannerService todoScannerService;
+
+    /** 应用配置服务，用于获取配置目录路径 */
+    private final AppConfigService appConfigService;
+
+    /** 文件存储服务，用于索引重建时读取所有存储内容 */
+    private final FileStorageService fileStorageService;
+
     /**
-     * 构造器注入内容整理服务。
+     * 构造器注入所有依赖。
      *
      * @param contentOrganizeService 内容整理服务实例，由 Spring 自动注入
+     * @param todoScannerService 待办扫描服务实例，由 Spring 自动注入
+     * @param appConfigService 应用配置服务实例，由 Spring 自动注入
+     * @param fileStorageService 文件存储服务实例，由 Spring 自动注入
      */
     @Autowired
-    public ScheduledTasks(ContentOrganizeService contentOrganizeService) {
+    public ScheduledTasks(ContentOrganizeService contentOrganizeService,
+                          TodoScannerService todoScannerService,
+                          AppConfigService appConfigService,
+                          FileStorageService fileStorageService) {
         this.contentOrganizeService = contentOrganizeService;
+        this.todoScannerService = todoScannerService;
+        this.appConfigService = appConfigService;
+        this.fileStorageService = fileStorageService;
     }
 
     /**
@@ -75,5 +99,35 @@ public class ScheduledTasks {
         // 调用整理服务执行实际的内容整理逻辑
         contentOrganizeService.organizeContent();
         log.info("每日内容整理任务执行完成");
+    }
+
+    /**
+     * TODO 目录定时扫描任务。
+     * <p>
+     * 每 5 分钟扫描 TODO 目录下的 feature-points.json，增量导入新功能点。
+     * 幂等设计：已导入的 featurePointId 记录在 .imported 标记中，不会重复导入。
+     * 首次延迟 60 秒，避免与启动时 CommandLineRunner 冲突。
+     * </p>
+     */
+    @Scheduled(fixedDelay = 300000, initialDelay = 60000)
+    public void scanTodoDirectory() {
+        try {
+            TodoScannerService.ScanResult result = todoScannerService.scanAndImport();
+            if (result.dirsImported() > 0 || result.clipsCreated() > 0 || result.todosCreated() > 0) {
+                log.info("[ScheduledTasks] TODO 扫描完成: dirs={}, clips={}, todos={}",
+                        result.dirsImported(), result.clipsCreated(), result.todosCreated());
+                // 导入新数据后立即重建索引，确保工作台筛选立即可见
+                try {
+                    Path indexDir = Path.of(appConfigService.getConfigDirPath(), "index");
+                    new ContentIndexService(indexDir.resolve("content-index.json"))
+                            .rebuildFromStorage(fileStorageService);
+                    log.info("[ScheduledTasks] 内容索引已重建");
+                } catch (Exception e2) {
+                    log.warn("[ScheduledTasks] 索引重建异常: {}", e2.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("[ScheduledTasks] TODO 扫描异常: {}", e.getMessage());
+        }
     }
 }

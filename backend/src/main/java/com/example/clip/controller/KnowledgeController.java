@@ -6,9 +6,11 @@ import com.example.clip.dto.KnowledgeResponse;
 import com.example.clip.model.ClipContent;
 import com.example.clip.model.Comment;
 import com.example.clip.model.Knowledge;
+import com.example.clip.service.AppConfigService;
 import com.example.clip.service.ClipService;
 import com.example.clip.service.FileStorageService;
 import com.example.clip.service.KnowledgeService;
+import com.example.clip.util.WorkspaceFilterUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -50,6 +52,8 @@ public class KnowledgeController {
     private final AiService aiService;
     /** 剪藏服务，用于获取剪藏内容 */
     private final ClipService clipService;
+    /** 应用配置服务，用于获取配置目录路径 */
+    private final AppConfigService appConfigService;
 
     private static final Logger logger = LoggerFactory.getLogger(KnowledgeController.class);
 
@@ -60,13 +64,16 @@ public class KnowledgeController {
      * @param storageService   文件存储服务
      * @param aiService        AI 服务
      * @param clipService      剪藏服务
+     * @param appConfigService 应用配置服务
      */
     public KnowledgeController(KnowledgeService knowledgeService, FileStorageService storageService,
-                               AiService aiService, ClipService clipService) {
+                               AiService aiService, ClipService clipService,
+                               AppConfigService appConfigService) {
         this.knowledgeService = knowledgeService;
         this.storageService = storageService;
         this.aiService = aiService;
         this.clipService = clipService;
+        this.appConfigService = appConfigService;
     }
 
     /**
@@ -110,7 +117,8 @@ public class KnowledgeController {
     @GetMapping("/list")
     public ResponseEntity<List<KnowledgeResponse>> listKnowledge(
             @RequestParam(required = false) String category,
-            @RequestParam(required = false) String keyword) {
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String workspaceId) {
         List<Knowledge> knowledges;
         if (keyword != null && !keyword.isEmpty()) {
             knowledges = knowledgeService.searchKnowledge(keyword, category);
@@ -118,6 +126,9 @@ public class KnowledgeController {
             knowledges = knowledgeService.searchKnowledge(null, category);
         } else {
             knowledges = knowledgeService.getAllKnowledge();
+        }
+        if (workspaceId != null && !workspaceId.isBlank()) {
+            knowledges = filterByWorkspace(knowledges, workspaceId);
         }
         return ResponseEntity.ok(knowledges.stream().map(this::toResponse).collect(Collectors.toList()));
     }
@@ -399,6 +410,13 @@ public class KnowledgeController {
             return ResponseEntity.ok(Map.of("status", "success"));
         }
         return ResponseEntity.status(404).body(Map.of("status", "error", "message", "评论不存在"));
+    }
+
+    /**
+     * 根据工作台规则筛选知识列表，委托给 {@link WorkspaceFilterUtils} 共享工具类。
+     */
+    private List<Knowledge> filterByWorkspace(List<Knowledge> items, String workspaceId) {
+        return WorkspaceFilterUtils.filterByWorkspace(items, workspaceId, appConfigService, Knowledge::getId);
     }
 
     /**

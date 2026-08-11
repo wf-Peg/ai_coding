@@ -8,6 +8,9 @@ import com.example.clip.index.HabitProfile;
 import com.example.clip.index.HabitProfileService;
 import com.example.clip.index.Project;
 import com.example.clip.index.ProjectIndexService;
+import com.example.clip.index.RuleExpression;
+import com.example.clip.index.RuleExpressionUpdateRequest;
+import com.example.clip.index.RuleGroup;
 import com.example.clip.index.SuggestionCandidate;
 import com.example.clip.index.Workspace;
 import com.example.clip.index.WorkspaceExclusion;
@@ -82,8 +85,9 @@ public class WorkspaceController {
                 throw new IllegalArgumentException("workspace.type 非法: " + type);
             }
             LocalDateTime now = LocalDateTime.now();
+            boolean matchAll = workspaceRequest.matchAll() != null && workspaceRequest.matchAll();
             Workspace workspace = new Workspace(UUID.randomUUID().toString(), workspaceRequest.name(),
-                    workspaceRequest.description(), workspaceRequest.color(), type, "active", now, now);
+                    workspaceRequest.description(), workspaceRequest.color(), type, "active", matchAll, now, now);
             workspaceIndexService().saveWorkspace(workspace);
             return ResponseEntity.status(HttpStatus.CREATED).body(workspace);
         } catch (RuntimeException error) {
@@ -93,43 +97,63 @@ public class WorkspaceController {
 
     @GetMapping("/overview")
     public ResponseEntity<Map<String, Object>> overview(
+            @RequestParam(required = false) String workspaceId,
             @RequestParam(required = false) List<String> types,
             @RequestParam(required = false, defaultValue = "") String query) {
         try {
             Path indexDir = indexDir();
-            Set<String> selectedTypes = normalizeTypes(types);
-            String normalizedQuery = query.trim().toLowerCase(Locale.ROOT);
-            List<Map<String, Object>> contents = new ContentIndexService(indexDir.resolve("content-index.json")).readAll().stream()
-                    .filter(ref -> selectedTypes.isEmpty() || selectedTypes.contains(ref.type()))
-                    .filter(ref -> matches(ref, normalizedQuery))
-                    .map(this::contentSummary)
-                    .toList();
-            List<Map<String, Object>> projects = new ProjectIndexService(indexDir).readAll().stream()
-                    .map(this::projectSummary)
-                    .toList();
-
-            Map<String, Object> result = new LinkedHashMap<>();
-            result.put("contents", contents);
-            result.put("count", contents.size());
-            result.put("contentTypes", CONTENT_TYPES);
-            result.put("projects", projects);
-
-            WorkspaceIndexService wsService = workspaceIndexService();
-            List<Workspace> allWorkspaces = wsService.readAll();
-            long activeWorkspaces = allWorkspaces.stream().filter(w -> "active".equals(w.status())).count();
-            long archivedWorkspaces = allWorkspaces.stream().filter(w -> "archived".equals(w.status())).count();
-            Map<String, Object> workspaceSummary = new LinkedHashMap<>();
-            workspaceSummary.put("total", allWorkspaces.size());
-            workspaceSummary.put("active", activeWorkspaces);
-            workspaceSummary.put("archived", archivedWorkspaces);
-            workspaceSummary.put("types", allWorkspaces.stream()
-                    .map(Workspace::type).filter(t -> t != null)
-                    .collect(Collectors.groupingBy(t -> t, Collectors.counting())));
-            result.put("workspaceSummary", workspaceSummary);
-            return ResponseEntity.ok(result);
+            if (workspaceId != null && !workspaceId.isBlank()) {
+                WorkspaceResolution resolution = workspaceIndexService().resolveWorkspace(workspaceId,
+                        new ContentIndexService(indexDir.resolve("content-index.json")).readAll(), List.of());
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("contents", new WorkspaceResolutionView(resolution).body().get("contents"));
+                result.put("count", resolution.visibleCount());
+                result.put("scoped", true);
+                result.put("workspaceId", workspaceId);
+                result.put("contentTypes", CONTENT_TYPES);
+                result.put("projects", List.of());
+                result.put("workspaceSummary", workspaceSummaryOf(indexDir));
+                return ResponseEntity.ok(result);
+            }
+            return ResponseEntity.ok(overviewAll(indexDir, types, query));
         } catch (IllegalStateException error) {
             return serviceUnavailable("无法读取工作台索引数据");
         }
+    }
+
+    private Map<String, Object> overviewAll(Path indexDir, List<String> types, String query) {
+        Set<String> selectedTypes = normalizeTypes(types);
+        String normalizedQuery = query.trim().toLowerCase(Locale.ROOT);
+        List<Map<String, Object>> contents = new ContentIndexService(indexDir.resolve("content-index.json")).readAll().stream()
+                .filter(ref -> selectedTypes.isEmpty() || selectedTypes.contains(ref.type()))
+                .filter(ref -> matches(ref, normalizedQuery))
+                .map(this::contentSummary)
+                .toList();
+        List<Map<String, Object>> projects = new ProjectIndexService(indexDir).readAll().stream()
+                .map(this::projectSummary)
+                .toList();
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("contents", contents);
+        result.put("count", contents.size());
+        result.put("contentTypes", CONTENT_TYPES);
+        result.put("projects", projects);
+        result.put("workspaceSummary", workspaceSummaryOf(indexDir));
+        return result;
+    }
+
+    private Map<String, Object> workspaceSummaryOf(Path indexDir) {
+        List<Workspace> allWorkspaces = workspaceIndexService().readAll();
+        long activeWorkspaces = allWorkspaces.stream().filter(w -> "active".equals(w.status())).count();
+        long archivedWorkspaces = allWorkspaces.stream().filter(w -> "archived".equals(w.status())).count();
+        Map<String, Object> workspaceSummary = new LinkedHashMap<>();
+        workspaceSummary.put("total", allWorkspaces.size());
+        workspaceSummary.put("active", activeWorkspaces);
+        workspaceSummary.put("archived", archivedWorkspaces);
+        workspaceSummary.put("types", allWorkspaces.stream()
+                .map(Workspace::type).filter(t -> t != null)
+                .collect(Collectors.groupingBy(t -> t, Collectors.counting())));
+        return workspaceSummary;
     }
 
     // ── Board Column API ──
@@ -245,7 +269,7 @@ public class WorkspaceController {
             LocalDateTime now = LocalDateTime.now();
             WorkspaceRule rule = new WorkspaceRule(UUID.randomUUID().toString(), workspaceId, request.field(),
                     request.operator(), request.value(), request.enabled(), now, now);
-            new WorkspaceRuleServiceView(indexDir()).saveRule(rule);
+            new WorkspaceRuleServiceView(indexDir()).saveRule(rule, request.groupId());
             return ResponseEntity.status(HttpStatus.CREATED).body(rule);
         } catch (RuntimeException error) {
             return errorResponse(error);
@@ -284,6 +308,37 @@ public class WorkspaceController {
             }
             rules.removeRule(ruleId);
             return ResponseEntity.noContent().build();
+        } catch (RuntimeException error) {
+            return errorResponse(error);
+        }
+    }
+
+    @GetMapping("/{workspaceId}/rule-expression")
+    public ResponseEntity<?> ruleExpression(@PathVariable String workspaceId) {
+        try {
+            WorkspaceIndexService indexService = workspaceIndexService();
+            requireWorkspace(indexService, workspaceId);
+            RuleExpression expr = new WorkspaceRuleServiceView(indexDir()).getExpression(workspaceId);
+            return ResponseEntity.ok(expr != null ? expr : RuleExpression.empty(workspaceId));
+        } catch (RuntimeException error) {
+            return errorResponse(error);
+        }
+    }
+
+    @PutMapping("/{workspaceId}/rule-expression")
+    public ResponseEntity<?> updateRuleExpression(@PathVariable String workspaceId,
+                                                  @RequestBody RuleExpressionUpdateRequest request) {
+        try {
+            WorkspaceIndexService indexService = workspaceIndexService();
+            requireWorkspace(indexService, workspaceId);
+            if (request == null) throw new IllegalArgumentException("请求不能为空");
+            List<RuleGroup> groups = request.groups() == null ? List.of()
+                    : request.groups().stream()
+                        .map(g -> new RuleGroup(g.id(), RuleGroup.normalizeRelation(g.relation()), g.ruleIds()))
+                        .toList();
+            RuleExpression saved = new WorkspaceRuleServiceView(indexDir())
+                    .saveExpression(new RuleExpression(workspaceId, request.relation(), groups));
+            return ResponseEntity.ok(saved);
         } catch (RuntimeException error) {
             return errorResponse(error);
         }
@@ -442,6 +497,26 @@ public class WorkspaceController {
         }
     }
 
+    @PutMapping("/{workspaceId}/settings")
+    public ResponseEntity<?> updateSettings(@PathVariable String workspaceId, @RequestBody WorkspaceSettingsRequest request) {
+        try {
+            WorkspaceIndexService indexService = workspaceIndexService();
+            requireWorkspace(indexService, workspaceId);
+            Workspace existing = indexService.readAll().stream()
+                    .filter(w -> w.id().equals(workspaceId))
+                    .findFirst()
+                    .orElseThrow(() -> new WorkspaceNotFoundException("工作台不存在"));
+            Workspace updated = new Workspace(workspaceId, existing.name(), existing.description(),
+                    existing.color(), existing.type(), existing.status(),
+                    request.matchAll() != null ? request.matchAll() : existing.matchAll(),
+                    existing.createdAt(), LocalDateTime.now());
+            indexService.saveWorkspace(updated);
+            return ResponseEntity.ok(updated);
+        } catch (RuntimeException error) {
+            return errorResponse(error);
+        }
+    }
+
     @GetMapping("/field-values")
     public ResponseEntity<Map<String, List<String>>> fieldValues() {
         try {
@@ -556,15 +631,17 @@ public class WorkspaceController {
         return summary;
     }
 
-    public record RuleRequest(String field, String operator, String value, boolean enabled) {}
+    public record RuleRequest(String field, String operator, String value, boolean enabled, String groupId) {}
 
     public record ExclusionRequest(String contentId, String reason) {}
 
-    public record WorkspaceRequest(String name, String description, String color, String type) {}
+    public record WorkspaceRequest(String name, String description, String color, String type, Boolean matchAll) {}
 
     public record ColumnRequest(String key, String name) {}
 
     public record MoveRequest(String boardColumnId, int position) {}
+
+    public record WorkspaceSettingsRequest(Boolean matchAll) {}
 
     private static final class WorkspaceRuleServiceView {
         private final com.example.clip.index.WorkspaceRuleService service;
@@ -575,7 +652,10 @@ public class WorkspaceController {
 
         private List<WorkspaceRule> rules(String workspaceId) { return service.rules(workspaceId); }
         private void saveRule(WorkspaceRule rule) { service.saveRule(rule); }
+        private void saveRule(WorkspaceRule rule, String groupId) { service.saveRule(rule, groupId); }
         private void removeRule(String ruleId) { service.removeRule(ruleId); }
+        private RuleExpression getExpression(String workspaceId) { return service.getExpression(workspaceId); }
+        private RuleExpression saveExpression(RuleExpression expression) { return service.saveExpression(expression); }
         private List<WorkspaceExclusion> exclusions(String workspaceId) { return service.exclusions(workspaceId); }
         private void saveExclusion(WorkspaceExclusion exclusion) { service.saveExclusion(exclusion); }
         private void removeExclusion(String workspaceId, String contentId) { service.removeExclusion(workspaceId, contentId); }
