@@ -179,3 +179,4 @@
 2026-08-08 20:31 | fix: 测试类添加 ExceptionLogService mock 修复编译错误
 2026-08-11 17:04 | workspace 数据入库与全局筛选（多轮开发合并）
 2026-08-11 18:34 | 创建 git-commit-workflow 项目规范提交 skill
+2026-08-11 19:00 | 清理调试日志、重构TodoScanner存储路径、新增工作台筛选修复文档
