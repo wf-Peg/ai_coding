@@ -380,9 +380,6 @@ function createClipItem(clip, isSearch) {
         `;
 
     if (analysisContent) {
-        // console.log('===== 剪藏ID:', clip.id, '的分析内容调试 =====');
-        // console.log('原始分析内容:', analysisContent);
-        // console.log('原始内容长度:', analysisContent.length);
 
         const analysisContentDiv = clipItem.querySelector(`#analysis-content-${clip.id}`);
         if (analysisContentDiv) {
@@ -403,9 +400,7 @@ function createClipItem(clip, isSearch) {
                 console.log('清理后的内容:', cleanContent);
 
                 const renderedHtml = marked.parse(cleanContent);
-                console.log('marked渲染后的HTML:', renderedHtml);
                 analysisContentDiv.innerHTML = renderedHtml;
-                console.log('DOM元素的innerHTML:', analysisContentDiv.innerHTML);
             } catch (e) {
                 console.error('Markdown渲染失败:', e);
                 analysisContentDiv.textContent = analysisContent;

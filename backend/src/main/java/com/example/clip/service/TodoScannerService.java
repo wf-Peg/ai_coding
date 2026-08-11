@@ -5,7 +5,6 @@ import com.example.clip.model.TodoContent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -56,17 +55,47 @@ public class TodoScannerService {
     private final Path todoDir;
     private final ClipService clipService;
     private final TodoService todoService;
+    private final AppConfigService appConfigService;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 构造函数（生产环境）：从 AppConfigService 的存储路径派生 TODO 目录。
+     * <p>
+     * TODO 目录位于存储路径下的 TODO/ 子目录中，
+     * 与 settings 模块设置的"存储路径"一致，确保 product-dev-archive skill
+     * 写入的 feature-points.json 能被扫描到。
+     * </p>
+     */
     public TodoScannerService(
             ClipService clipService,
             TodoService todoService,
-            @Value("${product-dev.todo-dir:./TODO}") String todoDirPath) {
+            AppConfigService appConfigService) {
         this.clipService = clipService;
         this.todoService = todoService;
+        this.appConfigService = appConfigService;
+        // 从存储路径派生 TODO 目录：{storagePath}/TODO
+        String basePath = appConfigService.getConfig().getStoragePath();
+        this.todoDir = Paths.get(basePath, "TODO").toAbsolutePath().normalize();
+        this.objectMapper = new ObjectMapper();
+        log.info("[TodoScannerService] TODO 目录: {}（基于存储路径: {}）", this.todoDir, basePath);
+    }
+
+    /**
+     * 构造函数（测试用）：直接指定 TODO 目录路径。
+     * <p>
+     * 仅用于单元测试，允许传入自定义的 TODO 根目录。
+     * </p>
+     */
+    TodoScannerService(
+            ClipService clipService,
+            TodoService todoService,
+            String todoDirPath) {
+        this.clipService = clipService;
+        this.todoService = todoService;
+        this.appConfigService = null;
         this.todoDir = Paths.get(todoDirPath).toAbsolutePath().normalize();
         this.objectMapper = new ObjectMapper();
-        log.info("[TodoScannerService] TODO 目录: {}", this.todoDir);
+        log.info("[TodoScannerService] 测试构造 TODO 目录: {}", this.todoDir);
     }
 
     /**

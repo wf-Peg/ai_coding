@@ -4091,9 +4091,7 @@
                     console.log('清理后的内容:', cleanContent);
 
                     const renderedHtml = marked.parse(cleanContent);
-                    console.log('marked渲染后的HTML:', renderedHtml);
                     analysisContentDiv.innerHTML = renderedHtml;
-                    console.log('DOM元素的innerHTML:', analysisContentDiv.innerHTML);
                 } catch (e) {
                     console.error('Markdown渲染失败:', e);
                     analysisContentDiv.textContent = analysisContent;
