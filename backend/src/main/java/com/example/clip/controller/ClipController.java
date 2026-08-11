@@ -19,6 +19,8 @@ import com.example.clip.service.SearchService;
 import com.example.clip.service.TodoService;
 import com.example.clip.service.WeeklyReportService;
 import com.example.clip.service.UserActionEventRecorder;
+import com.example.clip.index.WorkspaceIndexService;
+import com.example.clip.index.WorkspaceMembership;
 import com.example.clip.util.WorkspaceFilterUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
@@ -28,6 +30,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
@@ -148,6 +151,29 @@ public class ClipController {
                 }
             }
         }
+
+        // 如果请求中携带了 workspaceId，自动创建成员关系关联到工作台
+        if (request.getWorkspaceId() != null && !request.getWorkspaceId().isBlank()) {
+            try {
+                WorkspaceIndexService wsService = new WorkspaceIndexService(
+                        Path.of(appConfigService.getConfigDirPath(), "index"));
+                WorkspaceMembership membership = new WorkspaceMembership(
+                        request.getWorkspaceId(),
+                        "clip:" + clip.getId(),
+                        "manual_input",
+                        "工作台输入",
+                        1.0,
+                        null, 0,
+                        LocalDateTime.now(), LocalDateTime.now());
+                wsService.addMember(membership);
+                log.info("event=clip.workspace_attached workspaceId={} clipId={} source=manual_input",
+                        request.getWorkspaceId(), clip.getId());
+            } catch (Exception e) {
+                log.warn("event=clip.workspace_attach_failed workspaceId={} clipId={} error={}",
+                        request.getWorkspaceId(), clip.getId(), e.getMessage());
+            }
+        }
+
         return ResponseEntity.ok(new ClipResponse(clip.getId(), "success"));
     }
 

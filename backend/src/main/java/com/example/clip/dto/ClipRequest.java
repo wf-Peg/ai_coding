@@ -95,6 +95,9 @@ public class ClipRequest {
     /** 来源或保存目标换行符：LF/CRLF/CR */
     private String sourceLineEnding;
 
+    /** 来源工作台 ID（可选），创建内容后自动关联到该工作台 */
+    private String workspaceId;
+
     public String getContent() {
         return content;
     }
@@ -293,6 +296,14 @@ public class ClipRequest {
 
     public void setSourceLineEnding(String sourceLineEnding) {
         this.sourceLineEnding = sourceLineEnding;
+    }
+
+    public String getWorkspaceId() {
+        return workspaceId;
+    }
+
+    public void setWorkspaceId(String workspaceId) {
+        this.workspaceId = workspaceId;
     }
 
     /**

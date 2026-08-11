@@ -5,6 +5,8 @@ import com.example.clip.model.TodoContent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -59,25 +61,25 @@ public class TodoScannerService {
     private final ObjectMapper objectMapper;
 
     /**
-     * 构造函数（生产环境）：从 AppConfigService 的存储路径派生 TODO 目录。
+     * 构造函数（生产环境）：使用 application.yml 中配置的 product-dev.todo-dir 路径。
      * <p>
-     * TODO 目录位于存储路径下的 TODO/ 子目录中，
-     * 与 settings 模块设置的"存储路径"一致，确保 product-dev-archive skill
-     * 写入的 feature-points.json 能被扫描到。
+     * TODO 目录由配置项 {@code product-dev.todo-dir} 指定，默认值 {@code ./TODO}。
+     * 该路径与 product-dev-archive skill 写入的 feature-points.json 目录一致，
+     * 确保扫描服务能正确导入产品开发工作台的数据。
      * </p>
      */
+    @Autowired
     public TodoScannerService(
             ClipService clipService,
             TodoService todoService,
-            AppConfigService appConfigService) {
+            AppConfigService appConfigService,
+            @Value("${product-dev.todo-dir:./TODO}") String todoDirPath) {
         this.clipService = clipService;
         this.todoService = todoService;
         this.appConfigService = appConfigService;
-        // 从存储路径派生 TODO 目录：{storagePath}/TODO
-        String basePath = appConfigService.getConfig().getStoragePath();
-        this.todoDir = Paths.get(basePath, "TODO").toAbsolutePath().normalize();
+        this.todoDir = Paths.get(todoDirPath).toAbsolutePath().normalize();
         this.objectMapper = new ObjectMapper();
-        log.info("[TodoScannerService] TODO 目录: {}（基于存储路径: {}）", this.todoDir, basePath);
+        log.info("[TodoScannerService] TODO 目录: {}（基于配置 product-dev.todo-dir: {}）", this.todoDir, todoDirPath);
     }
 
     /**

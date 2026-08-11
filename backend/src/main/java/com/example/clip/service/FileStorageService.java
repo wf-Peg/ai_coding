@@ -381,6 +381,10 @@ public class FileStorageService {
             if (clip.getId() == null) {
                 // 新记录：分配全局唯一 ID
                 clip.setId(idGenerator.getAndIncrement());
+            } else {
+                // 已有 ID 的剪藏：从所有文件中移除旧记录，避免跨文件 ID 重复
+                // 因为 getCategoryPath 可能变化（分类变更），旧记录可能在别的文件
+                removeClipFromAllFiles(clip.getId());
             }
 
             // category 为空时存到 default 目录
@@ -414,6 +418,32 @@ public class FileStorageService {
         } catch (Exception e) {
             e.printStackTrace();
             return null;
+        }
+    }
+
+    /**
+     * 从所有 JSON 文件中移除指定 ID 的剪藏记录。
+     * <p>
+     * 遍历所有文件（包括 todoList/knowledge 等子目录），找到并移除匹配 ID 的 ClipContent 记录。
+     * 用于确保每个 ID 全局唯一，避免跨文件 ID 重复导致索引数据错乱。
+     * </p>
+     *
+     * @param id 要移除的剪藏 ID
+     */
+    private void removeClipFromAllFiles(Long id) {
+        try {
+            List<Path> jsonFiles = getAllJsonFiles();
+            for (Path path : jsonFiles) {
+                List<ClipContent> existingClips = readClipArrayFromFile(path);
+                boolean removed = existingClips.removeIf(c ->
+                        c.getId() != null && c.getId().equals(id));
+                if (removed) {
+                    writeClipArrayToFile(path, existingClips);
+                    log.debug("[FileStorageService] 已从 {} 移除旧剪藏记录 id={}", path, id);
+                }
+            }
+        } catch (IOException e) {
+            log.warn("[FileStorageService] 移除剪藏 id={} 时异常: {}", id, e.getMessage());
         }
     }
 

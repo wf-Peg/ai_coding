@@ -39,6 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -87,7 +88,7 @@ public class WorkspaceController {
             LocalDateTime now = LocalDateTime.now();
             boolean matchAll = workspaceRequest.matchAll() != null && workspaceRequest.matchAll();
             Workspace workspace = new Workspace(UUID.randomUUID().toString(), workspaceRequest.name(),
-                    workspaceRequest.description(), workspaceRequest.color(), type, "active", matchAll, now, now);
+                    workspaceRequest.description(), workspaceRequest.color(), type, "active", matchAll, false, 0, now, now);
             workspaceIndexService().saveWorkspace(workspace);
             return ResponseEntity.status(HttpStatus.CREATED).body(workspace);
         } catch (RuntimeException error) {
@@ -267,8 +268,9 @@ public class WorkspaceController {
             requireWorkspace(indexService, workspaceId);
             validate(request);
             LocalDateTime now = LocalDateTime.now();
+            boolean negate = request.negate() != null && request.negate();
             WorkspaceRule rule = new WorkspaceRule(UUID.randomUUID().toString(), workspaceId, request.field(),
-                    request.operator(), request.value(), request.enabled(), now, now);
+                    request.operator(), request.value(), request.enabled(), negate, now, now);
             new WorkspaceRuleServiceView(indexDir()).saveRule(rule, request.groupId());
             return ResponseEntity.status(HttpStatus.CREATED).body(rule);
         } catch (RuntimeException error) {
@@ -289,7 +291,8 @@ public class WorkspaceController {
                     .findFirst()
                     .orElseThrow(() -> new WorkspaceNotFoundException("规则不存在"));
             WorkspaceRule updated = new WorkspaceRule(ruleId, workspaceId, request.field(), request.operator(),
-                    request.value(), request.enabled(), existing.createdAt(), LocalDateTime.now());
+                    request.value(), request.enabled(), request.negate() != null && request.negate(),
+                    existing.createdAt(), LocalDateTime.now());
             rules.saveRule(updated);
             return ResponseEntity.ok(updated);
         } catch (RuntimeException error) {
@@ -350,6 +353,55 @@ public class WorkspaceController {
             WorkspaceIndexService indexService = workspaceIndexService();
             requireWorkspace(indexService, workspaceId);
             return ResponseEntity.ok(new WorkspaceRuleServiceView(indexDir()).exclusions(workspaceId));
+        } catch (RuntimeException error) {
+            return errorResponse(error);
+        }
+    }
+
+    /**
+     * 新建规则分组。
+     * <p>
+     * POST /api/workspace/{workspaceId}/rule-expression/groups
+     * <p>
+     * 请求体可选：{@code {"relation":"OR"}}（组内关系，默认 OR）。
+     * 返回更新后的完整表达式。
+     *
+     * @param workspaceId 工作台 ID
+     * @param request     分组创建请求（可空）
+     * @return 更新后的规则表达式（201）
+     */
+    @PostMapping("/{workspaceId}/rule-expression/groups")
+    public ResponseEntity<?> addRuleGroup(@PathVariable String workspaceId,
+                                          @RequestBody(required = false) GroupCreateRequest request) {
+        try {
+            WorkspaceIndexService indexService = workspaceIndexService();
+            requireWorkspace(indexService, workspaceId);
+            String relation = request == null ? null : request.relation();
+            RuleExpression expr = new WorkspaceRuleServiceView(indexDir()).addGroup(workspaceId, relation);
+            return ResponseEntity.status(HttpStatus.CREATED).body(expr);
+        } catch (RuntimeException error) {
+            return errorResponse(error);
+        }
+    }
+
+    /**
+     * 删除规则分组（连同组内规则）。
+     * <p>
+     * DELETE /api/workspace/{workspaceId}/rule-expression/groups/{groupId}
+     * <p>
+     * 删除分组及其引用的所有规则；删除后无分组时自动补一个空 OR 组。
+     *
+     * @param workspaceId 工作台 ID
+     * @param groupId     分组 ID
+     * @return 更新后的规则表达式
+     */
+    @DeleteMapping("/{workspaceId}/rule-expression/groups/{groupId}")
+    public ResponseEntity<?> deleteRuleGroup(@PathVariable String workspaceId, @PathVariable String groupId) {
+        try {
+            WorkspaceIndexService indexService = workspaceIndexService();
+            requireWorkspace(indexService, workspaceId);
+            RuleExpression expr = new WorkspaceRuleServiceView(indexDir()).deleteGroup(workspaceId, groupId);
+            return ResponseEntity.ok(expr);
         } catch (RuntimeException error) {
             return errorResponse(error);
         }
@@ -509,9 +561,47 @@ public class WorkspaceController {
             Workspace updated = new Workspace(workspaceId, existing.name(), existing.description(),
                     existing.color(), existing.type(), existing.status(),
                     request.matchAll() != null ? request.matchAll() : existing.matchAll(),
+                    existing.isDefault(), existing.sortOrder(),
                     existing.createdAt(), LocalDateTime.now());
             indexService.saveWorkspace(updated);
             return ResponseEntity.ok(updated);
+        } catch (RuntimeException error) {
+            return errorResponse(error);
+        }
+    }
+
+    @PutMapping("/{workspaceId}/set-default")
+    public ResponseEntity<?> setDefault(@PathVariable String workspaceId) {
+        try {
+            WorkspaceIndexService indexService = workspaceIndexService();
+            requireWorkspace(indexService, workspaceId);
+            LocalDateTime now = LocalDateTime.now();
+            List<Workspace> all = new ArrayList<>(indexService.readAll());
+            for (int i = 0; i < all.size(); i++) {
+                Workspace w = all.get(i);
+                boolean isDefault = w.id().equals(workspaceId);
+                if (w.isDefault() != isDefault || (isDefault && !w.updatedAt().equals(now))) {
+                    all.set(i, new Workspace(w.id(), w.name(), w.description(), w.color(), w.type(), w.status(),
+                            w.matchAll(), isDefault, w.sortOrder(), w.createdAt(), now));
+                }
+            }
+            // Persist each updated workspace
+            for (Workspace w : all) {
+                indexService.saveWorkspace(w);
+            }
+            Workspace updated = all.stream().filter(w -> w.id().equals(workspaceId)).findFirst().orElseThrow();
+            return ResponseEntity.ok(updated);
+        } catch (RuntimeException error) {
+            return errorResponse(error);
+        }
+    }
+
+    @PutMapping("/reorder")
+    public ResponseEntity<?> reorder(@RequestBody ReorderRequest request) {
+        try {
+            WorkspaceIndexService indexService = workspaceIndexService();
+            indexService.reorderWorkspaces(request.workspaceIds());
+            return ResponseEntity.ok(Map.of("success", true));
         } catch (RuntimeException error) {
             return errorResponse(error);
         }
@@ -631,7 +721,9 @@ public class WorkspaceController {
         return summary;
     }
 
-    public record RuleRequest(String field, String operator, String value, boolean enabled, String groupId) {}
+    public record RuleRequest(String field, String operator, String value, boolean enabled, Boolean negate, String groupId) {}
+
+    public record GroupCreateRequest(String relation) {}
 
     public record ExclusionRequest(String contentId, String reason) {}
 
@@ -642,6 +734,8 @@ public class WorkspaceController {
     public record MoveRequest(String boardColumnId, int position) {}
 
     public record WorkspaceSettingsRequest(Boolean matchAll) {}
+
+    public record ReorderRequest(List<String> workspaceIds) {}
 
     private static final class WorkspaceRuleServiceView {
         private final com.example.clip.index.WorkspaceRuleService service;
@@ -656,6 +750,8 @@ public class WorkspaceController {
         private void removeRule(String ruleId) { service.removeRule(ruleId); }
         private RuleExpression getExpression(String workspaceId) { return service.getExpression(workspaceId); }
         private RuleExpression saveExpression(RuleExpression expression) { return service.saveExpression(expression); }
+        private RuleExpression addGroup(String workspaceId, String relation) { return service.addGroup(workspaceId, relation); }
+        private RuleExpression deleteGroup(String workspaceId, String groupId) { return service.deleteGroup(workspaceId, groupId); }
         private List<WorkspaceExclusion> exclusions(String workspaceId) { return service.exclusions(workspaceId); }
         private void saveExclusion(WorkspaceExclusion exclusion) { service.saveExclusion(exclusion); }
         private void removeExclusion(String workspaceId, String contentId) { service.removeExclusion(workspaceId, contentId); }

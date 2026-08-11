@@ -38,7 +38,8 @@ public class WorkspaceRuleService {
 
     public synchronized void saveRule(WorkspaceRule rule, String groupId) {
         rule.validate();
-        List<WorkspaceRule> values = new ArrayList<>(readRules(rule.workspaceId()));
+        // 必须基于全部规则读写，否则会覆盖丢失其他工作台的规则
+        List<WorkspaceRule> values = new ArrayList<>(readAllRules());
         values.removeIf(item -> item.id().equals(rule.id()));
         values.add(rule);
         writeRules(values);
@@ -168,6 +169,55 @@ public class WorkspaceRuleService {
         return expression;
     }
 
+    /**
+     * 新建一个空分组（默认组内 OR），追加到表达式末尾。
+     *
+     * @param workspaceId 工作台 ID
+     * @param relation    组内关系（AND/OR），null 或非法值归一化为 OR
+     * @return 更新后的表达式
+     */
+    public synchronized RuleExpression addGroup(String workspaceId, String relation) {
+        requireText(workspaceId, "workspaceId");
+        RuleExpression expr = getExpression(workspaceId);
+        if (expr == null) expr = RuleExpression.empty(workspaceId);
+        List<RuleGroup> groups = new ArrayList<>(expr.groups());
+        groups.add(new RuleGroup(UUID.randomUUID().toString(), RuleGroup.normalizeRelation(relation), List.of()));
+        RuleExpression updated = new RuleExpression(workspaceId, expr.relation(), groups);
+        saveExpression(updated);
+        return updated;
+    }
+
+    /**
+     * 删除分组及其组内引用的所有规则。
+     * <ul>
+     *   <li>表达式不存在 → 返回默认空表达式</li>
+     *   <li>分组不存在 → 幂等返回当前表达式</li>
+     *   <li>删除后无分组 → 补 1 个空 OR 组（保持结构稳定）</li>
+     * </ul>
+     *
+     * @param workspaceId 工作台 ID
+     * @param groupId     分组 ID
+     * @return 更新后的表达式
+     */
+    public synchronized RuleExpression deleteGroup(String workspaceId, String groupId) {
+        requireText(workspaceId, "workspaceId");
+        requireText(groupId, "groupId");
+        RuleExpression expr = getExpression(workspaceId);
+        if (expr == null) return RuleExpression.empty(workspaceId);
+        List<RuleGroup> groups = new ArrayList<>(expr.groups());
+        RuleGroup target = groups.stream().filter(g -> groupId.equals(g.id())).findFirst().orElse(null);
+        if (target == null) return expr;
+        // 连带删除该分组引用的规则（按规则文件直接删除，避免 removeRule 收敛单组的副作用）
+        List<WorkspaceRule> all = new ArrayList<>(readAllRules());
+        all.removeIf(r -> workspaceId.equals(r.workspaceId()) && target.ruleIds().contains(r.id()));
+        writeRules(all);
+        groups.remove(target);
+        if (groups.isEmpty()) groups.add(new RuleGroup(UUID.randomUUID().toString(), RuleGroup.OR, List.of()));
+        RuleExpression updated = new RuleExpression(workspaceId, expr.relation(), groups);
+        saveExpression(updated);
+        return updated;
+    }
+
     public synchronized WorkspaceResolution resolve(String workspaceId, Collection<ContentRef> refs,
                                                     Collection<WorkspaceMembership> manualMembers,
                                                     Collection<WorkspaceMembership> relationMembers) {
@@ -196,6 +246,15 @@ public class WorkspaceRuleService {
             }
         }
         Set<String> manualIds = memberIds(workspaceId, manualMembers);
+        // 区分 manual_input（工作台输入）和 manual（拖拽/指派）
+        Set<String> manualInputIds = new LinkedHashSet<>();
+        if (manualMembers != null) {
+            for (WorkspaceMembership m : manualMembers) {
+                if (workspaceId.equals(m.workspaceId()) && "manual_input".equals(m.source())) {
+                    manualInputIds.add(m.contentId());
+                }
+            }
+        }
         Set<String> relationIds = memberIds(workspaceId, relationMembers);
         Set<String> excludedIds = new LinkedHashSet<>();
         exclusions(workspaceId).forEach(item -> excludedIds.add(item.contentId()));
@@ -209,6 +268,8 @@ public class WorkspaceRuleService {
         for (ContentRef ref : visible) {
             if (ruleIds.contains(ref.id())) {
                 contentSources.put(ref.id(), "rule");
+            } else if (manualInputIds.contains(ref.id())) {
+                contentSources.put(ref.id(), "manual_input");
             } else if (manualIds.contains(ref.id())) {
                 contentSources.put(ref.id(), "manual");
             } else if (relationIds.contains(ref.id())) {
@@ -234,6 +295,12 @@ public class WorkspaceRuleService {
     }
 
     private boolean matches(WorkspaceRule rule, ContentRef ref) {
+        // 否定条件（NOT）：negate=true 时命中取反，用于"排除"场景
+        boolean matched = rawMatches(rule, ref);
+        return rule.negate() ? !matched : matched;
+    }
+
+    private boolean rawMatches(WorkspaceRule rule, ContentRef ref) {
         if (rule.field().equals("updatedAt")) {
             LocalDateTime date = rule.dateValue();
             if (date == null) return false;

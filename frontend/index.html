@@ -475,11 +475,6 @@
         </svg>
         <span>碎碎记 <small class="brand-subtitle">CutShelter</small></span>
     </div>
-    <div class="workspace-select-wrapper" style="display:none;margin:0 8px;position:relative;" id="workspaceSelectWrapper">
-        <select id="workspaceGlobalSelect" style="padding:2px 6px;font-size:12px;border:1px solid var(--titlebar-border);border-radius:4px;background:var(--bg);color:var(--text);max-width:140px;">
-            <option value="">全部内容</option>
-        </select>
-    </div>
     <div class="backend-global-indicator" id="backendGlobalIndicator" title="后端服务状态，点击启动">
         <span class="backend-global-dot stopped" id="backendGlobalDot"></span>
         <span class="backend-global-label" id="backendGlobalLabel">未启动</span>
@@ -667,18 +662,6 @@
         });
       }
 
-      function updateWorkspaceSelect(wsId) {
-        const select = document.getElementById('workspaceGlobalSelect');
-        const wrapper = document.getElementById('workspaceSelectWrapper');
-        if (!select) return;
-        if (wsId) {
-          wrapper.style.display = '';
-          select.value = wsId;
-        } else {
-          select.value = '';
-        }
-      }
-
       // 监听系统主题变化
       window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
         const appearance = localStorage.getItem(APPEARANCE_KEY) || 'light';
@@ -687,35 +670,13 @@
         }
       });
 
-      // 加载工作台列表，填充全局选择器
-      (async function loadGlobalWorkspaces() {
-        try {
-          const r = await fetch('/api/workspace/list', { headers: { Accept: 'application/json' } });
-          if (!r.ok) return;
-          const wsList = await r.json();
-          const select = document.getElementById('workspaceGlobalSelect');
-          const wrapper = document.getElementById('workspaceSelectWrapper');
-          if (select && wsList.length > 0) {
-            wrapper.style.display = '';
-            select.innerHTML = '<option value="">全部内容</option>' + wsList.map(w =>
-              `<option value="${w.id}" ${activeWorkspaceId === w.id ? 'selected' : ''}>${w.name}</option>`).join('');
-            select.onchange = function() {
-              const wsId = this.value || '';
-              activeWorkspaceId = wsId;
-              localStorage.setItem('active_workspace_id', wsId);
-              notifyAllFrames({ action: 'workspaceChange', workspaceId: wsId });
-            };
-          }
-        } catch (_) {}
-      })();
-
       window.addEventListener('storage', event => {
         if (event.key === THEME_KEY || event.key === APPEARANCE_KEY) {
           applyTheme(null, false);
         }
         if (event.key === 'active_workspace_id') {
           activeWorkspaceId = event.newValue || '';
-          updateWorkspaceSelect(activeWorkspaceId);
+          // 工作台选择由工作台模块管理，无需更新全局选择器
           notifyAllFrames({ action: 'workspaceChange', workspaceId: activeWorkspaceId });
         }
       });
@@ -767,7 +728,7 @@
         if (event.data && event.data.type === 'workspaceChanged' && event.data.workspaceId !== undefined) {
           activeWorkspaceId = event.data.workspaceId || '';
           localStorage.setItem('active_workspace_id', activeWorkspaceId);
-          updateWorkspaceSelect(activeWorkspaceId);
+          // 工作台选择由工作台模块管理，无需更新全局选择器
           // 通知所有子页面（除了workspace.html自身）
           [todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, learningPlanFrame].forEach(frame => {
             try { if (frame && frame.contentWindow) frame.contentWindow.postMessage({ action: 'workspaceChange', workspaceId: activeWorkspaceId }, '*'); } catch(e) {}
@@ -876,6 +837,10 @@
         // 切回剪藏视图时通知剪藏页刷新关联知识（解决创建知识后卡在"加载中…"的问题）
         if (normalizedView === 'clip' && clipFrame && clipFrame.contentWindow) {
           clipFrame.contentWindow.postMessage({ action: 'refreshKnowledge' }, '*');
+        }
+        // 切换到知识视图时补发 workspaceChange，确保知识模块首次加载时数据与工作台选择一致
+        if (normalizedView === 'knowledge' && knowledgeFrame && knowledgeFrame.contentWindow) {
+          knowledgeFrame.contentWindow.postMessage({ action: 'workspaceChange', workspaceId: activeWorkspaceId }, '*');
         }
       }
 

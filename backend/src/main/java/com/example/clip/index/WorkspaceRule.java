@@ -5,9 +5,20 @@ import java.time.format.DateTimeParseException;
 import java.util.Set;
 
 public record WorkspaceRule(String id, String workspaceId, String field, String operator, String value,
-                            boolean enabled, LocalDateTime createdAt, LocalDateTime updatedAt) {
+                            boolean enabled, Boolean negate, LocalDateTime createdAt, LocalDateTime updatedAt) {
     public static final Set<String> FIELDS = Set.of("type", "category", "tag", "sourcePath", "workflowStatus", "updatedAt");
     public static final Set<String> OPERATORS = Set.of("equals", "contains", "in", "before", "after");
+
+    public WorkspaceRule {
+        // 兼容旧数据：negate 缺失（null）时归一化为 false（不取反）
+        if (negate == null) negate = false;
+    }
+
+    /** 兼容旧调用：不带 negate 时默认不取反 */
+    public WorkspaceRule(String id, String workspaceId, String field, String operator, String value,
+                         boolean enabled, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this(id, workspaceId, field, operator, value, enabled, false, createdAt, updatedAt);
+    }
 
     public void validate() {
         requireText(id, "rule.id");

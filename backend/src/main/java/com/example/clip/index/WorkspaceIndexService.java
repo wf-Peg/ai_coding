@@ -66,6 +66,24 @@ public class WorkspaceIndexService {
         return List.copyOf(read(workspacePath, new TypeReference<List<Workspace>>() {}));
     }
 
+    public synchronized void reorderWorkspaces(List<String> workspaceIds) {
+        if (workspaceIds == null || workspaceIds.isEmpty()) return;
+        List<Workspace> all = new ArrayList<>(read(workspacePath, new TypeReference<List<Workspace>>() {}));
+        LocalDateTime now = LocalDateTime.now();
+        for (int i = 0; i < workspaceIds.size(); i++) {
+            String id = workspaceIds.get(i);
+            for (int j = 0; j < all.size(); j++) {
+                Workspace w = all.get(j);
+                if (w.id().equals(id) && w.sortOrder() != i) {
+                    all.set(j, new Workspace(w.id(), w.name(), w.description(), w.color(), w.type(), w.status(),
+                            w.matchAll(), w.isDefault(), i, w.createdAt(), now));
+                    break;
+                }
+            }
+        }
+        writeAll(workspacePath, all);
+    }
+
     // ── Board Column CRUD ──
 
     public synchronized void initDefaultColumns(String workspaceId, String type) {

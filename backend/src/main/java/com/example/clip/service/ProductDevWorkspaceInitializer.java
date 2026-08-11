@@ -108,9 +108,14 @@ public class ProductDevWorkspaceInitializer implements CommandLineRunner {
 
         if (exists) {
             log.info("[ProductDevWorkspaceInitializer] 产品开发工作台已存在，跳过创建");
-            // 仍然确保规则存在（可能被误删）
+            // 规则自愈：内置规则缺失时补回（指定目标分组，确保落入 pd-group-1/pd-group-2）
             ensureBuiltinRules(ruleService);
-            ensureBuiltinExpression(ruleService);
+            // 表达式缺失或缺少默认分组（pd-group-1/pd-group-2）时恢复默认两组；
+            // 分组结构完整的自定义修改则保留，避免每次启动强制覆盖
+            RuleExpression expr = ruleService.getExpression(PD_BUILTIN_WORKSPACE_ID);
+            if (expr == null || !hasDefaultGroups(expr)) {
+                ensureBuiltinExpression(ruleService);
+            }
             return;
         }
 
@@ -124,6 +129,8 @@ public class ProductDevWorkspaceInitializer implements CommandLineRunner {
                 PD_WORKSPACE_TYPE,
                 "active",
                 false,
+                false,
+                0,
                 now,
                 now
         );
@@ -134,6 +141,16 @@ public class ProductDevWorkspaceInitializer implements CommandLineRunner {
         // 创建内置规则
         ensureBuiltinRules(ruleService);
         ensureBuiltinExpression(ruleService);
+    }
+
+    /**
+     * 判断表达式是否包含默认分组结构（pd-group-1 / pd-group-2）。
+     * 分组结构完整时视为默认结构，用户修改保留；否则恢复默认两组。
+     */
+    private boolean hasDefaultGroups(RuleExpression expr) {
+        if (expr == null || expr.groups() == null) return false;
+        List<String> groupIds = expr.groups().stream().map(RuleGroup::id).toList();
+        return groupIds.contains("pd-group-1") && groupIds.contains("pd-group-2");
     }
 
     /**
@@ -155,11 +172,11 @@ public class ProductDevWorkspaceInitializer implements CommandLineRunner {
     }
 
     /**
-     * 确保三条内置规则存在（与 spec.md 5.2 一致）
+     * 确保三条内置规则存在（与 spec.md 5.2 一致），并按固定 ID 检测缺失，指定目标分组补回。
      * <ol>
-     *   <li>tag equals "product-dev" （核心筛选规则）</li>
-     *   <li>type in "clip,todo" （限定内容类型）</li>
-     *   <li>category contains "product-dev" （限定分类）</li>
+     *   <li>pd-rule-tag：tag equals "product-dev" → 分组 pd-group-1（核心筛选规则）</li>
+     *   <li>pd-rule-type：type in "clip,todo" → 分组 pd-group-2（限定内容类型）</li>
+     *   <li>pd-rule-category：category contains "product-dev" → 分组 pd-group-1（限定分类）</li>
      * </ol>
      */
     private void ensureBuiltinRules(WorkspaceRuleService ruleService) {
@@ -167,36 +184,30 @@ public class ProductDevWorkspaceInitializer implements CommandLineRunner {
         LocalDateTime now = LocalDateTime.now();
 
         // 规则 1: tag equals "product-dev"
-        if (existingRules.stream().noneMatch(r -> "tag".equals(r.field()) && "equals".equals(r.operator()) && PD_TAG.equals(r.value()))) {
-            WorkspaceRule rule1 = new WorkspaceRule(
+        if (existingRules.stream().noneMatch(r -> "pd-rule-tag".equals(r.id()))) {
+            ruleService.saveRule(new WorkspaceRule(
                     "pd-rule-tag", PD_BUILTIN_WORKSPACE_ID,
                     "tag", "equals", PD_TAG,
-                    true, now, now
-            );
-            ruleService.saveRule(rule1);
-            log.info("[ProductDevWorkspaceInitializer] 内置规则已创建: tag equals \"{}\"", PD_TAG);
+                    true, now, now), "pd-group-1");
+            log.info("[ProductDevWorkspaceInitializer] 内置规则已创建: tag equals \"{}\" → pd-group-1", PD_TAG);
         }
 
         // 规则 2: type in "clip,todo" - 限定内容类型
-        if (existingRules.stream().noneMatch(r -> "type".equals(r.field()) && "in".equals(r.operator()) && "clip,todo".equals(r.value()))) {
-            WorkspaceRule rule2 = new WorkspaceRule(
+        if (existingRules.stream().noneMatch(r -> "pd-rule-type".equals(r.id()))) {
+            ruleService.saveRule(new WorkspaceRule(
                     "pd-rule-type", PD_BUILTIN_WORKSPACE_ID,
                     "type", "in", "clip,todo",
-                    true, now, now
-            );
-            ruleService.saveRule(rule2);
-            log.info("[ProductDevWorkspaceInitializer] 内置规则已创建: type in \"clip,todo\"");
+                    true, now, now), "pd-group-2");
+            log.info("[ProductDevWorkspaceInitializer] 内置规则已创建: type in \"clip,todo\" → pd-group-2");
         }
 
         // 规则 3: category contains "product-dev"
-        if (existingRules.stream().noneMatch(r -> "category".equals(r.field()) && "contains".equals(r.operator()) && PD_TAG.equals(r.value()))) {
-            WorkspaceRule rule3 = new WorkspaceRule(
+        if (existingRules.stream().noneMatch(r -> "pd-rule-category".equals(r.id()))) {
+            ruleService.saveRule(new WorkspaceRule(
                     "pd-rule-category", PD_BUILTIN_WORKSPACE_ID,
                     "category", "contains", PD_TAG,
-                    true, now, now
-            );
-            ruleService.saveRule(rule3);
-            log.info("[ProductDevWorkspaceInitializer] 内置规则已创建: category contains \"{}\"", PD_TAG);
+                    true, now, now), "pd-group-1");
+            log.info("[ProductDevWorkspaceInitializer] 内置规则已创建: category contains \"{}\" → pd-group-1", PD_TAG);
         }
     }
 }

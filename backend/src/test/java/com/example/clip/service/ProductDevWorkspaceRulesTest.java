@@ -55,7 +55,7 @@ class ProductDevWorkspaceRulesTest {
         WorkspaceRuleService ruleService = new WorkspaceRuleService(indexDir);
         wsService.saveWorkspace(new com.example.clip.index.Workspace(
                 "pd-builtin", "产品开发", "系统自带的产品开发工作区",
-                "#2383e2", "project", "active", false,
+                "#2383e2", "project", "active", false, false, 0,
                 java.time.LocalDateTime.now(), java.time.LocalDateTime.now()));
         java.time.LocalDateTime now = java.time.LocalDateTime.now();
         ruleService.saveRule(new WorkspaceRule("pd-rule-tag", "pd-builtin", "tag", "equals", "product-dev", true, now, now));
@@ -79,7 +79,7 @@ class ProductDevWorkspaceRulesTest {
         WorkspaceRuleService ruleService = new WorkspaceRuleService(indexDir);
         wsService.saveWorkspace(new com.example.clip.index.Workspace(
                 "pd-builtin", "产品开发", "系统自带的产品开发工作区",
-                "#2383e2", "project", "active", false,
+                "#2383e2", "project", "active", false, false, 0,
                 java.time.LocalDateTime.now(), java.time.LocalDateTime.now()));
         java.time.LocalDateTime now = java.time.LocalDateTime.now();
         ruleService.saveRule(new WorkspaceRule("pd-rule-tag", "pd-builtin", "tag", "equals", "product-dev", true, now, now));

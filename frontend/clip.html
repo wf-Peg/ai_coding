@@ -2993,11 +2993,6 @@
         </div>
     </div>
 
-    <div id="workspaceBanner" style="display:none; padding:6px 12px; background:#e3f2fd; border-radius:4px; margin-bottom:8px; font-size:13px; color:#1565c0;">
-    当前显示工作台 <strong id="wsBannerName">...</strong> 筛选后的数据
-    <button onclick="clearWorkspaceFilter()" style="margin-left:10px; padding:2px 8px; font-size:12px; cursor:pointer; border:1px solid #90caf9; border-radius:3px; background:#fff; color:#1565c0;">显示全部</button>
-</div>
-
     <div id="clip-list">
         <div class="list-header">
             <h2>剪藏列表</h2>
@@ -3122,7 +3117,6 @@
     document.addEventListener('DOMContentLoaded', () => {
         applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME, false);
         fetchClips();
-        updateWorkspaceBanner();
         loadCategories();
         loadSyncStatus();
         handleTypeChange();
@@ -3189,6 +3183,12 @@
                 tags: useAiTags ? null : currentTags,
                 useAiTags: type === 'store-only' ? false : useAiTags
             };
+
+            // 如果当前有选中的工作台，传递 workspaceId 自动关联
+            const activeWsId = localStorage.getItem('active_workspace_id');
+            if (activeWsId) {
+                requestBody.workspaceId = activeWsId;
+            }
 
             // 附加用户思考（可选字段）
             const myThoughts = document.getElementById('my-thoughts').value.trim();
@@ -3757,31 +3757,6 @@
         document.getElementById('clip-list').style.display = 'none';
     }
 
-    // ====== 工作台筛选横幅 ======
-    async function updateWorkspaceBanner() {
-        const banner = document.getElementById('workspaceBanner');
-        const nameEl = document.getElementById('wsBannerName');
-        const wsId = localStorage.getItem('active_workspace_id');
-        if (wsId) {
-            try {
-                const r = await fetch(`/api/workspace/${wsId}/resolution`, { headers: { Accept: 'application/json' } });
-                if (r.ok) {
-                    nameEl.textContent = wsId;
-                }
-            } catch(_) {}
-            banner.style.display = '';
-        } else {
-            banner.style.display = 'none';
-        }
-    }
-    function clearWorkspaceFilter() {
-        localStorage.removeItem('active_workspace_id');
-        document.getElementById('workspaceBanner').style.display = 'none';
-        try { window.parent.postMessage({ action: 'workspaceChange', workspaceId: '' }, '*'); } catch(e) {}
-        fetchClips();
-    }
-    // ====== 工作台筛选横幅结束 ======
-
     async function fetchClips() {
         try {
             // 重置选中状态
@@ -3880,6 +3855,16 @@
         }
     }
 
+    function getAnalysisState(clip) {
+        const analysis = (clip.analysis || '').trim();
+        const summary = (clip.summary || '');
+        const failed = summary.indexOf('摘要生成失败') !== -1
+            || summary.indexOf('[文档解析失败]') !== -1
+            || analysis.indexOf('分析生成失败') !== -1;
+        if (analysis && !failed) return 'ready';
+        return failed ? 'failed' : 'empty';
+    }
+
     function createClipItem(clip, isSearch) {
         const clipItem = document.createElement('div');
         clipItem.className = 'clip-item';
@@ -3919,6 +3904,7 @@
         const summaryClass = isStoreOnly ? 'store-only-summary' : '';
         const originalContent = clip.bodyContent || clip.content || '';
         const analysisContent = clip.analysis || '';
+        const analysisState = getAnalysisState(clip);
         const fanButtons = [
             buildFanActionButton('edit-in-editor', clip.id, '在编辑器打开原文', renderFanActionIcon('editInEditor')),
             buildFanActionButton('organize-auto', clip.id, '快速AI整理', renderFanActionIcon('organizeAuto')),
@@ -3975,6 +3961,9 @@
                         <button class="copy-btn" onclick="copyToClipboard('${escapeJs(originalContent)}')">
                             📋 复制原文
                         </button>
+                        <button class="copy-btn" onclick="copyToEditor('${escapeJs(originalContent)}', ${clip.id})" title="复制内容到剪贴板并在编辑器中打开">
+                            📋 复制到编辑区打开
+                        </button>
                     ${clip.sourceUrl ? `
                     <div class="source-link" style="margin-top: 8px; transition: opacity 0.2s ease;">
                         <button class="wiki-link view-original-btn" type="button" onclick="openClipInEditorNewTab(${clip.id})" title="在编辑器中打开原文" style="font-size:0.85rem;color:var(--primary);text-decoration:underline;background:none;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:4px;padding:0;min-width:auto;transition:color 0.2s ease;flex:none;">
@@ -4000,7 +3989,7 @@
                     </div>
                     ` : ''}
                     ${!isStoreOnly ? `
-                    ${analysisContent ? `
+                    ${analysisState === 'ready' ? `
                     <div class="content-section">
                         <h4>AI分析</h4>
                         <div class="markdown-content" id="analysis-content-${clip.id}"></div>
@@ -4008,12 +3997,22 @@
                             🔄 发散性总结
                         </button>
                     </div>
+                    ` : analysisState === 'failed' ? `
+                    <div class="content-section">
+                        <h4>AI分析</h4>
+                        <div class="markdown-content" style="text-align: center; padding: 20px;">
+                            <p style="color: var(--error);">❌ AI 分析失败</p>
+                            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 10px;">未能成功生成摘要或分析内容</p>
+                            <button class="btn-secondary generate-analysis-btn" data-clip-id="${clip.id}" style="margin-top: 12px;">🔄 重新生成分析</button>
+                        </div>
+                    </div>
                     ` : `
                     <div class="content-section">
                         <h4>AI分析</h4>
                         <div class="markdown-content" style="text-align: center; padding: 20px;">
-                            <p style="color: var(--text-secondary);">内容处理中...</p>
-                            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 10px;">AI正在分析内容，请稍候</p>
+                            <p style="color: var(--text-secondary);">暂无 AI 分析内容</p>
+                            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 10px;">该剪藏未生成 AI 分析</p>
+                            <button class="btn-secondary generate-analysis-btn" data-clip-id="${clip.id}" style="margin-top: 12px;">✨ 生成分析</button>
                         </div>
                     </div>
                     `}
@@ -4067,11 +4066,7 @@
                 </div>
             `;
 
-        if (analysisContent) {
-            // console.log('===== 剪藏ID:', clip.id, '的分析内容调试 =====');
-            // console.log('原始分析内容:', analysisContent);
-            // console.log('原始内容长度:', analysisContent.length);
-
+        if (analysisState === 'ready') {
             const analysisContentDiv = clipItem.querySelector(`#analysis-content-${clip.id}`);
             if (analysisContentDiv) {
                 try {
@@ -4113,6 +4108,14 @@
 
         return clipItem;
     }
+
+    // 剪藏分析空态/失败态 - 生成/重新生成分析按钮事件委托
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.generate-analysis-btn');
+        if (btn) {
+            quickOrganizeClip(parseInt(btn.dataset.clipId));
+        }
+    });
 
     function toggleDetail(btn) {
         closeAllMoreActions();
@@ -4307,12 +4310,22 @@
 
     function escapeJs(text) {
         if (!text) return '';
-        return text.replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+        return text.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
     }
 
     function copyToClipboard(text) {
         navigator.clipboard.writeText(text).then(() => {
             showToast('已复制到剪贴板！');
+        }).catch(err => {
+            console.error('复制失败:', err);
+            showToast('复制失败，请手动复制');
+        });
+    }
+
+    function copyToEditor(text, clipId) {
+        navigator.clipboard.writeText(text).then(() => {
+            showToast('已复制内容，正在打开编辑器...');
+            window.parent.postMessage({ type: 'openClipInNewTab', clipId }, '*');
         }).catch(err => {
             console.error('复制失败:', err);
             showToast('复制失败，请手动复制');
@@ -5127,7 +5140,6 @@ window.addEventListener('message', (e) => {
     } else {
       localStorage.removeItem('active_workspace_id');
     }
-    updateWorkspaceBanner();
     fetchClips();
   } else if (e.data.action === 'refreshKnowledge') {
     document.querySelectorAll('.clip-detail.expanded').forEach(detail => {

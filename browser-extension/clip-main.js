@@ -8,6 +8,16 @@ let promptConfigCache = null;
 let feedbackPathValue = '';
 let currentTheme = 'regular';
 
+function getAnalysisState(clip) {
+    const analysis = (clip.analysis || '').trim();
+    const summary = (clip.summary || '');
+    const failed = summary.indexOf('摘要生成失败') !== -1
+        || summary.indexOf('[文档解析失败]') !== -1
+        || analysis.indexOf('分析生成失败') !== -1;
+    if (analysis && !failed) return 'ready';
+    return failed ? 'failed' : 'empty';
+}
+
 function getNextThemeId(themeId) {
     return themeId === 'notion' ? 'regular' : 'notion';
 }
@@ -322,6 +332,7 @@ function createClipItem(clip, isSearch) {
     const summaryClass = isStoreOnly ? 'store-only-summary' : '';
     const originalContent = clip.content || '';
     const analysisContent = clip.analysis || '';
+    const analysisState = getAnalysisState(clip);
 
     clipItem.innerHTML = `
             <div class="clip-header">
@@ -350,7 +361,7 @@ function createClipItem(clip, isSearch) {
                         📋 复制原文
                     </button>
                 </div>
-                ${!isStoreOnly ? (analysisContent ? `
+                ${!isStoreOnly ? (analysisState === 'ready' ? `
                 <div class="content-section">
                     <h4>AI分析</h4>
                     <div class="markdown-content" id="analysis-content-${clip.id}"></div>
@@ -367,19 +378,29 @@ function createClipItem(clip, isSearch) {
                         📋 复制总结
                     </button>
                 </div>
+                ` : analysisState === 'failed' ? `
+                <div class="content-section">
+                    <h4>AI分析</h4>
+                    <div class="markdown-content" style="text-align: center; padding: 20px;">
+                        <p style="color: var(--error);">❌ AI 分析失败</p>
+                        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 10px;">未能成功生成摘要或分析内容</p>
+                        <button class="btn-secondary generate-analysis-btn" data-clip-id="${clip.id}" style="margin-top: 12px;">🔄 重新生成分析</button>
+                    </div>
+                </div>
                 ` : `
                 <div class="content-section">
                     <h4>AI分析</h4>
                     <div class="markdown-content" style="text-align: center; padding: 20px;">
-                        <p style="color: var(--text-secondary);">内容处理中...</p>
-                        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 10px;">AI正在分析内容，请稍候</p>
+                        <p style="color: var(--text-secondary);">暂无 AI 分析内容</p>
+                        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 10px;">该剪藏未生成 AI 分析</p>
+                        <button class="btn-secondary generate-analysis-btn" data-clip-id="${clip.id}" style="margin-top: 12px;">✨ 生成分析</button>
                     </div>
                 </div>
                 `) : ''}
             </div>
         `;
 
-    if (analysisContent) {
+    if (analysisState === 'ready') {
 
         const analysisContentDiv = clipItem.querySelector(`#analysis-content-${clip.id}`);
         if (analysisContentDiv) {
@@ -396,8 +417,6 @@ function createClipItem(clip, isSearch) {
                     cleanContent = cleanContent.substring(0, cleanContent.length - 3);
                 }
                 cleanContent = cleanContent.trim();
-
-                console.log('清理后的内容:', cleanContent);
 
                 const renderedHtml = marked.parse(cleanContent);
                 analysisContentDiv.innerHTML = renderedHtml;
@@ -446,6 +465,22 @@ function copyToClipboard(text) {
         console.error('复制失败:', err);
         showToast('复制失败，请手动复制');
     });
+}
+
+async function quickOrganizeClip(clipId) {
+    try {
+        showLoading('正在快速整理...', '正在对当前剪藏进行AI分类与标签整理...');
+        const response = await axios.post(`${API_BASE_URL}/organize/${clipId}`, { mode: 'auto' });
+        if (response.data.status === 'success') {
+            showNotification('当前剪藏已完成AI整理', true);
+            await fetchClips();
+        }
+    } catch (error) {
+        console.error('快速整理失败:', error);
+        showError('整理失败', error.response?.data?.message || '请稍后重试');
+    } finally {
+        hideLoading();
+    }
 }
 
 async function generateDivergentSummary(clipId) {
@@ -1140,6 +1175,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.target.classList.contains('tag-expand-btn')) {
             const tagsStr = e.target.dataset.tags;
             toggleTags(e.target, tagsStr);
+        }
+    });
+
+    // 剪藏分析空态/失败态 - 生成/重新生成分析按钮事件委托
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.generate-analysis-btn');
+        if (btn) {
+            quickOrganizeClip(parseInt(btn.dataset.clipId));
         }
     });
 

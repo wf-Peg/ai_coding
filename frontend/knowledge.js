@@ -123,7 +123,6 @@ function injectMetaStyles() {
 document.addEventListener('DOMContentLoaded', () => {
   injectMetaStyles();
   fetchTopics();
-  updateWorkspaceBanner();
 
   document.getElementById('newTopicBtn').addEventListener('click', () => {
     location.href = 'knowledge-editor.html';
@@ -163,29 +162,6 @@ document.addEventListener('DOMContentLoaded', () => {
   observer.observe(sentinel);
 });
 
-// ====== 工作台筛选横幅 ======
-async function updateWorkspaceBanner() {
-    const banner = document.getElementById('workspaceBanner');
-    const nameEl = document.getElementById('wsBannerName');
-    const wsId = localStorage.getItem('active_workspace_id');
-    if (wsId) {
-        try {
-            const r = await fetch(`/api/workspace/${wsId}/resolution`, { headers: { Accept: 'application/json' } });
-            if (r.ok) nameEl.textContent = wsId;
-        } catch(_) {}
-        banner.style.display = '';
-    } else {
-        banner.style.display = 'none';
-    }
-}
-function clearWorkspaceFilter() {
-    localStorage.removeItem('active_workspace_id');
-    document.getElementById('workspaceBanner').style.display = 'none';
-    try { window.parent.postMessage({ action: 'workspaceChange', workspaceId: '' }, '*'); } catch(e) {}
-    fetchTopics();
-}
-// ====== 工作台筛选横幅结束 ======
-
 // ====== 接收主框架消息：滚动到顶部 / 刷新 / 工作台切换 ======
 window.addEventListener('message', (e) => {
   if (e.data.action === 'scrollToTop') {
@@ -201,7 +177,6 @@ window.addEventListener('message', (e) => {
     } else {
       localStorage.removeItem('active_workspace_id');
     }
-    updateWorkspaceBanner();
     fetchTopics();
   }
 });

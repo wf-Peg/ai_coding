@@ -1,5 +1,7 @@
 package com.example.clip.controller;
 
+import com.example.clip.index.WorkspaceIndexService;
+import com.example.clip.index.WorkspaceMembership;
 import com.example.clip.model.TodoContent;
 import com.example.clip.service.AppConfigService;
 import com.example.clip.service.TodoService;
@@ -11,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -84,13 +87,13 @@ public class TodoController {
     }
 
     /**
-     * 获取所有待办事项列表
+     * 获取所有待办事项列表（根路径，兼容直接访问 /api/todo）
      * <p>
-     * GET /api/todo/list
+     * GET /api/todo 或 /api/todo/list
      *
      * @return 全部待办事项列表
      */
-    @GetMapping("/list")
+    @GetMapping({"", "/list"})
     public ResponseEntity<List<TodoContent>> getTodoList(
             @RequestParam(required = false) String workspaceId) {
         List<TodoContent> todos = todoService.getAllTodos();
@@ -129,15 +132,39 @@ public class TodoController {
      * @return 保存后的待办事项（含自动生成的 ID）；若保存失败或异常则返回 400
      */
     @PostMapping("/add")
-    public ResponseEntity<TodoContent> addTodo(@RequestBody TodoContent todo) {
+    public ResponseEntity<TodoContent> addTodo(@RequestBody TodoContent todo,
+                                                @RequestParam(required = false) String workspaceId) {
         // 记录关键字段，便于追踪请求
-        log.info("[API] /add called with todo: title={}, priority={}, deadline={}, completed={}, category={}",
-            todo.getTitle(), todo.getPriority(), todo.getDeadline(), todo.isCompleted(), todo.getCategory());
+        log.info("[API] /add called with todo: title={}, priority={}, deadline={}, completed={}, category={}, workspaceId={}",
+            todo.getTitle(), todo.getPriority(), todo.getDeadline(), todo.isCompleted(), todo.getCategory(), workspaceId);
         try {
             TodoContent savedTodo = todoService.saveTodo(todo);
             if (savedTodo != null) {
                 log.info("[API] Todo saved successfully: id={}", savedTodo.getId());
                 recordAction("todo_created", "todo:" + savedTodo.getId(), Map.of("title", savedTodo.getTitle() != null ? savedTodo.getTitle() : ""));
+
+                // 如果携带了 workspaceId，自动创建成员关系关联到工作台
+                if (workspaceId != null && !workspaceId.isBlank()) {
+                    try {
+                        WorkspaceIndexService wsService = new WorkspaceIndexService(
+                                Path.of(appConfigService.getConfigDirPath(), "index"));
+                        WorkspaceMembership membership = new WorkspaceMembership(
+                                workspaceId,
+                                "todo:" + savedTodo.getId(),
+                                "manual_input",
+                                "工作台输入",
+                                1.0,
+                                null, 0,
+                                LocalDateTime.now(), LocalDateTime.now());
+                        wsService.addMember(membership);
+                        log.info("event=todo.workspace_attached workspaceId={} todoId={} source=manual_input",
+                                workspaceId, savedTodo.getId());
+                    } catch (Exception e) {
+                        log.warn("event=todo.workspace_attach_failed workspaceId={} todoId={} error={}",
+                                workspaceId, savedTodo.getId(), e.getMessage());
+                    }
+                }
+
                 return ResponseEntity.ok(savedTodo);
             } else {
                 log.error("[API] Failed to save todo, savedTodo is null");
