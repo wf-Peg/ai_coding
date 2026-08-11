@@ -38,6 +38,25 @@ public interface LlmProvider {
     String chat(String systemPrompt, String userMessage);
 
     /**
+     * 使用指定模型名调用 LLM 进行对话。
+     * <p>
+     * 与 {@link #chat(String, String)} 的区别在于可以显式指定模型名称，
+     * 用于档位路由场景（简单任务用 flash、复杂任务用 pro）。
+     * 默认实现忽略 modelName 直接调用 {@link #chat(String, String)}；
+     * 各提供者实现类应覆盖此方法以在请求体中使用指定的 modelName。
+     * </p>
+     *
+     * @param modelName    模型名称，如 "deepseek-v4-flash"、"deepseek-v4-pro"
+     * @param systemPrompt 系统提示词
+     * @param userMessage  用户消息
+     * @return 模型生成的文本回复
+     * @throws RuntimeException 当 API 调用失败时抛出
+     */
+    default String chat(String modelName, String systemPrompt, String userMessage) {
+        return chat(systemPrompt, userMessage);
+    }
+
+    /**
      * 按任务档位调用 LLM。
      * <p>
      * 默认实现忽略档位直接调用 {@link #chat(String, String)}；

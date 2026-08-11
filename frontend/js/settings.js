@@ -83,9 +83,9 @@ async function loadConfig() {
     document.getElementById('customBaseUrl').value = config.customBaseUrl || '';
     document.getElementById('customApiKey').value = config.customApiKey || '';
     document.getElementById('customModel').value = config.customModel || '';
-    // 任务档位路由
-    document.getElementById('simpleTierProvider').value = config.simpleTierProvider || 'deepseek';
-    document.getElementById('strongTierProvider').value = config.strongTierProvider || 'dashscope';
+    // 任务档位模型名
+    document.getElementById('simpleTierModel').value = config.simpleTierModel || 'deepseek-v4-flash';
+    document.getElementById('strongTierModel').value = config.strongTierModel || 'deepseek-v4-pro';
     onProviderChange();
     loadMascotConfig();
 
@@ -492,9 +492,9 @@ async function saveConfig() {
     customBaseUrl: document.getElementById('customBaseUrl').value,
     customApiKey: document.getElementById('customApiKey').value,
     customModel: document.getElementById('customModel').value,
-    // 任务档位路由
-    simpleTierProvider: document.getElementById('simpleTierProvider').value || 'deepseek',
-    strongTierProvider: document.getElementById('strongTierProvider').value || 'dashscope',
+    // 任务档位模型名
+    simpleTierModel: document.getElementById('simpleTierModel').value || 'deepseek-v4-flash',
+    strongTierModel: document.getElementById('strongTierModel').value || 'deepseek-v4-pro',
     // 邮件
     mailEnabled: document.getElementById('mailEnabled').checked,
     mailHost: document.getElementById('mailHost').value,

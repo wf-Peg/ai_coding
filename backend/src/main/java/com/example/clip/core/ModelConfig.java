@@ -76,13 +76,13 @@ public class ModelConfig {
     /** PDF OCR AI 触发阈值：单页提取文本少于该字符数时调用视觉模型识别 */
     private int pdfOcrMinTextLength = 15;
 
-    // ===== 新增：任务档位路由 =====
+    // ===== 新增：任务档位模型名 =====
 
-    /** 简单任务档位使用的 provider key（"deepseek"/"dashscope"/"custom"），用于定位/抽取/扫描类任务 */
-    private String simpleTierProvider = "deepseek";
+    /** 简单任务档位使用的模型名，用于定位/抽取/扫描类任务，默认使用便宜快速模型 */
+    private String simpleTierModel = "deepseek-v4-flash";
 
-    /** 强任务档位使用的 provider key（"deepseek"/"dashscope"/"custom"），用于答案综合/矛盾判断类任务 */
-    private String strongTierProvider = "dashscope";
+    /** 强任务档位使用的模型名，用于答案综合/矛盾判断类任务，默认使用能力强模型 */
+    private String strongTierModel = "deepseek-v4-pro";
 
     /** 无参构造器，用于 JSON 反序列化 */
     public ModelConfig() {}
@@ -205,22 +205,22 @@ public class ModelConfig {
         this.pdfOcrMinTextLength = pdfOcrMinTextLength;
     }
 
-    // ==================== 档位路由 getters / setters ====================
+    // ==================== 档位模型名 getters / setters ====================
 
-    public String getSimpleTierProvider() {
-        return simpleTierProvider;
+    public String getSimpleTierModel() {
+        return simpleTierModel;
     }
 
-    public void setSimpleTierProvider(String simpleTierProvider) {
-        this.simpleTierProvider = simpleTierProvider;
+    public void setSimpleTierModel(String simpleTierModel) {
+        this.simpleTierModel = simpleTierModel;
     }
 
-    public String getStrongTierProvider() {
-        return strongTierProvider;
+    public String getStrongTierModel() {
+        return strongTierModel;
     }
 
-    public void setStrongTierProvider(String strongTierProvider) {
-        this.strongTierProvider = strongTierProvider;
+    public void setStrongTierModel(String strongTierModel) {
+        this.strongTierModel = strongTierModel;
     }
 
     // ==================== 便捷方法 ====================

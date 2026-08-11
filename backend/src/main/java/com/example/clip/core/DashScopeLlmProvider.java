@@ -85,6 +85,23 @@ public class DashScopeLlmProvider implements LlmProvider {
      */
     @Override
     public String chat(String systemPrompt, String userMessage) {
+        return chat(null, systemPrompt, userMessage);
+    }
+
+    /**
+     * 使用指定模型名调用 DashScope API。
+     * <p>
+     * 允许上层（如 RoutingLlmProvider）指定模型名（如 "qwen-turbo" / "qwen-plus"），
+     * 用于档位路由场景。当 modelName 为 null 或空时，回退到用户配置或 yml 默认的模型名。
+     * </p>
+     *
+     * @param modelName    显式指定的模型名（可为 null，此时使用配置默认值）
+     * @param systemPrompt 系统提示词
+     * @param userMessage  用户消息
+     * @return 模型生成的文本回复
+     */
+    @Override
+    public String chat(String modelName, String systemPrompt, String userMessage) {
         ensureConfigured();
         try {
             // 构建系统消息：设定 AI 的角色和行为规范
@@ -99,10 +116,16 @@ public class DashScopeLlmProvider implements LlmProvider {
                     .content(userMessage)
                     .build();
 
+            // 模型名优先级：显式指定 > 用户配置 > yml 默认值
+            String effectiveModel = modelName;
+            if (effectiveModel == null || effectiveModel.isEmpty()) {
+                effectiveModel = getModel();
+            }
+
             // 构建调用参数：API Key、模型名称、消息列表、返回格式
             GenerationParam param = GenerationParam.builder()
                     .apiKey(getApiKey())                          // 获取 API Key（用户配置优先）
-                    .model(getModel())                             // 获取模型名称（用户配置优先）
+                    .model(effectiveModel)                        // 使用指定模型名
                     .messages(Arrays.asList(systemMessage, userMsg)) // 消息列表，按 system -> user 顺序
                     .resultFormat(GenerationParam.ResultFormat.MESSAGE) // 返回格式为 Message 类型
                     .build();

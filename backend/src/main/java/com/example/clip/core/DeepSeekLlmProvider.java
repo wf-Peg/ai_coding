@@ -98,6 +98,23 @@ public class DeepSeekLlmProvider implements LlmProvider {
      */
     @Override
     public String chat(String systemPrompt, String userMessage) {
+        return chat(null, systemPrompt, userMessage);
+    }
+
+    /**
+     * 使用指定模型名调用 DeepSeek API。
+     * <p>
+     * 允许上层（如 RoutingLlmProvider）指定模型名（如 "deepseek-v4-flash" / "deepseek-v4-pro"），
+     * 用于档位路由场景。当 modelName 为 null 或空时，回退到用户配置的模型名。
+     * </p>
+     *
+     * @param modelName    显式指定的模型名（可为 null，此时使用配置默认值）
+     * @param systemPrompt 系统提示词
+     * @param userMessage  用户消息
+     * @return 模型生成的文本回复
+     */
+    @Override
+    public String chat(String modelName, String systemPrompt, String userMessage) {
         // 获取运行时配置
         ModelConfig config = modelConfigService.getConfig();
 
@@ -107,14 +124,17 @@ public class DeepSeekLlmProvider implements LlmProvider {
         }
 
         String apiKey = config.getDeepseekApiKey();
-        String model = config.getDeepseekModel();
 
         // 校验 API Key 是否已配置
         if (apiKey == null || apiKey.isBlank() || apiKey.startsWith("your-") || apiKey.startsWith("${")) {
             throw new RuntimeException("DeepSeek API Key 未配置，请在设置页面中配置");
         }
 
-        // 如果模型名称为空，使用默认值 "deepseek-v4-flash"
+        // 模型名优先级：显式指定 > 用户配置 > 默认值
+        String model = modelName;
+        if (model == null || model.isEmpty()) {
+            model = config.getDeepseekModel();
+        }
         if (model == null || model.isEmpty()) {
             model = "deepseek-v4-flash";
         }

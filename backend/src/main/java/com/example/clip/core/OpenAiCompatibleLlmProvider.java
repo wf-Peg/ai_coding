@@ -72,17 +72,39 @@ public class OpenAiCompatibleLlmProvider implements LlmProvider {
 
     @Override
     public String chat(String systemPrompt, String userMessage) {
+        return chat(null, systemPrompt, userMessage);
+    }
+
+    /**
+     * 使用指定模型名调用 OpenAI 兼容 API。
+     * <p>
+     * 允许上层（如 RoutingLlmProvider）显式指定模型名，用于档位路由场景。
+     * 当 modelName 为 null 或空时，回退到用户配置的模型名。
+     * </p>
+     *
+     * @param modelName    显式指定的模型名（可为 null，此时使用配置默认值）
+     * @param systemPrompt 系统提示词
+     * @param userMessage  用户消息
+     * @return 模型生成的文本回复
+     */
+    @Override
+    public String chat(String modelName, String systemPrompt, String userMessage) {
         ModelConfig config = modelConfigService.getConfig();
         if (config == null) {
             throw new RuntimeException(providerName + " 配置未初始化，请先在设置页面中配置 API Key");
         }
 
         String apiKey = getApiKey(config);
-        String model = getModel(config);
         String baseUrl = getBaseUrl(config);
 
         if (apiKey == null || apiKey.isBlank() || apiKey.startsWith("your-") || apiKey.startsWith("${")) {
             throw new RuntimeException(providerName + " API Key 未配置，请在设置页面中配置");
+        }
+
+        // 模型名优先级：显式指定 > 用户配置 > 默认值
+        String model = modelName;
+        if (model == null || model.isEmpty()) {
+            model = getModel(config);
         }
         if (model == null || model.isEmpty()) {
             model = getDefaultModel();

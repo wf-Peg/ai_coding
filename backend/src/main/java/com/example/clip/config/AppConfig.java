@@ -55,9 +55,9 @@ public class AppConfig {
     private String pdfOcrModel = "qwen-vl-plus";
     private int pdfOcrMinTextLength = 15;
 
-    // ===== 任务档位路由 =====
-    private String simpleTierProvider = "deepseek";
-    private String strongTierProvider = "dashscope";
+    // ===== 任务档位模型名 =====
+    private String simpleTierModel = "deepseek-v4-flash";
+    private String strongTierModel = "deepseek-v4-pro";
 
     // ===== 存储路径（可配置） =====
     private String storagePath = "";
@@ -277,22 +277,22 @@ public class AppConfig {
         this.pdfOcrMinTextLength = pdfOcrMinTextLength;
     }
 
-    // ===== 任务档位路由 =====
+    // ===== 任务档位模型名 =====
 
-    public String getSimpleTierProvider() {
-        return simpleTierProvider;
+    public String getSimpleTierModel() {
+        return simpleTierModel;
     }
 
-    public void setSimpleTierProvider(String simpleTierProvider) {
-        this.simpleTierProvider = simpleTierProvider;
+    public void setSimpleTierModel(String simpleTierModel) {
+        this.simpleTierModel = simpleTierModel;
     }
 
-    public String getStrongTierProvider() {
-        return strongTierProvider;
+    public String getStrongTierModel() {
+        return strongTierModel;
     }
 
-    public void setStrongTierProvider(String strongTierProvider) {
-        this.strongTierProvider = strongTierProvider;
+    public void setStrongTierModel(String strongTierModel) {
+        this.strongTierModel = strongTierModel;
     }
 
     // ===== 存储路径 =====

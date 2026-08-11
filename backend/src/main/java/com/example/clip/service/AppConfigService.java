@@ -221,11 +221,11 @@ public class AppConfigService {
             mc.setCustomBaseUrl(config.getCustomBaseUrl());
             mc.setCustomApiKey(config.getCustomApiKey());
             mc.setCustomModel(config.getCustomModel());
-            // 任务档位路由
-            mc.setSimpleTierProvider(config.getSimpleTierProvider() != null
-                    ? config.getSimpleTierProvider() : "deepseek");
-            mc.setStrongTierProvider(config.getStrongTierProvider() != null
-                    ? config.getStrongTierProvider() : "dashscope");
+            // 任务档位模型名
+            mc.setSimpleTierModel(config.getSimpleTierModel() != null
+                    ? config.getSimpleTierModel() : "deepseek-v4-flash");
+            mc.setStrongTierModel(config.getStrongTierModel() != null
+                    ? config.getStrongTierModel() : "deepseek-v4-pro");
             // PDF OCR 配置
             mc.setPdfOcrBaseUrl(config.getPdfOcrBaseUrl());
             mc.setPdfOcrApiKey(config.getPdfOcrApiKey());

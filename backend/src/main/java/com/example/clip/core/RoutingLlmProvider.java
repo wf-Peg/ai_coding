@@ -104,16 +104,18 @@ public class RoutingLlmProvider implements LlmProvider {
     /**
      * 按任务档位路由聊天请求。
      * <p>
-     * 根据 {@code tier} 读取 {@link ModelConfig} 中的 {@code simpleTierProvider} /
-     * {@code strongTierProvider} 选择对应 provider；档位未配置或对应 provider
-     * 不可用时，回退到 {@link #getActiveProvider()}（现有降级链路不变）。
+     * 根据 {@code tier} 从 {@link ModelConfig} 读取对应的模型名
+     * （{@code simpleTierModel} / {@code strongTierModel}），
+     * 使用当前激活的 provider 发送请求，模型名覆盖 provider 的默认模型。
+     * 调用失败时自动降级到备用 provider。
      * </p>
      */
     @Override
     public String chatForTier(String systemPrompt, String userMessage, String tier) {
-        LlmProvider provider = getProviderByTier(tier);
-        logger.debug("[LLM] Routing tier={} to {}", tier, provider.getProviderName());
-        return chatWithFallback(provider, systemPrompt, userMessage);
+        String modelName = getTierModelName(tier);
+        LlmProvider provider = getActiveProvider();
+        logger.debug("[LLM] Routing tier={} model={} provider={}", tier, modelName, provider.getProviderName());
+        return chatWithFallback(provider, modelName, systemPrompt, userMessage);
     }
 
     /**
@@ -128,6 +130,35 @@ public class RoutingLlmProvider implements LlmProvider {
             tried.add(current);
             try {
                 return current.chat(systemPrompt, userMessage);
+            } catch (Exception e) {
+                LlmProvider next = getFallbackProvider(current);
+                if (next == null || tried.contains(next)) {
+                    throw new RuntimeException(
+                        current.getProviderName() + " 调用失败且无可用备用 provider: "
+                        + e.getMessage(), e);
+                }
+                logger.warn("[LLM] {} 调用失败: {}，降级到 {}",
+                        current.getProviderName(), e.getMessage(), next.getProviderName());
+                current = next;
+            }
+        }
+    }
+
+    /**
+     * 带指定模型名的递归降级调用。
+     * <p>
+     * 与 {@link #chatWithFallback(LlmProvider, String, String)} 类似，
+     * 但调用 {@link LlmProvider#chat(String, String, String)} 传递模型名，
+     * 用于档位路由场景。
+     * </p>
+     */
+    private String chatWithFallback(LlmProvider provider, String modelName, String systemPrompt, String userMessage) {
+        Set<LlmProvider> tried = new HashSet<>();
+        LlmProvider current = provider;
+        while (true) {
+            tried.add(current);
+            try {
+                return current.chat(modelName, systemPrompt, userMessage);
             } catch (Exception e) {
                 LlmProvider next = getFallbackProvider(current);
                 if (next == null || tried.contains(next)) {
@@ -289,43 +320,27 @@ public class RoutingLlmProvider implements LlmProvider {
     }
 
     /**
-     * 根据任务档位解析 provider key，返回对应 provider。
+     * 根据任务档位读取对应的模型名。
      * <p>
-     * 档位未配置或对应 provider 实例为 null 时返回 null，
-     * 由调用方回退到 {@link #getActiveProvider()}。
+     * 从 {@link ModelConfig} 中读取 {@code simpleTierModel} / {@code strongTierModel}，
+     * 如果配置为 null 或档位名不识别，返回默认值 "deepseek-v4-flash"。
      * </p>
+     *
+     * @param tier 任务档位："simple" 或 "strong"
+     * @return 模型名（如 "deepseek-v4-flash" / "deepseek-v4-pro"），不会为 null
      */
-    private LlmProvider getProviderByTier(String tier) {
+    private String getTierModelName(String tier) {
         ModelConfig config = modelConfigService.getConfig();
         if (config == null) {
-            return null;
+            return "deepseek-v4-flash";
         }
-        String providerKey = null;
         if ("simple".equalsIgnoreCase(tier)) {
-            providerKey = config.getSimpleTierProvider();
+            String model = config.getSimpleTierModel();
+            return (model != null && !model.isEmpty()) ? model : "deepseek-v4-flash";
         } else if ("strong".equalsIgnoreCase(tier)) {
-            providerKey = config.getStrongTierProvider();
+            String model = config.getStrongTierModel();
+            return (model != null && !model.isEmpty()) ? model : "deepseek-v4-pro";
         }
-        LlmProvider provider = resolveProvider(providerKey);
-        if (provider != null) {
-            return provider;
-        }
-        return getActiveProvider();
-    }
-
-    private LlmProvider resolveProvider(String providerKey) {
-        if (providerKey == null || providerKey.isEmpty()) {
-            return null;
-        }
-        switch (providerKey.toLowerCase()) {
-            case "custom":
-                return customProvider;
-            case "deepseek":
-                return deepSeekProvider;
-            case "dashscope":
-                return dashScopeProvider;
-            default:
-                return null;
-        }
+        return "deepseek-v4-flash";
     }
 }
