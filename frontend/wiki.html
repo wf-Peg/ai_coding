@@ -435,6 +435,14 @@
                     <button class="btn btn-primary" id="queryBtn">查询</button>
                     <button class="btn btn-secondary" id="clearQueryBtn">清空</button>
                 </div>
+                <div style="display:flex;gap:16px;margin-top:10px;">
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--fg-secondary);cursor:pointer;">
+                        <input type="checkbox" id="includeClipsCheck"> 纳入剪藏
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--fg-secondary);cursor:pointer;">
+                        <input type="checkbox" id="includeKnowledgeCheck"> 纳入知识
+                    </label>
+                </div>
             </div>
 
             <div class="card" id="resultCard" style="display: none;">
@@ -634,7 +642,11 @@
                 const data = await fetchJson(API_BASE + '/api/wiki/query', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ question: question })
+                    body: JSON.stringify({
+                        question: question,
+                        includeClips: document.getElementById('includeClipsCheck').checked,
+                        includeKnowledge: document.getElementById('includeKnowledgeCheck').checked
+                    })
                 });
 
                 if (data.status === 'success') {
@@ -680,6 +692,16 @@
                 { label: '输入字符', value: data.inputChars != null ? data.inputChars : '-' },
                 { label: '输出字符', value: data.outputChars != null ? data.outputChars : '-' }
             ];
+            if (data.usedLocalRetrieval === true) {
+                metaItems.push({ label: '定位方式', value: '本地检索' });
+            }
+            if (data.extraSources) {
+                const es = data.extraSources;
+                const parts = [];
+                if (es.clips > 0) parts.push('剪藏 ' + es.clips + ' 条');
+                if (es.knowledge > 0) parts.push('知识 ' + es.knowledge + ' 条');
+                if (parts.length > 0) metaItems.push({ label: '纳入来源', value: parts.join('、') });
+            }
             metaItems.forEach(m => {
                 const span = document.createElement('span');
                 span.className = 'meta-item';

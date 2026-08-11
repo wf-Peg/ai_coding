@@ -89,6 +89,31 @@ public class WikiConfig {
     /** Web Clipper 源文件同步扫描间隔（秒） */
     private int syncIntervalSeconds = 60;
 
+    // ===== 新增：本地拆词检索（R2） =====
+
+    /** 是否启用本地拆词检索（命中时跳过阶段 1 的 LLM 定位调用） */
+    private boolean queryLocalRetrievalEnabled = true;
+
+    /** 本地检索最多返回的页面数 */
+    private int queryLocalRetrievalTopK = 5;
+
+    /** 本地检索达标所需的最小命中 token 数 */
+    private int queryLocalRetrievalMinHits = 2;
+
+    // ===== 新增：查询多数据源（R3） =====
+
+    /** 查询时是否纳入应用内剪藏内容 */
+    private boolean queryIncludeClips = false;
+
+    /** 查询时是否纳入知识条目内容 */
+    private boolean queryIncludeKnowledge = false;
+
+    /** 剪藏/知识额外来源最多纳入条数（每类） */
+    private int queryExtraTopK = 5;
+
+    /** 剪藏/知识每条内容最多截断字符数 */
+    private int queryExtraMaxChars = 800;
+
     /**
      * 初始化时解析 vault 路径。
      * <p>
@@ -200,5 +225,65 @@ public class WikiConfig {
 
     public void setSyncIntervalSeconds(int syncIntervalSeconds) {
         this.syncIntervalSeconds = syncIntervalSeconds;
+    }
+
+    // ===== 本地拆词检索 getters / setters =====
+
+    public boolean isQueryLocalRetrievalEnabled() {
+        return queryLocalRetrievalEnabled;
+    }
+
+    public void setQueryLocalRetrievalEnabled(boolean queryLocalRetrievalEnabled) {
+        this.queryLocalRetrievalEnabled = queryLocalRetrievalEnabled;
+    }
+
+    public int getQueryLocalRetrievalTopK() {
+        return queryLocalRetrievalTopK;
+    }
+
+    public void setQueryLocalRetrievalTopK(int queryLocalRetrievalTopK) {
+        this.queryLocalRetrievalTopK = queryLocalRetrievalTopK;
+    }
+
+    public int getQueryLocalRetrievalMinHits() {
+        return queryLocalRetrievalMinHits;
+    }
+
+    public void setQueryLocalRetrievalMinHits(int queryLocalRetrievalMinHits) {
+        this.queryLocalRetrievalMinHits = queryLocalRetrievalMinHits;
+    }
+
+    // ===== 查询多数据源 getters / setters =====
+
+    public boolean isQueryIncludeClips() {
+        return queryIncludeClips;
+    }
+
+    public void setQueryIncludeClips(boolean queryIncludeClips) {
+        this.queryIncludeClips = queryIncludeClips;
+    }
+
+    public boolean isQueryIncludeKnowledge() {
+        return queryIncludeKnowledge;
+    }
+
+    public void setQueryIncludeKnowledge(boolean queryIncludeKnowledge) {
+        this.queryIncludeKnowledge = queryIncludeKnowledge;
+    }
+
+    public int getQueryExtraTopK() {
+        return queryExtraTopK;
+    }
+
+    public void setQueryExtraTopK(int queryExtraTopK) {
+        this.queryExtraTopK = queryExtraTopK;
+    }
+
+    public int getQueryExtraMaxChars() {
+        return queryExtraMaxChars;
+    }
+
+    public void setQueryExtraMaxChars(int queryExtraMaxChars) {
+        this.queryExtraMaxChars = queryExtraMaxChars;
     }
 }

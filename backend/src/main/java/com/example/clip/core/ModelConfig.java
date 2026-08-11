@@ -76,6 +76,14 @@ public class ModelConfig {
     /** PDF OCR AI 触发阈值：单页提取文本少于该字符数时调用视觉模型识别 */
     private int pdfOcrMinTextLength = 15;
 
+    // ===== 新增：任务档位路由 =====
+
+    /** 简单任务档位使用的 provider key（"deepseek"/"dashscope"/"custom"），用于定位/抽取/扫描类任务 */
+    private String simpleTierProvider = "deepseek";
+
+    /** 强任务档位使用的 provider key（"deepseek"/"dashscope"/"custom"），用于答案综合/矛盾判断类任务 */
+    private String strongTierProvider = "dashscope";
+
     /** 无参构造器，用于 JSON 反序列化 */
     public ModelConfig() {}
 
@@ -195,6 +203,24 @@ public class ModelConfig {
 
     public void setPdfOcrMinTextLength(int pdfOcrMinTextLength) {
         this.pdfOcrMinTextLength = pdfOcrMinTextLength;
+    }
+
+    // ==================== 档位路由 getters / setters ====================
+
+    public String getSimpleTierProvider() {
+        return simpleTierProvider;
+    }
+
+    public void setSimpleTierProvider(String simpleTierProvider) {
+        this.simpleTierProvider = simpleTierProvider;
+    }
+
+    public String getStrongTierProvider() {
+        return strongTierProvider;
+    }
+
+    public void setStrongTierProvider(String strongTierProvider) {
+        this.strongTierProvider = strongTierProvider;
     }
 
     // ==================== 便捷方法 ====================

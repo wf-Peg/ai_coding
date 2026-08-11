@@ -83,6 +83,9 @@ async function loadConfig() {
     document.getElementById('customBaseUrl').value = config.customBaseUrl || '';
     document.getElementById('customApiKey').value = config.customApiKey || '';
     document.getElementById('customModel').value = config.customModel || '';
+    // 任务档位路由
+    document.getElementById('simpleTierProvider').value = config.simpleTierProvider || 'deepseek';
+    document.getElementById('strongTierProvider').value = config.strongTierProvider || 'dashscope';
     onProviderChange();
     loadMascotConfig();
 
@@ -489,6 +492,9 @@ async function saveConfig() {
     customBaseUrl: document.getElementById('customBaseUrl').value,
     customApiKey: document.getElementById('customApiKey').value,
     customModel: document.getElementById('customModel').value,
+    // 任务档位路由
+    simpleTierProvider: document.getElementById('simpleTierProvider').value || 'deepseek',
+    strongTierProvider: document.getElementById('strongTierProvider').value || 'dashscope',
     // 邮件
     mailEnabled: document.getElementById('mailEnabled').checked,
     mailHost: document.getElementById('mailHost').value,

@@ -2,6 +2,10 @@ package com.example.clip.service.wiki;
 
 import com.example.clip.config.WikiConfig;
 import com.example.clip.core.AiService;
+import com.example.clip.model.ClipContent;
+import com.example.clip.model.Knowledge;
+import com.example.clip.service.KnowledgeService;
+import com.example.clip.service.SearchService;
 import com.example.clip.service.obsidian.ObsidianExportFormatter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,6 +64,9 @@ public class WikiQueryService {
     private final WikiIndexService wikiIndexService;
     private final ObsidianExportFormatter obsidianExportFormatter;
     private final WikiConfig wikiConfig;
+    private final SearchService searchService;
+    private final KnowledgeService knowledgeService;
+    private final WikiLocalRetriever wikiLocalRetriever;
 
     /**
      * 构造器注入。
@@ -69,30 +76,54 @@ public class WikiQueryService {
      * @param wikiIndexService        索引与日志维护
      * @param obsidianExportFormatter Obsidian 格式化（frontmatter）
      * @param wikiConfig              Wiki 配置
+     * @param searchService           剪藏检索（多数据源查询用）
+     * @param knowledgeService        知识条目检索（多数据源查询用）
+     * @param wikiLocalRetriever      本地拆词检索器（阶段 1 前置层）
      */
     public WikiQueryService(AiService aiService,
                             WikiPageService wikiPageService,
                             WikiIndexService wikiIndexService,
                             ObsidianExportFormatter obsidianExportFormatter,
-                            WikiConfig wikiConfig) {
+                            WikiConfig wikiConfig,
+                            SearchService searchService,
+                            KnowledgeService knowledgeService,
+                            WikiLocalRetriever wikiLocalRetriever) {
         this.aiService = aiService;
         this.wikiPageService = wikiPageService;
         this.wikiIndexService = wikiIndexService;
         this.obsidianExportFormatter = obsidianExportFormatter;
         this.wikiConfig = wikiConfig;
+        this.searchService = searchService;
+        this.knowledgeService = knowledgeService;
+        this.wikiLocalRetriever = wikiLocalRetriever;
     }
 
     /**
-     * 执行 Wiki 综合查询。
-     * <p>
-     * 两步流程：index 定位 → 仅读取相关页面 → 综合生成答案 → 估算 Token 消耗。
-     * 失败时降级返回 {@code {status: "error", message: ...}}。
-     * </p>
+     * 执行 Wiki 综合查询（使用配置默认的多数据源开关）。
      *
      * @param question 用户问题
      * @return 查询结果 Map：status / answer / relevantPages / tokenEstimate / message
      */
     public Map<String, Object> query(String question) {
+        return query(question,
+                wikiConfig != null && wikiConfig.isQueryIncludeClips(),
+                wikiConfig != null && wikiConfig.isQueryIncludeKnowledge());
+    }
+
+    /**
+     * 执行 Wiki 综合查询。
+     * <p>
+     * 两步流程：index 定位（本地拆词优先，LLM 兜底）→ 仅读取相关页面 →
+     * 可选纳入剪藏/知识 → 综合生成答案 → 估算 Token 消耗。
+     * 失败时降级返回 {@code {status: "error", message: ...}}。
+     * </p>
+     *
+     * @param question         用户问题
+     * @param includeClips     是否纳入应用内剪藏内容
+     * @param includeKnowledge 是否纳入知识条目内容
+     * @return 查询结果 Map：status / answer / relevantPages / tokenEstimate / message
+     */
+    public Map<String, Object> query(String question, boolean includeClips, boolean includeKnowledge) {
         Map<String, Object> result = new LinkedHashMap<>();
         if (question == null || question.trim().isEmpty()) {
             result.put("status", "error");
@@ -111,8 +142,23 @@ public class WikiQueryService {
                 indexContent = "# Wiki Index\n\n(empty)";
             }
 
-            // 2. 调用便宜模型定位相关页面
-            List<String> relevantPageNames = aiService.locateRelevantPages(question, indexContent);
+            // 2. 定位相关页面：本地拆词检索优先，未命中降级 LLM
+            List<String> relevantPageNames;
+            boolean usedLocalRetrieval = false;
+            if (wikiConfig != null && wikiConfig.isQueryLocalRetrievalEnabled()) {
+                List<String> localPages = wikiLocalRetriever.retrieve(question, indexContent,
+                        wikiConfig.getQueryLocalRetrievalTopK(),
+                        wikiConfig.getQueryLocalRetrievalMinHits());
+                if (!localPages.isEmpty()) {
+                    relevantPageNames = localPages;
+                    usedLocalRetrieval = true;
+                    log.info("[WikiQuery] Local retrieval located {} pages (skip LLM stage-1)", localPages.size());
+                } else {
+                    relevantPageNames = aiService.locateRelevantPages(question, indexContent);
+                }
+            } else {
+                relevantPageNames = aiService.locateRelevantPages(question, indexContent);
+            }
             log.info("[WikiQuery] Located {} relevant pages for question", relevantPageNames.size());
 
             // 3. 仅读取相关页面内容（非全量扫描）
@@ -133,6 +179,52 @@ public class WikiQueryService {
                 }
             }
 
+            // 3.5 可选：纳入应用内剪藏与知识条目
+            int clipCount = 0;
+            int knowledgeCount = 0;
+            if (includeClips || includeKnowledge) {
+                int extraTopK = wikiConfig != null ? wikiConfig.getQueryExtraTopK() : 5;
+                int extraMaxChars = wikiConfig != null ? wikiConfig.getQueryExtraMaxChars() : 800;
+                if (includeClips) {
+                    try {
+                        List<ClipContent> clips = searchService.search(question, extraTopK);
+                        for (ClipContent clip : clips) {
+                            String title = clip.getTitle() != null ? clip.getTitle() : ("clip-" + clip.getId());
+                            String snippet = buildExtraSnippet(clip.getSummary(), extraMaxChars);
+                            if (snippet == null || snippet.isEmpty()) {
+                                snippet = buildExtraSnippet(clip.getContent(), extraMaxChars);
+                            }
+                            pageContents.put("[剪藏] " + title, snippet);
+                            clipCount++;
+                        }
+                    } catch (Exception e) {
+                        log.warn("[WikiQuery] Clip search failed: {}", e.getMessage());
+                    }
+                }
+                if (includeKnowledge) {
+                    try {
+                        List<Knowledge> knowledges = knowledgeService.searchKnowledge(question, null);
+                        int taken = 0;
+                        for (Knowledge k : knowledges) {
+                            if (taken >= extraTopK) {
+                                break;
+                            }
+                            String title = k.getTitle() != null ? k.getTitle() : ("knowledge-" + k.getId());
+                            String snippet = buildExtraSnippet(k.getSummary(), extraMaxChars);
+                            if (snippet == null || snippet.isEmpty()) {
+                                snippet = buildExtraSnippet(k.getContent(), extraMaxChars);
+                            }
+                            pageContents.put("[知识] " + title, snippet);
+                            knowledgeCount++;
+                            taken++;
+                        }
+                    } catch (Exception e) {
+                        log.warn("[WikiQuery] Knowledge search failed: {}", e.getMessage());
+                    }
+                }
+                log.info("[WikiQuery] Extra sources: {} clips, {} knowledges included", clipCount, knowledgeCount);
+            }
+
             // 4. 调用强模型综合答案
             String answer = aiService.synthesizeAnswer(question, pageContents);
 
@@ -147,6 +239,11 @@ public class WikiQueryService {
             result.put("tokenEstimate", tokenEstimate);
             result.put("inputChars", inputLen);
             result.put("outputChars", answer != null ? answer.length() : 0);
+            result.put("usedLocalRetrieval", usedLocalRetrieval);
+            Map<String, Object> extraSources = new LinkedHashMap<>();
+            extraSources.put("clips", clipCount);
+            extraSources.put("knowledge", knowledgeCount);
+            result.put("extraSources", extraSources);
             result.put("message", "Query completed: " + pageContents.size() + " pages used");
             return result;
         } catch (Exception e) {
@@ -232,6 +329,24 @@ public class WikiQueryService {
             }
         }
         return null;
+    }
+
+    /**
+     * 构建剪藏/知识条目的上下文摘要：压缩空白并截断到 maxChars 字符。
+     *
+     * @param text     原始内容
+     * @param maxChars 最大字符数
+     * @return 截断后的摘要；text 为 null 时返回空字符串
+     */
+    private String buildExtraSnippet(String text, int maxChars) {
+        if (text == null) {
+            return "";
+        }
+        String cleaned = text.replaceAll("\\s+", " ").trim();
+        if (cleaned.length() <= maxChars) {
+            return cleaned;
+        }
+        return cleaned.substring(0, maxChars) + "...";
     }
 
     /**

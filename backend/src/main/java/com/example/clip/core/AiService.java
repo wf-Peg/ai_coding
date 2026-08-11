@@ -736,7 +736,7 @@ public class AiService {
                 userMessage.append("=== Source ").append(i).append(" ===\n");
                 userMessage.append(contents.get(i) != null ? contents.get(i) : "").append("\n\n");
             }
-            String response = llmProvider.chat(systemPrompt, userMessage.toString());
+            String response = llmProvider.chatForTier(systemPrompt, userMessage.toString(), "simple");
             String cleaned = cleanJsonWrapper(response);
             ObjectMapper mapper = new ObjectMapper()
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -775,7 +775,7 @@ public class AiService {
             } else {
                 userMessage.append("Existing page content: (none — create a new page)");
             }
-            return llmProvider.chat(systemPrompt, userMessage.toString());
+            return llmProvider.chatForTier(systemPrompt, userMessage.toString(), "simple");
         } catch (Exception e) {
             logger.error("[AI] generateEntityPage failed for '{}': {}", entityName, e.getMessage(), e);
             return hasExisting ? existingPageContent : "";
@@ -808,7 +808,7 @@ public class AiService {
             } else {
                 userMessage.append("Existing page content: (none — create a new page)");
             }
-            return llmProvider.chat(systemPrompt, userMessage.toString());
+            return llmProvider.chatForTier(systemPrompt, userMessage.toString(), "simple");
         } catch (Exception e) {
             logger.error("[AI] generateConceptPage failed for '{}': {}", conceptName, e.getMessage(), e);
             return hasExisting ? existingPageContent : "";
@@ -831,7 +831,7 @@ public class AiService {
             StringBuilder userMessage = new StringBuilder();
             userMessage.append("Source URL: ").append(sourceUrl != null ? sourceUrl : "").append("\n\n");
             userMessage.append("Source content:\n").append(sourceContent != null ? sourceContent : "");
-            return llmProvider.chat(systemPrompt, userMessage.toString());
+            return llmProvider.chatForTier(systemPrompt, userMessage.toString(), "simple");
         } catch (Exception e) {
             logger.error("[AI] generateSourcePage failed: {}", e.getMessage(), e);
             // 返回基础摘要作为降级
@@ -862,7 +862,7 @@ public class AiService {
                     .append(existingPageContent != null ? existingPageContent : "")
                     .append("\n\n===\n\nNew content:\n")
                     .append(newContent != null ? newContent : "");
-            String response = llmProvider.chat(systemPrompt, userMessage.toString());
+            String response = llmProvider.chatForTier(systemPrompt, userMessage.toString(), "strong");
             if (response == null) {
                 return null;
             }
@@ -899,7 +899,7 @@ public class AiService {
             String systemPrompt = promptConfigService.getWikiQueryIndexPrompt();
             String userMessage = "Question: " + (question != null ? question : "") + "\n\nWiki Index:\n"
                     + (indexContent != null ? indexContent : "");
-            String response = llmProvider.chat(systemPrompt, userMessage);
+            String response = llmProvider.chatForTier(systemPrompt, userMessage, "simple");
             if (response == null || response.trim().isEmpty()) {
                 return List.of();
             }
@@ -941,7 +941,7 @@ public class AiService {
                             .append(content).append("\n\n");
                 }
             }
-            return llmProvider.chat(systemPrompt, userMessage.toString());
+            return llmProvider.chatForTier(systemPrompt, userMessage.toString(), "strong");
         } catch (Exception e) {
             logger.error("[AI] synthesizeAnswer failed: {}", e.getMessage(), e);
             return "无法生成答案: " + e.getMessage();
@@ -985,7 +985,7 @@ public class AiService {
                 userMessage.append("=== ").append(pageName).append(" ===\n")
                         .append(content).append("\n\n");
             }
-            String response = llmProvider.chat(systemPrompt, userMessage.toString());
+            String response = llmProvider.chatForTier(systemPrompt, userMessage.toString(), "simple");
             if (response == null || response.trim().isEmpty()) {
                 return List.of();
             }

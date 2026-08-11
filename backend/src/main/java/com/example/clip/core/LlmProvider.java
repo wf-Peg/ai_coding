@@ -38,6 +38,24 @@ public interface LlmProvider {
     String chat(String systemPrompt, String userMessage);
 
     /**
+     * 按任务档位调用 LLM。
+     * <p>
+     * 默认实现忽略档位直接调用 {@link #chat(String, String)}；
+     * 路由实现（如 RoutingLlmProvider）根据档位选择对应模型，
+     * 用于"简单任务用便宜模型、复杂任务用强模型"的成本分层。
+     * </p>
+     *
+     * @param systemPrompt 系统提示词，用于设定模型的角色、行为规范和输出格式
+     * @param userMessage  用户消息，即需要模型处理的具体内容
+     * @param tier         任务档位："simple"（便宜模型）或 "strong"（强模型）
+     * @return 模型生成的文本回复
+     * @throws RuntimeException 当 API 调用失败时抛出
+     */
+    default String chatForTier(String systemPrompt, String userMessage, String tier) {
+        return chat(systemPrompt, userMessage);
+    }
+
+    /**
      * 以流式方式调用 LLM。实现类必须在完成、失败或取消时终止回调序列。
      */
     ChatStreamHandle streamChat(List<ChatMessage> messages, ChatStreamListener listener);

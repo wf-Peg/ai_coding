@@ -102,6 +102,21 @@ public class RoutingLlmProvider implements LlmProvider {
     }
 
     /**
+     * 按任务档位路由聊天请求。
+     * <p>
+     * 根据 {@code tier} 读取 {@link ModelConfig} 中的 {@code simpleTierProvider} /
+     * {@code strongTierProvider} 选择对应 provider；档位未配置或对应 provider
+     * 不可用时，回退到 {@link #getActiveProvider()}（现有降级链路不变）。
+     * </p>
+     */
+    @Override
+    public String chatForTier(String systemPrompt, String userMessage, String tier) {
+        LlmProvider provider = getProviderByTier(tier);
+        logger.debug("[LLM] Routing tier={} to {}", tier, provider.getProviderName());
+        return chatWithFallback(provider, systemPrompt, userMessage);
+    }
+
+    /**
      * 递归降级调用：当前 provider 失败时自动尝试备用 provider，
      * 直至所有 provider 均失败为止。
      * 使用 Set 记录已尝试过的 provider，避免循环降级。
@@ -271,5 +286,46 @@ public class RoutingLlmProvider implements LlmProvider {
 
         // 默认使用 DashScope（包括 active 为 "dashscope" 或任何未知值的情况）
         return dashScopeProvider;
+    }
+
+    /**
+     * 根据任务档位解析 provider key，返回对应 provider。
+     * <p>
+     * 档位未配置或对应 provider 实例为 null 时返回 null，
+     * 由调用方回退到 {@link #getActiveProvider()}。
+     * </p>
+     */
+    private LlmProvider getProviderByTier(String tier) {
+        ModelConfig config = modelConfigService.getConfig();
+        if (config == null) {
+            return null;
+        }
+        String providerKey = null;
+        if ("simple".equalsIgnoreCase(tier)) {
+            providerKey = config.getSimpleTierProvider();
+        } else if ("strong".equalsIgnoreCase(tier)) {
+            providerKey = config.getStrongTierProvider();
+        }
+        LlmProvider provider = resolveProvider(providerKey);
+        if (provider != null) {
+            return provider;
+        }
+        return getActiveProvider();
+    }
+
+    private LlmProvider resolveProvider(String providerKey) {
+        if (providerKey == null || providerKey.isEmpty()) {
+            return null;
+        }
+        switch (providerKey.toLowerCase()) {
+            case "custom":
+                return customProvider;
+            case "deepseek":
+                return deepSeekProvider;
+            case "dashscope":
+                return dashScopeProvider;
+            default:
+                return null;
+        }
     }
 }

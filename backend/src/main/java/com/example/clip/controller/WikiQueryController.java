@@ -63,18 +63,22 @@ public class WikiQueryController {
     /**
      * 执行 Wiki 综合查询。
      * <p>
-     * 两步流程：index 定位（便宜模型）→ 页面综合（强模型），
+     * 两步流程：index 定位（本地拆词优先，LLM 兜底）→ 页面综合（强模型），
      * 返回 Markdown 答案、相关页面列表与 Token 估算。
+     * 请求体可携带 {@code includeClips} / {@code includeKnowledge} 覆盖
+     * WikiConfig 的默认多数据源开关。
      * </p>
      *
-     * @param body 请求体 {@code {"question": "..."}}
+     * @param body 请求体 {@code {"question": "...", "includeClips": true, "includeKnowledge": false}}
      * @return 查询结果 Map
      */
     @PostMapping("/query")
     public ResponseEntity<Map<String, Object>> query(@RequestBody Map<String, Object> body) {
         String question = body != null ? (String) body.get("question") : null;
+        boolean includeClips = body != null && Boolean.TRUE.equals(body.get("includeClips"));
+        boolean includeKnowledge = body != null && Boolean.TRUE.equals(body.get("includeKnowledge"));
         log.info("[WikiQuery] Query request received");
-        Map<String, Object> result = wikiQueryService.query(question);
+        Map<String, Object> result = wikiQueryService.query(question, includeClips, includeKnowledge);
         return ResponseEntity.ok(result);
     }
 
