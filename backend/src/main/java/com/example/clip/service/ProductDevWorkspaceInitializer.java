@@ -1,6 +1,5 @@
 package com.example.clip.service;
 
-import com.example.clip.index.ContentIndexService;
 import com.example.clip.index.RuleExpression;
 import com.example.clip.index.RuleGroup;
 import com.example.clip.index.Workspace;
@@ -19,12 +18,8 @@ import java.util.List;
 /**
  * 产品开发工作台初始化器（唯一）
  * <p>
- * 应用启动时执行：
- * <ol>
- *   <li>扫描 TODO 目录，导入剪藏和待办</li>
- *   <li>确保产品开发工作台（pd-builtin）作为系统内置工作台存在</li>
- *   <li>确保工作台三条内置规则存在（tag equals / type in / category contains）</li>
- * </ol>
+ * 应用启动时确保产品开发工作台（pd-builtin）作为系统内置工作台存在，
+ * 并确保工作台三条内置规则存在（tag equals / type in / category contains）。
  * 属性与规则定义以 spec.md 5.1 / 5.2 和 product-dev-workspace-builtin-rules.md 为准。
  * </p>
  */
@@ -39,20 +34,17 @@ public class ProductDevWorkspaceInitializer implements CommandLineRunner {
     public static final String PD_BUILTIN_WORKSPACE_ID = "pd-builtin";
 
     private static final String PD_WORKSPACE_NAME = "产品开发";
-    private static final String PD_WORKSPACE_DESC = "系统自带的产品开发工作区，自动归集每次编码任务的产出";
+    private static final String PD_WORKSPACE_DESC = "系统内置的产品概览数据源";
     private static final String PD_WORKSPACE_COLOR = "#2383e2";
     private static final String PD_WORKSPACE_TYPE = "project";
     private static final String PD_TAG = "product-dev";
 
-    private final TodoScannerService todoScannerService;
     private final AppConfigService appConfigService;
     private final FileStorageService fileStorageService;
 
     public ProductDevWorkspaceInitializer(
-            TodoScannerService todoScannerService,
             AppConfigService appConfigService,
             FileStorageService fileStorageService) {
-        this.todoScannerService = todoScannerService;
         this.appConfigService = appConfigService;
         this.fileStorageService = fileStorageService;
     }
@@ -61,25 +53,7 @@ public class ProductDevWorkspaceInitializer implements CommandLineRunner {
     public void run(String... args) {
         log.info("[ProductDevWorkspaceInitializer] 开始初始化...");
 
-        // 1. 扫描 TODO 目录并导入
-        try {
-            TodoScannerService.ScanResult scanResult = todoScannerService.scanAndImport();
-            log.info("[ProductDevWorkspaceInitializer] TODO 扫描结果: {}", scanResult);
-        } catch (Exception e) {
-            log.error("[ProductDevWorkspaceInitializer] TODO 扫描异常", e);
-        }
-
-        // 2. 重建内容索引，确保导入的数据立即可见
-        try {
-            Path indexDir = Path.of(appConfigService.getConfigDirPath(), "index");
-            ContentIndexService indexService = new ContentIndexService(indexDir.resolve("content-index.json"));
-            indexService.rebuildFromStorage(fileStorageService);
-            log.info("[ProductDevWorkspaceInitializer] 内容索引已重建");
-        } catch (Exception e) {
-            log.error("[ProductDevWorkspaceInitializer] 索引重建异常", e);
-        }
-
-        // 3. 确保产品开发工作台存在
+        // 确保产品开发工作台存在
         try {
             ensureBuiltinWorkspace();
         } catch (Exception e) {

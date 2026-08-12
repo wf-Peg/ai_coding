@@ -1,5 +1,5 @@
 {
-  "version": "1.0",
+  "version": "2.0",
   "requirement": {
     "title": "工作台词典功能埋线",
     "summary": "将编辑器模块的词典功能数据埋线到工作台概览页右侧面板，展示词典统计和最近学习词汇",
@@ -15,32 +15,18 @@
       "description": "在工作台模块中读取编辑器 localStorage 的词典数据（editor_dict_lib_v1 / editor_user_dict_v1），在工作台概览页右侧面板展示词典知识卡片",
       "layer": "frontend",
       "tags": ["product-dev", "词典"],
-      "clips": [
-        {
-          "title": "词典功能埋线设计",
-          "contentFile": "01-工作台词典功能埋线设计文档.md",
-          "section": "## 二、当前状态分析",
-          "category": "product-dev/design",
-          "tags": ["product-dev", "词典", "设计文档"]
-        }
-      ],
-      "todos": [
-        {
-          "title": "实现词典数据桥接（读取 localStorage）",
-          "priority": "medium",
-          "status": "todo"
-        },
-        {
-          "title": "在工作台概览页添加词典知识卡片",
-          "priority": "medium",
-          "status": "todo"
-        }
+      "designSections": ["二、当前状态分析"],
+      "tasks": [
+        { "title": "实现词典数据桥接（读取 localStorage）", "status": "todo" },
+        { "title": "在工作台概览页添加词典知识卡片", "status": "todo" }
       ]
     }
   ],
-  "config": {
-    "clipCategory": "product-dev",
-    "todoCategory": "product-dev",
-    "autoTag": "product-dev"
-  }
+  "knowledgePoints": [
+    {
+      "title": "词典功能埋线设计",
+      "content": "从编辑器模块的 localStorage 读取词典数据（editor_dict_lib_v1 / editor_user_dict_v1），在工作台概览页右侧面板展示词典统计和最近学习词汇卡片。",
+      "tags": ["product-dev", "词典"]
+    }
+  ]
 }

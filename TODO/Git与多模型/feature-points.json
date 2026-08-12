@@ -1,0 +1,309 @@
+{
+  "version": "2.0",
+  "requirement": {
+    "title": "Git与多模型",
+    "summary": "Git功能完善（配置管理、配置持久化、同步流程优化、前端同步按钮）+ 多模型接入（DeepSeek + 阿里云DashScope，LlmProvider接口抽象，运行时热切换）+ Prompt体系优化（硬编码Prompt迁移、JSON解析优化、Prompt模板统一、版本管理、弹窗UX增强）",
+    "tags": ["product-dev", "git", "multi-model", "prompt", "fullstack"],
+    "phase": "planning",
+    "createdAt": "2026-08-12T00:00:00"
+  },
+  "featurePoints": [
+    {
+      "id": "fp-001",
+      "name": "Git配置管理功能",
+      "description": "后端实现Git配置管理：创建GitConfig.java配置类（remoteUrl/username/password/branch字段），GitService.java添加配置管理功能（设置远程仓库、设置分支跟踪），GitController.java添加配置API（GET/POST配置、测试连接）。前端clip.html添加Git配置按钮、配置弹窗和配置表单（远程仓库URL、Git用户名、Git密码、分支名称），支持保存配置和测试连接。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "git", "backend", "frontend"],
+      "designSections": ["git_config_plan.md", "git_sync_plan.md"],
+      "tasks": [
+        { "title": "创建 GitConfig.java 配置类（remoteUrl/username/password/branch）", "status": "pending" },
+        { "title": "GitService.java 添加配置管理功能（setRemoteUrl/setBranchTracking）", "status": "pending" },
+        { "title": "GitController.java 添加配置API（GET /api/git/config、POST /api/git/config、POST /api/git/test）", "status": "pending" },
+        { "title": "frontend/clip.html 添加Git配置按钮和配置弹窗", "status": "pending" },
+        { "title": "frontend/clip.html 配置表单（URL/用户名/密码/分支）+ 保存配置和测试连接功能", "status": "pending" }
+      ],
+      "verifications": [
+        "后端能够管理Git配置信息（remoteUrl/username/password/branch）",
+        "前端有Git配置界面，用户可以输入远程仓库信息",
+        "保存配置后能够正确设置远程仓库和分支跟踪",
+        "测试连接功能能够验证远程仓库可达性",
+        "错误情况下有清晰的错误提示"
+      ]
+    },
+    {
+      "id": "fp-002",
+      "name": "Git配置持久化",
+      "description": "创建GitConfigStorageService.java，使用JSON文件存储Git配置，提供saveConfig/loadConfig方法。修改GitService.java集成配置持久化服务，启动时自动加载配置。配置优先级：model-config.json > application.yml > 默认值。配置文件含备份机制防止损坏。",
+      "layer": "backend",
+      "tags": ["product-dev", "git", "backend"],
+      "designSections": ["git_improve_plan.md", "3.1.1 创建GitConfigStorageService.java"],
+      "tasks": [
+        { "title": "创建 GitConfigStorageService.java（JSON文件读写，saveConfig/loadConfig）", "status": "pending" },
+        { "title": "GitService.java 集成配置持久化，启动时自动加载", "status": "pending" },
+        { "title": "GitController.java 集成配置持久化（保存/读取配置）", "status": "pending" },
+        { "title": "配置文件的备份和恢复机制", "status": "pending" }
+      ],
+      "verifications": [
+        "配置能够持久化保存到JSON文件，重启服务后不丢失",
+        "配置文件位置正确，权限正常",
+        "配置文件损坏时有备份恢复机制",
+        "保存和加载配置前后端联调通过"
+      ]
+    },
+    {
+      "id": "fp-003",
+      "name": "Git同步流程优化",
+      "description": "优化Git操作执行顺序：configureRemoteRepository（先fetch）→ git fetch → git pull（指定remote/branch）→ git add → git commit（处理无更改情况）→ git push（使用-u设置上游）。完善configureRemoteRepository方法：添加git fetch步骤、处理remote已存在情况（先remove再add或update url）、设置用户配置。添加并发锁防止冲突。",
+      "layer": "backend",
+      "tags": ["product-dev", "git", "backend"],
+      "designSections": ["git_improve_plan.md", "1.2 Git工作流程问题", "3.1.2 修改GitService.java"],
+      "tasks": [
+        { "title": "完善 configureRemoteRepository 方法（fetch/remote已存在处理/用户配置设置）", "status": "pending" },
+        { "title": "优化 executeGitOperations 执行顺序（fetch→pull→add→commit→push）", "status": "pending" },
+        { "title": "git pull 指定 remote 和 branch", "status": "pending" },
+        { "title": "git commit 处理无更改情况（跳过push）", "status": "pending" },
+        { "title": "git push 使用 --set-upstream 设置上游分支", "status": "pending" },
+        { "title": "添加并发锁防止冲突操作", "status": "pending" },
+        { "title": "完善错误处理和日志记录", "status": "pending" }
+      ],
+      "verifications": [
+        "git pull/push 正确指定 remote 和 branch，不再报错",
+        "remote 已存在时正确处理（update url 或 remove 后 add）",
+        "commit 无更改时跳过 push，不报错",
+        "push 成功后正确设置上游分支跟踪",
+        "并发操作时使用锁防止冲突",
+        "错误情况下有详细日志和用户提示"
+      ]
+    },
+    {
+      "id": "fp-004",
+      "name": "前端Git同步按钮",
+      "description": "frontend/index.html 添加同步按钮到页面顶部，点击后调用后端同步API触发Git操作。添加同步状态显示（进行中/成功/失败）。clip.html 可选：在剪藏页面也添加同步按钮，复用相同同步逻辑。",
+      "layer": "frontend",
+      "tags": ["product-dev", "git", "frontend"],
+      "designSections": ["git_sync_plan.md", "3.2 前端修改"],
+      "tasks": [
+        { "title": "frontend/index.html 添加同步按钮到页面顶部", "status": "pending" },
+        { "title": "frontend/index.html 同步按钮点击事件调用后端同步API", "status": "pending" },
+        { "title": "frontend/index.html 同步状态显示（进行中/成功/失败）", "status": "pending" },
+        { "title": "frontend/clip.html 可选：添加同步按钮", "status": "pending" }
+      ],
+      "verifications": [
+        "页面顶部有同步按钮，点击后触发Git同步操作",
+        "同步过程中有状态反馈（进度/成功/失败）",
+        "同步操作不阻塞页面其他操作",
+        "同步失败时有清晰的错误提示"
+      ]
+    },
+    {
+      "id": "fp-005",
+      "name": "LlmProvider 接口抽象",
+      "description": "创建LlmProvider接口，定义chat(systemPrompt, userMessage)、getProviderName()、isAvailable()三个方法。创建DashScopeLlmProvider和DeepSeekLlmProvider两个实现类。DashScopeLlmProvider封装现有dashscope-sdk-java的Generation调用，DeepSeekLlmProvider使用Spring AI的OpenAiApi+OpenAiChatModel调用DeepSeek。",
+      "layer": "backend",
+      "tags": ["product-dev", "multi-model", "backend"],
+      "designSections": ["multi_model_plan.md", "3.1 核心思路", "3.5 LlmProvider 接口", "3.6 DeepSeekLlmProvider 实现"],
+      "tasks": [
+        { "title": "创建 LlmProvider.java 接口（chat/getProviderName/isAvailable）", "status": "pending" },
+        { "title": "创建 DashScopeLlmProvider.java（封装现有 Generation SDK 调用）", "status": "pending" },
+        { "title": "创建 DeepSeekLlmProvider.java（使用 Spring AI OpenAiApi+OpenAiChatModel）", "status": "pending" },
+        { "title": "创建 LlmProviderConfig.java 注册 Bean", "status": "pending" },
+        { "title": "创建 RoutingLlmProvider.java 根据 activeProvider 动态路由", "status": "pending" },
+        { "title": "重构 AiService.java 注入 LlmProvider 替换直接 Generation 调用", "status": "pending" }
+      ],
+      "verifications": [
+        "LlmProvider 接口定义清晰，chat/getProviderName/isAvailable 方法完备",
+        "DashScopeLlmProvider 调用 DashScope 模型正常返回结果",
+        "DeepSeekLlmProvider 调用 DeepSeek 模型正常返回结果",
+        "RoutingLlmProvider 根据 activeProvider 配置正确路由",
+        "AiService 重构后所有9个AI方法正常工作",
+        "切换模型后无需重启服务"
+      ]
+    },
+    {
+      "id": "fp-006",
+      "name": "ModelConfig 配置管理",
+      "description": "创建ModelConfig数据类（activeProvider/deepseekApiKey/deepseekModel/dashscopeApiKey/dashscopeModel），创建ModelConfigService.java实现JSON文件读写（参考PromptConfigService模式）。创建ModelConfigController.java提供REST API：GET /api/model-config、POST /api/model-config、POST /api/model-config/test。配置优先级：model-config.json > application.yml > 默认值。",
+      "layer": "backend",
+      "tags": ["product-dev", "multi-model", "backend"],
+      "designSections": ["multi_model_plan.md", "3.7 ModelConfig 配置管理", "3.8 Configuration 支持运行时切换"],
+      "tasks": [
+        { "title": "创建 ModelConfig.java 数据类（activeProvider/apiKey/model 字段）", "status": "pending" },
+        { "title": "创建 ModelConfigService.java（JSON文件读写，saveConfig/loadConfig）", "status": "pending" },
+        { "title": "创建 ModelConfigController.java（GET/POST /api/model-config，POST /api/model-config/test）", "status": "pending" },
+        { "title": "配置优先级实现：model-config.json > application.yml > 默认值", "status": "pending" }
+      ],
+      "verifications": [
+        "GET /api/model-config 返回当前配置（默认activeProvider=dashscope）",
+        "POST /api/model-config 保存配置到JSON文件",
+        "POST /api/model-config/test 测试模型连接",
+        "重启后配置持久化不丢失",
+        "配置切换后 AI 调用立即生效（热切换）"
+      ]
+    },
+    {
+      "id": "fp-007",
+      "name": "Web端模型设置页面",
+      "description": "新增 frontend/settings.html 和 settings.js，通过 index.html 左侧导航栏的「设置」入口访问。页面包含：模型选择下拉框（DashScope/DeepSeek）、API Key 输入（支持密码显隐切换）、模型名称选择、测试连接按钮。数据通过后端 ModelConfigController API 读写。",
+      "layer": "frontend",
+      "tags": ["product-dev", "multi-model", "frontend"],
+      "designSections": ["multi_model_plan.md", "3.10 Web 端设置页面", "Step 8: 创建 Web 端设置页面"],
+      "tasks": [
+        { "title": "创建 frontend/settings.html 设置页面（模型选择/API Key/模型名称/测试连接）", "status": "pending" },
+        { "title": "创建 frontend/settings.js 设置页面逻辑（API调用/表单处理）", "status": "pending" },
+        { "title": "frontend/index.html 左侧导航栏增加「设置」入口", "status": "pending" },
+        { "title": "browser-extension/manifest.json 新增 settings.html 资源", "status": "pending" }
+      ],
+      "verifications": [
+        "导航栏有「设置」入口，点击后切换到设置页面",
+        "设置页面显示模型选择、API Key 输入、模型名称选择",
+        "API Key 支持密码显隐切换（👁按钮）",
+        "测试连接按钮能验证模型是否可用",
+        "保存配置后刷新页面，配置持久化不丢失"
+      ]
+    },
+    {
+      "id": "fp-008",
+      "name": "Electron 桌面端多模型配置扩展",
+      "description": "扩展 electron/main.js 的 DEFAULT_CONFIG 字段（新增 activeProvider/deepseekApiKey/deepseekModel/dashscopeModel），扩展 generateApplicationYml() 生成 DeepSeek 配置段（spring.ai.openai）。扩展 electron/config.html 增加模型选择 UI（模型选择下拉、API Key 输入、模型名称选择、测试连接按钮）。",
+      "layer": "desktop",
+      "tags": ["product-dev", "multi-model", "electron"],
+      "designSections": ["multi_model_plan.md", "3.9 Electron 桌面端配置扩展"],
+      "tasks": [
+        { "title": "electron/main.js 扩展 DEFAULT_CONFIG（activeProvider/deepseekApiKey/deepseekModel/dashscopeModel）", "status": "pending" },
+        { "title": "electron/main.js 扩展 generateApplicationYml() 生成 DeepSeek 配置段", "status": "pending" },
+        { "title": "electron/config.html 增加模型选择 UI（模型选择/API Key/模型名称/测试连接）", "status": "pending" }
+      ],
+      "verifications": [
+        "config.json 保存后包含 activeProvider/deepseekApiKey 等新字段",
+        "generateApplicationYml() 正确生成 spring.ai.openai 配置段",
+        "config.html 显示模型选择区域，可选择 DashScope 或 DeepSeek",
+        "配置后重启应用，正确使用所选模型",
+        "切换模型后验证 AI 分析功能正常"
+      ]
+    },
+    {
+      "id": "fp-009",
+      "name": "Prompt 体系重构 - 硬编码迁移与模板化",
+      "description": "P0优先级。解决clipAnalyzePrompt被硬编码截断问题：将完整Prompt改为模板变量模式（{{output_format}}/{{category_tree}}等占位符），把硬编码指令部分纳入PromptConfigService管理。将6个硬编码Prompt（analyzeContent/generateSummary/generateTags/smartOrganize/generateDivergentSummary/generateSynonyms）提取到PromptConfigService，新增6个字段+默认常量+getter方法。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "prompt", "backend", "frontend"],
+      "designSections": ["prompt-optimization-plan.md", "二、问题清单与修复建议 - 问题1/2", "四、建议实施路径 - 第一步"],
+      "tasks": [
+        { "title": "PromptConfigService.java 新增 clipAnalyzeTaskFormat 字段存储任务描述+JSON格式+分类树", "status": "pending" },
+        { "title": "AiService.processClipContent() 改为模板变量模式（{{output_format}}/{{category_tree}}）", "status": "pending" },
+        { "title": "PromptConfigService.java 新增6个Prompt字段+默认常量+getter方法", "status": "pending" },
+        { "title": "AiService.java 6个方法改为调用 PromptConfigService 获取 Prompt", "status": "pending" },
+        { "title": "前端 Prompt 配置弹窗增加第二个 tab/textarea 展示完整 Prompt", "status": "pending" }
+      ],
+      "verifications": [
+        "用户自定义 clipAnalyzePrompt 不再被硬编码截断，完整生效",
+        "6个硬编码 Prompt 可通过 PromptConfigService 配置和覆盖",
+        "processClipContent 的完整 Prompt 可在前端预览",
+        "修改 Prompt 后 AI 输出格式正确",
+        "回退到默认 Prompt 后功能正常"
+      ]
+    },
+    {
+      "id": "fp-010",
+      "name": "Prompt 体系重构 - JSON 解析优化与模板统一",
+      "description": "P1优先级。JSON解析优化：替换手动字符串解析（extractJsonStringValue/parseProcessResult/parseSimpleJson）为Jackson ObjectMapper + 宽松解析策略（FAIL_ON_UNKNOWN_PROPERTIES=false），创建DTO类（ClipAnalysisResult/KnowledgeExtractionResult），保留markdown代码块清理逻辑。Prompt设计统一：统一Prompt模板结构（# Role → # Goal → # Output Format → # Constraints），扩充clipAnalyzePrompt、精简dailyOrganizePrompt冗余部分。",
+      "layer": "backend",
+      "tags": ["product-dev", "prompt", "backend"],
+      "designSections": ["prompt-optimization-plan.md", "二、问题清单与修复建议 - 问题3/4", "四、建议实施路径 - 第二步"],
+      "tasks": [
+        { "title": "创建 DTO 类（ClipAnalysisResult/KnowledgeExtractionResult）", "status": "pending" },
+        { "title": "替换 parseProcessResult/parseSimpleJson 为 Jackson ObjectMapper 解析", "status": "pending" },
+        { "title": "保留 markdown 代码块清理逻辑 + 宽松解析策略", "status": "pending" },
+        { "title": "统一 Prompt 模板结构（# Role → # Goal → # Output Format → # Constraints）", "status": "pending" },
+        { "title": "扩充 clipAnalyzePrompt 到完整结构", "status": "pending" },
+        { "title": "精简 dailyOrganizePrompt 冗余部分（去除冗余角色扮演开场白要求）", "status": "pending" }
+      ],
+      "verifications": [
+        "Jackson 解析 LLM 非标准 JSON 容错性良好",
+        "parseProcessResult 替换后所有调用方正常工作",
+        "DTO 类字段映射正确，FAIL_ON_UNKNOWN_PROPERTIES=false 生效",
+        "clipAnalyzePrompt 扩充后覆盖完整指令",
+        "dailyOrganizePrompt 精简后 AI 输出质量不下降"
+      ]
+    },
+    {
+      "id": "fp-011",
+      "name": "Prompt 体系重构 - 弹窗 UX 增强与版本管理",
+      "description": "P2优先级。弹窗UX增强：增加「预览完整Prompt」按钮展示AiService实际构建的完整System Prompt，增加「使用场景」说明文字告知用户该Prompt在什么操作时被调用，增加「重置为默认」的二次确认。版本管理：PromptConfigStorageService中增加简单版本历史（保留最近3个版本），保存时自动备份。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "prompt", "frontend", "backend"],
+      "designSections": ["prompt-optimization-plan.md", "二、问题清单与修复建议 - 问题5/6", "四、建议实施路径 - 第三步"],
+      "tasks": [
+        { "title": "前端 Prompt 配置弹窗增加「预览完整 Prompt」按钮", "status": "pending" },
+        { "title": "前端 Prompt 配置弹窗增加「使用场景」说明文字", "status": "pending" },
+        { "title": "前端 Prompt 配置弹窗增加「重置为默认」的二次确认", "status": "pending" },
+        { "title": "PromptConfigStorageService 增加版本历史功能（保留最近3个版本）", "status": "pending" },
+        { "title": "Prompt 保存时自动备份旧版本", "status": "pending" }
+      ],
+      "verifications": [
+        "预览完整 Prompt 按钮展示 AiService 实际构建的完整 System Prompt",
+        "使用场景说明文字清晰告知用户该 Prompt 的调用时机",
+        "重置为默认有二次确认弹窗",
+        "版本历史保留最近3个版本，可回滚",
+        "自动备份在保存时正确生成"
+      ]
+    },
+    {
+      "id": "fp-012",
+      "name": "Prompt 模板变量扩展与角色映射可配置",
+      "description": "P3优先级。增加{{date}}、{{count}}、{{week_range}}等模板变量，让Prompt更智能。将generateDivergentSummary的6种专家角色映射（职场/教育/生活/创意/金融/社交）纳入PromptConfigService，增加divergentSummaryRoleMap配置字段，允许用户自定义每个分类对应的专家角色。",
+      "layer": "backend",
+      "tags": ["product-dev", "prompt", "backend"],
+      "designSections": ["prompt-optimization-plan.md", "二、问题清单与修复建议 - 问题7/8"],
+      "tasks": [
+        { "title": "PromptConfigService 增加模板变量支持（{{date}}/{{count}}/{{week_range}}）", "status": "pending" },
+        { "title": "AiService 相关方法中注入模板变量值", "status": "pending" },
+        { "title": "PromptConfigService 增加 divergentSummaryRoleMap 配置字段", "status": "pending" },
+        { "title": "generateDivergentSummary 角色映射改为从 PromptConfigService 读取", "status": "pending" }
+      ],
+      "verifications": [
+        "{{date}}/{{count}}/{{week_range}} 等模板变量在 Prompt 中正确替换",
+        "divergentSummaryRoleMap 可自定义每个分类对应的专家角色",
+        "默认角色映射与现有行为一致，不破坏现有功能",
+        "修改角色映射后发散性总结输出符合预期"
+      ]
+    }
+  ],
+  "knowledgePoints": [
+    {
+      "title": "Git 配置持久化方案",
+      "content": "使用 JSON 文件存储 Git 配置，路径为 ./clip-storage/git-config.json。通过 GitConfigStorageService 封装文件读写，提供 saveConfig/loadConfig 方法。配置加载优先级：git-config.json > application.yml > 默认值。配置文件损坏时自动从备份恢复。",
+      "tags": ["product-dev", "git", "backend"]
+    },
+    {
+      "title": "Git 操作流程优化",
+      "content": "优化后的 Git 操作顺序：configureRemoteRepository（先 fetch）→ git fetch → git pull（指定 remote/branch）→ git add → git commit（无更改跳过）→ git push（使用 -u 设置上游）。处理 remote 已存在的情况：先 remove 再 add 或直接 update url。使用并发锁防止冲突。",
+      "tags": ["product-dev", "git", "backend"]
+    },
+    {
+      "title": "LlmProvider 抽象层设计",
+      "content": "自定义 LlmProvider 接口（chat/getProviderName/isAvailable）作为统一 LLM 调用层，而非直接使用 Spring AI 的 ChatModel 接口。原因：Spring AI 0.8.1 API 较不稳定，自定义接口可避免升级兼容问题。DashScope 继续使用 dashscope-sdk-java，DeepSeek 使用 Spring AI OpenAiChatModel（零额外成本，内置重试/容错/响应解析）。",
+      "tags": ["product-dev", "multi-model", "backend", "architecture"]
+    },
+    {
+      "title": "RoutingLlmProvider 热切换机制",
+      "content": "RoutingLlmProvider 在每次 chat() 调用时检查 ModelConfig.activeProvider 的值，动态委托给 DashScopeLlmProvider 或 DeepSeekLlmProvider。通过 LlmProviderConfig 注册为 @Primary Bean。实现热切换无需重启：用户修改配置后，下一次 AI 调用立即使用新模型。",
+      "tags": ["product-dev", "multi-model", "backend", "architecture"]
+    },
+    {
+      "title": "Electron 配置启动流程",
+      "content": "桌面端配置流程：config.json → generateApplicationYml() 写入 application.yml → Spring Boot 启动读取配置。扩展后新增字段（activeProvider/deepseekApiKey/deepseekModel/dashscopeModel）写入 config.json，generateApplicationYml() 生成 spring.ai.openai 配置段。config.html 增加模型选择 UI，与 Web 端 settings.html 逻辑一致。",
+      "tags": ["product-dev", "multi-model", "electron"]
+    },
+    {
+      "title": "Prompt 模板变量方案",
+      "content": "将完整 Prompt 改为模板变量模式，用 {{output_format}}、{{category_tree}}、{{date}}、{{count}}、{{week_range}} 等占位符替换硬编码部分。PromptConfigService 管理模板和变量值，AiService 在构建 Prompt 时进行变量替换。用户通过前端弹窗编辑 Prompt 时可以看到完整模板（含占位符），更直观。",
+      "tags": ["product-dev", "prompt", "backend"]
+    },
+    {
+      "title": "Prompt 统一模板结构",
+      "content": "每个 Prompt 统一采用四段式结构：# Role（角色定义）→ # Goal（目标描述）→ # Output Format（输出格式，含 JSON 约束）→ # Constraints（约束条件，含长度/风格/边界情况）。clipAnalyzePrompt 从极简3行扩充到完整结构，dailyOrganizePrompt 从~200行精简（去掉冗余角色扮演开场白），提高 LLM 指令遵循率。",
+      "tags": ["product-dev", "prompt", "backend"]
+    }
+  ]
+}

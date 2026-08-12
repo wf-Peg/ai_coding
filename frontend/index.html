@@ -487,7 +487,7 @@
             </svg>
             编辑
         </button>
-        <button class="nav-btn" data-view="workspace" title="工作台：工作区概览、规则筛选与产品开发工作区">
+        <button class="nav-btn" data-view="workspace" title="工作台：工作区概览、规则筛选与产品概览">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M8 4v16"/>
             </svg>
@@ -697,11 +697,37 @@
           sendPendingClipToEditor();
         }
         if (event.data && event.data.type === 'openClipInNewTab' && event.data.clipId) {
-          pendingClipId = event.data.clipId;
-          pendingClipAction = 'openClipInNewTab';
-          renderView('editor');
-          window.history.pushState({ view: 'editor' }, '', '/');
-          sendPendingClipToEditor();
+          if (event.data.sourceFilePath) {
+            // 有源文件路径：构造完整路径，通过 Electron API 读取文件
+            var sourceFilePath = event.data.sourceFilePath;
+            var clipId = event.data.clipId;
+            window.electronAPI.getConfig().then(function(config) {
+              var storagePath = config.storagePath || '';
+              var fullPath = storagePath + '/obsidian-vault/' + sourceFilePath;
+              window.electronAPI.openFileByPath(fullPath).then(function(result) {
+                if (result && !result.canceled) {
+                  renderView('editor');
+                  window.history.pushState({ view: 'editor' }, '', '/');
+                  sendToEditor({ type: 'openFileData', fileData: result });
+                }
+              }).catch(function(err) {
+                console.error('[openClipInNewTab] 打开文件失败:', err);
+                // fallback: 使用 clipId 从 API 获取
+                pendingClipId = clipId;
+                pendingClipAction = 'openClipInNewTab';
+                renderView('editor');
+                window.history.pushState({ view: 'editor' }, '', '/');
+                sendPendingClipToEditor();
+              });
+            });
+          } else {
+            // 无源文件路径：回退到原逻辑（通过 clipId 从 API 获取）
+            pendingClipId = event.data.clipId;
+            pendingClipAction = 'openClipInNewTab';
+            renderView('editor');
+            window.history.pushState({ view: 'editor' }, '', '/');
+            sendPendingClipToEditor();
+          }
         }
         if (event.data && event.data.type === 'navigateKnowledge' && event.data.knowledgeId) {
           renderView('knowledge');

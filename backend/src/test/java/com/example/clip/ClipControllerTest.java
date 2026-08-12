@@ -9,6 +9,7 @@ import com.example.clip.service.ClipService;
 import com.example.clip.service.ContentOrganizeService;
 import com.example.clip.service.PromptConfigService;
 import com.example.clip.service.SearchService;
+import com.example.clip.service.AppConfigService;
 import com.example.clip.service.ExceptionLogService;
 import com.example.clip.service.WeeklyReportService;
 import com.example.clip.service.TodoService;
@@ -61,6 +62,9 @@ public class ClipControllerTest {
 
     @MockBean
     private TodoService todoService;
+
+    @MockBean
+    private AppConfigService appConfigService;
 
     @MockBean
     private ExceptionLogService exceptionLogService;
@@ -228,6 +232,7 @@ public class ClipControllerTest {
         clip.setContent("source content");
         clip.setCategory("work-company");
         when(clipService.getClipById(1L)).thenReturn(clip);
+        when(clipService.resolveAiSourceText(clip)).thenReturn("source content");
         when(aiService.generateDivergentSummary(eq("source content"), eq("work-company"), any())).thenReturn("new divergent");
 
         mockMvc.perform(get("/api/clip/divergent-summary/1"))

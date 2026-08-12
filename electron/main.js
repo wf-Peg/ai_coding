@@ -540,8 +540,8 @@ function generateApplicationYml(config) {
       'clip-weekly-report': { path: path.join(config.storagePath, 'weekly-report') }
     },
     'product-dev': {
-      // Agent 产出自动落库的 TODO 目录（产品开发工作台数据源）
-      'todo-dir': path.join(APP_DIR, 'TODO')
+      // 产品概览数据源：TODO/{需求名称}/feature-points.json（打包后由 extraResources 拷贝到 resources/TODO）
+      'todo-dir': path.join(resourcesPath, 'TODO')
     }
   };
 

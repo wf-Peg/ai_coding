@@ -19,7 +19,7 @@
     button.primary { border-color: var(--obs-accent); background: var(--obs-accent); color: #fff; }
     button:disabled { opacity: .55; cursor: wait; transform: none; }
     .status { min-height: 20px; color: var(--obs-muted); text-align: right; font-size: 12px; }
-    .stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
     .stat, .panel { border: 1px solid var(--obs-border); border-radius: 14px; background: var(--obs-card); box-shadow: 0 4px 18px rgba(20, 32, 55, .04); }
     .stat { padding: 17px; }
     .stat-label { color: var(--obs-muted); font-size: 12px; }
@@ -82,6 +82,8 @@
     .diag-meta { color: var(--obs-muted); font-size: 10px; }
     .diag-time { color: var(--obs-muted); font-size: 10px; white-space: nowrap; }
 
+    .diag-toggle { border:none; background:transparent; color:var(--obs-accent); cursor:pointer; font:inherit; font-size:12px; padding:4px 8px; border-radius:6px; transition:.15s ease; }
+    .diag-toggle:hover { background:color-mix(in srgb, var(--obs-accent) 12%, transparent); }
     @media (max-width: 850px) { body { padding: 18px; } .stats { grid-template-columns: repeat(3, 1fr); } .grid { grid-template-columns: 1fr; } .ws-summary { grid-template-columns: repeat(3, 1fr); } }
     @media (max-width: 520px) { .hero { display: block; } .actions { margin-top: 14px; } .stats { grid-template-columns: repeat(2, 1fr); } .bar-row { grid-template-columns: 76px minmax(40px, 1fr) 25px; } }
     html[data-theme="dark"] .stat, html[data-theme="dark"] .panel, html[data-theme="dark"] button { box-shadow: none; }
@@ -169,15 +171,14 @@
     <div class="grid">
       <div>
         <section class="panel"><h2>索引健康 <small>业务数据仍是唯一真相</small></h2><div class="index-list" id="indexList"></div><div class="path" id="indexPath">索引目录读取中…</div></section>
-        <section class="panel"><h2>最近动作 <small id="eventCount">0 条本地事件</small></h2><div class="event-list" id="events"></div></section>
-        <section class="panel" id="diagnosisPanel"><h2>诊断摘要 <small>索引文件状态</small></h2><div class="empty">加载中…</div></section>
+        <section class="panel" id="diagnosisPanel">
+          <h2>诊断摘要 <small>索引文件状态</small> <button id="diagnosisToggle" class="diag-toggle" data-collapsed="true">展开诊断摘要</button></h2>
+          <div id="diagnosisContent" style="display:none;"><div class="empty">加载中…</div></div>
+        </section>
       </div>
       <div>
-        <section class="panel"><h2>常用分类 <small>最多展示 8 项</small></h2><div id="categories"></div></section>
-        <section class="panel"><h2>常用标签 <small>最多展示 8 项</small></h2><div id="tags"></div></section>
         <section class="panel" id="workspacePanel"><h2>工作台数据流 <small>内容来源分布</small></h2><div class="empty">加载中…</div></section>
         <section class="panel"><h2>事件趋势 <small>近 7 / 30 天</small></h2><div id="trendsSection"><div class="trends-stats"><div class="trend-stat"><span class="trend-stat-label">近 7 天</span><span class="trend-stat-value">-</span></div><div class="trend-stat"><span class="trend-stat-label">近 30 天</span><span class="trend-stat-value">-</span></div><div class="trend-stat"><span class="trend-stat-label">跳过行</span><span class="trend-stat-value">-</span></div></div></div><div id="trendChart7d"></div><div id="trendChart30d"></div><div class="panel-section"><div class="section-title">事件类型分布</div><div id="typeDistribution"></div></div><div class="panel-section"><div class="section-title">事件来源分布</div><div id="sourceDistribution"></div></div></section>
-        <section class="panel"><h2>使用说明</h2><div class="callout">这些数据只保存在本机，用于搜索、整理和项目建议；不会自动移动、删除或修改你的原始内容。</div></section>
       </div>
     </div>
 

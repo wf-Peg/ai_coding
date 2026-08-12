@@ -1741,6 +1741,65 @@
             display: inline-block;
         }
 
+        /* ===== AI分析 - 高级感空状态 ===== */
+        .content-section .ai-analysis-empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 32px 16px 24px;
+            text-align: center;
+        }
+
+        .content-section .ai-analysis-empty-state .empty-state-icon {
+            width: 72px;
+            height: 72px;
+            margin-bottom: 16px;
+            opacity: 0.6;
+        }
+
+        .content-section .ai-analysis-empty-state .empty-state-title {
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: var(--text);
+            margin: 0 0 6px 0;
+        }
+
+        .content-section .ai-analysis-empty-state .empty-state-desc {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            margin: 0 0 20px 0;
+            line-height: 1.5;
+            max-width: 260px;
+        }
+
+        .content-section .ai-analysis-empty-state .generate-analysis-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 9px 24px;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+            letter-spacing: 0.3px;
+        }
+
+        .content-section .ai-analysis-empty-state .generate-analysis-action:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+        }
+
+        .content-section .ai-analysis-empty-state .generate-analysis-action:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 4px rgba(59, 130, 246, 0.2);
+        }
+
         /* 确保markdown内容样式优先级更高 - 使用!important */
         .markdown-content {
             font-size: 1rem !important;
@@ -3965,17 +4024,16 @@
                             📋 复制到编辑区打开
                         </button>
                     ${clip.sourceUrl ? `
-                    <div class="source-link" style="margin-top: 8px; transition: opacity 0.2s ease;">
-                        <button class="wiki-link view-original-btn" type="button" onclick="openClipInEditorNewTab(${clip.id})" title="在编辑器中打开原文" style="font-size:0.85rem;color:var(--primary);text-decoration:underline;background:none;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:4px;padding:0;min-width:auto;transition:color 0.2s ease;flex:none;">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                            查看
-                        </button>
+                    <div class="source-link" style="margin-top: 8px; display:flex; flex-direction:column; gap:4px;">
+                        <span style="font-size:0.78rem;color:var(--text-secondary);word-break:break-all;">
+                            来源: <a href="${escapeHtml(clip.sourceUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--primary);">${escapeHtml(clip.sourceUrl)}</a>
+                        </span>
                     </div>
                     ` : ''}
                     ${clip.sourceFilePath ? `
                     <div class="source-file" style="font-size:0.82rem;color:var(--text-secondary);margin-top:4px;display:flex;align-items:center;gap:4px;padding:2px 0;">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                        <span class="wiki-link" onclick="openClipInEditorNewTab(${clip.id})" title="在编辑器中打开 Clipper 文档" style="cursor:pointer;color:var(--primary);text-decoration:underline;">${renderWikiLink(clip.content, clip.id, clip.sourceFilePath)}</span>
+                        <span class="wiki-link" onclick="openClipInEditorNewTab('${clip.id}', '${escapeJs(clip.sourceFilePath)}')" title="在编辑器中打开 Clipper 文档" style="cursor:pointer;color:var(--primary);text-decoration:underline;">${renderWikiLink(clip.content, clip.id, clip.sourceFilePath)}</span>
                     </div>
                     ` : ''}
                     </div>
@@ -4000,19 +4058,48 @@
                     ` : analysisState === 'failed' ? `
                     <div class="content-section">
                         <h4>AI分析</h4>
-                        <div class="markdown-content" style="text-align: center; padding: 20px;">
-                            <p style="color: var(--error);">❌ AI 分析失败</p>
-                            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 10px;">未能成功生成摘要或分析内容</p>
-                            <button class="btn-secondary generate-analysis-btn" data-clip-id="${clip.id}" style="margin-top: 12px;">🔄 重新生成分析</button>
+                        <div class="ai-analysis-empty-state">
+                            <svg class="empty-state-icon" viewBox="0 0 80 80" fill="none" style="opacity:0.5;">
+                                <circle cx="40" cy="40" r="28" stroke="currentColor" stroke-width="1.5" opacity="0.2"/>
+                                <path d="M36 36l8 8M44 36l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.35"/>
+                                <circle cx="40" cy="40" r="24" stroke="currentColor" stroke-width="1.5" fill="none" opacity="0.15"/>
+                            </svg>
+                            <p class="empty-state-title" style="color: var(--error);">AI 分析失败</p>
+                            <p class="empty-state-desc">未能成功生成摘要，可能是内容格式不支持或服务暂时不可用</p>
+                            <button class="generate-analysis-action generate-analysis-btn" data-clip-id="${clip.id}">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M1 4v6h6M23 20v-6h-6"/>
+                                    <path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/>
+                                </svg>
+                                重新生成
+                            </button>
                         </div>
                     </div>
                     ` : `
                     <div class="content-section">
                         <h4>AI分析</h4>
-                        <div class="markdown-content" style="text-align: center; padding: 20px;">
-                            <p style="color: var(--text-secondary);">暂无 AI 分析内容</p>
-                            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 10px;">该剪藏未生成 AI 分析</p>
-                            <button class="btn-secondary generate-analysis-btn" data-clip-id="${clip.id}" style="margin-top: 12px;">✨ 生成分析</button>
+                        <div class="ai-analysis-empty-state">
+                            <svg class="empty-state-icon" viewBox="0 0 80 80" fill="none">
+                                <circle cx="40" cy="40" r="28" stroke="currentColor" stroke-width="1.5" opacity="0.2"/>
+                                <path d="M28 48V32l8-4 8 4 8-4 8 4v16" stroke="currentColor" stroke-width="1.5" fill="none" opacity="0.15"/>
+                                <path d="M28 48V32l8-4 8 4 8-4 8 4v16" stroke="currentColor" stroke-width="1.5" fill="none" opacity="0.3"/>
+                                <circle cx="32" cy="36" r="2" fill="currentColor" opacity="0.2"/>
+                                <circle cx="40" cy="36" r="2" fill="currentColor" opacity="0.2"/>
+                                <circle cx="48" cy="36" r="2" fill="currentColor" opacity="0.2"/>
+                                <circle cx="32" cy="42" r="2" fill="currentColor" opacity="0.2"/>
+                                <circle cx="40" cy="42" r="2" fill="currentColor" opacity="0.2"/>
+                                <circle cx="48" cy="42" r="2" fill="currentColor" opacity="0.2"/>
+                                <path d="M52 32l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.2"/>
+                                <path d="M56 48v-8l-4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.2"/>
+                            </svg>
+                            <p class="empty-state-title">暂无 AI 分析</p>
+                            <p class="empty-state-desc">AI 将自动提炼摘要、关键信息和标签，帮助快速理解内容</p>
+                            <button class="generate-analysis-action generate-analysis-btn" data-clip-id="${clip.id}">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 2l2.4 7.2h7.6l-6 4.8 2.4 7.2-6.4-4.8-6.4 4.8 2.4-7.2-6-4.8h7.6z"/>
+                                </svg>
+                                生成分析
+                            </button>
                         </div>
                     </div>
                     `}
@@ -4127,14 +4214,18 @@
         detail.classList.toggle('expanded');
         btn.classList.toggle('expanded');
 
+        // 展开/收起时同步切换原文截断
+        const contentTexts = detail.querySelectorAll('.content-text.truncated');
         if (detail.classList.contains('expanded')) {
             text.textContent = '收起';
+            contentTexts.forEach(el => el.classList.remove('truncated'));
             const clipId = detail.dataset.clipId;
             if (clipId) {
                 renderLinkedKnowledge(parseInt(clipId));
             }
         } else {
             text.textContent = '展开';
+            contentTexts.forEach(el => el.classList.add('truncated'));
         }
     }
 
@@ -4265,33 +4356,31 @@
         return `<span class="source-badge ${badge.cls}">${escapeHtml(badge.label)}</span>`;
     }
 
-    // 渲染剪藏内容：将 [[path|title]] wiki-link 渲染为可点击链接（点击跳编辑器新标签打开该剪藏），其余部分转义
+    // 渲染剪藏内容：转义原文直接显示，原有 wiki-link 由"查看"按钮替代
     function renderContent(content, clipId) {
         if (!content) return '';
-        const escaped = escapeHtml(content);
-        if (!clipId) return escaped;
-        // 将 [[path|title]] 或 [[path]] 渲染为可点击链接
-        return escaped.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (full, path, title) => {
-            const label = title || path;
-            return `<a class="wiki-link" href="#" onclick="event.preventDefault(); event.stopPropagation(); openClipInEditorNewTab(${clipId}); return false;" title="在编辑器中打开 ${escapeHtml(path)}">[[${escapeHtml(path)}|${escapeHtml(label)}]]</a>`;
-        });
+        return escapeHtml(content);
     }
 
-    // 渲染 wiki-link：将 [[sources/文件名|标题]] 渲染为可点击链接，点击后在编辑器新标签页打开该 Clipper 文档
+    // 渲染 wiki-link 显示文本：只返回文件名，不再包裹 <a> 标签
     function renderWikiLink(content, clipId, fallbackLabel) {
         const match = content && content.match(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/);
-        if (!match) {
-            if (fallbackLabel) return escapeHtml(fallbackLabel);
-            return '';
+        let path = '';
+        if (match) {
+            path = match[1];
+        } else if (fallbackLabel) {
+            path = fallbackLabel;
         }
-        const path = match[1];
-        const title = match[2] || path;
-        return `<a class="wiki-link" href="#" onclick="event.preventDefault(); event.stopPropagation(); openClipInEditorNewTab(${clipId}); return false;" title="在编辑器中打开 ${escapeHtml(path)}">[[${escapeHtml(path)}|${escapeHtml(title)}]]</a>`;
+        if (!path) return '';
+        // 只显示文件名
+        const fileName = path.split('/').pop() || path;
+        return escapeHtml(fileName);
     }
 
     // 跳转编辑器模块：在新标签页（类似 Ctrl+T）打开该剪藏文档
-    function openClipInEditorNewTab(clipId) {
-        window.parent.postMessage({ type: 'openClipInNewTab', clipId }, '*');
+    // 如有 sourceFilePath（相对路径），一并传递，父页面将拼接绝对路径后以文件方式打开
+    function openClipInEditorNewTab(clipId, sourceFilePath) {
+        window.parent.postMessage({ type: 'openClipInNewTab', clipId, sourceFilePath }, '*');
     }
 
     // 在 Obsidian 中打开指定路径的笔记

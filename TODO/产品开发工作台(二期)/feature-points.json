@@ -1,0 +1,403 @@
+{
+  "version": "2.0",
+  "requirement": {
+    "title": "产品开发工作台(二期)",
+    "summary": "基于 MVP 审阅评估结果，对产品开发工作台进行系统性修复与功能增强。涵盖字段解析对齐、初始化器合并、内置规则统一、视图交互统一、概览仪表盘改造、标签筛选与埋点、文字标准化、路径配置化、历史代码清理、面包屑导航等 10 个功能点。解决 MVP 阶段遗留的 2 个阻断级问题（字段解析错位、双初始化器）和 1 个流程级问题（旧 tasks/checklist 脱节），确保全链路数据一致后再进入后续开发。",
+    "tags": ["product-dev", "workspace", "二期"],
+    "phase": "planning",
+    "createdAt": "2026-08-12T00:00:00",
+    "completedAt": null
+  },
+  "featurePoints": [
+    {
+      "id": "FP-001",
+      "name": "feature-points.json 字段解析对齐与扫描链路修复",
+      "description": "修复 TodoScannerService 中字段解析与 spec/SKILL/规范三方定义的错位：clips[].contentFile 读取 'file' 而非 'contentFile'、clips[].title 读取 'label' 而非 'title'、clips[].category 读取 'type' 而非 'category'、todos[].status 读取 boolean 'completed' 而非 string 'status'。修复 requirement 对象被强转 String 的 ClassCastException（改为解析为 requirement 对象，提取 title/summary/tags/phase 等子字段）。修复剪藏落库字段写死问题（type/source/category 全部硬编码为 product-dev，未使用 config.clipCategory 和 clipDef 的 category）。实现增量导入逻辑：.imported 存 ISO 时间戳，按 featurePoints[].id 增量导入，而非整体跳过。",
+      "layer": "backend",
+      "tags": ["product-dev", "bugfix", "扫描"],
+      "designSections": [
+        {
+          "document": "product-dev-mvp-review-assessment.md",
+          "section": "3.1 feature-points.json 解析字段与 spec 完全错位"
+        },
+        {
+          "document": "product-dev-mvp-review-assessment.md",
+          "section": "3.2 requirement 对象被强转 String"
+        },
+        {
+          "document": "product-dev-mvp-review-assessment.md",
+          "section": "4.3 剪藏落库字段写死"
+        },
+        {
+          "document": "product-dev-mvp-review-assessment.md",
+          "section": "4.4 增量导入逻辑缺失"
+        }
+      ],
+      "tasks": [
+        { "title": "TodoScannerService 中 clips[].contentFile 读取键改为 'contentFile'", "status": "todo" },
+        { "title": "TodoScannerService 中 clips[].title 读取键改为 'title'", "status": "todo" },
+        { "title": "TodoScannerService 中 clips[].category 读取键改为 'category'", "status": "todo" },
+        { "title": "TodoScannerService 中 todos[].status 读取改为 string 'status'（done/todo）", "status": "todo" },
+        { "title": "修复 requirement 对象解析，从 String 强转改为 Object 解析（title/summary/tags/phase）", "status": "todo" },
+        { "title": "剪藏落库时使用 config.clipCategory 和 clipDef.category，而非硬编码 product-dev", "status": "todo" },
+        { "title": "实现增量导入逻辑：.imported 存 ISO 时间戳，按 featurePoints[].id 增量", "status": "todo" },
+        { "title": "对齐 spec.md、SKILL.md、todo-directory-specification.md 三份文档的字段定义", "status": "todo" }
+      ],
+      "verifications": [
+        "按 spec 生成的 feature-points.json 能被正确解析，字段值不丢失",
+        "requirement 为对象时不会抛出 ClassCastException，正确提取子字段",
+        "剪藏落库后 category 使用 clipDef 中的分类值，而非全部为 product-dev",
+        "增量归档后，新增功能点同步到系统，不重复导入已有功能点",
+        ".imported 文件内容为 ISO 时间戳格式，而非 'imported at <时间>' 文本"
+      ]
+    },
+    {
+      "id": "FP-002",
+      "name": "初始化器合并与工作台创建统一",
+      "description": "合并两个功能重复的初始化器 ProductDevStartupInitializer（config 包，@EventListener）和 ProductDevWorkspaceInitializer（service 包，CommandLineRunner）。统一工作台名称、颜色、类型、规则数量与 spec 5.1 和 builtin-rules 文档对齐。解决启动时重复扫描、首次创建工作台属性不确定的问题。统一工作台类型：spec 和 builtin-rules 文档均写 type: 'project'，代码中两个初始化器均用 'product-dev' 并修改了 Workspace.TYPES，需统一决策。",
+      "layer": "backend",
+      "tags": ["product-dev", "refactor", "初始化"],
+      "designSections": [
+        {
+          "document": "product-dev-mvp-review-assessment.md",
+          "section": "3.3 两个初始化器并存，行为相互冲突"
+        },
+        {
+          "document": "product-dev-mvp-review-assessment.md",
+          "section": "4.1 工作台类型三处不一致"
+        },
+        {
+          "document": "product-dev-workspace-builtin-rules.md",
+          "section": "工作台创建"
+        }
+      ],
+      "tasks": [
+        { "title": "删除其中一个初始化器（推荐保留 ProductDevWorkspaceInitializer）", "status": "todo" },
+        { "title": "统一工作台名称：'产品开发'（与 builtin-rules 文档一致）", "status": "todo" },
+        { "title": "统一工作台颜色：'#2383e2'（与 builtin-rules 文档一致）", "status": "todo" },
+        { "title": "统一工作台类型：使用 'project'（与 spec 和 builtin-rules 文档一致）", "status": "todo" },
+        { "title": "统一三条内置规则 operator（tag=equals, type=in, category=contains）", "status": "todo" },
+        { "title": "确保启动时只扫描一次，日志清晰", "status": "todo" },
+        { "title": "删除 Workspace.TYPES 中追加的 'product-dev'，改为使用 'project'", "status": "todo" }
+      ],
+      "verifications": [
+        "启动日志中只有一个初始化器执行扫描，无重复记录",
+        "首次创建的工作台名称为'产品开发'，颜色 #2383e2，类型 project",
+        "三条内置规则 operator 与文档一致（equals/in/contains）",
+        "Workspace.TYPES 不包含 'product-dev' 独立类型",
+        "重启后工作台和规则不重复创建"
+      ]
+    },
+    {
+      "id": "FP-003",
+      "name": "内置规则 operator 统一与 pd-builtin 自愈逻辑",
+      "description": "统一内置规则 operator 四处不一致的问题。spec 5.2 和 builtin-rules 文档写 tag=equals、type=in、category=contains，但两个初始化器代码各有不同。修复 pd-builtin 默认表达式被每次启动强制覆盖的问题，改为仅在表达式缺失时自愈（整体覆盖），用户修改过规则/分组后重启不重置。",
+      "layer": "backend",
+      "tags": ["product-dev", "bugfix", "规则引擎"],
+      "designSections": [
+        {
+          "document": "product-dev-mvp-review-assessment.md",
+          "section": "4.2 内置规则 operator 四处不一致"
+        },
+        {
+          "document": "product-dev-workspace-builtin-rules.md",
+          "section": "内置规则"
+        },
+        {
+          "document": "workspace-feature-points-refactor-plan.md",
+          "section": "FP-PD-BUILTIN-FIX-001"
+        }
+      ],
+      "tasks": [
+        { "title": "确认三条内置规则的 operator 最终值：tag=equals, type=in, category=contains", "status": "todo" },
+        { "title": "与 WorkspaceRuleService.matches() 的实际行为对照验证 operator 语义", "status": "todo" },
+        { "title": "修复 pd-builtin 表达式启动覆盖问题：仅在表达式缺失时自愈", "status": "todo" },
+        { "title": "ProductDevWorkspaceInitializer 中 exists 分支改为仅在表达式缺失时写入", "status": "todo" },
+        { "title": "确保用户修改规则后重启不丢失", "status": "todo" }
+      ],
+      "verifications": [
+        "三条内置规则 operator 与 spec/builtin-rules 文档完全一致",
+        "WorkspaceRuleService.matches() 对 equals/in/contains 的行为符合预期",
+        "修改 pd-builtin 规则后重启后端，修改保留，未被覆盖",
+        "首次启动（工作台不存在）仍正常创建默认表达式"
+      ]
+    },
+    {
+      "id": "FP-004",
+      "name": "全部概览仪表盘风格改造",
+      "description": "将全部概览（overviewView）从当前的内容列表视图改造为仪表盘风格的概览页面，类似产品概览的统计卡片和图表布局。包含：统计卡片行（总记录数、剪藏数、知识数、待办数、学习计划数）、图表行（类型分布饼图/环形图、近期趋势折线图、内容活跃度柱状图）、内容列表作为次级区域保留。数据来源为 GET /api/workspace/overview 返回的 workspaceSummary。",
+      "layer": "frontend",
+      "tags": ["product-dev", "UI", "仪表盘"],
+      "designSections": [
+        {
+          "document": "workspace-overview-refactor-plan.md",
+          "section": "3.1 改造全部概览为仪表盘风格"
+        }
+      ],
+      "tasks": [
+        { "title": "改造 overviewView HTML 结构，添加 dashboard-row 和 chart-row 区域", "status": "todo" },
+        { "title": "新增 ov- 前缀的仪表盘 CSS 样式（复用 pd- 前缀样式）", "status": "todo" },
+        { "title": "新增 renderOverviewDashboard(stats) 渲染统计卡片函数", "status": "todo" },
+        { "title": "新增 renderOverviewCharts(data) 渲染图表函数（Chart.js）", "status": "todo" },
+        { "title": "修改 loadOverview() 渲染逻辑：先渲染仪表盘和图表，再渲染内容列表", "status": "todo" },
+        { "title": "可选：增强后端 overviewAll() 返回更详细的统计信息", "status": "todo" }
+      ],
+      "verifications": [
+        "全部概览页面显示仪表盘统计卡片（总记录数、剪藏数、知识数、待办数、学习计划数）",
+        "图表行正确渲染类型分布（饼图/环形图）",
+        "内容列表作为次级区域正常显示在仪表盘下方",
+        "原有筛选和搜索功能不受影响"
+      ]
+    },
+    {
+      "id": "FP-005",
+      "name": "工作台视图交互统一",
+      "description": "修复产品开发工作区全屏覆盖侧边栏导致无法回退的交互问题。将 product-dev-view 从 .shell 外部的 fixed 全屏覆盖层改造为 .main-area 内部的普通视图（与 overview/detail 同级的显示切换）。引入统一 showView(view) 函数管理三个视图的显隐切换。数据源从独立 API 切换为复用 /api/workspace/{id}/resolve。隐藏知识图谱和甘特图 tab（二期功能）。",
+      "layer": "frontend",
+      "tags": ["product-dev", "UI", "交互"],
+      "designSections": [
+        {
+          "document": "workspace-product-dev-view-unify.md",
+          "section": "修改方案"
+        }
+      ],
+      "tasks": [
+        { "title": "将 product-dev-view 整块移动至 .main-area 内部（#detailView 之后）", "status": "todo" },
+        { "title": "CSS 改为普通视图显隐切换（display:none/block），删除 fixed/inset/z-index", "status": "todo" },
+        { "title": "引入统一 showView(view) 函数：navOverview→overview, navProductDev→product-dev, selectWorkspace→detail", "status": "todo" },
+        { "title": "绑定 pdSidebarToggle 事件", "status": "todo" },
+        { "title": "loadProductDev() 改为调用 /api/workspace/pd-builtin/resolve 获取数据", "status": "todo" },
+        { "title": "隐藏知识图谱和甘特图 tab（display:none）", "status": "todo" },
+        { "title": "从解析结果中提取剪藏和待办列表，按功能点标签分组渲染", "status": "todo" }
+      ],
+      "verifications": [
+        "点击产品开发工作区，侧边栏仍然可见可点击",
+        "点击全部概览，成功回到默认工作台",
+        "产品开发视图内 Tab 切换正常",
+        "移动端汉堡按钮可打开侧边栏抽屉",
+        "refresh 广播后数据正常刷新"
+      ]
+    },
+    {
+      "id": "FP-006",
+      "name": "标签维度筛选 + 功能按钮埋点 + 全局悬浮提示",
+      "description": "为产品开发工作区补充标签维度筛选，做到全子视图联动（总览/需求看板/归档等 tab 一起响应）。新增 POST /api/data/action-events 接口，将功能按钮点击记录为功能标签，复用 UserActionEventRecorder 埋点体系。为 workspace.html 和 index.html 中稍复杂的功能按钮补充鼠标悬浮 title 说明。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "筛选", "埋点", "UI"],
+      "designSections": [
+        {
+          "document": "product-dev-tag-filter-button-tags-tooltips.md",
+          "section": "Part A：标签维度筛选"
+        },
+        {
+          "document": "product-dev-tag-filter-button-tags-tooltips.md",
+          "section": "Part B：功能按钮点击 → 功能标签埋点"
+        },
+        {
+          "document": "product-dev-tag-filter-button-tags-tooltips.md",
+          "section": "Part C：全局悬浮提示"
+        }
+      ],
+      "tasks": [
+        { "title": "前端 workspace.html 新增 activePdTag 状态变量", "status": "todo" },
+        { "title": "渲染标签 pill 筛选条（从 workspace 解析结果提取 tags）", "status": "todo" },
+        { "title": "pill 点击设置 activePdTag，触发本地过滤刷新所有子视图", "status": "todo" },
+        { "title": "全部 pill 清除筛选", "status": "todo" },
+        { "title": "后端 DataObservabilityController 新增 POST /api/data/action-events 接口", "status": "todo" },
+        { "title": "前端新增 trackFunctionClick(btn) 埋点助手 + data-func-tag 事件委托", "status": "todo" },
+        { "title": "workspace.html 补充缺失 title 的按钮", "status": "todo" },
+        { "title": "index.html 主应用导航按钮补充 title", "status": "todo" }
+      ],
+      "verifications": [
+        "标签筛选条渲染正确，点击标签后子视图数据同步收窄",
+        "点击全部 pill 清除筛选，恢复全部数据",
+        "点击功能按钮后 action-events.jsonl 出现对应记录",
+        "鼠标悬浮按钮显示说明文字"
+      ]
+    },
+    {
+      "id": "FP-007",
+      "name": "文字标准化与最近活动区域修复",
+      "description": "将多处代码中使用的产品开发工作区文字统一改为产品概览，与侧边栏导航文案保持一致。修复全部概览页面最近活动区域卡在加载中...的问题：新增 renderRecentActivities() 函数，在 loadOverview() 末尾调用。将 overviewView 的 hero 标题从工作台改为全部概览。",
+      "layer": "frontend",
+      "tags": ["product-dev", "UI", "bugfix"],
+      "designSections": [
+        {
+          "document": "workspace-product-overview-fix-plan.md",
+          "section": "改动清单"
+        },
+        {
+          "document": "workspace-feature-points-refactor-plan.md",
+          "section": "步骤 1: 修复最近活动加载"
+        },
+        {
+          "document": "workspace-feature-points-refactor-plan.md",
+          "section": "步骤 7: 更新产品开发工作区文字"
+        }
+      ],
+      "tasks": [
+        { "title": "workspace.html hero 标题 '工作台' → '全部概览'", "status": "todo" },
+        { "title": "新增 renderRecentActivities(contents) 函数，渲染最近 8 条活动", "status": "todo" },
+        { "title": "loadOverview() 末尾调用 renderRecentActivities(data.contents || [])", "status": "todo" },
+        { "title": "eyebrow 文字 'Product Development' → 'Product Overview'", "status": "todo" },
+        { "title": "h1 标题 '产品开发工作区' → '产品概览'", "status": "todo" },
+        { "title": "CSS 注释和 JS 错误提示中的文字同步更新", "status": "todo" },
+        { "title": "index.html 工具提示 '产品开发工作区' → '产品概览'", "status": "todo" },
+        { "title": "ProductDevWorkspaceInitializer 描述同步更新", "status": "todo" }
+      ],
+      "verifications": [
+        "全部概览页面 hero 标题显示全部概览",
+        "最近活动区域显示最近 8 条内容条目（不再卡在加载中...）",
+        "产品概览页面标题显示产品概览，eyebrow 显示 Product Overview",
+        "index.html 导航工具提示显示产品概览",
+        "无历史文字残留"
+      ]
+    },
+    {
+      "id": "FP-008",
+      "name": "扫描路径配置化与存储路径统一",
+      "description": "修复 TodoScannerService 扫描路径与用户设置存储路径不一致的问题。将 @Value('${product-dev.todo-dir:./TODO}') 改为从 AppConfigService 获取存储路径派生 todoDir。确保 application_templete.yml 增加 product-dev.todo-dir 配置项，Electron 主进程 generateApplicationYml() 同步生成该配置。",
+      "layer": "backend",
+      "tags": ["product-dev", "配置", "bugfix"],
+      "designSections": [
+        {
+          "document": "product-dev-workspace-filter-fix.md",
+          "section": "修改 1：TodoScannerService 使用 AppConfigService 的存储路径"
+        },
+        {
+          "document": "product-dev-mvp-review-assessment.md",
+          "section": "4.5 扫描目录路径依赖运行时工作目录"
+        }
+      ],
+      "tasks": [
+        { "title": "TodoScannerService 注入 AppConfigService，从存储路径派生 todoDir", "status": "todo" },
+        { "title": "todoDir = storagePath + '/TODO' 绝对路径", "status": "todo" },
+        { "title": "application_templete.yml 增加 product-dev.todo-dir 配置项", "status": "todo" },
+        { "title": "Electron main.js generateApplicationYml() 同步生成该配置", "status": "todo" },
+        { "title": "验证 ProductDevWorkspaceInitializer 中 scanAndImport 和 rebuildFromStorage 路径一致", "status": "todo" }
+      ],
+      "verifications": [
+        "TodoScannerService 扫描路径与用户设置的存储路径一致",
+        "从 backend/ 目录启动也能正确扫描到 TODO 目录",
+        "application_templete.yml 包含 product-dev.todo-dir 配置项",
+        "重启后端后扫描路径不丢失"
+      ]
+    },
+    {
+      "id": "FP-009",
+      "name": "历史代码清理与旧体系废弃",
+      "description": "清理旧 ProductDevController/Service/Model 体系，明确废弃或删除，避免新旧两套体系并存导致前端数据链路混乱。删除前端无用按钮（历史迁移、新建需求）。可选：清理历史 product-dev 数据（按 category=product-dev 或 tags contain product-dev 删除）。重写 tasks.md 和 checklist.md 为新 spec 内容。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "refactor", "清理"],
+      "designSections": [
+        {
+          "document": "product-dev-mvp-review-assessment.md",
+          "section": "6.2 需要返工的部分"
+        },
+        {
+          "document": "product-dev-mvp-review-assessment.md",
+          "section": "3.4 tasks.md/checklist.md 仍是旧 spec"
+        },
+        {
+          "document": "workspace-feature-points-refactor-plan.md",
+          "section": "步骤 6: 移除前端无用按钮"
+        }
+      ],
+      "tasks": [
+        { "title": "明确废弃或删除旧 ProductDevController/Service/Model", "status": "todo" },
+        { "title": "前端移除 pdHistoryMigrateBtn 和 pdNewRequirementBtn 按钮 HTML", "status": "todo" },
+        { "title": "移除对应按钮的事件监听器代码", "status": "todo" },
+        { "title": "重写 tasks.md 为新 spec 内容（删除旧接口和废弃功能）", "status": "todo" },
+        { "title": "重写 checklist.md 为新 spec 验收项", "status": "todo" },
+        { "title": "可选：清理历史 product-dev 数据", "status": "todo" }
+      ],
+      "verifications": [
+        "旧 ProductDevController 接口返回 404 或明确标记废弃",
+        "产品概览页面头部不显示历史迁移和新建需求按钮",
+        "tasks.md 和 checklist.md 反映新 spec 内容",
+        "前端数据链路统一使用 /api/workspace/{id}/resolve"
+      ]
+    },
+    {
+      "id": "FP-010",
+      "name": "面包屑导航与工作台详情入口优化",
+      "description": "在 detail 视图头部添加面包屑导航（全部概览 > 工作台名称），提供返回 overview 的入口。修改 selectWorkspace(id) 函数，移除 overview 模式下的过滤逻辑，统一进入 detail 视图。点击全部工作台返回 overview 视图。",
+      "layer": "frontend",
+      "tags": ["product-dev", "UI", "导航"],
+      "designSections": [
+        {
+          "document": "workspace-overview-refactor-plan.md",
+          "section": "3.2 工作台点击始终进入详情视图"
+        },
+        {
+          "document": "workspace-overview-refactor-plan.md",
+          "section": "3.3 评估二级子页面入口"
+        }
+      ],
+      "tasks": [
+        { "title": "detail 视图头部添加面包屑导航 HTML（全部概览 / 工作台名称）", "status": "todo" },
+        { "title": "面包屑绑定点击事件：全部概览 → showView('overview')", "status": "todo" },
+        { "title": "修改 selectWorkspace(id)：移除 overview 过滤逻辑，统一进入 detail 视图", "status": "todo" },
+        { "title": "全部工作台点击 → showView('overview')", "status": "todo" },
+        { "title": "更新 breadcrumb 中工作台名称", "status": "todo" }
+      ],
+      "verifications": [
+        "点击侧边栏工作台，进入 detail 视图（5 个 Tab）",
+        "面包屑导航显示全部概览 > 工作台名称",
+        "点击面包屑的全部概览返回 overview 视图",
+        "点击全部工作台返回 overview 视图",
+        "产品概览不受影响"
+      ]
+    }
+  ],
+  "knowledgePoints": [
+    {
+      "id": "KP-001",
+      "title": "feature-points.json v2.0 字段契约",
+      "description": "feature-points.json v2.0 格式：requirement 为对象（含 title/summary/tags/phase/createdAt/completedAt）；featurePoints[].clips[].contentFile 使用 contentFile 字段、title 使用 title 字段、category 使用 category 字段；featurePoints[].todos[].status 使用 string 类型（done/todo）。所有文档（spec.md、SKILL.md、todo-directory-specification.md）必须统一此字段定义。",
+      "tags": ["product-dev", "规范"]
+    },
+    {
+      "id": "KP-002",
+      "title": "初始化器合并策略",
+      "description": "两个功能重复的初始化器合并为一个。推荐保留 ProductDevWorkspaceInitializer（service 包），删除 ProductDevStartupInitializer（config 包）。统一工作台名称=产品开发、颜色=#2383e2、类型=project。三条内置规则：tag equals product-dev、type in clip,todo、category contains product-dev，AND 关系。",
+      "tags": ["product-dev", "架构"]
+    },
+    {
+      "id": "KP-003",
+      "title": "标签筛选前端本地过滤方案",
+      "description": "产品开发工作区标签筛选做前端本地过滤，而非后端 API 参数。因为数据已通过 WorkspaceResolution 全部加载。筛选状态通过 activePdTag 变量管理，所有子视图（总览/看板/归档）共享同一状态，切换标签时同步刷新。全部 pill 清除筛选。",
+      "tags": ["product-dev", "前端"]
+    },
+    {
+      "id": "KP-004",
+      "title": "功能按钮埋点架构",
+      "description": "功能按钮点击通过 POST /api/data/action-events 上报到后端 UserActionEventRecorder，写入 action-events.jsonl。前端使用事件委托监听 [data-func-tag] 属性元素，自动上报。功能标签命名规范：功能:<功能名>。埋点为 fire-and-forget，失败静默不阻断业务。",
+      "tags": ["product-dev", "埋点"]
+    },
+    {
+      "id": "KP-005",
+      "title": "视图统一方案",
+      "description": "product-dev-view 从 .shell 外部的 fixed 全屏覆盖层改为 .main-area 内部的普通视图，与 overview/detail 同级。统一 showView(view) 函数管理三个视图显隐切换。数据源从独立 API 切换为 /api/workspace/{id}/resolve。知识图谱和甘特图 tab 隐藏（二期）。",
+      "tags": ["product-dev", "前端"]
+    },
+    {
+      "id": "KP-006",
+      "title": "扫描路径配置化",
+      "description": "TodoScannerService 的 todoDir 从 AppConfigService.getConfig().getStoragePath() 派生，而非独立的 @Value 配置。todoDir = storagePath + '/TODO'。确保 application_templete.yml 和 Electron 主进程同步生成该配置，避免运行时工作目录导致的路径问题。",
+      "tags": ["product-dev", "配置"]
+    },
+    {
+      "id": "KP-007",
+      "title": "增量导入逻辑",
+      "description": ".imported 文件存 ISO 时间戳格式（非简单文本），按 featurePoints[].id 增量导入。首次导入完整写入，后续只导入新增的 featurePoint。已导入的 featurePoint 如果内容有更新，可通过 completedAt 变化检测重新导入。防止重复导入和遗漏新增。",
+      "tags": ["product-dev", "扫描"]
+    },
+    {
+      "id": "KP-008",
+      "title": "pd-builtin 自愈而非覆盖",
+      "description": "pd-builtin 默认表达式仅在表达式完全缺失时自愈（整体覆盖）。用户修改过规则/分组后重启，修改保留，不被覆盖。通过在 ProductDevWorkspaceInitializer 中检查表达式是否存在，仅在不存在时写入默认值。",
+      "tags": ["product-dev", "规则引擎"]
+    }
+  ]
+}

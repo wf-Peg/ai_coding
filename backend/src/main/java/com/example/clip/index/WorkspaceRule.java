@@ -6,7 +6,7 @@ import java.util.Set;
 
 public record WorkspaceRule(String id, String workspaceId, String field, String operator, String value,
                             boolean enabled, Boolean negate, LocalDateTime createdAt, LocalDateTime updatedAt) {
-    public static final Set<String> FIELDS = Set.of("type", "category", "tag", "sourcePath", "workflowStatus", "updatedAt");
+    public static final Set<String> FIELDS = Set.of("type", "category", "tag", "sourcePath", "workflowStatus", "updatedAt", "workspace");
     public static final Set<String> OPERATORS = Set.of("equals", "contains", "in", "before", "after");
 
     public WorkspaceRule {

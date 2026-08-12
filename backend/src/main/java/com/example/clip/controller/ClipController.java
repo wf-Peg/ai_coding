@@ -255,26 +255,37 @@ public class ClipController {
     }
 
     /**
-     * 获取剪藏列表（支持按工作流状态筛选）
+     * 获取剪藏列表（支持按工作流状态、工作区、关键词筛选）
      * <p>
-     * GET /api/clip/list
+     * GET /api/clip/list?workflowStatus=xxx&workspaceId=yyy&keyword=zzz
      * <p>
-     * 如果不传 workflowStatus 参数，返回全部剪藏内容；
-     * 如果传入，则只返回对应工作流状态的剪藏。
+     * 所有参数均为可选：
+     * <ul>
+     *   <li>workflowStatus - 只返回对应工作流状态的剪藏（如 "inbox", "archived" 等）</li>
+     *   <li>workspaceId    - 只返回对应工作区的剪藏</li>
+     *   <li>keyword        - 按关键词模糊匹配标题、摘要、正文、来源、链接、标签等字段</li>
+     * </ul>
+     * 如果不传任何参数，返回全部剪藏内容。
      *
-     * @param workflowStatus 可选的工作流状态过滤条件（如 "inbox", "archived" 等）
+     * @param workflowStatus 可选的工作流状态过滤条件
+     * @param workspaceId    可选的工作区过滤条件
+     * @param keyword        可选的关键词模糊搜索条件
      * @return 剪藏内容列表
      */
     @GetMapping("/list")
     public ResponseEntity<List<ClipContent>> getClipList(
             @RequestParam(required = false) String workflowStatus,
-            @RequestParam(required = false) String workspaceId) {
+            @RequestParam(required = false) String workspaceId,
+            @RequestParam(required = false) String keyword) {
         // 根据是否传入 workflowStatus 决定调用哪个查询方法
         List<ClipContent> clips = (workflowStatus == null || workflowStatus.isBlank())
                 ? clipService.getAllClips()
                 : clipService.getClipsByWorkflowStatus(workflowStatus);
         if (workspaceId != null && !workspaceId.isBlank()) {
             clips = filterByWorkspace(clips, workspaceId);
+        }
+        if (keyword != null && !keyword.isBlank()) {
+            clips = filterByKeyword(clips, keyword.trim());
         }
         return ResponseEntity.ok(clips);
     }
@@ -731,6 +742,39 @@ public class ClipController {
     }
 
     /**
+     * 按关键词模糊过滤剪藏内容
+     * <p>
+     * 匹配字段包括：标题、摘要、正文（content/bodyContent）、来源、原始链接、
+     * 选中文本和标签。关键词匹配不区分大小写。
+     *
+     * @param clips   剪藏内容列表
+     * @param keyword 搜索关键词（已 trim）
+     * @return 匹配的剪藏内容列表
+     */
+    private List<ClipContent> filterByKeyword(List<ClipContent> clips, String keyword) {
+        String kw = keyword.toLowerCase();
+        return clips.stream()
+                .filter(clip -> matchesKeyword(clip, kw))
+                .collect(Collectors.toList());
+    }
+
+    private boolean matchesKeyword(ClipContent clip, String kw) {
+        return containsIgnoreCase(clip.getTitle(), kw)
+                || containsIgnoreCase(clip.getSummary(), kw)
+                || containsIgnoreCase(clip.getContent(), kw)
+                || containsIgnoreCase(clip.getBodyContent(), kw)
+                || containsIgnoreCase(clip.getSource(), kw)
+                || containsIgnoreCase(clip.getSourceUrl(), kw)
+                || containsIgnoreCase(clip.getSelectedText(), kw)
+                || (clip.getTags() != null
+                    && clip.getTags().stream().anyMatch(tag -> containsIgnoreCase(tag, kw)));
+    }
+
+    private boolean containsIgnoreCase(String value, String kw) {
+        return value != null && value.toLowerCase().contains(kw);
+    }
+
+    /**
      * 从候选字符串中返回第一个非空且非空白的内容
      * <p>
      * 用于实现字段值的优先级回退逻辑（fallback chain）。
@@ -750,6 +794,21 @@ public class ClipController {
             }
         }
         return null;
+    }
+
+    /**
+     * 迁移 Web Clipper 剪藏数据：读取 sourceFilePath 指向的文件内容，填充到 bodyContent 字段
+     * <p>
+     * 用于修复现有 Web Clipper 记录的 bodyContent 为空的问题，
+     * 确保后续 AI 分析能使用原文全文而非仅标题。
+     * </p>
+     *
+     * @return 迁移结果，包含 migratedCount 字段
+     */
+    @PostMapping("/migrate-webclipper")
+    public ResponseEntity<Map<String, Object>> migrateWebClipper() {
+        int count = clipService.migrateWebClipperRecords();
+        return ResponseEntity.ok(Map.of("success", true, "migratedCount", count));
     }
 
     @PostMapping("/event")

@@ -134,7 +134,110 @@ class WorkspaceRuleServiceTest {
         assertTrue(resolution.visible().stream().anyMatch(ref -> ref.id().equals("clip:1")));
     }
 
+    // ── workspace 字段匹配 ──
+
+    @Test
+    void workspaceFieldEqualsMatch() {
+        WorkspaceRuleService service = new WorkspaceRuleService(tempDir);
+        LocalDateTime now = LocalDateTime.of(2026, 8, 12, 10, 0);
+        // 规则：workspace equals ws-1
+        service.saveRule(new WorkspaceRule("r1", "w", "workspace", "equals", "ws-1", true, now, now));
+
+        List<ContentRef> refs = List.of(
+                ref("clip:1", "clip", "需求", "产品", List.of(), now),
+                ref("clip:2", "knowledge", "架构", "技术", List.of(), now));
+
+        // clip:1 属于 ws-1，clip:2 属于 ws-2
+        List<WorkspaceMembership> manualMembers = List.of(
+                m("ws-1", "clip:1", "manual"),
+                m("ws-2", "clip:2", "manual"));
+
+        WorkspaceResolution resolution = service.resolve("w", refs, manualMembers, List.of());
+        assertEquals(List.of("clip:1"), resolution.visible().stream().map(ContentRef::id).toList(),
+                "workspace equals ws-1 应命中 clip:1");
+    }
+
+    @Test
+    void workspaceFieldInMatch() {
+        WorkspaceRuleService service = new WorkspaceRuleService(tempDir);
+        LocalDateTime now = LocalDateTime.of(2026, 8, 12, 10, 0);
+        // 规则：workspace in ws-1,ws-3
+        service.saveRule(new WorkspaceRule("r1", "w", "workspace", "in", "ws-1,ws-3", true, now, now));
+
+        List<ContentRef> refs = List.of(
+                ref("clip:1", "clip", "需求", "产品", List.of(), now),
+                ref("clip:2", "knowledge", "架构", "技术", List.of(), now));
+
+        // clip:1 属于 ws-1（命中），clip:2 属于 ws-2（不命中）
+        List<WorkspaceMembership> manualMembers = List.of(
+                m("ws-1", "clip:1", "manual"),
+                m("ws-2", "clip:2", "manual"));
+
+        WorkspaceResolution resolution = service.resolve("w", refs, manualMembers, List.of());
+        assertEquals(List.of("clip:1"), resolution.visible().stream().map(ContentRef::id).toList(),
+                "workspace in ws-1,ws-3 应命中 clip:1");
+    }
+
+    @Test
+    void workspaceFieldNegateExcludes() {
+        WorkspaceRuleService service = new WorkspaceRuleService(tempDir);
+        LocalDateTime now = LocalDateTime.of(2026, 8, 12, 10, 0);
+        // 规则：NOT workspace equals product-dev → 排除属于 product-dev 的内容
+        service.saveRule(new WorkspaceRule("r1", "w", "workspace", "equals", "product-dev",
+                true, true, now, now));
+
+        List<ContentRef> refs = List.of(
+                ref("clip:1", "clip", "产品需求", "产品", List.of(), now),
+                ref("clip:2", "todo", "买咖啡", "生活", List.of(), now));
+
+        // clip:1 属于 product-dev（应被排除），clip:2 不属于任何工作台（应可见）
+        List<WorkspaceMembership> manualMembers = List.of(
+                m("product-dev", "clip:1", "manual"));
+
+        WorkspaceResolution resolution = service.resolve("w", refs, manualMembers, List.of());
+        assertEquals(List.of("clip:2"), resolution.visible().stream().map(ContentRef::id).toList(),
+                "NOT workspace equals product-dev 应排除 clip:1");
+    }
+
+    @Test
+    void workspaceFieldNoMembersReturnsEmpty() {
+        WorkspaceRuleService service = new WorkspaceRuleService(tempDir);
+        LocalDateTime now = LocalDateTime.of(2026, 8, 12, 10, 0);
+        // 规则：workspace equals ws-1，但没有任何成员关系
+        service.saveRule(new WorkspaceRule("r1", "w", "workspace", "equals", "ws-1", true, now, now));
+
+        List<ContentRef> refs = List.of(
+                ref("clip:1", "clip", "需求", "产品", List.of(), now));
+
+        WorkspaceResolution resolution = service.resolve("w", refs, List.of(), List.of());
+        assertTrue(resolution.visible().isEmpty(), "无成员关系时 workspace 规则不应命中任何内容");
+    }
+
+    @Test
+    void workspaceFieldWithRelationMembers() {
+        WorkspaceRuleService service = new WorkspaceRuleService(tempDir);
+        LocalDateTime now = LocalDateTime.of(2026, 8, 12, 10, 0);
+        // 规则：workspace equals ws-1
+        service.saveRule(new WorkspaceRule("r1", "w", "workspace", "equals", "ws-1", true, now, now));
+
+        List<ContentRef> refs = List.of(
+                ref("clip:1", "clip", "需求", "产品", List.of(), now));
+
+        // clip:1 通过 relation 成员关系属于 ws-1
+        List<WorkspaceMembership> relationMembers = List.of(
+                m("ws-1", "clip:1", "relation"));
+
+        WorkspaceResolution resolution = service.resolve("w", refs, List.of(), relationMembers);
+        assertEquals(List.of("clip:1"), resolution.visible().stream().map(ContentRef::id).toList(),
+                "relation 成员关系也应被 workspace 规则识别");
+    }
+
     private ContentRef ref(String id, String type, String title, String category, List<String> tags, LocalDateTime updatedAt) {
         return new ContentRef(id, type, id, title, category, tags, "source/" + id, updatedAt.minusDays(1), updatedAt, "body");
+    }
+
+    private WorkspaceMembership m(String workspaceId, String contentId, String source) {
+        LocalDateTime now = LocalDateTime.of(2026, 8, 12, 10, 0);
+        return new WorkspaceMembership(workspaceId, contentId, source, "", 1.0, "", 0, now, now);
     }
 }

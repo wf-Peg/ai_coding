@@ -1,0 +1,396 @@
+{
+  "version": "2.0",
+  "requirement": {
+    "title": "学习计划模块",
+    "summary": "学习计划模块完整功能，包括内置学习计划、PDF配置、学习计划CRUD、Exa搜索集成、AI生成学习路径、Mermaid可视化、阶段进度跟踪、以及相关Bug修复",
+    "tags": ["product-dev", "learning"],
+    "phase": "completed",
+    "createdAt": "2026-07-01T00:00:00",
+    "completedAt": "2026-08-01T00:00:00"
+  },
+  "featurePoints": [
+    {
+      "id": "fp-learning-plan-crud",
+      "name": "学习计划基础CRUD与AI生成",
+      "description": "用户输入学习主题、当前水平、目标和时间投入，AI自动生成分阶段学习路线图，包含阶段结构、Mermaid可视化路径图、知识作业和实战任务。支持计划的创建、查询、更新、删除、批量删除、打开存储目录、导出Markdown等完整操作。",
+      "layer": "feature",
+      "tags": ["backend", "frontend", "feature"],
+      "designSections": [
+        {
+          "title": "数据模型设计",
+          "sourceDoc": "learning-plan-module-plan.md",
+          "sectionRef": "三、数据模型"
+        },
+        {
+          "title": "后端API设计",
+          "sourceDoc": "learning-plan-module-plan.md",
+          "sectionRef": "四、后端API"
+        },
+        {
+          "title": "AI Prompt模板",
+          "sourceDoc": "learning-plan-module-plan.md",
+          "sectionRef": "六、AI Prompt模板"
+        },
+        {
+          "title": "前端页面设计",
+          "sourceDoc": "learning-plan-module-plan.md",
+          "sectionRef": "五、前端设计"
+        }
+      ],
+      "tasks": [
+        {
+          "id": "task-model",
+          "name": "创建后端数据模型",
+          "description": "创建LearningPlan、Phase、VideoResource、QuizQuestion、PracticeTask POJO模型",
+          "status": "completed",
+          "priority": "high"
+        },
+        {
+          "id": "task-service",
+          "name": "实现学习计划业务逻辑",
+          "description": "实现LearningPlanService：AI生成阶段结构、解析阶段、CRUD操作、进度更新",
+          "status": "completed",
+          "priority": "high"
+        },
+        {
+          "id": "task-controller",
+          "name": "实现REST API控制器",
+          "description": "实现LearningPlanController：POST/GET/PUT/DELETE端点、批量删除、打开文件夹、导出PDF",
+          "status": "completed",
+          "priority": "high"
+        },
+        {
+          "id": "task-storage",
+          "name": "实现文件存储层",
+          "description": "在FileStorageService中增加saveLearningPlan/getLearningPlanById/getAllLearningPlans/deleteLearningPlan方法",
+          "status": "completed",
+          "priority": "high"
+        },
+        {
+          "id": "task-frontend-page",
+          "name": "创建前端学习计划页面",
+          "description": "创建learning-plan.html：计划列表、详情页、新建弹窗、阶段卡片折叠展开、Mermaid渲染、进度跟踪、主题切换",
+          "status": "completed",
+          "priority": "high"
+        },
+        {
+          "id": "task-frontend-nav",
+          "name": "添加导航入口",
+          "description": "在index.html新增学习按钮导航、视图面板、路由映射",
+          "status": "completed",
+          "priority": "high"
+        }
+      ],
+      "verifications": [
+        "导航栏点击学习切换视图正常",
+        "新建计划弹窗表单校验正常",
+        "AI生成阶段结构正确，内容完整",
+        "阶段卡片可折叠展开，内容完整渲染",
+        "进度条滑动和完成勾选功能正常",
+        "编辑/删除计划功能正常",
+        "快捷键Ctrl+R刷新后状态保持",
+        "深色/浅色主题切换正常"
+      ]
+    },
+    {
+      "id": "fp-exa-search",
+      "name": "Exa语义搜索引擎集成",
+      "description": "集成Exa语义搜索引擎，为每个学习阶段搜索真实、高质量的学习资源（教程、文档、视频），替代AI幻觉生成的虚假推荐。支持中文+英文双语搜索、域名偏好过滤、自动降级为AI生成。",
+      "layer": "integration",
+      "tags": ["backend", "integration", "feature"],
+      "designSections": [
+        {
+          "title": "Exa搜索集成架构",
+          "sourceDoc": "learning-plan-module-plan.md",
+          "sectionRef": "二、Exa搜索集成"
+        }
+      ],
+      "tasks": [
+        {
+          "id": "task-exa-service",
+          "name": "创建ExaSearchService",
+          "description": "实现Exa语义搜索服务，支持searchLearningResources和batchSearchResources方法",
+          "status": "completed",
+          "priority": "high"
+        },
+        {
+          "id": "task-exa-integration",
+          "name": "集成到学习计划生成流程",
+          "description": "在LearningPlanService.generatePlan()中：AI生成阶段结构后，Exa为每个阶段搜索真实资源，填充videos[]",
+          "status": "completed",
+          "priority": "high"
+        },
+        {
+          "id": "task-exa-config",
+          "name": "Exa配置与降级逻辑",
+          "description": "在application.yml配置exa.api-key和exa.enabled；Exa不可用时自动降级为AI生成资源，标记source:ai",
+          "status": "completed",
+          "priority": "high"
+        }
+      ],
+      "verifications": [
+        "Exa搜索返回真实可访问资源链接",
+        "资源来源标记为'Exa搜索'（绿色标签）而非'AI推荐'",
+        "Exa不可用时自动降级为AI生成资源，不影响正常使用",
+        "资源链接可点击打开，摘要正确显示",
+        "后端日志输出搜索结果数量"
+      ]
+    },
+    {
+      "id": "fp-builtin-learning-plan",
+      "name": "内置\"产品功能学习\"学习计划",
+      "description": "系统默认内置的'产品功能学习'学习计划，将产品说明书嵌入学习模块。13个阶段覆盖架构概述、使用说明、各模块功能、浏览器扩展、系统快捷键与使用技巧。每阶段有Markdown说明弹窗、知识作业和实战任务。内置计划不可删除，启动时自动重建。",
+      "layer": "feature",
+      "tags": ["backend", "frontend", "content", "feature"],
+      "designSections": [
+        {
+          "title": "内置计划实施计划",
+          "sourceDoc": "builtin-product-feature-learning-plan.md",
+          "sectionRef": "二、核心内容生产流程"
+        },
+        {
+          "title": "内容大纲映射表",
+          "sourceDoc": "builtin-product-feature-learning-plan.md",
+          "sectionRef": "六、内容大纲"
+        },
+        {
+          "title": "决策记录",
+          "sourceDoc": "builtin-product-feature-learning-plan.md",
+          "sectionRef": "四、决策记录"
+        }
+      ],
+      "tasks": [
+        {
+          "id": "task-builtin-doc",
+          "name": "编写产品说明书",
+          "description": "创建docs/产品说明书.md，13章覆盖产品定位/架构/安装/各模块/扩展/快捷键/使用技巧",
+          "status": "completed",
+          "priority": "high"
+        },
+        {
+          "id": "task-builtin-json",
+          "name": "创建内置计划JSON数据",
+          "description": "创建product-feature-learning-plan.json，13个阶段映射说明书章节，含detailMarkdown/知识作业/实战任务",
+          "status": "completed",
+          "priority": "high"
+        },
+        {
+          "id": "task-builtin-model",
+          "name": "修改数据模型支持内置计划",
+          "description": "LearningPlan增加builtin字段和totalWeeks改为String；Phase增加detailMarkdown字段和estimatedWeeks改为String",
+          "status": "completed",
+          "priority": "high"
+        },
+        {
+          "id": "task-builtin-seeder",
+          "name": "创建启动Seeder",
+          "description": "创建BuiltinLearningPlanSeeder，启动时检测并自动重建内置计划",
+          "status": "completed",
+          "priority": "high"
+        },
+        {
+          "id": "task-builtin-delete-guard",
+          "name": "实现内置计划删除拦截",
+          "description": "后端DELETE/batch-delete对内置计划返回400/跳过；前端隐藏删除按钮和批量复选框",
+          "status": "completed",
+          "priority": "high"
+        },
+        {
+          "id": "task-builtin-frontend",
+          "name": "前端内置计划展示",
+          "description": "内置徽标、∞显示、Markdown弹窗渲染、删除拦截、批量模式排除",
+          "status": "completed",
+          "priority": "high"
+        }
+      ],
+      "verifications": [
+        "启动后学习计划列表出现'产品功能学习'，卡片带'内置'徽标",
+        "周期显示'∞ 周'，阶段数=13",
+        "详情页无删除按钮",
+        "点击阶段头部'查看说明'按钮弹出弹窗，Markdown正常渲染",
+        "三主题（Notion/常规/深色）样式正常",
+        "批量管理模式：内置计划无复选框、不可被勾选",
+        "DELETE内置计划返回400",
+        "删除内置计划存储文件后重启自动重建",
+        "导出Markdown含各阶段'详细说明'区块"
+      ]
+    },
+    {
+      "id": "fp-bugfix-api-cache",
+      "name": "Bug修复：API Key启动缓存不一致",
+      "description": "修复启动时AppConfigService.loadConfig()不调用syncToModelConfig()导致ModelConfigService缓存的API Key与app-config.json不一致的问题。在loadConfig()末尾添加syncToModelConfig调用，确保启动时两个配置服务缓存一致。",
+      "layer": "bugfix",
+      "tags": ["backend", "bugfix"],
+      "designSections": [
+        {
+          "title": "根因分析与修复方案",
+          "sourceDoc": "learning-plan-bugfix-config-pdf.md",
+          "sectionRef": "二、根因深度分析 — 2.1 问题1"
+        },
+        {
+          "title": "修复方案",
+          "sourceDoc": "learning-plan-bugfix-config-pdf.md",
+          "sectionRef": "三、修复方案 — 修复1"
+        }
+      ],
+      "tasks": [
+        {
+          "id": "task-bugfix-sync",
+          "name": "修改AppConfigService.loadConfig()",
+          "description": "在loadConfig()末尾、return config前添加syncToModelConfig(config)调用",
+          "status": "completed",
+          "priority": "high"
+        }
+      ],
+      "verifications": [
+        "重新启动应用后直接进入学习计划新建计划，不再提示'apikey额度用完'",
+        "后端日志输出'Synced to ModelConfigService'"
+      ]
+    },
+    {
+      "id": "fp-bugfix-exa-electron",
+      "name": "Bug修复：Exa搜索在Electron模式不可用",
+      "description": "修复main.js动态生成application.yml时不包含exa配置段，导致ExaSearchService的@Value读到空字符串的问题。ExaSearchService改为从AppConfigService运行时读取配置，不再依赖application.yml；设置页面新增Exa API Key配置区域。",
+      "layer": "bugfix",
+      "tags": ["backend", "frontend", "bugfix"],
+      "designSections": [
+        {
+          "title": "根因分析与修复方案",
+          "sourceDoc": "learning-plan-bugfix-config-pdf.md",
+          "sectionRef": "二、根因深度分析 — 2.2 问题2"
+        },
+        {
+          "title": "修复方案",
+          "sourceDoc": "learning-plan-bugfix-config-pdf.md",
+          "sectionRef": "三、修复方案 — 修复2"
+        }
+      ],
+      "tasks": [
+        {
+          "id": "task-bugfix-exa-model",
+          "name": "AppConfig新增Exa字段",
+          "description": "AppConfig.java新增exaApiKey、exaEnabled字段+getter/setter",
+          "status": "completed",
+          "priority": "high"
+        },
+        {
+          "id": "task-bugfix-exa-service",
+          "name": "改造ExaSearchService",
+          "description": "ExaSearchService改为从AppConfigService运行时读取配置，不再使用@Value注入",
+          "status": "completed",
+          "priority": "high"
+        },
+        {
+          "id": "task-bugfix-exa-settings",
+          "name": "设置页面新增Exa配置",
+          "description": "settings.html新增Exa API Key输入框和启用开关；settings.js加载/保存Exa配置",
+          "status": "completed",
+          "priority": "high"
+        }
+      ],
+      "verifications": [
+        "设置页面出现Exa搜索配置区域",
+        "输入Exa API Key并启用后，学习资源来源标记为'Exa搜索'",
+        "后端日志输出Exa搜索结果数量"
+      ]
+    },
+    {
+      "id": "fp-bugfix-pdf-export",
+      "name": "Bug修复：PDF导出中文乱码",
+      "description": "修复exportPdf()使用window.open+document.write导致Electron中不保证UTF-8编码、中文乱码的问题。改用Blob URL+隐藏iframe方案，显式声明charset=utf-8，确保编码正确。同时优化打印样式（A4尺寸、15mm边距、分页控制）。",
+      "layer": "bugfix",
+      "tags": ["frontend", "bugfix"],
+      "designSections": [
+        {
+          "title": "根因分析与修复方案",
+          "sourceDoc": "learning-plan-bugfix-config-pdf.md",
+          "sectionRef": "二、根因深度分析 — 2.3 问题3"
+        },
+        {
+          "title": "修复方案",
+          "sourceDoc": "learning-plan-bugfix-config-pdf.md",
+          "sectionRef": "三、修复方案 — 修复3"
+        }
+      ],
+      "tasks": [
+        {
+          "id": "task-bugfix-pdf",
+          "name": "重写exportPdf()函数",
+          "description": "将window.open+document.write替换为Blob URL+隐藏iframe，添加@page和@media print CSS",
+          "status": "completed",
+          "priority": "high"
+        }
+      ],
+      "verifications": [
+        "导出PDF中文显示正常，不乱码",
+        "阶段卡片未被分页截断",
+        "页面边距合理（A4大小，15mm边距）"
+      ]
+    },
+    {
+      "id": "fp-module-boundary",
+      "name": "学习模块与产品开发工作台边界声明",
+      "description": "明确学习计划模块在产品开发工作台MVP中的边界：学习计划自动落库为剪藏/待办、进入pd-builtin工作台、独立学习工作台等均不在本轮MVP范围内。ContentRef索引已含learning-plan类型，技术前提已具备，二期可打通。",
+      "layer": "architecture",
+      "tags": ["architecture", "decision"],
+      "designSections": [
+        {
+          "title": "边界声明",
+          "sourceDoc": "learning-module-boundary.md",
+          "sectionRef": "二、本轮MVP边界"
+        },
+        {
+          "title": "二期打通候选方案",
+          "sourceDoc": "learning-module-boundary.md",
+          "sectionRef": "三、二期打通候选方案"
+        }
+      ],
+      "tasks": [
+        {
+          "id": "task-boundary-decision",
+          "name": "记录边界决策并约束开发",
+          "description": "明确学习模块不在本轮MVP范围内，约束agent不修改pd-builtin规则、feature-points.json结构或TodoScannerService",
+          "status": "completed",
+          "priority": "medium"
+        }
+      ],
+      "verifications": [
+        "pd-builtin规则限定type in clip,todo，天然排除学习计划",
+        "ContentRefMapper.fromLearningPlan()已存在，规则系统可直接命中type=learning-plan的内容",
+        "Workspace.TYPES已预留learning类型但无创建逻辑"
+      ]
+    }
+  ],
+  "knowledgePoints": [
+    {
+      "id": "kp-exa-semantic-search",
+      "name": "Exa语义搜索引擎集成方案",
+      "description": "Exa是专为AI应用设计的语义搜索引擎，基于embeddings理解查询意图。集成架构为：AI先生成阶段结构 → Exa为每个阶段搜索真实资源（双语搜索+域名偏好） → 填充videos[]。Exa不可用时自动降级为AI生成。后续改为从AppConfigService运行时读取，不再依赖application.yml。",
+      "category": "integration"
+    },
+    {
+      "id": "kp-builtin-seeder",
+      "name": "内置学习计划启动重建机制",
+      "description": "通过ApplicationRunner在启动时检测存储中是否存在builtin计划，若不存在则从resources/builtin/product-feature-learning-plan.json自动加载。采用幂等设计（检测已存在则跳过），异常捕获不阻塞主流程。",
+      "category": "architecture"
+    },
+    {
+      "id": "kp-pdf-blob-url",
+      "name": "PDF导出Blob URL方案",
+      "description": "new Blob([html], {type: 'text/html;charset=utf-8'})显式声明UTF-8编码，URL.createObjectURL生成blob:协议URL，隐藏iframe加载后调用print()。替代window.open+document.write，解决Electron中编码问题。",
+      "category": "frontend"
+    },
+    {
+      "id": "kp-config-sync",
+      "name": "配置同步链路设计",
+      "description": "AppConfigService是配置的单一事实来源，saveConfig()时同步到ModelConfigService。修复前loadConfig()缺少syncToModelConfig()导致启动时两个缓存不一致。修复方案：loadConfig()末尾添加syncToModelConfig()调用，确保启动时缓存一致。",
+      "category": "architecture"
+    },
+    {
+      "id": "kp-content-two-phase",
+      "name": "说明书+JSON双阶段内容生产流程",
+      "description": "采用'先说明书、后学习计划'两阶段流程：阶段A编写docs/产品说明书.md（单一事实来源，13章，人工可评审）；阶段B按学习计划格式映射生成JSON。未来产品功能变化时：先改说明书→再同步更新JSON。",
+      "category": "workflow"
+    }
+  ]
+}

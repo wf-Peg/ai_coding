@@ -70,7 +70,7 @@ public class LearningPlanService {
         plan.setLevel(level);
         plan.setGoal(goal);
         plan.setHoursPerWeek(hoursPerWeek);
-        plan.setTotalWeeks(totalWeeks);
+        plan.setTotalWeeks(String.valueOf(totalWeeks));
 
         // Step 1: AI 生成阶段结构
         log.info("[LearningPlan] Step 1: AI generating phase structure for '{}'", title);
@@ -238,7 +238,8 @@ public class LearningPlanService {
         phase.setPhaseNumber(toInt(raw.get("phaseNumber"), 1));
         phase.setTitle(Objects.toString(raw.get("title"), ""));
         phase.setGoal(Objects.toString(raw.get("goal"), ""));
-        phase.setEstimatedWeeks(toInt(raw.get("estimatedWeeks"), 1));
+        phase.setEstimatedWeeks(Objects.toString(raw.get("estimatedWeeks"), "1"));
+        phase.setDetailMarkdown(Objects.toString(raw.get("detailMarkdown"), ""));
         phase.setProgress(0);
         phase.setCompleted(false);
 
@@ -309,7 +310,27 @@ public class LearningPlanService {
     }
 
     public void deletePlan(Long id) {
+        // 保护内置计划，不允许删除
+        LearningPlan existing = fileStorageService.getLearningPlanById(id);
+        if (existing != null && existing.isBuiltin()) {
+            throw new RuntimeException("系统内置计划不可删除");
+        }
         fileStorageService.deleteLearningPlan(id);
+    }
+
+    /**
+     * 保存内置学习计划（从 JSON 资源加载）。
+     * 与现有计划去重检测：按 title 匹配，已存在则跳过。
+     */
+    public LearningPlan saveBuiltinPlan(LearningPlan plan) {
+        List<LearningPlan> existing = fileStorageService.getAllLearningPlans();
+        boolean exists = existing.stream()
+                .anyMatch(p -> plan.getTitle().equals(p.getTitle()) && p.isBuiltin());
+        if (exists) {
+            return null; // 已存在，跳过
+        }
+        plan.setBuiltin(true);
+        return fileStorageService.saveLearningPlan(plan);
     }
 
     /**

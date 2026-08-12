@@ -1,5 +1,6 @@
 package com.example.clip.service;
 
+import com.example.clip.config.WikiConfig;
 import com.example.clip.core.AiService;
 import com.example.clip.dto.ClipEditRequest;
 import com.example.clip.dto.ClipRequest;
@@ -12,6 +13,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
@@ -64,6 +69,8 @@ public class ClipService {
     private final DocumentParseService documentParseService;
     /** 图片工具类，负责图片验证和存储 */
     private final ImageUtils imageUtils;
+    /** Wiki 配置，提供 vault 路径用于读取源文件 */
+    private final WikiConfig wikiConfig;
 
     /**
      * 构造器注入所有依赖
@@ -73,15 +80,17 @@ public class ClipService {
      * @param linkParseService     链接解析服务
      * @param documentParseService 文档解析服务
      * @param imageUtils           图片工具类
+     * @param wikiConfig           Wiki 配置
      */
     public ClipService(FileStorageService storageService, AiService aiService,
                        LinkParseService linkParseService, DocumentParseService documentParseService,
-                       ImageUtils imageUtils) {
+                       ImageUtils imageUtils, WikiConfig wikiConfig) {
         this.storageService = storageService;
         this.aiService = aiService;
         this.linkParseService = linkParseService;
         this.documentParseService = documentParseService;
         this.imageUtils = imageUtils;
+        this.wikiConfig = wikiConfig;
     }
 
     /**
@@ -1038,5 +1047,58 @@ public class ClipService {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * 迁移 Web Clipper 剪藏数据：读取 sourceFilePath 指向的文件内容，填充到 bodyContent 字段
+     * <p>
+     * 此方法用于修复现有 Web Clipper 记录的 bodyContent 为空的问题，
+     * 确保后续 AI 分析能使用原文全文而非仅标题。
+     * 文件路径为 {@code {vaultPath}/{sourceFilePath}}，例如 vault 路径 + sources/filename.md。
+     * </p>
+     *
+     * @return 迁移的记录数
+     */
+    public int migrateWebClipperRecords() {
+        List<ClipContent> allClips = storageService.getAllClips();
+        int count = 0;
+        for (ClipContent clip : allClips) {
+            String sourceFilePath = clip.getSourceFilePath();
+            // 跳过没有源文件路径的记录，或已有 bodyContent 的记录
+            if (sourceFilePath == null || sourceFilePath.isBlank()) {
+                continue;
+            }
+            if (clip.getBodyContent() != null && !clip.getBodyContent().isBlank()) {
+                continue;
+            }
+            try {
+                Path filePath = Paths.get(wikiConfig.getVaultPath()).resolve(sourceFilePath);
+                if (Files.exists(filePath)) {
+                    String content = Files.readString(filePath, StandardCharsets.UTF_8);
+                    // 提取正文（去掉 frontmatter），使用与 SourceSyncService 相同的逻辑
+                    String bodyContent = clip.getBodyContent();
+                    // 尝试从文件内容提取 frontmatter 后的正文
+                    if (content.startsWith("---")) {
+                        int endIndex = content.indexOf("---", 3);
+                        if (endIndex != -1) {
+                            bodyContent = content.substring(endIndex + 3).trim();
+                        }
+                    } else {
+                        bodyContent = content;
+                    }
+                    if (bodyContent != null && !bodyContent.isBlank()) {
+                        clip.setBodyContent(bodyContent);
+                        storageService.replaceClip(clip);
+                        count++;
+                        logger.info("迁移 Web Clipper 记录: clipId={}, sourceFilePath={}", clip.getId(), sourceFilePath);
+                    }
+                } else {
+                    logger.warn("迁移 Web Clipper 记录失败，文件不存在: clipId={}, filePath={}", clip.getId(), filePath);
+                }
+            } catch (Exception e) {
+                logger.error("迁移 Web Clipper 记录失败: clipId={}, sourceFilePath={}", clip.getId(), sourceFilePath, e);
+            }
+        }
+        return count;
     }
 }

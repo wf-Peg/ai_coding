@@ -3,16 +3,12 @@ package com.example.clip.controller;
 import com.example.clip.index.ActionEvent;
 import com.example.clip.index.ActionEventService;
 import com.example.clip.index.ContentIndexService;
-import com.example.clip.index.EventTypes;
-import com.example.clip.index.HabitProfile;
-import com.example.clip.index.HabitProfileService;
 import com.example.clip.index.Workspace;
 import com.example.clip.index.WorkspaceIndexService;
 import com.example.clip.index.WorkspaceMembership;
 import com.example.clip.service.AppConfigService;
 import com.example.clip.service.ExceptionLogService;
 import com.example.clip.service.FileStorageService;
-import com.example.clip.service.UserActionEventRecorder;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -33,7 +29,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,16 +41,13 @@ public class DataObservabilityController {
     private final AppConfigService appConfigService;
     private final FileStorageService fileStorageService;
     private final ExceptionLogService exceptionLogService;
-    private final UserActionEventRecorder userActionEventRecorder;
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     public DataObservabilityController(AppConfigService appConfigService, FileStorageService fileStorageService,
-                                       ExceptionLogService exceptionLogService,
-                                       UserActionEventRecorder userActionEventRecorder) {
+                                       ExceptionLogService exceptionLogService) {
         this.appConfigService = appConfigService;
         this.fileStorageService = fileStorageService;
         this.exceptionLogService = exceptionLogService;
-        this.userActionEventRecorder = userActionEventRecorder;
     }
 
     @GetMapping("/overview")
@@ -72,39 +64,10 @@ public class DataObservabilityController {
         return ResponseEntity.ok(result);
     }
 
-    @GetMapping("/habits")
-    public ResponseEntity<Map<String, Object>> habits() {
-        ActionEventService eventService = new ActionEventService(indexDir().resolve("action-events.jsonl"));
-        List<ActionEvent> events = eventService.readAll();
-        HabitProfile profile = new HabitProfileService().aggregate(events);
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("eventCount", events.size());
-        result.put("skippedLineCount", eventService.skippedLineCount());
-        result.put("categories", sorted(profile.categories()));
-        result.put("tags", sorted(profile.tags()));
-        result.put("directories", sorted(profile.directories()));
-        result.put("actions", sorted(profile.actions()));
-        result.put("recentEvents", events.stream().sorted(Comparator.comparing(ActionEvent::createdAt,
-                        Comparator.nullsLast(Comparator.reverseOrder()))).limit(12).toList());
-        return ResponseEntity.ok(result);
-    }
-
-    @GetMapping("/insights")
-    public ResponseEntity<Map<String, Object>> insights() {
-        List<ActionEvent> events = new ActionEventService(indexDir().resolve("action-events.jsonl")).readAll();
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("eventCount", events.size());
-        result.put("activeDays", events.stream().filter(event -> event.createdAt() != null)
-                .map(event -> event.createdAt().toLocalDate()).distinct().count());
-        result.put("latestEventAt", events.stream().map(ActionEvent::createdAt).filter(value -> value != null)
-                .max(LocalDateTime::compareTo).orElse(null));
-        result.put("message", events.isEmpty() ? "开始使用后，这里会逐步形成你的整理习惯。" : "这些统计只用于本地整理建议，不会自动修改你的内容。");
-        return ResponseEntity.ok(result);
-    }
-
     @GetMapping("/trends")
     public ResponseEntity<Map<String, Object>> trends() {
-        List<ActionEvent> events = new ActionEventService(indexDir().resolve("action-events.jsonl")).readAll();
+        ActionEventService eventService = new ActionEventService(indexDir().resolve("action-events.jsonl"));
+        List<ActionEvent> events = eventService.readAll();
         LocalDate now = LocalDate.now();
         LocalDate weekAgo = now.minusDays(7);
         LocalDate monthAgo = now.minusDays(30);
@@ -136,6 +99,7 @@ public class DataObservabilityController {
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("eventCount", events.size());
+        result.put("skippedLineCount", eventService.skippedLineCount());
         result.put("count7d", dailyCount7d.values().stream().mapToLong(Long::longValue).sum());
         result.put("count30d", dailyCount30d.values().stream().mapToLong(Long::longValue).sum());
         result.put("typeDistribution", sorted(typeDistribution));
@@ -179,38 +143,6 @@ public class DataObservabilityController {
             result.put("workspaceCount", 0);
             result.put("error", e.getMessage());
         }
-        return ResponseEntity.ok(result);
-    }
-
-    /**
-     * 接收前端功能按钮点击埋点
-     * <p>
-     * 每个功能按钮点击记录为一条 {@link EventTypes#BUTTON_CLICKED} 事件，
-     * 功能标签（tag）存入 metadata，为后续功能标签设计逻辑与学习模块细化做准备。
-     * 请求体：{ tag, label, buttonId, page }，best-effort 记录，失败不阻断业务。
-     * </p>
-     *
-     * @param body 埋点数据
-     * @return 记录结果
-     */
-    @PostMapping("/action-events")
-    public ResponseEntity<Map<String, Object>> recordActionEvent(@RequestBody Map<String, String> body) {
-        String tag = body.getOrDefault("tag", "");
-        String label = body.getOrDefault("label", tag);
-        String buttonId = body.getOrDefault("buttonId", "");
-        String page = body.getOrDefault("page", "workspace");
-        String source = body.getOrDefault("source", "frontend");
-
-        Map<String, String> metadata = new LinkedHashMap<>();
-        metadata.put("tag", tag);
-        metadata.put("label", label);
-        metadata.put("buttonId", buttonId);
-        metadata.put("page", page);
-        userActionEventRecorder.record(EventTypes.BUTTON_CLICKED, null, null, source, metadata);
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("success", true);
-        result.put("message", "已记录");
         return ResponseEntity.ok(result);
     }
 

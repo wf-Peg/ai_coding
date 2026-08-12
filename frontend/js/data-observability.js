@@ -1,6 +1,6 @@
 (function () {
   const $ = (id) => document.getElementById(id);
-  const apiBase = '/api/data';
+  const apiBase = 'http://127.0.0.1:8081/api/data';
 
   function formatTime(value) {
     if (!value) return '尚未生成';
@@ -20,13 +20,11 @@
     return response.json();
   }
 
-  function renderStats(overview, habits, insights) {
+  function renderStats(overview, trends) {
     const cards = [
       ['内容索引', overview.contentIndex.count, overview.contentIndex.exists ? '已建立' : '待建立'],
-      ['关系记录', overview.relationIndex.count, '来源与反向关系'],
-      ['项目', overview.projects.count, overview.memberships.count + ' 条成员关系'],
-      ['行为事件', habits.eventCount, (insights.activeDays || 0) + ' 个活跃日'],
-      ['最近活动', formatTime(insights.latestEventAt), '本地统计']
+      ['工作台', overview.memberships ? overview.memberships.count + ' 条成员' : '-', '规则/排除/成员'],
+      ['行为事件', trends.eventCount || 0, '近 30 天 ' + (trends.count30d || 0) + ' 条']
     ];
     $('stats').innerHTML = cards.map(function (card) {
       return '<div class="stat"><div class="stat-label">' + card[0] + '</div><div class="stat-value">' + card[1] + '</div><div class="stat-note">' + card[2] + '</div></div>';
@@ -68,14 +66,6 @@
     $(targetId).innerHTML = html;
   }
 
-  function renderEvents(habits) {
-    $('eventCount').textContent = habits.eventCount + ' 条本地事件';
-    var events = habits.recentEvents || [];
-    $('events').innerHTML = events.length ? events.map(function (event) {
-      return '<div class="event"><span class="event-dot"></span><div><div class="event-type">' + (event.type || '未命名动作') + '</div><div class="event-detail">' + (event.contentId || '未关联内容') + '</div></div><div class="event-time">' + formatTime(event.createdAt) + '</div></div>';
-    }).join('') : '<div class="empty">暂时没有行为事件。</div>';
-  }
-
   function renderTrends(trends) {
     if ($('trendsSection')) {
       $('trendsSection').innerHTML = '<div class="trends-stats">' +
@@ -107,9 +97,8 @@
   }
 
   function renderDiagnosis(diag) {
-    var panel = $('diagnosisPanel');
-    if (!panel) return;
-    panel.innerHTML = '<h2>诊断摘要 <small>索引文件状态</small></h2>';
+    var content = $('diagnosisContent');
+    if (!content) return;
     var files = diag.files || [];
     var html = '<div class="diag-list">';
     for (var i = 0; i < files.length; i++) {
@@ -121,26 +110,23 @@
         '<div class="diag-time">' + formatTime(f.updatedAt) + '</div></div>';
     }
     html += '</div>';
-    panel.innerHTML += html;
-    panel.innerHTML += '<div class="path">' + diag.indexDirectory + '</div>';
+    html += '<div class="path">' + diag.indexDirectory + '</div>';
+    content.innerHTML = html;
   }
 
   async function load() {
     $('status').textContent = '读取中…';
     try {
-      var [overview, habits, insights, trends, wsStats, diag] = await Promise.all([
-        request('/overview'), request('/habits'), request('/insights'),
-        request('/trends'), request('/workspace-stats'), request('/export-diagnosis')
+      var [overview, trends, wsStats, diag] = await Promise.all([
+        request('/overview'), request('/trends'),
+        request('/workspace-stats'), request('/export-diagnosis')
       ]);
-      renderStats(overview, habits, insights);
+      renderStats(overview, trends);
       renderIndexes(overview);
-      renderBars('categories', habits.categories);
-      renderBars('tags', habits.tags);
-      renderEvents(habits);
       renderTrends(trends);
       renderWorkspaceStats(wsStats);
       renderDiagnosis(diag);
-      $('status').textContent = '更新于 ' + formatTime(insights.latestEventAt || overview.observedAt);
+      $('status').textContent = '更新于 ' + formatTime(overview.observedAt);
     } catch (error) {
       $('status').textContent = error.message;
     }
@@ -372,6 +358,19 @@
   }
   if ($('exceptionDetailModal')) {
     $('exceptionDetailModal').addEventListener('click', function (e) { if (e.target === this) this.style.display = 'none'; });
+  }
+
+  // 诊断摘要折叠按钮
+  var diagToggle = $('diagnosisToggle');
+  if (diagToggle) {
+    diagToggle.addEventListener('click', function () {
+      var content = $('diagnosisContent');
+      if (!content) return;
+      var collapsed = content.style.display === 'none';
+      content.style.display = collapsed ? '' : 'none';
+      diagToggle.textContent = collapsed ? '收起诊断摘要' : '展开诊断摘要';
+      diagToggle.dataset.collapsed = collapsed ? 'false' : 'true';
+    });
   }
 
   load();

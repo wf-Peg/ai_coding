@@ -1,5 +1,5 @@
 {
-  "version": "1.0",
+  "version": "2.0",
   "requirement": {
     "title": "工作台与数据层重构需求",
     "summary": "保留现有 JSON 业务数据和本地优先特性，新增可重建的统一内容索引、工作台规则筛选、关系索引和项目模型",
@@ -15,26 +15,10 @@
       "description": "定义 ContentRef、ContentRelation 和映射器，为剪藏、知识、待办、学习计划、编辑器文件建立稳定引用 ID",
       "layer": "backend",
       "tags": ["product-dev", "数据层"],
-      "clips": [
-        {
-          "title": "数据层重构开发计划",
-          "contentFile": "01-数据层重构与用户习惯聚合开发计划.md",
-          "section": "## 重构顺序",
-          "category": "product-dev/design",
-          "tags": ["product-dev", "数据层", "设计文档"]
-        }
-      ],
-      "todos": [
-        {
-          "title": "定义 ContentRef 与 ContentRelation 模型",
-          "priority": "high",
-          "status": "done"
-        },
-        {
-          "title": "实现 ContentRefMapper 映射器",
-          "priority": "high",
-          "status": "done"
-        }
+      "designSections": ["重构顺序"],
+      "tasks": [
+        { "title": "定义 ContentRef 与 ContentRelation 模型", "status": "done" },
+        { "title": "实现 ContentRefMapper 映射器", "status": "done" }
       ]
     },
     {
@@ -43,33 +27,10 @@
       "description": "新增 ContentIndexService，扫描现有业务目录生成可重建索引，提供状态、重建和搜索接口",
       "layer": "backend",
       "tags": ["product-dev", "数据层"],
-      "clips": [
-        {
-          "title": "工作台只读骨架规格",
-          "contentFile": "02-工作台只读骨架规格.md",
-          "section": "## 概述",
-          "category": "product-dev/design",
-          "tags": ["product-dev", "工作台", "规格"]
-        },
-        {
-          "title": "工作台只读骨架实施任务",
-          "contentFile": "03-工作台只读骨架实施任务.md",
-          "section": "- [ ] Task 1",
-          "category": "product-dev/design",
-          "tags": ["product-dev", "工作台", "实施"]
-        }
-      ],
-      "todos": [
-        {
-          "title": "实现 ContentIndexService 扫描与重建",
-          "priority": "high",
-          "status": "done"
-        },
-        {
-          "title": "实现 ContentIndexAutoSyncService 定时同步",
-          "priority": "high",
-          "status": "done"
-        }
+      "designSections": ["概述"],
+      "tasks": [
+        { "title": "实现 ContentIndexService 扫描与重建", "status": "done" },
+        { "title": "实现 ContentIndexAutoSyncService 定时同步", "status": "done" }
       ]
     },
     {
@@ -78,33 +39,10 @@
       "description": "实现工作台创建、成员管理、列的 JSON 持久化存储，支持手动加入内容",
       "layer": "backend",
       "tags": ["product-dev", "工作台"],
-      "clips": [
-        {
-          "title": "L1 工作台本地持久化规格",
-          "contentFile": "05-L1工作台本地持久化规格.md",
-          "section": "## 概述",
-          "category": "product-dev/design",
-          "tags": ["product-dev", "工作台", "规格"]
-        },
-        {
-          "title": "L1 工作台本地持久化实施任务",
-          "contentFile": "06-L1工作台本地持久化实施任务.md",
-          "section": "- [ ] Task 1",
-          "category": "product-dev/design",
-          "tags": ["product-dev", "工作台", "实施"]
-        }
-      ],
-      "todos": [
-        {
-          "title": "实现 WorkspaceIndexService 持久化",
-          "priority": "high",
-          "status": "done"
-        },
-        {
-          "title": "实现工作台 CRUD API",
-          "priority": "high",
-          "status": "done"
-        }
+      "designSections": ["概述"],
+      "tasks": [
+        { "title": "实现 WorkspaceIndexService 持久化", "status": "done" },
+        { "title": "实现工作台 CRUD API", "status": "done" }
       ]
     },
     {
@@ -113,43 +51,12 @@
       "description": "实现工作台规则筛选引擎，支持按 type/category/tag/sourcePath/workflowStatus 字段的 equals/contains/in/before/after 操作符，以及排除内容管理",
       "layer": "backend",
       "tags": ["product-dev", "工作台"],
-      "clips": [
-        {
-          "title": "L2 规则筛选与排除规格",
-          "contentFile": "08-L2规则筛选与排除覆盖规格.md",
-          "section": "## 概述",
-          "category": "product-dev/design",
-          "tags": ["product-dev", "工作台", "规则筛选"]
-        },
-        {
-          "title": "L2 规则排除 Controller 接口规格",
-          "contentFile": "11-L2规则排除Controller接口规格.md",
-          "section": "## 概述",
-          "category": "product-dev/design",
-          "tags": ["product-dev", "工作台", "API"]
-        }
-      ],
-      "todos": [
-        {
-          "title": "实现 WorkspaceRuleService 规则引擎",
-          "priority": "high",
-          "status": "done"
-        },
-        {
-          "title": "实现规则 CRUD API",
-          "priority": "high",
-          "status": "done"
-        },
-        {
-          "title": "实现排除内容管理",
-          "priority": "high",
-          "status": "done"
-        },
-        {
-          "title": "实现规则 AND 匹配模式（matchAll）",
-          "priority": "medium",
-          "status": "done"
-        }
+      "designSections": ["概述"],
+      "tasks": [
+        { "title": "实现 WorkspaceRuleService 规则引擎", "status": "done" },
+        { "title": "实现规则 CRUD API", "status": "done" },
+        { "title": "实现排除内容管理", "status": "done" },
+        { "title": "实现规则 AND 匹配模式（matchAll）", "status": "done" }
       ]
     },
     {
@@ -158,44 +65,29 @@
       "description": "实现工作台概览页、详情页、看板视图、内容列表、筛选、拖拽排序等前端交互",
       "layer": "frontend",
       "tags": ["product-dev", "工作台"],
-      "clips": [
-        {
-          "title": "L2 工作台页面交互规格",
-          "contentFile": "14-L2工作台页面交互规格.md",
-          "section": "## 概述",
-          "category": "product-dev/design",
-          "tags": ["product-dev", "工作台", "交互"]
-        },
-        {
-          "title": "L2 工作台页面交互实施任务",
-          "contentFile": "15-L2工作台页面交互实施任务.md",
-          "section": "- [ ] Task 1",
-          "category": "product-dev/design",
-          "tags": ["product-dev", "工作台", "实施"]
-        }
-      ],
-      "todos": [
-        {
-          "title": "实现工作台概览页",
-          "priority": "high",
-          "status": "done"
-        },
-        {
-          "title": "实现工作台详情页与内容列表",
-          "priority": "high",
-          "status": "done"
-        },
-        {
-          "title": "实现看板视图与拖拽排序",
-          "priority": "high",
-          "status": "done"
-        }
+      "designSections": ["概述"],
+      "tasks": [
+        { "title": "实现工作台概览页", "status": "done" },
+        { "title": "实现工作台详情页与内容列表", "status": "done" },
+        { "title": "实现看板视图与拖拽排序", "status": "done" }
       ]
     }
   ],
-  "config": {
-    "clipCategory": "product-dev",
-    "todoCategory": "product-dev",
-    "autoTag": "product-dev"
-  }
+  "knowledgePoints": [
+    {
+      "title": "统一内容引用设计",
+      "content": "定义 ContentRef 和 ContentRelation 模型，为剪藏、知识、待办、学习计划、编辑器文件建立稳定引用 ID，通过 ContentRefMapper 实现映射。",
+      "tags": ["product-dev", "数据层"]
+    },
+    {
+      "title": "只读内容索引",
+      "content": "通过 ContentIndexService 扫描现有业务目录生成可重建索引，提供状态查询、重建和搜索接口，支持 ContentIndexAutoSyncService 定时同步保持最新。",
+      "tags": ["product-dev", "数据层"]
+    },
+    {
+      "title": "工作台规则筛选引擎",
+      "content": "实现按 type/category/tag/sourcePath/workflowStatus 字段的 equals/contains/in/before/after 操作符筛选，支持规则 AND 匹配模式（matchAll），以及排除内容管理。",
+      "tags": ["product-dev", "工作台"]
+    }
+  ]
 }

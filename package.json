@@ -58,6 +58,13 @@
         ]
       },
       {
+        "from": "TODO",
+        "to": "TODO",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
         "from": "jre",
         "to": "jre",
         "filter": [

@@ -20,9 +20,6 @@ public final class EventTypes {
     public static final String WORKSPACE_EXCLUDED = "workspace_excluded";
     public static final String BOARD_COLUMN_CHANGED = "board_column_changed";
 
-    // ===== 功能按钮点击事件 =====
-    public static final String BUTTON_CLICKED = "button_clicked";
-
     public static final String SUGGESTION_SHOWN = "suggestion_shown";
     public static final String SUGGESTION_ACCEPTED = "suggestion_accepted";
     public static final String SUGGESTION_IGNORED = "suggestion_ignored";

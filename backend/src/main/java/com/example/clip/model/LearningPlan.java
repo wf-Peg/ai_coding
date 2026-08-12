@@ -11,7 +11,7 @@ public class LearningPlan {
     private String level;
     private String goal;
     private int hoursPerWeek;
-    private int totalWeeks;
+    private String totalWeeks;
     private List<Phase> phases = new ArrayList<>();
     private String mermaidDiagram;
     private String category;
@@ -19,6 +19,7 @@ public class LearningPlan {
     private Integer mastery;
     private LocalDateTime nextReviewAt;
     private int reviewCount;
+    private boolean builtin;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -31,7 +32,8 @@ public class LearningPlan {
         private int phaseNumber;
         private String title;
         private String goal;
-        private int estimatedWeeks;
+        private String estimatedWeeks;
+        private String detailMarkdown;
         private List<VideoResource> videos = new ArrayList<>();
         private List<QuizQuestion> knowledgeQuiz = new ArrayList<>();
         private List<PracticeTask> practiceTasks = new ArrayList<>();
@@ -46,8 +48,10 @@ public class LearningPlan {
         public void setTitle(String title) { this.title = title; }
         public String getGoal() { return goal; }
         public void setGoal(String goal) { this.goal = goal; }
-        public int getEstimatedWeeks() { return estimatedWeeks; }
-        public void setEstimatedWeeks(int estimatedWeeks) { this.estimatedWeeks = estimatedWeeks; }
+        public String getEstimatedWeeks() { return estimatedWeeks; }
+        public void setEstimatedWeeks(String estimatedWeeks) { this.estimatedWeeks = estimatedWeeks; }
+        public String getDetailMarkdown() { return detailMarkdown; }
+        public void setDetailMarkdown(String detailMarkdown) { this.detailMarkdown = detailMarkdown; }
         public List<VideoResource> getVideos() { return videos; }
         public void setVideos(List<VideoResource> videos) { this.videos = videos; }
         public List<QuizQuestion> getKnowledgeQuiz() { return knowledgeQuiz; }
@@ -119,8 +123,10 @@ public class LearningPlan {
     public void setGoal(String goal) { this.goal = goal; }
     public int getHoursPerWeek() { return hoursPerWeek; }
     public void setHoursPerWeek(int hoursPerWeek) { this.hoursPerWeek = hoursPerWeek; }
-    public int getTotalWeeks() { return totalWeeks; }
-    public void setTotalWeeks(int totalWeeks) { this.totalWeeks = totalWeeks; }
+    public String getTotalWeeks() { return totalWeeks; }
+    public void setTotalWeeks(String totalWeeks) { this.totalWeeks = totalWeeks; }
+    public boolean isBuiltin() { return builtin; }
+    public void setBuiltin(boolean builtin) { this.builtin = builtin; }
     public List<Phase> getPhases() { return phases; }
     public void setPhases(List<Phase> phases) { this.phases = phases; }
     public String getMermaidDiagram() { return mermaidDiagram; }

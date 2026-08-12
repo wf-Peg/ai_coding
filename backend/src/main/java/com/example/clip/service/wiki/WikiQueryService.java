@@ -13,9 +13,13 @@ import org.springframework.stereotype.Service;
 
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Wiki 综合查询服务 —— 两步查询流程的核心。
@@ -185,9 +189,15 @@ public class WikiQueryService {
             if (includeClips || includeKnowledge) {
                 int extraTopK = wikiConfig != null ? wikiConfig.getQueryExtraTopK() : 5;
                 int extraMaxChars = wikiConfig != null ? wikiConfig.getQueryExtraMaxChars() : 800;
+                // 提取问题关键词，用于兜底搜索
+                List<String> keywords = extractKeywords(question);
                 if (includeClips) {
                     try {
                         List<ClipContent> clips = searchService.search(question, extraTopK);
+                        // 若标准搜索无结果，尝试关键词拆词搜索
+                        if (clips.isEmpty() && !keywords.isEmpty()) {
+                            clips = searchClipsByKeywords(keywords, extraTopK);
+                        }
                         for (ClipContent clip : clips) {
                             String title = clip.getTitle() != null ? clip.getTitle() : ("clip-" + clip.getId());
                             String snippet = buildExtraSnippet(clip.getSummary(), extraMaxChars);
@@ -204,6 +214,10 @@ public class WikiQueryService {
                 if (includeKnowledge) {
                     try {
                         List<Knowledge> knowledges = knowledgeService.searchKnowledge(question, null);
+                        // 若标准搜索无结果，尝试关键词拆词搜索
+                        if (knowledges.isEmpty() && !keywords.isEmpty()) {
+                            knowledges = searchKnowledgeByKeywords(keywords);
+                        }
                         int taken = 0;
                         for (Knowledge k : knowledges) {
                             if (taken >= extraTopK) {
@@ -417,5 +431,139 @@ public class WikiQueryService {
             return s != null ? s : "";
         }
         return s.substring(0, maxLen) + "...";
+    }
+
+    /**
+     * 从问题中提取有意义的搜索关键词。
+     * <p>
+     * 过滤掉常见的中文停用词、疑问词、标点符号等，保留有实际含义的词语。
+     * 用于自然语言问题的关键词拆词搜索兜底。
+     * </p>
+     *
+     * @param question 用户问题
+     * @return 关键词列表（至少 2 个字符，且过滤停用词）
+     */
+    private List<String> extractKeywords(String question) {
+        if (question == null || question.trim().isEmpty()) {
+            return List.of();
+        }
+        // 中文/英文停用词集合
+        Set<String> stopWords = Set.of(
+                "的", "了", "在", "是", "我", "有", "和", "就", "不", "人", "都", "一",
+                "一个", "上", "也", "很", "到", "说", "要", "去", "你", "会", "着",
+                "没有", "看", "好", "自己", "这", "他", "她", "它", "们", "那", "些",
+                "什么", "怎么", "如何", "为什么", "哪个", "哪些", "谁", "何时", "何地",
+                "怎样", "多少", "是否", "能", "可以", "应该", "需要", "请", "帮",
+                "the", "a", "an", "is", "are", "was", "were", "be", "been",
+                "have", "has", "had", "do", "does", "did", "will", "would",
+                "can", "could", "should", "may", "might", "shall", "this",
+                "that", "these", "those", "what", "how", "why", "which",
+                "who", "when", "where", "and", "or", "but", "not", "to",
+                "in", "on", "at", "for", "with", "by", "of", "it", "its",
+                "主要", "区别", "差异", "不同", "比较", "对比",
+                "介绍", "说明", "定义", "概念", "原理", "基础"
+        );
+
+        // 去除标点符号，按空白字符分割
+        String cleaned = question.replaceAll("[\\p{P}\\p{S}？。，、！：；\"\"''（）【】《》‘’“”…·]", " ");
+        String[] parts = cleaned.split("\\s+");
+        return Arrays.stream(parts)
+                .map(String::trim)
+                .filter(s -> s.length() >= 2)          // 至少 2 个字符
+                .filter(s -> !stopWords.contains(s.toLowerCase()))  // 过滤停用词
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 按关键词搜索剪藏内容（兜底搜索）。
+     * <p>
+     * 对每个关键词在剪藏的标题、摘要、正文中做模糊匹配，合并去重后返回。
+     * </p>
+     *
+     * @param keywords 关键词列表
+     * @param topK     最大返回数量
+     * @return 匹配的剪藏内容列表
+     */
+    private List<ClipContent> searchClipsByKeywords(List<String> keywords, int topK) {
+        List<ClipContent> allClips = searchService.getAllClips();
+        if (allClips == null || allClips.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> seenIds = new java.util.HashSet<>();
+        List<ClipContent> results = new ArrayList<>();
+        for (String keyword : keywords) {
+            String kw = keyword.toLowerCase();
+            for (ClipContent clip : allClips) {
+                if (seenIds.contains(clip.getId())) {
+                    continue;
+                }
+                if (matchesKeyword(clip, kw)) {
+                    seenIds.add(clip.getId());
+                    results.add(clip);
+                    if (results.size() >= topK) {
+                        return results;
+                    }
+                }
+            }
+        }
+        return results;
+    }
+
+    /**
+     * 按关键词搜索知识条目（兜底搜索）。
+     * <p>
+     * 对每个关键词在知识的标题、摘要、正文中做模糊匹配，合并去重后返回。
+     * </p>
+     *
+     * @param keywords 关键词列表
+     * @return 匹配的知识条目列表
+     */
+    private List<Knowledge> searchKnowledgeByKeywords(List<String> keywords) {
+        List<Knowledge> allKnowledge = knowledgeService.getAllKnowledge();
+        if (allKnowledge == null || allKnowledge.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> seenIds = new java.util.HashSet<>();
+        List<Knowledge> results = new ArrayList<>();
+        for (String keyword : keywords) {
+            String kw = keyword.toLowerCase();
+            for (Knowledge k : allKnowledge) {
+                if (seenIds.contains(k.getId())) {
+                    continue;
+                }
+                boolean match = (k.getTitle() != null && k.getTitle().toLowerCase().contains(kw))
+                        || (k.getSummary() != null && k.getSummary().toLowerCase().contains(kw))
+                        || (k.getContent() != null && k.getContent().toLowerCase().contains(kw));
+                if (match) {
+                    seenIds.add(k.getId());
+                    results.add(k);
+                }
+            }
+        }
+        return results;
+    }
+
+    /**
+     * 判断剪藏内容是否匹配某个关键词。
+     * <p>
+     * 匹配字段：标题、摘要、正文、分析、标签。
+     * </p>
+     *
+     * @param clip 剪藏内容
+     * @param kw   关键词（小写）
+     * @return true 表示匹配
+     */
+    private boolean matchesKeyword(ClipContent clip, String kw) {
+        if (clip.getTitle() != null && clip.getTitle().toLowerCase().contains(kw)) return true;
+        if (clip.getSummary() != null && clip.getSummary().toLowerCase().contains(kw)) return true;
+        if (clip.getContent() != null && clip.getContent().toLowerCase().contains(kw)) return true;
+        if (clip.getAnalysis() != null && clip.getAnalysis().toLowerCase().contains(kw)) return true;
+        if (clip.getTags() != null) {
+            for (String tag : clip.getTags()) {
+                if (tag.toLowerCase().contains(kw)) return true;
+            }
+        }
+        return false;
     }
 }

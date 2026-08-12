@@ -19,6 +19,7 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -134,7 +135,7 @@ public class LearningPlanController {
         if (body.containsKey("level")) existing.setLevel((String) body.get("level"));
         if (body.containsKey("goal")) existing.setGoal((String) body.get("goal"));
         if (body.containsKey("hoursPerWeek")) existing.setHoursPerWeek(toInt(body.get("hoursPerWeek"), existing.getHoursPerWeek()));
-        if (body.containsKey("totalWeeks")) existing.setTotalWeeks(toInt(body.get("totalWeeks"), existing.getTotalWeeks()));
+        if (body.containsKey("totalWeeks")) existing.setTotalWeeks(Objects.toString(body.get("totalWeeks"), existing.getTotalWeeks()));
 
         LearningPlan updated = learningPlanService.updatePlan(existing);
         return ResponseEntity.ok(updated);
@@ -148,8 +149,12 @@ public class LearningPlanController {
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deletePlan(@PathVariable Long id) {
-        learningPlanService.deletePlan(id);
-        return ResponseEntity.noContent().build();
+        try {
+            learningPlanService.deletePlan(id);
+            return ResponseEntity.noContent().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     /**
@@ -230,11 +235,16 @@ public class LearningPlanController {
                 return ResponseEntity.badRequest().body(Map.of("error", "请选择要删除的计划"));
             }
             int count = 0;
+            int skipped = 0;
             for (Number id : ids) {
-                learningPlanService.deletePlan(id.longValue());
-                count++;
+                try {
+                    learningPlanService.deletePlan(id.longValue());
+                    count++;
+                } catch (RuntimeException e) {
+                    skipped++;
+                }
             }
-            return ResponseEntity.ok(Map.of("deleted", count));
+            return ResponseEntity.ok(Map.of("deleted", count, "skipped", skipped));
         } catch (Exception e) {
             log.error("[LearningPlan] batch delete failed", e);
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));

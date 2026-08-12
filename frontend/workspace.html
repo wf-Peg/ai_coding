@@ -213,6 +213,32 @@
     .suggestion-actions .accept-btn:hover { background: var(--ws-accent); color: #fff; }
     .suggestion-actions .ignore-btn:hover { border-color: var(--ws-faint); color: var(--ws-faint); }
     .suggestion-actions .reject-btn:hover { border-color: #e74c3c; color: #e74c3c; }
+
+    /* 规则建议卡片 */
+    .suggestion-card.rule-suggestion { background: color-mix(in srgb, var(--ws-primary-soft) 55%, transparent); border-color: var(--ws-primary); }
+    .suggestion-card.rule-suggestion .suggestion-score .score-value { font-size: 20px; color: var(--ws-primary); }
+
+    /* 建议详情弹窗 */
+    .suggestion-detail-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1000; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; }
+    .suggestion-detail-modal { width: min(520px, 90vw); max-height: 80vh; background: var(--ws-surface); border: 1px solid var(--ws-border); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.18); display: flex; flex-direction: column; }
+    .suggestion-detail-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid var(--ws-border); }
+    .suggestion-detail-header h3 { margin: 0; font-size: 16px; }
+    .suggestion-detail-close { width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--ws-muted); font-size: 18px; cursor: pointer; transition: all .15s; }
+    .suggestion-detail-close:hover { background: var(--ws-subtle); color: var(--ws-text); }
+    .suggestion-detail-body { flex: 1; overflow-y: auto; padding: 18px 22px; }
+    .sd-section { margin-bottom: 14px; }
+    .sd-label { font-size: 11px; color: var(--ws-faint); margin-bottom: 3px; font-weight: 600; }
+    .sd-value { font-size: 13px; color: var(--ws-text); line-height: 1.5; }
+    .suggestion-detail-footer { display: flex; gap: 8px; padding: 14px 22px; border-top: 1px solid var(--ws-border); }
+    .suggestion-detail-footer button { padding: 7px 16px; border: 1px solid var(--ws-border); border-radius: 6px; font-size: 12px; cursor: pointer; background: var(--ws-bg); color: var(--ws-text); transition: all .15s; }
+    .suggestion-detail-footer .accept-btn { border-color: var(--ws-accent); color: var(--ws-accent); }
+    .suggestion-detail-footer .accept-btn:hover { background: var(--ws-accent); color: #fff; }
+    .suggestion-detail-footer .reject-btn:hover { border-color: #e74c3c; color: #e74c3c; }
+    .suggestion-detail-footer .ignore-btn:hover { border-color: var(--ws-faint); color: var(--ws-faint); }
+
+    /* 成功 Toast */
+    .success-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 9999; padding: 10px 20px; border-radius: 8px; font-size: 13px; background: var(--app-success, #27ae60); color: #fff; box-shadow: 0 4px 16px rgba(0,0,0,.15); opacity: 0; transition: opacity .3s ease; pointer-events: none; }
+    .success-toast.show { opacity: 1; }
     .exclusion-card { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); margin-bottom: 10px; background: var(--ws-surface); }
     .exclusion-id { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-family: var(--app-font-mono); color: var(--ws-muted); }
     .exclusion-reason { flex: none; padding: 2px 8px; border-radius: 5px; background: var(--ws-subtle); font-size: 12px; color: var(--ws-muted); }
@@ -299,7 +325,7 @@
     .kanban-add-col { flex: none; width: 56px; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--ws-border); border-radius: var(--app-radius-lg); background: transparent; color: var(--ws-faint); font-size: 24px; cursor: pointer; transition: all .2s ease; min-height: 80px; align-self: flex-start; }
     .kanban-add-col:hover { border-color: var(--ws-primary); color: var(--ws-primary); background: var(--ws-primary-soft); }
 
-    /* ── 产品开发工作区 ── */
+    /* ── 产品概览 ── */
     .product-dev-view { display: none; background: var(--ws-bg); }
     .product-dev-view.visible { display: block; }
     .pd-shell { width: min(1280px, 100%); margin: 0 auto; padding: 28px 32px; }
@@ -375,6 +401,40 @@
     .pd-legend-req { display: inline-block; padding: 1px 6px; border-radius: 4px; background: #2383e2; color: #fff; font-size: 10px; margin: 0 2px; }
     .pd-legend-kn { display: inline-block; padding: 1px 6px; border-radius: 4px; background: #10b981; color: #fff; font-size: 10px; margin: 0 2px; }
     .pd-legend-todo { display: inline-block; padding: 1px 6px; border-radius: 4px; background: #f59e0b; color: #fff; font-size: 10px; margin: 0 2px; }
+
+    /* ── 任务状态列表 ── */
+    .pd-task-list-section { margin-top: 20px; }
+    .pd-task-list-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .pd-task-list-filters { display: flex; gap: 6px; }
+    .pd-task-list-filter { padding: 4px 12px; border: 1px solid var(--ws-border); border-radius: 999px; background: var(--ws-surface); color: var(--ws-text); font-size: 12px; cursor: pointer; transition: all .16s ease; }
+    .pd-task-list-filter:hover { border-color: var(--ws-primary); color: var(--ws-primary); }
+    .pd-task-list-filter.active { background: var(--ws-primary); border-color: var(--ws-primary); color: #fff; }
+    .pd-task-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--ws-border); cursor: pointer; transition: background .12s ease; border-radius: var(--app-radius); }
+    .pd-task-item:hover { background: var(--ws-subtle); }
+    .pd-task-item:last-child { border-bottom: none; }
+    .pd-task-status { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+    .pd-task-status.done { background: #10b981; }
+    .pd-task-status.todo { background: #f59e0b; }
+    .pd-task-status.in-progress { background: #2383e2; }
+    .pd-task-name { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pd-task-meta { flex: none; font-size: 11px; color: var(--ws-faint); white-space: nowrap; }
+    .pd-task-status-badge { flex: none; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; }
+    .pd-task-status-badge.done { background: #d1fae5; color: #065f46; }
+    .pd-task-status-badge.todo { background: #fef3c7; color: #92400e; }
+    .pd-task-status-badge.in-progress { background: #dbeafe; color: #1e40af; }
+
+    /* ── 可点击项 ── */
+    .pd-activity-item { cursor: pointer; transition: background .12s ease; }
+    .pd-activity-item:hover { background: var(--ws-subtle); }
+    .pd-archive-item { cursor: pointer; transition: background .12s ease; }
+    .pd-archive-item:hover { background: var(--ws-subtle); }
+    .pd-archive-title { font-size: 13px; font-weight: 600; }
+    .pd-archive-meta { font-size: 11px; color: var(--ws-faint); margin-top: 2px; display: flex; gap: 8px; align-items: center; }
+    .pd-archive-source { padding: 1px 6px; border-radius: 4px; font-size: 10px; }
+    .pd-archive-source.archive { background: #d1fae5; color: #065f46; }
+    .pd-archive-source.migrate { background: #dbeafe; color: #1e40af; }
+    .pd-archive-source { background: #f3f4f6; color: #6b7280; }
+    .pd-archive-phase-tag { padding: 1px 6px; border-radius: 4px; font-size: 10px; color: #fff; }
     .pd-graph-container { width: 100%; height: 450px; border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-surface); overflow: hidden; position: relative; }
     .pd-graph-tooltip { position: absolute; pointer-events: none; background: var(--ws-surface); border: 1px solid var(--ws-border); border-radius: var(--app-radius); padding: 10px 14px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.12); opacity: 0; transition: opacity .15s ease; z-index: 100; max-width: 260px; line-height: 1.5; }
     .pd-graph-tooltip.visible { opacity: 1; }
@@ -555,6 +615,21 @@
     /* ── Loading spinner button ── */
     .btn-loading { position: relative; pointer-events: none; opacity: .75; }
     .btn-loading::after { content: ''; display: inline-block; width: 14px; height: 14px; margin-left: 6px; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; }
+
+    /* ── 右键菜单 ── */
+    .ws-context-menu { position: fixed; z-index: 9999; min-width: 160px; padding: 4px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-surface); box-shadow: 0 8px 30px rgba(0,0,0,.14); display: none; animation: cmIn .12s ease-out; }
+    .ws-context-menu.show { display: block; }
+    .ws-context-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: 0; border-radius: var(--app-radius-sm); background: transparent; color: var(--ws-text); font-size: 13px; text-align: left; cursor: pointer; transition: background .12s ease; }
+    .ws-context-item:hover { background: var(--ws-subtle); }
+    .ws-context-item .icon { font-size: 15px; width: 18px; text-align: center; flex: none; }
+    .ws-context-item.disabled { opacity: .4; cursor: default; }
+    .ws-context-item.disabled:hover { background: transparent; }
+    @keyframes cmIn { from { opacity: 0; transform: scale(.95) translateY(-4px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+
+    /* ── 设为默认按钮 ── */
+    .default-ws-btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: transparent; color: var(--ws-muted); font-size: 13px; transition: all .16s ease; }
+    .default-ws-btn:hover { border-color: var(--app-success); color: var(--app-success); background: color-mix(in srgb, var(--app-success) 8%, transparent); }
+    .default-ws-btn.is-default { border-color: var(--app-success); background: color-mix(in srgb, var(--app-success) 10%, transparent); color: var(--app-success); cursor: default; }
   </style>
 </head>
 <body>
@@ -584,6 +659,11 @@
       </div>
     </aside>
 
+    <!-- ── 右键菜单 ── -->
+    <div class="ws-context-menu" id="wsContextMenu">
+      <button class="ws-context-item" id="ctxSetDefault" type="button"><span class="icon">&#9733;</span> 设为默认工作台</button>
+    </div>
+
     <!-- ── Main Area ── -->
     <main class="main-area">
 
@@ -595,7 +675,7 @@
               <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="打开侧边栏" title="展开侧边栏">&#9776;</button>
               <div>
                 <p class="eyebrow">Workspace overview</p>
-                <h1>工作台</h1>
+                <h1>全部概览</h1>
                 <p class="subtitle">从一个只读视图浏览已索引的剪藏、知识、待办和学习计划；这里不会修改你的任何内容或项目数据。</p>
               </div>
             </div>
@@ -626,7 +706,7 @@
             <div class="ov-section-header">
               <h2 class="ov-section-title">最近活动</h2>
             </div>
-            <div class="list" id="contentList" aria-live="polite"><div class="empty-state">加载中...</div></div>
+            <div class="list" id="contentList" aria-live="polite"></div>
           </div>
         </div>
       </div>
@@ -723,18 +803,61 @@
         </div>
       </div>
 
-      <!-- ── 产品开发工作区视图 ── -->
+      <!-- 建议详情弹窗 -->
+      <div class="suggestion-detail-overlay" id="suggestionDetailOverlay" style="display:none">
+        <div class="suggestion-detail-modal">
+          <div class="suggestion-detail-header">
+            <h3>建议详情</h3>
+            <button class="suggestion-detail-close" onclick="closeSuggestionDetail()">×</button>
+          </div>
+          <div class="suggestion-detail-body">
+            <div class="sd-section">
+              <div class="sd-label">内容标题</div>
+              <div class="sd-value" id="sdTitle"></div>
+            </div>
+            <div class="sd-section">
+              <div class="sd-label">分类</div>
+              <div class="sd-value" id="sdCategory"></div>
+            </div>
+            <div class="sd-section">
+              <div class="sd-label">标签</div>
+              <div class="sd-value" id="sdTags"></div>
+            </div>
+            <div class="sd-section">
+              <div class="sd-label">内容摘要</div>
+              <div class="sd-value" id="sdSummary"></div>
+            </div>
+            <div class="sd-section">
+              <div class="sd-label">匹配度</div>
+              <div class="sd-value" id="sdScore"></div>
+            </div>
+            <div class="sd-section">
+              <div class="sd-label">匹配原因</div>
+              <div class="sd-value" id="sdReasons"></div>
+            </div>
+          </div>
+          <div class="suggestion-detail-footer">
+            <button class="accept-btn" id="sdAcceptBtn">接受</button>
+            <button class="ignore-btn" id="sdIgnoreBtn">忽略</button>
+            <button class="reject-btn" id="sdRejectBtn">拒绝</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 成功 Toast -->
+      <div class="success-toast" id="successToast"></div>
+
+      <!-- ── 产品概览视图 ── -->
       <div class="product-dev-view" id="productDevView">
         <div class="pd-shell">
           <div class="pd-header">
             <button class="sidebar-toggle" id="pdSidebarToggle" type="button" aria-label="打开侧边栏" title="展开侧边栏">&#9776;</button>
             <div class="pd-header-left">
-              <p class="eyebrow">Product Development</p>
-              <h1>产品开发工作区</h1>
+              <p class="eyebrow">Product Overview</p>
+              <h1>产品概览</h1>
             </div>
             <div class="pd-header-actions">
-              <button class="pd-btn pd-btn-secondary" id="pdHistoryMigrateBtn" type="button" title="将 TODO/ 和 .trae/specs/ 下的历史需求文档迁移到产品开发工作区" data-func-tag="功能:历史迁移">&#128194; 历史迁移</button>
-              <button class="pd-btn pd-btn-primary" id="pdNewRequirementBtn" type="button" data-func-tag="功能:新建需求" title="创建一条新需求并进入需求池">+ 新建需求</button>
+              <span class="pd-header-info" style="font-size:12px;color:var(--ws-muted);">数据来源：TODO/ {需求名称}/feature-points.json</span>
             </div>
           </div>
 
@@ -768,6 +891,19 @@
             <div class="pd-section">
               <div class="pd-section-header">最近活动</div>
               <div class="pd-activity-list" id="pdActivityList"><div class="empty-state">暂无活动记录</div></div>
+            </div>
+
+            <!-- ── 任务状态列表 ── -->
+            <div class="pd-task-list-section">
+              <div class="pd-task-list-header">
+                <span class="pd-section-header" style="margin:0">任务状态</span>
+                <div class="pd-task-list-filters" id="pdTaskFilters">
+                  <button class="pd-task-list-filter active" data-task-filter="all" type="button">全部</button>
+                  <button class="pd-task-list-filter" data-task-filter="done" type="button">已完成</button>
+                  <button class="pd-task-list-filter" data-task-filter="todo" type="button">待完成</button>
+                </div>
+              </div>
+              <div class="pd-task-list" id="pdTaskList"><div class="empty-state">暂无任务数据</div></div>
             </div>
           </div>
 
@@ -1230,6 +1366,26 @@
         });
       }
 
+      function renderRecentActivities(contents) {
+        var el = $('contentList');
+        if (!contents || !contents.length) {
+          el.innerHTML = '<div class="empty-state" style="padding:30px 20px;color:var(--ws-muted);text-align:center">近七天无活动数据</div>';
+          return;
+        }
+        var sorted = contents.slice().sort(function(a, b) {
+          return (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || '');
+        });
+        var items = sorted.slice(0, 8).map(function(c) {
+          var typeLabel = ({ clip: '剪藏', knowledge: '知识', todo: '待办', 'learning-plan': '学习' })[c.type] || c.type || '内容';
+          var dotColor = ({ clip: '#2383e2', knowledge: '#f59e0b', todo: '#10b981', 'learning-plan': '#876de2' })[c.type] || '#888';
+          return '<div style="padding:12px 22px;border-bottom:1px solid var(--ws-border);display:flex;align-items:center;gap:10px">' +
+            '<span style="width:8px;height:8px;border-radius:50%;flex:none;background:' + dotColor + '"></span>' +
+            '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(c.title || '无标题') + ' — ' + typeLabel + '</span>' +
+            '<span style="flex:none;color:var(--ws-faint);font-size:11px;white-space:nowrap">' + escapeHtml(formatDateTime(c.updatedAt || c.createdAt)) + '</span></div>';
+        }).join('');
+        el.innerHTML = items;
+      }
+
       var overviewChartInstances = {};
 
       async function loadOverview() {
@@ -1254,6 +1410,7 @@
           }
           renderOverviewDashboard(dashboardStats);
           renderOverviewCharts(typeDist);
+          renderRecentActivities(data.contents || []);
         } catch (e) {
           if (requestId !== overviewRequestId) return;
           renderOverviewDashboard({ total: 0, clip: 0, knowledge: 0, todo: 0, 'learning-plan': 0 });
@@ -1361,6 +1518,59 @@
         try { window.parent.postMessage({ type: 'workspaceChanged', workspaceId: id }, '*'); } catch(e) {}
       }
 
+      /* ── 右键菜单：设为默认工作台 ── */
+      var ctxMenu = $('wsContextMenu');
+      var ctxTargetWsId = null;
+      // 右键点击工作台列表项显示菜单
+      wsList.addEventListener('contextmenu', function(e) {
+        var btn = e.target.closest('.sidebar-item[data-wsid]');
+        if (!btn) return;
+        e.preventDefault();
+        ctxTargetWsId = btn.dataset.wsid;
+        var ws = workspaces.find(function(w) { return w.id === ctxTargetWsId; });
+        var ctxItem = $('ctxSetDefault');
+        if (ws && ws.isDefault) {
+          ctxItem.classList.add('disabled');
+          ctxItem.textContent = '★ 已是默认工作台';
+          ctxItem.disabled = true;
+        } else {
+          ctxItem.classList.remove('disabled');
+          ctxItem.textContent = '★ 设为默认工作台';
+          ctxItem.disabled = false;
+        }
+        ctxMenu.style.left = e.clientX + 'px';
+        ctxMenu.style.top = e.clientY + 'px';
+        ctxMenu.classList.add('show');
+      });
+      // 点击菜单项
+      $('ctxSetDefault').addEventListener('click', async function() {
+        if (!ctxTargetWsId || this.disabled) return;
+        ctxMenu.classList.remove('show');
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = '⏳ 设置中...';
+        try {
+          var r = await fetch('/api/workspace/' + encodeURIComponent(ctxTargetWsId) + '/set-default', { method: 'PUT' });
+          if (!r.ok) throw new Error('设置失败');
+          await loadWorkspaces();
+          // 如果当前 detail 页正好是同一个工作台，刷新 detail 页头部按钮状态
+          if (activeWsId === ctxTargetWsId) loadDetail();
+        } catch (e) {
+          showDetailError('设置默认工作台失败：' + (e.message || '后端服务不可用'));
+        } finally {
+          btn.disabled = false;
+          btn.textContent = '★ 设为默认工作台';
+          ctxTargetWsId = null;
+        }
+      });
+      // 点击其他地方关闭菜单
+      document.addEventListener('click', function(e) {
+        if (!ctxMenu.contains(e.target)) ctxMenu.classList.remove('show');
+      });
+      document.addEventListener('contextmenu', function(e) {
+        if (!ctxMenu.contains(e.target)) ctxMenu.classList.remove('show');
+      });
+
       /** "全部"（无活动工作台）时隐藏规则/排除 Tab，具体工作台恢复显示 */
       function updateTabVisibility() {
         const isAll = !activeWsId || activeWsId === 'all';
@@ -1405,7 +1615,7 @@
           const ws = workspaces.find(w => w.id === activeWsId);
           if (ws) {
             detailHeader.innerHTML =
-              `<div class="detail-header-left"><i class="detail-color" style="background:${escapeHtml(ws.color || '#2383e2')}"></i><div class="detail-info"><h2>${escapeHtml(ws.name)}</h2><span class="detail-type">${escapeHtml(TYPE_LABELS[ws.type || 'general'] || '通用')}</span>${ws.description ? `<p class="detail-desc">${escapeHtml(ws.description)}</p>` : ''}</div></div><div class="detail-stats" id="detailStats"></div><div class="detail-header-actions"><button class="delete-ws-btn" id="deleteWsBtn" type="button" title="删除工作台">&#128465; 删除</button></div>`;
+              `<div class="detail-header-left"><i class="detail-color" style="background:${escapeHtml(ws.color || '#2383e2')}"></i><div class="detail-info"><h2>${escapeHtml(ws.name)}</h2><span class="detail-type">${escapeHtml(TYPE_LABELS[ws.type || 'general'] || '通用')}</span>${ws.description ? `<p class="detail-desc">${escapeHtml(ws.description)}</p>` : ''}</div></div><div class="detail-stats" id="detailStats"></div><div class="detail-header-actions"><button class="default-ws-btn${ws.isDefault ? ' is-default' : ''}" id="setDefaultWsBtn" type="button" title="${ws.isDefault ? '已是默认工作台' : '设为默认工作台，打开应用时自动进入此工作台'}">${ws.isDefault ? '&#9733; 默认工作台' : '&#9733; 设为默认'}</button><button class="delete-ws-btn" id="deleteWsBtn" type="button" title="删除工作台">&#128465; 删除</button></div>`;
             // Update breadcrumb
             var bc = $('breadcrumbCurrent');
             if (bc) bc.textContent = ws.name;
@@ -1442,6 +1652,25 @@
                 }
               };
               showModal(confirmModal);
+            });
+          }
+          // Bind set default workspace handler
+          const setDefaultBtn = $('setDefaultWsBtn');
+          if (setDefaultBtn && !ws.isDefault) {
+            setDefaultBtn.addEventListener('click', async function() {
+              setDefaultBtn.disabled = true;
+              setDefaultBtn.textContent = '⏳ 设置中...';
+              try {
+                const r = await fetch('/api/workspace/' + encodeURIComponent(activeWsId) + '/set-default', { method: 'PUT' });
+                if (!r.ok) throw new Error('设置失败');
+                await loadWorkspaces();
+                showDetailError('✓ 已设为默认工作台');
+                loadDetail();
+              } catch (e) {
+                showDetailError('设置默认工作台失败：' + (e.message || '后端服务不可用'));
+                setDefaultBtn.disabled = false;
+                setDefaultBtn.innerHTML = '&#9733; 设为默认';
+              }
             });
           }
           const [resData, rulesData, exclusionsData] = await Promise.all([
@@ -2157,37 +2386,80 @@
         if (suggestionBadge.style.display !== 'none') suggestionBadge.textContent = suggestions.length;
         suggestionCount.textContent = suggestions?.length || 0;
         if (!suggestions?.length) {
-          suggestionsList.innerHTML = '<div class="empty-state">暂无候选推荐。继续使用后，系统会根据你的整理习惯生成建议。</div>';
+          suggestionsList.innerHTML = '<div class="empty-state">暂无候选推荐。继续使用内容整理后，系统会根据你的习惯生成建议。</div>';
           return;
         }
         suggestionsList.innerHTML = suggestions.map(s => {
           const reasons = (s.reasons || []).map(r => REASON_LABELS[r] || r).join(', ');
-          return `<div class="suggestion-card" data-id="${escapeHtml(s.id)}">
+          const isRule = s.type === 'rule-suggestion';
+          const title = s.title || s.contentId || '（无标题）';
+          const scoreDisplay = isRule ? '⚙' : Math.round(s.score * 100) + '%';
+          const scoreLabel = isRule ? '规则建议' : '匹配度';
+          return `<div class="suggestion-card${isRule ? ' rule-suggestion' : ''}" data-id="${escapeHtml(s.id)}" onclick="openSuggestionDetail('${escapeHtml(s.id)}')">
             <div class="suggestion-score">
-              <span class="score-value">${Math.round(s.score * 100)}%</span>
-              <span class="score-label">匹配度</span>
+              <span class="score-value">${scoreDisplay}</span>
+              <span class="score-label">${scoreLabel}</span>
             </div>
             <div class="suggestion-info">
-              <div class="suggestion-title">${escapeHtml(s.contentId)}</div>
+              <div class="suggestion-title">${escapeHtml(title)}</div>
               <div class="suggestion-meta">${escapeHtml(reasons)}</div>
               <div class="suggestion-reasons">${(s.reasons || []).map(r => `<span class="suggestion-reason">${REASON_LABELS[r] || r}</span>`).join('')}</div>
             </div>
             <div class="suggestion-actions">
-              <button class="accept-btn" data-id="${escapeHtml(s.id)}" type="button" data-func-tag="功能:接受建议" title="采纳该建议内容">接受</button>
+              <button class="accept-btn" data-id="${escapeHtml(s.id)}" type="button" data-func-tag="功能:接受建议" title="采纳该建议">接受</button>
               <button class="ignore-btn" data-id="${escapeHtml(s.id)}" type="button" data-func-tag="功能:忽略建议" title="忽略该建议">忽略</button>
               <button class="reject-btn" data-id="${escapeHtml(s.id)}" type="button" data-func-tag="功能:拒绝建议" title="拒绝该建议">拒绝</button>
             </div>
           </div>`;
         }).join('');
+        // 阻止卡片点击事件冒泡到操作按钮
+        suggestionsList.querySelectorAll('.suggestion-card .accept-btn, .suggestion-card .ignore-btn, .suggestion-card .reject-btn').forEach(btn => {
+          btn.addEventListener('click', function(e) { e.stopPropagation(); });
+        });
         suggestionsList.querySelectorAll('.accept-btn').forEach(btn => btn.addEventListener('click', () => acceptSuggestion(btn.dataset.id)));
         suggestionsList.querySelectorAll('.ignore-btn').forEach(btn => btn.addEventListener('click', () => ignoreSuggestion(btn.dataset.id)));
         suggestionsList.querySelectorAll('.reject-btn').forEach(btn => btn.addEventListener('click', () => rejectSuggestion(btn.dataset.id)));
+      }
+
+      function showSuccessToast(msg) {
+        const toast = $('successToast');
+        toast.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+      }
+
+      async function openSuggestionDetail(suggestionId) {
+        try {
+          // 先尝试加载详情
+          const r = await fetch(`/api/workspace/suggestions/${encodeURIComponent(suggestionId)}/detail`);
+          if (!r.ok) throw new Error('加载详情失败');
+          const detail = await r.json();
+          // 填充弹窗内容
+          $('sdTitle').textContent = detail.contentTitle || detail.title || '（无标题）';
+          $('sdCategory').textContent = detail.category || '（无分类）';
+          $('sdTags').textContent = detail.tags?.length ? detail.tags.join(', ') : '（无标签）';
+          $('sdSummary').textContent = detail.summary || '（无内容摘要）';
+          $('sdScore').textContent = Math.round(detail.score * 100) + '%';
+          $('sdReasons').innerHTML = (detail.reasons || [])
+            .map(r => `<span class="suggestion-reason">${REASON_LABELS[r] || r}</span>`).join('');
+          // 绑定操作按钮
+          $('sdAcceptBtn').onclick = async function() { closeSuggestionDetail(); await acceptSuggestion(suggestionId); };
+          $('sdIgnoreBtn').onclick = async function() { closeSuggestionDetail(); await ignoreSuggestion(suggestionId); };
+          $('sdRejectBtn').onclick = async function() { closeSuggestionDetail(); await rejectSuggestion(suggestionId); };
+          $('suggestionDetailOverlay').style.display = 'flex';
+        } catch (err) {
+          showDetailError(err.message);
+        }
+      }
+      function closeSuggestionDetail() {
+        $('suggestionDetailOverlay').style.display = 'none';
       }
 
       async function acceptSuggestion(suggestionId) {
         try {
           const r = await fetch(`/api/workspace/suggestions/${encodeURIComponent(suggestionId)}/accept`, { method: 'PUT' });
           if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.error || '接受失败'); }
+          showSuccessToast('✓ 已接受建议');
           if (activeWsId) { loadSuggestions(activeWsId); loadDetail(); }
         } catch (err) { showDetailError(err.message); }
       }
@@ -2196,6 +2468,7 @@
         try {
           const r = await fetch(`/api/workspace/suggestions/${encodeURIComponent(suggestionId)}/ignore`, { method: 'PUT' });
           if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.error || '忽略失败'); }
+          showSuccessToast('已忽略建议');
           if (activeWsId) loadSuggestions(activeWsId);
         } catch (err) { showDetailError(err.message); }
       }
@@ -2204,6 +2477,7 @@
         try {
           const r = await fetch(`/api/workspace/suggestions/${encodeURIComponent(suggestionId)}/reject`, { method: 'PUT' });
           if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.error || '拒绝失败'); }
+          showSuccessToast('已拒绝建议');
           if (activeWsId) loadSuggestions(activeWsId);
         } catch (err) { showDetailError(err.message); }
       }
@@ -2609,7 +2883,7 @@
         });
       }
 
-      /* ── 产品开发工作区 ── */
+      /* ── 产品概览 ── */
       document.querySelectorAll('.pd-tab').forEach(function(tab) {
         tab.addEventListener('click', function() {
           document.querySelectorAll('.pd-tab').forEach(function(t) { t.classList.remove('active'); });
@@ -2655,75 +2929,185 @@
         Object.values(pdChartInstances).forEach(function(c) { if (c) c.destroy(); });
         pdChartInstances = {};
         try {
-          // MVP 数据源：复用 workspace 规则系统（pd-builtin 内置工作台）
-          const r = await fetch('/api/workspace/pd-builtin/resolution');
+          // 数据源：FeaturePointsService 读取 TODO/{需求名称}/feature-points.json
+          const r = await fetch('/api/workspace/feature-points');
           if (!r.ok) {
             var errBody = await r.json().catch(function() { return {}; });
-            throw new Error(errBody.error || '工作台解析失败');
+            throw new Error(errBody.error || '产品概览数据获取失败');
           }
-          const res = await r.json();
-          const contents = res.contents || [];
+          const data = await r.json();
+          const projects = data.projects || [];
+          const totalFp = data.totalFeaturePoints || 0;
+          const totalKp = data.totalKnowledgePoints || 0;
+          const totalProj = data.totalProjects || 0;
 
-          // 标签筛选：对解析结果本地过滤
-          const filtered = activePdTag
-            ? contents.filter(function(c) { return (c.tags || []).indexOf(activePdTag) >= 0; })
-            : contents;
-
-          // 标签集合（用于筛选条）
-          const tagSet = {};
-          contents.forEach(function(c) { (c.tags || []).forEach(function(t) { if (t) tagSet[t] = 1; }); });
-          renderPdTagFilter(Object.keys(tagSet).sort());
-
-          // 统计卡片（基于 WorkspaceResolution 解析结果）
-          const clips = filtered.filter(function(c) { return c.type === 'clip'; });
-          const todos = filtered.filter(function(c) { return c.type === 'todo'; });
-          renderPdDashboard({
-            total: filtered.length,
-            requirements: clips.length,
-            done: todos.filter(function(t) { return t.source === 'rule'; }).length,
-            knowledge: 0,
-            todos: todos.length,
-            archived: 0
+          // 缓存所有 feature point 供详情弹窗使用
+          pdRequirementsCache = {};
+          projects.forEach(function(proj) {
+            (proj.featurePoints || []).forEach(function(fp) {
+              pdRequirementsCache[fp.id] = {
+                id: fp.id,
+                title: fp.name,
+                description: fp.description,
+                tags: fp.tags || [],
+                phase: proj.requirement && proj.requirement.phase ? proj.requirement.phase : 'analysis',
+                status: 'done',
+                createdAt: proj.requirement && proj.requirement.createdAt ? proj.requirement.createdAt : '',
+                updatedAt: '',
+                source: 'archive',
+                projectName: proj.dirName
+              };
+            });
+            (proj.knowledgePoints || []).forEach(function(kp) {
+              pdRequirementsCache['kp_' + kp.title] = {
+                id: 'kp_' + kp.title,
+                title: kp.title,
+                description: kp.content,
+                tags: kp.tags || [],
+                phase: 'completed',
+                status: 'done',
+                createdAt: proj.requirement && proj.requirement.createdAt ? proj.requirement.createdAt : '',
+                updatedAt: '',
+                source: 'archive',
+                projectName: proj.dirName
+              };
+            });
           });
 
-          // 图表（MVP 简化：仅待办完成率有数据，阶段/知识趋势二期）
-          renderPdCharts([], { completed: 0, total: Math.max(todos.length, 1) }, []);
+          // 标签筛选：收集所有项目中的 feature point 和 knowledge point 标签
+          const tagSet = {};
+          projects.forEach(function(proj) {
+            (proj.featurePoints || []).forEach(function(fp) {
+              (fp.tags || []).forEach(function(t) { if (t) tagSet[t] = 1; });
+            });
+            (proj.knowledgePoints || []).forEach(function(kp) {
+              (kp.tags || []).forEach(function(t) { if (t) tagSet[t] = 1; });
+            });
+          });
+          renderPdTagFilter(Object.keys(tagSet).sort());
 
-          // 最近活动（从解析结果推导）
-          renderPdActivities(filtered.slice(0, 8).map(function(c) {
-            return { action: 'created', title: c.title || '', description: c.type === 'clip' ? '剪藏' : '待办', time: c.createdAt || '' };
-          }));
+          // 本地标签过滤：筛选匹配标签的项目
+          var filteredProjects = activePdTag
+            ? projects.filter(function(proj) {
+                var hasTag = false;
+                (proj.featurePoints || []).forEach(function(fp) {
+                  if ((fp.tags || []).indexOf(activePdTag) >= 0) hasTag = true;
+                });
+                (proj.knowledgePoints || []).forEach(function(kp) {
+                  if ((kp.tags || []).indexOf(activePdTag) >= 0) hasTag = true;
+                });
+                return hasTag;
+              })
+            : projects;
 
-          // 看板（按类型分组展示）
-          renderPdKanban(filtered);
+          // 统计卡片
+          var filteredFp = 0;
+          var filteredKp = 0;
+          filteredProjects.forEach(function(proj) {
+            filteredFp += (proj.featurePoints || []).length;
+            filteredKp += (proj.knowledgePoints || []).length;
+          });
+          renderPdDashboard({
+            total: filteredProjects.length,
+            totalProj: filteredProjects.length,
+            totalFp: filteredFp,
+            totalKp: filteredKp,
+            reqCompleted: filteredProjects.filter(function(p) {
+              return p.requirement && p.requirement.phase === 'completed';
+            }).length,
+            reqDesign: filteredProjects.filter(function(p) {
+              return p.requirement && (p.requirement.phase === 'design' || p.requirement.phase === 'analysis');
+            }).length
+          });
+
+          // 图表：聚合所有项目的阶段分布
+          var phaseDist = {};
+          var taskStatusDist = {};
+          var allTasks = [];
+          filteredProjects.forEach(function(proj) {
+            // 按 requirement.phase 统计项目阶段
+            var phase = proj.requirement && proj.requirement.phase ? proj.requirement.phase : 'unknown';
+            phaseDist[phase] = (phaseDist[phase] || 0) + 1;
+            // 按 task 状态统计
+            (proj.featurePoints || []).forEach(function(fp) {
+              (fp.tasks || []).forEach(function(task) {
+                var s = task.status || 'todo';
+                taskStatusDist[s] = (taskStatusDist[s] || 0) + 1;
+                allTasks.push({
+                  title: task.title,
+                  status: task.status || 'todo',
+                  fpName: fp.name,
+                  fpId: fp.id,
+                  projectName: proj.dirName
+                });
+              });
+            });
+          });
+          var phaseDistArray = Object.keys(phaseDist).map(function(k) {
+            return { phase: k, count: phaseDist[k] };
+          });
+          var taskDone = taskStatusDist['done'] || 0;
+          var taskTotal = (taskStatusDist['done'] || 0) + (taskStatusDist['todo'] || 0) + (taskStatusDist['in-progress'] || 0) + (taskStatusDist['pending'] || 0);
+          renderPdCharts(phaseDistArray, { completed: taskDone, total: Math.max(taskTotal, 1) }, []);
+
+          // 渲染任务状态列表
+          renderPdTaskList(allTasks);
+
+          // 最近活动：展示最新 feature point
+          var allFps = [];
+          filteredProjects.forEach(function(proj) {
+            (proj.featurePoints || []).forEach(function(fp) {
+              allFps.push({
+                action: 'archived',
+                title: fp.name,
+                description: proj.dirName,
+                fpId: fp.id,
+                time: proj.requirement && proj.requirement.completedAt ? proj.requirement.completedAt : ''
+              });
+            });
+          });
+          allFps.sort(function(a, b) { return (b.time || '').localeCompare(a.time || ''); });
+          renderPdActivities(allFps.slice(0, 8));
+
+          // 看板：按项目分组展示 feature points
+          renderPdKanban(filteredProjects);
 
           // 二期功能：知识图谱 / 甘特图隐藏，空数据占位
           renderPdGraph({ nodes: [], edges: [] });
           renderPdTimeline([]);
 
-          // 归档列表（展示当前工作台解析到的内容）
-          renderPdArchives(filtered.map(function(c) {
-            return { type: c.type, title: c.title || '', source: c.source === 'rule' ? 'archive' : 'manual', createdAt: c.createdAt || '' };
+          // 归档列表：展示所有项目（含 fpCount / phase / firstFpId）
+          renderPdArchives(filteredProjects.map(function(proj) {
+            var fps = proj.featurePoints || [];
+            var firstFp = fps.length > 0 ? fps[0] : null;
+            return {
+              type: 'requirement',
+              title: proj.requirement && proj.requirement.title ? proj.requirement.title : proj.dirName,
+              source: 'migrate',
+              phase: proj.requirement && proj.requirement.phase ? proj.requirement.phase : 'completed',
+              createdAt: proj.requirement && proj.requirement.createdAt ? proj.requirement.createdAt : '',
+              fpCount: fps.length,
+              firstFpId: firstFp ? firstFp.id : ''
+            };
           }));
         } catch (e) {
-          console.error('产品开发工作区加载失败:', e);
+          console.error('产品概览加载失败:', e);
           $('pdDashboardCards').innerHTML = '<div class="state" style="grid-column:1/-1"><div class="state-inner"><div class="state-icon">!</div><h3>加载失败</h3><p>' + escapeHtml(e.message || '后端服务不可用') + '</p></div></div>';
         }
       }
 
       function renderPdDashboard(stats) {
         var el = $('pdDashboardCards');
-        if (!stats || !stats.total && stats.total !== 0) {
-          el.innerHTML = '<div class="state" style="grid-column:1/-1;min-height:100px"><div class="state-inner"><h3>暂无数据</h3><p>开始使用产品开发工作区后，数据将在此展示。</p></div></div>';
+        if (!stats || (!stats.totalProj && stats.totalProj !== 0)) {
+          el.innerHTML = '<div class="state" style="grid-column:1/-1;min-height:100px"><div class="state-inner"><h3>暂无数据</h3><p>暂无产品概览数据，Agent 归档后将自动生成。</p></div></div>';
           return;
         }
         var cards = [
-          { value: stats.total || 0, label: '总记录数', sub: '全部类型' },
-          { value: stats.requirements || 0, label: '需求数', sub: stats.inProgress ? '进行中: ' + (stats.inProgress || 0) : '' },
-          { value: stats.done || 0, label: '已完成', sub: '含归档需求' },
-          { value: stats.knowledge || 0, label: '相关知识', sub: '积累知识条目' },
-          { value: stats.todos || 0, label: '关联待办', sub: '待办事项' },
-          { value: stats.archived || 0, label: '已归档', sub: '归档记录' }
+          { value: stats.totalProj || 0, label: '需求项目数', sub: '归档需求项目' },
+          { value: stats.totalFp || 0, label: '功能点', sub: 'Feature Points' },
+          { value: stats.totalKp || 0, label: '知识积累', sub: 'Knowledge Points' },
+          { value: stats.reqCompleted || 0, label: '已完成', sub: '开发完成' },
+          { value: stats.reqDesign || 0, label: '设计中', sub: '分析/设计阶段' }
         ];
         el.innerHTML = cards.map(function(c) {
           return '<div class="pd-dash-card"><div class="pd-dash-card-value">' + c.value + '</div><div class="pd-dash-card-label">' + escapeHtml(c.label) + '</div>' + (c.sub ? '<div class="pd-dash-card-sub">' + escapeHtml(c.sub) + '</div>' : '') + '</div>';
@@ -2783,6 +3167,52 @@
         });
       }
 
+      function renderPdTaskList(tasks) {
+        var el = $('pdTaskList');
+        if (!tasks || !tasks.length) {
+          el.innerHTML = '<div class="empty-state">暂无任务数据</div>';
+          return;
+        }
+        // 按功能点分组
+        var grouped = {};
+        tasks.forEach(function(t) {
+          var key = t.fpId || t.projectName || 'other';
+          if (!grouped[key]) grouped[key] = { fpName: t.fpName, projectName: t.projectName, fpId: t.fpId, items: [] };
+          grouped[key].items.push(t);
+        });
+        var activeFilter = document.querySelector('.pd-task-list-filter.active');
+        var filterValue = activeFilter ? activeFilter.dataset.taskFilter : 'all';
+        var groupKeys = Object.keys(grouped);
+        var totalDisplay = 0;
+        var html = groupKeys.map(function(key) {
+          var g = grouped[key];
+          var filtered = g.items.filter(function(t) {
+            if (filterValue === 'all') return true;
+            return t.status === filterValue;
+          });
+          if (!filtered.length) return '';
+          totalDisplay += filtered.length;
+          var itemsHtml = filtered.map(function(t) {
+            var statusLabel = t.status === 'done' ? '已完成' : t.status === 'in-progress' ? '进行中' : '待完成';
+            var statusClass = t.status === 'done' ? 'done' : t.status === 'in-progress' ? 'in-progress' : 'todo';
+            return '<div class="pd-task-item" data-req-id="' + escapeHtml(t.fpId || '') + '"><span class="pd-task-status ' + statusClass + '"></span><span class="pd-task-name">' + escapeHtml(t.title) + '</span><span class="pd-task-meta">' + escapeHtml(g.fpName || '') + '</span><span class="pd-task-status-badge ' + statusClass + '">' + statusLabel + '</span></div>';
+          }).join('');
+          return '<div style="margin-bottom:4px;font-size:11px;color:var(--ws-faint);padding:2px 14px">' + escapeHtml(g.projectName || '') + '</div>' + itemsHtml;
+        }).join('');
+        if (!totalDisplay) {
+          el.innerHTML = '<div class="empty-state">暂无匹配的任务</div>';
+          return;
+        }
+        el.innerHTML = html;
+        // 任务项点击查看详情
+        el.querySelectorAll('.pd-task-item').forEach(function(item) {
+          item.addEventListener('click', function() {
+            var reqId = this.getAttribute('data-req-id');
+            if (reqId) showPdRequirementDetail(reqId);
+          });
+        });
+      }
+
       function renderPdActivities(activities) {
         var el = $('pdActivityList');
         if (!activities || !activities.length) {
@@ -2792,35 +3222,39 @@
         var dotColors = { archived: '#10b981', created: '#2383e2', migrated: '#f59e0b', completed: '#876de2' };
         el.innerHTML = activities.slice(0, 8).map(function(a) {
           var dot = dotColors[a.action] || '#2383e2';
-          return '<div class="pd-activity-item"><span class="pd-activity-dot" style="background:' + dot + '"></span><span class="pd-activity-text">' + escapeHtml(a.title || '') + ' — ' + escapeHtml(a.description || '') + '</span><span class="pd-activity-time">' + escapeHtml(formatDateTime(a.time || a.createdAt)) + '</span></div>';
+          return '<div class="pd-activity-item" data-req-id="' + escapeHtml(a.fpId || '') + '"><span class="pd-activity-dot" style="background:' + dot + '"></span><span class="pd-activity-text">' + escapeHtml(a.title || '') + ' — ' + escapeHtml(a.description || '') + '</span><span class="pd-activity-time">' + escapeHtml(formatDateTime(a.time || a.createdAt)) + '</span></div>';
         }).join('');
+        // 活动项点击查看详情
+        el.querySelectorAll('.pd-activity-item').forEach(function(item) {
+          item.addEventListener('click', function() {
+            var reqId = this.getAttribute('data-req-id');
+            if (reqId) showPdRequirementDetail(reqId);
+          });
+        });
       }
 
-      function renderPdKanban(contents) {
+      function renderPdKanban(projects) {
         var el = $('pdKanbanBoard');
-        // MVP：contents 为 WorkspaceResolution 解析结果（{type, title, tags, category, ...}）
-        // 按类型分组展示：剪藏 / 待办
-        var clips = (contents || []).filter(function(c) { return c.type === 'clip'; });
-        var todos = (contents || []).filter(function(c) { return c.type === 'todo'; });
-        if (!clips.length && !todos.length) {
+        // projects 为 FeaturePointsService 返回的项目列表，每个项目包含 featurePoints
+        if (!projects || !projects.length) {
           el.innerHTML = '<div class="empty-state" style="width:100%;padding:50px 20px">暂无数据，Agent 归档后将自动展示。</div>';
           return;
         }
         var searchQ = ($('pdKanbanSearch')?.value || '').trim().toLowerCase();
-        var groups = [
-          { key: 'clip', label: '剪藏', color: '#2383e2', items: clips },
-          { key: 'todo', label: '待办', color: '#f59e0b', items: todos }
-        ];
-        el.innerHTML = groups.map(function(g) {
-          var items = (g.items || []).filter(function(item) {
+        // 项目颜色数组
+        var projColors = ['#2383e2', '#876de2', '#f59e0b', '#10b981', '#e74c3c', '#6b7280'];
+        el.innerHTML = projects.map(function(proj, idx) {
+          var color = projColors[idx % projColors.length];
+          var fps = (proj.featurePoints || []).filter(function(fp) {
             if (!searchQ) return true;
-            return (item.title && item.title.toLowerCase().includes(searchQ)) ||
-                   (item.tags || []).some(function(t) { return t.toLowerCase().includes(searchQ); });
+            return (fp.name && fp.name.toLowerCase().includes(searchQ)) ||
+                   (fp.tags || []).some(function(t) { return t.toLowerCase().includes(searchQ); });
           });
-          return '<div class="pd-kanban-col"><div class="pd-kanban-col-header"><h3 style="color:' + g.color + '">' + g.label + '</h3><span class="pd-kanban-col-count">' + items.length + '</span></div><div class="pd-kanban-col-body" data-phase="' + g.key + '">' +
-            (items.length ? items.map(function(item) {
-              var tags = (item.tags || []).map(function(t) { return '<span class="pd-tag">' + escapeHtml(t) + '</span>'; }).join('');
-              return '<div class="pd-kanban-card" data-req-id="' + escapeHtml(item.id) + '" data-phase="' + g.key + '"><div class="pd-kanban-card-title">' + escapeHtml(item.title || '无标题') + '</div><div class="pd-kanban-card-meta">' + tags + (item.category ? '<span>' + escapeHtml(item.category) + '</span>' : '') + '</div></div>';
+          return '<div class="pd-kanban-col"><div class="pd-kanban-col-header"><h3 style="color:' + color + '">' + escapeHtml(proj.dirName) + '</h3><span class="pd-kanban-col-count">' + fps.length + '</span></div><div class="pd-kanban-col-body" data-phase="' + escapeHtml(proj.dirName) + '">' +
+            (fps.length ? fps.map(function(fp) {
+              var tags = (fp.tags || []).map(function(t) { return '<span class="pd-tag">' + escapeHtml(t) + '</span>'; }).join('');
+              var layerLabel = fp.layer === 'backend' ? '后端' : fp.layer === 'frontend' ? '前端' : fp.layer || '';
+              return '<div class="pd-kanban-card" data-req-id="' + escapeHtml(fp.id) + '" data-phase="' + escapeHtml(proj.dirName) + '"><div class="pd-kanban-card-title">' + escapeHtml(fp.name) + '</div><div class="pd-kanban-card-meta">' + tags + (layerLabel ? '<span>' + layerLabel + '</span>' : '') + '</div></div>';
             }).join('') : '<div class="empty-state" style="padding:20px 10px;font-size:12px">暂无内容</div>') +
             '</div></div>';
         }).join('');
@@ -2903,6 +3337,11 @@
 
         $('pdReqModalTitle').textContent = item.title || '需求详情';
         $('pdReqModalBody').innerHTML =
+          '<div class="pd-req-detail-section">' +
+            '<div class="pd-req-detail-label">所属项目</div>' +
+            '<div class="pd-req-detail-value" style="font-weight:600">' + escapeHtml(item.projectName || '') + '</div>' +
+          '</div>' +
+          '<div class="pd-req-detail-divider"></div>' +
           '<div class="pd-req-detail-section">' +
             '<div class="pd-req-detail-label">阶段</div>' +
             '<div class="pd-req-detail-phase-badge" style="background:' + phaseColor + '">' + escapeHtml(phaseLabel) + '</div>' +
@@ -3315,19 +3754,43 @@
           el.innerHTML = '<div class="empty-state">暂无归档记录</div>';
           return;
         }
+        var phaseColors = { analysis: '#2383e2', design: '#876de2', implementation: '#f59e0b', testing: '#e74c3c', completed: '#10b981' };
+        var phaseLabels = { analysis: '需求分析', design: '设计', implementation: '实现', testing: '测试', completed: '已完成' };
         el.innerHTML = archives.map(function(a) {
           var sourceLabel = a.source === 'archive' ? '自动归档' : a.source === 'migrate' ? '历史迁移' : '手动创建';
           var sourceClass = a.source === 'archive' ? 'archive' : a.source === 'migrate' ? 'migrate' : '';
-          return '<div class="pd-archive-item"><span class="pd-archive-icon">' + (a.type === 'requirement' ? '&#128196;' : a.type === 'knowledge' ? '&#128214;' : a.type === 'todo' ? '&#9745;' : '&#128451;') + '</span>' +
+          var phaseColor = phaseColors[a.phase] || '#6b7280';
+          var phaseLabel = phaseLabels[a.phase] || a.phase || '';
+          var fpCount = a.fpCount ? ' (' + a.fpCount + ' 功能点)' : '';
+          return '<div class="pd-archive-item" data-req-id="' + escapeHtml(a.firstFpId || '') + '"><span class="pd-archive-icon">' + (a.type === 'requirement' ? '&#128196;' : a.type === 'knowledge' ? '&#128214;' : a.type === 'todo' ? '&#9745;' : '&#128451;') + '</span>' +
             '<div class="pd-archive-info"><div class="pd-archive-title">' + escapeHtml(a.title || '') + '</div>' +
-            '<div class="pd-archive-meta">' + escapeHtml(formatDateTime(a.createdAt)) + '<span class="pd-archive-source ' + sourceClass + '">' + sourceLabel + '</span></div></div></div>';
+            '<div class="pd-archive-meta">' + escapeHtml(formatDateTime(a.createdAt)) + (phaseLabel ? '<span class="pd-archive-phase-tag" style="background:' + phaseColor + '">' + phaseLabel + '</span>' : '') + '<span class="pd-archive-source ' + sourceClass + '">' + sourceLabel + '</span>' + escapeHtml(fpCount) + '</div></div></div>';
         }).join('');
+        // 归档项点击查看详情
+        el.querySelectorAll('.pd-archive-item').forEach(function(item) {
+          item.addEventListener('click', function() {
+            var reqId = this.getAttribute('data-req-id');
+            if (reqId) showPdRequirementDetail(reqId);
+          });
+        });
       }
 
       // 需求看板搜索（本地过滤解析结果）
       var pdKanbanSearch = $('pdKanbanSearch');
       if (pdKanbanSearch) {
         pdKanbanSearch.addEventListener('input', function() {
+          loadProductDev();
+        });
+      }
+
+      // 任务列表筛选按钮
+      var pdTaskFilters = $('pdTaskFilters');
+      if (pdTaskFilters) {
+        pdTaskFilters.addEventListener('click', function(e) {
+          var btn = e.target.closest && e.target.closest('.pd-task-list-filter');
+          if (!btn) return;
+          pdTaskFilters.querySelectorAll('.pd-task-list-filter').forEach(function(b) { b.classList.remove('active'); });
+          btn.classList.add('active');
           loadProductDev();
         });
       }
@@ -3369,26 +3832,6 @@
           alert('MVP 阶段需求由 Agent 完成编码任务后自动归档产生。如需手工录入，请在剪藏/待办模块创建并打上 product-dev 标签。');
         });
       }
-
-      /* ── 功能按钮点击埋点 ── */
-      function trackFunctionClick(btn) {
-        var tag = btn.dataset.funcTag;
-        if (!tag) return;
-        fetch('/api/data/action-events', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tag: tag,
-            label: btn.dataset.funcLabel || tag,
-            buttonId: btn.id || btn.className || '',
-            page: 'workspace'
-          })
-        }).catch(function() {});
-      }
-      document.addEventListener('click', function(e) {
-        var btn = e.target.closest && e.target.closest('[data-func-tag]');
-        if (btn) trackFunctionClick(btn);
-      });
 
       /* ── Init ── */
       (async function init() {

@@ -8,6 +8,7 @@ import com.example.clip.index.ProjectIndexService;
 import com.example.clip.index.Workspace;
 import com.example.clip.index.WorkspaceIndexService;
 import com.example.clip.index.WorkspaceRule;
+import com.example.clip.service.FeaturePointsService;
 import com.example.clip.service.AppConfigService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -122,6 +123,66 @@ class WorkspaceControllerTest {
     }
 
     @Test
+    void overviewWithWorkspaceIdReturnsContentStats() {
+        Path indexDir = tempDir.resolve("index");
+        LocalDateTime now = LocalDateTime.now();
+        ContentIndexService contentIndex = new ContentIndexService(indexDir.resolve("content-index.json"));
+        contentIndex.rebuild(List.of(
+                new ContentRef("clip:1", "clip", "1", "需求", "产品", List.of("product-dev"), "clips/1.json", now, now, "body"),
+                new ContentRef("todo:1", "todo", "1", "买咖啡", "生活", List.of("life"), "todos/1.json", now, now, "body"),
+                new ContentRef("knowledge:1", "knowledge", "1", "架构", "技术", List.of("arch"), "knowledge/1.json", now, now, "body")
+        ));
+        WorkspaceIndexService indexService = new WorkspaceIndexService(indexDir);
+        indexService.saveWorkspace(new Workspace("ws-1", "工作台", "", "#fff", "general", "active", false, false, 0, now, now));
+        // 建一条规则匹配所有内容
+        controller().createRule("ws-1", new WorkspaceController.RuleRequest("type", "in", "clip,todo,knowledge", true, null, null));
+
+        var response = controller().overview("ws-1", null, "");
+
+        assertEquals(200, response.getStatusCode().value());
+        Map<String, Object> body = response.getBody();
+        assertNotNull(body);
+        assertTrue((Boolean) body.get("scoped"));
+        assertEquals("ws-1", body.get("workspaceId"));
+        // 内容维度统计
+        @SuppressWarnings("unchecked")
+        Map<String, Object> summary = (Map<String, Object>) body.get("workspaceSummary");
+        assertNotNull(summary);
+        assertEquals(3, summary.get("total"));
+        // typeDistribution: clip=1, todo=1, knowledge=1
+        @SuppressWarnings("unchecked")
+        Map<String, Long> typeDist = (Map<String, Long>) summary.get("typeDistribution");
+        assertNotNull(typeDist);
+        assertEquals(1L, typeDist.get("clip"));
+        assertEquals(1L, typeDist.get("todo"));
+        assertEquals(1L, typeDist.get("knowledge"));
+        // sourceDistribution: 规则命中，来源应为 rule
+        @SuppressWarnings("unchecked")
+        Map<String, Long> sourceDist = (Map<String, Long>) summary.get("sourceDistribution");
+        assertNotNull(sourceDist);
+        assertEquals(3L, sourceDist.get("rule"));
+        assertEquals(3, summary.get("ruleMatched"));
+    }
+
+    @Test
+    void fieldValuesIncludesWorkspaceIds() {
+        Path indexDir = tempDir.resolve("index");
+        LocalDateTime now = LocalDateTime.now();
+        WorkspaceIndexService indexService = new WorkspaceIndexService(indexDir);
+        indexService.saveWorkspace(new Workspace("ws-1", "工作台A", "", "#fff", "general", "active", false, false, 0, now, now));
+        indexService.saveWorkspace(new Workspace("ws-2", "工作台B", "", "#000", "general", "active", false, false, 0, now, now));
+
+        var response = controller().fieldValues();
+
+        assertEquals(200, response.getStatusCode().value());
+        Map<String, List<String>> body = response.getBody();
+        assertNotNull(body);
+        assertTrue(body.containsKey("workspace"));
+        assertTrue(body.get("workspace").contains("ws-1"));
+        assertTrue(body.get("workspace").contains("ws-2"));
+    }
+
+    @Test
     void overviewReportsServiceUnavailableWhenContentIndexCannotBeRead() throws Exception {
         Path indexDir = tempDir.resolve("index");
         Files.createDirectories(indexDir);
@@ -135,8 +196,9 @@ class WorkspaceControllerTest {
 
     private WorkspaceController controller() {
         AppConfigService configService = mock(AppConfigService.class);
+        FeaturePointsService fpService = mock(FeaturePointsService.class);
         when(configService.getConfigDirPath()).thenReturn(tempDir.toString());
-        return new WorkspaceController(configService);
+        return new WorkspaceController(configService, fpService);
     }
 
     @SuppressWarnings("unchecked")

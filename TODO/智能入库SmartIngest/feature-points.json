@@ -1,0 +1,280 @@
+{
+  "version": "2.0",
+  "requirement": {
+    "title": "智能入库SmartIngest",
+    "summary": "智能入库功能——用户粘贴任意文本，系统自动识别意图（剪藏/待办/话题）并提取结构化字段后路由入库。涵盖双AI路径架构（后端/api/ingest + Skill Agent路径）、意图识别与字段提取规则、默认流程与例外流程区分、后端统一入库接口、浏览器插件集成、前端clip.html入口、代码审查缺陷修复，以及与话题模块的打通。",
+    "tags": ["product-dev", "smart-ingest", "clip", "todo", "topic"],
+    "phase": "in_progress",
+    "createdAt": "2026-08-12T00:00:00",
+    "completedAt": null
+  },
+  "featurePoints": [
+    {
+      "id": "fp-001",
+      "name": "双AI路径架构设计",
+      "description": "系统设计两条等价的AI处理路径：Agent路径（用户粘贴文本→Skill AI意图识别+字段提取→curl调用后端已有接口入库）和代码路径（浏览器插件/前端→POST /api/ingest→后端IngestController AI处理→路由入库）。两条路径内部逻辑等价，区别是AI计算在Agent侧还是后端侧。",
+      "layer": "architecture",
+      "tags": ["product-dev", "smart-ingest", "architecture"],
+      "designSections": ["架构", "Step 1: 创建 Skill 文件", "架构总览"],
+      "tasks": [
+        { "title": "设计双AI路径架构方案", "status": "done" },
+        { "title": "确定Agent路径：Skill→curl→已有接口", "status": "done" },
+        { "title": "确定代码路径：POST /api/ingest→后端AI→路由入库", "status": "done" },
+        { "title": "确保两条路径逻辑等价，分类规则同步", "status": "done" }
+      ],
+      "verifications": [
+        "Agent路径：用户粘贴文本→Skill意图识别→curl调用后端接口→入库成功",
+        "代码路径：POST /api/ingest {text}→后端AI识别→路由入库→返回 {success, intent, id, title}",
+        "两条路径对同一文本的意图识别结果一致",
+        "SKILL.md 顶部注释提醒与后端 AiService.identifyIntent 保持同步"
+      ]
+    },
+    {
+      "id": "fp-002",
+      "name": "意图识别与字段提取规则",
+      "description": "定义三种意图分类规则（clip/todo/topic）及对应的结构化字段提取。意图规则同时写在 AiService.java 的 systemPrompt 和 SKILL.md 中。clip=长文/报告/URL无明确行动项；todo=deadline/优先级/行动项；topic=分享推荐/观点讨论。字段提取按意图映射到对应后端API参数，无法确定的字段用null/空字符串降级。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "smart-ingest", "ai"],
+      "designSections": ["意图识别规则", "字段提取", "Step 2: 后端新增 IngestController"],
+      "tasks": [
+        { "title": "AiService.java 新增 identifyIntent 方法（systemPrompt定义三类意图）", "status": "done" },
+        { "title": "AiService.java 新增 extractFields 方法（按意图提取结构化字段）", "status": "done" },
+        { "title": "SKILL.md 定义意图识别规则（clip/todo/topic特征+示例）", "status": "done" },
+        { "title": "SKILL.md 定义字段提取映射（clip→title/content/summary等；todo→title/priority/deadline等；topic→title/summary/content等）", "status": "done" },
+        { "title": "getString() 方法增加空字符串trim降级处理（LLM返回空串时用defaultValue）", "status": "done" }
+      ],
+      "verifications": [
+        "意图识别能正确区分 clip/todo/topic 三种类型",
+        "字段提取按意图映射到正确的后端API参数",
+        "LLM返回空字符串或null时，getString()正确降级为defaultValue",
+        "意图模糊时降级为clip store-only",
+        "字段提取失败时原文前30字作title"
+      ]
+    },
+    {
+      "id": "fp-003",
+      "name": "默认流程与例外流程区分",
+      "description": "SKILL.md 中明确区分默认流程与例外流程。默认流程：Agent接收用户文本→做意图识别+字段提取→按识别的意图调用对应接口。例外流程：用户明确指定类型关键词时，Agent跳过意图识别，直接按指定类型走对应接口。关键词映射：\"智能剪藏/智能入库\"→POST /api/ingest；\"添加剪藏/剪藏入库\"→POST /api/clip/add；\"添加待办/创建待办\"→POST /api/todo/add；\"剪藏到话题/添加话题\"→POST /api/topic。",
+      "layer": "skill",
+      "tags": ["product-dev", "smart-ingest", "skill"],
+      "designSections": ["默认 vs 例外流程定义", "修改方案", "新增\"流程决策树\"章节"],
+      "tasks": [
+        { "title": "SKILL.md 新增\"流程决策树\"章节", "status": "done" },
+        { "title": "SKILL.md 新增\"强制类型关键词识别\"章节（含关键词→接口映射表）", "status": "done" },
+        { "title": "SKILL.md 重写\"调用后端接口\"章节（默认流程接口+例外流程接口）", "status": "done" },
+        { "title": "SKILL.md 新增\"接口选择优先级\"章节", "status": "done" },
+        { "title": "SKILL.md 重写\"使用示例\"章节（标注默认流程/例外流程）", "status": "done" },
+        { "title": "项目级SKILL.md同步到全局级SKILL.md（SHA-256验证）", "status": "done" }
+      ],
+      "verifications": [
+        "用户无关键词时走默认流程：Agent自主识别意图+提取字段+调接口",
+        "用户说\"智能剪藏/智能入库\"时走例外流程→POST /api/ingest（只传text）",
+        "用户说\"添加剪藏/剪藏入库\"时走例外流程→POST /api/clip/add",
+        "用户说\"添加待办/创建待办\"时走例外流程→POST /api/todo/add",
+        "用户说\"剪藏到话题/添加话题\"时走例外流程→POST /api/topic",
+        "项目级和全局级SKILL.md SHA-256一致，全局级文件无BOM"
+      ]
+    },
+    {
+      "id": "fp-004",
+      "name": "后端统一入库接口 IngestController",
+      "description": "新增 POST /api/ingest 统一入库接口，接收 {text} 原始文本，后端调用 AiService.identifyIntent + extractFields 做AI意图识别和字段提取，路由到对应的 Service（ClipService/TodoService/TopicService）入库。返回 {success, intent, id, title, redirect} 或降级/失败响应。saveAsClip 补设 capturedAt 字段。",
+      "layer": "backend",
+      "tags": ["product-dev", "smart-ingest", "backend"],
+      "designSections": ["Step 2: 后端新增 IngestController", "POST /api/ingest", "修复 1：getString() 空字符串降级", "修复 2：IngestController 补设 capturedAt"],
+      "tasks": [
+        { "title": "新增 IngestController.java（POST /api/ingest）", "status": "done" },
+        { "title": "AiService.java 新增 identifyIntent + extractFields 方法", "status": "done" },
+        { "title": "实现意图路由逻辑（clip→ClipService, todo→TodoService, topic→TopicService）", "status": "done" },
+        { "title": "实现降级链路（意图模糊→clip store-only；字段提取失败→原文前30字作title）", "status": "done" },
+        { "title": "修复 getString() 空字符串降级（trim后为空返回defaultValue）", "status": "done" },
+        { "title": "修复 saveAsClip 补设 capturedAt（LocalDateTime.now）", "status": "done" },
+        { "title": "完善响应格式（成功/降级/失败三种响应）", "status": "done" },
+        { "title": "接口文档附录（POST /api/ingest 请求/响应格式）", "status": "done" }
+      ],
+      "verifications": [
+        "POST /api/ingest 传 {text} → 返回正确的 intent 识别结果",
+        "intent=clip → 调用 ClipService 入库，capturedAt 不为 null",
+        "intent=todo → 调用 TodoService 入库",
+        "intent=topic → 调用 TopicService 入库",
+        "LLM 返回空标题时 → 响应 title 为截断的原文而非空字符串",
+        "降级场景 → 响应含 degraded: true + degradedReason",
+        "失败场景 → 响应含 success: false + error + errorType"
+      ]
+    },
+    {
+      "id": "fp-005",
+      "name": "浏览器插件智能入库集成",
+      "description": "浏览器插件5个文件新增智能入库支持：options.js DEFAULT_CONFIG新增ingestUrl配置项；options.html新增智能入库API地址配置项；popup.js新增handleSmartIngest()函数（含空值和长度校验）；popup.html表单下方新增\"智能入库\"按钮；background.js新增smartIngest message handler，响应适配{success}格式。",
+      "layer": "browser-extension",
+      "tags": ["product-dev", "smart-ingest", "browser-extension"],
+      "designSections": ["Step 3: 浏览器插件重构", "修复 4：popup.js 补长度校验"],
+      "tasks": [
+        { "title": "options.js DEFAULT_CONFIG 新增 ingestUrl 配置项", "status": "done" },
+        { "title": "options.html 新增智能入库API地址配置项", "status": "done" },
+        { "title": "popup.js 新增 handleSmartIngest() 函数", "status": "done" },
+        { "title": "popup.js 增加长度校验（text.length < 5 时提示）", "status": "done" },
+        { "title": "popup.html 表单下方新增\"智能入库\"按钮", "status": "done" },
+        { "title": "background.js 新增 smartIngest message handler", "status": "done" },
+        { "title": "响应适配 {success} 格式", "status": "done" }
+      ],
+      "verifications": [
+        "插件配置页可设置智能入库API地址",
+        "插件表单下方有\"智能入库\"按钮",
+        "点击\"智能入库\"按钮调用 POST /api/ingest",
+        "输入3个字符点智能入库→前端拦截提示\"内容过短\"",
+        "成功入库后显示 toast 提示 intent 类型",
+        "原有剪藏表单功能正常"
+      ]
+    },
+    {
+      "id": "fp-006",
+      "name": "前端 clip.html 智能入库入口",
+      "description": "前端 clip.html textarea 旁增加\"智能入库\"按钮，点击后调用 POST /api/ingest。按钮需有加载态（禁用按钮+文字改为\"分析中...\"），完成后恢复。移除对不存在的 #status-message 元素引用（死代码）。成功入库后显示 toast 提示意图类型和降级说明。",
+      "layer": "frontend",
+      "tags": ["product-dev", "smart-ingest", "frontend"],
+      "designSections": ["Step 4: 前端入口", "修复 3：clip.html 智能入库按钮加载态"],
+      "tasks": [
+        { "title": "clip.html textarea 旁新增\"智能入库\"按钮", "status": "done" },
+        { "title": "实现 smartIngestClip() 函数（调用 POST /api/ingest）", "status": "done" },
+        { "title": "按钮加载态：禁用按钮+文字改为\"分析中...\"", "status": "done" },
+        { "title": "finally 块中恢复按钮状态", "status": "done" },
+        { "title": "移除对不存在的 #status-message 元素引用（死代码）", "status": "done" },
+        { "title": "成功入库后 toast 提示意图类型和降级说明", "status": "done" },
+        { "title": "失败时提示错误信息或网络错误", "status": "done" }
+      ],
+      "verifications": [
+        "clip.html 页面有\"智能入库\"按钮",
+        "输入空内容点击→提示\"请输入内容\"",
+        "输入少于5字符点击→提示\"内容过短\"",
+        "点击后按钮变为\"分析中...\"且不可重复点击",
+        "完成后按钮恢复原始文字和可点击状态",
+        "成功入库后 toast 显示\"智能入库成功！识别为[待办/话题/剪藏]\"",
+        "降级存储时显示\"(降级存储)\"标记"
+      ]
+    },
+    {
+      "id": "fp-007",
+      "name": "SKILL.md 智能入库 Skill 指令文件",
+      "description": "核心交付物——智能入库 Skill 指令文件 .trae/skills/smart-ingest/SKILL.md。包含：概述、流程决策树、强制类型关键词识别、意图识别规则、字段提取映射、调用后端接口（默认流程+例外流程）、使用示例、异常处理、重试机制、平台兼容性、接口选择优先级。同时同步到全局级目录。",
+      "layer": "skill",
+      "tags": ["product-dev", "smart-ingest", "skill"],
+      "designSections": ["Step 1: 创建 Skill 文件", "修改方案", "同步策略"],
+      "tasks": [
+        { "title": "创建 .trae/skills/smart-ingest/SKILL.md（项目级）", "status": "done" },
+        { "title": "SKILL.md 包含：概述/流程决策树/关键词识别/意图识别/字段提取/接口调用/使用示例/异常处理/重试/平台兼容性/接口优先级", "status": "done" },
+        { "title": "编写 curl 调用模板（Windows PowerShell Invoke-WebRequest + UTF-8）", "status": "done" },
+        { "title": "异常处理规则（后端未启动/意图模糊/字段提取失败/curl超时）", "status": "done" },
+        { "title": "重试机制（3次重试+延迟0/2/5秒策略）", "status": "done" },
+        { "title": "同步到全局级 C:/Users/pengwenfeng/.trae-cn/skills/smart-ingest/SKILL.md", "status": "done" },
+        { "title": "SHA-256 哈希对比 + BOM检查验证同步正确性", "status": "done" }
+      ],
+      "verifications": [
+        "项目级 SKILL.md 存在且章节齐全",
+        "全局级 SKILL.md 存在且与项目级 SHA-256 一致",
+        "全局级文件无 BOM",
+        "关键章节齐全：流程决策树、关键词识别、默认流程接口、例外流程接口、使用示例",
+        "资源完整性要求保留（应用名+网址必须保留）",
+        "重试机制保留（3次重试+延迟0/2/5秒）",
+        "平台兼容性保留（Windows PowerShell）"
+      ]
+    },
+    {
+      "id": "fp-008",
+      "name": "智能入库代码审查缺陷修复",
+      "description": "代码审查发现的4个需修复的缺陷：1) getString() 空字符串降级（高优先级）——LLM返回空标题时trim后返回defaultValue；2) IngestController 补设 capturedAt（中优先级）——saveAsClip自动填充采集时间；3) clip.html 智能入库按钮加载态（中优先级）——禁用按钮+文字改为\"分析中...\"；4) popup.js 补长度校验（低优先级）——增加 text.length < 5 检查。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "smart-ingest", "bugfix"],
+      "designSections": ["修复 1：getString() 空字符串降级", "修复 2：IngestController 补设 capturedAt", "修复 3：clip.html 智能入库按钮加载态", "修复 4：popup.js 补长度校验"],
+      "tasks": [
+        { "title": "修复1：IngestController.java getString() 增加 trim+空字符串降级", "status": "done" },
+        { "title": "修复2：IngestController.java saveAsClip 补设 capturedAt", "status": "done" },
+        { "title": "修复3：clip.html smartIngestClip() 增加按钮加载态+finally恢复", "status": "done" },
+        { "title": "修复3：clip.html 移除 #status-message 死代码引用", "status": "done" },
+        { "title": "修复4：popup.js handleSmartIngest 增加 text.length < 5 长度校验", "status": "done" }
+      ],
+      "verifications": [
+        "POST /api/ingest 传空标题文本→响应 title 为截断原文而非空字符串",
+        "入库后 GET /api/clip/list → capturedAt 不为 null",
+        "clip.html 点击智能入库→按钮变为\"分析中...\"且不可重复点击，完成后恢复",
+        "popup 输入3个字符点智能入库→前端拦截提示\"内容过短\"",
+        "原有 /api/clip/add、/api/todo/add、/api/topic 接口行为不变"
+      ]
+    },
+    {
+      "id": "fp-009",
+      "name": "代码审查改进建议",
+      "description": "代码审查提出的4个中等/低优先级改进建议：A) smartIngest 增加重试——复用apiRetryCount配置；B) SKILL.md 加同步提醒注释——标注\"需与后端AiService.identifyIntent保持同步\"；C) saveAsClip 响应title用实际存储值——改为clip.getTitle()；D) saveAsClip二次保存可优化——当前upsert逻辑正确，暂不修改（仅记录）。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "smart-ingest", "improvement"],
+      "designSections": ["改进建议（可选，不阻塞）"],
+      "tasks": [
+        { "title": "改进A：background.js smartIngest 复用 apiRetryCount 重试配置", "status": "pending" },
+        { "title": "改进B：SKILL.md 意图规则前加同步提醒注释", "status": "done" },
+        { "title": "改进C：IngestController.java saveAsClip 响应title改为 clip.getTitle()", "status": "pending" },
+        { "title": "改进D：记录saveAsClip二次保存现状（upsert逻辑正确，暂不修改）", "status": "done" }
+      ],
+      "verifications": [
+        "改进A：smartIngest 失败时按 apiRetryCount 配置进行重试",
+        "改进B：SKILL.md 意图规则段落前有同步提醒注释",
+        "改进C：响应title与 clip.getTitle() 一致",
+        "改进D：文档注明saveAsClip二次保存是upsert逻辑，不会产生重复记录"
+      ]
+    },
+    {
+      "id": "fp-010",
+      "name": "话题模块（Topic）开发",
+      "description": "新增话题模块，基于 xiaodao.cool 设计理念，支持分享有价值的AI对话/收藏优质内容。包括：Topic数据模型（id/title/summary/content/coverImage/category/tags/sourceClipId等）；后端CRUD API（POST/GET/PUT/DELETE /api/topic + like/search/from-clip）；前端页面（话题列表卡片流+详情页+编辑器）；导航栏集成；浏览器扩展右键菜单\"剪藏到话题\"。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "topic", "fullstack"],
+      "designSections": ["4. 方案设计", "5. 实现状态", "6. 待实现任务"],
+      "tasks": [
+        { "title": "Step 2: 后端模型与DTO（Topic.java/TopicRequest/TopicResponse）", "status": "done" },
+        { "title": "Step 3: 后端 Service 与 FileStorageService（TopicService.java）", "status": "done" },
+        { "title": "Step 4: 后端 Controller（TopicController.java REST API）", "status": "done" },
+        { "title": "Step 5: 前端话题列表页（topic.html + topic.js）", "status": "done" },
+        { "title": "Step 6: 前端话题详情页（topic-detail.html + topic-detail.js）", "status": "done" },
+        { "title": "Step 7: 前端话题编辑器（topic-editor.html + topic-editor.js）", "status": "done" },
+        { "title": "Step 8: 前端导航整合（index.html 左侧导航栏）", "status": "done" },
+        { "title": "Step 9: 浏览器扩展话题支持（background.js 右键菜单\"剪藏到话题\"）", "status": "pending" },
+        { "title": "Step 10: Electron 集成验证（话题页面加载+CORS检查）", "status": "pending" }
+      ],
+      "verifications": [
+        "后端API全部可用：POST /api/topic, GET /api/topic/list, GET /api/topic/{id}, PUT/DELETE, POST like, POST from-clip, GET search",
+        "话题列表页以卡片流展示（封面图/标题/摘要/标签/点赞数）",
+        "话题详情页展示封面大图/标题/标签/分类/创建时间/摘要/对话内容/点赞收藏",
+        "话题编辑器支持标题/摘要/分类/标签/Markdown内容/从剪藏导入/AI生成封面",
+        "导航栏点击\"话题\"通过 iframe 加载 topic.html",
+        "浏览器扩展右键菜单有\"剪藏到话题\"选项",
+        "Electron 应用中话题页面正常加载，API无CORS问题"
+      ]
+    }
+  ],
+  "knowledgePoints": [
+    {
+      "title": "双AI路径维护风险",
+      "content": "系统有两条AI路径：后端路径（/api/ingest → AiService.identifyIntent + extractFields → 路由入库）和 Skill 路径（Agent自行做意图识别+字段提取→curl调用已有接口）。意图分类规则同时写在 AiService.java 的 systemPrompt 和 SKILL.md 中。规则变更时两处需同步修改，否则行为不一致。建议在 SKILL.md 顶部加注释\"意图规则需与 AiService.identifyIntent 保持同步\"。",
+      "tags": ["product-dev", "smart-ingest", "architecture"]
+    },
+    {
+      "title": "LLM 输出空值处理策略",
+      "content": "extractFields 的 prompt 要求\"无法确定的字段用 null\"，但 LLM 实际常返回空字符串或字符串\"null\"。getString() 方法需增加 trim 后判空处理：若为空则返回 defaultValue。当 defaultValue 本身为 null 时（如 deadline），空字符串仍返回 null，行为正确。这是智能入库最值得注意的防御性编程要点。",
+      "tags": ["product-dev", "smart-ingest", "backend"]
+    },
+    {
+      "title": "默认流程与例外流程决策树",
+      "content": "用户发送内容→检查是否含强制类型关键词→含关键词走例外流程（跳过Agent意图识别，直接按关键词选定接口）→无关键词走默认流程（Agent做意图识别+字段提取→按识别意图调对应接口）。优先级：用户明确指定类型 > Agent意图识别结果 > 默认降级（clip）。关键词识别采用包含匹配（如\"智能剪藏这个\"或\"用智能剪藏\"都应识别为例外流程）。",
+      "tags": ["product-dev", "smart-ingest", "skill"]
+    },
+    {
+      "title": "saveAsClip 二次保存的 Upsert 机制",
+      "content": "IngestController 的 saveAsClip 先调用 saveClip(request) 创建记录，再 saveClip(clip) 更新 summary/analysis，有两次文件写入。经验证 FileStorageService.saveClip(ClipContent) 是 upsert 逻辑（按 ID 匹配替换），不会产生重复记录。功能正确，仅效率略低。因 ClipRequest 无 summary/analysis 字段，此 workaround 当前可接受。",
+      "tags": ["product-dev", "smart-ingest", "backend"]
+    },
+    {
+      "title": "智能入库按钮加载态设计",
+      "content": "AI 处理需数秒，前端按钮必须提供加载反馈：点击时禁用按钮+文字改为\"分析中...\"，finally 块中恢复。防止用户重复点击触发多次入库请求。同时需增加空值校验（提示\"请输入内容\"）和长度校验（提示\"内容过短，请至少输入5个字符\"），与后端校验保持一致。",
+      "tags": ["product-dev", "smart-ingest", "frontend"]
+    }
+  ]
+}

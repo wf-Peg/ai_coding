@@ -186,6 +186,18 @@ public class SearchService {
     }
 
     /**
+     * 获取所有剪藏内容。
+     * <p>
+     * 用于 Wiki 查询的关键词兜底搜索。
+     * </p>
+     *
+     * @return 所有剪藏内容列表
+     */
+    public List<ClipContent> getAllClips() {
+        return storageService.getAllClips();
+    }
+
+    /**
      * 构建剪藏的可搜索文本
      * <p>
      * 将剪藏的所有文本字段拼接为一个大字符串（小写），

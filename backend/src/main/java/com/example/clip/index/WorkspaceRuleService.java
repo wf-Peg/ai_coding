@@ -12,6 +12,8 @@ import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -25,6 +27,13 @@ public class WorkspaceRuleService {
     private final Path exclusionsPath;
     private final Path expressionPath;
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+
+    /**
+     * 反向成员索引：contentId → 所属工作台 ID 集合。
+     * 用于规则字段 "workspace" 的匹配判断。
+     * 仅在 resolve() 调用期间有效，基于持久化成员关系（manual + relation）构建。
+     */
+    private Map<String, Set<String>> contentWorkspaceMap = Map.of();
 
     public WorkspaceRuleService(Path indexDir) {
         this.rulesPath = indexDir.resolve("workspace-rules.json");
@@ -225,6 +234,10 @@ public class WorkspaceRuleService {
         Map<String, ContentRef> byId = new LinkedHashMap<>();
         if (refs != null) refs.forEach(ref -> { if (ref != null && ref.id() != null) byId.put(ref.id(), ref); });
 
+        // 构建反向成员索引：contentId → 所属工作台 ID 集合
+        // 仅基于持久化成员关系（manual + relation），不包含规则命中（避免循环依赖）
+        this.contentWorkspaceMap = buildContentWorkspaceMap(manualMembers, relationMembers);
+
         // 表达式逐条求值：内容须让整个表达式为 true 才被规则命中
         Set<String> ruleIds = new LinkedHashSet<>();
         RuleExpression expr = getExpression(workspaceId);
@@ -301,6 +314,15 @@ public class WorkspaceRuleService {
     }
 
     private boolean rawMatches(WorkspaceRule rule, ContentRef ref) {
+        if (rule.field().equals("workspace")) {
+            // workspace 字段：从反向成员索引中获取内容所属工作台 ID 列表
+            Set<String> wsIds = contentWorkspaceMap.getOrDefault(ref.id(), Set.of());
+            return switch (rule.operator()) {
+                case "equals" -> wsIds.contains(rule.value());
+                case "in" -> List.of(rule.value().split(",")).stream().map(String::trim).anyMatch(wsIds::contains);
+                default -> false;
+            };
+        }
         if (rule.field().equals("updatedAt")) {
             LocalDateTime date = rule.dateValue();
             if (date == null) return false;
@@ -331,6 +353,31 @@ public class WorkspaceRuleService {
         if (members == null) return Set.of();
         return members.stream().filter(item -> item != null && workspaceId.equals(item.workspaceId()))
                 .map(WorkspaceMembership::contentId).collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    /**
+     * 构建反向成员索引：contentId → 所属工作台 ID 集合。
+     * 仅基于持久化成员关系（manual/manual_input/relation），不包含规则命中。
+     */
+    private Map<String, Set<String>> buildContentWorkspaceMap(
+            Collection<WorkspaceMembership> manualMembers,
+            Collection<WorkspaceMembership> relationMembers) {
+        Map<String, Set<String>> map = new HashMap<>();
+        if (manualMembers != null) {
+            for (WorkspaceMembership m : manualMembers) {
+                if (m != null && m.contentId() != null && m.workspaceId() != null) {
+                    map.computeIfAbsent(m.contentId(), k -> new HashSet<>()).add(m.workspaceId());
+                }
+            }
+        }
+        if (relationMembers != null) {
+            for (WorkspaceMembership m : relationMembers) {
+                if (m != null && m.contentId() != null && m.workspaceId() != null) {
+                    map.computeIfAbsent(m.contentId(), k -> new HashSet<>()).add(m.workspaceId());
+                }
+            }
+        }
+        return map;
     }
 
     private List<WorkspaceRule> readRules(String workspaceId) {
