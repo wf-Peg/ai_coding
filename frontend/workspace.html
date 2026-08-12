@@ -328,16 +328,22 @@
     .pd-dash-card-value { font-size: 26px; font-weight: 700; color: var(--ws-primary); line-height: 1.2; }
     .pd-dash-card-label { font-size: 12px; color: var(--ws-muted); margin-top: 4px; }
     .pd-dash-card-sub { font-size: 11px; color: var(--ws-faint); margin-top: 6px; }
-    .pd-chart-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 20px; }
-    .pd-chart-card { border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-surface); padding: 18px; }
-    .pd-chart-card-header { font-size: 13px; font-weight: 650; color: var(--ws-text); margin-bottom: 12px; }
-    .pd-chart-container { height: 200px; }
+    .pd-chart-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .pd-chart-card { border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-surface); overflow: hidden; }
+    .pd-chart-card-header { padding: 14px 18px 8px; font-size: 13px; font-weight: 650; color: var(--ws-text); border-bottom: 1px solid var(--ws-border); }
+    .pd-chart-container { padding: 12px 14px; height: 200px; position: relative; }
+    .pd-chart-container canvas { width: 100% !important; height: 100% !important; }
     .pd-section-title { font-size: 14px; font-weight: 650; color: var(--ws-text); }
+    .pd-section { margin-bottom: 20px; }
+    .pd-section-header { font-size: 14px; font-weight: 650; margin-bottom: 10px; color: var(--ws-text); }
     .pd-activities { display: grid; gap: 6px; }
-    .pd-activity-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-surface); font-size: 12px; }
+    .pd-activity-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); margin-bottom: 6px; background: var(--ws-surface); font-size: 13px; }
     .pd-activity-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-    .pd-activity-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ws-text); }
-    .pd-activity-time { flex: none; color: var(--ws-faint); font-size: 11px; }
+    .pd-activity-dot.archived { background: #10b981; }
+    .pd-activity-dot.created { background: var(--ws-primary); }
+    .pd-activity-dot.migrated { background: #f59e0b; }
+    .pd-activity-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pd-activity-time { flex: none; color: var(--ws-faint); font-size: 11px; white-space: nowrap; }
     .pd-kanban-toolbar { margin-bottom: 14px; }
     .pd-search-input { width: 100%; max-width: 320px; padding: 8px 12px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-subtle); color: var(--ws-text); font-size: 13px; outline: none; transition: border-color .16s ease; }
     .pd-search-input:focus { border-color: var(--ws-primary); }
@@ -355,6 +361,15 @@
     .pd-kanban-card-meta .pd-tag { display: inline-block; padding: 1px 6px; border-radius: 4px; background: var(--ws-primary-soft); color: var(--ws-primary); font-size: 10px; margin-right: 4px; }
     .pd-kanban-card.dragging { opacity: .45; transform: rotate(2deg); }
     .pd-kanban-col-body.drag-over { background: var(--ws-primary-soft); border-radius: var(--app-radius); min-height: 80px; }
+    .pd-req-detail-section { margin-bottom: 16px; }
+    .pd-req-detail-section:last-child { margin-bottom: 0; }
+    .pd-req-detail-label { font-size: 11px; font-weight: 700; color: var(--ws-faint); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+    .pd-req-detail-value { font-size: 13px; color: var(--ws-text); line-height: 1.55; }
+    .pd-req-detail-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+    .pd-req-detail-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; background: var(--ws-primary-soft); color: var(--ws-primary); }
+    .pd-req-detail-phase { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .pd-req-detail-phase-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; color: #fff; }
+    .pd-req-detail-divider { height: 1px; margin: 14px 0; background: var(--ws-border); }
     .pd-graph-toolbar { margin-bottom: 12px; }
     .pd-graph-hint { font-size: 12px; color: var(--ws-muted); }
     .pd-legend-req { display: inline-block; padding: 1px 6px; border-radius: 4px; background: #2383e2; color: #fff; font-size: 10px; margin: 0 2px; }
@@ -369,8 +384,31 @@
     .pd-gantt-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
     .pd-gantt-zoom { display: flex; gap: 2px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); overflow: hidden; }
     .pd-gantt-zoom-btn { padding: 6px 14px; border: 0; background: var(--ws-surface); color: var(--ws-muted); font-size: 12px; cursor: pointer; transition: all .16s ease; }
-    .pd-gantt-zoom-btn.active { background: var(--ws-primary-soft); color: var(--ws-primary); font-weight: 600; }
-    .pd-gantt-zoom-btn:not(:last-child) { border-right: 1px solid var(--ws-border); }
+    .pd-gantt-zoom-btn:hover { background: var(--ws-subtle); color: var(--ws-text); }
+    .pd-gantt-zoom-btn.active { background: var(--ws-primary); color: #fff; }
+    .pd-gantt-legend { display: flex; gap: 10px; flex-wrap: wrap; }
+    .pd-gantt-legend-item { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--ws-muted); }
+    .pd-gantt-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+    .pd-gantt-container { overflow-x: auto; overflow-y: auto; border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-surface); min-height: 300px; max-height: 600px; }
+    .pd-gantt-chart { position: relative; min-width: 100%; }
+    .pd-gantt-header { position: sticky; top: 0; z-index: 10; background: var(--ws-surface); border-bottom: 1px solid var(--ws-border); }
+    .pd-gantt-header-row { display: flex; }
+    .pd-gantt-label-col { flex: none; width: 200px; border-right: 1px solid var(--ws-border); padding: 8px 12px; font-size: 11px; font-weight: 700; color: var(--ws-faint); text-transform: uppercase; letter-spacing: .05em; }
+    .pd-gantt-grid-col { flex: none; border-right: 1px solid var(--ws-border); padding: 8px 4px; font-size: 10px; color: var(--ws-faint); text-align: center; white-space: nowrap; }
+    .pd-gantt-header-row .pd-gantt-grid-col { background: var(--ws-subtle); }
+    .pd-gantt-header-row .pd-gantt-grid-col.weekend { background: color-mix(in srgb, var(--ws-subtle) 80%, #e74c3c); }
+    .pd-gantt-body { position: relative; }
+    .pd-gantt-row { display: flex; border-bottom: 1px solid var(--ws-border); transition: background .16s ease; }
+    .pd-gantt-row:hover { background: var(--ws-subtle); }
+    .pd-gantt-row-label { flex: none; width: 200px; border-right: 1px solid var(--ws-border); padding: 8px 12px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+    .pd-gantt-row-label .pd-gantt-phase-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+    .pd-gantt-row-cells { display: flex; flex: 1; min-width: 0; }
+    .pd-gantt-cell { flex: none; border-right: 1px solid var(--ws-border); min-height: 32px; position: relative; }
+    .pd-gantt-cell.weekend { background: color-mix(in srgb, var(--ws-subtle) 50%, transparent); }
+    .pd-gantt-bar { position: absolute; top: 4px; height: 24px; border-radius: 4px; opacity: .85; cursor: pointer; transition: opacity .16s ease, box-shadow .16s ease; display: flex; align-items: center; padding: 0 6px; font-size: 10px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 4px; }
+    .pd-gantt-bar:hover { opacity: 1; box-shadow: 0 2px 8px rgba(0,0,0,.15); z-index: 5; }
+    .pd-gantt-bar-tooltip { position: fixed; z-index: 1050; background: var(--ws-surface); border: 1px solid var(--ws-border); border-radius: var(--app-radius); padding: 8px 12px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.12); pointer-events: none; opacity: 0; transition: opacity .15s ease; max-width: 280px; line-height: 1.5; }
+    .pd-gantt-bar-tooltip.visible { opacity: 1; }
     .pd-archive-toolbar { margin-bottom: 14px; }
     .pd-archive-item { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); margin-bottom: 8px; background: var(--ws-surface); transition: border-color .16s ease; }
     .pd-archive-item:hover { border-color: var(--ws-primary); }
@@ -400,6 +438,11 @@
       .toolbar { align-items: stretch; flex-direction: column; }
       .search { flex-basis: auto; }
       .detail-header { flex-direction: column; }
+      .pd-shell { padding: 18px 14px; }
+      .pd-chart-row { grid-template-columns: 1fr; }
+      .pd-dashboard { grid-template-columns: repeat(2, 1fr); }
+      .pd-kanban { flex-direction: column; }
+      .pd-kanban-col { max-width: none; }
     }
     @media (max-width: 480px) {
       .overview-view .shell-inner, .detail-view .shell-inner { padding: 16px 12px; }
@@ -505,8 +548,8 @@
         <button class="sidebar-nav-item active" data-view="overview" type="button" data-func-tag="功能:全部概览" title="查看剪藏、知识、待办、学习计划等所有类型内容的统一概览">
           <span class="icon">&#9776;</span> 全部概览
         </button>
-        <button class="sidebar-nav-item" data-view="product-dev" type="button" data-func-tag="功能:产品开发工作区" title="进入产品开发工作区，管理需求看板、知识图谱、时间线与归档">
-          <span class="icon">&#9881;</span> 产品开发
+        <button class="sidebar-nav-item" data-view="product-dev" type="button" data-func-tag="功能:产品概览" title="产品概览：产品开发数据的仪表盘、需求看板、知识图谱、时间线与归档">
+          <span class="icon">&#9881;</span> 产品概览
         </button>
       </nav>
       <div class="sidebar-divider"></div>
@@ -541,7 +584,7 @@
                 <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg><input id="searchInput" type="search" placeholder="搜索标题、标签、分类或来源" autocomplete="off"></label>
               </div>
               <div class="filters" id="filters" aria-label="内容类型筛选"></div>
-              <div id="overviewScopeBanner" class="scope-banner" hidden style="align-items:center;gap:8px;margin:0 0 10px;padding:6px 12px;background:var(--ws-primary-soft);border-radius:6px;font-size:13px;color:var(--ws-primary);">
+              <div id="overviewScopeBanner" class="scope-banner" hidden style="display:flex;align-items:center;gap:8px;margin:0 0 10px;padding:6px 12px;background:var(--ws-primary-soft);border-radius:6px;font-size:13px;color:var(--ws-primary);">
                 <span id="scopeBannerText"></span>
               </div>
               <div class="list" id="contentList" aria-live="polite"></div>
@@ -641,7 +684,105 @@
           </div>
         </div>
       </div>
-  
+
+      <!-- ── 产品开发工作区视图 ── -->
+      <div class="product-dev-view" id="productDevView">
+        <div class="pd-shell">
+          <div class="pd-header">
+            <button class="sidebar-toggle" id="pdSidebarToggle" type="button" aria-label="打开侧边栏" title="展开侧边栏">&#9776;</button>
+            <div class="pd-header-left">
+              <p class="eyebrow">Product Development</p>
+              <h1>产品开发工作区</h1>
+            </div>
+            <div class="pd-header-actions">
+              <button class="pd-btn pd-btn-secondary" id="pdHistoryMigrateBtn" type="button" title="将 TODO/ 和 .trae/specs/ 下的历史需求文档迁移到产品开发工作区" data-func-tag="功能:历史迁移">&#128194; 历史迁移</button>
+              <button class="pd-btn pd-btn-primary" id="pdNewRequirementBtn" type="button" data-func-tag="功能:新建需求" title="创建一条新需求并进入需求池">+ 新建需求</button>
+            </div>
+          </div>
+
+          <div class="pd-tabs">
+            <button class="pd-tab active" data-pd-tab="dashboard" type="button" data-func-tag="功能:产品开发-总览" title="总览：数据仪表盘与最近活动">&#128202; 总览</button>
+            <button class="pd-tab" data-pd-tab="kanban" type="button" data-func-tag="功能:产品开发-需求看板" title="需求看板：按阶段拖拽管理需求">&#9776; 需求看板</button>
+            <button class="pd-tab" data-pd-tab="graph" type="button" data-func-tag="功能:产品开发-知识图谱" title="知识图谱：需求-知识关联网络（二期）" style="display:none">&#9671; 知识图谱</button>
+            <button class="pd-tab" data-pd-tab="timeline" type="button" data-func-tag="功能:产品开发-时间线" title="时间线：甘特图展示开发周期（二期）" style="display:none">&#128197; 时间线</button>
+            <button class="pd-tab" data-pd-tab="archive" type="button" data-func-tag="功能:产品开发-归档" title="归档：历史需求归档记录">&#128451; 归档</button>
+          </div>
+
+          <div class="pd-tag-filter" id="pdTagFilter" aria-label="标签筛选"></div>
+
+          <!-- ── 总览 Dashboard ── -->
+          <div class="pd-tab-content visible" data-pd-content="dashboard">
+            <div class="pd-dashboard" id="pdDashboardCards"></div>
+            <div class="pd-chart-row">
+              <div class="pd-chart-card">
+                <div class="pd-chart-card-header">各阶段需求分布</div>
+                <div class="pd-chart-container"><canvas id="pdPhaseChart"></canvas></div>
+              </div>
+              <div class="pd-chart-card">
+                <div class="pd-chart-card-header">待办完成率</div>
+                <div class="pd-chart-container"><canvas id="pdTodoChart"></canvas></div>
+              </div>
+              <div class="pd-chart-card">
+                <div class="pd-chart-card-header">知识积累趋势</div>
+                <div class="pd-chart-container"><canvas id="pdKnowledgeChart"></canvas></div>
+              </div>
+            </div>
+            <div class="pd-section">
+              <div class="pd-section-header">最近活动</div>
+              <div class="pd-activity-list" id="pdActivityList"><div class="empty-state">暂无活动记录</div></div>
+            </div>
+          </div>
+
+          <!-- ── 需求看板 Kanban ── -->
+          <div class="pd-tab-content" data-pd-content="kanban">
+            <div class="pd-kanban-toolbar">
+              <div class="pd-kanban-filter">
+                <input class="pd-search-input" id="pdKanbanSearch" type="search" placeholder="搜索需求..." autocomplete="off">
+              </div>
+            </div>
+            <div class="pd-kanban" id="pdKanbanBoard"></div>
+          </div>
+
+          <!-- ── 知识图谱 Graph ── -->
+          <div class="pd-tab-content" data-pd-content="graph">
+            <div class="pd-graph-toolbar">
+              <span class="pd-graph-hint">展示需求与知识的关联网络，节点颜色：<span class="pd-legend-req">需求</span> <span class="pd-legend-kn">知识</span> <span class="pd-legend-todo">待办</span></span>
+            </div>
+            <div class="pd-graph-container" id="pdGraphContainer">
+              <svg id="pdGraphSvg" width="100%" height="100%"></svg>
+            </div>
+          </div>
+
+          <!-- ── 时间线 Timeline ── -->
+          <div class="pd-tab-content" data-pd-content="timeline">
+            <div class="pd-gantt-toolbar">
+              <div class="pd-gantt-zoom">
+                <button class="pd-gantt-zoom-btn active" data-zoom="day" type="button" data-func-tag="功能:甘特图-日视图" title="日视图：按天展示时间线">日视图</button>
+                <button class="pd-gantt-zoom-btn" data-zoom="week" type="button" data-func-tag="功能:甘特图-周视图" title="周视图：按周展示时间线">周视图</button>
+                <button class="pd-gantt-zoom-btn" data-zoom="month" type="button" data-func-tag="功能:甘特图-月视图" title="月视图：按月展示时间线">月视图</button>
+              </div>
+              <div class="pd-gantt-legend">
+                <span class="pd-gantt-legend-item"><span class="pd-gantt-legend-dot" style="background:#2383e2"></span>需求分析</span>
+                <span class="pd-gantt-legend-item"><span class="pd-gantt-legend-dot" style="background:#876de2"></span>设计</span>
+                <span class="pd-gantt-legend-item"><span class="pd-gantt-legend-dot" style="background:#f59e0b"></span>实现</span>
+                <span class="pd-gantt-legend-item"><span class="pd-gantt-legend-dot" style="background:#e74c3c"></span>测试</span>
+                <span class="pd-gantt-legend-item"><span class="pd-gantt-legend-dot" style="background:#10b981"></span>已完成</span>
+              </div>
+            </div>
+            <div class="pd-gantt-container" id="pdGanttContainer">
+              <div class="empty-state">暂无时间线数据，完成需求归档后将自动生成。</div>
+            </div>
+          </div>
+
+          <!-- ── 归档 Archive ── -->
+          <div class="pd-tab-content" data-pd-content="archive">
+            <div class="pd-archive-toolbar">
+              <span class="pd-section-title">历史归档记录</span>
+            </div>
+            <div class="pd-archive-list" id="pdArchiveList"><div class="empty-state">暂无归档记录</div></div>
+          </div>
+        </div>
+      </div>
 
     </main>
   </div>
@@ -792,95 +933,6 @@
     </div>
   </div>
 
-  <!-- ── 产品开发工作区视图 ── -->
-  <div class="product-dev-view" id="productDevView">
-    <div class="pd-shell">
-      <div class="pd-header">
-        <button class="sidebar-toggle" id="pdSidebarToggle" type="button" aria-label="打开侧边栏" title="展开侧边栏">&#9776;</button>
-        <div class="pd-header-left">
-          <p class="eyebrow">Product Development</p>
-          <h1>产品开发工作区</h1>
-        </div>
-        <div class="pd-header-actions">
-          <button class="pd-btn pd-btn-secondary" id="pdHistoryMigrateBtn" type="button" title="将 TODO/ 和 .trae/specs/ 下的历史需求文档迁移到产品开发工作区" data-func-tag="功能:历史迁移">&#128194; 历史迁移</button>
-          <button class="pd-btn pd-btn-primary" id="pdNewRequirementBtn" type="button" data-func-tag="功能:新建需求" title="创建一条新需求并进入需求池">+ 新建需求</button>
-        </div>
-      </div>
-
-      <div class="pd-tabs">
-        <button class="pd-tab active" data-pd-tab="dashboard" type="button" data-func-tag="功能:产品开发-总览" title="总览：数据仪表盘与最近活动">&#128202; 总览</button>
-        <button class="pd-tab" data-pd-tab="kanban" type="button" data-func-tag="功能:产品开发-需求看板" title="需求看板：按阶段拖拽管理需求">&#9776; 需求看板</button>
-        <button class="pd-tab" data-pd-tab="graph" type="button" data-func-tag="功能:产品开发-知识图谱" title="知识图谱：需求-知识关联网络（二期）" style="display:none">&#9671; 知识图谱</button>
-        <button class="pd-tab" data-pd-tab="timeline" type="button" data-func-tag="功能:产品开发-时间线" title="时间线：甘特图展示开发周期（二期）" style="display:none">&#128197; 时间线</button>
-        <button class="pd-tab" data-pd-tab="archive" type="button" data-func-tag="功能:产品开发-归档" title="归档：历史需求归档记录">&#128451; 归档</button>
-      </div>
-
-      <div class="pd-tag-filter" id="pdTagFilter" aria-label="标签筛选"></div>
-
-      <!-- ── 总览 Dashboard ── -->
-      <div class="pd-tab-content visible" data-pd-content="dashboard">
-        <div class="pd-dashboard" id="pdDashboardCards"></div>
-        <div class="pd-chart-row">
-          <div class="pd-chart-card">
-            <div class="pd-chart-card-header">各阶段需求分布</div>
-            <div class="pd-chart-container"><canvas id="pdPhaseChart"></canvas></div>
-          </div>
-          <div class="pd-chart-card">
-            <div class="pd-chart-card-header">待办完成率</div>
-            <div class="pd-chart-container"><canvas id="pdTodoChart"></canvas></div>
-          </div>
-          <div class="pd-chart-card">
-            <div class="pd-chart-card-header">知识积累趋势</div>
-            <div class="pd-chart-container"><canvas id="pdKnowledgeChart"></canvas></div>
-          </div>
-        </div>
-        <div class="pd-section-title" style="margin:24px 0 12px">最近活动</div>
-        <div class="pd-activities" id="pdActivities"></div>
-      </div>
-
-      <!-- ── 需求看板 Kanban ── -->
-      <div class="pd-tab-content" data-pd-content="kanban">
-        <div class="pd-kanban-toolbar">
-          <div class="pd-kanban-filter">
-            <input class="pd-search-input" id="pdKanbanSearch" type="search" placeholder="搜索需求..." autocomplete="off">
-          </div>
-        </div>
-        <div class="pd-kanban" id="pdKanbanBoard"></div>
-      </div>
-
-      <!-- ── 知识图谱 Graph ── -->
-      <div class="pd-tab-content" data-pd-content="graph">
-        <div class="pd-graph-toolbar">
-          <span class="pd-graph-hint">展示需求与知识的关联网络，节点颜色：<span class="pd-legend-req">需求</span> <span class="pd-legend-kn">知识</span> <span class="pd-legend-todo">待办</span></span>
-        </div>
-        <div class="pd-graph-container" id="pdGraphContainer">
-          <svg id="pdGraphSvg" width="100%" height="100%"></svg>
-        </div>
-      </div>
-
-      <!-- ── 时间线 Timeline ── -->
-      <div class="pd-tab-content" data-pd-content="timeline">
-        <div class="pd-gantt-toolbar">
-          <span class="pd-section-title">开发周期甘特图</span>
-          <div class="pd-gantt-zoom">
-            <button class="pd-gantt-zoom-btn" data-zoom="week" type="button">周</button>
-            <button class="pd-gantt-zoom-btn active" data-zoom="month" type="button">月</button>
-            <button class="pd-gantt-zoom-btn" data-zoom="quarter" type="button">季</button>
-          </div>
-        </div>
-        <div class="pd-timeline-container" id="pdTimelineContainer"><div class="empty-state">时间线功能将在二期实现</div></div>
-      </div>
-
-      <!-- ── 归档 Archive ── -->
-      <div class="pd-tab-content" data-pd-content="archive">
-        <div class="pd-archive-toolbar">
-          <span class="pd-section-title">历史归档记录</span>
-        </div>
-        <div class="pd-archive-list" id="pdArchiveList"><div class="empty-state">暂无归档记录</div></div>
-      </div>
-    </div>
-  </div>
-
   <script>
     (() => {
       'use strict';
@@ -888,10 +940,10 @@
       /* ── Constants ── */
       const LABELS = { clip: '剪藏', knowledge: '知识', todo: '待办', 'learning-plan': '学习' };
       const INITIALS = { clip: '剪', knowledge: '知', todo: '待', 'learning-plan': '学' };
-      const FIELD_LABELS = { type: '类型', category: '分类', tag: '标签', sourcePath: '来源路径', workflowStatus: '工作流状态', updatedAt: '更新时间' };
+      const FIELD_LABELS = { type: '类型', category: '分类', tag: '标签', sourcePath: '来源路径', workflowStatus: '工作流状态', updatedAt: '更新时间', workspace: '所属工作台' };
       const OPERATOR_LABELS = { equals: '等于', contains: '包含', in: '属于', before: '早于', after: '晚于' };
       const TYPE_LABELS = { general: '通用', project: '项目', learning: '学习' };
-      const FIELD_OPERATORS = { type: ['equals', 'in'], category: ['equals', 'contains', 'in'], tag: ['equals', 'contains', 'in'], sourcePath: ['equals', 'contains', 'in'], workflowStatus: ['equals', 'in'], updatedAt: ['before', 'after'] };
+      const FIELD_OPERATORS = { type: ['equals', 'in'], category: ['equals', 'contains', 'in'], tag: ['equals', 'contains', 'in'], sourcePath: ['equals', 'contains', 'in'], workflowStatus: ['equals', 'in'], updatedAt: ['before', 'after'], workspace: ['equals', 'in'] };
 
       /* ── DOM refs ── */
       const $ = id => document.getElementById(id);
@@ -983,41 +1035,55 @@
       }
       sidebarToggle?.addEventListener('click', openSidebar);
       sidebarToggle2.addEventListener('click', openSidebar);
+      var pdSidebarToggle = $('pdSidebarToggle');
+      if (pdSidebarToggle) pdSidebarToggle.addEventListener('click', openSidebar);
       sidebarCollapse.addEventListener('click', closeSidebar);
       sidebarBackdrop.addEventListener('click', closeSidebar);
 
       /* ── Sidebar Navigation View Switching ── */
-      function showView(viewName) {
-        // 隐藏所有视图
+      const navOverview = document.querySelector('.sidebar-nav-item[data-view="overview"]');
+      const navProductDev = document.querySelector('.sidebar-nav-item[data-view="product-dev"]');
+
+      function hideAllViews() {
         overviewView.classList.add('hidden');
-        overviewView.style.display = '';
         detailView.classList.remove('visible');
         productDevView.classList.remove('visible');
-        // 更新侧边栏导航项激活状态
-        document.querySelectorAll('.sidebar-nav-item').forEach(function(btn) {
-          btn.classList.toggle('active', btn.dataset.view === viewName);
+        document.querySelectorAll('.sidebar-nav-item').forEach(function(item) {
+          item.classList.remove('active');
         });
-        if (viewName === 'overview') {
-          overviewView.classList.remove('hidden');
+      }
+
+      function showView(view) {
+        hideAllViews();
+        if (view === 'overview') {
           overviewWorkspaceId = null;
           activeWsId = null;
+          navOverview.classList.add('active');
           renderWsList();
+          overviewView.classList.remove('hidden');
           loadOverview();
-        } else if (viewName === 'product-dev') {
-          productDevView.classList.add('visible');
-          // 隐藏 detail 侧边栏工作台列表中的激活状态
+          localStorage.setItem('active_workspace_id', '');
+          try { window.parent.postMessage({ type: 'workspaceChanged', workspaceId: '' }, '*'); } catch(e) {}
+        } else if (view === 'product-dev') {
+          overviewWorkspaceId = null;
           activeWsId = null;
+          navProductDev.classList.add('active');
           renderWsList();
-          // 加载产品开发数据
+          productDevView.classList.add('visible');
           loadProductDev();
+          localStorage.setItem('active_workspace_id', '');
+          try { window.parent.postMessage({ type: 'workspaceChanged', workspaceId: '' }, '*'); } catch(e) {}
+        } else if (view === 'detail') {
+          if (!activeWsId) return;
+          navOverview.classList.add('active');
+          renderWsList();
+          detailView.classList.add('visible');
         }
         closeSidebar();
-        localStorage.setItem('active_workspace_id', '');
-        try { window.parent.postMessage({ type: 'workspaceChanged', workspaceId: '' }, '*'); } catch(e) {}
       }
-      document.querySelectorAll('.sidebar-nav-item').forEach(function(btn) {
-        btn.addEventListener('click', function() { showView(btn.dataset.view); });
-      });
+
+      navOverview.addEventListener('click', () => showView('overview'));
+      navProductDev.addEventListener('click', () => showView('product-dev'));
 
       /* ── Overview View Functions ── */
       function overviewRenderScopeBanner(data) {
@@ -1071,11 +1137,27 @@
       function overviewRenderWorkspaceSummary(summary) {
         const el = $('workspaceSummary');
         if (!summary) { el.innerHTML = ''; return; }
-        const types = Object.entries(summary.types || {}).map(function(_ref) {
-          var k = _ref[0], v = _ref[1];
-          return '<div class="ws-summary-card"><span class="ws-card-value">' + v + '</span><span class="ws-card-label">' + escapeHtml(k) + '</span></div>';
-        }).join('');
-        el.innerHTML = '<div class="ws-summary-card"><span class="ws-card-value">' + (summary.total || 0) + '</span><span class="ws-card-label">总计</span></div><div class="ws-summary-card"><span class="ws-card-value">' + (summary.active || 0) + '</span><span class="ws-card-label">活跃</span></div><div class="ws-summary-card archived"><span class="ws-card-value">' + (summary.archived || 0) + '</span><span class="ws-card-label">已归档</span></div>' + types;
+        // 检测是否为内容维度统计（有 typeDistribution 字段）
+        if (summary.typeDistribution) {
+          // 内容维度统计：基于工作台筛选后的可见内容
+          const typeCards = Object.entries(summary.typeDistribution || {}).map(function(_ref) {
+            var k = _ref[0], v = _ref[1];
+            return '<div class="ws-summary-card"><span class="ws-card-value">' + v + '</span><span class="ws-card-label">' + escapeHtml(LABELS[k] || k) + '</span></div>';
+          }).join('');
+          const sourceCards = Object.entries(summary.sourceDistribution || {}).map(function(_ref) {
+            var k = _ref[0], v = _ref[1];
+            var label = ({ rule: '规则命中', manual: '手动加入', manual_input: '工作台输入', relation: '关系带入' })[k] || k;
+            return '<div class="ws-summary-card"><span class="ws-card-value">' + v + '</span><span class="ws-card-label">' + label + '</span></div>';
+          }).join('');
+          el.innerHTML = '<div class="ws-summary-card primary"><span class="ws-card-value">' + (summary.total || 0) + '</span><span class="ws-card-label">可见内容</span></div>' + typeCards + sourceCards;
+        } else {
+          // 工作台维度统计：全部视图
+          const types = Object.entries(summary.types || {}).map(function(_ref) {
+            var k = _ref[0], v = _ref[1];
+            return '<div class="ws-summary-card"><span class="ws-card-value">' + v + '</span><span class="ws-card-label">' + escapeHtml(k) + '</span></div>';
+          }).join('');
+          el.innerHTML = '<div class="ws-summary-card"><span class="ws-card-value">' + (summary.total || 0) + '</span><span class="ws-card-label">总计</span></div><div class="ws-summary-card"><span class="ws-card-value">' + (summary.active || 0) + '</span><span class="ws-card-label">活跃</span></div><div class="ws-summary-card archived"><span class="ws-card-value">' + (summary.archived || 0) + '</span><span class="ws-card-label">已归档</span></div>' + types;
+        }
       }
 
       function overviewRenderContents(contents) {
@@ -1140,12 +1222,23 @@
           const r = await fetch('/api/workspace/overview' + params, { headers: { Accept: 'application/json' } });
           if (!r.ok) throw new Error('请求失败（' + r.status + '）');
           const data = await r.json();
-          // Summary cards
+          // Summary cards — 区分内容维度统计与工作台维度统计
           const summary = data.workspaceSummary || {};
-          const types = Object.entries(summary.types || {}).map(([k, v]) => `<div class="ws-summary-card"><span class="ws-card-value">${v}</span><span class="ws-card-label">${escapeHtml(k)}</span></div>`).join('');
-          overviewSummaryCards.innerHTML = `<div class="ws-summary-card"><span class="ws-card-value">${summary.total || 0}</span><span class="ws-card-label">总计</span></div>
-            <div class="ws-summary-card"><span class="ws-card-value">${summary.active || 0}</span><span class="ws-card-label">活跃</span></div>
-            <div class="ws-summary-card archived"><span class="ws-card-value">${summary.archived || 0}</span><span class="ws-card-label">已归档</span></div>${types}`;
+          if (summary.typeDistribution) {
+            // 内容维度统计：基于工作台筛选后的可见内容
+            const typeCards = Object.entries(summary.typeDistribution || {}).map(([k, v]) => `<div class="ws-summary-card"><span class="ws-card-value">${v}</span><span class="ws-card-label">${escapeHtml(LABELS[k] || k)}</span></div>`).join('');
+            const sourceCards = Object.entries(summary.sourceDistribution || {}).map(([k, v]) => {
+              const label = ({ rule: '规则命中', manual: '手动加入', manual_input: '工作台输入', relation: '关系带入' })[k] || k;
+              return `<div class="ws-summary-card"><span class="ws-card-value">${v}</span><span class="ws-card-label">${label}</span></div>`;
+            }).join('');
+            overviewSummaryCards.innerHTML = `<div class="ws-summary-card primary"><span class="ws-card-value">${summary.total || 0}</span><span class="ws-card-label">可见内容</span></div>${typeCards}${sourceCards}`;
+          } else {
+            // 工作台维度统计：全部视图
+            const types = Object.entries(summary.types || {}).map(([k, v]) => `<div class="ws-summary-card"><span class="ws-card-value">${v}</span><span class="ws-card-label">${escapeHtml(k)}</span></div>`).join('');
+            overviewSummaryCards.innerHTML = `<div class="ws-summary-card"><span class="ws-card-value">${summary.total || 0}</span><span class="ws-card-label">总计</span></div>
+              <div class="ws-summary-card"><span class="ws-card-value">${summary.active || 0}</span><span class="ws-card-label">活跃</span></div>
+              <div class="ws-summary-card archived"><span class="ws-card-value">${summary.archived || 0}</span><span class="ws-card-label">已归档</span></div>${types}`;
+          }
           if (overviewResultCount) overviewResultCount.textContent = '共 ' + (summary.total || 0) + ' 项';
           // Type filters (read-only distribution)
           const contentTypes = data.contentTypes || Object.keys(LABELS);
@@ -1168,7 +1261,7 @@
           if (!r.ok) return;
           workspaces = await r.json();
           const savedWsId = localStorage.getItem('active_workspace_id');
-          if (savedWsId && workspaces.some(w => w.id === savedWsId)) {
+          if (savedWsId && savedWsId !== 'pd-builtin' && workspaces.some(w => w.id === savedWsId)) {
             overviewWorkspaceId = savedWsId;
             activeWsId = null;
           } else {
@@ -1186,7 +1279,7 @@
         const isOverview = !overviewView.classList.contains('hidden');
         const isDefaultActive = isOverview ? overviewWorkspaceId === null : activeWsId === null;
         const defaultHtml = '<button class="sidebar-item ' + (isDefaultActive ? 'active' : '') + '" data-wsid="" type="button"><i class="ws-dot" style="background:#888"></i><span class="ws-name">全部</span><span class="ws-type-tag">全部工作台</span></button>';
-        wsList.innerHTML = defaultHtml + workspaces.map(function(ws) {
+        wsList.innerHTML = defaultHtml + workspaces.filter(function(ws) { return ws.id !== 'pd-builtin'; }).map(function(ws) {
           const isActive = isOverview ? overviewWorkspaceId === ws.id : activeWsId === ws.id;
           return '<button class="sidebar-item ' + (isActive ? 'active' : '') + '" data-wsid="' + escapeHtml(ws.id) + '" type="button" draggable="true"><i class="ws-dot" style="background:' + escapeHtml(ws.color || '#2383e2') + '"></i><span class="ws-name">' + escapeHtml(ws.name) + '</span>' + (ws.isDefault ? '<span style="margin-left:auto;font-size:10px;color:var(--app-success)">●</span>' : '') + '<span class="ws-type-tag">' + escapeHtml(TYPE_LABELS[ws.type || 'general'] || '通用') + '</span></button>';
         }).join('');
@@ -1195,42 +1288,38 @@
 
       /* ── View Switching ── */
       function selectWorkspace(id) {
-        // 隐藏所有视图
-        productDevView.classList.remove('visible');
         if (!id) {
           // "全部" — 显示 overview 视图
           overviewWorkspaceId = null;
           activeWsId = null;
-          overviewView.classList.remove('hidden');
-          detailView.classList.remove('visible');
-          // 更新侧边栏导航项激活状态
-          document.querySelectorAll('.sidebar-nav-item').forEach(function(btn) {
-            btn.classList.remove('active');
-          });
-          renderWsList();
-          loadOverview();
-          closeSidebar();
+          showView('overview');
           localStorage.setItem('active_workspace_id', '');
           try { window.parent.postMessage({ type: 'workspaceChanged', workspaceId: '' }, '*'); } catch(e) {}
           return;
         }
-        // 具体工作台 — 进入 detail 视图，概览以该工作台维度统计数据
-        overviewWorkspaceId = null;
-        activeWsId = id;
-        overviewView.classList.add('hidden');
-        detailView.classList.add('visible');
-        // 更新侧边栏导航项激活状态
-        document.querySelectorAll('.sidebar-nav-item').forEach(function(btn) {
-          btn.classList.remove('active');
-        });
-        updateTabVisibility();
-        renderWsList();
-        switchToTab('overview');
-        loadDetailOverview();
-        loadDetail();
-        closeSidebar();
-        localStorage.setItem('active_workspace_id', id);
-        try { window.parent.postMessage({ type: 'workspaceChanged', workspaceId: id }, '*'); } catch(e) {}
+        const isOverview = !overviewView.classList.contains('hidden');
+        if (isOverview) {
+          // 在 overview 视图内按工作台维度过滤统计与内容
+          overviewWorkspaceId = id;
+          activeWsId = null;
+          renderWsList();
+          loadOverview();
+          closeSidebar();
+          localStorage.setItem('active_workspace_id', id);
+          try { window.parent.postMessage({ type: 'workspaceChanged', workspaceId: id }, '*'); } catch(e) {}
+        } else {
+          // 具体工作台 — 进入 detail 视图，概览以该工作台维度统计数据
+          activeWsId = id;
+          overviewWorkspaceId = null;
+          showView('detail');
+          updateTabVisibility();
+          renderWsList();
+          switchToTab('overview');
+          loadDetailOverview();
+          loadDetail();
+          localStorage.setItem('active_workspace_id', id);
+          try { window.parent.postMessage({ type: 'workspaceChanged', workspaceId: id }, '*'); } catch(e) {}
+        }
       }
 
       /** "全部"（无活动工作台）时隐藏规则/排除 Tab，具体工作台恢复显示 */
@@ -1299,6 +1388,7 @@
                   // Navigate back to overview
                   overviewWorkspaceId = null;
                   activeWsId = null;
+                  navOverview.classList.add('active');
                   overviewView.classList.remove('hidden');
                   detailView.classList.remove('visible');
                   await loadWorkspaces();
@@ -2425,6 +2515,7 @@
             loadOverview();
           }
           loadWorkspaces();
+          if (productDevView && productDevView.classList.contains('visible')) loadProductDev();
         }
       });
       document.documentElement.setAttribute('data-theme', localStorage.getItem('app_theme_v1') || 'notion');
@@ -2476,7 +2567,7 @@
         });
       }
 
-      /* ── 产品开发工作区 ── (已移除) */
+      /* ── 产品开发工作区 ── */
       document.querySelectorAll('.pd-tab').forEach(function(tab) {
         tab.addEventListener('click', function() {
           document.querySelectorAll('.pd-tab').forEach(function(t) { t.classList.remove('active'); });
@@ -3260,7 +3351,7 @@
       /* ── Init ── */
       (async function init() {
         await loadWorkspaces();
-        loadOverview();
+        showView('overview');
       })();
 
       /* ── Overview search ── */
