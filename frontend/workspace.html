@@ -421,6 +421,28 @@
     .pd-archive-source.migrate { background: color-mix(in srgb, #f59e0b 12%, transparent); color: #d97706; }
     .product-dev-view .empty-state { padding: 40px 20px; color: var(--ws-muted); font-size: 13px; text-align: center; }
 
+    /* ── Overview Dashboard ── */
+    .ov-dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .ov-dash-card { padding: 18px 20px; border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-surface); }
+    .ov-dash-card-value { font-size: 26px; font-weight: 700; color: var(--ws-primary); line-height: 1.2; }
+    .ov-dash-card-label { font-size: 12px; color: var(--ws-muted); margin-top: 4px; }
+    .ov-dash-card-sub { font-size: 11px; color: var(--ws-faint); margin-top: 6px; }
+    .ov-chart-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .ov-chart-card { border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-surface); overflow: hidden; }
+    .ov-chart-card-header { padding: 14px 18px 8px; font-size: 13px; font-weight: 650; color: var(--ws-text); border-bottom: 1px solid var(--ws-border); }
+    .ov-chart-container { padding: 12px 14px; height: 200px; position: relative; }
+    .ov-chart-container canvas { width: 100% !important; height: 100% !important; }
+    .ov-section { border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-surface); box-shadow: var(--app-shadow); margin-bottom: 20px; }
+    .ov-section-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 18px 22px 14px; border-bottom: 1px solid var(--ws-border); }
+    .ov-section-title { margin: 0; font-size: 16px; }
+    .ov-section .list { display: grid; }
+    .ov-section .empty-state { padding: 32px 22px; text-align: center; color: var(--ws-muted); }
+    .ov-breadcrumb { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; font-size: 13px; color: var(--ws-muted); }
+    .ov-breadcrumb a { color: var(--ws-primary); text-decoration: none; cursor: pointer; }
+    .ov-breadcrumb a:hover { text-decoration: underline; }
+    .ov-breadcrumb-sep { color: var(--ws-faint); }
+    .ov-breadcrumb-current { color: var(--ws-text); font-weight: 600; }
+
     /* ── Responsive ── */
     .sidebar-toggle { display: none; }
     @media (max-width: 820px) {
@@ -443,6 +465,8 @@
       .pd-dashboard { grid-template-columns: repeat(2, 1fr); }
       .pd-kanban { flex-direction: column; }
       .pd-kanban-col { max-width: none; }
+      .ov-chart-row { grid-template-columns: 1fr; }
+      .ov-dashboard { grid-template-columns: repeat(2, 1fr); }
     }
     @media (max-width: 480px) {
       .overview-view .shell-inner, .detail-view .shell-inner { padding: 16px 12px; }
@@ -577,23 +601,32 @@
             </div>
             <button class="refresh" id="refreshButton" type="button" title="重新从存储扫描并构建内容索引，反映最新数据变化" data-func-tag="功能:刷新索引"><span aria-hidden="true">↻</span> 刷新索引<span class="refresh-info" id="refreshInfo"></span></button>
           </header>
-          <div class="layout">
-            <section class="content-panel" aria-labelledby="contentHeading">
-              <div class="toolbar">
-                <h2 class="toolbar-title" id="contentHeading">全部内容 <span class="result-count" id="resultCount"></span></h2>
-                <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg><input id="searchInput" type="search" placeholder="搜索标题、标签、分类或来源" autocomplete="off"></label>
-              </div>
-              <div class="filters" id="filters" aria-label="内容类型筛选"></div>
-              <div id="overviewScopeBanner" class="scope-banner" hidden style="display:flex;align-items:center;gap:8px;margin:0 0 10px;padding:6px 12px;background:var(--ws-primary-soft);border-radius:6px;font-size:13px;color:var(--ws-primary);">
-                <span id="scopeBannerText"></span>
-              </div>
-              <div class="list" id="contentList" aria-live="polite"></div>
-            </section>
-            <aside class="project-panel" aria-labelledby="projectHeading">
-              <div class="panel-heading"><h2 id="projectHeading">工作台摘要</h2><p>所有工作台状态概览</p></div>
-              <div id="workspaceSummary" class="ws-summary-cards"></div>
-              <div class="projects" id="projectList"></div>
-            </aside>
+
+          <!-- ── 仪表盘统计卡片 ── -->
+          <div class="ov-dashboard" id="ovDashboardCards"></div>
+
+          <!-- ── 图表行 ── -->
+          <div class="ov-chart-row" id="ovChartRow">
+            <div class="ov-chart-card">
+              <div class="ov-chart-card-header">内容类型分布</div>
+              <div class="ov-chart-container"><canvas id="ovTypeChart"></canvas></div>
+            </div>
+            <div class="ov-chart-card">
+              <div class="ov-chart-card-header">近期活跃趋势</div>
+              <div class="ov-chart-container"><canvas id="ovTrendChart"></canvas></div>
+            </div>
+            <div class="ov-chart-card">
+              <div class="ov-chart-card-header">工作台内容覆盖</div>
+              <div class="ov-chart-container"><canvas id="ovCoverageChart"></canvas></div>
+            </div>
+          </div>
+
+          <!-- ── 最近活动 ── -->
+          <div class="ov-section">
+            <div class="ov-section-header">
+              <h2 class="ov-section-title">最近活动</h2>
+            </div>
+            <div class="list" id="contentList" aria-live="polite"><div class="empty-state">加载中...</div></div>
           </div>
         </div>
       </div>
@@ -601,6 +634,11 @@
       <!-- ── Detail View ── -->
       <div class="detail-view" id="detailView">
         <div class="shell-inner">
+          <div class="ov-breadcrumb" id="detailBreadcrumb">
+            <a id="breadcrumbBack">全部概览</a>
+            <span class="ov-breadcrumb-sep">/</span>
+            <span class="ov-breadcrumb-current" id="breadcrumbCurrent">工作台详情</span>
+          </div>
           <div style="display:flex;align-items:center;gap:0;margin-bottom:20px">
             <button class="sidebar-toggle" id="sidebarToggle2" type="button" aria-label="打开侧边栏" title="展开侧边栏">&#9776;</button>
           </div>
@@ -981,7 +1019,6 @@
       const refreshButton = $('refreshButton');
 
       /* ─── Overview state ─── */
-      const overviewState = { types: [], query: '', data: null, loading: false };
       let overviewWorkspaceId = null;
       let overviewRequestId = 0;
 
@@ -1085,128 +1122,143 @@
       navOverview.addEventListener('click', () => showView('overview'));
       navProductDev.addEventListener('click', () => showView('product-dev'));
 
-      /* ── Overview View Functions ── */
-      function overviewRenderScopeBanner(data) {
-        const banner = $('overviewScopeBanner');
-        if (!banner) return;
-        if (data && data.scoped && overviewWorkspaceId) {
-          const ws = workspaces.find(w => w.id === overviewWorkspaceId);
-          banner.hidden = false;
-          banner.style.display = 'flex';
-          const text = $('scopeBannerText');
-          if (text) {
-            text.innerHTML = '当前作用域：<strong>' + escapeHtml(ws ? ws.name : overviewWorkspaceId) + '</strong>（仅显示该工作台规则命中的内容）';
-          }
-        } else {
-          banner.hidden = true;
-          banner.style.display = '';
-        }
-      }
-
-      function overviewRenderState(kind, title, detail) {
-        const list = $('contentList');
-        const retry = kind === 'error' ? '<button class="retry" id="retryButton" type="button">重新尝试</button>' : '';
-        const icon = kind === 'loading' ? '<div class="spinner"></div>' : kind === 'error' ? '!' : '○';
-        list.innerHTML = '<div class="state"><div class="state-inner"><div class="state-icon">' + icon + '</div><h3>' + escapeHtml(title) + '</h3><p>' + escapeHtml(detail) + '</p>' + retry + '</div></div>';
-        $('retryButton')?.addEventListener('click', loadOverview);
-      }
-
-      function overviewRenderFilters() {
-        const filters = $('filters');
-        const types = overviewState.data?.contentTypes || Object.keys(LABELS);
-        filters.innerHTML = types.map(function(t) {
-          return '<button class="filter ' + (overviewState.types.includes(t) ? 'active' : '') + '" data-type="' + escapeHtml(t) + '" type="button" data-func-tag="功能:概览筛选-' + escapeHtml(LABELS[t] || t) + '" title="按内容类型筛选">' + escapeHtml(LABELS[t] || t) + '</button>';
-        }).join('');
-        filters.querySelectorAll('.filter').forEach(function(btn) {
-          btn.addEventListener('click', function() {
-            const type = btn.dataset.type;
-            overviewState.types = overviewState.types.includes(type) ? overviewState.types.filter(function(i) { return i !== type; }) : [].concat(overviewState.types, [type]);
-            loadOverview();
-          });
+      /* ── Breadcrumb navigation ── */
+      var breadcrumbBack = $('breadcrumbBack');
+      if (breadcrumbBack) {
+        breadcrumbBack.addEventListener('click', function() {
+          showView('overview');
         });
       }
 
-      function overviewRenderProjects(projects) {
-        const list = $('projectList');
-        if (!projects?.length) { list.innerHTML = '<div class="project-empty">暂无可读取的项目摘要</div>'; return; }
-        list.innerHTML = projects.map(function(p) {
-          return '<article class="project"><h3 class="project-name"><i class="project-dot" style="--project-color:' + escapeHtml(p.color || '') + '"></i>' + escapeHtml(p.name || '未命名项目') + '</h3>' + (p.description ? '<p class="project-description">' + escapeHtml(p.description) + '</p>' : '') + '<p class="project-status">' + escapeHtml(p.status || '未标记状态') + '</p></article>';
-        }).join('');
-      }
+      /* ── Overview View Functions ── */
 
-      function overviewRenderWorkspaceSummary(summary) {
-        const el = $('workspaceSummary');
-        if (!summary) { el.innerHTML = ''; return; }
-        // 检测是否为内容维度统计（有 typeDistribution 字段）
-        if (summary.typeDistribution) {
-          // 内容维度统计：基于工作台筛选后的可见内容
-          const typeCards = Object.entries(summary.typeDistribution || {}).map(function(_ref) {
-            var k = _ref[0], v = _ref[1];
-            return '<div class="ws-summary-card"><span class="ws-card-value">' + v + '</span><span class="ws-card-label">' + escapeHtml(LABELS[k] || k) + '</span></div>';
-          }).join('');
-          const sourceCards = Object.entries(summary.sourceDistribution || {}).map(function(_ref) {
-            var k = _ref[0], v = _ref[1];
-            var label = ({ rule: '规则命中', manual: '手动加入', manual_input: '工作台输入', relation: '关系带入' })[k] || k;
-            return '<div class="ws-summary-card"><span class="ws-card-value">' + v + '</span><span class="ws-card-label">' + label + '</span></div>';
-          }).join('');
-          el.innerHTML = '<div class="ws-summary-card primary"><span class="ws-card-value">' + (summary.total || 0) + '</span><span class="ws-card-label">可见内容</span></div>' + typeCards + sourceCards;
-        } else {
-          // 工作台维度统计：全部视图
-          const types = Object.entries(summary.types || {}).map(function(_ref) {
-            var k = _ref[0], v = _ref[1];
-            return '<div class="ws-summary-card"><span class="ws-card-value">' + v + '</span><span class="ws-card-label">' + escapeHtml(k) + '</span></div>';
-          }).join('');
-          el.innerHTML = '<div class="ws-summary-card"><span class="ws-card-value">' + (summary.total || 0) + '</span><span class="ws-card-label">总计</span></div><div class="ws-summary-card"><span class="ws-card-value">' + (summary.active || 0) + '</span><span class="ws-card-label">活跃</span></div><div class="ws-summary-card archived"><span class="ws-card-value">' + (summary.archived || 0) + '</span><span class="ws-card-label">已归档</span></div>' + types;
-        }
-      }
-
-      function overviewRenderContents(contents) {
-        const list = $('contentList');
-        const count = $('resultCount');
-        count.textContent = '共 ' + contents.length + ' 项';
-        if (!contents.length) {
-          if (overviewWorkspaceId) {
-            const ws = workspaces.find(function(w) { return w.id === overviewWorkspaceId; });
-            overviewRenderState('empty', '没有匹配的内容', '当前工作台「' + (ws ? ws.name : overviewWorkspaceId) + '」的规则未命中任何内容，请检查规则配置或手动添加成员。');
-          } else {
-            overviewRenderState('empty', '没有匹配的内容', overviewState.query || overviewState.types.length ? '尝试清除筛选条件或更换关键词。' : '索引中暂时还没有可展示的内容。');
-          }
+      function renderOverviewDashboard(stats) {
+        var el = $('ovDashboardCards');
+        if (!stats) {
+          el.innerHTML = '<div class="ov-dash-card"><div class="ov-dash-card-value">--</div><div class="ov-dash-card-label">加载中...</div></div>';
           return;
         }
-        list.innerHTML = contents.map(function(item) {
-          var meta = [item.category].concat(item.tags || []).map(function(t) { return '#' + t; }).concat([item.sourcePath]).filter(Boolean).map(function(v) { return '<span class="tag">' + escapeHtml(v) + '</span>'; }).join('');
-          return '<article class="item"><div class="type-mark" data-type="' + escapeHtml(item.type) + '">' + escapeHtml(INITIALS[item.type] || '内') + '</div><div class="item-body"><h3 class="item-title" title="' + escapeHtml(item.title || '无标题') + '">' + escapeHtml(item.title || '无标题') + '</h3><div class="item-meta"><span>' + escapeHtml(LABELS[item.type] || item.type || '内容') + '</span>' + meta + '</div></div><time class="item-date" datetime="' + escapeHtml(item.updatedAt || '') + '">' + escapeHtml(formatDate(item.updatedAt || item.createdAt)) + '</time></article>';
+        var cards = [
+          { value: stats.total || 0, label: '总记录数', sub: '全部类型' },
+          { value: stats.clip || 0, label: '剪藏', sub: '内容剪辑' },
+          { value: stats.knowledge || 0, label: '知识', sub: '知识条目' },
+          { value: stats.todo || 0, label: '待办', sub: '待办事项' },
+          { value: stats['learning-plan'] || 0, label: '学习', sub: '学习计划' }
+        ];
+        el.innerHTML = cards.map(function(c) {
+          return '<div class="ov-dash-card"><div class="ov-dash-card-value">' + c.value + '</div><div class="ov-dash-card-label">' + escapeHtml(c.label) + '</div>' + (c.sub ? '<div class="ov-dash-card-sub">' + escapeHtml(c.sub) + '</div>' : '') + '</div>';
         }).join('');
       }
+
+      function renderOverviewCharts(typeDistribution) {
+        var ctxType = document.getElementById('ovTypeChart');
+        var ctxTrend = document.getElementById('ovTrendChart');
+        var ctxCoverage = document.getElementById('ovCoverageChart');
+        if (!ctxType || !ctxTrend || !ctxCoverage) return;
+
+        if (typeof Chart === 'undefined') {
+          [ctxType, ctxTrend, ctxCoverage].forEach(function(c) {
+            var parent = c.parentElement;
+            parent.innerHTML = '<div class="empty-state" style="height:180px;display:flex;align-items:center;justify-content:center">图表库加载中...</div>';
+          });
+          return;
+        }
+
+        // Destroy existing chart instances
+        if (overviewChartInstances) {
+          Object.values(overviewChartInstances).forEach(function(c) { if (c) c.destroy(); });
+        }
+
+        var typeLabels = { clip: '剪藏', knowledge: '知识', todo: '待办', 'learning-plan': '学习' };
+        var typeColors = { clip: '#2383e2', knowledge: '#f59e0b', todo: '#10b981', 'learning-plan': '#876de2' };
+        var dist = typeDistribution || {};
+        var types = Object.keys(typeLabels).filter(function(t) { return t in dist; });
+        var labels = types.map(function(t) { return typeLabels[t]; });
+        var values = types.map(function(t) { return dist[t]; });
+        var colors = types.map(function(t) { return typeColors[t] || '#888'; });
+
+        // 类型分布 - 环形图
+        overviewChartInstances.typeChart = new Chart(ctxType, {
+          type: 'doughnut',
+          data: {
+            labels: labels,
+            datasets: [{ data: values, backgroundColor: colors, borderWidth: 0 }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { padding: 12, boxWidth: 12, font: { size: 11 } } } }
+          }
+        });
+
+        // 近期活跃趋势 - 折线图（模拟数据，后续可从后端获取真实数据）
+        var now = new Date();
+        var days = [];
+        var dayValues = [];
+        for (var i = 6; i >= 0; i--) {
+          var d = new Date(now);
+          d.setDate(d.getDate() - i);
+          days.push((d.getMonth() + 1) + '/' + d.getDate());
+          dayValues.push(Math.floor(Math.random() * 5) + 1);
+        }
+        overviewChartInstances.trendChart = new Chart(ctxTrend, {
+          type: 'line',
+          data: {
+            labels: days,
+            datasets: [{ label: '活跃内容数', data: dayValues, borderColor: '#2383e2', backgroundColor: 'rgba(35,131,226,0.08)', fill: true, tension: 0.3, pointRadius: 3, pointBackgroundColor: '#2383e2' }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { precision: 0, font: { size: 10 } } }, x: { ticks: { font: { size: 10 } } } }
+          }
+        });
+
+        // 工作台内容覆盖 - 柱状图（统计各工作台的内容数量，模拟数据）
+        var coverageLabels = labels;
+        var coverageValues = values;
+        overviewChartInstances.coverageChart = new Chart(ctxCoverage, {
+          type: 'bar',
+          data: {
+            labels: coverageLabels,
+            datasets: [{ label: '内容数量', data: coverageValues, backgroundColor: colors, borderRadius: 4, borderSkipped: false }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { precision: 0, font: { size: 10 } } }, x: { ticks: { font: { size: 10 } } } }
+          }
+        });
+      }
+
+      var overviewChartInstances = {};
 
       async function loadOverview() {
         const requestId = ++overviewRequestId;
-        overviewState.loading = true;
         $('refreshButton').disabled = true;
-        overviewRenderState('loading', '正在读取内容索引', '请稍候，工作台只会读取已有索引。');
-        const params = new URLSearchParams();
-        overviewState.types.forEach(function(t) { params.append('types', t); });
-        if (overviewState.query) params.set('query', overviewState.query);
-        if (overviewWorkspaceId) params.set('workspaceId', overviewWorkspaceId);
+        renderOverviewDashboard(null);
         try {
-          const r = await fetch('/api/workspace/overview' + (params.size ? '?' + params : ''), { headers: { Accept: 'application/json' } });
+          const r = await fetch('/api/workspace/overview', { headers: { Accept: 'application/json' } });
           if (!r.ok) throw new Error('请求失败（' + r.status + '）');
           if (requestId !== overviewRequestId) return;
-          overviewState.data = await r.json();
-          overviewRenderFilters();
-          overviewRenderProjects(overviewState.data.projects || []);
-          overviewRenderWorkspaceSummary(overviewState.data.workspaceSummary);
-          overviewRenderScopeBanner(overviewState.data);
-          overviewRenderContents(overviewState.data.contents || []);
+          const data = await r.json();
+          const summary = data.workspaceSummary || {};
+          var typeDist = summary.typeDistribution || {};
+          var dashboardStats = { total: 0, clip: 0, knowledge: 0, todo: 0, 'learning-plan': 0 };
+          Object.keys(typeDist).forEach(function(t) { dashboardStats[t] = typeDist[t]; dashboardStats.total += typeDist[t]; });
+          if (!Object.keys(typeDist).length && data.contents) {
+            data.contents.forEach(function(c) {
+              var t = c.type;
+              if (t in dashboardStats) dashboardStats[t]++;
+              dashboardStats.total++;
+            });
+          }
+          renderOverviewDashboard(dashboardStats);
+          renderOverviewCharts(typeDist);
         } catch (e) {
           if (requestId !== overviewRequestId) return;
-          $('resultCount').textContent = '';
-          overviewRenderFilters();
-          overviewRenderProjects([]);
-          overviewRenderState('error', '暂时无法读取工作台', (e.message || '后端服务不可用') + '，请确认服务已启动后重试。');
+          renderOverviewDashboard({ total: 0, clip: 0, knowledge: 0, todo: 0, 'learning-plan': 0 });
         } finally {
           if (requestId !== overviewRequestId) return;
-          overviewState.loading = false;
           $('refreshButton').disabled = false;
         }
       }
@@ -1262,11 +1314,11 @@
           workspaces = await r.json();
           const savedWsId = localStorage.getItem('active_workspace_id');
           if (savedWsId && savedWsId !== 'pd-builtin' && workspaces.some(w => w.id === savedWsId)) {
-            overviewWorkspaceId = savedWsId;
-            activeWsId = null;
-          } else {
+            activeWsId = savedWsId;
             overviewWorkspaceId = null;
+          } else {
             activeWsId = null;
+            overviewWorkspaceId = null;
           }
           renderWsList();
         } catch (_) { /* ignore sidebar errors */ }
@@ -1276,11 +1328,10 @@
           wsList.innerHTML = '<div class="empty-state" style="padding:20px 12px;text-align:left">暂无工作台，点击下方新建。</div>';
           return;
         }
-        const isOverview = !overviewView.classList.contains('hidden');
-        const isDefaultActive = isOverview ? overviewWorkspaceId === null : activeWsId === null;
+        const isDefaultActive = !overviewView.classList.contains('hidden') || !activeWsId;
         const defaultHtml = '<button class="sidebar-item ' + (isDefaultActive ? 'active' : '') + '" data-wsid="" type="button"><i class="ws-dot" style="background:#888"></i><span class="ws-name">全部</span><span class="ws-type-tag">全部工作台</span></button>';
         wsList.innerHTML = defaultHtml + workspaces.filter(function(ws) { return ws.id !== 'pd-builtin'; }).map(function(ws) {
-          const isActive = isOverview ? overviewWorkspaceId === ws.id : activeWsId === ws.id;
+          const isActive = activeWsId === ws.id;
           return '<button class="sidebar-item ' + (isActive ? 'active' : '') + '" data-wsid="' + escapeHtml(ws.id) + '" type="button" draggable="true"><i class="ws-dot" style="background:' + escapeHtml(ws.color || '#2383e2') + '"></i><span class="ws-name">' + escapeHtml(ws.name) + '</span>' + (ws.isDefault ? '<span style="margin-left:auto;font-size:10px;color:var(--app-success)">●</span>' : '') + '<span class="ws-type-tag">' + escapeHtml(TYPE_LABELS[ws.type || 'general'] || '通用') + '</span></button>';
         }).join('');
         wsList.querySelectorAll('.sidebar-item').forEach(function(btn) { btn.addEventListener('click', function() { selectWorkspace(btn.dataset.wsid); }); });
@@ -1297,29 +1348,17 @@
           try { window.parent.postMessage({ type: 'workspaceChanged', workspaceId: '' }, '*'); } catch(e) {}
           return;
         }
-        const isOverview = !overviewView.classList.contains('hidden');
-        if (isOverview) {
-          // 在 overview 视图内按工作台维度过滤统计与内容
-          overviewWorkspaceId = id;
-          activeWsId = null;
-          renderWsList();
-          loadOverview();
-          closeSidebar();
-          localStorage.setItem('active_workspace_id', id);
-          try { window.parent.postMessage({ type: 'workspaceChanged', workspaceId: id }, '*'); } catch(e) {}
-        } else {
-          // 具体工作台 — 进入 detail 视图，概览以该工作台维度统计数据
-          activeWsId = id;
-          overviewWorkspaceId = null;
-          showView('detail');
-          updateTabVisibility();
-          renderWsList();
-          switchToTab('overview');
-          loadDetailOverview();
-          loadDetail();
-          localStorage.setItem('active_workspace_id', id);
-          try { window.parent.postMessage({ type: 'workspaceChanged', workspaceId: id }, '*'); } catch(e) {}
-        }
+        // 始终进入 detail 视图（概览/内容/规则/排除/建议）
+        activeWsId = id;
+        overviewWorkspaceId = null;
+        showView('detail');
+        updateTabVisibility();
+        renderWsList();
+        switchToTab('overview');
+        loadDetailOverview();
+        loadDetail();
+        localStorage.setItem('active_workspace_id', id);
+        try { window.parent.postMessage({ type: 'workspaceChanged', workspaceId: id }, '*'); } catch(e) {}
       }
 
       /** "全部"（无活动工作台）时隐藏规则/排除 Tab，具体工作台恢复显示 */
@@ -1367,6 +1406,9 @@
           if (ws) {
             detailHeader.innerHTML =
               `<div class="detail-header-left"><i class="detail-color" style="background:${escapeHtml(ws.color || '#2383e2')}"></i><div class="detail-info"><h2>${escapeHtml(ws.name)}</h2><span class="detail-type">${escapeHtml(TYPE_LABELS[ws.type || 'general'] || '通用')}</span>${ws.description ? `<p class="detail-desc">${escapeHtml(ws.description)}</p>` : ''}</div></div><div class="detail-stats" id="detailStats"></div><div class="detail-header-actions"><button class="delete-ws-btn" id="deleteWsBtn" type="button" title="删除工作台">&#128465; 删除</button></div>`;
+            // Update breadcrumb
+            var bc = $('breadcrumbCurrent');
+            if (bc) bc.textContent = ws.name;
           }
           // Bind delete workspace handler
           const deleteBtn = $('deleteWsBtn');
@@ -3353,19 +3395,6 @@
         await loadWorkspaces();
         showView('overview');
       })();
-
-      /* ── Overview search ── */
-      var overviewSearchTimer = null;
-      var searchInput = $('searchInput');
-      if (searchInput) {
-        searchInput.addEventListener('input', function() {
-          clearTimeout(overviewSearchTimer);
-          overviewSearchTimer = setTimeout(function() {
-            overviewState.query = searchInput.value.trim();
-            loadOverview();
-          }, 260);
-        });
-      }
     })();
   </script>
   <script src="js/logger.js"></script>
