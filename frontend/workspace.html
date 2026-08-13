@@ -2991,10 +2991,16 @@
         }, 260);
       });
 
-      /* ── Theme ── */
+      /* ── Theme / 父窗口消息（置顶、刷新） ── */
+      function scrollWorkspaceToTop(behavior) {
+        try { window.scrollTo({ top: 0, behavior: behavior || 'auto' }); } catch (e) { window.scrollTo(0, 0); }
+        const main = document.querySelector('.main-area');
+        if (main) { try { main.scrollTo({ top: 0, behavior: behavior || 'auto' }); } catch (e) { main.scrollTop = 0; } }
+      }
       window.addEventListener('message', event => {
-        if (event.data?.action === 'themeChange') document.documentElement.setAttribute('data-theme', event.data.theme);
-        if (event.data?.action === 'refresh') {
+        const action = event.data?.action;
+        if (action === 'themeChange') document.documentElement.setAttribute('data-theme', event.data.theme);
+        if (action === 'refresh') {
           if (overviewView.classList.contains('hidden')) {
             loadDetailOverview();
             if (activeWsId) {
@@ -3005,6 +3011,11 @@
           }
           loadWorkspaces();
           if (productDevView && productDevView.classList.contains('visible')) loadProductDev();
+          // 刷新数据后回到顶部，让内容更新可见（避免"只对图标有效"的观感）
+          scrollWorkspaceToTop('auto');
+        }
+        if (action === 'scrollToTop') {
+          scrollWorkspaceToTop('smooth');
         }
       });
       document.documentElement.setAttribute('data-theme', localStorage.getItem('app_theme_v1') || 'notion');
