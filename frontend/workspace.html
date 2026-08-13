@@ -381,14 +381,12 @@
     .pd-kanban-col-header h3 { margin: 0; font-size: 13px; font-weight: 650; }
     .pd-kanban-col-count { color: var(--ws-faint); font-size: 11px; }
     .pd-kanban-col-body { flex: 1; overflow-y: auto; padding: 8px; min-height: 60px; }
-    .pd-kanban-card { padding: 12px 14px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-surface); margin-bottom: 8px; cursor: grab; transition: box-shadow .16s ease; }
+    .pd-kanban-card { padding: 12px 14px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-surface); margin-bottom: 8px; cursor: pointer; transition: box-shadow .16s ease; }
     .pd-kanban-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
     .pd-kanban-card:last-child { margin-bottom: 0; }
     .pd-kanban-card-title { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pd-kanban-card-meta { margin-top: 6px; font-size: 11px; color: var(--ws-faint); }
     .pd-kanban-card-meta .pd-tag { display: inline-block; padding: 1px 6px; border-radius: 4px; background: var(--ws-primary-soft); color: var(--ws-primary); font-size: 10px; margin-right: 4px; }
-    .pd-kanban-card.dragging { opacity: .45; transform: rotate(2deg); }
-    .pd-kanban-col-body.drag-over { background: var(--ws-primary-soft); border-radius: var(--app-radius); min-height: 80px; }
     .pd-req-detail-section { margin-bottom: 16px; }
     .pd-req-detail-section:last-child { margin-bottom: 0; }
     .pd-req-detail-label { font-size: 11px; font-weight: 700; color: var(--ws-faint); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
@@ -484,6 +482,28 @@
     .pd-iter-related-item:hover { border-color: var(--ws-primary); background: var(--ws-primary-soft); }
     .pd-iter-related-item .rel-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
     .pd-iter-related-item .rel-project { color: var(--ws-faint); margin-left: auto; white-space: nowrap; }
+    .pd-iter-compare { flex: none; padding: 2px 10px; border: 1px solid var(--ws-primary); border-radius: 999px; background: transparent; color: var(--ws-primary); font-size: 11px; cursor: pointer; transition: all .16s ease; margin-left: 8px; }
+    .pd-iter-compare:hover { background: var(--ws-primary); color: #fff; }
+    .pd-iter-back { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-surface); color: var(--ws-text); font-size: 12px; cursor: pointer; transition: all .16s ease; margin-bottom: 16px; }
+    .pd-iter-back:hover { border-color: var(--ws-primary); color: var(--ws-primary); }
+
+    /* ── 功能点演进对比（台账化） ── */
+    .pd-diff-row { display: grid; grid-template-columns: minmax(0,1fr) 28px minmax(0,1fr); gap: 8px; align-items: start; }
+    .pd-diff-arrow { align-self: center; text-align: center; color: var(--ws-faint); font-size: 14px; }
+    .pd-diff-side { min-width: 0; padding: 10px 12px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-subtle); }
+    .pd-diff-side-label { font-size: 10px; font-weight: 700; color: var(--ws-faint); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+    .pd-diff-side-value { font-size: 12px; color: var(--ws-text); line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+    .pd-diff-side-value.same { color: var(--ws-faint); }
+    .pd-diff-list { margin: 0; padding: 0; list-style: none; }
+    .pd-diff-list li { padding: 3px 8px; border-radius: 6px; font-size: 12px; margin-bottom: 3px; line-height: 1.5; }
+    .pd-diff-list .pd-diff-added { background: #ecfdf5; color: #065f46; }
+    .pd-diff-list .pd-diff-removed { background: #fef2f2; color: #991b1b; }
+    .pd-diff-list .pd-diff-same { background: transparent; color: var(--ws-faint); font-size: 11px; }
+    .pd-diff-badge { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: 650; }
+    .pd-diff-badge.changed { background: #dbeafe; color: #1e40af; }
+    .pd-diff-badge.added { background: #d1fae5; color: #065f46; }
+    .pd-diff-badge.removed { background: #fee2e2; color: #991b1b; }
+    .pd-diff-empty { padding: 16px; border: 1px dashed var(--ws-border); border-radius: var(--app-radius); color: var(--ws-muted); font-size: 12px; text-align: center; }
 
     /* ── 可点击项 ── */
     .pd-activity-item { cursor: pointer; transition: background .12s ease; }
@@ -1380,7 +1400,7 @@
         }).join('');
       }
 
-      function renderOverviewCharts(typeDistribution) {
+      function renderOverviewCharts(typeDistribution, contents, workspaceSummary) {
         var ctxType = document.getElementById('ovTypeChart');
         var ctxTrend = document.getElementById('ovTrendChart');
         var ctxCoverage = document.getElementById('ovCoverageChart');
@@ -1420,16 +1440,28 @@
           }
         });
 
-        // 近期活跃趋势 - 折线图（模拟数据，后续可从后端获取真实数据）
+        // 近期活跃趋势 - 折线图（按最近 7 天内容更新时间统计，真实数据）
         var now = new Date();
         var days = [];
         var dayValues = [];
+        var dayKeys = [];
         for (var i = 6; i >= 0; i--) {
           var d = new Date(now);
           d.setDate(d.getDate() - i);
+          dayKeys.push(d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate());
           days.push((d.getMonth() + 1) + '/' + d.getDate());
-          dayValues.push(Math.floor(Math.random() * 5) + 1);
+          dayValues.push(0);
         }
+        (contents || []).forEach(function(c) {
+          var ts = c.updatedAt || c.createdAt;
+          if (!ts) return;
+          var dd = new Date(ts);
+          if (Number.isNaN(dd.getTime())) return;
+          var k = dd.getFullYear() + '-' + (dd.getMonth() + 1) + '-' + dd.getDate();
+          var idx = dayKeys.indexOf(k);
+          if (idx >= 0) dayValues[idx]++;
+        });
+        var hasTrendData = dayValues.some(function(v) { return v > 0; });
         overviewChartInstances.trendChart = new Chart(ctxTrend, {
           type: 'line',
           data: {
@@ -1438,23 +1470,26 @@
           },
           options: {
             responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            plugins: { legend: { display: false }, title: hasTrendData ? undefined : { display: true, text: '近 7 天无活跃记录', color: 'var(--ws-faint)', font: { size: 11 }, padding: { top: 50 } } },
             scales: { y: { beginAtZero: true, ticks: { precision: 0, font: { size: 10 } } }, x: { ticks: { font: { size: 10 } } } }
           }
         });
 
-        // 工作台内容覆盖 - 柱状图（统计各工作台的内容数量，模拟数据）
-        var coverageLabels = labels;
-        var coverageValues = values;
+        // 工作台内容覆盖 - 柱状图（工作台类型分布，真实数据）
+        var wsTypes = Object.entries((workspaceSummary && workspaceSummary.types) || {});
+        var wsTypeLabels = { general: '通用', project: '项目', learning: '学习' };
+        var coverageLabels = wsTypes.map(function(e) { return wsTypeLabels[e[0]] || e[0]; });
+        var coverageValues = wsTypes.map(function(e) { return e[1]; });
+        var coverageColors = ['#2383e2', '#876de2', '#f59e0b', '#10b981', '#e74c3c'];
         overviewChartInstances.coverageChart = new Chart(ctxCoverage, {
           type: 'bar',
           data: {
             labels: coverageLabels,
-            datasets: [{ label: '内容数量', data: coverageValues, backgroundColor: colors, borderRadius: 4, borderSkipped: false }]
+            datasets: [{ label: '工作台数量', data: coverageValues, backgroundColor: coverageColors, borderRadius: 4, borderSkipped: false }]
           },
           options: {
             responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            plugins: { legend: { display: false }, title: coverageValues.length ? undefined : { display: true, text: '暂无工作台数据', color: 'var(--ws-faint)', font: { size: 11 }, padding: { top: 50 } } },
             scales: { y: { beginAtZero: true, ticks: { precision: 0, font: { size: 10 } } }, x: { ticks: { font: { size: 10 } } } }
           }
         });
@@ -1504,11 +1539,13 @@
             });
           }
           renderOverviewDashboard(dashboardStats);
-          renderOverviewCharts(typeDist);
+          renderOverviewCharts(typeDist, data.contents || [], summary);
           renderRecentActivities(data.contents || []);
         } catch (e) {
           if (requestId !== overviewRequestId) return;
           renderOverviewDashboard({ total: 0, clip: 0, knowledge: 0, todo: 0, 'learning-plan': 0 });
+          var listEl = $('contentList');
+          if (listEl) listEl.innerHTML = '<div class="error-message" style="margin:16px">加载失败：' + escapeHtml(e.message || '后端服务不可用') + '</div>';
         } finally {
           if (requestId !== overviewRequestId) return;
           $('refreshButton').disabled = false;
@@ -3591,46 +3628,6 @@
         }).join('');
       }
 
-      /* ── pd-kanban 拖拽 ── */
-      var pdDragReqId = null;
-
-      function onPdDragStart(e) {
-        var card = e.target.closest('.pd-kanban-card');
-        if (!card) return;
-        pdDragReqId = card.dataset.reqId;
-        card.classList.add('dragging');
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', pdDragReqId);
-      }
-
-      function onPdDragEnd(e) {
-        var card = e.target.closest('.pd-kanban-card');
-        if (card) card.classList.remove('dragging');
-        document.querySelectorAll('.pd-kanban-col-body').forEach(function(b) { b.classList.remove('drag-over'); });
-        pdDragReqId = null;
-      }
-
-      function onPdDragOver(e) {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        e.currentTarget.classList.add('drag-over');
-      }
-
-      function onPdDragLeave(e) {
-        var body = e.currentTarget;
-        if (!e.relatedTarget || !body.contains(e.relatedTarget)) {
-          body.classList.remove('drag-over');
-        }
-      }
-
-      function onPdDrop(e) {
-        e.preventDefault();
-        var body = e.currentTarget;
-        body.classList.remove('drag-over');
-        // MVP 阶段看板仅作展示，不支持拖拽改状态（后续版本支持）
-        return;
-      }
-
       /* ── pd-kanban 卡片点击详情弹窗 ── */
       var pdRequirementsCache = {};
       var pdIterations = [];
@@ -3674,6 +3671,15 @@
               loadProductDev();
             } catch (err) { /* 静默 */ }
           })();
+          return;
+        }
+        var compareBtn = e.target.closest && e.target.closest('.pd-iter-compare');
+        if (compareBtn) {
+          var cKey = compareBtn.getAttribute('data-compare-key');
+          var curKey = currentPdReqId;
+          if (cKey && curKey && pdRequirementsCache[curKey] && pdRequirementsCache[cKey]) {
+            showPdRequirementDiff(pdRequirementsCache[curKey], pdRequirementsCache[cKey], curKey);
+          }
           return;
         }
         var relEl = e.target.closest && e.target.closest('.pd-iter-related-item');
@@ -3768,7 +3774,7 @@
         var relatedHtml = related.length
           ? related.map(function(r) {
               var rp = r.phase || 'unknown';
-              return '<div class="pd-iter-related-item" data-req-key="' + escapeHtml(r.key) + '"><span class="rel-dot" style="background:' + (phaseColors[rp] || '#999') + '"></span><span>' + escapeHtml(r.projectName) + ' · ' + escapeHtml(r.id) + '</span><span class="rel-project">' + escapeHtml(phaseLabels[rp] || rp) + '</span></div>';
+              return '<div class="pd-iter-related-item" data-req-key="' + escapeHtml(r.key) + '"><span class="rel-dot" style="background:' + (phaseColors[rp] || '#999') + '"></span><span>' + escapeHtml(r.projectName) + ' · ' + escapeHtml(r.id) + '</span><span class="rel-project">' + escapeHtml(phaseLabels[rp] || rp) + '</span><button class="pd-iter-compare" type="button" data-compare-key="' + escapeHtml(r.key) + '" title="自动对比当前功能点与该版本的功能点字段差异">对比</button></div>';
             }).join('')
           : '<div class="pd-req-detail-value" style="color:var(--ws-faint);font-size:12px">未发现其他项目中同名功能点，跨项目迭代定位为空。</div>';
 
@@ -3867,6 +3873,110 @@
             }
           });
         }
+      }
+
+      /* ── 功能点演进对比（台账化：自动 diff 跨需求同名功能点） ── */
+      function pdSectionText(s) {
+        if (typeof s === 'string') return s;
+        if (!s) return '';
+        var doc = s.document || '';
+        var sec = s.section || s.title || '';
+        return (doc ? doc + ' → ' : '') + sec;
+      }
+
+      function pdArrDiff(baseArr, otherArr) {
+        var a = (baseArr || []).map(String);
+        var b = (otherArr || []).map(String);
+        var setA = new Set(a);
+        var setB = new Set(b);
+        return {
+          added: b.filter(function(x) { return !setA.has(x); }),
+          removed: a.filter(function(x) { return !setB.has(x); }),
+          same: a.filter(function(x) { return setB.has(x); })
+        };
+      }
+
+      function pdDiffListHtml(diff) {
+        var html = '<ul class="pd-diff-list">';
+        diff.added.forEach(function(x) { html += '<li class="pd-diff-added">+ ' + escapeHtml(x) + '</li>'; });
+        diff.removed.forEach(function(x) { html += '<li class="pd-diff-removed">- ' + escapeHtml(x) + '</li>'; });
+        if (diff.same.length) html += '<li class="pd-diff-same">= 相同 ' + diff.same.length + ' 项（省略）</li>';
+        html += '</ul>';
+        return html;
+      }
+
+      function showPdRequirementDiff(base, other, backReqId) {
+        var bodyEl = $('pdReqModalBody');
+        if (!bodyEl) return;
+        $('pdReqModalTitle').textContent = '功能点演进对比';
+        var phaseLabelMap = { analysis: '需求分析', design: '设计', implementation: '实现', testing: '测试', completed: '已完成', planning: '规划' };
+        var changedCount = 0;
+        var blocks = [];
+
+        function twoCol(label, baseHtml, otherHtml, changed) {
+          if (changed) changedCount++;
+          return '<div class="pd-req-detail-section">' +
+            '<div class="pd-req-detail-label">' + label + (changed ? ' <span class="pd-diff-badge changed">有变更</span>' : ' <span class="pd-diff-badge added">无变更</span>') + '</div>' +
+            '<div class="pd-diff-row">' +
+              '<div class="pd-diff-side"><div class="pd-diff-side-label">' + escapeHtml(base.projectName) + '（当前）</div><div class="pd-diff-side-value' + (changed ? '' : ' same') + '">' + baseHtml + '</div></div>' +
+              '<div class="pd-diff-arrow">&#8594;</div>' +
+              '<div class="pd-diff-side"><div class="pd-diff-side-label">' + escapeHtml(other.projectName) + '（对比）</div><div class="pd-diff-side-value' + (changed ? '' : ' same') + '">' + otherHtml + '</div></div>' +
+            '</div></div>';
+        }
+
+        function listBlock(label, diff, totalInfo) {
+          if (diff.added.length || diff.removed.length) changedCount++;
+          return '<div class="pd-req-detail-section"><div class="pd-req-detail-label">' + label + '（' + totalInfo + '）' + (diff.added.length || diff.removed.length ? ' <span class="pd-diff-badge changed">有变更</span>' : ' <span class="pd-diff-badge added">无变更</span>') + '</div>' + pdDiffListHtml(diff) + '</div>';
+        }
+
+        // 描述
+        blocks.push(twoCol('描述',
+          escapeHtml(base.description || '（空）'),
+          escapeHtml(other.description || '（空）'),
+          (base.description || '') !== (other.description || '')));
+        // 模块层
+        blocks.push(twoCol('模块层',
+          escapeHtml(base.layer || '未标注'),
+          escapeHtml(other.layer || '未标注'),
+          (base.layer || '') !== (other.layer || '')));
+        // 阶段
+        blocks.push(twoCol('阶段',
+          escapeHtml(phaseLabelMap[base.phase] || base.phase || '未标注'),
+          escapeHtml(phaseLabelMap[other.phase] || other.phase || '未标注'),
+          (base.phase || '') !== (other.phase || '')));
+        // 标签
+        var tagDiff = pdArrDiff(base.tags, other.tags);
+        blocks.push(twoCol('标签',
+          (base.tags || []).map(escapeHtml).join('、') || '（空）',
+          (other.tags || []).map(escapeHtml).join('、') || '（空）',
+          tagDiff.added.length > 0 || tagDiff.removed.length > 0));
+        // 任务
+        var taskDiff = pdArrDiff(
+          (base.tasks || []).map(function(t) { return t.title; }),
+          (other.tasks || []).map(function(t) { return t.title; }));
+        blocks.push(listBlock('任务', taskDiff, (base.tasks || []).length + ' → ' + (other.tasks || []).length + ' 项'));
+        // 验收标准
+        var verifyDiff = pdArrDiff(base.verifications, other.verifications);
+        blocks.push(listBlock('验收标准', verifyDiff, (base.verifications || []).length + ' → ' + (other.verifications || []).length + ' 项'));
+        // 设计章节
+        var secDiff = pdArrDiff(
+          (base.designSections || []).map(pdSectionText),
+          (other.designSections || []).map(pdSectionText));
+        blocks.push(listBlock('设计章节', secDiff, (base.designSections || []).length + ' → ' + (other.designSections || []).length + ' 项'));
+
+        bodyEl.innerHTML =
+          '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">' +
+            '<button class="pd-iter-back" id="pdDiffBack" type="button">&#8592; 返回功能点详情</button>' +
+            '<span style="font-size:12px;color:var(--ws-muted)">' + escapeHtml(base.projectName) + ' · ' + escapeHtml(base.id) + ' &harr; ' + escapeHtml(other.projectName) + ' · ' + escapeHtml(other.id) + '</span>' +
+            (changedCount ? '<span class="pd-diff-badge changed">' + changedCount + ' 处字段变更</span>' : '<span class="pd-diff-badge added">字段内容一致</span>') +
+          '</div>' +
+          '<div class="pd-diff-empty" style="margin-bottom:16px">自动对比说明：以当前项目功能点为基准，列出与 ' + escapeHtml(other.projectName) + ' 中同名功能点「' + escapeHtml(other.title) + '」的字段差异。+ 表示对比版本新增，- 表示对比版本移除。</div>' +
+          blocks.join('') +
+          (changedCount === 0 ? '<div class="pd-diff-empty">两个版本字段内容完全一致（可能仅归档时间不同）。</div>' : '');
+
+        var backBtn = $('pdDiffBack');
+        if (backBtn) backBtn.addEventListener('click', function() { showPdRequirementDetail(backReqId); });
+        showModal($('pdRequirementModal'));
       }
 
       function renderPdGraph(graph) {
