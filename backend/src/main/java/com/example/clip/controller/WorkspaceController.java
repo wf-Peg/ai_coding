@@ -21,6 +21,7 @@ import com.example.clip.index.WorkspaceRule;
 import com.example.clip.index.WorkspaceRuleService;
 import com.example.clip.index.WorkspaceSuggestionService;
 import com.example.clip.service.AppConfigService;
+import com.example.clip.service.FeaturePointIterationService;
 import com.example.clip.service.FeaturePointsService;
 import com.example.clip.service.UserActionEventRecorder;
 import org.slf4j.Logger;
@@ -924,6 +925,63 @@ public class WorkspaceController {
         try {
             Map<String, Object> data = featurePointsService.loadAllFeaturePoints();
             return ResponseEntity.ok(data);
+        } catch (RuntimeException error) {
+            return errorResponse(error);
+        }
+    }
+
+    /**
+     * 获取功能点历史迭代记录。
+     * <p>
+     * GET /api/workspace/feature-points/iterations?project=&fpId=
+     *
+     * @param project 项目目录名（可选过滤）
+     * @param fpId    功能点 ID（可选过滤）
+     * @return 迭代记录数组
+     */
+    @GetMapping("/feature-points/iterations")
+    public ResponseEntity<?> featurePointIterations(
+            @RequestParam(required = false) String project,
+            @RequestParam(required = false) String fpId) {
+        try {
+            List<Map<String, Object>> list = new FeaturePointIterationService(indexDir()).loadByTarget(project, fpId);
+            return ResponseEntity.ok(list);
+        } catch (RuntimeException error) {
+            return errorResponse(error);
+        }
+    }
+
+    /**
+     * 新增一条功能点历史迭代记录。
+     * <p>
+     * POST /api/workspace/feature-points/iterations
+     * Body: { project, fpId, fpName, version, note, tags, status }
+     *
+     * @return 补全后的完整迭代记录
+     */
+    @PostMapping("/feature-points/iterations")
+    public ResponseEntity<?> createFeaturePointIteration(@RequestBody Map<String, Object> record) {
+        try {
+            Map<String, Object> created = new FeaturePointIterationService(indexDir()).add(record);
+            return ResponseEntity.ok(created);
+        } catch (RuntimeException error) {
+            return errorResponse(error);
+        }
+    }
+
+    /**
+     * 删除一条功能点历史迭代记录。
+     * <p>
+     * DELETE /api/workspace/feature-points/iterations/{id}
+     */
+    @DeleteMapping("/feature-points/iterations/{id}")
+    public ResponseEntity<?> deleteFeaturePointIteration(@PathVariable String id) {
+        try {
+            boolean removed = new FeaturePointIterationService(indexDir()).delete(id);
+            if (!removed) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "迭代记录不存在"));
+            }
+            return ResponseEntity.ok(Map.of("success", true, "id", id));
         } catch (RuntimeException error) {
             return errorResponse(error);
         }

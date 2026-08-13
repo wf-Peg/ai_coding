@@ -360,8 +360,10 @@
     .pd-chart-container { padding: 12px 14px; height: 200px; position: relative; }
     .pd-chart-container canvas { width: 100% !important; height: 100% !important; }
     .pd-section-title { font-size: 14px; font-weight: 650; color: var(--ws-text); }
-    .pd-section { margin-bottom: 20px; }
-    .pd-section-header { font-size: 14px; font-weight: 650; margin-bottom: 10px; color: var(--ws-text); }
+    .pd-section { border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-surface); box-shadow: var(--app-shadow); margin-bottom: 20px; overflow: hidden; }
+    .pd-section-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 20px 12px; font-size: 14px; font-weight: 650; color: var(--ws-text); border-bottom: 1px solid var(--ws-border); }
+    .pd-activity-list { padding: 10px; }
+    .pd-activities { display: grid; gap: 6px; }
     .pd-activities { display: grid; gap: 6px; }
     .pd-activity-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); margin-bottom: 6px; background: var(--ws-surface); font-size: 13px; }
     .pd-activity-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
@@ -403,8 +405,9 @@
     .pd-legend-todo { display: inline-block; padding: 1px 6px; border-radius: 4px; background: #f59e0b; color: #fff; font-size: 10px; margin: 0 2px; }
 
     /* ── 任务状态列表 ── */
-    .pd-task-list-section { margin-top: 20px; }
-    .pd-task-list-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .pd-task-list-section { margin-top: 20px; border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-surface); box-shadow: var(--app-shadow); overflow: hidden; }
+    .pd-task-list-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 20px 12px; border-bottom: 1px solid var(--ws-border); }
+    .pd-task-list { padding: 6px 10px 10px; }
     .pd-task-list-filters { display: flex; gap: 6px; }
     .pd-task-list-filter { padding: 4px 12px; border: 1px solid var(--ws-border); border-radius: 999px; background: var(--ws-surface); color: var(--ws-text); font-size: 12px; cursor: pointer; transition: all .16s ease; }
     .pd-task-list-filter:hover { border-color: var(--ws-primary); color: var(--ws-primary); }
@@ -422,6 +425,65 @@
     .pd-task-status-badge.done { background: #d1fae5; color: #065f46; }
     .pd-task-status-badge.todo { background: #fef3c7; color: #92400e; }
     .pd-task-status-badge.in-progress { background: #dbeafe; color: #1e40af; }
+
+    /* ── 产品概览：图表中心标签 / 看板分组 / 看板卡片进度 ── */
+    .pd-chart-center-label { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 20px; font-weight: 800; color: var(--ws-text); pointer-events: none; }
+    .pd-kanban-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+    .pd-kanban-group { display: inline-flex; align-items: center; gap: 6px; }
+    .pd-kanban-group-label { font-size: 12px; color: var(--ws-faint); }
+    .pd-kanban-group-btn { padding: 5px 12px; border: 1px solid var(--ws-border); border-radius: 999px; background: var(--ws-surface); color: var(--ws-muted); font-size: 12px; cursor: pointer; transition: all .16s ease; }
+    .pd-kanban-group-btn:hover { border-color: var(--ws-primary); color: var(--ws-primary); }
+    .pd-kanban-group-btn.active { background: var(--ws-primary); border-color: var(--ws-primary); color: #fff; }
+    .pd-kanban-card-progress { margin-top: 8px; }
+    .pd-kanban-card-progress-bar { height: 4px; border-radius: 999px; background: var(--ws-border); overflow: hidden; }
+    .pd-kanban-card-progress-fill { height: 100%; border-radius: 999px; background: #10b981; transition: width .2s ease; }
+    .pd-kanban-card-progress-text { display: flex; justify-content: space-between; margin-top: 4px; font-size: 10px; color: var(--ws-faint); }
+    .pd-kanban-card-iter { display: inline-flex; align-items: center; gap: 3px; margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: var(--ws-primary-soft); color: var(--ws-primary); font-size: 10px; font-weight: 650; }
+    .pd-kanban-card-layer { display: inline-block; padding: 1px 6px; border-radius: 4px; background: var(--ws-subtle); color: var(--ws-muted); font-size: 10px; margin-right: 4px; }
+    .pd-kanban-card-layer.backend { background: #eef2ff; color: #4338ca; }
+    .pd-kanban-card-layer.frontend { background: #ecfdf5; color: #047857; }
+    .pd-kanban-card-layer.fullstack { background: #fef3c7; color: #92400e; }
+
+    /* ── 功能点详情弹窗 ── */
+    .pd-req-modal { width: min(860px, calc(100vw - 40px)); }
+    .pd-req-locate { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; padding: 14px; border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-subtle); margin-bottom: 18px; }
+    .pd-req-locate-item .pd-req-locate-label { font-size: 10px; font-weight: 700; color: var(--ws-faint); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
+    .pd-req-locate-item .pd-req-locate-value { font-size: 12px; color: var(--ws-text); line-height: 1.5; word-break: break-all; }
+    .pd-req-locate-item .pd-req-locate-value.code { font-family: var(--app-font-mono, monospace); font-size: 11px; }
+    .pd-req-iter-section { margin-top: 20px; border-top: 1px solid var(--ws-border); padding-top: 16px; }
+    .pd-req-iter-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+    .pd-req-iter-count { color: var(--ws-faint); font-size: 11px; font-weight: 400; margin-left: 6px; }
+    .pd-req-iter-empty { padding: 20px; border: 1px dashed var(--ws-border); border-radius: var(--app-radius); color: var(--ws-muted); font-size: 12px; text-align: center; }
+    .pd-iter-item { display: flex; gap: 12px; padding: 12px 14px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-surface); margin-bottom: 8px; }
+    .pd-iter-marker { flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; width: 40px; }
+    .pd-iter-marker .pd-iter-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--ws-primary); border: 2px solid var(--ws-surface); box-shadow: 0 0 0 2px var(--ws-primary); }
+    .pd-iter-marker .pd-iter-line { flex: 1; width: 2px; background: var(--ws-border); min-height: 18px; }
+    .pd-iter-body { flex: 1; min-width: 0; }
+    .pd-iter-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .pd-iter-version { font-size: 13px; font-weight: 700; color: var(--ws-text); }
+    .pd-iter-badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 10px; font-weight: 650; }
+    .pd-iter-badge.in-progress { background: #dbeafe; color: #1e40af; }
+    .pd-iter-badge.done { background: #d1fae5; color: #065f46; }
+    .pd-iter-badge.todo { background: #fef3c7; color: #92400e; }
+    .pd-iter-badge.pending { background: #f3f4f6; color: #6b7280; }
+    .pd-iter-time { margin-left: auto; color: var(--ws-faint); font-size: 11px; white-space: nowrap; }
+    .pd-iter-note { margin-top: 6px; font-size: 12px; color: var(--ws-muted); line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+    .pd-iter-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .pd-iter-tag { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 10px; background: var(--ws-primary-soft); color: var(--ws-primary); }
+    .pd-iter-actions { margin-top: 6px; }
+    .pd-iter-delete { padding: 2px 8px; border: 1px solid var(--ws-border); border-radius: 6px; background: transparent; color: var(--ws-faint); font-size: 11px; cursor: pointer; transition: all .16s ease; }
+    .pd-iter-delete:hover { border-color: var(--ws-danger); color: var(--ws-danger); }
+    .pd-iter-form { margin-top: 12px; padding: 14px; border: 1px dashed var(--ws-border); border-radius: var(--app-radius); background: var(--ws-subtle); }
+    .pd-iter-form-title { font-size: 12px; font-weight: 700; margin-bottom: 10px; color: var(--ws-text); }
+    .pd-iter-form-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    .pd-iter-form-row .form-group { flex: 1; min-width: 140px; margin-bottom: 0; }
+    .pd-iter-form-row .form-group.wide { flex: 2; }
+    .pd-iter-form-actions { display: flex; justify-content: flex-end; }
+    .pd-iter-related { margin-top: 10px; }
+    .pd-iter-related-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-surface); margin-bottom: 6px; cursor: pointer; transition: all .16s ease; font-size: 12px; }
+    .pd-iter-related-item:hover { border-color: var(--ws-primary); background: var(--ws-primary-soft); }
+    .pd-iter-related-item .rel-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+    .pd-iter-related-item .rel-project { color: var(--ws-faint); margin-left: auto; white-space: nowrap; }
 
     /* ── 可点击项 ── */
     .pd-activity-item { cursor: pointer; transition: background .12s ease; }
@@ -482,7 +544,7 @@
     .product-dev-view .empty-state { padding: 40px 20px; color: var(--ws-muted); font-size: 13px; text-align: center; }
 
     /* ── Overview Dashboard ── */
-    .ov-dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .ov-dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px; }
     .ov-dash-card { padding: 18px 20px; border: 1px solid var(--ws-border); border-radius: var(--app-radius-lg); background: var(--ws-surface); }
     .ov-dash-card-value { font-size: 26px; font-weight: 700; color: var(--ws-primary); line-height: 1.2; }
     .ov-dash-card-label { font-size: 12px; color: var(--ws-muted); margin-top: 4px; }
@@ -743,6 +805,14 @@
                   <h2 class="toolbar-title" style="font-size:14px">类型分布</h2>
                 </div>
                 <div class="filters" id="overviewTypeFilters" style="border-bottom:0;padding:2px 22px 14px"></div>
+                <div class="toolbar" style="padding:6px 22px 12px;border-bottom:0">
+                  <h2 class="toolbar-title" style="font-size:14px">内容来源分布</h2>
+                </div>
+                <div style="padding:4px 22px 16px">
+                  <div style="height:180px;position:relative"><canvas id="overviewSourceChart"></canvas></div>
+                  <div id="overviewSourceEmpty" class="empty-state" style="display:none;height:140px;padding:0;align-items:center;justify-content:center">暂无来源分布数据</div>
+                  <div id="overviewSourceLegend" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:11px;color:var(--ws-muted)"></div>
+                </div>
                 <div class="toolbar" style="padding:6px 22px 12px;border-bottom:1px solid var(--ws-border)">
                   <h2 class="toolbar-title" style="font-size:14px">快捷操作</h2>
                 </div>
@@ -880,12 +950,20 @@
                 <div class="pd-chart-container"><canvas id="pdPhaseChart"></canvas></div>
               </div>
               <div class="pd-chart-card">
-                <div class="pd-chart-card-header">待办完成率</div>
-                <div class="pd-chart-container"><canvas id="pdTodoChart"></canvas></div>
+                <div class="pd-chart-card-header">任务完成率</div>
+                <div class="pd-chart-container"><canvas id="pdTodoChart"></canvas><div class="pd-chart-center-label" id="pdTodoChartCenter"></div></div>
               </div>
               <div class="pd-chart-card">
                 <div class="pd-chart-card-header">知识积累趋势</div>
                 <div class="pd-chart-container"><canvas id="pdKnowledgeChart"></canvas></div>
+              </div>
+              <div class="pd-chart-card">
+                <div class="pd-chart-card-header">模块分布</div>
+                <div class="pd-chart-container"><canvas id="pdLayerChart"></canvas></div>
+              </div>
+              <div class="pd-chart-card">
+                <div class="pd-chart-card-header">热门标签</div>
+                <div class="pd-chart-container"><canvas id="pdTagsChart"></canvas></div>
               </div>
             </div>
             <div class="pd-section">
@@ -896,7 +974,7 @@
             <!-- ── 任务状态列表 ── -->
             <div class="pd-task-list-section">
               <div class="pd-task-list-header">
-                <span class="pd-section-header" style="margin:0">任务状态</span>
+                <span style="font-size:14px;font-weight:650;color:var(--ws-text)">任务状态</span>
                 <div class="pd-task-list-filters" id="pdTaskFilters">
                   <button class="pd-task-list-filter active" data-task-filter="all" type="button">全部</button>
                   <button class="pd-task-list-filter" data-task-filter="done" type="button">已完成</button>
@@ -912,6 +990,11 @@
             <div class="pd-kanban-toolbar">
               <div class="pd-kanban-filter">
                 <input class="pd-search-input" id="pdKanbanSearch" type="search" placeholder="搜索需求..." autocomplete="off">
+              </div>
+              <div class="pd-kanban-group" id="pdKanbanGroup">
+                <span class="pd-kanban-group-label">分组：</span>
+                <button class="pd-kanban-group-btn active" data-group="project" type="button" data-func-tag="功能:产品开发-看板按项目分组" title="按需求项目分组展示功能点">按项目</button>
+                <button class="pd-kanban-group-btn" data-group="phase" type="button" data-func-tag="功能:产品开发-看板按阶段分组" title="按开发阶段分组展示功能点（需求分析/设计/实现/测试/已完成）">按阶段</button>
               </div>
             </div>
             <div class="pd-kanban" id="pdKanbanBoard"></div>
@@ -1104,6 +1187,17 @@
         <button class="btn btn-secondary" data-close="columnInputModal" type="button">取消</button>
         <button class="btn btn-primary" id="confirmColumnInput" type="button">确认</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ── 功能点详情 + 历史迭代 Modal ── -->
+  <div class="modal-overlay" id="pdRequirementModal">
+    <div class="modal pd-req-modal">
+      <div class="modal-header">
+        <h3 id="pdReqModalTitle">功能点详情</h3>
+        <button class="modal-close" data-close="pdRequirementModal" type="button">&times;</button>
+      </div>
+      <div class="modal-body" id="pdReqModalBody"></div>
     </div>
   </div>
 
@@ -1387,6 +1481,7 @@
       }
 
       var overviewChartInstances = {};
+      var overviewDetailChartInstance = null;
 
       async function loadOverview() {
         const requestId = ++overviewRequestId;
@@ -1449,6 +1544,8 @@
               <div class="ws-summary-card archived"><span class="ws-card-value">${summary.archived || 0}</span><span class="ws-card-label">已归档</span></div>${types}`;
           }
           if (overviewResultCount) overviewResultCount.textContent = '共 ' + (summary.total || 0) + ' 项';
+          // 内容来源分布图（规则命中/手动加入/工作台输入/关系带入）
+          renderOverviewSourceChart(summary);
           // Type filters (read-only distribution)
           const contentTypes = data.contentTypes || Object.keys(LABELS);
           overviewTypeFilters.innerHTML = contentTypes.map(t => `<span class="filter" style="cursor:default;opacity:.8">${escapeHtml(LABELS[t] || t)}</span>`).join('');
@@ -1461,6 +1558,45 @@
           overviewSummaryCards.innerHTML = `<div class="ws-summary-card" style="grid-column:1/-1;color:var(--ws-danger)"><span class="ws-card-value">!</span><span class="ws-card-label">加载失败</span></div>`;
           overviewProjectList.innerHTML = '<div class="project-empty">加载失败：' + escapeHtml(e.message || '后端服务不可用') + '</div>';
         }
+      }
+
+      /* ── 内容来源分布图（工作台详情概览 Tab） ── */
+      function renderOverviewSourceChart(summary) {
+        var chartEl = $('overviewSourceChart');
+        var emptyEl = $('overviewSourceEmpty');
+        var legendEl = $('overviewSourceLegend');
+        if (!chartEl) return;
+        var sourceDist = (summary && summary.sourceDistribution) || {};
+        var hasData = Object.keys(sourceDist).length > 0;
+        chartEl.style.display = hasData ? 'block' : 'none';
+        if (emptyEl) emptyEl.style.display = hasData ? 'none' : 'flex';
+        if (legendEl) legendEl.innerHTML = '';
+        if (!hasData) return;
+        if (typeof Chart === 'undefined') {
+          if (emptyEl) { emptyEl.style.display = 'flex'; emptyEl.textContent = '图表库加载中...'; }
+          return;
+        }
+        if (overviewDetailChartInstance) { overviewDetailChartInstance.destroy(); overviewDetailChartInstance = null; }
+        var sourceLabels = { rule: '规则命中', manual: '手动加入', manual_input: '工作台输入', relation: '关系带入' };
+        var sourceColors = { rule: '#2383e2', manual: '#10b981', manual_input: '#f59e0b', relation: '#876de2' };
+        var entries = Object.entries(sourceDist);
+        overviewDetailChartInstance = new Chart(chartEl, {
+          type: 'doughnut',
+          data: {
+            labels: entries.map(function(e) { return sourceLabels[e[0]] || e[0]; }),
+            datasets: [{ data: entries.map(function(e) { return e[1]; }), backgroundColor: entries.map(function(e) { return sourceColors[e[0]] || '#999'; }), borderWidth: 0 }]
+          },
+          options: { responsive: true, maintainAspectRatio: false, cutout: '66%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 10, font: { size: 11 } } } } }
+        });
+        // 附加关键数字：规则命中 / 手动加入 / 排除
+        var extras = [
+          ['规则命中', summary.ruleMatched],
+          ['手动加入', summary.manualAdded],
+          ['排除', summary.excluded]
+        ].filter(function(x) { return typeof x[1] === 'number'; }).map(function(x) {
+          return '<span><strong style="color:var(--ws-text)">' + x[1] + '</strong> ' + x[0] + '</span>';
+        }).join('');
+        if (legendEl && extras) legendEl.innerHTML = extras;
       }
 
       /* ── Workspace List ── */
@@ -2924,52 +3060,83 @@
         loadProductDev();
       });
 
+      function monthLabelOf(value) {
+        if (!value) return '';
+        var d = new Date(value);
+        if (Number.isNaN(d.getTime())) return '';
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      }
+
       async function loadProductDev() {
         // Reset chart instances
         Object.values(pdChartInstances).forEach(function(c) { if (c) c.destroy(); });
         pdChartInstances = {};
         try {
           // 数据源：FeaturePointsService 读取 TODO/{需求名称}/feature-points.json
-          const r = await fetch('/api/workspace/feature-points');
-          if (!r.ok) {
-            var errBody = await r.json().catch(function() { return {}; });
+          // 迭代记录：FeaturePointIterationService 读取 feature-point-iterations.json
+          const [fpRes, iterRes] = await Promise.all([
+            fetch('/api/workspace/feature-points'),
+            fetch('/api/workspace/feature-points/iterations').catch(function() { return { ok: false }; })
+          ]);
+          if (!fpRes.ok) {
+            var errBody = await fpRes.json().catch(function() { return {}; });
             throw new Error(errBody.error || '产品概览数据获取失败');
           }
-          const data = await r.json();
+          const data = await fpRes.json();
           const projects = data.projects || [];
-          const totalFp = data.totalFeaturePoints || 0;
-          const totalKp = data.totalKnowledgePoints || 0;
-          const totalProj = data.totalProjects || 0;
 
-          // 缓存所有 feature point 供详情弹窗使用
+          // 迭代记录缓存（全部加载，前端本地过滤）
+          pdIterations = iterRes && iterRes.ok ? (await iterRes.json().catch(function() { return []; })) : [];
+
+          // 缓存所有 feature point 供详情弹窗使用（key 为 项目::功能点ID，避免跨项目 ID 冲突）
           pdRequirementsCache = {};
           projects.forEach(function(proj) {
+            var dirName = proj.dirName || '未知项目';
+            var req = proj.requirement || {};
             (proj.featurePoints || []).forEach(function(fp) {
-              pdRequirementsCache[fp.id] = {
+              var key = dirName + '::' + fp.id;
+              pdRequirementsCache[key] = {
                 id: fp.id,
+                key: key,
                 title: fp.name,
                 description: fp.description,
                 tags: fp.tags || [],
-                phase: proj.requirement && proj.requirement.phase ? proj.requirement.phase : 'analysis',
+                phase: req.phase || 'analysis',
                 status: 'done',
-                createdAt: proj.requirement && proj.requirement.createdAt ? proj.requirement.createdAt : '',
-                updatedAt: '',
+                createdAt: req.createdAt || '',
+                updatedAt: fp.updatedAt || req.completedAt || '',
+                completedAt: req.completedAt || '',
                 source: 'archive',
-                projectName: proj.dirName
+                projectName: dirName,
+                requirementTitle: req.title || '',
+                layer: fp.layer || '',
+                tasks: fp.tasks || [],
+                verifications: fp.verifications || [],
+                designSections: fp.designSections || [],
+                filePath: 'TODO/' + dirName + '/feature-points.json'
               };
             });
             (proj.knowledgePoints || []).forEach(function(kp) {
-              pdRequirementsCache['kp_' + kp.title] = {
-                id: 'kp_' + kp.title,
+              var key = 'kp::' + dirName + '::' + (kp.title || kp.id);
+              pdRequirementsCache[key] = {
+                id: 'kp_' + (kp.title || kp.id),
+                key: key,
                 title: kp.title,
-                description: kp.content,
+                description: kp.content || kp.description || '',
                 tags: kp.tags || [],
                 phase: 'completed',
                 status: 'done',
-                createdAt: proj.requirement && proj.requirement.createdAt ? proj.requirement.createdAt : '',
+                createdAt: req.createdAt || '',
                 updatedAt: '',
+                completedAt: req.completedAt || '',
                 source: 'archive',
-                projectName: proj.dirName
+                projectName: dirName,
+                requirementTitle: req.title || '',
+                layer: 'knowledge',
+                tasks: [],
+                verifications: [],
+                designSections: [],
+                filePath: 'TODO/' + dirName + '/feature-points.json'
               };
             });
           });
@@ -3000,18 +3167,90 @@
               })
             : projects;
 
-          // 统计卡片
+          // ── 实用性数据统计 ──
           var filteredFp = 0;
           var filteredKp = 0;
+          var taskDone = 0;
+          var taskTotal = 0;
+          var designSectionCount = 0;
+          var iterCount = 0;
+          var phaseDist = {};
+          var layerDist = {};
+          var tagCounts = {};
+          var kpByMonth = {};
+          var fpByMonth = {};
+          var allTasks = [];
           filteredProjects.forEach(function(proj) {
-            filteredFp += (proj.featurePoints || []).length;
-            filteredKp += (proj.knowledgePoints || []).length;
+            // 按 requirement.phase 统计项目阶段
+            var phase = proj.requirement && proj.requirement.phase ? proj.requirement.phase : 'unknown';
+            phaseDist[phase] = (phaseDist[phase] || 0) + 1;
+            var reqDate = proj.requirement && (proj.requirement.completedAt || proj.requirement.createdAt);
+            var monthKey = monthLabelOf(reqDate);
+            (proj.featurePoints || []).forEach(function(fp) {
+              filteredFp++;
+              layerDist[fp.layer || 'unknown'] = (layerDist[fp.layer || 'unknown'] || 0) + 1;
+              (fp.tags || []).forEach(function(t) { if (t) tagCounts[t] = (tagCounts[t] || 0) + 1; });
+              (fp.designSections || []).forEach(function(s) {
+                if (typeof s === 'string' || (s && s.section)) designSectionCount++;
+              });
+              if (monthKey) fpByMonth[monthKey] = (fpByMonth[monthKey] || 0) + 1;
+              (fp.tasks || []).forEach(function(task) {
+                var s = task.status || 'todo';
+                taskTotal++;
+                if (s === 'done') taskDone++;
+                allTasks.push({
+                  title: task.title,
+                  status: s,
+                  fpName: fp.name,
+                  fpId: fp.id,
+                  fpKey: proj.dirName + '::' + fp.id,
+                  projectName: proj.dirName
+                });
+              });
+            });
+            (proj.knowledgePoints || []).forEach(function(kp) {
+              filteredKp++;
+              (kp.tags || []).forEach(function(t) { if (t) tagCounts[t] = (tagCounts[t] || 0) + 1; });
+              if (monthKey) kpByMonth[monthKey] = (kpByMonth[monthKey] || 0) + 1;
+            });
+            // 迭代记录计数（当前筛选范围内项目的功能点迭代）
+            pdIterations.forEach(function(rec) {
+              if (rec.project === proj.dirName) iterCount++;
+            });
           });
+
+          var phaseDistArray = Object.keys(phaseDist).map(function(k) {
+            return { phase: k, count: phaseDist[k] };
+          });
+          var taskRate = taskTotal > 0 ? Math.round(taskDone / taskTotal * 100) : 0;
+          var layerDistArray = Object.keys(layerDist).map(function(k) {
+            return { layer: k, count: layerDist[k] };
+          });
+          var tagCountsArray = Object.keys(tagCounts).map(function(k) {
+            return { tag: k, count: tagCounts[k] };
+          }).sort(function(a, b) { return b.count - a.count; }).slice(0, 10);
+          // 知识积累趋势：按月份累计（知识 + 功能点）
+          var monthSet = {};
+          Object.keys(kpByMonth).forEach(function(m) { monthSet[m] = 1; });
+          Object.keys(fpByMonth).forEach(function(m) { monthSet[m] = 1; });
+          var knowledgeTrend = [];
+          var cum = 0;
+          Object.keys(monthSet).sort().forEach(function(m) {
+            cum += (kpByMonth[m] || 0) + (fpByMonth[m] || 0);
+            knowledgeTrend.push({ month: m, count: cum });
+          });
+
+          // 统计卡片
           renderPdDashboard({
             total: filteredProjects.length,
             totalProj: filteredProjects.length,
             totalFp: filteredFp,
             totalKp: filteredKp,
+            taskDone: taskDone,
+            taskTotal: taskTotal,
+            taskRate: taskRate,
+            designSectionCount: designSectionCount,
+            iterCount: iterCount,
             reqCompleted: filteredProjects.filter(function(p) {
               return p.requirement && p.requirement.phase === 'completed';
             }).length,
@@ -3020,56 +3259,46 @@
             }).length
           });
 
-          // 图表：聚合所有项目的阶段分布
-          var phaseDist = {};
-          var taskStatusDist = {};
-          var allTasks = [];
-          filteredProjects.forEach(function(proj) {
-            // 按 requirement.phase 统计项目阶段
-            var phase = proj.requirement && proj.requirement.phase ? proj.requirement.phase : 'unknown';
-            phaseDist[phase] = (phaseDist[phase] || 0) + 1;
-            // 按 task 状态统计
-            (proj.featurePoints || []).forEach(function(fp) {
-              (fp.tasks || []).forEach(function(task) {
-                var s = task.status || 'todo';
-                taskStatusDist[s] = (taskStatusDist[s] || 0) + 1;
-                allTasks.push({
-                  title: task.title,
-                  status: task.status || 'todo',
-                  fpName: fp.name,
-                  fpId: fp.id,
-                  projectName: proj.dirName
-                });
-              });
-            });
-          });
-          var phaseDistArray = Object.keys(phaseDist).map(function(k) {
-            return { phase: k, count: phaseDist[k] };
-          });
-          var taskDone = taskStatusDist['done'] || 0;
-          var taskTotal = (taskStatusDist['done'] || 0) + (taskStatusDist['todo'] || 0) + (taskStatusDist['in-progress'] || 0) + (taskStatusDist['pending'] || 0);
-          renderPdCharts(phaseDistArray, { completed: taskDone, total: Math.max(taskTotal, 1) }, []);
+          // 图表：阶段分布 / 任务完成率 / 知识趋势 / 模块分布 / 热门标签
+          renderPdCharts(phaseDistArray, { completed: taskDone, total: Math.max(taskTotal, 1) }, knowledgeTrend, layerDistArray, tagCountsArray);
 
           // 渲染任务状态列表
           renderPdTaskList(allTasks);
 
-          // 最近活动：展示最新 feature point
+          // 最近活动：按真实时间（updatedAt / completedAt / createdAt / 迭代记录时间）倒序
           var allFps = [];
           filteredProjects.forEach(function(proj) {
+            var req = proj.requirement || {};
             (proj.featurePoints || []).forEach(function(fp) {
+              var time = fp.updatedAt || req.completedAt || req.createdAt || '';
               allFps.push({
                 action: 'archived',
                 title: fp.name,
                 description: proj.dirName,
                 fpId: fp.id,
-                time: proj.requirement && proj.requirement.completedAt ? proj.requirement.completedAt : ''
+                fpKey: proj.dirName + '::' + fp.id,
+                time: time
               });
+            });
+          });
+          // 迭代记录也进入最近活动（最新迭代优先展示）
+          var filteredDirs = {};
+          filteredProjects.forEach(function(p) { filteredDirs[p.dirName] = 1; });
+          (pdIterations || []).forEach(function(rec) {
+            if (!filteredDirs[rec.project]) return;
+            allFps.push({
+              action: 'iterated',
+              title: (rec.fpName || '功能点') + (rec.version ? ' · ' + rec.version : ''),
+              description: '迭代记录 · ' + rec.project,
+              fpId: rec.fpId,
+              fpKey: rec.project + '::' + rec.fpId,
+              time: rec.createdAt || ''
             });
           });
           allFps.sort(function(a, b) { return (b.time || '').localeCompare(a.time || ''); });
           renderPdActivities(allFps.slice(0, 8));
 
-          // 看板：按项目分组展示 feature points
+          // 看板：按项目/按阶段分组展示 feature points（含任务进度与迭代徽标）
           renderPdKanban(filteredProjects);
 
           // 二期功能：知识图谱 / 甘特图隐藏，空数据占位
@@ -3087,7 +3316,7 @@
               phase: proj.requirement && proj.requirement.phase ? proj.requirement.phase : 'completed',
               createdAt: proj.requirement && proj.requirement.createdAt ? proj.requirement.createdAt : '',
               fpCount: fps.length,
-              firstFpId: firstFp ? firstFp.id : ''
+              firstFpId: firstFp ? (proj.dirName + '::' + firstFp.id) : ''
             };
           }));
         } catch (e) {
@@ -3102,11 +3331,16 @@
           el.innerHTML = '<div class="state" style="grid-column:1/-1;min-height:100px"><div class="state-inner"><h3>暂无数据</h3><p>暂无产品概览数据，Agent 归档后将自动生成。</p></div></div>';
           return;
         }
+        var taskRate = stats.taskRate;
         var cards = [
           { value: stats.totalProj || 0, label: '需求项目数', sub: '归档需求项目' },
           { value: stats.totalFp || 0, label: '功能点', sub: 'Feature Points' },
+          { value: (stats.taskTotal || 0) + ' 项', label: '任务总量', sub: '完成 ' + (stats.taskDone || 0) + ' 项' },
+          { value: (typeof taskRate === 'number' ? taskRate : 0) + '%', label: '任务完成率', sub: stats.taskTotal ? ('已完成 ' + (stats.taskDone || 0) + '/' + stats.taskTotal) : '暂无任务' },
           { value: stats.totalKp || 0, label: '知识积累', sub: 'Knowledge Points' },
-          { value: stats.reqCompleted || 0, label: '已完成', sub: '开发完成' },
+          { value: stats.designSectionCount || 0, label: '设计章节', sub: 'Design Sections' },
+          { value: stats.iterCount || 0, label: '迭代记录', sub: '历史迭代' },
+          { value: stats.reqCompleted || 0, label: '已完成项目', sub: '开发完成' },
           { value: stats.reqDesign || 0, label: '设计中', sub: '分析/设计阶段' }
         ];
         el.innerHTML = cards.map(function(c) {
@@ -3114,17 +3348,20 @@
         }).join('');
       }
 
-      function renderPdCharts(phaseDist, todoCompletion, knowledgeTrend) {
+      function renderPdCharts(phaseDist, todoCompletion, knowledgeTrend, layerDist, tagCounts) {
         var ctxPhase = document.getElementById('pdPhaseChart');
         var ctxTodo = document.getElementById('pdTodoChart');
         var ctxKnowledge = document.getElementById('pdKnowledgeChart');
+        var ctxLayer = document.getElementById('pdLayerChart');
+        var ctxTags = document.getElementById('pdTagsChart');
         if (!ctxPhase || !ctxTodo || !ctxKnowledge) return;
 
         var phaseLabels = { analysis: '需求分析', design: '设计', implementation: '实现', testing: '测试', completed: '已完成' };
         var phaseColors = { analysis: '#2383e2', design: '#876de2', implementation: '#f59e0b', testing: '#e74c3c', completed: '#10b981' };
 
         if (typeof Chart === 'undefined') {
-          [ctxPhase, ctxTodo, ctxKnowledge].forEach(function(c) {
+          [ctxPhase, ctxTodo, ctxKnowledge, ctxLayer, ctxTags].forEach(function(c) {
+            if (!c) return;
             var parent = c.parentElement;
             parent.innerHTML = '<div class="empty-state" style="height:180px;display:flex;align-items:center;justify-content:center">图表库加载中...</div>';
           });
@@ -3142,29 +3379,59 @@
           options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12, font: { size: 11 } } } } }
         });
 
-        // 待办完成率 - 进度环图
+        // 任务完成率 - 进度环图（中心显示百分比）
         var done = todoCompletion && (todoCompletion.completed || todoCompletion.done) ? (todoCompletion.completed || todoCompletion.done) : 0;
         var total = todoCompletion && todoCompletion.total ? todoCompletion.total : 1;
         var percent = total > 0 ? Math.round(done / total * 100) : 0;
+        var centerEl = document.getElementById('pdTodoChartCenter');
+        if (centerEl) centerEl.textContent = percent + '%';
         pdChartInstances.todoChart = new Chart(ctxTodo, {
           type: 'doughnut',
           data: {
             labels: ['已完成', '未完成'],
             datasets: [{ data: [done, total - done], backgroundColor: ['#10b981', '#e5e7eb'], borderWidth: 0 }]
           },
-          options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12, font: { size: 11 } } } } }
+          options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12, font: { size: 11 } } } } }
         });
 
-        // 知识积累趋势 - 折线图
+        // 知识积累趋势 - 折线图（按月累计，真实数据）
         var trendData = knowledgeTrend && knowledgeTrend.length ? knowledgeTrend : [];
         pdChartInstances.knowledgeChart = new Chart(ctxKnowledge, {
           type: 'line',
           data: {
             labels: trendData.map(function(t) { return t.month || ''; }),
-            datasets: [{ label: '知识数量', data: trendData.map(function(t) { return t.count; }), borderColor: '#2383e2', backgroundColor: 'rgba(35,131,226,0.08)', fill: true, tension: 0.3, pointRadius: 3, pointBackgroundColor: '#2383e2' }]
+            datasets: [{ label: '知识/功能点累计', data: trendData.map(function(t) { return t.count; }), borderColor: '#2383e2', backgroundColor: 'rgba(35,131,226,0.08)', fill: true, tension: 0.3, pointRadius: 3, pointBackgroundColor: '#2383e2' }]
           },
           options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 10 }, stepSize: 1 } } } }
         });
+
+        // 模块分布 - 横向柱状图（backend/frontend/fullstack）
+        if (ctxLayer) {
+          var layerLabels = { backend: '后端', frontend: '前端', fullstack: '全栈', unknown: '未标注' };
+          var layerColors = { backend: '#4338ca', frontend: '#047857', fullstack: '#92400e', unknown: '#9ca3af' };
+          var layerData = layerDist && layerDist.length ? layerDist : [];
+          pdChartInstances.layerChart = new Chart(ctxLayer, {
+            type: 'bar',
+            data: {
+              labels: layerData.map(function(l) { return layerLabels[l.layer] || l.layer; }),
+              datasets: [{ label: '功能点数', data: layerData.map(function(l) { return l.count; }), backgroundColor: layerData.map(function(l) { return layerColors[l.layer] || '#2383e2'; }), borderRadius: 4, barThickness: 18 }]
+            },
+            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 10 }, stepSize: 1 } }, y: { grid: { display: false }, ticks: { font: { size: 11 } } } } }
+          });
+        }
+
+        // 热门标签 - 横向柱状图（Top 10）
+        if (ctxTags) {
+          var tagData = tagCounts && tagCounts.length ? tagCounts : [];
+          pdChartInstances.tagsChart = new Chart(ctxTags, {
+            type: 'bar',
+            data: {
+              labels: tagData.map(function(t) { return t.tag; }),
+              datasets: [{ label: '出现次数', data: tagData.map(function(t) { return t.count; }), backgroundColor: '#2383e2', borderRadius: 4, barThickness: 18 }]
+            },
+            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 10 }, stepSize: 1 } }, y: { grid: { display: false }, ticks: { font: { size: 10 } } } } }
+          });
+        }
       }
 
       function renderPdTaskList(tasks) {
@@ -3176,7 +3443,7 @@
         // 按功能点分组
         var grouped = {};
         tasks.forEach(function(t) {
-          var key = t.fpId || t.projectName || 'other';
+          var key = t.fpKey || t.fpId || t.projectName || 'other';
           if (!grouped[key]) grouped[key] = { fpName: t.fpName, projectName: t.projectName, fpId: t.fpId, items: [] };
           grouped[key].items.push(t);
         });
@@ -3195,7 +3462,7 @@
           var itemsHtml = filtered.map(function(t) {
             var statusLabel = t.status === 'done' ? '已完成' : t.status === 'in-progress' ? '进行中' : '待完成';
             var statusClass = t.status === 'done' ? 'done' : t.status === 'in-progress' ? 'in-progress' : 'todo';
-            return '<div class="pd-task-item" data-req-id="' + escapeHtml(t.fpId || '') + '"><span class="pd-task-status ' + statusClass + '"></span><span class="pd-task-name">' + escapeHtml(t.title) + '</span><span class="pd-task-meta">' + escapeHtml(g.fpName || '') + '</span><span class="pd-task-status-badge ' + statusClass + '">' + statusLabel + '</span></div>';
+          return '<div class="pd-task-item" data-req-id="' + escapeHtml(t.fpKey || t.fpId || '') + '"><span class="pd-task-status ' + statusClass + '"></span><span class="pd-task-name">' + escapeHtml(t.title) + '</span><span class="pd-task-meta">' + escapeHtml(g.fpName || '') + '</span><span class="pd-task-status-badge ' + statusClass + '">' + statusLabel + '</span></div>';
           }).join('');
           return '<div style="margin-bottom:4px;font-size:11px;color:var(--ws-faint);padding:2px 14px">' + escapeHtml(g.projectName || '') + '</div>' + itemsHtml;
         }).join('');
@@ -3219,10 +3486,10 @@
           el.innerHTML = '<div class="empty-state">暂无活动记录</div>';
           return;
         }
-        var dotColors = { archived: '#10b981', created: '#2383e2', migrated: '#f59e0b', completed: '#876de2' };
+        var dotColors = { archived: '#10b981', created: '#2383e2', migrated: '#f59e0b', completed: '#876de2', iterated: '#0ea5e9' };
         el.innerHTML = activities.slice(0, 8).map(function(a) {
           var dot = dotColors[a.action] || '#2383e2';
-          return '<div class="pd-activity-item" data-req-id="' + escapeHtml(a.fpId || '') + '"><span class="pd-activity-dot" style="background:' + dot + '"></span><span class="pd-activity-text">' + escapeHtml(a.title || '') + ' — ' + escapeHtml(a.description || '') + '</span><span class="pd-activity-time">' + escapeHtml(formatDateTime(a.time || a.createdAt)) + '</span></div>';
+          return '<div class="pd-activity-item" data-req-id="' + escapeHtml(a.fpKey || a.fpId || '') + '"><span class="pd-activity-dot" style="background:' + dot + '"></span><span class="pd-activity-text">' + escapeHtml(a.title || '') + ' — ' + escapeHtml(a.description || '') + '</span><span class="pd-activity-time">' + escapeHtml(formatDateTime(a.time || a.createdAt)) + '</span></div>';
         }).join('');
         // 活动项点击查看详情
         el.querySelectorAll('.pd-activity-item').forEach(function(item) {
@@ -3233,6 +3500,40 @@
         });
       }
 
+      function pdIterationCountFor(projDir, fpId) {
+        var n = 0;
+        (pdIterations || []).forEach(function(rec) {
+          if (rec.project === projDir && (!fpId || rec.fpId === fpId)) n++;
+        });
+        return n;
+      }
+
+      function pdKanbanCardHtml(proj, fp) {
+        var tags = (fp.tags || []).map(function(t) { return '<span class="pd-tag">' + escapeHtml(t) + '</span>'; }).join('');
+        var layerClass = fp.layer === 'backend' ? 'backend' : fp.layer === 'frontend' ? 'frontend' : fp.layer === 'fullstack' ? 'fullstack' : '';
+        var layerLabel = fp.layer === 'backend' ? '后端' : fp.layer === 'frontend' ? '前端' : fp.layer === 'fullstack' ? '全栈' : (fp.layer || '');
+        // 任务进度
+        var tasks = fp.tasks || [];
+        var doneCount = tasks.filter(function(t) { return t.status === 'done'; }).length;
+        var totalCount = tasks.length;
+        var pct = totalCount > 0 ? Math.round(doneCount / totalCount * 100) : 0;
+        var progressHtml = totalCount > 0
+          ? '<div class="pd-kanban-card-progress"><div class="pd-kanban-card-progress-bar"><div class="pd-kanban-card-progress-fill" style="width:' + pct + '%"></div></div><div class="pd-kanban-card-progress-text"><span>任务 ' + doneCount + '/' + totalCount + '</span><span>' + pct + '%</span></div></div>'
+          : '';
+        // 迭代徽标（当前项目记录数 + 跨项目同名功能点定位）
+        var iterCount = pdIterationCountFor(proj.dirName, fp.id);
+        var relatedCount = 0;
+        (pdRequirementsCache && Object.keys(pdRequirementsCache)).forEach(function(k) {
+          var it = pdRequirementsCache[k];
+          if (it && it.title === fp.name && it.projectName !== proj.dirName) relatedCount++;
+        });
+        var iterBadge = (iterCount + relatedCount) > 0
+          ? '<span class="pd-kanban-card-iter" title="历史迭代：当前项目 ' + iterCount + ' 条记录，跨项目相关 ' + relatedCount + ' 处">&#128337; ' + (iterCount + relatedCount) + '</span>'
+          : '';
+        var layerHtml = layerLabel ? '<span class="pd-kanban-card-layer ' + layerClass + '">' + escapeHtml(layerLabel) + '</span>' : '';
+        return '<div class="pd-kanban-card" data-req-id="' + escapeHtml(proj.dirName + '::' + fp.id) + '" data-phase="' + escapeHtml(proj.dirName) + '"><div class="pd-kanban-card-title">' + escapeHtml(fp.name) + iterBadge + '</div><div class="pd-kanban-card-meta">' + layerHtml + tags + '</div>' + progressHtml + '</div>';
+      }
+
       function renderPdKanban(projects) {
         var el = $('pdKanbanBoard');
         // projects 为 FeaturePointsService 返回的项目列表，每个项目包含 featurePoints
@@ -3241,21 +3542,51 @@
           return;
         }
         var searchQ = ($('pdKanbanSearch')?.value || '').trim().toLowerCase();
+        var groupMode = pdKanbanGroup || 'project';
+        var phaseLabels = { analysis: '需求分析', design: '设计', implementation: '实现', testing: '测试', completed: '已完成', planning: '规划', unknown: '未标注' };
+        var phaseColors = { analysis: '#2383e2', design: '#876de2', implementation: '#f59e0b', testing: '#e74c3c', completed: '#10b981', planning: '#6b7280', unknown: '#9ca3af' };
         // 项目颜色数组
         var projColors = ['#2383e2', '#876de2', '#f59e0b', '#10b981', '#e74c3c', '#6b7280'];
+
+        function matchSearch(fp) {
+          if (!searchQ) return true;
+          return (fp.name && fp.name.toLowerCase().includes(searchQ)) ||
+                 (fp.tags || []).some(function(t) { return t.toLowerCase().includes(searchQ); });
+        }
+
+        if (groupMode === 'phase') {
+          // ── 按阶段分组：列 = 需求分析/设计/实现/测试/已完成 ──
+          var order = ['analysis', 'design', 'implementation', 'testing', 'completed', 'planning', 'unknown'];
+          var cols = order.map(function(phase) {
+            var fps = [];
+            projects.forEach(function(proj) {
+              var p = proj.requirement && proj.requirement.phase ? proj.requirement.phase : 'unknown';
+              if (p !== phase) return;
+              (proj.featurePoints || []).forEach(function(fp) {
+                if (matchSearch(fp)) fps.push({ proj: proj, fp: fp });
+              });
+            });
+            return { phase: phase, fps: fps };
+          }).filter(function(c) { return c.fps.length > 0; });
+          if (!cols.length) {
+            el.innerHTML = '<div class="empty-state" style="width:100%;padding:50px 20px">暂无匹配内容</div>';
+            return;
+          }
+          el.innerHTML = cols.map(function(col) {
+            var color = phaseColors[col.phase] || '#6b7280';
+            return '<div class="pd-kanban-col"><div class="pd-kanban-col-header"><h3 style="color:' + color + '">' + escapeHtml(phaseLabels[col.phase] || col.phase) + '</h3><span class="pd-kanban-col-count">' + col.fps.length + '</span></div><div class="pd-kanban-col-body" data-phase="' + escapeHtml(col.phase) + '">' +
+              col.fps.map(function(item) { return pdKanbanCardHtml(item.proj, item.fp); }).join('') +
+              '</div></div>';
+          }).join('');
+          return;
+        }
+
+        // ── 按项目分组（默认） ──
         el.innerHTML = projects.map(function(proj, idx) {
           var color = projColors[idx % projColors.length];
-          var fps = (proj.featurePoints || []).filter(function(fp) {
-            if (!searchQ) return true;
-            return (fp.name && fp.name.toLowerCase().includes(searchQ)) ||
-                   (fp.tags || []).some(function(t) { return t.toLowerCase().includes(searchQ); });
-          });
+          var fps = (proj.featurePoints || []).filter(matchSearch);
           return '<div class="pd-kanban-col"><div class="pd-kanban-col-header"><h3 style="color:' + color + '">' + escapeHtml(proj.dirName) + '</h3><span class="pd-kanban-col-count">' + fps.length + '</span></div><div class="pd-kanban-col-body" data-phase="' + escapeHtml(proj.dirName) + '">' +
-            (fps.length ? fps.map(function(fp) {
-              var tags = (fp.tags || []).map(function(t) { return '<span class="pd-tag">' + escapeHtml(t) + '</span>'; }).join('');
-              var layerLabel = fp.layer === 'backend' ? '后端' : fp.layer === 'frontend' ? '前端' : fp.layer || '';
-              return '<div class="pd-kanban-card" data-req-id="' + escapeHtml(fp.id) + '" data-phase="' + escapeHtml(proj.dirName) + '"><div class="pd-kanban-card-title">' + escapeHtml(fp.name) + '</div><div class="pd-kanban-card-meta">' + tags + (layerLabel ? '<span>' + layerLabel + '</span>' : '') + '</div></div>';
-            }).join('') : '<div class="empty-state" style="padding:20px 10px;font-size:12px">暂无内容</div>') +
+            (fps.length ? fps.map(function(fp) { return pdKanbanCardHtml(proj, fp); }).join('') : '<div class="empty-state" style="padding:20px 10px;font-size:12px">暂无内容</div>') +
             '</div></div>';
         }).join('');
       }
@@ -3302,6 +3633,21 @@
 
       /* ── pd-kanban 卡片点击详情弹窗 ── */
       var pdRequirementsCache = {};
+      var pdIterations = [];
+      var pdKanbanGroup = 'project';
+
+      // 看板分组切换（按项目 / 按阶段）
+      var pdKanbanGroupEl = $('pdKanbanGroup');
+      if (pdKanbanGroupEl) {
+        pdKanbanGroupEl.addEventListener('click', function(e) {
+          var btn = e.target.closest && e.target.closest('.pd-kanban-group-btn');
+          if (!btn) return;
+          pdKanbanGroupEl.querySelectorAll('.pd-kanban-group-btn').forEach(function(b) { b.classList.remove('active'); });
+          btn.classList.add('active');
+          pdKanbanGroup = btn.dataset.group;
+          loadProductDev();
+        });
+      }
 
       function onPdCardClick(e) {
         var card = e.target.closest('.pd-kanban-card');
@@ -3311,57 +3657,216 @@
         showPdRequirementDetail(reqId);
       }
 
+      var currentPdReqId = '';
+      // 全局委托：删除迭代记录 / 跨项目相关迭代点击（只注册一次，避免重复监听）
+      document.addEventListener('click', function(e) {
+        var delBtn = e.target.closest && e.target.closest('[data-iter-delete]');
+        if (delBtn) {
+          var delId = delBtn.getAttribute('data-iter-delete');
+          if (!delId || !currentPdReqId) return;
+          (async function() {
+            try {
+              var r = await fetch('/api/workspace/feature-points/iterations/' + encodeURIComponent(delId), { method: 'DELETE' });
+              if (!r.ok) return;
+              var iterRes = await fetch('/api/workspace/feature-points/iterations').catch(function() { return { ok: false }; });
+              pdIterations = iterRes && iterRes.ok ? (await iterRes.json().catch(function() { return []; })) : [];
+              showPdRequirementDetail(currentPdReqId);
+              loadProductDev();
+            } catch (err) { /* 静默 */ }
+          })();
+          return;
+        }
+        var relEl = e.target.closest && e.target.closest('.pd-iter-related-item');
+        if (relEl) {
+          var key = relEl.getAttribute('data-req-key');
+          if (key && pdRequirementsCache[key]) showPdRequirementDetail(key);
+        }
+      });
+
       function showPdRequirementDetail(reqId) {
         var item = pdRequirementsCache[reqId];
+        var bodyEl = $('pdReqModalBody');
         if (!item) {
-          $('pdReqModalBody').innerHTML = '<div class="empty-state" style="padding:30px">未找到需求数据</div>';
+          bodyEl.innerHTML = '<div class="empty-state" style="padding:30px">未找到需求数据</div>';
           showModal($('pdRequirementModal'));
           return;
         }
-        var phaseLabels = { analysis: '需求分析', design: '设计', implementation: '实现', testing: '测试', completed: '已完成' };
-        var phaseColors = { analysis: '#2383e2', design: '#876de2', implementation: '#f59e0b', testing: '#e74c3c', completed: '#10b981' };
+        currentPdReqId = reqId;
+        var phaseLabels = { analysis: '需求分析', design: '设计', implementation: '实现', testing: '测试', completed: '已完成', planning: '规划', unknown: '未标注' };
+        var phaseColors = { analysis: '#2383e2', design: '#876de2', implementation: '#f59e0b', testing: '#e74c3c', completed: '#10b981', planning: '#6b7280', unknown: '#9ca3af' };
         var phase = item.phase || 'analysis';
         var phaseLabel = phaseLabels[phase] || phase;
         var phaseColor = phaseColors[phase] || '#999';
         var tags = (item.tags || []).map(function(t) { return '<span class="pd-req-detail-tag">' + escapeHtml(t) + '</span>'; }).join('');
-        var desc = item.description || '暂无描述';
-        var content = item.content || '';
+        var layerLabels = { backend: '后端', frontend: '前端', fullstack: '全栈', knowledge: '知识', unknown: '未标注' };
+        var layerLabel = layerLabels[item.layer] || item.layer || '未标注';
         var status = item.status || 'todo';
         var statusLabels = { todo: '待开始', 'in-progress': '进行中', done: '已完成' };
         var statusLabel = statusLabels[status] || status;
-        var createdAt = formatDateTime(item.createdAt);
-        var updatedAt = formatDateTime(item.updatedAt);
         var source = item.source || 'manual';
         var sourceLabels = { manual: '手动创建', archive: '归档', migrate: '历史迁移' };
         var sourceLabel = sourceLabels[source] || source;
+        var createdAt = formatDateTime(item.createdAt);
+        var updatedAt = formatDateTime(item.updatedAt);
+        var completedAt = formatDateTime(item.completedAt);
 
-        $('pdReqModalTitle').textContent = item.title || '需求详情';
-        $('pdReqModalBody').innerHTML =
-          '<div class="pd-req-detail-section">' +
-            '<div class="pd-req-detail-label">所属项目</div>' +
-            '<div class="pd-req-detail-value" style="font-weight:600">' + escapeHtml(item.projectName || '') + '</div>' +
+        $('pdReqModalTitle').textContent = item.title || '功能点详情';
+
+        // ── 任务 / 验收 / 设计章节 ──
+        var tasksHtml = (item.tasks && item.tasks.length)
+          ? item.tasks.map(function(t) {
+              var s = t.status || 'todo';
+              var sLabel = s === 'done' ? '已完成' : s === 'in-progress' ? '进行中' : '待开始';
+              var sClass = s === 'done' ? 'done' : s === 'in-progress' ? 'in-progress' : 'todo';
+              return '<div class="pd-task-item" style="padding:8px 10px"><span class="pd-task-status ' + sClass + '"></span><span class="pd-task-name">' + escapeHtml(t.title || '') + '</span><span class="pd-task-status-badge ' + sClass + '">' + sLabel + '</span></div>';
+            }).join('')
+          : '<div class="pd-req-detail-value" style="color:var(--ws-faint)">暂无任务</div>';
+        var verificationsHtml = (item.verifications && item.verifications.length)
+          ? '<ul style="margin:0;padding-left:18px">' + item.verifications.map(function(v) {
+              return '<li style="margin-bottom:4px;font-size:12px;color:var(--ws-text)">' + escapeHtml(v) + '</li>';
+            }).join('') + '</ul>'
+          : '<div class="pd-req-detail-value" style="color:var(--ws-faint)">暂无验收标准</div>';
+        var designSectionsHtml = (item.designSections && item.designSections.length)
+          ? '<ul style="margin:0;padding-left:18px">' + item.designSections.map(function(s) {
+              if (typeof s === 'string') return '<li style="margin-bottom:4px;font-size:12px">' + escapeHtml(s) + '</li>';
+              var doc = s.document || '';
+              var sec = s.section || '';
+              return '<li style="margin-bottom:4px;font-size:12px">' + (doc ? escapeHtml(doc) + ' → ' : '') + escapeHtml(sec || s.title || '') + '</li>';
+            }).join('') + '</ul>'
+          : '<div class="pd-req-detail-value" style="color:var(--ws-faint)">暂无设计章节</div>';
+
+        // ── 历史迭代记录（当前项目 + 当前功能点） ──
+        var myIters = (pdIterations || []).filter(function(r) {
+          return (!item.projectName || r.project === item.projectName) && r.fpId === item.id;
+        }).sort(function(a, b) { return (b.createdAt || '').localeCompare(a.createdAt || ''); });
+        var itersHtml = myIters.length
+          ? myIters.map(function(r) {
+              var st = r.status || 'in-progress';
+              var stLabel = st === 'done' ? '已完成' : st === 'todo' ? '待开始' : st === 'pending' ? '待定' : '进行中';
+              var rTags = (r.tags || []).map(function(t) { return '<span class="pd-iter-tag">' + escapeHtml(t) + '</span>'; }).join('');
+              return '<div class="pd-iter-item" data-iter-id="' + escapeHtml(r.id) + '">' +
+                '<div class="pd-iter-marker"><span class="pd-iter-dot"></span><span class="pd-iter-line"></span></div>' +
+                '<div class="pd-iter-body">' +
+                  '<div class="pd-iter-head"><span class="pd-iter-version">' + escapeHtml(r.version || 'v1') + '</span><span class="pd-iter-badge ' + st + '">' + stLabel + '</span><span class="pd-iter-time">' + escapeHtml(formatDateTime(r.createdAt)) + '</span></div>' +
+                  (r.note ? '<div class="pd-iter-note">' + escapeHtml(r.note) + '</div>' : '') +
+                  (rTags ? '<div class="pd-iter-tags">' + rTags + '</div>' : '') +
+                  '<div class="pd-iter-actions"><button class="pd-iter-delete" type="button" data-iter-delete="' + escapeHtml(r.id) + '">删除</button></div>' +
+                '</div></div>';
+            }).join('')
+          : '<div class="pd-req-iter-empty">暂无迭代记录。可在下方记录一次迭代（版本、说明、状态），追踪该功能点的演进历史。</div>';
+
+        // ── 跨项目相关迭代定位（同名功能点） ──
+        var related = [];
+        Object.keys(pdRequirementsCache).forEach(function(k) {
+          var it = pdRequirementsCache[k];
+          if (!it || it === item) return;
+          if (it.title && item.title && it.title === item.title && it.projectName !== item.projectName) {
+            related.push(it);
+          }
+        });
+        related = related.slice(0, 8);
+        var relatedHtml = related.length
+          ? related.map(function(r) {
+              var rp = r.phase || 'unknown';
+              return '<div class="pd-iter-related-item" data-req-key="' + escapeHtml(r.key) + '"><span class="rel-dot" style="background:' + (phaseColors[rp] || '#999') + '"></span><span>' + escapeHtml(r.projectName) + ' · ' + escapeHtml(r.id) + '</span><span class="rel-project">' + escapeHtml(phaseLabels[rp] || rp) + '</span></div>';
+            }).join('')
+          : '<div class="pd-req-detail-value" style="color:var(--ws-faint);font-size:12px">未发现其他项目中同名功能点，跨项目迭代定位为空。</div>';
+
+        bodyEl.innerHTML =
+          // ── 定位信息 ──
+          '<div class="pd-req-detail-label" style="margin-bottom:8px">功能点定位</div>' +
+          '<div class="pd-req-locate">' +
+            '<div class="pd-req-locate-item"><div class="pd-req-locate-label">所属项目</div><div class="pd-req-locate-value" style="font-weight:600">' + escapeHtml(item.projectName || '') + '</div></div>' +
+            '<div class="pd-req-locate-item"><div class="pd-req-locate-label">功能点 ID</div><div class="pd-req-locate-value code">' + escapeHtml(item.id || '') + '</div></div>' +
+            '<div class="pd-req-locate-item"><div class="pd-req-locate-label">来源文件</div><div class="pd-req-locate-value code">' + escapeHtml(item.filePath || '') + '</div></div>' +
+            '<div class="pd-req-locate-item"><div class="pd-req-locate-label">阶段</div><div class="pd-req-locate-value"><span class="pd-req-detail-phase-badge" style="background:' + phaseColor + '">' + escapeHtml(phaseLabel) + '</span></div></div>' +
+            '<div class="pd-req-locate-item"><div class="pd-req-locate-label">模块层</div><div class="pd-req-locate-value">' + escapeHtml(layerLabel) + '</div></div>' +
+            '<div class="pd-req-locate-item"><div class="pd-req-locate-label">需求标题</div><div class="pd-req-locate-value">' + escapeHtml(item.requirementTitle || '') + '</div></div>' +
+            '<div class="pd-req-locate-item"><div class="pd-req-locate-label">创建 / 完成</div><div class="pd-req-locate-value">' + escapeHtml(createdAt) + (item.completedAt ? '<br>' + escapeHtml(completedAt) : '') + '</div></div>' +
           '</div>' +
-          '<div class="pd-req-detail-divider"></div>' +
-          '<div class="pd-req-detail-section">' +
-            '<div class="pd-req-detail-label">阶段</div>' +
-            '<div class="pd-req-detail-phase-badge" style="background:' + phaseColor + '">' + escapeHtml(phaseLabel) + '</div>' +
-          '</div>' +
-          '<div class="pd-req-detail-divider"></div>' +
-          '<div class="pd-req-detail-section">' +
-            '<div class="pd-req-detail-label">描述</div>' +
-            '<div class="pd-req-detail-value">' + escapeHtml(desc) + '</div>' +
-          '</div>' +
-          (content ? '<div class="pd-req-detail-section"><div class="pd-req-detail-label">详细内容</div><div class="pd-req-detail-value" style="white-space:pre-wrap">' + escapeHtml(content) + '</div></div>' : '') +
+          // ── 描述 / 标签 ──
+          '<div class="pd-req-detail-section"><div class="pd-req-detail-label">描述</div><div class="pd-req-detail-value">' + escapeHtml(item.description || '暂无描述') + '</div></div>' +
           (tags ? '<div class="pd-req-detail-section"><div class="pd-req-detail-label">标签</div><div class="pd-req-detail-tags">' + tags + '</div></div>' : '') +
           '<div class="pd-req-detail-divider"></div>' +
-          '<div class="pd-req-detail-section" style="display:flex;gap:20px;flex-wrap:wrap">' +
+          // ── 任务 / 验收 / 设计章节 ──
+          '<div class="pd-req-detail-section"><div class="pd-req-detail-label">任务清单</div>' + tasksHtml + '</div>' +
+          '<div class="pd-req-detail-section"><div class="pd-req-detail-label">验收标准</div>' + verificationsHtml + '</div>' +
+          '<div class="pd-req-detail-section"><div class="pd-req-detail-label">设计章节</div>' + designSectionsHtml + '</div>' +
+          '<div class="pd-req-detail-divider"></div>' +
+          '<div style="display:flex;gap:20px;flex-wrap:wrap">' +
             '<div><div class="pd-req-detail-label">状态</div><div class="pd-req-detail-value">' + escapeHtml(statusLabel) + '</div></div>' +
             '<div><div class="pd-req-detail-label">来源</div><div class="pd-req-detail-value">' + escapeHtml(sourceLabel) + '</div></div>' +
-            '<div><div class="pd-req-detail-label">创建时间</div><div class="pd-req-detail-value">' + escapeHtml(createdAt) + '</div></div>' +
             '<div><div class="pd-req-detail-label">更新时间</div><div class="pd-req-detail-value">' + escapeHtml(updatedAt) + '</div></div>' +
+          '</div>' +
+          // ── 历史迭代 ──
+          '<div class="pd-req-iter-section">' +
+            '<div class="pd-req-iter-header"><span class="pd-section-title">历史迭代<span class="pd-req-iter-count">' + myIters.length + ' 条记录</span></span></div>' +
+            itersHtml +
+            // 记录表单
+            '<div class="pd-iter-form">' +
+              '<div class="pd-iter-form-title">&#9998; 记录一次迭代</div>' +
+              '<div class="pd-iter-form-row">' +
+                '<div class="form-group"><label class="form-label">版本</label><input class="form-input" id="pdIterVersion" type="text" placeholder="如 v2 / 2026-08" autocomplete="off"></div>' +
+                '<div class="form-group"><label class="form-label">状态</label><select class="form-select" id="pdIterStatus"><option value="in-progress">进行中</option><option value="done">已完成</option><option value="todo">待开始</option><option value="pending">待定</option></select></div>' +
+                '<div class="form-group"><label class="form-label">标签</label><input class="form-input" id="pdIterTags" type="text" placeholder="逗号分隔，可选" autocomplete="off"></div>' +
+              '</div>' +
+              '<div class="form-group"><label class="form-label">本次迭代说明</label><textarea class="form-textarea" id="pdIterNote" rows="3" placeholder="记录本次迭代做了什么、改了哪些内容、结论如何..."></textarea></div>' +
+              '<div class="pd-iter-form-actions"><button class="btn btn-primary" id="pdIterSubmit" type="button" data-func-tag="功能:记录功能点迭代" title="保存一条功能点历史迭代记录">保存迭代记录</button></div>' +
+            '</div>' +
+            // 跨项目定位
+            '<div style="margin-top:16px"><div class="pd-req-detail-label">跨项目相关迭代定位</div>' +
+            '<div class="pd-iter-related">' + relatedHtml + '</div></div>' +
           '</div>';
 
         showModal($('pdRequirementModal'));
+
+        // 绑定记录表单提交（按钮每次渲染重建，直接绑定即可）
+        var submitBtn = $('pdIterSubmit');
+        if (submitBtn) {
+          submitBtn.addEventListener('click', async function() {
+            var version = ($('pdIterVersion')?.value || '').trim();
+            var note = ($('pdIterNote')?.value || '').trim();
+            if (!version && !note) {
+              submitBtn.closest('.pd-iter-form').insertAdjacentHTML('beforeend', '<div class="error-message" style="margin-top:10px">请至少填写版本或说明</div>');
+              return;
+            }
+            var tags = ($('pdIterTags')?.value || '').split(/[,，]/).map(function(t) { return t.trim(); }).filter(Boolean);
+            var existingCount = (pdIterations || []).filter(function(x) { return x.fpId === item.id && x.project === item.projectName; }).length;
+            submitBtn.disabled = true;
+            submitBtn.textContent = '保存中...';
+            try {
+              var r = await fetch('/api/workspace/feature-points/iterations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  project: item.projectName || '',
+                  fpId: item.id || '',
+                  fpName: item.title || '',
+                  version: version || ('v' + (existingCount + 1)),
+                  note: note,
+                  tags: tags,
+                  status: ($('pdIterStatus')?.value || 'in-progress')
+                })
+              });
+              if (!r.ok) {
+                var eb = await r.json().catch(function() { return {}; });
+                throw new Error(eb.error || '保存失败');
+              }
+              var iterRes = await fetch('/api/workspace/feature-points/iterations').catch(function() { return { ok: false }; });
+              pdIterations = iterRes && iterRes.ok ? (await iterRes.json().catch(function() { return []; })) : [];
+              showPdRequirementDetail(reqId);
+              loadProductDev();
+            } catch (e) {
+              submitBtn.disabled = false;
+              submitBtn.textContent = '保存迭代记录';
+              var errBox = document.createElement('div');
+              errBox.className = 'error-message';
+              errBox.style.marginTop = '10px';
+              errBox.textContent = '保存失败：' + (e.message || '后端服务不可用');
+              submitBtn.closest('.pd-iter-form').appendChild(errBox);
+            }
+          });
+        }
       }
 
       function renderPdGraph(graph) {
