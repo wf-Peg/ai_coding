@@ -2,6 +2,7 @@
 # 格式: 日期 时间 | 提交说明
 # 每次提交代码后自动追加到此文件
 
+2026-08-15 00:20 | 修复图片上传失败：media-uploader 错误诊断改进（非 JSON 响应显示状态码/404提示重启应用）、Accept: application/json、multipart 上限 12MB（jar 已重新打包部署）
 2026-08-14 23:40 | 产品开发归档（skill: product-dev-archive）：剪藏图片功能重新设计生成 feature-points.json（7 功能点/8 知识点），workspace.html 验收标准兼容 {title,status} 对象格式
 2026-08-14 23:19 | 剪藏图文一体：media 通用层（/api/media/*）、multipart 上传、正文 markdown 渲染+消毒、编辑器/扩展对齐、M0-M5 完成
 2026-08-13 23:30 | 修复工作台右下角置顶与刷新

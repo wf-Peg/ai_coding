@@ -93,22 +93,37 @@
       var ext = (filename || 'image.jpg').split('.').pop() || 'jpg';
       formData.append('file', blob, 'image-' + Date.now() + '.' + ext);
       xhr.open('POST', getUploadUrl());
+      xhr.setRequestHeader('Accept', 'application/json'); // 强制 JSON 响应，便于错误诊断
       xhr.upload.onprogress = function (e) {
         if (e.lengthComputable && callbacks && callbacks.onProgress) {
           callbacks.onProgress(Math.round((e.loaded / e.total) * 100));
         }
       };
+      xhr.timeout = 60000; // 60s 超时，避免一直转圈
+      xhr.ontimeout = function () { reject(new Error('上传超时（60 秒）')); };
       xhr.onload = function () {
-        try {
-          var resp = JSON.parse(xhr.responseText);
-          if (xhr.status === 200 && resp.status === 'success') {
-            resolve(resp);
-          } else {
-            reject(new Error(resp && resp.message ? resp.message : '上传失败（HTTP ' + xhr.status + '）'));
-          }
-        } catch (e) {
-          reject(new Error('上传响应解析失败'));
+        var raw = xhr.responseText || '';
+        var resp = null;
+        try { resp = JSON.parse(raw); } catch (e) { resp = null; }
+        if (xhr.status === 200 && resp && resp.status === 'success') {
+          resolve(resp);
+          return;
         }
+        // 非成功响应：给出可诊断的错误信息（而非笼统的"解析失败"）
+        var detail = (resp && resp.message) ? resp.message : '';
+        if (!detail) {
+          if (xhr.status === 404) {
+            detail = '上传接口不存在（HTTP 404）——请确认后端已更新并重启应用';
+          } else if (xhr.status === 413 || xhr.status === 500) {
+            detail = '文件超过服务器大小限制（HTTP ' + xhr.status + '，服务器上限 10MB）';
+          } else if (xhr.status === 0) {
+            detail = '网络错误（无法连接后端）';
+          } else {
+            var snippet = raw.replace(/\s+/g, ' ').slice(0, 120);
+            detail = '响应异常（HTTP ' + xhr.status + '）' + (snippet ? '：' + snippet : '');
+          }
+        }
+        reject(new Error(detail || '上传失败（HTTP ' + xhr.status + '）'));
       };
       xhr.onerror = function () { reject(new Error('网络错误，上传失败')); };
       xhr.send(formData);
