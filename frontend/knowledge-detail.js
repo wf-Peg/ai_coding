@@ -99,35 +99,119 @@ async function renderSourceClips(knowledge) {
     return;
   }
 
+  // 用 sourceRefs（来源元数据）优先，回退到逐个抓取剪藏
+  const refMap = {};
+  (knowledge.sourceRefs || []).forEach(r => { refMap[r.clipId] = r; });
+
   section.style.display = 'block';
-  // 获取每个剪藏的标题
   const clipItems = [];
   for (const id of sourceClipIds) {
+    const ref = refMap[id];
+    let item = {
+      id,
+      title: ref && ref.title ? ref.title : null,
+      siteName: (ref && ref.siteName) || '',
+      sourceUrl: (ref && ref.sourceUrl) || '',
+      capturedAt: (ref && ref.capturedAt) || ''
+    };
     try {
       const resp = await fetch(`http://127.0.0.1:8081/api/clip/${id}`);
       if (resp.ok) {
         const clip = await resp.json();
-        clipItems.push({ id, title: clip.title || '未命名剪藏', summary: clip.summary || '' });
-      } else {
-        clipItems.push({ id, title: `剪藏 #${id}`, summary: '' });
+        item.title = clip.title || item.title || `剪藏 #${id}`;
+        item.siteName = clip.siteName || item.siteName;
+        item.sourceUrl = clip.sourceUrl || item.sourceUrl;
+        item.capturedAt = clip.capturedAt || item.capturedAt;
+        item.summary = clip.summary || '';
+        item.content = clip.content || '';
       }
-    } catch {
-      clipItems.push({ id, title: `剪藏 #${id}`, summary: '' });
-    }
+    } catch { /* keep fallback */ }
+    item.title = item.title || `剪藏 #${id}`;
+    clipItems.push(item);
   }
 
   list.innerHTML = clipItems.map(item => `
-    <div class="clip-item" onclick="openClipInEditor('${escapeHtml(String(item.id))}')">
-      📄 ${escapeHtml(item.title)}
+    <div class="clip-item" onclick="openClipPreview('${item.id}')">
+      <div class="clip-item-title">
+        📄 ${escapeHtml(item.title)}
+        ${item.siteName ? `<span class="clip-item-site">${escapeHtml(item.siteName)}</span>` : ''}
+      </div>
       ${item.summary ? `<span class="clip-item-summary">${escapeHtml(item.summary.substring(0, 60))}${item.summary.length > 60 ? '...' : ''}</span>` : ''}
     </div>
   `).join('');
 }
 
+// 来源剪藏内联预览弹窗
+async function openClipPreview(clipId) {
+  closeClipPreview();
+  const overlay = document.createElement('div');
+  overlay.className = 'clip-preview-overlay';
+  overlay.id = 'clipPreviewOverlay';
+  overlay.innerHTML = `
+    <div class="clip-preview-modal">
+      <div class="clip-preview-header">
+        <h4 id="clipPreviewTitle">加载中...</h4>
+        <button class="clip-preview-close" onclick="closeClipPreview()">✕</button>
+      </div>
+      <div class="clip-preview-meta" id="clipPreviewMeta"></div>
+      <div class="clip-preview-body" id="clipPreviewBody"><div class="loading"><p>加载中...</p></div></div>
+      <div class="clip-preview-footer">
+        <button class="clip-preview-btn link" id="clipPreviewOpenSource" style="display:none;">打开原文</button>
+        <button class="clip-preview-btn" onclick="openClipInEditor('${clipId}')">在编辑器中打开原文</button>
+        <button class="clip-preview-btn primary" onclick="goToClipModule()">去剪藏模块</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeClipPreview(); });
+
+  try {
+    const resp = await fetch(`http://127.0.0.1:8081/api/clip/${clipId}`);
+    let meta = '';
+    let bodyHtml = '<div class="clip-preview-empty">无法加载剪藏内容</div>';
+    let sourceUrl = '';
+    if (resp.ok) {
+      const clip = await resp.json();
+      document.getElementById('clipPreviewTitle').textContent = clip.title || `剪藏 #${clipId}`;
+      const site = clip.siteName ? escapeHtml(clip.siteName) : '';
+      const cat = clip.category ? escapeHtml(clip.category) : '';
+      const date = clip.capturedAt ? escapeHtml(clip.capturedAt) : '';
+      meta = [site, cat, date].filter(Boolean).join(' · ');
+      sourceUrl = clip.sourceUrl || '';
+      const content = clip.content || clip.summary || '';
+      if (content) {
+        bodyHtml = `<pre class="clip-preview-content">${escapeHtml(content)}</pre>`;
+      }
+    }
+    document.getElementById('clipPreviewMeta').textContent = meta;
+    document.getElementById('clipPreviewBody').innerHTML = bodyHtml;
+    const openSource = document.getElementById('clipPreviewOpenSource');
+    if (sourceUrl) {
+      openSource.style.display = 'inline-flex';
+      openSource.onclick = () => { window.open(sourceUrl, '_blank'); };
+    }
+  } catch (error) {
+    document.getElementById('clipPreviewTitle').textContent = `剪藏 #${clipId}`;
+    document.getElementById('clipPreviewBody').innerHTML = '<div class="clip-preview-empty">加载失败</div>';
+  }
+}
+
+function closeClipPreview() {
+  const overlay = document.getElementById('clipPreviewOverlay');
+  if (overlay) overlay.remove();
+}
+
 // 在编辑器模块中打开剪藏内容
 function openClipInEditor(clipId) {
+  closeClipPreview();
   // 发送消息给父框架，切换到编辑器并打开该剪藏
   window.parent.postMessage({ type: 'openClipInNewTab', clipId: parseInt(clipId) }, '*');
+}
+
+// 跳转到剪藏模块
+function goToClipModule() {
+  closeClipPreview();
+  window.parent.postMessage({ type: 'navigateClip' }, '*');
 }
 
 // 在知识模块内跳转到指定知识详情

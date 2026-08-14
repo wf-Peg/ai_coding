@@ -42,6 +42,9 @@ public class Knowledge {
     /** 来源剪藏 ID 列表（多个来源剪藏） */
     private List<Long> sourceClipIds = new ArrayList<>();
 
+    /** 来源剪藏引用明细（provenance），含来源 URL/站点名/采集时间等溯源元数据 */
+    private List<SourceRef> sourceRefs = new ArrayList<>();
+
     /** 我的思考，Markdown 格式，记录用户对知识内容的个人观点、反思或总结 */
     private String myThoughts;
 
@@ -86,6 +89,9 @@ public class Knowledge {
 
     public List<Long> getSourceClipIds() { return sourceClipIds; }
     public void setSourceClipIds(List<Long> sourceClipIds) { this.sourceClipIds = sourceClipIds; }
+
+    public List<SourceRef> getSourceRefs() { return sourceRefs; }
+    public void setSourceRefs(List<SourceRef> sourceRefs) { this.sourceRefs = sourceRefs; }
 
     public String getMyThoughts() { return myThoughts; }
     public void setMyThoughts(String myThoughts) { this.myThoughts = myThoughts; }

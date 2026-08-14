@@ -747,6 +747,10 @@
           const kf = document.getElementById('knowledgeFrame');
           if (kf) kf.src = 'knowledge-editor.html';
         }
+        if (event.data && event.data.type === 'navigateClip') {
+          renderView('clip');
+          window.history.pushState({ view: 'clip' }, '', '/clip');
+        }
         if (event.data && event.data.type === 'editorReady') {
           editorReady = true;
           sendPendingClipToEditor();

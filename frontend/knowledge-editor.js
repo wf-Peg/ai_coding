@@ -49,9 +49,17 @@ async function loadSourceClipTitles() {
     if (!response.ok) { renderSourceChips(); return; }
     const clips = await response.json();
     const clipMap = {};
-    clips.forEach(function(c) { clipMap[String(c.id)] = c.title || c.summary || ('剪藏 #' + c.id); });
+    clips.forEach(function(c) {
+      clipMap[String(c.id)] = {
+        title: c.title || c.summary || ('剪藏 #' + c.id),
+        siteName: c.siteName || ''
+      };
+    });
     sourceClips.forEach(function(sc) {
-      if (clipMap[sc.id]) sc.title = clipMap[sc.id];
+      if (clipMap[sc.id]) {
+        if (clipMap[sc.id].title) sc.title = clipMap[sc.id].title;
+        if (clipMap[sc.id].siteName) sc.siteName = clipMap[sc.id].siteName;
+      }
     });
     renderSourceChips();
   } catch (e) {
@@ -169,7 +177,8 @@ function renderSourceChips() {
   const container = document.getElementById('sourceChipsContainer');
   container.innerHTML = sourceClips.map(function(sc, i) {
     const title = sc.title || ('剪藏 #' + sc.id);
-    return '<span class="source-chip">' + escapeHtml(title) + '<span class="remove" data-index="' + i + '">&times;</span></span>';
+    const site = sc.siteName ? '<span class="source-chip-site">' + escapeHtml(sc.siteName) + '</span>' : '';
+    return '<span class="source-chip">' + escapeHtml(title) + site + '<span class="remove" data-index="' + i + '">&times;</span></span>';
   }).join('');
 
   container.querySelectorAll('.remove').forEach(function(btn) {
@@ -445,6 +454,39 @@ async function saveKnowledge(published) {
   if (!title) { showToast('请输入标题'); return; }
   if (!content) { showToast('请输入AI对话内容'); return; }
 
+  // 校验来源剪藏是否已关联到其他知识
+  const conflicts = await findSourceConflicts();
+  if (conflicts.length > 0) {
+    const names = conflicts.map(function(c) {
+      return '「' + c.clipTitle + '」已被 <b>' + escapeHtml(c.knowledgeTitle) + '</b> 关联';
+    }).join('<br>');
+    showConfirm(names + '<br><small style="opacity:0.7">继续保存会形成同一剪藏对应多条知识，是否仍要保存？</small>', async function() {
+      await doSaveKnowledge(published, title, content);
+    });
+    return;
+  }
+  await doSaveKnowledge(published, title, content);
+}
+
+// 找出已被其他知识关联的来源剪藏
+async function findSourceConflicts() {
+  const conflicts = [];
+  for (const sc of sourceClips) {
+    try {
+      const response = await fetch(API_BASE + '/by-clip/' + sc.id);
+      if (!response.ok) continue;
+      const knowledges = await response.json();
+      const conflict = knowledges.find(function(k) { return String(k.id) !== String(editId); });
+      if (conflict) {
+        conflicts.push({ clipTitle: sc.title || ('剪藏 #' + sc.id), knowledgeTitle: conflict.title });
+      }
+    } catch (e) { /* ignore */ }
+  }
+  return conflicts;
+}
+
+async function doSaveKnowledge(published, title, content) {
+
   const data = {
     title: title,
     summary: document.getElementById('summaryInput').value.trim(),
@@ -505,6 +547,27 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+function showConfirm(message, onConfirm) {
+  let overlay = document.getElementById('confirmOverlay');
+  if (overlay) overlay.remove();
+  overlay = document.createElement('div');
+  overlay.className = 'confirm-overlay';
+  overlay.id = 'confirmOverlay';
+  overlay.innerHTML = `
+    <div class="confirm-dialog">
+      <p>${message}</p>
+      <div class="confirm-actions">
+        <button class="confirm-btn" id="confirmCancelBtn">取消</button>
+        <button class="confirm-btn danger" id="confirmOkBtn">继续保存</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  function close() { overlay.remove(); }
+  overlay.querySelector('#confirmCancelBtn').addEventListener('click', close);
+  overlay.querySelector('#confirmOkBtn').addEventListener('click', function() { close(); onConfirm(); });
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
 }
 
 // ========== 初始化 ==========

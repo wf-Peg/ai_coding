@@ -1,7 +1,9 @@
 (function() {
   'use strict';
 
-  const API_BASE = 'http://127.0.0.1:8081/api/knowledge';
+  const API_GRAPH = 'http://127.0.0.1:8081/api/graph';
+  const API_SYNC = 'http://127.0.0.1:8081/api/relations/sync';
+
   const container = document.getElementById('graphContainer');
   const loadingEl = document.getElementById('loadingEl');
   const emptyEl = document.getElementById('emptyEl');
@@ -9,74 +11,82 @@
   const emptyDesc = document.getElementById('emptyDesc');
   const sidePanel = document.getElementById('sidePanel');
   const panelTitle = document.getElementById('panelTitle');
+  const panelMeta = document.getElementById('panelMeta');
   const panelSummary = document.getElementById('panelSummary');
   const panelTags = document.getElementById('panelTags');
   const panelDetailLink = document.getElementById('panelDetailLink');
   const panelCloseBtn = document.getElementById('panelCloseBtn');
 
+  const searchInput = document.getElementById('searchInput');
+  const viewButtons = document.querySelectorAll('.view-toggle .seg-btn');
+  const syncBtn = document.getElementById('syncBtn');
+
   let allNodes = [];
   let allLinks = [];
   let nodeMap = {};
   let selectedNodeId = null;
+  let currentView = 'all'; // 'all' | 'knowledge'
   let svg, g, simulation, linkElements, nodeElements, labelElements;
 
   // ---- Data Fetching ----
 
-  async function fetchData() {
+  async function fetchData(view) {
+    view = view || 'all';
     try {
-      const response = await fetch(`${API_BASE}/list`);
-      const entries = await response.json();
+      const url = view === 'knowledge'
+        ? API_GRAPH + '?includeTypes=knowledge'
+        : API_GRAPH;
+      const response = await fetch(url);
+      const data = await response.json();
 
-      if (!entries || entries.length === 0) {
-        showEmpty('暂无知识条目', '请先创建知识条目并添加链接');
+      if (!data || !data.nodes || data.nodes.length === 0) {
+        showEmpty('暂无图谱数据', '请先创建剪藏或知识条目并建立关联');
         return;
       }
-
-      buildGraph(entries);
+      buildGraph(data.nodes, data.links || []);
     } catch (error) {
-      console.error('获取知识列表失败:', error);
+      console.error('获取图谱数据失败:', error);
       showEmpty('加载失败', '请检查后端服务是否正常运行');
     }
   }
 
-  function buildGraph(entries) {
+  function buildGraph(nodes, links) {
     allNodes = [];
     allLinks = [];
     nodeMap = {};
     const linkSet = new Set();
 
-    entries.forEach(function(entry) {
-      const linkedCount = (entry.linkedKnowledgeIds && entry.linkedKnowledgeIds.length) || 0;
-      nodeMap[entry.id] = {
-        id: entry.id,
-        title: entry.title || '未命名',
-        summary: entry.summary || '',
-        tags: entry.tags || [],
-        linkedCount: linkedCount,
-        linkedKnowledgeIds: entry.linkedKnowledgeIds || []
+    nodes.forEach(function(n) {
+      nodeMap[n.id] = {
+        id: n.id,
+        type: n.type || (String(n.id).indexOf('clip:') === 0 ? 'clip' : 'knowledge'),
+        sourceId: n.sourceId,
+        title: n.title || '未命名',
+        summary: n.summary || '',
+        category: n.category || '',
+        tags: n.tags || [],
+        linkedCount: n.linkedCount || 0,
+        sourceCount: n.sourceCount || 0
       };
-      allNodes.push(nodeMap[entry.id]);
+      allNodes.push(nodeMap[n.id]);
     });
 
-    // Build links from linkedKnowledgeIds (bidirectional, only create one link per pair)
-    entries.forEach(function(entry) {
-      var linkedIds = entry.linkedKnowledgeIds || [];
-      linkedIds.forEach(function(targetId) {
-        if (nodeMap[targetId]) {
-          var pairKey = entry.id < targetId ? entry.id + '|' + targetId : targetId + '|' + entry.id;
-          if (!linkSet.has(pairKey)) {
-            linkSet.add(pairKey);
-            allLinks.push({ source: entry.id, target: targetId });
-          }
-        }
-      });
+    links.forEach(function(link) {
+      var sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+      var targetId = typeof link.target === 'object' ? link.target.id : link.target;
+      if (!nodeMap[sourceId] || !nodeMap[targetId]) return;
+      var pairKey = sourceId < targetId ? sourceId + '|' + targetId : targetId + '|' + sourceId;
+      if (!linkSet.has(pairKey)) {
+        linkSet.add(pairKey);
+        allLinks.push({
+          source: sourceId,
+          target: targetId,
+          type: link.type || (String(sourceId).indexOf('clip:') === 0 ? 'derived_from' : 'linked_to')
+        });
+      }
     });
 
-    if (allLinks.length === 0) {
-      showEmpty('暂无知识关联', '请先创建知识条目并添加链接');
-      return;
-    }
-
+    // If no links but there are nodes, still render the nodes (isolated)
     loadingEl.style.display = 'none';
     emptyEl.style.display = 'none';
     initGraph();
@@ -92,7 +102,6 @@
   // ---- Graph Initialization ----
 
   function initGraph() {
-    // Remove any existing SVG
     var existing = container.querySelector('svg');
     if (existing) existing.remove();
 
@@ -104,7 +113,6 @@
       .attr('width', width)
       .attr('height', height);
 
-    // Zoom behavior
     var zoom = d3.zoom()
       .scaleExtent([0.1, 4])
       .on('zoom', function(event) {
@@ -113,7 +121,6 @@
 
     svg.call(zoom);
 
-    // Click on background to reset
     svg.on('click', function(event) {
       if (event.target === svg.node()) {
         resetSelection();
@@ -122,20 +129,20 @@
 
     g = svg.append('g');
 
-    // Force simulation
     simulation = d3.forceSimulation(allNodes)
-      .force('link', d3.forceLink(allLinks).id(function(d) { return d.id; }).distance(120))
-      .force('charge', d3.forceManyBody().strength(-300))
+      .force('link', d3.forceLink(allLinks).id(function(d) { return d.id; }).distance(fnLinkDistance).strength(fnLinkStrength))
+      .force('charge', d3.forceManyBody().strength(-280))
       .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collide', d3.forceCollide().radius(function(d) { return getNodeRadius(d) + 8; }));
+      .force('collide', d3.forceCollide().radius(function(d) { return getNodeRadius(d) + 10; }));
 
-    // Render links
+    // Render links with type-based styling
     linkElements = g.append('g')
       .attr('class', 'links')
       .selectAll('line')
       .data(allLinks)
       .join('line')
-      .attr('class', 'link');
+      .attr('class', function(d) { return 'link ' + (d.type === 'derived_from' ? 'link-derived' : 'link-linked'); })
+      .attr('stroke-dasharray', function(d) { return d.type === 'derived_from' ? '5 4' : null; });
 
     // Render nodes
     nodeElements = g.append('g')
@@ -146,14 +153,25 @@
       .attr('class', 'node')
       .call(dragBehavior());
 
-    // Node circles
-    nodeElements.append('circle')
+    // Node shapes: clip = square, knowledge = circle
+    var clipNodes = nodeElements.filter(function(d) { return isClip(d); });
+    var knoNodes = nodeElements.filter(function(d) { return !isClip(d); });
+
+    clipNodes.append('rect')
+      .attr('x', function(d) { return -getNodeRadius(d); })
+      .attr('y', function(d) { return -getNodeRadius(d); })
+      .attr('width', function(d) { return getNodeRadius(d) * 2; })
+      .attr('height', function(d) { return getNodeRadius(d) * 2; })
+      .attr('rx', 3)
+      .attr('fill', function(d) { return getNodeColor(d); });
+
+    knoNodes.append('circle')
       .attr('r', function(d) { return getNodeRadius(d); })
       .attr('fill', function(d) { return getNodeColor(d); });
 
     // Node labels
     labelElements = nodeElements.append('text')
-      .text(function(d) { return truncate(d.title, 15); })
+      .text(function(d) { return truncate(d.title, 14); })
       .attr('dy', function(d) { return getNodeRadius(d) + 14; });
 
     // Node click
@@ -164,18 +182,17 @@
 
     // Node hover
     nodeElements.on('mouseenter', function(event, d) {
-      d3.select(this).select('circle')
-        .transition().duration(150)
-        .attr('r', getNodeRadius(d) * 1.15);
+      var sel = d3.select(this).select(isClip(d) ? 'rect' : 'circle');
+      sel.transition().duration(150)
+        .call(scaleShape, d, 1.15);
     }).on('mouseleave', function(event, d) {
-      if (selectedNodeId !== d.id) {
-        d3.select(this).select('circle')
-          .transition().duration(150)
-          .attr('r', getNodeRadius(d));
+      if (selectedNodeId !== String(d.id)) {
+        var sel = d3.select(this).select(isClip(d) ? 'rect' : 'circle');
+        sel.transition().duration(150)
+          .call(scaleShape, d, 1);
       }
     });
 
-    // Simulation tick
     simulation.on('tick', function() {
       linkElements
         .attr('x1', function(d) { return d.source.x; })
@@ -187,7 +204,6 @@
         .attr('transform', function(d) { return 'translate(' + d.x + ',' + d.y + ')'; });
     });
 
-    // Handle window resize
     window.addEventListener('resize', function() {
       var w = container.clientWidth;
       var h = container.clientHeight;
@@ -199,20 +215,48 @@
     applyThemeStyles();
   }
 
+  function scaleShape(selection, d, factor) {
+    var r = getNodeRadius(d) * factor;
+    if (isClip(d)) {
+      selection.attr('x', -r).attr('y', -r).attr('width', r * 2).attr('height', r * 2);
+    } else {
+      selection.attr('r', r);
+    }
+  }
+
   // ---- Node Helpers ----
 
+  function isClip(d) {
+    return d.type === 'clip';
+  }
+
   function getNodeRadius(d) {
-    if (!d.linkedCount || d.linkedCount === 0) return 8;
-    var r = 8 + (d.linkedCount * 2);
-    return Math.min(r, 25);
+    if (isClip(d)) return 8;
+    var degree = (d.linkedCount || 0) + (d.sourceCount || 0);
+    if (!degree) return d.linkedCount ? 10 : 9;
+    var r = 9 + (degree * 1.6);
+    return Math.min(r, 26);
   }
 
   function getNodeColor(d) {
-    var count = d.linkedCount || 0;
-    if (count >= 10) return '#2f72d8';
-    if (count >= 6) return '#3f8cff';
-    if (count >= 3) return '#73b2ff';
-    return '#a3cfff';
+    if (isClip(d)) return '#f59e0b';
+    var degree = (d.linkedCount || 0) + (d.sourceCount || 0);
+    if (degree >= 10) return '#2f72d8';
+    if (degree >= 6) return '#3f8cff';
+    if (degree >= 3) return '#569cff';
+    return '#8fc0ff';
+  }
+
+  function getNodeDegree(d) {
+    return (d.linkedCount || 0) + (d.sourceCount || 0);
+  }
+
+  function fnLinkDistance(d) {
+    return d.type === 'derived_from' ? 90 : 130;
+  }
+
+  function fnLinkStrength() {
+    return 0.5;
   }
 
   function truncate(text, maxLen) {
@@ -244,39 +288,35 @@
   // ---- Selection & Highlighting ----
 
   function selectNode(d) {
-    selectedNodeId = d.id;
+    selectedNodeId = String(d.id);
 
-    // Get neighbor IDs
     var neighborIds = new Set();
-    neighborIds.add(d.id);
+    neighborIds.add(String(d.id));
     allLinks.forEach(function(link) {
-      var sourceId = typeof link.source === 'object' ? link.source.id : link.source;
-      var targetId = typeof link.target === 'object' ? link.target.id : link.target;
-      if (sourceId === d.id) neighborIds.add(targetId);
-      if (targetId === d.id) neighborIds.add(sourceId);
+      var sourceId = typeof link.source === 'object' ? String(link.source.id) : String(link.source);
+      var targetId = typeof link.target === 'object' ? String(link.target.id) : String(link.target);
+      if (sourceId === String(d.id)) neighborIds.add(targetId);
+      if (targetId === String(d.id)) neighborIds.add(sourceId);
     });
 
-    // Dim non-neighbors
     nodeElements.classed('dimmed', function(n) {
-      return !neighborIds.has(n.id);
+      return !neighborIds.has(String(n.id));
     });
 
     linkElements.classed('dimmed', function(l) {
-      var sourceId = typeof l.source === 'object' ? l.source.id : l.source;
-      var targetId = typeof l.target === 'object' ? l.target.id : l.target;
+      var sourceId = typeof l.source === 'object' ? String(l.source.id) : String(l.source);
+      var targetId = typeof l.target === 'object' ? String(l.target.id) : String(l.target);
       return !(neighborIds.has(sourceId) && neighborIds.has(targetId));
     });
 
-    // Highlight selected node
-    nodeElements.select('circle')
+    nodeElements.select('circle, rect')
       .attr('stroke', function(n) {
-        return n.id === d.id ? '#ff9800' : null;
+        return String(n.id) === String(d.id) ? '#ff9800' : null;
       })
       .attr('stroke-width', function(n) {
-        return n.id === d.id ? 3 : 2;
+        return String(n.id) === String(d.id) ? 3 : 2;
       });
 
-    // Show side panel
     showSidePanel(d);
   }
 
@@ -284,10 +324,80 @@
     selectedNodeId = null;
     nodeElements.classed('dimmed', false);
     linkElements.classed('dimmed', false);
-    nodeElements.select('circle')
+    nodeElements.select('circle, rect')
       .attr('stroke', null)
       .attr('stroke-width', 2);
     hideSidePanel();
+  }
+
+  // ---- Search ----
+
+  function applySearch() {
+    var query = (searchInput && searchInput.value ? searchInput.value.trim() : '').toLowerCase();
+    if (!query) {
+      nodeElements.classed('dimmed', false);
+      nodeElements.select('circle, rect').attr('stroke', null);
+      linkElements.classed('dimmed', false);
+      return;
+    }
+
+    var matched = new Set();
+    allNodes.forEach(function(n) {
+      var hay = ((n.title || '') + ' ' + (n.category || '') + ' ' + (n.tags || []).join(' ')).toLowerCase();
+      if (hay.indexOf(query) !== -1) matched.add(String(n.id));
+    });
+
+    // Include neighbors of matches for clustering
+    var cluster = new Set(matched);
+    allLinks.forEach(function(l) {
+      var sourceId = typeof l.source === 'object' ? String(l.source.id) : String(l.source);
+      var targetId = typeof l.target === 'object' ? String(l.target.id) : String(l.target);
+      if (matched.has(sourceId)) cluster.add(targetId);
+      if (matched.has(targetId)) cluster.add(sourceId);
+    });
+
+    nodeElements.classed('dimmed', function(n) {
+      return !cluster.has(String(n.id));
+    });
+    linkElements.classed('dimmed', function(l) {
+      var sourceId = typeof l.source === 'object' ? String(l.source.id) : String(l.source);
+      var targetId = typeof l.target === 'object' ? String(l.target.id) : String(l.target);
+      return !(cluster.has(sourceId) && cluster.has(targetId));
+    });
+
+    nodeElements.select('circle, rect').attr('stroke', function(n) {
+      return matched.has(String(n.id)) ? '#ff9800' : null;
+    });
+  }
+
+  // ---- View Toggle ----
+
+  function setView(view) {
+    currentView = view;
+    viewButtons.forEach(function(btn) {
+      btn.classList.toggle('active', btn.dataset.view === view);
+    });
+    hideSidePanel();
+    loadingEl.style.display = 'block';
+    emptyEl.style.display = 'none';
+    fetchData(view);
+  }
+
+  // ---- Sync ----
+
+  async function syncRelations() {
+    if (!syncBtn) return;
+    syncBtn.classList.add('loading');
+    syncBtn.textContent = '同步中...';
+    try {
+      await fetch(API_SYNC, { method: 'POST' });
+      await fetchData(currentView);
+    } catch (error) {
+      console.error('同步关系失败:', error);
+    } finally {
+      syncBtn.classList.remove('loading');
+      syncBtn.textContent = '刷新关系';
+    }
   }
 
   // ---- Side Panel ----
@@ -296,12 +406,24 @@
     panelTitle.textContent = d.title;
     panelSummary.textContent = d.summary || '暂无摘要';
 
+    if (isClip(d)) {
+      panelMeta.textContent = '来源剪藏' + (d.category ? ' · ' + d.category : '');
+    } else {
+      panelMeta.textContent = '知识条目 · ' + (d.linkedCount || 0) + ' 个关联 · ' + (d.sourceCount || 0) + ' 个来源';
+    }
+
     var tagsHtml = (d.tags || []).map(function(t) {
       return '<span class="tag-badge">' + escapeHtml(t) + '</span>';
     }).join('');
     panelTags.innerHTML = tagsHtml || '<span style="color:var(--text-muted);font-size:0.85rem;">暂无标签</span>';
 
-    panelDetailLink.href = 'knowledge-detail.html?id=' + encodeURIComponent(d.id);
+    if (isClip(d)) {
+      panelDetailLink.textContent = '前往剪藏模块';
+      panelDetailLink.href = 'clip.html';
+    } else {
+      panelDetailLink.textContent = '查看详情';
+      panelDetailLink.href = 'knowledge-detail.html?id=' + encodeURIComponent(d.sourceId != null ? d.sourceId : d.id);
+    }
 
     sidePanel.classList.add('open');
   }
@@ -309,11 +431,6 @@
   function hideSidePanel() {
     sidePanel.classList.remove('open');
   }
-
-  panelCloseBtn.addEventListener('click', function() {
-    hideSidePanel();
-    resetSelection();
-  });
 
   // ---- Theme Support ----
 
@@ -323,16 +440,16 @@
     var isDark = theme === 'dark';
 
     var textColor = isDark ? '#9a9a9a' : '#6b7280';
-    var linkColor = isDark ? '#555' : '#ccc';
-    var linkOpacity = isDark ? 0.4 : 0.3;
-    var dimOpacity = isDark ? 0.08 : 0.15;
     var nodeStroke = isDark ? '#2d2d2d' : '#ffffff';
 
-    svg.selectAll('.link')
-      .attr('stroke', linkColor)
-      .style('stroke-opacity', linkOpacity);
+    svg.selectAll('.link-linked')
+      .attr('stroke', isDark ? '#569cff' : '#3f8cff')
+      .attr('stroke-opacity', 0.45);
+    svg.selectAll('.link-derived')
+      .attr('stroke', isDark ? '#f59e0b' : '#fb923c')
+      .attr('stroke-opacity', 0.55);
 
-    svg.selectAll('.node circle')
+    svg.selectAll('.node circle, .node rect')
       .attr('stroke', nodeStroke);
 
     svg.selectAll('.node text')
@@ -352,10 +469,35 @@
     return div.innerHTML;
   }
 
+  // ---- Event Bindings ----
+
+  if (searchInput) {
+    searchInput.addEventListener('input', applySearch);
+    searchInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        searchInput.value = '';
+        applySearch();
+      }
+    });
+  }
+
+  viewButtons.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      setView(btn.dataset.view);
+    });
+  });
+
+  syncBtn.addEventListener('click', syncRelations);
+
+  panelCloseBtn.addEventListener('click', function() {
+    hideSidePanel();
+    resetSelection();
+  });
+
   // ---- Init ----
 
   document.addEventListener('DOMContentLoaded', function() {
-    fetchData();
+    fetchData('all');
   });
 
   // ---- PostMessage listener for parent frame ----

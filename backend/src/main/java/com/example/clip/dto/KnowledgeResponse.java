@@ -34,6 +34,9 @@ public class KnowledgeResponse {
     /** 来源剪藏 ID 列表 */
     private List<Long> sourceClipIds;
 
+    /** 来源剪藏引用明细（provenance），含来源 URL/站点名/采集时间 */
+    private List<com.example.clip.model.SourceRef> sourceRefs;
+
     /** 我的思考 */
     private String myThoughts;
 
@@ -72,6 +75,9 @@ public class KnowledgeResponse {
 
     public List<Long> getSourceClipIds() { return sourceClipIds; }
     public void setSourceClipIds(List<Long> sourceClipIds) { this.sourceClipIds = sourceClipIds; }
+
+    public List<com.example.clip.model.SourceRef> getSourceRefs() { return sourceRefs; }
+    public void setSourceRefs(List<com.example.clip.model.SourceRef> sourceRefs) { this.sourceRefs = sourceRefs; }
 
     public String getMyThoughts() { return myThoughts; }
     public void setMyThoughts(String myThoughts) { this.myThoughts = myThoughts; }

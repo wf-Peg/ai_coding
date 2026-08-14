@@ -1,0 +1,114 @@
+{
+  "version": "2.0",
+  "requirement": {
+    "title": "剪藏知识知识图谱联调",
+    "summary": "打通剪藏与知识模块的数据流转：统一关系索引、多剪藏AI合成知识、来源溯源、知识图谱多类型可视化与来源/关联知识UX优化",
+    "tags": ["product-dev", "剪藏", "知识图谱", "数据流转"],
+    "phase": "completed",
+    "createdAt": "2026-08-14T10:00:00",
+    "completedAt": "2026-08-14T22:30:00"
+  },
+  "featurePoints": [
+    {
+      "id": "fp-001",
+      "name": "统一关系索引与图谱数据源",
+      "description": "激活 RelationIndexService 管理剪藏→知识 derived_from 与知识→知识 linked_to 关系，新增 GraphService 组装统一图谱数据源，暴露 GET /api/graph 与 POST /api/relations/sync 幂等重建接口",
+      "layer": "backend",
+      "tags": ["product-dev", "关系索引", "图谱"],
+      "designSections": ["架构设计", "接口定义"],
+      "tasks": [
+        { "title": "RelationIndexService 接入业务写入路径", "status": "done" },
+        { "title": "GraphService 实现记录/同步/组装", "status": "done" },
+        { "title": "GraphController 新增 GET /api/graph", "status": "done" },
+        { "title": "POST /api/relations/sync 幂等重建", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "mvn test 114 用例全部通过", "status": "done" },
+        { "title": "图谱接口返回类型化节点与关系", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-002",
+      "name": "多剪藏AI合成知识与来源溯源",
+      "description": "实现 synthesizeKnowledge（含草稿/保存重载），整合多个剪藏内容经AI生成知识条目，新增 SourceRef 来源元数据（站点名/URL/采集时间）并写入知识响应",
+      "layer": "backend",
+      "tags": ["product-dev", "AI合成", "溯源"],
+      "designSections": ["技术方案", "接口定义"],
+      "tasks": [
+        { "title": "新增 SourceRef 模型", "status": "done" },
+        { "title": "synthesizeKnowledge 单参草稿/双参保存重载", "status": "done" },
+        { "title": "Knowledge/KnowledgeResponse 增加 sourceRefs", "status": "done" },
+        { "title": "Controller 委托 service 收敛合成逻辑", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "合成知识返回来源剪藏明细", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-003",
+      "name": "知识图谱前端多类型可视化",
+      "description": "knowledge-graph 改消费 /api/graph，剪藏(方块/橙)与知识(圆形/蓝)双节点、derived_from/linked_to 双类型边、搜索聚类、知识+剪藏/仅知识视图切换、关系刷新按钮与图例",
+      "layer": "frontend",
+      "tags": ["product-dev", "知识图谱", "可视化"],
+      "designSections": ["技术方案"],
+      "tasks": [
+        { "title": "改消费 /api/graph 数据源", "status": "done" },
+        { "title": "多类型节点与双类型边渲染", "status": "done" },
+        { "title": "搜索聚类与视图开关", "status": "done" },
+        { "title": "同步按钮与图例、侧栏类型栏", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "图谱可同时展示剪藏与知识节点", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-004",
+      "name": "来源剪藏/关联知识 UX 优化",
+      "description": "知识详情来源剪藏内联预览弹窗(站点名/URL/正文/编辑器与去剪藏入口)、知识编辑器来源chips站点名+已关联冲突预警确认框、剪藏列表已关联知识角标、index 新增 navigateClip 路由",
+      "layer": "frontend",
+      "tags": ["product-dev", "UX", "溯源"],
+      "designSections": ["关键决策"],
+      "tasks": [
+        { "title": "knowledge-detail 内联预览弹窗", "status": "done" },
+        { "title": "knowledge-editor 站点名chips与冲突预警", "status": "done" },
+        { "title": "clip 列表已关联知识角标", "status": "done" },
+        { "title": "index.html navigateClip 消息路由", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "修复 doSaveKnowledge 作用域引用 bug", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-005",
+      "name": "Bug 修复与回归",
+      "description": "B1 ID生成扫描覆盖全部类型(修正过时注释)、B2 合成桩收敛到 service 并放开重载；全量测试回归",
+      "layer": "fullstack",
+      "tags": ["product-dev", "bugfix"],
+      "designSections": ["关键决策"],
+      "tasks": [
+        { "title": "B1 ID 扫描覆盖面补全", "status": "done" },
+        { "title": "B2 合成桩收敛与重载放开", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "mvn test 114/114 通过，BUILD SUCCESS", "status": "done" }
+      ]
+    }
+  ],
+  "knowledgePoints": [
+    {
+      "title": "统一关系索引解耦数据流转",
+      "content": "用 RelationIndexService 将剪藏→知识(derived_from)与知识→知识(linked_to)关系独立成索引，业务写入时记录、图谱读取时统一组装，避免多头维护，person 打通两类实体的流转",
+      "tags": ["product-dev", "技术", "架构"]
+    },
+    {
+      "title": "relationship 类型化命名空间",
+      "content": "节点采用 typedId(clip:xxx / knowledge:xxx) 作为命名空间，配合 /api/relations/sync 幂等重建，可安全支持多类型节点与增量同步，为跨模块数据打通提供统一地址",
+      "tags": ["product-dev", "技术", "图谱"]
+    },
+    {
+      "title": "来源溯源元数据分离",
+      "content": "SourceRef 以 sourceRefs 附属知识条目，记录站点名/URL/采集时间，前端据此展示站点角标与内联原文预览，兼顾重构简洁与溯源完整",
+      "tags": ["product-dev", "技术", "溯源"]
+    }
+  ]
+}

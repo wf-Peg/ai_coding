@@ -1,13 +1,10 @@
 package com.example.clip.controller;
 
-import com.example.clip.core.AiService;
 import com.example.clip.dto.KnowledgeRequest;
 import com.example.clip.dto.KnowledgeResponse;
-import com.example.clip.model.ClipContent;
 import com.example.clip.model.Comment;
 import com.example.clip.model.Knowledge;
 import com.example.clip.service.AppConfigService;
-import com.example.clip.service.ClipService;
 import com.example.clip.service.FileStorageService;
 import com.example.clip.service.KnowledgeService;
 import com.example.clip.util.WorkspaceFilterUtils;
@@ -48,10 +45,6 @@ public class KnowledgeController {
     private final KnowledgeService knowledgeService;
     /** 文件存储服务，管理知识文件的存储路径 */
     private final FileStorageService storageService;
-    /** AI 服务，用于知识合成等 AI 功能 */
-    private final AiService aiService;
-    /** 剪藏服务，用于获取剪藏内容 */
-    private final ClipService clipService;
     /** 应用配置服务，用于获取配置目录路径 */
     private final AppConfigService appConfigService;
 
@@ -62,17 +55,12 @@ public class KnowledgeController {
      *
      * @param knowledgeService 知识服务
      * @param storageService   文件存储服务
-     * @param aiService        AI 服务
-     * @param clipService      剪藏服务
      * @param appConfigService 应用配置服务
      */
     public KnowledgeController(KnowledgeService knowledgeService, FileStorageService storageService,
-                               AiService aiService, ClipService clipService,
                                AppConfigService appConfigService) {
         this.knowledgeService = knowledgeService;
         this.storageService = storageService;
-        this.aiService = aiService;
-        this.clipService = clipService;
         this.appConfigService = appConfigService;
     }
 
@@ -244,43 +232,15 @@ public class KnowledgeController {
             return ResponseEntity.badRequest().body(Map.of("error", "请至少选择一个剪藏"));
         }
 
-        // 1. 获取所有剪藏内容
-        StringBuilder combinedContent = new StringBuilder();
-        for (int i = 0; i < clipIds.size(); i++) {
-            ClipContent clip = clipService.getClipById(clipIds.get(i));
-            if (clip != null) {
-                if (i > 0) {
-                    combinedContent.append("\n\n---\n\n");
-                }
-                combinedContent.append("### 剪藏 #").append(i + 1);
-                if (clip.getTitle() != null && !clip.getTitle().isEmpty()) {
-                    combinedContent.append(": ").append(clip.getTitle());
-                }
-                combinedContent.append("\n");
-                combinedContent.append(clip.getContent() != null ? clip.getContent() : "");
-            }
-        }
-
-        if (combinedContent.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "未找到任何有效的剪藏内容"));
-        }
-
-        // 2. 调用 AI 合成知识
         try {
-            Map<String, String> synthesized = aiService.synthesizeKnowledgeContent(combinedContent.toString());
-            if (synthesized == null) {
+            // 仅生成草稿，不落库，交由前端编辑器预览/编辑
+            Knowledge draft = knowledgeService.synthesizeKnowledge(clipIds);
+            if (draft == null) {
                 return ResponseEntity.status(500)
                         .body(Map.of("error", "AI 合成失败，请稍后重试或手动创建知识条目"));
             }
-
-            // 3. 构建响应（不保存，仅返回草稿）
-            KnowledgeResponse response = new KnowledgeResponse();
-            response.setTitle(synthesized.getOrDefault("title", ""));
-            response.setSummary(synthesized.getOrDefault("summary", ""));
-            response.setContent(synthesized.getOrDefault("content", ""));
-            response.setSourceClipIds(clipIds);
+            KnowledgeResponse response = toResponse(draft);
             response.setSourceCount(clipIds.size());
-
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             logger.error("[KnowledgeController] synthesizeKnowledge failed: {}", e.getMessage(), e);
@@ -434,6 +394,7 @@ public class KnowledgeController {
         response.setCategory(knowledge.getCategory());
         response.setTags(knowledge.getTags());
         response.setSourceClipIds(knowledge.getSourceClipIds());
+        response.setSourceRefs(knowledge.getSourceRefs());
         response.setMyThoughts(knowledge.getMyThoughts());
         response.setLinkedKnowledgeIds(knowledge.getLinkedKnowledgeIds());
         response.setSourceCount(knowledge.getSourceClipIds() != null ? knowledge.getSourceClipIds().size() : 0);

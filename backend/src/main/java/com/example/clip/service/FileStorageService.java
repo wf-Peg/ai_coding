@@ -129,10 +129,8 @@ public class FileStorageService {
     /**
      * 初始化 ID 生成器
      * <p>
-     * 扫描所有 JSON 文件中已有的剪藏记录，找到最大 ID 值，
-     * 将 ID 生成器的起始值设为 maxId + 1，避免 ID 冲突。
-     * 注意：此方法仅扫描剪藏记录，不扫描待办/知识条目/话题的 ID。
-     * 如果这些实体也使用 idGenerator，可能存在 ID 冲突风险。
+     * 扫描全部数据（剪藏 + 待办 + 知识条目 + 知识库 + 学习计划）中的最大 ID，
+     * 将 ID 生成器的起始值设为 maxId + 1，避免跨类型实体使用同一全局 idGenerator 时产生 ID 冲突。
      * </p>
      */
     private void initIdGenerator() {

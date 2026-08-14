@@ -76,6 +76,87 @@
             color: var(--text-muted);
         }
 
+        /* Nav Controls */
+        .nav-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-right: 8px;
+        }
+        .search-input {
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 0.85rem;
+            background: var(--surface);
+            color: var(--text);
+            width: 180px;
+            outline: none;
+            transition: var(--transition);
+        }
+        .search-input:focus { border-color: var(--primary); }
+        .view-toggle {
+            display: flex;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            overflow: hidden;
+        }
+        .view-toggle .seg-btn {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            border: none;
+            background: var(--surface);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .view-toggle .seg-btn.active { background: var(--primary); color: #fff; }
+        .sync-btn {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            background: var(--surface);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .sync-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .sync-btn.loading { opacity: 0.6; pointer-events: none; }
+
+        /* Legend */
+        .legend {
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
+            display: flex;
+            gap: 14px;
+            padding: 8px 14px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            z-index: 50;
+            box-shadow: var(--shadow);
+        }
+        .legend-item { display: inline-flex; align-items: center; gap: 5px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+        .dot.clip-dot { border-radius: 2px; background: #f59e0b; }
+        .dot.kno-dot { background: #3f8cff; }
+        .lmark { width: 16px; height: 0; display: inline-block; border-top: 2px solid; }
+        .lmark.derived-line { border-top-style: dashed; border-top-color: #fb923c; }
+        .lmark.linked-line { border-top-color: #3f8cff; }
+
+        /* SVG Node shape by type */
+        .node rect {
+            stroke: var(--surface);
+            stroke-width: 2px;
+            cursor: pointer;
+            transition: stroke-width 0.2s ease;
+        }
+        .node:hover rect { stroke-width: 3px; }
+
         /* Graph Container */
         .graph-container {
             flex: 1;
@@ -375,6 +456,14 @@
     <nav class="nav">
         <a href="knowledge.html" class="back-btn">← 返回</a>
         <span class="title">知识图谱</span>
+        <div class="nav-controls">
+            <input type="text" class="search-input" id="searchInput" placeholder="搜索节点 / 标签 / 分类...">
+            <div class="view-toggle">
+                <button class="seg-btn active" data-view="all">知识+剪藏</button>
+                <button class="seg-btn" data-view="knowledge">仅知识</button>
+            </div>
+            <button class="sync-btn" id="syncBtn">刷新关系</button>
+        </div>
         <span class="nav-hint">拖拽节点 · 滚轮缩放 · 点击查看详情</span>
     </nav>
 
@@ -385,8 +474,14 @@
         </div>
         <div class="empty-state" id="emptyEl" style="display:none;">
             <div class="icon">🕸️</div>
-            <h3 id="emptyTitle">暂无知识关联</h3>
-            <p id="emptyDesc">请先创建知识条目并添加链接</p>
+            <h3 id="emptyTitle">暂无图谱数据</h3>
+            <p id="emptyDesc">请先创建剪藏或知识条目并建立关联</p>
+        </div>
+        <div class="legend">
+            <div class="legend-item"><span class="dot clip-dot"></span>剪藏</div>
+            <div class="legend-item"><span class="dot kno-dot"></span>知识</div>
+            <div class="legend-item"><span class="lmark derived-line"></span>来源</div>
+            <div class="legend-item"><span class="lmark linked-line"></span>关联</div>
         </div>
     </div>
 
@@ -396,6 +491,8 @@
             <button class="close-btn" id="panelCloseBtn">✕</button>
         </div>
         <div class="panel-body">
+            <div class="label">类型</div>
+            <div class="summary-text" id="panelMeta" style="margin-bottom:14px;"></div>
             <div class="label">摘要</div>
             <div class="summary-text" id="panelSummary">暂无摘要</div>
             <div class="label">标签</div>

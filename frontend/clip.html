@@ -1404,6 +1404,17 @@
             border-color: rgba(168, 85, 247, 0.22);
         }
 
+        .clip-header-left .knowledge-badge {
+            background: rgba(59, 130, 246, 0.08);
+            color: #3b82f6;
+            border-color: rgba(59, 130, 246, 0.22);
+        }
+        html[data-theme="dark"] .clip-header-left .knowledge-badge {
+            background: rgba(96, 165, 250, 0.12);
+            color: #93c5fd;
+            border-color: rgba(96, 165, 250, 0.3);
+        }
+
         .clip-header .expand-btn {
             height: 28px;
             padding: 0 10px;
@@ -4555,6 +4566,7 @@
                         ${getSourceBadge(clip.source)}
                         <span class="category-badge">📁 ${categoryLabel}</span>
                         ${clip.myThoughts ? '<span class="category-badge thoughts-badge">💭 有思考</span>' : ''}
+                        <span class="category-badge knowledge-badge" id="knowledge-badge-${clip.id}" style="display:none;"></span>
                     </div>
                     <div class="clip-actions">
                         <div class="more-actions-wrapper">
@@ -5946,6 +5958,17 @@ async function renderLinkedKnowledge(clipId) {
     try {
         const response = await axios.get(`${KNOWLEDGE_API_BASE_URL}/by-clip/${clipId}`);
         const knowledgeList = response.data || [];
+
+        // 列表级「已关联知识」角标
+        const badge = document.getElementById(`knowledge-badge-${clipId}`);
+        if (badge) {
+            if (knowledgeList.length > 0) {
+                badge.textContent = `🧠 已关联 ${knowledgeList.length} 条知识`;
+                badge.style.display = '';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
 
         if (knowledgeList.length > 0) {
             noDataEl.style.display = 'none';

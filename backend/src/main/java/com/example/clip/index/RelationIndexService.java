@@ -27,6 +27,11 @@ public class RelationIndexService {
                 && item.toId().equals(toId) && item.relationType().equals(relationType))).toList());
     }
 
+    /** 清空全部关系（用于全量重建）。 */
+    public synchronized void clear() {
+        write(new ArrayList<>());
+    }
+
     public synchronized List<ContentRelation> findFor(String contentId) {
         return readAll().stream().filter(item -> item.fromId().equals(contentId) || item.toId().equals(contentId)).toList();
     }

@@ -1,13 +1,16 @@
 package com.example.clip.service;
 
+import com.example.clip.core.AiService;
 import com.example.clip.model.ClipContent;
 import com.example.clip.model.Knowledge;
+import com.example.clip.model.SourceRef;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -32,16 +35,25 @@ public class KnowledgeService {
     private final FileStorageService storageService;
     /** 剪藏服务，用于从剪藏创建知识 */
     private final ClipService clipService;
+    /** AI 服务，用于多剪藏知识合成 */
+    private final AiService aiService;
+    /** 图谱服务，用于把剪藏↔知识关系写入统一关系索引 */
+    private final GraphService graphService;
 
     /**
      * 构造器注入
      *
      * @param storageService 文件存储服务
      * @param clipService    剪藏服务
+     * @param aiService      AI 服务
+     * @param graphService   图谱服务
      */
-    public KnowledgeService(FileStorageService storageService, ClipService clipService) {
+    public KnowledgeService(FileStorageService storageService, ClipService clipService,
+                            AiService aiService, GraphService graphService) {
         this.storageService = storageService;
         this.clipService = clipService;
+        this.aiService = aiService;
+        this.graphService = graphService;
     }
 
     /**
@@ -54,6 +66,7 @@ public class KnowledgeService {
         Knowledge saved = storageService.saveKnowledge(knowledge);
         if (saved != null) {
             manageBidirectionalLinks(saved);
+            graphService.recordKnowledgeRelations(saved);
         }
         return saved;
     }
@@ -93,6 +106,7 @@ public class KnowledgeService {
         // 重新建立双向链接
         if (saved != null) {
             manageBidirectionalLinks(saved);
+            graphService.recordKnowledgeRelations(saved);
         }
         return saved;
     }
@@ -133,6 +147,7 @@ public class KnowledgeService {
             cleanOldBidirectionalLinks(knowledge);
         }
         storageService.deleteKnowledge(id);
+        graphService.removeKnowledgeRelations(id);
     }
 
     /**
@@ -211,6 +226,12 @@ public class KnowledgeService {
         sourceClipIds.add(clipId);
         knowledge.setSourceClipIds(sourceClipIds);
 
+        // 记录来源剪藏溯源信息（provenance）
+        List<SourceRef> sourceRefs = new ArrayList<>();
+        sourceRefs.add(new SourceRef(clipId, clip.getTitle(), clip.getSourceUrl(),
+                clip.getSiteName(), clip.getCapturedAt()));
+        knowledge.setSourceRefs(sourceRefs);
+
         // 回填我的思考：优先使用剪藏的 myThoughts，其次使用 divergentSummary
         String thoughts = clip.getMyThoughts();
         if (thoughts == null || thoughts.isEmpty()) {
@@ -221,23 +242,80 @@ public class KnowledgeService {
         Knowledge saved = storageService.saveKnowledge(knowledge);
         if (saved != null) {
             manageBidirectionalLinks(saved);
+            graphService.recordKnowledgeRelations(saved);
         }
         return saved;
     }
 
     /**
-     * 综合多个剪藏内容创建知识条目
+     * 综合多个剪藏内容创建知识条目（仅生成草稿，不落库）。
      * <p>
-     * 占位方法，将在 Task 5 中实现。
+     * 把 Controller 原有的 AI 合成逻辑收敛到 service 层：读取多个剪藏内容拼接，
+     * 调用 AI 生成结构化知识（标题/摘要/Markdown 正文），并携带来源剪藏与溯源信息。
      * </p>
      *
      * @param clipIds 来源剪藏 ID 列表
-     * @return 创建的知识（当前返回 null）
+     * @return 合成的知识条目草稿（未保存，无 ID）；若找不到有效剪藏或 AI 失败则返回 null
      */
     public Knowledge synthesizeKnowledge(List<Long> clipIds) {
-        // TODO: Task 5 - 实现多剪藏综合创建知识
-        log.warn("[KnowledgeService] synthesizeKnowledge is not yet implemented");
-        return null;
+        return synthesizeKnowledge(clipIds, false);
+    }
+
+    /**
+     * 综合多个剪藏内容创建知识条目。
+     *
+     * @param clipIds 来源剪藏 ID 列表
+     * @param persist 是否直接落库（true 保存并写关系；false 仅返回草稿）
+     * @return 合成的知识条目；若找不到有效剪藏或 AI 失败则返回 null
+     */
+    public Knowledge synthesizeKnowledge(List<Long> clipIds, boolean persist) {
+        if (clipIds == null || clipIds.isEmpty()) return null;
+
+        StringBuilder combinedContent = new StringBuilder();
+        List<SourceRef> sourceRefs = new ArrayList<>();
+        for (int i = 0; i < clipIds.size(); i++) {
+            ClipContent clip = clipService.getClipById(clipIds.get(i));
+            if (clip == null) continue;
+            if (combinedContent.length() > 0) {
+                combinedContent.append("\n\n---\n\n");
+            }
+            combinedContent.append("### 剪藏 #").append(i + 1);
+            if (clip.getTitle() != null && !clip.getTitle().isEmpty()) {
+                combinedContent.append(": ").append(clip.getTitle());
+            }
+            combinedContent.append("\n");
+            combinedContent.append(clip.getContent() != null ? clip.getContent() : "");
+            sourceRefs.add(new SourceRef(clip.getId(), clip.getTitle(), clip.getSourceUrl(),
+                    clip.getSiteName(), clip.getCapturedAt()));
+        }
+
+        if (combinedContent.isEmpty()) return null;
+
+        Map<String, String> synthesized;
+        try {
+            synthesized = aiService.synthesizeKnowledgeContent(combinedContent.toString());
+        } catch (Exception e) {
+            log.error("[KnowledgeService] synthesizeKnowledge AI failed: {}", e.getMessage(), e);
+            return null;
+        }
+        if (synthesized == null) return null;
+
+        Knowledge knowledge = new Knowledge();
+        knowledge.setTitle(synthesized.getOrDefault("title", ""));
+        knowledge.setSummary(synthesized.getOrDefault("summary", ""));
+        knowledge.setContent(synthesized.getOrDefault("content", ""));
+        knowledge.setSourceClipIds(new ArrayList<>(clipIds));
+        knowledge.setSourceRefs(sourceRefs);
+
+        if (persist) {
+            Knowledge saved = storageService.saveKnowledge(knowledge);
+            if (saved != null) {
+                manageBidirectionalLinks(saved);
+                graphService.recordKnowledgeRelations(saved);
+            }
+            return saved;
+        }
+        return knowledge;
     }
 
     /**
