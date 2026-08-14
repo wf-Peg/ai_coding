@@ -84,6 +84,10 @@
             border-radius: var(--radius);
             width: 90%;
             max-width: 400px;
+            /* 弹窗高度自适应视口：内容超高时整体滚动，保证头部关闭按钮始终可见 */
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
             box-shadow: var(--shadow-hover);
             animation: slideIn 0.3s ease-out;
         }
@@ -94,6 +98,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-shrink: 0;
         }
 
         .modal-header h3 {
@@ -127,6 +132,10 @@
 
         .modal-body {
             padding: 24px;
+            /* 内容区自适应滚动：弹窗超高时仅 body 滚动，头部/底部固定可见 */
+            overflow-y: auto;
+            flex: 1 1 auto;
+            min-height: 0;
         }
 
         .modal-body p {
@@ -142,6 +151,7 @@
             display: flex;
             gap: 12px;
             justify-content: flex-end;
+            flex-shrink: 0;
         }
 
         .modal-footer button {
