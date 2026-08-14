@@ -52,6 +52,8 @@ public class LinkParseService {
     private static final int PROXY_PORT = 7890;
     /** 请求超时时间 */
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
+    /** 解析总超时上限：所有重试累计不超过该时长，防止请求线程被长时间占用 */
+    private static final Duration TOTAL_TIMEOUT = Duration.ofSeconds(30);
     /** 内存中最大响应大小 4MB */
     private static final int MAX_IN_MEMORY_SIZE = 4 * 1024 * 1024;
     /** 内容截断上限 */
@@ -79,40 +81,56 @@ public class LinkParseService {
     public String parseUrl(String url) {
         // 规范化 URL：确保有协议前缀
         url = normalizeUrl(url);
+        // 记录起始时间，用于总超时断路器
+        long deadlineNanos = System.nanoTime() + TOTAL_TIMEOUT.toNanos();
 
         // 1. 先尝试直连
         String html = tryRequest(url, false);
 
         // 2. 直连失败（超时、空内容、被拦截），尝试代理
-        if (html == null || html.isEmpty() || html.contains("系统找不到该页") || html.contains("403 Forbidden") || html.contains("Access Denied")) {
+        if ((html == null || html.isEmpty() || html.contains("系统找不到该页") || html.contains("403 Forbidden") || html.contains("Access Denied"))
+                && !deadlineExceeded(deadlineNanos)) {
             log.info("[LinkParse] Direct failed, trying proxy...");
             html = tryRequest(url, true);
         }
 
         // 3. 仍然失败，尝试添加 www 前缀
-        if ((html == null || html.isEmpty()) && !url.contains("://www.")) {
+        if ((html == null || html.isEmpty()) && !url.contains("://www.") && !deadlineExceeded(deadlineNanos)) {
             String wwwUrl = url.replace("://", "://www.");
             log.info("[LinkParse] Trying www prefix: {}", wwwUrl);
             html = tryRequest(wwwUrl, false);
-            if (html == null || html.isEmpty()) {
+            if ((html == null || html.isEmpty()) && !deadlineExceeded(deadlineNanos)) {
                 html = tryRequest(wwwUrl, true);
             }
         }
 
         // 4. 仍然失败，尝试 HTTPS 升级
-        if ((html == null || html.isEmpty()) && url.startsWith("http://")) {
+        if ((html == null || html.isEmpty()) && url.startsWith("http://") && !deadlineExceeded(deadlineNanos)) {
             String httpsUrl = url.replace("http://", "https://");
             log.info("[LinkParse] Trying HTTPS: {}", httpsUrl);
             html = tryRequest(httpsUrl, false);
-            if (html == null || html.isEmpty()) {
+            if ((html == null || html.isEmpty()) && !deadlineExceeded(deadlineNanos)) {
                 html = tryRequest(httpsUrl, true);
             }
         }
 
         if (html == null || html.isEmpty()) {
+            if (deadlineExceeded(deadlineNanos)) {
+                return "[链接解析失败] 解析超时（累计超过 " + TOTAL_TIMEOUT.getSeconds() + " 秒），请稍后重试。";
+            }
             return "[链接解析失败] 无法获取网页内容，请检查链接是否正确。";
         }
         return extractText(html);
+    }
+
+    /**
+     * 判断是否已超过总解析超时上限（断路器）。
+     *
+     * @param deadlineNanos 截止时间（纳秒）
+     * @return true 表示已超时，应停止后续重试
+     */
+    private boolean deadlineExceeded(long deadlineNanos) {
+        return System.nanoTime() >= deadlineNanos;
     }
 
     /**
@@ -425,9 +443,13 @@ public class LinkParseService {
             text = doc.select(".content, .article, .post, .entry, #content, #article, .post-content, .article-body, .story-body").first().text();
         }
 
-        // 最终回退：使用 body 的全部文本
-        if (text == null || text.isEmpty()) {
+        // 最终回退：使用 body 的全部文本（body 可能为 null，需判空）
+        if ((text == null || text.isEmpty()) && doc.body() != null) {
             text = doc.body().text();
+        }
+        // 极端情况：body 也为空，回退为空字符串避免 NPE
+        if (text == null || text.isEmpty()) {
+            return "";
         }
 
         // 清理空白：合并连续空格/Tab，合并多余换行

@@ -314,15 +314,17 @@ function createClipItem(clip, isSearch) {
     if (clip.tags && clip.tags.length > 0) {
         const displayTags = clip.tags.slice(0, 3);
         const remainingTags = clip.tags.slice(3);
-        const allTags = clip.tags;
+
+        // 标签渲染统一转义，防止用户输入的标签注入 HTML（XSS）
+        const renderTag = tag => `<span class="tag-display-item"><span class="tag"><span>${escapeHtml(tag)}</span></span></span>`;
 
         tagsHtml = `
                 <div class="tags-display" style="margin-top: 12px;">
                     <div class="tags-collapsed">
-                        ${displayTags.map(tag => `<span class="tag-display-item"><span class="tag"><span>${tag}</span></span></span>`).join('')}
-                        ${remainingTags.length > 0 ? `<button class="tag-expand-btn" data-tags="${allTags.map(t => t.replace(/'/g, "\\'"))}">+${remainingTags.length}</button>` : ''}
+                        ${displayTags.map(renderTag).join('')}
+                        ${remainingTags.length > 0 ? `<button class="tag-expand-btn">+${remainingTags.length}</button>` : ''}
                     </div>
-                    ${remainingTags.length > 0 ? `<div class="tags-all" style="display: none;">${allTags.map(tag => `<span class="tag-display-item"><span class="tag"><span>${tag}</span></span></span>`).join('')}</div>` : ''}
+                    ${remainingTags.length > 0 ? `<div class="tags-all" style="display: none;">${clip.tags.map(renderTag).join('')}</div>` : ''}
                 </div>
             `;
     }
@@ -349,7 +351,7 @@ function createClipItem(clip, isSearch) {
             <div class="clip-summary ${summaryClass}" title="${escapeHtml(displaySummary)}">${escapeHtml(displaySummary)}</div>
             <div class="clip-meta">
                 <span class="meta-item meta-type">类型: ${getTypeLabel(clip.type)}</span>
-                <span class="meta-item">来源: ${clip.source}</span>
+                <span class="meta-item">来源: ${escapeHtml(clip.source || '')}</span>
                 <span class="meta-item">创建时间: ${createdAt}</span>
             </div>
             ${tagsHtml}
@@ -455,7 +457,8 @@ function escapeHtml(text) {
 
 function escapeJs(text) {
     if (!text) return '';
-    return text.replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+    // 先转义反斜杠，再转义引号与换行，防止闭合 JS 字符串上下文（XSS）
+    return text.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
 }
 
 function copyToClipboard(text) {
@@ -1170,11 +1173,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // 标签展开/收起按钮点击事件
+    // 标签展开/收起按钮点击事件（data-tags 属性已移除，仅切换显示）
     document.addEventListener('click', function(e) {
         if (e.target.classList.contains('tag-expand-btn')) {
-            const tagsStr = e.target.dataset.tags;
-            toggleTags(e.target, tagsStr);
+            toggleTags(e.target);
         }
     });
 

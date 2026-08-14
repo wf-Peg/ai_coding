@@ -17,9 +17,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -118,7 +121,7 @@ public class FileStorageService {
             // 创建学习计划目录
             Files.createDirectories(storagePath.resolve("learning-plan"));
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("[FileStorageService] 操作异常", e);
         }
     }
 
@@ -155,7 +158,7 @@ public class FileStorageService {
             idGenerator.set(maxId + 1);
             log.info("[FileStorageService] initIdGenerator: global maxId={}", maxId);
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("[FileStorageService] 操作异常", e);
         }
     }
 
@@ -231,8 +234,35 @@ public class FileStorageService {
             }
         }
 
-        // 兼容旧数据：直接用 category value 作为目录名
-        return storagePath.resolve(cat);
+        // 兼容旧数据：直接用 category value 作为目录名（含路径穿越防护）
+        return storagePath.resolve(sanitizeCategory(cat));
+    }
+
+    /**
+     * 过滤分类名中的路径穿越与非法字符。
+     * <p>
+     * category 字段由用户/AI 可控，直接拼路径可能被构造为 {@code ../} 或绝对路径，
+     * 导致写入任意目录（任意文件写漏洞）。此处将反斜杠、路径分隔符、控制字符
+     * 替换为安全字符，并显式移除 {@code ..} 片段。
+     * </p>
+     *
+     * @param category 原始分类名
+     * @return 安全的分目录名（空/非法时回退 "default"）
+     */
+    private String sanitizeCategory(String category) {
+        if (category == null) {
+            return "default";
+        }
+        String safe = category
+                .replace('\\', '-')
+                .replace('/', '-')
+                .replace("..", "-")
+                .replaceAll("[\\p{Cntrl}]", "-")
+                .trim();
+        if (safe.isEmpty() || safe.equals(".")) {
+            safe = "default";
+        }
+        return safe;
     }
 
     /**
@@ -357,9 +387,19 @@ public class FileStorageService {
             if (!Files.exists(parent)) {
                 Files.createDirectories(parent);
             }
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), clips);
+            // 显式 UTF-8 序列化，避免依赖 JVM 默认编码（Windows 下可能 GBK 导致乱码）
+            String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(clips);
+            // 原子写：先写临时文件，再 move 替换，防止写中断损坏原文件
+            Path tmpPath = path.resolveSibling(path.getFileName() + ".tmp");
+            Files.writeString(tmpPath, json, StandardCharsets.UTF_8);
+            try {
+                Files.move(tmpPath, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                // 文件系统不支持原子移动时退化为普通替换
+                Files.move(tmpPath, path, StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("[FileStorageService] 写入剪藏文件失败: {}", path, e);
         }
     }
 
@@ -371,12 +411,14 @@ public class FileStorageService {
      * 如果 ID 为 null 则生成新 ID；如果 ID 已存在则更新对应记录。
      * 根据分类写入对应目录的日期文件中。
      * 分类为空时默认归入 "default" 分类。
+     * 方法级 synchronized 保证并发写入时 read-modify-write 的原子性，
+     * 避免多线程同时保存导致数据丢失。
      * </p>
      *
      * @param clip 剪藏内容对象
      * @return 保存后的剪藏内容；若失败返回 null
      */
-    public ClipContent saveClip(ClipContent clip) {
+    public synchronized ClipContent saveClip(ClipContent clip) {
         try {
             if (clip.getId() == null) {
                 // 新记录：分配全局唯一 ID
@@ -416,7 +458,7 @@ public class FileStorageService {
             writeClipArrayToFile(filePath, clips);
             return clip;
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("[FileStorageService] saveClip 失败: id={}, category={}", clip == null ? null : clip.getId(), clip == null ? null : clip.getCategory(), e);
             return null;
         }
     }
@@ -465,7 +507,7 @@ public class FileStorageService {
                 allClips.addAll(clips);
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("[FileStorageService] getAllClips 失败", e);
         }
         return allClips;
     }
@@ -492,7 +534,7 @@ public class FileStorageService {
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("[FileStorageService] getClipById 失败: id={}", id, e);
         }
         return null;
     }
@@ -502,11 +544,12 @@ public class FileStorageService {
      * <p>
      * 遍历所有文件，找到匹配 ID 的记录并移除，然后回写文件。
      * 使用 Iterator 安全删除。找到即停止，不继续遍历。
+     * 方法级 synchronized 防止与 saveClip/replaceClip 并发写同一文件。
      * </p>
      *
      * @param id 要删除的剪藏 ID
      */
-    public void deleteClip(Long id) {
+    public synchronized void deleteClip(Long id) {
         try {
             List<Path> jsonFiles = getAllJsonFiles();
             for (Path path : jsonFiles) {
@@ -530,7 +573,7 @@ public class FileStorageService {
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("[FileStorageService] deleteClip 失败: id={}", id, e);
         }
     }
 
@@ -540,12 +583,13 @@ public class FileStorageService {
      * 先全量扫描所有文件，移除旧记录，再按当前分类重新写入。
      * 这解决了剪藏分类变更时需要在不同目录间移动的问题。
      * 使用 removeIf 简化删除逻辑。
+     * 方法级 synchronized 防止与 saveClip/deleteClip 并发写同一文件。
      * </p>
      *
      * @param clip 更新后的剪藏内容（必须包含有效 ID）
      * @return 保存后的剪藏内容
      */
-    public ClipContent replaceClip(ClipContent clip) {
+    public synchronized ClipContent replaceClip(ClipContent clip) {
         if (clip == null || clip.getId() == null) {
             return saveClip(clip);
         }
@@ -560,7 +604,7 @@ public class FileStorageService {
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("[FileStorageService] replaceClip 失败: id={}", clip == null ? null : clip.getId(), e);
         }
         return saveClip(clip);
     }
@@ -595,7 +639,7 @@ public class FileStorageService {
                         clips.addAll(fileClips);
                     });
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("[FileStorageService] 操作异常", e);
         }
         return clips;
     }
@@ -648,7 +692,7 @@ public class FileStorageService {
             }
             return objectMapper.readValue(content, new TypeReference<List<TodoContent>>() {});
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("[FileStorageService] 操作异常", e);
             return new ArrayList<>();
         }
     }
@@ -670,7 +714,7 @@ public class FileStorageService {
             }
             return objectMapper.readValue(content, new TypeReference<List<KnowledgeEntry>>() {});
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("[FileStorageService] 操作异常", e);
             return new ArrayList<>();
         }
     }
@@ -692,7 +736,7 @@ public class FileStorageService {
             }
             objectMapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), todos);
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("[FileStorageService] 操作异常", e);
         }
     }
 
@@ -710,7 +754,7 @@ public class FileStorageService {
             }
             objectMapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), entries);
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("[FileStorageService] 操作异常", e);
         }
     }
 
@@ -761,7 +805,7 @@ public class FileStorageService {
             return todo;
         } catch (Exception e) {
             log.error("[FileStorageService] Exception while saving todo", e);
-            e.printStackTrace();
+            log.error("[FileStorageService] 操作异常", e);
             return null;
         }
     }
@@ -848,7 +892,7 @@ public class FileStorageService {
                         });
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("[FileStorageService] 操作异常", e);
         }
     }
 
@@ -877,7 +921,7 @@ public class FileStorageService {
                         });
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("[FileStorageService] 操作异常", e);
         }
         return allTodos;
     }
@@ -907,7 +951,7 @@ public class FileStorageService {
                         .orElse(null);
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("[FileStorageService] 操作异常", e);
         }
         return null;
     }
@@ -939,7 +983,7 @@ public class FileStorageService {
                         });
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("[FileStorageService] 操作异常", e);
         }
     }
 
@@ -1205,7 +1249,7 @@ public class FileStorageService {
             }
             return objectMapper.readValue(content, new TypeReference<List<Knowledge>>() {});
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("[FileStorageService] 操作异常", e);
             return new ArrayList<>();
         }
     }
@@ -1224,7 +1268,7 @@ public class FileStorageService {
             }
             objectMapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), knowledges);
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("[FileStorageService] 操作异常", e);
         }
     }
 
@@ -1344,7 +1388,7 @@ public class FileStorageService {
                         }
                     });
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("[FileStorageService] 操作异常", e);
         }
     }
 

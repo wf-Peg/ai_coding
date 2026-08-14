@@ -31,6 +31,15 @@ public class GlobalExceptionHandler {
         this.exceptionLogService = exceptionLogService;
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalArgument(IllegalArgumentException ex, HttpServletRequest request) {
+        log.warn("Bad request for {}: {}", request.getRequestURI(), ex.getMessage());
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("status", "error");
+        body.put("message", ex.getMessage() == null ? "参数不合法" : ex.getMessage());
+        return ResponseEntity.badRequest().body(body);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleException(Exception ex, HttpServletRequest request) {
         // 记录到异常日志

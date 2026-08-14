@@ -235,18 +235,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderTags();
   }
 
-  // 渲染标签
+  // 渲染标签（DOM API 构建，避免 XSS 与 dataset 二次转义导致删除不匹配）
   function renderTags() {
-    tagsList.innerHTML = currentTags.map(tag => `
-      <div class="tag">
-        <span>${escapeHtml(tag)}</span>
-        <span class="tag-remove" data-tag="${escapeHtml(tag)}">&times;</span>
-      </div>
-    `).join('');
-
-    // 绑定移除事件
-    tagsList.querySelectorAll('.tag-remove').forEach(btn => {
-      btn.addEventListener('click', () => removeTag(btn.dataset.tag));
+    tagsList.innerHTML = '';
+    currentTags.forEach(tag => {
+      const div = document.createElement('div');
+      div.className = 'tag';
+      const span = document.createElement('span');
+      span.textContent = tag;
+      const remove = document.createElement('span');
+      remove.className = 'tag-remove';
+      remove.textContent = '\u00d7';
+      remove.title = '删除标签';
+      remove.addEventListener('click', () => removeTag(tag));
+      div.appendChild(span);
+      div.appendChild(remove);
+      tagsList.appendChild(div);
     });
   }
 

@@ -3112,6 +3112,10 @@
             return Promise.reject(error);
         }
     );
+    // 全局请求超时：避免后端挂起时请求无限等待（默认 30s）
+    axios.defaults.timeout = 30000;
+    // 列表请求竞态保护：每次 fetchClips 递增序号，仅采纳最新一次请求的结果
+    let fetchSeq = 0;
     // 监听浏览器网络状态变化
     window.addEventListener('online', () => showToast('网络已恢复连接'));
     window.addEventListener('offline', () => showToast('网络已断开，部分功能可能不可用'));
@@ -3612,12 +3616,22 @@
 
     function renderTags() {
         const tagsList = document.getElementById('tags-list');
-        tagsList.innerHTML = currentTags.map(tag => `
-                <div class="tag">
-                    <span>${tag}</span>
-                    <span class="tag-remove" onclick="removeTag('${tag}')">&times;</span>
-                </div>
-            `).join('');
+        // 使用 DOM API 构建，避免 innerHTML 拼接用户输入导致 XSS
+        tagsList.innerHTML = '';
+        currentTags.forEach(tag => {
+            const div = document.createElement('div');
+            div.className = 'tag';
+            const span = document.createElement('span');
+            span.textContent = tag;
+            const remove = document.createElement('span');
+            remove.className = 'tag-remove';
+            remove.textContent = '\u00d7';
+            remove.title = '删除标签';
+            remove.addEventListener('click', () => removeTag(tag));
+            div.appendChild(span);
+            div.appendChild(remove);
+            tagsList.appendChild(div);
+        });
     }
 
     function clearForm() {
@@ -3818,6 +3832,7 @@
     }
 
     async function fetchClips() {
+        const seq = ++fetchSeq; // 本请求序号，用于丢弃过期请求结果
         try {
             // 重置选中状态
             selectedClipIds.clear();
@@ -3834,17 +3849,16 @@
             const paramsStr = params.toString();
             if (paramsStr) url += '?' + paramsStr;
             const response = await axios.get(url);
+            if (seq !== fetchSeq) return; // 已有更新的请求，丢弃本次过期结果
             let clips = response.data;
 
             if (workflowStatus) {
                 clips = clips.filter(clip => resolveWorkflowStatus(clip) === workflowStatus);
             }
 
-            // 过滤掉待办事项数据（前端过滤，后端存储不变）
+            // 过滤掉待办事项数据：仅按类型特征判断（后端已按目录排除 todoList 等）
             const filteredClips = clips.filter(clip => {
-                // 根据特征判断是否为待办事项数据
-                // 待办事项通常有特定的类型或内容特征
-                return !clip.type || clip.type !== 'todo' && !clip.content?.includes('前完成') && !clip.content?.includes('待办');
+                return !clip.type || clip.type !== 'todo';
             });
 
             console.log('===== 调试信息 =====');
@@ -3895,7 +3909,7 @@
               const detail = document.querySelector(`.clip-detail[data-clip-id="${id}"]`);
               if (detail) {
                 detail.classList.add('expanded');
-                const btn = detail.closest('.clip-item')?.querySelector('.expand-btn[data-clip-id="${id}"]');
+                const btn = detail.closest('.clip-item')?.querySelector(`.expand-btn[data-clip-id="${id}"]`);
                 if (btn) {
                   btn.classList.add('expanded');
                   const text = btn.querySelector('.text');
@@ -3905,6 +3919,7 @@
               }
             });
         } catch (error) {
+            if (seq !== fetchSeq) return; // 过期请求的失败也忽略
             console.error('获取剪藏列表失败:', error);
             document.getElementById('clip-items').innerHTML = `
                     <div class="empty-state">
@@ -3946,15 +3961,17 @@
         if (clip.tags && clip.tags.length > 0) {
             const displayTags = clip.tags.slice(0, 3);
             const remainingTags = clip.tags.slice(3);
-            const allTags = clip.tags;
+
+            // 标签渲染统一转义，防止用户输入的标签注入 HTML
+            const renderTag = tag => `<span class="tag-display-item"><span class="tag"><span>${escapeHtml(tag)}</span></span></span>`;
 
             tagsHtml = `
                     <div class="tags-display" style="margin-top: 12px;">
                         <div class="tags-collapsed">
-                            ${displayTags.map(tag => `<span class="tag-display-item"><span class="tag"><span>${tag}</span></span></span>`).join('')}
-                            ${remainingTags.length > 0 ? `<button class="tag-expand-btn" onclick="toggleTags(this, '${allTags.map(t => t.replace(/'/g, "\\'"))}')">+${remainingTags.length}</button>` : ''}
+                            ${displayTags.map(renderTag).join('')}
+                            ${remainingTags.length > 0 ? `<button class="tag-expand-btn" onclick="toggleTags(this)">+${remainingTags.length}</button>` : ''}
                         </div>
-                        ${remainingTags.length > 0 ? `<div class="tags-all" style="display: none;">${allTags.map(tag => `<span class="tag-display-item"><span class="tag"><span>${tag}</span></span></span>`).join('')}</div>` : ''}
+                        ${remainingTags.length > 0 ? `<div class="tags-all" style="display: none;">${clip.tags.map(renderTag).join('')}</div>` : ''}
                     </div>
                 `;
         }
@@ -4488,7 +4505,7 @@
         typeChar();
     }
 
-    function toggleTags(btn, tagsStr) {
+    function toggleTags(btn) {
         const tagsDisplay = btn.closest('.tags-display');
         const tagsCollapsed = tagsDisplay.querySelector('.tags-collapsed');
         const tagsAll = tagsDisplay.querySelector('.tags-all');
@@ -5017,13 +5034,24 @@
                 max-width: 400px;
             `;
 
-        errorDiv.innerHTML = `
-                <div style="display: flex; align-items: flex-start; gap: 12px;">
-                    <div style="font-size: 1.5rem; flex-shrink: 0;">⚠️</div>
-                    <div style="flex: 1;">
-                        <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 600;">${title}</h4>
-                        <p style="margin: 0; font-size: 0.95rem; opacity: 0.9;">${message}</p>
-                        <button onclick="this.parentElement.parentElement.remove()" style="
+        // 使用 DOM API 构建，避免 title/message 注入 HTML（XSS）
+        errorDiv.innerHTML = '';
+        const flex = document.createElement('div');
+        flex.style.cssText = 'display: flex; align-items: flex-start; gap: 12px;';
+        const icon = document.createElement('div');
+        icon.style.cssText = 'font-size: 1.5rem; flex-shrink: 0;';
+        icon.textContent = '⚠️';
+        const body = document.createElement('div');
+        body.style.flex = '1';
+        const titleEl = document.createElement('h4');
+        titleEl.style.cssText = 'margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 600;';
+        titleEl.textContent = title;
+        const msgEl = document.createElement('p');
+        msgEl.style.cssText = 'margin: 0; font-size: 0.95rem; opacity: 0.9;';
+        msgEl.textContent = message;
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '关闭';
+        closeBtn.style.cssText = `
                             margin-top: 12px;
                             background: rgba(255, 255, 255, 0.2);
                             border: none;
@@ -5033,10 +5061,14 @@
                             cursor: pointer;
                             font-size: 0.85rem;
                             transition: background 0.3s ease;
-                        ">关闭</button>
-                    </div>
-                </div>
-            `;
+                        `;
+        closeBtn.addEventListener('click', () => errorDiv.remove());
+        body.appendChild(titleEl);
+        body.appendChild(msgEl);
+        body.appendChild(closeBtn);
+        flex.appendChild(icon);
+        flex.appendChild(body);
+        errorDiv.appendChild(flex);
 
         document.body.appendChild(errorDiv);
 

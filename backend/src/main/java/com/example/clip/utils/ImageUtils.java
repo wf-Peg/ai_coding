@@ -8,8 +8,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
@@ -119,16 +119,19 @@ public class ImageUtils {
      * @return 唯一文件名
      */
     private static String generateFileName(String originalFileName) {
-        // 提取文件扩展名
+        // 提取文件扩展名（仅取最后一段，且去除可能的路径分隔符，防止路径穿越）
         String extension = "png";
         if (originalFileName != null && originalFileName.contains(".")) {
-            extension = originalFileName.substring(originalFileName.lastIndexOf(".") + 1).toLowerCase();
+            String rawExt = originalFileName.substring(originalFileName.lastIndexOf(".") + 1).toLowerCase();
+            // 过滤扩展名中的路径分隔符与非法字符
+            rawExt = rawExt.replaceAll("[\\\\/\\s]", "");
+            if (!rawExt.isEmpty()) {
+                extension = rawExt;
+            }
         }
 
-        // 生成时间戳
-        // 注意：SimpleDateFormat 不是线程安全的，但此方法为 private static，
-        // 如果并发调用可能存在风险。建议使用 DateTimeFormatter 或 ThreadLocal 包装。
-        String timestamp = new SimpleDateFormat("yyyyMMddHHmmssSSS").format(new Date());
+        // 使用线程安全的 DateTimeFormatter 生成时间戳
+        String timestamp = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS").format(LocalDateTime.now());
 
         return "file-" + timestamp + "." + extension;
     }
@@ -170,7 +173,26 @@ public class ImageUtils {
      */
     private static String generateRelativePath(String category, String noteFileName, String fileName) {
         String cat = (category != null && !category.isEmpty()) ? category : "default";
-        return "/api/clip/image/" + cat + "/" + fileName;
+        return "/api/clip/image/" + sanitizeCategorySegment(cat) + "/" + fileName;
+    }
+
+    /**
+     * 过滤分类路径段中的穿越与非法字符，防止 URL/文件系统路径逃逸。
+     *
+     * @param segment 原始分类路径段
+     * @return 安全路径段
+     */
+    private static String sanitizeCategorySegment(String segment) {
+        if (segment == null || segment.isEmpty()) {
+            return "default";
+        }
+        String safe = segment
+                .replace('\\', '-')
+                .replace('/', '-')
+                .replace("..", "-")
+                .replaceAll("[\\p{Cntrl}]", "-")
+                .trim();
+        return safe.isEmpty() ? "default" : safe;
     }
 
     /**
@@ -215,7 +237,8 @@ public class ImageUtils {
             }
         }
 
-        return cat;
+        // 未匹配的分类：原样返回（含穿越防护）
+        return sanitizeCategorySegment(cat);
     }
 
     /**

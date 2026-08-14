@@ -58,6 +58,9 @@ public class ClipService {
             "popup", "context-menu", "shortcut", "floating-button", "system-share", "system-clip"
     );
 
+    /** 剪藏文本内容最大长度（字符），防止超大请求导致内存/AI token 超限 */
+    private static final int MAX_CONTENT_LENGTH = 200_000;
+
     private static final Logger logger = LoggerFactory.getLogger(ClipService.class);
     /** 文件存储服务，负责 JSON 文件持久化 */
     private final FileStorageService storageService;
@@ -117,6 +120,10 @@ public class ClipService {
      */
     public ClipContent saveClip(String content, String type, String source, String category,
                                 String fileData, String fileName, List<ClipRequest.ImageData> imageDataList) {
+        // 内容长度限制：防止超大请求导致内存与 AI token 超限
+        if (content != null && content.length() > MAX_CONTENT_LENGTH) {
+            throw new IllegalArgumentException("剪藏内容过长（超过 " + MAX_CONTENT_LENGTH + " 字符），请精简后重试");
+        }
         ClipContent clipContent = new ClipContent(content, type, source, category);
 
         // 处理图片上传 - 只有 ai-text 和 store-only 类型才处理图片
@@ -428,21 +435,28 @@ public class ClipService {
             } else {
                 aiResult = aiService.processClipContent(sourceText, useAiCategory);
             }
-            // 提取各字段，若 AI 未返回则使用默认值
-            clipContent.setSummary((String) aiResult.getOrDefault("summary", "摘要生成失败"));
-            clipContent.setAnalysis((String) aiResult.getOrDefault("analysis", ""));
-            List<String> tags = (List<String>) aiResult.getOrDefault("tags", List.of());
+            // 提取各字段，若 AI 未返回则使用默认值；使用 instanceof 类型安全取值，避免 ClassCastException
+            Object summaryObj = aiResult.get("summary");
+            Object analysisObj = aiResult.get("analysis");
+            clipContent.setSummary(summaryObj instanceof String s && !s.isBlank() ? s : "摘要生成失败");
+            clipContent.setAnalysis(analysisObj instanceof String a ? a : "");
+            Object tagsObj = aiResult.get("tags");
+            List<String> tags = tagsObj instanceof List<?> tagList
+                    ? tagList.stream().filter(String.class::isInstance).map(String.class::cast).collect(Collectors.toList())
+                    : List.of();
             // 如果剪藏内容已有标签，则保留用户标签，不覆盖
             if (clipContent.getTags() == null || clipContent.getTags().isEmpty()) {
                 clipContent.setTags(tags);
             }
             // 如果开启了 AI 分类且剪藏内容未设置分类，则使用 AI 分类
             if (useAiCategory && (clipContent.getCategory() == null || clipContent.getCategory().isEmpty())) {
-                String category = (String) aiResult.getOrDefault("category", "default");
-                clipContent.setCategory(category);
+                Object categoryObj = aiResult.get("category");
+                if (categoryObj instanceof String cat && !cat.isBlank()) {
+                    clipContent.setCategory(cat);
+                }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("[ClipService] AI 处理失败", e);
             // AI 处理失败时设置默认提示，不影响内容保存
             clipContent.setSummary("摘要生成失败");
             clipContent.setAnalysis("分析生成失败");
@@ -1045,7 +1059,7 @@ public class ClipService {
                 storageService.saveClip(clip);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("[ClipService] processClipAsync 失败: clipId={}", clipId, e);
         }
     }
 
