@@ -10,8 +10,8 @@ BACKEND_DIR="$SCRIPT_DIR/backend"
 FRONTEND_DIR="$SCRIPT_DIR/frontend"
 BACKEND_LOG="$SCRIPT_DIR/backend.log"
 FRONTEND_LOG="$SCRIPT_DIR/frontend.log"
-BACKEND_PORT=8080
-FRONTEND_PORT=3000
+BACKEND_PORT=8081
+FRONTEND_PORT=3001
 
 echo "========================================"
 echo "  Clip - Starting Frontend & Backend"

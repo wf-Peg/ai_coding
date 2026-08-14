@@ -538,7 +538,6 @@ async function sendToBackendPromise(data) {
       error: normalizedError.message
     };
   }
-  }
 }
 
 async function smartIngest(data, sendResponse) {

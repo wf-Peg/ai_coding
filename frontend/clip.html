@@ -3096,6 +3096,7 @@
 <script src="js/logger.js"></script>
 <script>
     const API_BASE_URL = 'http://127.0.0.1:8081/api/clip';
+    const API_ROOT = 'http://127.0.0.1:8081/api';
     const KNOWLEDGE_API_BASE_URL = 'http://127.0.0.1:8081/api/knowledge';
     const GIT_API_BASE_URL = 'http://127.0.0.1:8081/api/git';
     const SYNC_API_BASE_URL = 'http://127.0.0.1:8081/api/sync';
@@ -3652,7 +3653,7 @@
         btn.textContent = '分析中...';
 
         try {
-            const response = await fetch('/api/ingest', {
+            const response = await fetch(API_ROOT + '/ingest', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text })

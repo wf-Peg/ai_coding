@@ -86,7 +86,7 @@ CutShelter（碎碎记）是一款集**信息剪藏、知识管理、密码管�
 │  │ Java JAR │  │ 前端 SPA (index.html shell)       │     │
 │  │ Spring   │  │  ┌──────┐ ┌──────┐ ┌──────┐     │     │
 │  │ Boot     │  │  │todo  │ │clip  │ │topic │ ... │     │
-│  │ :8080    │  │  │.html │ │.html │ │.html │     │     │
+│  │ :8081    │  │  │.html │ │.html │ │.html │     │     │
 │  │          │  │  └──┬───┘ └──┬───┘ └──┬───┘     │     │
 │  │ H2 内存DB│  │     │postMessage│     │          │     │
 │  │ JSON 文件│  │     └──────┴──────┘             │     │

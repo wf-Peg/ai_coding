@@ -280,7 +280,7 @@ for ($i = 0; $i -lt $maxRetries -and -not $success; $i++) {
     } catch {
         Write-Host "⚠️ 第 $($i+1) 次尝试失败: $($_.Exception.Message)"
         if ($i -eq $maxRetries - 1) {
-            Write-Host "❌ 后端服务不可用，请确认 8080 端口已启动"
+            Write-Host "❌ 后端服务不可用，请确认 8081 端口已启动"
         }
     }
 }
@@ -288,7 +288,7 @@ for ($i = 0; $i -lt $maxRetries -and -not $success; $i++) {
 
 ## 异常处理
 
-1. **后端不可用**：按重试机制处理；3 次仍失败则提示"请先启动后端服务（端口 8080），可执行 `start.bat` 或打开 Electron 应用"
+1. **后端不可用**：按重试机制处理；3 次仍失败则提示"请先启动后端服务（端口 8081），可执行 `start.bat` 或打开 Electron 应用"
 2. **意图不明确**：默认降级为 clip 剪藏类型
 3. **字段提取失败**：使用原文作为 content，title 取原文前 30 字
 4. **API 返回错误**：展示后端返回的错误信息给用户

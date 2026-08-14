@@ -219,7 +219,7 @@ for ($i = 0; $i -lt $maxRetries -and -not $allTodos; $i++) {
     } catch {
         Write-Host "⚠️ 第 $($i+1) 次获取失败: $($_.Exception.Message)"
         if ($i -eq $maxRetries - 1) {
-            Write-Host "❌ 后端服务不可用，请确认 8080 端口已启动"
+            Write-Host "❌ 后端服务不可用，请确认 8081 端口已启动"
             exit 1
         }
     }

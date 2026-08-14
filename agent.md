@@ -81,7 +81,7 @@ build.bat       # Windows
 1. **不引入新框架**：前端不用 React/Vue，后端不用 MyBatis/JPA
 2. **不引入数据库**：存储仅用本地 JSON 文件系统
 3. **API 前缀**：所有后端接口统一 `/api/` 开头，`@CrossOrigin(origins = "*")`
-4. **端口约定**：后端 8080，前端 3000
+4. **端口约定**：后端 8081，前端 3001（application_templete.yml 模板与 Electron 默认一致；独立运行时保持与扩展/前端硬编码一致）
 5. **文件编码**：UTF-8
 6. **配置模板**：`application_templete.yml` 是模板，`application.yml` 是实际配置（已在 .gitignore）
 7. **新增页面**：HTML 文件放 `frontend/`，样式放 `frontend/styles/`，JS 逻辑内嵌或独立文件

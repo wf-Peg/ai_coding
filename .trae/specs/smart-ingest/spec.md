@@ -66,8 +66,8 @@
 - **THEN** Agent 识别 intent=todo，提取字段，curl 调用 `POST /api/todo/add`，告知用户结果
 
 #### Scenario: Skill 后端不可用
-- **WHEN** curl 连接 8080 端口失败
-- **THEN** Agent 提示"请先启动后端服务（端口 8080）"
+- **WHEN** curl 连接 8081 端口失败
+- **THEN** Agent 提示"请先启动后端服务（端口 8081）"
 
 ### Requirement: 浏览器插件智能入库
 插件 SHALL 支持智能入库模式，调用 `POST /api/ingest`。

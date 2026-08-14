@@ -124,7 +124,7 @@ mvn spring-boot:run
 
 ```bash
 # 方式A：使用npx serve（推荐）
-npx serve frontend -l 3000
+npx serve frontend -l 3001
 
 # 方式B：使用Python
 cd frontend
