@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -285,7 +286,8 @@ public class FileStorageService {
      * 获取所有 JSON 文件（递归遍历）
      * <p>
      * 遍历 storagePath 下所有目录，过滤出 .json 文件。
-     * 排除 todoList 和 knowledge 目录下的文件，避免与剪藏数据混淆。
+     * 按路径段白名单排除非剪藏数据目录（待办/知识/话题/密码库/学习计划/临时目录等），
+     * 避免 substring 匹配误伤正常分类目录，也避免散落 JSON 混入剪藏列表。
      * </p>
      *
      * @return JSON 文件路径列表
@@ -299,16 +301,39 @@ public class FileStorageService {
         try (var stream = Files.walk(storagePath)) {
             stream.filter(Files::isRegularFile)
                     .filter(path -> path.toString().endsWith(".json"))
-                    .filter(path -> !path.toString().contains("todoList")) // 过滤待办事项目录
-                    .filter(path -> !path.toString().contains("knowledge")) // 过滤知识条目目录
-                    .filter(path -> !path.toString().contains("topic"))     // 过滤话题目录
-                    .filter(path -> !path.toString().contains("vault"))     // 过滤密码库目录
-                    .filter(path -> !path.toString().contains("learning-plan")) // 过滤学习计划目录
-                    .filter(path -> !path.getFileName().toString().equals("model-config.json")) // 过滤模型配置
-                    .filter(path -> !path.getFileName().toString().equals("app-config.json")) // 过滤应用配置
+                    .filter(path -> !isExcludedPath(path))
                     .forEach(files::add);
         }
         return files;
+    }
+
+    /** 非剪藏数据目录名（段级匹配，排除任意层级下的同名目录；含隐藏目录） */
+    private static final Set<String> EXCLUDED_DIR_NAMES = Set.of(
+            "todoList", "knowledge", "knowledge-base", "topic", "vault", "learning-plan",
+            "tmp", "editor", "weekly-report", "weeklyReport", "clip-organized",
+            ".tmp", ".trash", ".git", ".obsidian"
+    );
+
+    /** 非剪藏配置文件（根级文件名匹配） */
+    private static final Set<String> EXCLUDED_FILE_NAMES = Set.of(
+            "model-config.json", "app-config.json", "vaults.json", "vault-meta.json"
+    );
+
+    /**
+     * 判断路径是否属于非剪藏数据目录/文件。
+     * 逐段匹配目录名，避免旧实现 substring 匹配的误伤（如分类名恰好含 "vault" 等）。
+     */
+    private boolean isExcludedPath(Path path) {
+        String fileName = path.getFileName().toString();
+        if (EXCLUDED_FILE_NAMES.contains(fileName)) {
+            return true;
+        }
+        for (Path segment : path) {
+            if (EXCLUDED_DIR_NAMES.contains(segment.toString())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

@@ -15,6 +15,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -66,6 +68,9 @@ public class SourceSyncService {
     /** 同步状态持久化文件名 */
     private static final String SYNCED_FILES_NAME = ".synced-files";
 
+    /** 内容 hash 持久化文件名（fileName → SHA-256），用于检测文件内容变更后重新同步 */
+    private static final String SYNCED_FILE_HASHES_NAME = ".synced-file-hashes";
+
     /** 默认同步间隔（秒），仅在配置缺失时使用 */
     private static final long SYNC_INTERVAL_SECONDS = 60L;
 
@@ -75,6 +80,9 @@ public class SourceSyncService {
 
     /** 已同步文件名集合（线程安全，持久化到 .synced-files） */
     private final Set<String> syncedFiles = Collections.synchronizedSet(new HashSet<>());
+
+    /** 已同步文件内容 hash（线程安全，持久化到 .synced-file-hashes） */
+    private final Map<String, String> syncedFileHashes = Collections.synchronizedMap(new LinkedHashMap<>());
 
     /** 周期扫描调度器 */
     private ScheduledExecutorService scheduler;
@@ -104,6 +112,7 @@ public class SourceSyncService {
     public void init() {
         ensureDirectories();
         loadSyncedFiles();
+        loadSyncedFileHashes();
         if (wikiConfig.isSyncEnabled()) {
             startScheduler();
         } else {
@@ -175,12 +184,25 @@ public class SourceSyncService {
             int skippedCount = 0;
             for (Path file : files) {
                 String fileName = file.getFileName().toString();
-                if (isSynced(file)) {
-                    skippedCount++;
-                    continue;
-                }
                 try {
                     String content = Files.readString(file, StandardCharsets.UTF_8);
+                    String hash = sha256(content);
+                    if (isSynced(file)) {
+                        String storedHash = syncedFileHashes.get(fileName);
+                        if (storedHash == null) {
+                            // 历史数据无 hash：以当前内容为基线补齐，不重复入库
+                            syncedFileHashes.put(fileName, hash);
+                            persistSyncedFileHash(fileName, hash);
+                            skippedCount++;
+                        } else if (storedHash.equals(hash)) {
+                            skippedCount++;
+                        } else {
+                            // 文件内容变更：更新已有剪藏（按 sourceFilePath 匹配）
+                            syncChangedFile(fileName, content, hash);
+                            syncedCount++;
+                        }
+                        continue;
+                    }
                     ClipContent clip = parser.toClipContent(content, fileName);
                     // content 保留 wiki-link 引用（用于 Obsidian 集成）
                     clip.setContent(buildWikiLink(fileName, clip.getTitle()));
@@ -193,7 +215,7 @@ public class SourceSyncService {
                     }
                     clip.setSourceFilePath("sources/" + fileName);
                     fileStorageService.saveClip(clip);
-                    markAsSynced(fileName);
+                    markAsSynced(fileName, hash);
                     syncedCount++;
                     log.info("[Sync] Synced source file: {}", fileName);
                 } catch (Exception e) {
@@ -229,14 +251,79 @@ public class SourceSyncService {
     }
 
     /**
-     * 将文件标记为已同步：加入内存集合并持久化。
+     * 将文件标记为已同步：加入内存集合并持久化（兼容旧调用，hash 由调用方另行补齐）。
      *
      * @param fileName 文件名
      */
     public void markAsSynced(String fileName) {
+        markAsSynced(fileName, null);
+    }
+
+    /**
+     * 将文件标记为已同步并记录内容 hash。
+     *
+     * @param fileName 文件名
+     * @param hash     文件内容 SHA-256；为 null 时仅记录文件名
+     */
+    public void markAsSynced(String fileName, String hash) {
         boolean added = syncedFiles.add(fileName);
         if (added) {
             persistSyncedFile(fileName);
+        }
+        if (hash != null) {
+            syncedFileHashes.put(fileName, hash);
+            persistSyncedFileHash(fileName, hash);
+        }
+    }
+
+    /**
+     * 文件内容变更后的重新同步：按 sourceFilePath 找到已有剪藏并更新，
+     * 未找到时新建。同步后记录新的内容 hash。
+     */
+    private void syncChangedFile(String fileName, String content, String hash) {
+        String sourceFilePath = "sources/" + fileName;
+        ClipContent existing = fileStorageService.getAllClips().stream()
+                .filter(c -> sourceFilePath.equals(c.getSourceFilePath()))
+                .findFirst()
+                .orElse(null);
+
+        ClipContent clip = parser.toClipContent(content, fileName);
+        clip.setContent(buildWikiLink(fileName, clip.getTitle()));
+        String bodyContent = parser.extractBodyContent(content);
+        if (bodyContent != null && !bodyContent.isBlank()) {
+            clip.setBodyContent(bodyContent);
+        } else if (clip.getSummary() != null && !clip.getSummary().isBlank()) {
+            clip.setBodyContent(clip.getSummary());
+        }
+        clip.setSourceFilePath(sourceFilePath);
+
+        if (existing != null) {
+            clip.setId(existing.getId());
+            fileStorageService.replaceClip(clip);
+            log.info("[Sync] Re-synced changed source file: {} (clipId={})", fileName, existing.getId());
+        } else {
+            fileStorageService.saveClip(clip);
+            log.info("[Sync] Source file changed but no existing clip, created new: {}", fileName);
+        }
+        syncedFileHashes.put(fileName, hash);
+        persistSyncedFileHash(fileName, hash);
+    }
+
+    /**
+     * 计算字符串内容的 SHA-256 十六进制摘要。
+     */
+    private String sha256(String text) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest(text.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(digest.length * 2);
+            for (byte b : digest) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            // 理论上不会发生（JDK 必备算法），降级为内容 hash 避免中断同步
+            return String.valueOf(text.hashCode());
         }
     }
 
@@ -302,6 +389,65 @@ public class SourceSyncService {
         } catch (IOException e) {
             log.error("[Sync] Failed to persist synced file [{}]: {}", fileName, e.getMessage());
         }
+    }
+
+    /**
+     * 从磁盘加载已同步文件的内容 hash 集合。
+     * <p>
+     * 读取 {@code {vaultPath}/{wikiDirName}/.synced-file-hashes}（每行 {@code 文件名\thash}）。
+     * 文件不存在时视为空集合。
+     * </p>
+     */
+    private void loadSyncedFileHashes() {
+        Path store = getSyncedFileHashesPath();
+        if (!Files.exists(store)) {
+            return;
+        }
+        try (Stream<String> lines = Files.lines(store, StandardCharsets.UTF_8)) {
+            lines.filter(line -> !line.trim().isEmpty())
+                    .forEach(line -> {
+                        int tab = line.indexOf('\t');
+                        if (tab > 0) {
+                            syncedFileHashes.put(line.substring(0, tab), line.substring(tab + 1));
+                        }
+                    });
+            log.info("[Sync] Loaded {} synced file hash(es) from {}", syncedFileHashes.size(), store);
+        } catch (IOException e) {
+            log.error("[Sync] Failed to load synced file hashes: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 追加写入单个文件的内容 hash。
+     *
+     * @param fileName 文件名
+     * @param hash     内容 SHA-256
+     */
+    private void persistSyncedFileHash(String fileName, String hash) {
+        try {
+            Path store = getSyncedFileHashesPath();
+            Path parent = store.getParent();
+            if (parent != null && !Files.exists(parent)) {
+                Files.createDirectories(parent);
+            }
+            Files.writeString(store, fileName + "\t" + hash + "\n",
+                    StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            log.error("[Sync] Failed to persist synced file hash [{}]: {}", fileName, e.getMessage());
+        }
+    }
+
+    /**
+     * 返回 .synced-file-hashes 持久化路径。
+     *
+     * @return {@code {vaultPath}/{wikiDirName}/.synced-file-hashes}
+     */
+    private Path getSyncedFileHashesPath() {
+        return Paths.get(wikiConfig.getVaultPath())
+                .resolve(wikiConfig.getWikiDirName())
+                .resolve(SYNCED_FILE_HASHES_NAME);
     }
 
     /**

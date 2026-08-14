@@ -1,5 +1,16 @@
-const API_BASE_URL = 'http://127.0.0.1:8081/api/clip';
-const GIT_API_BASE_URL = 'http://127.0.0.1:8081/api/git';
+let API_BASE_URL = 'http://127.0.0.1:8081/api/clip';
+let GIT_API_BASE_URL = 'http://127.0.0.1:8081/api/git';
+// 读取扩展配置中的自定义 API 地址（与 options 页/background.js 保持一致），
+// 避免修改配置后独立页面仍指向硬编码地址
+if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.get(['apiUrl'], (result) => {
+        if (result && result.apiUrl) {
+            const base = result.apiUrl.replace(/\/api\/clip\/add$/, '').replace(/\/+$/, '');
+            API_BASE_URL = base + '/api/clip';
+            GIT_API_BASE_URL = base + '/api/git';
+        }
+    });
+}
 let currentTags = [];
 const MAX_TAGS = 10;
 const THEME_STORAGE_KEY = 'app_theme_v1';
@@ -107,85 +118,68 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// 其他函数...
-function fetchClips() {
-    // 实现获取剪藏列表的逻辑
-}
+// 其他函数（真实实现，替换原空壳占位）
 
-function loadCategories() {
-    // 实现加载分类的逻辑
-}
-
-function handleTypeChange() {
-    // 实现处理类型变更的逻辑
-}
-
+// 添加标签（原为无实现空壳，标签添加功能曾失效）
 function addTag(tag) {
-    // 实现添加标签的逻辑
+    tag = (tag || '').trim();
+    if (!tag) return;
+    if (currentTags.includes(tag)) return;
+    if (currentTags.length >= MAX_TAGS) {
+        showToast(`最多只能添加 ${MAX_TAGS} 个标签`);
+        return;
+    }
+    currentTags.push(tag);
+    updateTagsDisplay();
 }
 
-function confirmAction() {
-    // 实现确认操作的逻辑
-}
-
-function clearForm() {
-    // 实现清空表单的逻辑
-}
-
-function startVoiceInput() {
-    // 实现语音输入的逻辑
-}
-
-function clearSearch() {
-    // 实现清空搜索的逻辑
-}
-
-function backToList() {
-    // 实现返回列表的逻辑
-}
-
-function handleImageFiles(files) {
-    // 实现处理图片文件的逻辑
-}
-
-function removeFile() {
-    // 实现移除文件的逻辑
-}
-
-function removeImage(index) {
-    // 实现移除图片的逻辑
-}
-
-function removeTag(tag) {
-    // 实现移除标签的逻辑
-}
-
-function toggleTags(button, tags) {
-    // 实现切换标签的逻辑
-}
-
-function generateDivergentSummary(id) {
-    // 实现生成发散总结的逻辑
-}
-
-function toggleDetail(button) {
-    // 实现切换详情的逻辑
-}
-
-function copyToClipboard(text) {
-    // 实现复制到剪贴板的逻辑
-}
-
-function closeGitConfigModal() {
-    // 实现关闭Git配置模态框的逻辑
-}
-
-function testGitConnection() {
-    // 实现测试Git连接的逻辑
-}
-
-function saveGitConfig() {
-    // 实现保存Git配置的逻辑
+// 从后端加载分类树，填充添加/搜索分类下拉框（原为空壳，分类下拉曾为空）
+async function loadCategories() {
+    try {
+        const response = await axios.get(`${API_BASE_URL}/categories`);
+        const categories = response.data;
+        const select = document.getElementById('category');
+        if (!select) return;
+        select.innerHTML = '<option value="">落入收件箱</option>';
+        const searchSelect = document.getElementById('search-category');
+        if (searchSelect) {
+            searchSelect.innerHTML = '<option value="">全部分类</option>';
+        }
+        categories.forEach(cat => {
+            if (cat.children && cat.children.length > 0) {
+                const group = document.createElement('optgroup');
+                group.label = cat.label;
+                cat.children.forEach(child => {
+                    const option = document.createElement('option');
+                    option.value = child.value;
+                    option.textContent = '  ' + child.label;
+                    group.appendChild(option);
+                });
+                select.appendChild(group);
+                if (searchSelect) {
+                    cat.children.forEach(child => {
+                        const opt = document.createElement('option');
+                        opt.value = child.value;
+                        opt.textContent = cat.label + ' > ' + child.label;
+                        searchSelect.appendChild(opt);
+                    });
+                }
+            } else {
+                const option = document.createElement('option');
+                option.value = cat.value;
+                option.textContent = cat.label;
+                select.appendChild(option);
+                if (searchSelect) {
+                    const searchOpt = document.createElement('option');
+                    searchOpt.value = cat.value;
+                    searchOpt.textContent = cat.label;
+                    searchSelect.appendChild(searchOpt);
+                }
+            }
+        });
+    } catch (error) {
+        console.error('加载分类失败:', error);
+    }
 }
 
 // 函数定义
@@ -1087,13 +1081,24 @@ function removeFile() {
 }
 
 function updateTagsDisplay() {
-    // 实现更新标签显示的逻辑
+    // DOM API 构建标签，避免 innerHTML 拼接用户输入导致 XSS
     const tagsContainer = document.getElementById('tags-container');
     tagsContainer.innerHTML = '';
     currentTags.forEach(tag => {
         const tagElement = document.createElement('span');
         tagElement.className = 'tag';
-        tagElement.innerHTML = `<span>${tag}</span><span class="tag-remove" data-tag="${tag}">&times;</span>`;
+        const label = document.createElement('span');
+        label.textContent = tag;
+        const remove = document.createElement('span');
+        remove.className = 'tag-remove';
+        remove.textContent = '\u00d7';
+        remove.title = '删除标签';
+        remove.addEventListener('click', () => {
+            currentTags = currentTags.filter(t => t !== tag);
+            updateTagsDisplay();
+        });
+        tagElement.appendChild(label);
+        tagElement.appendChild(remove);
         tagsContainer.appendChild(tagElement);
     });
 }
@@ -1227,14 +1232,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // 标签移除按钮点击事件
-    document.addEventListener('click', function(e) {
-        if (e.target.classList.contains('tag-remove')) {
-            const tag = e.target.dataset.tag;
-            currentTags = currentTags.filter(t => t !== tag);
-            updateTagsDisplay();
-        }
-    });
+    // 标签移除：updateTagsDisplay 已为每个移除按钮绑定闭包监听，此处不再需要全局委托
+    // （原委托依赖 data-tag 属性，存在二次转义不匹配与 XSS 隐患）
 
     // 类型变更事件
     const typeSelect = document.getElementById('type');

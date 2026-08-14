@@ -774,18 +774,6 @@ public class ClipService {
     }
 
     /**
-     * 判断是否为结构化捕获（浏览器插件发送的结构化数据）
-     */
-    private boolean isStructuredCapture(ClipRequest request) {
-        return (request.getCaptureMethod() != null && !request.getCaptureMethod().isBlank())
-                || (request.getSourceUrl() != null && !request.getSourceUrl().isBlank())
-                || (request.getTitle() != null && !request.getTitle().isBlank())
-                || (request.getSelectedText() != null && !request.getSelectedText().isBlank())
-                || (request.getContextBefore() != null && !request.getContextBefore().isBlank())
-                || (request.getContextAfter() != null && !request.getContextAfter().isBlank());
-    }
-
-    /**
      * 获取用于 AI 分析的源文本。
      * <p>
      * Web Clipper 同步的剪藏中 {@code content} 仅保留 Obsidian wiki-link 引用，
