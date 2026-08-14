@@ -14,7 +14,9 @@ import java.util.List;
  * <ul>
  *   <li>{@code useAiTags}：控制是否使用 AI 自动生成标签</li>
  *   <li>{@code fileData}：Base64 编码的文件数据，用于文件类型剪藏</li>
- *   <li>{@code imageDataList}：多图片附件列表，每项包含 Base64 数据和文件名</li>
+ *   <li>{@code imagePaths}：图片相对路径清单（推荐，配合 /api/media/upload 分步上传），
+ *       格式 {@code media/{yyMM}/{uuid}.{ext}}，后端校验存在于 media 根目录</li>
+ *   <li>{@code imageDataList}：Base64 图片列表（已废弃，仅保留兼容解析，不推荐使用）</li>
  *   <li>{@code target}：剪藏目标，如 "inbox" 指定存入收件箱</li>
  * </ul>
  */
@@ -77,7 +79,18 @@ public class ClipRequest {
     /** 原始文件名，用于文件类型剪藏 */
     private String fileName;
 
-    /** 图片附件列表，每项包含 Base64 数据和文件名 */
+    /**
+     * 图片相对路径清单（权威引用，推荐使用）。
+     * <p>
+     * 前端通过 {@code POST /api/media/upload} 分步上传图片，拿到相对路径
+     * {@code media/{yyMM}/{uuid}.{ext}} 后随剪藏提交；后端校验每个路径存在于
+     * media 根目录，并与 content 中的 Markdown 引用保持一致。
+     * </p>
+     */
+    private List<String> imagePaths;
+
+    /** 图片附件列表（已废弃，仅保留旧 base64 兼容解析，不推荐使用） */
+    @Deprecated
     private List<ImageData> imageDataList;
 
     /** 用户自己的思考（可选，可编辑），记录阅读后的主观判断、疑问、联想 */
@@ -250,10 +263,20 @@ public class ClipRequest {
         this.fileName = fileName;
     }
 
+    public List<String> getImagePaths() {
+        return imagePaths;
+    }
+
+    public void setImagePaths(List<String> imagePaths) {
+        this.imagePaths = imagePaths;
+    }
+
+    @Deprecated
     public List<ImageData> getImageDataList() {
         return imageDataList;
     }
 
+    @Deprecated
     public void setImageDataList(List<ImageData> imageDataList) {
         this.imageDataList = imageDataList;
     }

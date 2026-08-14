@@ -2139,6 +2139,130 @@
             color: var(--text-secondary);
         }
 
+        /* ── 图文一体：图片上传区 ── */
+        .image-upload-area {
+            margin-top: 8px;
+            padding: 10px 12px;
+            border: 1px dashed var(--border);
+            border-radius: 10px;
+            background: var(--surface);
+        }
+        .image-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .image-upload-btn {
+            padding: 6px 14px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface-hover);
+            color: var(--text);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .image-upload-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+        .image-upload-hint {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            flex: 1;
+        }
+        .image-preview-toggle {
+            padding: 5px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 0.82rem;
+            cursor: pointer;
+        }
+        .image-preview-toggle.active {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: var(--primary-light);
+        }
+        .image-previews {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .image-preview-item {
+            position: relative;
+            width: 72px;
+            height: 72px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            background: var(--surface-hover);
+        }
+        .image-preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .image-preview-item .preview-status {
+            position: absolute;
+            left: 0; right: 0; bottom: 0;
+            font-size: 0.6rem;
+            text-align: center;
+            padding: 1px 2px;
+            color: #fff;
+            background: rgba(0,0,0,0.55);
+        }
+        .image-preview-item .preview-status.error { background: rgba(220,38,38,0.8); }
+        .image-preview-item .preview-remove {
+            position: absolute;
+            top: 2px; right: 2px;
+            width: 18px; height: 18px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.55);
+            color: #fff;
+            font-size: 0.7rem;
+            line-height: 18px;
+            text-align: center;
+            cursor: pointer;
+        }
+        .image-preview-item .preview-retry {
+            position: absolute;
+            top: 2px; left: 2px;
+            padding: 1px 6px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(220,38,38,0.85);
+            color: #fff;
+            font-size: 0.65rem;
+            cursor: pointer;
+        }
+        .content-preview {
+            margin-top: 8px;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--surface);
+            min-height: 80px;
+        }
+        .content-preview img, .markdown-content img {
+            max-width: 100%;
+            border-radius: 8px;
+        }
+        .clip-thumb-row {
+            margin: 8px 0 4px;
+        }
+        .clip-thumb {
+            max-width: 180px;
+            max-height: 120px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            object-fit: cover;
+        }
+
         .file-info {
             display: flex;
             align-items: center;
@@ -3020,6 +3144,16 @@
                 <div class="form-group">
                     <label for="content">内容</label>
                     <textarea id="content" placeholder="请输入要剪藏的内容..."></textarea>
+                    <div id="image-upload-area" class="image-upload-area" style="display:none;">
+                        <div class="image-toolbar">
+                            <button type="button" class="image-upload-btn" id="image-upload-btn" title="选择图片上传">📷 上传图片</button>
+                            <span class="image-upload-hint">支持 Ctrl+V 粘贴 / 拖拽图片到输入框</span>
+                            <button type="button" class="image-preview-toggle" id="image-preview-toggle" title="切换编辑/预览">👁 预览</button>
+                        </div>
+                        <input type="file" id="image-input" accept="image/*" multiple style="display:none;">
+                        <div id="image-previews" class="image-previews" style="display:none;"></div>
+                    </div>
+                    <div id="content-preview" class="markdown-content content-preview" style="display:none;"></div>
                     <div id="file-upload-area" class="file-upload-area" style="display:none;">
                         <div class="file-upload-dropzone" id="file-dropzone">
                             <div class="file-upload-icon">📄</div>
@@ -3144,6 +3278,8 @@
 
 <script src="libs/axios.min.js"></script>
 <script src="js/logger.js"></script>
+<script src="js/media-render.js"></script>
+<script src="js/media-uploader.js"></script>
 <script>
     const API_BASE_URL = 'http://127.0.0.1:8081/api/clip';
     const API_ROOT = 'http://127.0.0.1:8081/api';
@@ -3228,12 +3364,279 @@
     let uploadedFileBase64 = null;
     let uploadedFileName = null;
 
+    // ════ 图文一体：图片上传（粘贴/选择/拖拽 → 压缩 → 即传 → 光标插入）════
+    let uploadedImages = [];   // {localId, name, status, progress, path, url, dataUrl, file, error}
+    let imageLocalId = 0;
+    let contentPreviewActive = false;
+
+    function getImageArea() { return document.getElementById('image-upload-area'); }
+    function getImageInput() { return document.getElementById('image-input'); }
+    function getPreviewsBox() { return document.getElementById('image-previews'); }
+
+    // 图片上传区可见性（ai-text / store-only 显示）
+    function updateImageAreaVisibility(type) {
+        const area = getImageArea();
+        if (!area) return;
+        const visible = (type === 'ai-text' || type === 'store-only');
+        area.style.display = visible ? '' : 'none';
+        if (!visible && contentPreviewActive) {
+            toggleContentPreview();
+        }
+    }
+
+    // 从剪贴板/拖拽中提取图片文件
+    function extractImageFiles(dataTransfer) {
+        const files = [];
+        if (!dataTransfer) return files;
+        if (dataTransfer.items && dataTransfer.items.length) {
+            for (let i = 0; i < dataTransfer.items.length; i++) {
+                const item = dataTransfer.items[i];
+                if (item.kind === 'file' && item.type && item.type.startsWith('image/')) {
+                    const file = item.getAsFile();
+                    if (file) files.push(file);
+                }
+            }
+        } else if (dataTransfer.files && dataTransfer.files.length) {
+            for (let i = 0; i < dataTransfer.files.length; i++) {
+                const file = dataTransfer.files[i];
+                if (file.type && file.type.startsWith('image/')) files.push(file);
+            }
+        }
+        return files;
+    }
+
+    // 在 textarea 光标处插入 markdown 图片引用
+    function insertImageMarkdown(path) {
+        const textarea = document.getElementById('content');
+        if (!textarea) return;
+        const markdown = '![图片](' + path + ')';
+        const start = textarea.selectionStart != null ? textarea.selectionStart : textarea.value.length;
+        const end = textarea.selectionEnd != null ? textarea.selectionEnd : textarea.value.length;
+        const value = textarea.value;
+        textarea.value = value.substring(0, start) + markdown + value.substring(end);
+        const pos = start + markdown.length;
+        textarea.selectionStart = textarea.selectionEnd = pos;
+        textarea.focus();
+        if (contentPreviewActive) refreshContentPreview();
+    }
+
+    // 刷新内容预览（textarea ↔ markdown 渲染）
+    function refreshContentPreview() {
+        const preview = document.getElementById('content-preview');
+        if (!preview) return;
+        const text = document.getElementById('content').value;
+        preview.innerHTML = window.MediaKit.render.renderMarkdown(text);
+    }
+
+    function toggleContentPreview() {
+        const preview = document.getElementById('content-preview');
+        const textarea = document.getElementById('content');
+        const btn = document.getElementById('image-preview-toggle');
+        if (!preview || !btn) return;
+        contentPreviewActive = !contentPreviewActive;
+        if (contentPreviewActive) {
+            refreshContentPreview();
+            preview.style.display = '';
+            textarea.style.display = 'none';
+            btn.classList.add('active');
+            btn.textContent = '✏️ 编辑';
+        } else {
+            preview.style.display = 'none';
+            textarea.style.display = '';
+            btn.classList.remove('active');
+            btn.textContent = '👁 预览';
+        }
+    }
+
+    // 渲染缩略条
+    function renderImagePreviews() {
+        const box = getPreviewsBox();
+        if (!box) return;
+        box.innerHTML = '';
+        if (uploadedImages.length === 0) {
+            box.style.display = 'none';
+            return;
+        }
+        box.style.display = '';
+        uploadedImages.forEach((entry, index) => {
+            const el = document.createElement('div');
+            el.className = 'image-preview-item';
+            el.dataset.index = index;
+            let inner = '';
+            if (entry.dataUrl) {
+                inner += '<img src="' + entry.dataUrl + '" alt="">';
+            } else if (entry.path) {
+                inner += '<img src="' + window.MediaKit.render.mediaUrl(entry.path) + '?thumb=1" alt="">';
+            }
+            if (entry.status === 'uploading' || entry.status === 'compressing') {
+                inner += '<div class="preview-status">' + (entry.status === 'compressing' ? '压缩中' : (entry.progress != null ? entry.progress + '%' : '上传中')) + '</div>';
+            } else if (entry.status === 'error') {
+                inner += '<div class="preview-status error">失败</div>';
+                inner += '<button type="button" class="preview-retry" data-index="' + index + '">重试</button>';
+            } else if (entry.status === 'done') {
+                inner += '<div class="preview-status">✓</div>';
+            }
+            inner += '<button type="button" class="preview-remove" data-index="' + index + '" title="移除图片（同时移除内容引用）">✕</button>';
+            el.innerHTML = inner;
+            box.appendChild(el);
+        });
+    }
+
+    // 移除图片：从列表移除 + 移除 content 中对应引用
+    function removeUploadedImage(index) {
+        const entry = uploadedImages[index];
+        if (!entry) return;
+        uploadedImages.splice(index, 1);
+        if (entry.dataUrl) URL.revokeObjectURL(entry.dataUrl);
+        // 移除 content 中的引用（已上传完成的）
+        if (entry.path) {
+            const textarea = document.getElementById('content');
+            if (textarea) {
+                const escaped = entry.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                textarea.value = textarea.value
+                    .replace(new RegExp('!\\[^\\]]*\\]\(' + escaped + '\\)'), '')
+                    .replace(/\n{2,}/g, '\n');
+            }
+        }
+        renderImagePreviews();
+        if (contentPreviewActive) refreshContentPreview();
+    }
+
+    // 重试单张上传
+    function retryUpload(index) {
+        const entry = uploadedImages[index];
+        if (!entry || !entry.file) return;
+        entry.status = 'compressing';
+        entry.error = null;
+        renderImagePreviews();
+        window.MediaKit.uploader.uploadFiles([entry.file], {
+            onProgress: (item, percent) => { entry.status = 'uploading'; entry.progress = percent; renderImagePreviews(); },
+            onSuccess: (item, resp) => {
+                entry.status = 'done';
+                entry.path = resp.path;
+                entry.url = resp.url;
+                renderImagePreviews();
+                insertImageMarkdown(resp.path);
+            },
+            onError: (item, err) => {
+                entry.status = 'error';
+                entry.error = err && err.message ? err.message : String(err);
+                renderImagePreviews();
+                showToast('图片上传失败: ' + entry.error);
+            }
+        });
+    }
+
+    // 处理图片文件：压缩 → 上传 → 光标插入
+    function handleImageFiles(files) {
+        if (!files || files.length === 0) return;
+        const imageFiles = files.filter(f => f.type && f.type.startsWith('image/'));
+        if (imageFiles.length === 0) {
+            showToast('未检测到图片文件');
+            return;
+        }
+        window.MediaKit.uploader.uploadFiles(imageFiles, {
+            onStart: (item) => {
+                const entry = {
+                    localId: ++imageLocalId,
+                    name: item.name,
+                    status: 'compressing',
+                    dataUrl: URL.createObjectURL(item.file),
+                    progress: 0,
+                    file: item.file
+                };
+                item._entry = entry;
+                uploadedImages.push(entry);
+                renderImagePreviews();
+            },
+            onProgress: (item, percent) => {
+                if (item._entry) { item._entry.status = 'uploading'; item._entry.progress = percent; renderImagePreviews(); }
+            },
+            onSuccess: (item, resp) => {
+                if (item._entry) {
+                    item._entry.status = 'done';
+                    item._entry.path = resp.path;
+                    item._entry.url = resp.url;
+                }
+                renderImagePreviews();
+                insertImageMarkdown(resp.path);
+            },
+            onError: (item, err) => {
+                if (item._entry) {
+                    item._entry.status = 'error';
+                    item._entry.error = err && err.message ? err.message : String(err);
+                }
+                renderImagePreviews();
+                showToast('图片上传失败: ' + (err && err.message ? err.message : err));
+            }
+        });
+    }
+
+    // 当前已上传图片路径清单（提交剪藏用）
+    function getUploadedImagePaths() {
+        return uploadedImages.filter(i => i.status === 'done' && i.path).map(i => i.path);
+    }
+
+    // 图片区事件绑定
+    function bindImageEvents() {
+        const btn = document.getElementById('image-upload-btn');
+        const input = getImageInput();
+        const previewToggle = document.getElementById('image-preview-toggle');
+        const textarea = document.getElementById('content');
+        const previews = getPreviewsBox();
+
+        if (btn && input) {
+            btn.addEventListener('click', () => input.click());
+            input.addEventListener('change', function () {
+                handleImageFiles(input.files);
+                input.value = '';
+            });
+        }
+        if (previewToggle) {
+            previewToggle.addEventListener('click', toggleContentPreview);
+        }
+        // 粘贴图片
+        if (textarea) {
+            textarea.addEventListener('paste', function (e) {
+                const files = extractImageFiles(e.clipboardData || window.clipboardData);
+                if (files.length > 0) {
+                    e.preventDefault();
+                    handleImageFiles(files);
+                }
+            });
+            // 拖拽图片
+            textarea.addEventListener('dragover', function (e) {
+                if (e.dataTransfer && Array.prototype.some.call(e.dataTransfer.types || [], t => t === 'Files')) {
+                    e.preventDefault();
+                }
+            });
+            textarea.addEventListener('drop', function (e) {
+                const files = extractImageFiles(e.dataTransfer);
+                if (files.length > 0) {
+                    e.preventDefault();
+                    handleImageFiles(files);
+                }
+            });
+        }
+        // 缩略条操作（事件委托）
+        if (previews) {
+            previews.addEventListener('click', function (e) {
+                const removeBtn = e.target.closest('.preview-remove');
+                const retryBtn = e.target.closest('.preview-retry');
+                if (removeBtn) removeUploadedImage(parseInt(removeBtn.dataset.index, 10));
+                if (retryBtn) retryUpload(parseInt(retryBtn.dataset.index, 10));
+            });
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME, false);
         fetchClips();
         loadCategories();
         loadSyncStatus();
         handleTypeChange();
+        bindImageEvents();
+        updateImageAreaVisibility(document.getElementById('type').value);
 
         const themeToggle = document.getElementById('themeToggle');
         if (themeToggle) {
@@ -3331,7 +3734,11 @@
                 requestBody.content = content;
             }
 
-            // 图片上传功能已关闭，不再提交 imageDataList
+            // 图文一体：提交已上传图片的相对路径清单（imagePaths）
+            const imagePaths = getUploadedImagePaths();
+            if (imagePaths.length > 0) {
+                requestBody.imagePaths = imagePaths;
+            }
 
             // 禁用提交按钮并显示加载状态
             const originalText = submitBtn.textContent;
@@ -3443,6 +3850,7 @@
         const fileUploadArea = document.getElementById('file-upload-area');
         const tagsGroup = document.getElementById('tags-group');
         const contentLabel = contentArea.closest('.form-group').querySelector('label');
+        updateImageAreaVisibility(type);
 
         if (type === 'link-ai') {
             contentArea.style.display = '';
@@ -4164,6 +4572,7 @@
                         </button>
                     </div>
                 </div>
+                ${clip.imagePaths && clip.imagePaths.length > 0 ? '<div class="clip-thumb-row"><img class="clip-thumb" src="' + window.MediaKit.render.mediaUrl(clip.imagePaths[0]) + '?thumb=1" alt="缩略图" loading="lazy"></div>' : ''}
                 <div class="clip-summary ${summaryClass}" title="${escapeHtml(displaySummary)}">${escapeHtml(displaySummary)}</div>
                 <div class="clip-meta">
                     <span class="meta-item meta-type">类型: ${getTypeLabel(clip.type)}</span>
@@ -4341,7 +4750,7 @@
 
                     console.log('清理后的内容:', cleanContent);
 
-                    const renderedHtml = marked.parse(cleanContent);
+                    const renderedHtml = window.MediaKit.render.renderMarkdown(cleanContent);
                     analysisContentDiv.innerHTML = renderedHtml;
                 } catch (e) {
                     console.error('Markdown渲染失败:', e);
@@ -4355,7 +4764,7 @@
             const dsContent = clipItem.querySelector(`#divergent-content-${clip.id}`);
             if (dsContent) {
                 try {
-                    dsContent.innerHTML = marked.parse(clip.divergentSummary);
+                    dsContent.innerHTML = window.MediaKit.render.renderMarkdown(clip.divergentSummary);
                 } catch (e) {
                     dsContent.textContent = clip.divergentSummary;
                 }
@@ -4525,10 +4934,11 @@
         return `<span class="source-badge ${badge.cls}">${escapeHtml(badge.label)}</span>`;
     }
 
-    // 渲染剪藏内容：转义原文直接显示，原有 wiki-link 由"查看"按钮替代
+    // 渲染剪藏内容（图文一体 G1）：markdown 渲染 + 白名单消毒 + 图片重写
+    // 图片引用 media/{yyMM}/{uuid}.{ext} 会被重写为 {API origin}/api/media/... 正常显示
     function renderContent(content, clipId) {
         if (!content) return '';
-        return escapeHtml(content);
+        return window.MediaKit.render.renderMarkdown(content);
     }
 
     // 渲染 wiki-link 显示文本：只返回文件名，不再包裹 <a> 标签

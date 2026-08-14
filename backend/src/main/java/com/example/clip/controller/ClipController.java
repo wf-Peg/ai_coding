@@ -821,6 +821,23 @@ public class ClipController {
         return ResponseEntity.ok(Map.of("success", true, "migratedCount", count));
     }
 
+    /**
+     * 迁移旧图片数据。
+     * <p>
+     * POST /api/clip/migrate-images
+     * 将旧版 /api/clip/image/{cat}/{file} 引用迁移为 media/ 相对路径引用：
+     * 定位 organized assets 中的旧文件（兼容子目录）→ 复制到 media 根目录 →
+     * 重写 content 引用 → 回填 imagePaths。幂等，可重跑。
+     * </p>
+     *
+     * @return {success, migratedCount}
+     */
+    @PostMapping("/migrate-images")
+    public ResponseEntity<Map<String, Object>> migrateImages() {
+        int count = clipService.migrateImages();
+        return ResponseEntity.ok(Map.of("success", true, "migratedCount", count));
+    }
+
     @PostMapping("/event")
     public ResponseEntity<Map<String, Object>> recordEvent(@RequestBody EventRequest eventRequest) {
         if (eventRequest != null && eventRequest.type() != null && !eventRequest.type().isBlank()) {

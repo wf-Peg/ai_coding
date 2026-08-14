@@ -11,15 +11,19 @@ import com.example.clip.utils.ImageUtils;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -77,6 +81,9 @@ public class ClipService {
     /** Wiki 配置，提供 vault 路径用于读取源文件 */
     private final WikiConfig wikiConfig;
 
+    /** 整理存储根目录（旧图片迁移定位用） */
+    private final String organizedStoragePath;
+
     /** AI 分析状态：分析中 */
     public static final String ANALYSIS_PENDING = "pending";
     /** AI 分析状态：已完成 */
@@ -111,13 +118,15 @@ public class ClipService {
      */
     public ClipService(FileStorageService storageService, AiService aiService,
                        LinkParseService linkParseService, DocumentParseService documentParseService,
-                       ImageUtils imageUtils, WikiConfig wikiConfig) {
+                       ImageUtils imageUtils, WikiConfig wikiConfig,
+                       @Value("${clip.organized-storage.path:./clip-organized}") String organizedStoragePath) {
         this.storageService = storageService;
         this.aiService = aiService;
         this.linkParseService = linkParseService;
         this.documentParseService = documentParseService;
         this.imageUtils = imageUtils;
         this.wikiConfig = wikiConfig;
+        this.organizedStoragePath = organizedStoragePath;
     }
 
     /**
@@ -147,59 +156,70 @@ public class ClipService {
      * @param category      分类（可为 null，AI 会自动分类）
      * @param fileData      文件数据（Base64 编码，仅 doc-ai 类型使用）
      * @param fileName      文件名（仅 doc-ai 类型使用）
-     * @param imageDataList 图片数据列表（Base64 编码的图片）
+     * @param imageDataList 图片数据列表（Base64 编码的图片，已废弃，兼容解析）
+     * @param imagePaths    图片相对路径清单（推荐，media/{yyMM}/{uuid}.{ext}）
      * @return 保存后的剪藏内容对象
+     */
+    /**
+     * 保存剪藏内容（兼容旧签名，imagePaths 置空）。
      */
     public ClipContent saveClip(String content, String type, String source, String category,
                                 String fileData, String fileName, List<ClipRequest.ImageData> imageDataList) {
+        return saveClip(content, type, source, category, fileData, fileName, imageDataList, null);
+    }
+
+    public ClipContent saveClip(String content, String type, String source, String category,
+                                String fileData, String fileName, List<ClipRequest.ImageData> imageDataList,
+                                List<String> imagePaths) {
         // 内容长度限制：防止超大请求导致内存与 AI token 超限
         if (content != null && content.length() > MAX_CONTENT_LENGTH) {
             throw new IllegalArgumentException("剪藏内容过长（超过 " + MAX_CONTENT_LENGTH + " 字符），请精简后重试");
         }
         ClipContent clipContent = new ClipContent(content, type, source, category);
 
-        // 处理图片上传 - 只有 ai-text 和 store-only 类型才处理图片
-        if (("ai-text".equals(type) || "store-only".equals(type)) && imageDataList != null && !imageDataList.isEmpty()) {
-            try {
-                // 生成笔记文件名，用于图片存储的目录组织
-                String noteFileName = generateNoteFileName(category);
-                String cat = (category != null && !category.isEmpty()) ? category : "default";
+        // 处理图片：新链路 imagePaths（权威清单，content 已含光标处插入的 Markdown 引用）+ 旧 base64 兼容解析
+        if ("ai-text".equals(type) || "store-only".equals(type)) {
+            List<String> validImagePaths = new ArrayList<>();
 
-                // 逐张处理图片：Base64解码 → 类型校验 → 大小校验 → 存储
-                for (int i = 0; i < imageDataList.size(); i++) {
-                    ClipRequest.ImageData imageData = imageDataList.get(i);
-                    if (imageData.getBase64Data() != null && !imageData.getBase64Data().isEmpty()) {
-                        // Base64 解码为字节数组
-                        byte[] imageBytes = Base64.getDecoder().decode(imageData.getBase64Data());
-
-                        // 校验图片文件类型（白名单：jpg/png/gif/webp等）
-                        if (!ImageUtils.isValidImageFile(imageData.getFileName())) {
-                            logger.warn("Invalid image file type: {}", imageData.getFileName());
-                            continue;
-                        }
-
-                        // 校验图片大小（限制 10MB），防止大文件占用过多存储
-                        if (!ImageUtils.isWithinSizeLimit(imageBytes, 10 * 1024 * 1024)) {
-                            logger.warn("Image too large: {}", imageData.getFileName());
-                            continue;
-                        }
-                        // 存储图片到文件系统，返回相对路径
-                        String imagePath = imageUtils.storeImage(imageBytes, imageData.getFileName(), cat, noteFileName);
-
-                        // 记录图片路径
-                        clipContent.getImagePaths().add(imagePath);
-
-                        // 在 Markdown 内容中嵌入图片引用
-                        if (clipContent.getContent() == null) {
-                            clipContent.setContent("");
-                        }
-                        clipContent.setContent(clipContent.getContent() + "\n![图片](" + imagePath + ")\n");
+            // 新链路：校验 imagePaths 存在于 media 根目录，作为权威引用清单
+            if (imagePaths != null) {
+                for (String path : imagePaths) {
+                    if (path != null && imageUtils.resolveMediaFile(path) != null) {
+                        validImagePaths.add(path);
+                    } else {
+                        logger.warn("[ClipService] imagePath not found in media root: {}", path);
                     }
                 }
-            } catch (Exception e) {
-                logger.error("Failed to process images: {}", e.getMessage(), e);
-                // 图片处理失败不影响文本内容的保存，继续后续流程
             }
+
+            // 旧链路兼容：base64 imageDataList（已废弃，不推荐）——存 media 根目录并追加引用
+            if (imageDataList != null && !imageDataList.isEmpty()) {
+                try {
+                    for (ClipRequest.ImageData imageData : imageDataList) {
+                        if (imageData.getBase64Data() == null || imageData.getBase64Data().isEmpty()) {
+                            continue;
+                        }
+                        byte[] imageBytes = Base64.getDecoder().decode(imageData.getBase64Data());
+                        if (imageBytes.length > 10 * 1024 * 1024) {
+                            logger.warn("Image too large (legacy base64): {}", imageData.getFileName());
+                            continue;
+                        }
+                        String imagePath = imageUtils.storeImage(imageBytes, imageData.getFileName());
+                        if (imagePath == null) {
+                            logger.warn("Invalid image data (legacy base64): {}", imageData.getFileName());
+                            continue;
+                        }
+                        validImagePaths.add(imagePath);
+                        clipContent.setContent((clipContent.getContent() == null ? "" : clipContent.getContent())
+                                + "\n![图片](" + imagePath + ")\n");
+                    }
+                } catch (Exception e) {
+                    logger.error("Failed to process legacy images: {}", e.getMessage(), e);
+                    // 图片处理失败不影响文本内容的保存，继续后续流程
+                }
+            }
+
+            clipContent.setImagePaths(validImagePaths);
         }
 
         // 根据类型执行不同的处理逻辑
@@ -229,16 +249,14 @@ public class ClipService {
                 try {
                     byte[] fileBytes = Base64.getDecoder().decode(fileData);
 
-                    // 先存储源文件到文件系统
-                    String noteFileName = generateNoteFileName(category);
-                    String cat = (category != null && !category.isEmpty()) ? category : "default";
-                    String sourceFilePath = imageUtils.storeImage(fileBytes, fileName, cat, noteFileName);
+                    // 先存储源文件到 documents/ 独立目录（与图片分离，决策 D-F）
+                    String attachmentPath = imageUtils.storeDocument(fileBytes, fileName);
 
-                    // 记录源文件路径
-                    clipContent.getImagePaths().add(sourceFilePath);
+                    // 记录附件相对路径（documents/{uuid}.{ext}）
+                    clipContent.setAttachmentPath(attachmentPath);
 
                     // 解析文档内容为纯文本
-                    String parsedText = documentParseService.parseDocument(fileBytes, fileName, sourceFilePath);
+                    String parsedText = documentParseService.parseDocument(fileBytes, fileName, attachmentPath);
                     clipContent.setContent(parsedText);
                     clipContent.setAnalysisStatus(ANALYSIS_PENDING);
                 } catch (Exception e) {
@@ -291,7 +309,8 @@ public class ClipService {
                 normalizedCategory,
                 request.getFileData(),
                 request.getFileName(),
-                request.getImageDataList()
+                request.getImageDataList(),
+                request.getImagePaths()
         );
 
         // 设置浏览器插件传来的结构化元数据
@@ -599,11 +618,158 @@ public class ClipService {
         clip.setSourceEncoding(request.getSourceEncoding());
         clip.setSourceLineEnding(request.getSourceLineEnding());
 
-        logger.info("[Editor] Updating clip id={}, chars={}, category={}",
+        // 图文一体：重扫 content 中 media 图片引用，reconcile imagePaths（权威清单）
+        clip.setImagePaths(extractImagePathsFromContent(clip.getContent()));
+
+        logger.info("[Editor] Updating clip id={}, chars={}, category={}, images={}",
                 id,
                 clip.getContent() == null ? 0 : clip.getContent().length(),
-                clip.getCategory());
+                clip.getCategory(),
+                clip.getImagePaths() == null ? 0 : clip.getImagePaths().size());
         return storageService.replaceClip(clip);
+    }
+
+    /**
+     * 从 Markdown content 中提取 media 图片相对路径（去重、保序）。
+     * 匹配 {@code ![alt](media/{yyMM}/{uuid}.{ext})} 引用。
+     *
+     * @param content Markdown 内容
+     * @return media 相对路径清单
+     */
+    public List<String> extractImagePathsFromContent(String content) {
+        List<String> paths = new ArrayList<>();
+        if (content == null) {
+            return paths;
+        }
+        Pattern pattern = Pattern.compile("!\\[[^\\]]*\\]\\((media/\\d{4}/[\\w.-]+\\.\\w{1,10})\\)");
+        Matcher matcher = pattern.matcher(content);
+        while (matcher.find()) {
+            String path = matcher.group(1);
+            if (!paths.contains(path)) {
+                paths.add(path);
+            }
+        }
+        return paths;
+    }
+
+    /**
+     * 清理未被任何剪藏引用的孤儿图片。
+     * <p>
+     * 扫描 media/ 目录下所有文件，删除不在任何剪藏 imagePaths 中的文件
+     * （含"上传后未提交剪藏"产生的孤儿）。.tmp 临时文件一并清理。
+     * </p>
+     *
+     * @return 清理的文件数量
+     */
+    public int cleanupOrphanMedia() {
+        int cleaned = 0;
+        try {
+            Path mediaRoot = imageUtils.getMediaRoot();
+            if (!Files.exists(mediaRoot)) {
+                return 0;
+            }
+            Set<String> referenced = new HashSet<>();
+            for (ClipContent clip : storageService.getAllClips()) {
+                if (clip.getImagePaths() != null) {
+                    referenced.addAll(clip.getImagePaths());
+                }
+            }
+            try (var stream = Files.walk(mediaRoot)) {
+                List<Path> files = stream.filter(Files::isRegularFile).toList();
+                for (Path file : files) {
+                    String rel = "media/" + mediaRoot.relativize(file).toString().replace('\\', '/');
+                    if (!referenced.contains(rel)) {
+                        Files.deleteIfExists(file);
+                        cleaned++;
+                        logger.info("[ClipService] cleanup orphan media: {}", rel);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            logger.error("[ClipService] cleanupOrphanMedia failed", e);
+        }
+        return cleaned;
+    }
+
+    /**
+     * 迁移旧图片数据（migrate-images）。
+     * <p>
+     * 解析 content 中旧引用 {@code /api/clip/image/{cat}/{file}}，从 organized assets
+     * 目录定位旧文件（兼容 noteFileName 子目录），复制到 media 根目录（uuid 命名），
+     * 重写 content 引用为 {@code media/{yyMM}/{uuid}.{ext}}，回填 imagePaths。
+     * 幂等：文件缺失的引用跳过；迁移后旧文件保留（由 cleanup-orphans 统一清理）。
+     * </p>
+     *
+     * @return 迁移的剪藏数量
+     */
+    public int migrateImages() {
+        int migrated = 0;
+        List<ClipContent> allClips = storageService.getAllClips();
+        for (ClipContent clip : allClips) {
+            String content = clip.getContent();
+            if (content == null || !content.contains("/api/clip/image/")) {
+                continue;
+            }
+            String newContent = content;
+            boolean changed = false;
+            List<String> newImagePaths = new ArrayList<>(
+                    clip.getImagePaths() == null ? List.of() : clip.getImagePaths());
+
+            Pattern oldRef = Pattern.compile("!\\[[^\\]]*\\]\\(/api/clip/image/([^/]+)/([^\\)]+)\\)");
+            Matcher matcher = oldRef.matcher(content);
+            while (matcher.find()) {
+                String cat = matcher.group(1);
+                String file = matcher.group(2);
+                Path oldFile = findLegacyImageFile(cat, file);
+                if (oldFile == null) {
+                    logger.warn("[Migrate] legacy image file not found: cat={}, file={}", cat, file);
+                    continue;
+                }
+                try {
+                    byte[] data = Files.readAllBytes(oldFile);
+                    String rel = imageUtils.storeImage(data, file);
+                    if (rel == null) {
+                        continue;
+                    }
+                    newContent = newContent.replace("/api/clip/image/" + cat + "/" + file, rel);
+                    if (!newImagePaths.contains(rel)) {
+                        newImagePaths.add(rel);
+                    }
+                    changed = true;
+                    migrated++;
+                } catch (IOException e) {
+                    logger.warn("[Migrate] copy legacy image failed: {}", oldFile, e);
+                }
+            }
+            if (changed) {
+                clip.setContent(newContent);
+                clip.setImagePaths(newImagePaths);
+                storageService.saveClip(clip);
+            }
+        }
+        return migrated;
+    }
+
+    /**
+     * 在 organized assets 目录中按文件名定位旧图片（兼容 noteFileName 子目录）。
+     */
+    private Path findLegacyImageFile(String category, String fileName) {
+        try {
+            String catDir = ImageUtils.getCategoryDir(category);
+            Path assetsRoot = Paths.get(organizedStoragePath).resolve(catDir).resolve("assets");
+            if (!Files.exists(assetsRoot)) {
+                return null;
+            }
+            try (var stream = Files.walk(assetsRoot)) {
+                return stream.filter(Files::isRegularFile)
+                        .filter(p -> p.getFileName().toString().equals(fileName))
+                        .findFirst()
+                        .orElse(null);
+            }
+        } catch (IOException e) {
+            logger.warn("[Migrate] search legacy image failed: category={}, file={}", category, fileName, e);
+            return null;
+        }
     }
 
     /**
@@ -612,7 +778,38 @@ public class ClipService {
      * @param id 剪藏ID
      */
     public void deleteClip(Long id) {
+        ClipContent clip = getClipById(id);
         storageService.deleteClip(id);
+        // 生命周期：删除该剪藏引用的图片（未被其他剪藏引用时）
+        if (clip != null && clip.getImagePaths() != null && !clip.getImagePaths().isEmpty()) {
+            deleteUnreferencedImages(clip.getImagePaths());
+        }
+    }
+
+    /**
+     * 删除未被任何其他剪藏引用的图片文件（引用计数语义）。
+     *
+     * @param imagePaths 待删除候选的图片相对路径清单
+     */
+    private void deleteUnreferencedImages(List<String> imagePaths) {
+        List<ClipContent> allClips = storageService.getAllClips();
+        for (String path : imagePaths) {
+            boolean referencedElsewhere = allClips.stream()
+                    .filter(c -> c.getImagePaths() != null)
+                    .anyMatch(c -> c.getImagePaths().contains(path));
+            if (referencedElsewhere) {
+                continue;
+            }
+            try {
+                Path file = imageUtils.resolveMediaFile(path);
+                if (file != null) {
+                    Files.deleteIfExists(file);
+                    logger.info("[ClipService] delete unreferenced image: {}", path);
+                }
+            } catch (IOException e) {
+                logger.warn("[ClipService] delete image failed: {}", path, e);
+            }
+        }
     }
 
     /**

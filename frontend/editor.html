@@ -36,6 +36,7 @@
         <button class="tool-btn" id="formatBtn" title="格式化 Ctrl+L">格式化</button>
         <button class="tool-btn" id="transformBtn">转换</button>
         <button class="tool-btn" id="compareBtn">对比</button>
+        <button class="tool-btn" id="imageInsertBtn" title="插入图片（支持粘贴/拖拽，Ctrl+Shift+I）">📷</button>
         <button class="tool-btn" id="markdownBtn" title="Markdown 预览 Ctrl+Shift+M">Markdown</button>
         <button class="tool-btn" id="settingsBtn" title="编辑器设置 Ctrl+,">设置</button>
         <button class="tool-btn" id="fullscreenBtn" title="全屏模式 F11">全屏</button>
@@ -459,8 +460,12 @@
     </section>
   </div>
 
+  <input type="file" id="editorImageInput" accept="image/*" multiple style="display:none;">
+
   <script src="js/logger.js"></script>
   <script src="libs/marked.min.js"></script>
+  <script src="js/media-render.js"></script>
+  <script src="js/media-uploader.js"></script>
   <script src="libs/ace/ace.js"></script>
   <script>
     // 桥接全局 define/require：ace.js 为 noconflict 构建（define/require 挂在 ace 命名空间），

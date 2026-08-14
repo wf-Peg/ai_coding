@@ -1076,9 +1076,10 @@
       return;
     }
     try {
-      elements.markdownBody.innerHTML = window.marked.parse(text);
+      // 图文一体：marked → 白名单消毒 → 图片重写（media/ 相对路径 → /api/media/...）
+      elements.markdownBody.innerHTML = window.MediaKit.render.renderMarkdown(text);
     } catch (error) {
-      elements.markdownBody.innerHTML = `<p style="color:var(--app-danger);">渲染失败：${error.message}</p>`;
+      elements.markdownBody.innerHTML = '<p style="color:var(--app-danger);">渲染失败：' + error.message + '</p>';
     }
   }
 
@@ -2772,6 +2773,67 @@
   document.getElementById('closeCompareBtn').addEventListener('click', () => toggleCompare(false));
   document.getElementById('markdownBtn').addEventListener('click', () => toggleMarkdownPreview());
   elements.closeMarkdownBtn.addEventListener('click', () => toggleMarkdownPreview(false));
+
+  // ── 图文一体（M3）：图片插入（按钮/粘贴/拖拽 → 压缩 → 上传 → 光标处插入）──
+  const editorImageInput = document.getElementById('editorImageInput');
+
+  function insertImageAtCursor(markdown) {
+    const cursor = mainEditor.getCursorPosition();
+    mainEditor.session.insert(cursor, markdown);
+    setModified(true);
+    mainEditor.focus();
+  }
+
+  function handleEditorImageFiles(files) {
+    if (!files || !files.length) return;
+    const imageFiles = Array.from(files).filter(f => f.type && f.type.startsWith('image/'));
+    if (!imageFiles.length) {
+      showToast('未检测到图片文件');
+      return;
+    }
+    if (!window.MediaKit || !window.MediaKit.uploader) {
+      showToast('媒体上传组件未加载');
+      return;
+    }
+    window.MediaKit.uploader.uploadFiles(imageFiles, {
+      onSuccess: (item, resp) => {
+        insertImageAtCursor('![图片](' + resp.path + ')');
+      },
+      onError: (item, err) => {
+        showToast('图片上传失败: ' + (err && err.message ? err.message : err));
+      }
+    });
+  }
+
+  const imageInsertBtn = document.getElementById('imageInsertBtn');
+  if (imageInsertBtn) {
+    imageInsertBtn.addEventListener('click', () => editorImageInput.click());
+  }
+  if (editorImageInput) {
+    editorImageInput.addEventListener('change', (e) => {
+      handleEditorImageFiles(e.target.files);
+      e.target.value = '';
+    });
+  }
+  // Ace 编辑区粘贴图片拦截（Ctrl+V 图片 → 上传，而非粘贴文本）
+  if (mainEditor && mainEditor.container) {
+    mainEditor.container.addEventListener('paste', (e) => {
+      const files = [];
+      if (e.clipboardData && e.clipboardData.items) {
+        for (let i = 0; i < e.clipboardData.items.length; i++) {
+          const item = e.clipboardData.items[i];
+          if (item.kind === 'file' && item.type && item.type.startsWith('image/')) {
+            const file = item.getAsFile();
+            if (file) files.push(file);
+          }
+        }
+      }
+      if (files.length) {
+        e.preventDefault();
+        handleEditorImageFiles(files);
+      }
+    });
+  }
   document.getElementById('compareClipboardBtn').addEventListener('click', loadCompareFromClipboard);
   document.getElementById('compareFileBtn').addEventListener('click', loadCompareFromFile);
   document.getElementById('previousDiffBtn').addEventListener('click', () => navigateDiff(-1));

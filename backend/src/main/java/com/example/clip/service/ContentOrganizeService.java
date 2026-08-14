@@ -3,6 +3,7 @@ package com.example.clip.service;
 import com.example.clip.core.AiService;
 import com.example.clip.model.ClipContent;
 import com.example.clip.service.obsidian.ObsidianExportFormatter;
+import com.example.clip.utils.ImageUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
@@ -58,6 +60,8 @@ public class ContentOrganizeService {
     private final ObsidianExportFormatter obsidianExportFormatter;
     /** 整理结果的存储根目录 */
     private final Path organizedStoragePath;
+    /** 媒体工具类（图片复制/引用重写） */
+    private final ImageUtils imageUtils;
     /** 上次整理状态（idle/processing/completed/error） */
     private String lastOrganizeStatus;
     /** 上次整理的消息描述 */
@@ -80,6 +84,7 @@ public class ContentOrganizeService {
             GitService gitService,
             PromptConfigService promptConfigService,
             ObsidianExportFormatter obsidianExportFormatter,
+            ImageUtils imageUtils,
             @Value("${clip.organized-storage.path:./clip-organized}") String organizedStoragePath) {
         this.storageService = storageService;
         this.aiService = aiService;
@@ -87,6 +92,7 @@ public class ContentOrganizeService {
         this.gitService = gitService;
         this.promptConfigService = promptConfigService;
         this.obsidianExportFormatter = obsidianExportFormatter;
+        this.imageUtils = imageUtils;
         this.organizedStoragePath = Paths.get(organizedStoragePath);
         // 确保整理存储目录存在
         initOrganizedStorage();
@@ -263,12 +269,9 @@ public class ContentOrganizeService {
             contentBuilder.append("## ").append(i + 1).append(". ").append(clip.getSummary() != null ? clip.getSummary() : "内容摘要").append("\n\n");
 
             if (clip.getContent() != null) {
-                // 替换图片路径：将 /api/clip/image/xxx/ 替换为 ./assets/
-                String content = clip.getContent();
-                content = content.replaceAll(
-                        "\\(/api/clip/image/[^/]+/([^\\)]+)\\)",
-                        "(./assets/$1)"
-                );
+                // 图文一体整理：复制引用图片到 organized assets（扁平化）+ 重写引用
+                copyClipImagesToAssets(category, clip);
+                String content = rewriteImageReferences(clip.getContent());
                 contentBuilder.append("### 原文\n\n").append(content).append("\n\n");
             }
 
@@ -292,6 +295,52 @@ public class ContentOrganizeService {
         // 调用 AI 进行智能整理
         return aiOrganizeContent(category, rawContent);
     }
+    /**
+     * 复制剪藏引用图片到 organized assets 目录（扁平化，uuid 命名）。
+     * <p>
+     * 源：media/{yyMM}/{uuid}.{ext}；目标：{organizedPath}/{categoryDir}/assets/{uuid}.{ext}。
+     * 复制而非移动，保证原剪藏引用不受影响（原图保留在 media/，供 cleanup 引用计数）。
+     * </p>
+     */
+    private void copyClipImagesToAssets(String category, ClipContent clip) {
+        if (clip.getImagePaths() == null || clip.getImagePaths().isEmpty()) {
+            return;
+        }
+        try {
+            Path assetsDir = organizedStoragePath.resolve(getCategoryDir(category)).resolve("assets");
+            Files.createDirectories(assetsDir);
+            for (String path : clip.getImagePaths()) {
+                Path source = imageUtils.resolveMediaFile(path);
+                if (source == null) {
+                    continue;
+                }
+                String fileName = source.getFileName().toString();
+                Files.copy(source, assetsDir.resolve(fileName), StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException e) {
+            log.error("[Organize] copy images to assets failed: category={}, clipId={}", category, clip.getId(), e);
+        }
+    }
+
+    /**
+     * 重写图片引用为 Obsidian 兼容的相对路径。
+     * <ul>
+     *   <li>新引用：{@code (media/{yyMM}/{uuid}.{ext})} → {@code (./assets/{uuid}.{ext})}</li>
+     *   <li>旧引用（未迁移数据）：{@code (/api/clip/image/{cat}/{file})} → {@code (./assets/{file})}</li>
+     * </ul>
+     */
+    private String rewriteImageReferences(String content) {
+        if (content == null) {
+            return content;
+        }
+        // media/{yyMM}/{uuid}.{ext} → ./assets/{uuid}.{ext}
+        String mediaPattern = "\\(media/\\d{4}/([^)]+)\\)";
+        String rewritten = content.replaceAll(mediaPattern, "(./assets/$1)");
+        String legacyPattern = "\\(/api/clip/image/[^/]+/([^)]+)\\)";
+        rewritten = rewritten.replaceAll(legacyPattern, "(./assets/$1)");
+        return rewritten;
+    }
+
 
     /**
      * 使用 AI 组织内容

@@ -137,9 +137,10 @@ document.addEventListener('DOMContentLoaded', () => {
             requestBody.content = content;
         }
 
-        // 图片附件（Base64 列表）
-        if (uploadedImages.length > 0) {
-            requestBody.imageDataList = uploadedImages;
+        // 图文一体：提交已上传图片的相对路径清单（imagePaths）
+        const imagePaths = uploadedImages.filter(i => i.status === 'done' && i.path).map(i => i.path);
+        if (imagePaths.length > 0) {
+            requestBody.imagePaths = imagePaths;
         }
 
         // 提交中状态
@@ -424,7 +425,7 @@ function createClipItem(clip, isSearch) {
             <div class="clip-detail">
                 <div class="content-section">
                     <h4>原文</h4>
-                    <div class="content-text truncated">${escapeHtml(originalContent)}</div>
+                    <div class="content-text truncated">${window.MediaKit.render.renderMarkdown(originalContent)}</div>
                     <button class="copy-btn" data-text="${escapeJs(originalContent)}">
                         📋 复制原文
                     </button>
@@ -495,7 +496,7 @@ function createClipItem(clip, isSearch) {
                 }
                 cleanContent = cleanContent.trim();
 
-                const renderedHtml = marked.parse(cleanContent);
+                const renderedHtml = window.MediaKit.render.renderMarkdown(cleanContent);
                 analysisContentDiv.innerHTML = renderedHtml;
             } catch (e) {
                 console.error('Markdown渲染失败:', e);
@@ -572,7 +573,7 @@ async function generateDivergentSummary(clipId) {
         const response = await axios.get(`${API_BASE_URL}/divergent-summary/${clipId}`);
         const summary = response.data;
 
-        const markdownHtml = marked.parse(summary);
+        const markdownHtml = window.MediaKit.render.renderMarkdown(summary);
         typeWriterEffect(divergentContent, markdownHtml);
     } catch (error) {
         console.error('生成发散性总结失败:', error);
@@ -1164,29 +1165,108 @@ function backToList() {
 }
 
 function handleImageFiles(files) {
-    // 读取图片为 Base64 并加入附件列表（单张限制 5MB）
+    // 图文一体（M4）：canvas 压缩 → 立即上传 → 光标处插入（替代旧 base64 实现）
     if (!files || files.length === 0) return;
-    Array.from(files).forEach(file => {
-        if (!file.type || !file.type.startsWith('image/')) {
-            showToast('仅支持图片文件: ' + file.name);
-            return;
-        }
-        if (file.size > 5 * 1024 * 1024) {
-            showToast('图片超过 5MB，已跳过: ' + file.name);
-            return;
-        }
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const dataUrl = String(e.target.result);
-            const comma = dataUrl.indexOf(',');
-            uploadedImages.push({
-                base64Data: comma >= 0 ? dataUrl.substring(comma + 1) : dataUrl,
-                fileName: file.name
-            });
+    const imageFiles = Array.from(files).filter(f => f.type && f.type.startsWith('image/'));
+    if (imageFiles.length === 0) {
+        showToast('未检测到图片文件');
+        return;
+    }
+    if (!window.MediaKit || !window.MediaKit.uploader) {
+        showToast('媒体上传组件未加载');
+        return;
+    }
+    window.MediaKit.uploader.uploadFiles(imageFiles, {
+        onStart: (item) => {
+            const entry = {
+                localId: Date.now() + Math.random(),
+                name: item.name,
+                status: 'compressing',
+                dataUrl: URL.createObjectURL(item.file),
+                progress: 0,
+                file: item.file
+            };
+            item._entry = entry;
+            uploadedImages.push(entry);
             renderImagePreviews();
-        };
-        reader.onerror = () => showToast('图片读取失败: ' + file.name);
-        reader.readAsDataURL(file);
+        },
+        onProgress: (item, percent) => {
+            if (item._entry) { item._entry.status = 'uploading'; item._entry.progress = percent; renderImagePreviews(); }
+        },
+        onSuccess: (item, resp) => {
+            if (item._entry) {
+                item._entry.status = 'done';
+                item._entry.path = resp.path;
+                item._entry.url = resp.url;
+            }
+            renderImagePreviews();
+            insertImageMarkdown(resp.path);
+        },
+        onError: (item, err) => {
+            if (item._entry) {
+                item._entry.status = 'error';
+                item._entry.error = err && err.message ? err.message : String(err);
+            }
+            renderImagePreviews();
+            showToast('图片上传失败: ' + (err && err.message ? err.message : err));
+        }
+    });
+}
+
+// 在内容框光标处插入 markdown 图片引用
+function insertImageMarkdown(path) {
+    const textarea = document.getElementById('content');
+    if (!textarea) return;
+    const markdown = '![图片](' + path + ')';
+    const start = textarea.selectionStart != null ? textarea.selectionStart : textarea.value.length;
+    const end = textarea.selectionEnd != null ? textarea.selectionEnd : textarea.value.length;
+    const value = textarea.value;
+    textarea.value = value.substring(0, start) + markdown + value.substring(end);
+    const pos = start + markdown.length;
+    textarea.selectionStart = textarea.selectionEnd = pos;
+    textarea.focus();
+}
+
+// 移除图片：列表移除 + 移除 content 中对应引用
+function removeUploadedImage(index) {
+    const entry = uploadedImages[index];
+    if (!entry) return;
+    uploadedImages.splice(index, 1);
+    if (entry.dataUrl) URL.revokeObjectURL(entry.dataUrl);
+    if (entry.path) {
+        const textarea = document.getElementById('content');
+        if (textarea) {
+            const escaped = entry.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            textarea.value = textarea.value
+                .replace(new RegExp('!\\[^\\]]*\\]\(' + escaped + '\\)'), '')
+                .replace(/\n{2,}/g, '\n');
+        }
+    }
+    renderImagePreviews();
+}
+
+// 重试单张上传
+function retryUpload(index) {
+    const entry = uploadedImages[index];
+    if (!entry || !entry.file) return;
+    entry.status = 'compressing';
+    entry.error = null;
+    renderImagePreviews();
+    window.MediaKit.uploader.uploadFiles([entry.file], {
+        onProgress: (item, percent) => { entry.status = 'uploading'; entry.progress = percent; renderImagePreviews(); },
+        onSuccess: (item, resp) => {
+            entry.status = 'done';
+            entry.path = resp.path;
+            entry.url = resp.url;
+            renderImagePreviews();
+            insertImageMarkdown(resp.path);
+        },
+        onError: (item, err) => {
+            entry.status = 'error';
+            entry.error = err && err.message ? err.message : String(err);
+            renderImagePreviews();
+            showToast('图片上传失败: ' + entry.error);
+        }
     });
 }
 
@@ -1201,21 +1281,45 @@ function renderImagePreviews() {
     }
     previews.style.display = 'block';
     grid.innerHTML = '';
-    uploadedImages.forEach((img, index) => {
+    uploadedImages.forEach((entry, index) => {
         const item = document.createElement('div');
         item.style.cssText = 'position: relative; width: 80px; height: 80px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border);';
         const imgEl = document.createElement('img');
-        imgEl.src = 'data:image;base64,' + img.base64Data;
+        if (entry.dataUrl) {
+            imgEl.src = entry.dataUrl;
+        } else if (entry.path) {
+            imgEl.src = window.MediaKit.render.mediaUrl(entry.path) + '?thumb=1';
+        }
         imgEl.style.cssText = 'width: 100%; height: 100%; object-fit: cover; display: block;';
+        item.appendChild(imgEl);
+        // 状态角标
+        if (entry.status === 'uploading' || entry.status === 'compressing') {
+            const status = document.createElement('div');
+            status.style.cssText = 'position: absolute; left: 0; right: 0; bottom: 0; font-size: 10px; text-align: center; color: #fff; background: rgba(0,0,0,0.55);';
+            status.textContent = entry.status === 'compressing' ? '压缩中' : (entry.progress != null ? entry.progress + '%' : '上传中');
+            item.appendChild(status);
+        } else if (entry.status === 'error') {
+            const status = document.createElement('div');
+            status.style.cssText = 'position: absolute; left: 0; right: 0; bottom: 0; font-size: 10px; text-align: center; color: #fff; background: rgba(220,38,38,0.8);';
+            status.textContent = '失败';
+            item.appendChild(status);
+            const retry = document.createElement('button');
+            retry.textContent = '重试';
+            retry.style.cssText = 'position: absolute; top: 2px; left: 2px; border: none; border-radius: 8px; background: rgba(220,38,38,0.85); color: #fff; font-size: 10px; cursor: pointer; padding: 1px 6px;';
+            retry.addEventListener('click', () => retryUpload(index));
+            item.appendChild(retry);
+        } else if (entry.status === 'done') {
+            const status = document.createElement('div');
+            status.style.cssText = 'position: absolute; left: 0; right: 0; bottom: 0; font-size: 10px; text-align: center; color: #fff; background: rgba(16,185,129,0.7);';
+            status.textContent = '✓';
+            item.appendChild(status);
+        }
+        // 移除按钮
         const close = document.createElement('button');
         close.textContent = '\u00d7';
-        close.title = '移除图片';
+        close.title = '移除图片（同时移除内容引用）';
         close.style.cssText = 'position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; border: none; background: rgba(0,0,0,0.55); color: #fff; font-size: 12px; line-height: 18px; cursor: pointer; padding: 0;';
-        close.addEventListener('click', () => {
-            uploadedImages.splice(index, 1);
-            renderImagePreviews();
-        });
-        item.appendChild(imgEl);
+        close.addEventListener('click', () => removeUploadedImage(index));
         item.appendChild(close);
         grid.appendChild(item);
     });

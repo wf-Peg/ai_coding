@@ -88,8 +88,26 @@ public class ClipContent {
     /** AI 生成的发散性总结，从不同角度拓展思考 */
     private String divergentSummary;
 
-    /** 关联的图片相对路径列表，用于富文本剪藏中的图片引用 */
+    /**
+     * 关联的图片相对路径列表（权威引用清单，用于生命周期管理）。
+     * <p>
+     * 语义：图片统一存 media 根目录，路径格式 {@code media/{yyMM}/{uuid}.{ext}}
+     * （UUID 命名 + 按月分片，与分类/整理解耦）。content 中的 Markdown 图片引用
+     * {@code ![alt](media/...)} 与此清单保持一致；删除剪藏/清理孤儿均以此为准。
+     * </p>
+     */
     private List<String> imagePaths = new ArrayList<>();
+
+    /**
+     * doc-ai 源文件相对路径（可选）。
+     * <p>
+     * 当剪藏类型为 doc-ai 时，源文件（PDF/DOCX/TXT 等）独立存储于
+     * {@code documents/} 目录，路径格式 {@code documents/{uuid}.{ext}}。
+     * 与图片分离，不进入 imagePaths；前端通过
+     * {@code GET /api/media/file/{fileName}} 下载原文件。
+     * </p>
+     */
+    private String attachmentPath;
 
     /**
      * 用户自己的思考（可选，可编辑）。
@@ -323,6 +341,14 @@ public class ClipContent {
 
     public void setImagePaths(List<String> imagePaths) {
         this.imagePaths = imagePaths;
+    }
+
+    public String getAttachmentPath() {
+        return attachmentPath;
+    }
+
+    public void setAttachmentPath(String attachmentPath) {
+        this.attachmentPath = attachmentPath;
     }
 
     public String getMyThoughts() {
