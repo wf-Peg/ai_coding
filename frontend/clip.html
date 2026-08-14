@@ -2436,6 +2436,46 @@
             }
         }
 
+        /* AI 分析中旋转指示器 */
+        .analysis-pending-spinner {
+            width: 28px;
+            height: 28px;
+            margin: 0 auto 10px;
+            border: 3px solid var(--border-light);
+            border-top-color: var(--primary, #4a9e9e);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        /* 剪藏列表骨架屏（加载占位） */
+        .skeleton-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        .skeleton-line {
+            height: 14px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, var(--border-light) 25%, var(--border) 50%, var(--border-light) 75%);
+            background-size: 200% 100%;
+            animation: skeletonShimmer 1.4s ease-in-out infinite;
+            margin-bottom: 10px;
+        }
+        .skeleton-line.short { width: 40%; }
+        .skeleton-line.mid { width: 70%; }
+        @keyframes skeletonShimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* 加载更多按钮 */
+        .load-more-btn {
+            width: 100%;
+            margin: 8px 0 16px;
+        }
+
         @keyframes fadeIn {
             from {
                 opacity: 0;
@@ -3317,6 +3357,33 @@
             successMessage.style.borderColor = 'var(--warning)';
             successMessage.style.animation = 'pulse 1.5s ease-in-out infinite';
 
+            // 添加成功/重复后的公共收尾：恢复按钮、清空表单、刷新列表并定位
+            const finishAddClip = async () => {
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+                submitBtn.style.opacity = '1';
+                submitBtn.style.cursor = 'pointer';
+
+                clearForm();
+
+                // 刷新剪藏列表并确保显示剪藏列表页面
+                await fetchClips();
+
+                // 确保显示剪藏列表，隐藏搜索结果页面
+                document.getElementById('search-results-page').style.display = 'none';
+                document.getElementById('clip-list').style.display = 'block';
+
+                // 滚动到剪藏列表
+                document.getElementById('clip-list').scrollIntoView({ behavior: 'smooth' });
+
+                // 开始刷新检查
+                setTimeout(startRefreshCheck, 1000);
+
+                setTimeout(() => {
+                    successMessage.style.display = 'none';
+                }, 3000);
+            };
+
             try {
                 const response = await axios.post(`${API_BASE_URL}/add`, requestBody);
 
@@ -3326,30 +3393,15 @@
                     successMessage.style.color = 'var(--success)';
                     successMessage.style.borderColor = 'var(--success)';
                     successMessage.style.animation = 'slideIn 0.5s ease-out';
-
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = originalText;
-                    submitBtn.style.opacity = '1';
-                    submitBtn.style.cursor = 'pointer';
-
-                    clearForm();
-
-                    // 刷新剪藏列表并确保显示剪藏列表页面
-                    await fetchClips();
-
-                    // 确保显示剪藏列表，隐藏搜索结果页面
-                    document.getElementById('search-results-page').style.display = 'none';
-                    document.getElementById('clip-list').style.display = 'block';
-
-                    // 滚动到剪藏列表
-                    document.getElementById('clip-list').scrollIntoView({ behavior: 'smooth' });
-
-                    // 开始刷新检查
-                    setTimeout(startRefreshCheck, 1000);
-
-                    setTimeout(() => {
-                        successMessage.style.display = 'none';
-                    }, 3000);
+                    await finishAddClip();
+                } else if (response.data.status === 'duplicate') {
+                    // 去重命中：提示并跳转到已有记录
+                    successMessage.textContent = '⚠️ 检测到相同内容，已跳转到现有剪藏';
+                    successMessage.style.background = 'rgba(245, 158, 11, 0.1)';
+                    successMessage.style.color = 'var(--warning)';
+                    successMessage.style.borderColor = 'var(--warning)';
+                    successMessage.style.animation = 'slideIn 0.5s ease-out';
+                    await finishAddClip();
                 }
             } catch (error) {
                 console.error('添加剪藏失败:', error);
@@ -3777,14 +3829,11 @@
         }
     }
 
-    document.getElementById('search-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-
+    async function performSearch() {
         const query = document.getElementById('search-query').value;
         const category = document.getElementById('search-category').value;
 
         if (!query) {
-            showToast('请输入搜索关键词');
             return;
         }
 
@@ -3813,6 +3862,25 @@
             console.error('搜索失败:', error);
             showToast('搜索失败，请稍后重试');
         }
+    }
+
+    document.getElementById('search-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const query = document.getElementById('search-query').value;
+        if (!query) {
+            showToast('请输入搜索关键词');
+            return;
+        }
+        performSearch();
+    });
+
+    // 输入防抖搜索：停止输入 300ms 后自动搜索（清空时不触发）
+    let searchDebounceTimer = null;
+    document.getElementById('search-query').addEventListener('input', () => {
+        if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+        const q = document.getElementById('search-query').value.trim();
+        if (!q) return;
+        searchDebounceTimer = setTimeout(performSearch, 300);
     });
 
     function displaySearchResults(results) {
@@ -3841,9 +3909,26 @@
         document.getElementById('clip-list').style.display = 'none';
     }
 
+    // 列表客户端分页与 pending 轮询状态
+    const CLIP_PAGE_SIZE = 50;
+    let visibleClipCount = CLIP_PAGE_SIZE;
+    let lastFilteredClips = [];
+    let pendingPollTimer = null;
+
     async function fetchClips() {
         const seq = ++fetchSeq; // 本请求序号，用于丢弃过期请求结果
+        // 清理待执行的分析轮询，避免请求堆积
+        if (pendingPollTimer) {
+            clearTimeout(pendingPollTimer);
+            pendingPollTimer = null;
+        }
+        const clipItemsContainer = document.getElementById('clip-items');
         try {
+            // 首次/无内容时展示骨架屏（轮询刷新时已有内容则不闪屏）
+            if (!clipItemsContainer.querySelector('.clip-item')) {
+                showSkeleton(clipItemsContainer);
+            }
+
             // 重置选中状态
             selectedClipIds.clear();
             updateFloatBar();
@@ -3875,63 +3960,8 @@
                 return true;
             });
 
-            console.log('===== 调试信息 =====');
-            console.log('获取到的剪藏数量:', clips.length);
-            console.log('过滤后的剪藏数量:', filteredClips.length);
-            if (filteredClips.length > 0) {
-                console.log('第一个剪藏分析内容:', filteredClips[0].analysis);
-                console.log('第一个剪藏分析内容类型:', typeof filteredClips[0].analysis);
-            }
-
-            const clipItemsContainer = document.getElementById('clip-items');
-            const clipCountElement = document.getElementById('clip-count');
-            clipCache.clear();
-
-            // 保存当前展开的剪藏 ID，重建后恢复
-            const expandedIds = new Set();
-            document.querySelectorAll('.clip-detail.expanded').forEach(detail => {
-              const cid = detail.dataset.clipId;
-              if (cid) expandedIds.add(cid);
-            });
-
-            clipCountElement.textContent = filteredClips.length;
-            clipItemsContainer.innerHTML = '';
-
-            if (filteredClips.length === 0) {
-                clipItemsContainer.innerHTML = `
-                        <div class="empty-state">
-                            <h3>暂无剪藏内容</h3>
-                            <p>开始添加你的第一个剪藏吧！</p>
-                        </div>
-                    `;
-                return;
-            }
-
             filteredClips.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-            filteredClips.forEach(clip => {
-                if (clip && clip.id != null) {
-                    clipCache.set(String(clip.id), clip);
-                }
-                const clipItem = createClipItem(clip, false);
-                clipItemsContainer.appendChild(clipItem);
-                renderLinkedKnowledge(clip.id);
-            });
-
-            // 恢复之前展开的剪藏详情
-            expandedIds.forEach(id => {
-              const detail = document.querySelector(`.clip-detail[data-clip-id="${id}"]`);
-              if (detail) {
-                detail.classList.add('expanded');
-                const btn = detail.closest('.clip-item')?.querySelector(`.expand-btn[data-clip-id="${id}"]`);
-                if (btn) {
-                  btn.classList.add('expanded');
-                  const text = btn.querySelector('.text');
-                  if (text) text.textContent = '收起';
-                }
-                renderLinkedKnowledge(parseInt(id));
-              }
-            });
+            renderClipList(filteredClips);
         } catch (error) {
             if (seq !== fetchSeq) return; // 过期请求的失败也忽略
             console.error('获取剪藏列表失败:', error);
@@ -3944,7 +3974,105 @@
         }
     }
 
+    // ===== 列表渲染（客户端分页 + 展开恢复 + pending 自动轮询）=====
+
+    /** 加载骨架屏占位 */
+    function showSkeleton(container) {
+        if (!container) return;
+        let skeleton = '';
+        for (let i = 0; i < 5; i++) {
+            skeleton += `
+                <div class="skeleton-card">
+                    <div class="skeleton-line short"></div>
+                    <div class="skeleton-line mid"></div>
+                    <div class="skeleton-line" style="width: 90%;"></div>
+                </div>`;
+        }
+        container.innerHTML = skeleton;
+    }
+
+    /** 渲染剪藏列表（按可见数量分页 + 加载更多 + 展开状态恢复 + pending 轮询） */
+    function renderClipList(clips) {
+        lastFilteredClips = clips;
+        const clipItemsContainer = document.getElementById('clip-items');
+        const clipCountElement = document.getElementById('clip-count');
+        clipCache.clear();
+
+        // 保存当前展开的剪藏 ID，重建后恢复
+        const expandedIds = new Set();
+        document.querySelectorAll('.clip-detail.expanded').forEach(detail => {
+          const cid = detail.dataset.clipId;
+          if (cid) expandedIds.add(cid);
+        });
+
+        clipCountElement.textContent = clips.length;
+        clipItemsContainer.innerHTML = '';
+
+        if (clips.length === 0) {
+            clipItemsContainer.innerHTML = `
+                    <div class="empty-state">
+                        <h3>暂无剪藏内容</h3>
+                        <p>开始添加你的第一个剪藏吧！</p>
+                    </div>
+                `;
+            return;
+        }
+
+        const shown = clips.slice(0, visibleClipCount);
+        shown.forEach(clip => {
+            if (clip && clip.id != null) {
+                clipCache.set(String(clip.id), clip);
+            }
+            const clipItem = createClipItem(clip, false);
+            clipItemsContainer.appendChild(clipItem);
+            renderLinkedKnowledge(clip.id);
+        });
+
+        // 加载更多（客户端分页，保留现有筛选/排序逻辑）
+        if (clips.length > visibleClipCount) {
+            const loadMoreBtn = document.createElement('button');
+            loadMoreBtn.className = 'btn-secondary load-more-btn';
+            loadMoreBtn.textContent = `加载更多（剩余 ${clips.length - visibleClipCount} 条）`;
+            loadMoreBtn.addEventListener('click', () => {
+                visibleClipCount += CLIP_PAGE_SIZE;
+                renderClipList(lastFilteredClips);
+            });
+            clipItemsContainer.appendChild(loadMoreBtn);
+        }
+
+        // 恢复之前展开的剪藏详情
+        expandedIds.forEach(id => {
+          const detail = document.querySelector(`.clip-detail[data-clip-id="${id}"]`);
+          if (detail) {
+            detail.classList.add('expanded');
+            const btn = detail.closest('.clip-item')?.querySelector(`.expand-btn[data-clip-id="${id}"]`);
+            if (btn) {
+              btn.classList.add('expanded');
+              const text = btn.querySelector('.text');
+              if (text) text.textContent = '收起';
+            }
+            renderLinkedKnowledge(parseInt(id));
+          }
+        });
+
+        // 存在 pending 剪藏 → 2.5s 后自动轮询刷新（异步 AI 分析完成自动出现）
+        if (clips.some(c => c.analysisStatus === 'pending')) {
+            schedulePendingPoll();
+        }
+    }
+
+    /** 调度 pending 剪藏的自动轮询（防堆积） */
+    function schedulePendingPoll() {
+        if (pendingPollTimer) return;
+        pendingPollTimer = setTimeout(() => {
+            pendingPollTimer = null;
+            fetchClips();
+        }, 2500);
+    }
+
     function getAnalysisState(clip) {
+        // 异步 AI 分析中（新增字段，优先判定）
+        if (clip.analysisStatus === 'pending') return 'pending';
         const analysis = (clip.analysis || '').trim();
         const summary = (clip.summary || '');
         const failed = summary.indexOf('摘要生成失败') !== -1
@@ -4086,6 +4214,15 @@
                         <button class="btn-secondary" style="margin-top: 12px;" onclick="generateDivergentSummary(${clip.id})">
                             🔄 发散性总结
                         </button>
+                    </div>
+                    ` : analysisState === 'pending' ? `
+                    <div class="content-section">
+                        <h4>AI分析</h4>
+                        <div class="ai-analysis-empty-state">
+                            <div class="analysis-pending-spinner"></div>
+                            <p class="empty-state-title">AI 分析中...</p>
+                            <p class="empty-state-desc">正在提炼摘要、关键信息和标签，页面将自动刷新</p>
+                        </div>
                     </div>
                     ` : analysisState === 'failed' ? `
                     <div class="content-section">

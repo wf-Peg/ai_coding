@@ -128,6 +128,12 @@ public class ClipController {
     @PostMapping("/add")
     public ResponseEntity<?> addClip(@RequestBody ClipRequest request) {
         log.info("[API] /add called, type={}, useAiTags={}", request.getType(), request.getUseAiTags());
+        // 去重：内容 + 来源 URL 一致时返回已有记录，避免重复剪藏
+        ClipContent duplicate = clipService.findDuplicate(request);
+        if (duplicate != null) {
+            log.info("[API] /add duplicate detected, existing clipId={}", duplicate.getId());
+            return ResponseEntity.ok(new ClipResponse(duplicate.getId(), "duplicate"));
+        }
         // 保存剪藏内容，service 层会根据 useAiTags 决定是否调用 AI 生成标签
         ClipContent clip = clipService.saveClip(request);
         recordAction("content_created", "clip:" + clip.getId(), Map.of(
@@ -174,6 +180,9 @@ public class ClipController {
             }
         }
 
+        // 异步触发 AI 分析（pending 状态），保存立即返回
+        clipService.triggerAsyncAnalysis(clip.getId());
+
         return ResponseEntity.ok(new ClipResponse(clip.getId(), "success"));
     }
 
@@ -191,6 +200,7 @@ public class ClipController {
     public ResponseEntity<?> systemClip(@RequestBody ClipRequest request) {
         ClipContent clip = clipService.saveClip(request);
         recordAction("content_created", "clip:" + clip.getId(), Map.of("source", "system"));
+        clipService.triggerAsyncAnalysis(clip.getId());
         return ResponseEntity.ok(new ClipResponse(clip.getId(), "success"));
     }
 

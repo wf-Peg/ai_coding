@@ -76,6 +76,15 @@ public class ClipContent {
     /** AI 对内容的深度分析结果 */
     private String analysis;
 
+    /**
+     * AI 分析状态：pending（分析中）/ ready（已完成）/ failed（失败）/ empty（无需分析）。
+     * <p>
+     * 新增剪藏先以 pending 入库并立即返回，后台异步执行 AI 分析后更新为 ready/failed。
+     * 历史数据无此字段，前端按字符串标记回退判定（兼容旧数据）。
+     * </p>
+     */
+    private String analysisStatus;
+
     /** AI 生成的发散性总结，从不同角度拓展思考 */
     private String divergentSummary;
 
@@ -290,6 +299,14 @@ public class ClipContent {
 
     public void setAnalysis(String analysis) {
         this.analysis = analysis;
+    }
+
+    public String getAnalysisStatus() {
+        return analysisStatus;
+    }
+
+    public void setAnalysisStatus(String analysisStatus) {
+        this.analysisStatus = analysisStatus;
     }
 
     public String getDivergentSummary() {

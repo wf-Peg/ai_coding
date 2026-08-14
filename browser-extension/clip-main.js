@@ -13,6 +13,10 @@ if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
 }
 let currentTags = [];
 const MAX_TAGS = 10;
+// 文档/图片上传状态（doc-ai 文件 + 图片附件列表）
+let uploadedFileBase64 = null;
+let uploadedFileName = null;
+let uploadedImages = [];
 const THEME_STORAGE_KEY = 'app_theme_v1';
 let currentPromptType = 'daily';
 let promptConfigCache = null;
@@ -20,6 +24,8 @@ let feedbackPathValue = '';
 let currentTheme = 'regular';
 
 function getAnalysisState(clip) {
+    // 异步 AI 分析中（新增字段，优先判定）
+    if (clip.analysisStatus === 'pending') return 'pending';
     const analysis = (clip.analysis || '').trim();
     const summary = (clip.summary || '');
     const failed = summary.indexOf('摘要生成失败') !== -1
@@ -93,9 +99,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const category = document.getElementById('category').value;
         const useAiTags = document.getElementById('ai-generate-tags').checked;
         const submitBtn = e.target.querySelector('button[type="submit"]');
+        const successMessage = document.getElementById('success-message');
 
-        // Build request body based on type
-        let content = document.getElementById('content').value;
+        let content = document.getElementById('content').value.trim();
         let requestBody = {
             type,
             source,
@@ -103,6 +109,17 @@ document.addEventListener('DOMContentLoaded', () => {
             tags: useAiTags ? null : currentTags,
             useAiTags: type === 'store-only' ? false : useAiTags
         };
+
+        // 我的思考（可选）
+        const myThoughts = document.getElementById('my-thoughts').value.trim();
+        if (myThoughts) {
+            requestBody.myThoughts = myThoughts;
+        }
+
+        // store-only 类型进入收件箱
+        if (type === 'store-only') {
+            requestBody.workflowStatus = 'inbox';
+        }
 
         if (type === 'doc-ai') {
             if (!uploadedFileBase64) {
@@ -112,9 +129,59 @@ document.addEventListener('DOMContentLoaded', () => {
             requestBody.content = uploadedFileName;
             requestBody.fileData = uploadedFileBase64;
             requestBody.fileName = uploadedFileName;
+        } else {
+            if (!content) {
+                showToast(type === 'link-ai' ? '请输入链接URL' : '请输入内容');
+                return;
+            }
+            requestBody.content = content;
         }
 
-        // 其余代码...
+        // 图片附件（Base64 列表）
+        if (uploadedImages.length > 0) {
+            requestBody.imageDataList = uploadedImages;
+        }
+
+        // 提交中状态
+        submitBtn.disabled = true;
+        submitBtn.textContent = '⏳ 处理中...';
+        successMessage.style.display = 'block';
+        successMessage.style.background = 'rgba(245, 158, 11, 0.1)';
+        successMessage.style.color = 'var(--warning)';
+        successMessage.style.borderColor = 'var(--warning)';
+        successMessage.textContent = type === 'store-only' ? '💾 正在保存内容...'
+            : type === 'link-ai' ? '🌐 正在爬取链接并分析，请稍候...'
+            : type === 'doc-ai' ? '📄 正在解析文档并分析，请稍候...'
+            : '🎯 AI正在分析内容，请稍候...';
+
+        try {
+            const response = await axios.post(`${API_BASE_URL}/add`, requestBody);
+            if (response.data.status === 'success' || response.data.status === 'duplicate') {
+                successMessage.textContent = response.data.status === 'duplicate'
+                    ? '⚠️ 检测到相同内容，未重复剪藏'
+                    : '✅ 剪藏添加成功！';
+                successMessage.style.background = 'rgba(16, 185, 129, 0.1)';
+                successMessage.style.color = 'var(--success)';
+                successMessage.style.borderColor = 'var(--success)';
+                clearForm();
+                fetchClips();
+            } else {
+                successMessage.textContent = '❌ ' + (response.data.message || '添加剪藏失败');
+                successMessage.style.background = 'rgba(239, 68, 68, 0.1)';
+                successMessage.style.color = 'var(--error)';
+                successMessage.style.borderColor = 'var(--error)';
+            }
+        } catch (error) {
+            console.error('添加剪藏失败:', error);
+            successMessage.textContent = '❌ 添加剪藏失败，请稍后重试';
+            successMessage.style.background = 'rgba(239, 68, 68, 0.1)';
+            successMessage.style.color = 'var(--error)';
+            successMessage.style.borderColor = 'var(--error)';
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = '添加剪藏';
+            setTimeout(() => { successMessage.style.display = 'none'; }, 3000);
+        }
     });
 });
 
@@ -244,14 +311,6 @@ async function fetchClips() {
             return !clip.type || clip.type !== 'todo' && !clip.content?.includes('前完成') && !clip.content?.includes('待办');
         });
 
-        console.log('===== 调试信息 =====');
-        console.log('获取到的剪藏数量:', clips.length);
-        console.log('过滤后的剪藏数量:', filteredClips.length);
-        if (filteredClips.length > 0) {
-            console.log('第一个剪藏分析内容:', filteredClips[0].analysis);
-            console.log('第一个剪藏分析内容类型:', typeof filteredClips[0].analysis);
-        }
-
         const clipItemsContainer = document.getElementById('clip-items');
         const clipCountElement = document.getElementById('clip-count');
 
@@ -281,6 +340,19 @@ async function fetchClips() {
                 showConfirmModal(clipId, '确定要删除这个剪藏吗？');
             });
         });
+
+        // 存在 pending 剪藏 → 2.5s 后自动轮询刷新（异步 AI 分析完成自动出现）
+        if (filteredClips.some(c => c.analysisStatus === 'pending')) {
+            if (!window.__clipPendingPollTimer) {
+                window.__clipPendingPollTimer = setTimeout(() => {
+                    window.__clipPendingPollTimer = null;
+                    fetchClips();
+                }, 2500);
+            }
+        } else if (window.__clipPendingPollTimer) {
+            clearTimeout(window.__clipPendingPollTimer);
+            window.__clipPendingPollTimer = null;
+        }
     } catch (error) {
         console.error('获取剪藏列表失败:', error);
         document.getElementById('clip-items').innerHTML = `
@@ -373,6 +445,15 @@ function createClipItem(clip, isSearch) {
                     <button class="copy-btn copy-summary-btn" data-id="${clip.id}">
                         📋 复制总结
                     </button>
+                </div>
+                ` : analysisState === 'pending' ? `
+                <div class="content-section">
+                    <h4>AI分析</h4>
+                    <div class="markdown-content" style="text-align: center; padding: 20px;">
+                        <div class="analysis-pending-spinner"></div>
+                        <p style="color: var(--text-secondary); margin-top: 10px;">AI 分析中...</p>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); opacity: 0.8;">正在提炼摘要、关键信息和标签，请稍候</p>
+                    </div>
                 </div>
                 ` : analysisState === 'failed' ? `
                 <div class="content-section">
@@ -893,6 +974,13 @@ function handleTypeChange() {
     }
 }
 
+// AI 自动生成标签时禁用手动输入
+function toggleTagInput() {
+    const tagInput = document.getElementById('tag-input');
+    const useAiTags = document.getElementById('ai-generate-tags').checked;
+    if (tagInput) tagInput.disabled = useAiTags;
+}
+
 function syncGit() {
     const syncBtn = document.getElementById('sync-btn');
     
@@ -1024,10 +1112,18 @@ function clearForm() {
     // 实现清空表单的逻辑
     document.getElementById('content').value = '';
     document.getElementById('source').value = '';
-    document.getElementById('category').value = 'work';
+    document.getElementById('category').value = '';
     document.getElementById('ai-generate-tags').checked = false;
+    document.getElementById('my-thoughts').value = '';
     currentTags = [];
     updateTagsDisplay();
+    // 清空文档/图片附件状态
+    uploadedFileBase64 = null;
+    uploadedFileName = null;
+    uploadedImages = [];
+    renderImagePreviews();
+    removeFile();
+    document.getElementById('type').dispatchEvent(new Event('change'));
 }
 
 function startVoiceInput() {
@@ -1068,12 +1164,88 @@ function backToList() {
 }
 
 function handleImageFiles(files) {
-    // 实现处理图片文件的逻辑
-    // 这里可以添加图片上传的逻辑
+    // 读取图片为 Base64 并加入附件列表（单张限制 5MB）
+    if (!files || files.length === 0) return;
+    Array.from(files).forEach(file => {
+        if (!file.type || !file.type.startsWith('image/')) {
+            showToast('仅支持图片文件: ' + file.name);
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            showToast('图片超过 5MB，已跳过: ' + file.name);
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const dataUrl = String(e.target.result);
+            const comma = dataUrl.indexOf(',');
+            uploadedImages.push({
+                base64Data: comma >= 0 ? dataUrl.substring(comma + 1) : dataUrl,
+                fileName: file.name
+            });
+            renderImagePreviews();
+        };
+        reader.onerror = () => showToast('图片读取失败: ' + file.name);
+        reader.readAsDataURL(file);
+    });
+}
+
+function renderImagePreviews() {
+    const previews = document.getElementById('image-previews');
+    const grid = document.getElementById('preview-grid');
+    if (!previews || !grid) return;
+    if (uploadedImages.length === 0) {
+        previews.style.display = 'none';
+        grid.innerHTML = '';
+        return;
+    }
+    previews.style.display = 'block';
+    grid.innerHTML = '';
+    uploadedImages.forEach((img, index) => {
+        const item = document.createElement('div');
+        item.style.cssText = 'position: relative; width: 80px; height: 80px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border);';
+        const imgEl = document.createElement('img');
+        imgEl.src = 'data:image;base64,' + img.base64Data;
+        imgEl.style.cssText = 'width: 100%; height: 100%; object-fit: cover; display: block;';
+        const close = document.createElement('button');
+        close.textContent = '\u00d7';
+        close.title = '移除图片';
+        close.style.cssText = 'position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; border: none; background: rgba(0,0,0,0.55); color: #fff; font-size: 12px; line-height: 18px; cursor: pointer; padding: 0;';
+        close.addEventListener('click', () => {
+            uploadedImages.splice(index, 1);
+            renderImagePreviews();
+        });
+        item.appendChild(imgEl);
+        item.appendChild(close);
+        grid.appendChild(item);
+    });
+}
+
+function handleFile(file) {
+    // 读取文档为 Base64（doc-ai 用），限制 20MB
+    if (!file) return;
+    if (file.size > 20 * 1024 * 1024) {
+        showToast('文件超过 20MB，请压缩后重试');
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const dataUrl = String(e.target.result);
+        const comma = dataUrl.indexOf(',');
+        uploadedFileBase64 = comma >= 0 ? dataUrl.substring(comma + 1) : dataUrl;
+        uploadedFileName = file.name;
+        document.getElementById('file-name').textContent = file.name;
+        document.getElementById('file-size').textContent = (file.size / 1024).toFixed(1) + ' KB';
+        document.getElementById('file-info').style.display = 'block';
+    };
+    reader.onerror = () => showToast('文件读取失败');
+    reader.readAsDataURL(file);
 }
 
 function removeFile() {
     // 实现移除文件的逻辑
+    uploadedFileBase64 = null;
+    uploadedFileName = null;
     document.getElementById('file-name').textContent = '';
     document.getElementById('file-size').textContent = '';
     document.getElementById('file-info').style.display = 'none';
@@ -1118,6 +1290,37 @@ document.addEventListener('DOMContentLoaded', function() {
     if (imageInput) {
         imageInput.addEventListener('change', function(e) {
             handleImageFiles(e.target.files);
+            e.target.value = ''; // 允许重复选择同一文件
+        });
+    }
+
+    // 文档输入变化事件（doc-ai）
+    const fileInput = document.getElementById('file-input');
+    if (fileInput) {
+        fileInput.addEventListener('change', function(e) {
+            if (e.target.files && e.target.files[0]) {
+                handleFile(e.target.files[0]);
+            }
+        });
+    }
+
+    // 内容框粘贴图片
+    const contentTextarea = document.getElementById('content');
+    if (contentTextarea) {
+        contentTextarea.addEventListener('paste', function(e) {
+            const items = e.clipboardData && e.clipboardData.items;
+            if (!items) return;
+            const imageFiles = [];
+            for (const item of items) {
+                if (item.type && item.type.startsWith('image/')) {
+                    const file = item.getAsFile();
+                    if (file) imageFiles.push(file);
+                }
+            }
+            if (imageFiles.length > 0) {
+                e.preventDefault();
+                handleImageFiles(imageFiles);
+            }
         });
     }
 

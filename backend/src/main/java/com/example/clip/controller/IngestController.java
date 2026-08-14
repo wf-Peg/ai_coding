@@ -200,16 +200,19 @@ public class IngestController {
         if (clip == null) {
             return ResponseEntity.status(500).body(errorResponse("剪藏保存失败", "storage_failed"));
         }
-        // 如果 AI 提取了 summary/analysis，直接设置到剪藏实体
+        // 如果 AI 提取了 summary/analysis，直接设置到剪藏实体并标记为就绪，避免重复异步分析
         if (!degraded) {
             String summary = getString(fields, "summary", null);
             String analysis = getString(fields, "analysis", null);
             if (summary != null || analysis != null) {
                 if (summary != null) clip.setSummary(summary);
                 if (analysis != null) clip.setAnalysis(analysis);
+                clip.setAnalysisStatus(com.example.clip.service.ClipService.ANALYSIS_READY);
                 clipService.saveClip(clip);
             }
         }
+        // 其余 pending 状态触发异步 AI 分析
+        clipService.triggerAsyncAnalysis(clip.getId());
         result.put("id", clip.getId());
         result.put("title", clip.getTitle());
         result.put("redirect", "/api/clip/" + clip.getId());

@@ -508,6 +508,11 @@ async function sendToBackendPromise(data) {
           showNotification('剪藏成功！', 'success');
           return { success: true };
         }
+        if (result.status === 'duplicate') {
+          // 去重命中：内容+来源 URL 与已有剪藏一致，视为成功并提示
+          showNotification('检测到相同内容，未重复剪藏', 'info');
+          return { success: true, duplicate: true, id: result.id };
+        }
 
         return {
           success: false,

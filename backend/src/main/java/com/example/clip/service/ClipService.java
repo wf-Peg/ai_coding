@@ -8,9 +8,9 @@ import com.example.clip.dto.OrganizeClipRequest;
 import com.example.clip.dto.OrganizeInboxRequest;
 import com.example.clip.model.ClipContent;
 import com.example.clip.utils.ImageUtils;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -23,6 +23,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -75,6 +77,28 @@ public class ClipService {
     /** Wiki 配置，提供 vault 路径用于读取源文件 */
     private final WikiConfig wikiConfig;
 
+    /** AI 分析状态：分析中 */
+    public static final String ANALYSIS_PENDING = "pending";
+    /** AI 分析状态：已完成 */
+    public static final String ANALYSIS_READY = "ready";
+    /** AI 分析状态：失败 */
+    public static final String ANALYSIS_FAILED = "failed";
+    /** AI 分析状态：无需分析（store-only） */
+    public static final String ANALYSIS_EMPTY = "empty";
+
+    /**
+     * 异步 AI 分析执行器（守护线程，固定 2 线程）。
+     * <p>
+     * 剪藏保存后立即返回（analysisStatus=pending），AI 分析在此线程池中异步执行，
+     * 避免同步阻塞 HTTP 请求线程（原 link-ai 最坏可阻塞 90s）。
+     * </p>
+     */
+    private final ExecutorService aiExecutor = Executors.newFixedThreadPool(2, r -> {
+        Thread t = new Thread(r, "clip-ai-worker");
+        t.setDaemon(true);
+        return t;
+    });
+
     /**
      * 构造器注入所有依赖
      *
@@ -94,6 +118,14 @@ public class ClipService {
         this.documentParseService = documentParseService;
         this.imageUtils = imageUtils;
         this.wikiConfig = wikiConfig;
+    }
+
+    /**
+     * 容器销毁时关闭异步 AI 执行器，避免线程泄漏。
+     */
+    @PreDestroy
+    public void shutdown() {
+        aiExecutor.shutdown();
     }
 
     /**
@@ -171,6 +203,7 @@ public class ClipService {
         }
 
         // 根据类型执行不同的处理逻辑
+        // AI 分析统一改为异步：先以 pending 状态入库并立即返回，后台线程执行分析后更新为 ready/failed
         switch (type != null ? type : "ai-text") {
             case "store-only":
                 // 仅存储模式：先尝试识别 AI 结构化内容，匹配则自动填充字段
@@ -179,21 +212,20 @@ public class ClipService {
                     clipContent.setSummary(content != null ? content : "");
                     clipContent.setAnalysis("");
                 }
+                clipContent.setAnalysisStatus(ANALYSIS_EMPTY);
                 break;
 
             case "link-ai":
-                // 链接 AI 模式：先爬取网页内容，再 AI 分析
+                // 链接 AI 模式：同步爬取网页内容（含总超时断路器），AI 分析异步执行
                 String originalUrl = content;
                 String crawledText = linkParseService.parseUrl(content);
                 // 存储原始 URL 和爬取到的文本
                 clipContent.setContent("来源链接: " + originalUrl + "\n\n" + crawledText);
-                // 如果用户未指定分类，则让 AI 自动分类
-                boolean useAiCategoryLink = (clipContent.getCategory() == null || clipContent.getCategory().isEmpty());
-                processWithAi(clipContent, useAiCategoryLink);
+                clipContent.setAnalysisStatus(ANALYSIS_PENDING);
                 break;
 
             case "doc-ai":
-                // 文档 AI 模式：解析文档内容 → AI 分析
+                // 文档 AI 模式：同步解析文档内容，AI 分析异步执行
                 try {
                     byte[] fileBytes = Base64.getDecoder().decode(fileData);
 
@@ -208,24 +240,23 @@ public class ClipService {
                     // 解析文档内容为纯文本
                     String parsedText = documentParseService.parseDocument(fileBytes, fileName, sourceFilePath);
                     clipContent.setContent(parsedText);
-
-                    // 如果未指定分类，使用 AI 自动分类
-                    boolean useAiCategoryDoc = (clipContent.getCategory() == null || clipContent.getCategory().isEmpty());
-                    processWithAi(clipContent, useAiCategoryDoc);
+                    clipContent.setAnalysisStatus(ANALYSIS_PENDING);
                 } catch (Exception e) {
                     logger.error("[ClipService] Document parse failed: {}", e.getMessage(), e);
                     clipContent.setSummary("[文档解析失败] " + e.getMessage());
                     clipContent.setAnalysis("");
+                    clipContent.setAnalysisStatus(ANALYSIS_FAILED);
                 }
                 break;
 
             case "ai-text":
             default:
                 // AI 文本模式（默认）：先检测是否已是 AI 结构化内容，是则跳过 AI 调用
-                if (!tryParseStructuredContent(clipContent)) {
-                    // 非结构化内容，调用 AI 分析
-                    boolean useAiCategory = (clipContent.getCategory() == null || clipContent.getCategory().isEmpty());
-                    processWithAi(clipContent, useAiCategory);
+                if (tryParseStructuredContent(clipContent)) {
+                    clipContent.setAnalysisStatus(ANALYSIS_READY);
+                } else {
+                    // 非结构化内容，异步调用 AI 分析
+                    clipContent.setAnalysisStatus(ANALYSIS_PENDING);
                 }
                 break;
         }
@@ -870,6 +901,11 @@ public class ClipService {
             clip.setCategory(value);
         }
         clip.setType("ai-text");
+        // 同步整理完成后更新分析状态（根据失败标记判定）
+        boolean failed = (clip.getSummary() != null
+                && (clip.getSummary().contains("摘要生成失败") || clip.getSummary().contains("[文档解析失败]")))
+                || (clip.getAnalysis() != null && clip.getAnalysis().contains("分析生成失败"));
+        clip.setAnalysisStatus(failed ? ANALYSIS_FAILED : ANALYSIS_READY);
     }
 
     /**
@@ -1022,32 +1058,91 @@ public class ClipService {
     }
 
     /**
-     * 异步处理剪藏内容
+     * 查找重复剪藏（内容 + 来源 URL 完全一致时视为重复）。
      * <p>
-     * 使用 {@link Async} 注解在独立线程中执行 AI 分析，
-     * 避免阻塞主请求线程。先等待 1 秒确保数据已持久化，
-     * 再读取剪藏内容进行 AI 分析后更新。
+     * 仅当 content 与 sourceUrl 均非空时参与去重；命中返回已有记录，未命中返回 null。
+     * 用于避免同一页面/同一文本被反复剪藏产生冗余数据。
+     * </p>
+     *
+     * @param request 剪藏请求
+     * @return 已存在的重复剪藏；无重复返回 null
+     */
+    public ClipContent findDuplicate(ClipRequest request) {
+        if (request == null || request.getContent() == null || request.getContent().isBlank()
+                || request.getSourceUrl() == null || request.getSourceUrl().isBlank()) {
+            return null;
+        }
+        String content = request.getContent().trim();
+        String url = request.getSourceUrl().trim();
+        for (ClipContent existing : storageService.getAllClips()) {
+            if (existing.getContent() != null && existing.getContent().trim().equals(content)
+                    && url.equalsIgnoreCase(existing.getSourceUrl() == null ? null : existing.getSourceUrl().trim())) {
+                return existing;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 触发异步 AI 分析（幂等）。
+     * <p>
+     * 由保存流程在剪藏最终落盘后调用；仅在 analysisStatus=pending 时提交到
+     * {@link #aiExecutor} 执行 {@link #processClipAsync(Long)}，避免重复提交。
      * </p>
      *
      * @param clipId 剪藏记录 ID
      */
-    @Async
+    public void triggerAsyncAnalysis(Long clipId) {
+        if (clipId == null) {
+            return;
+        }
+        ClipContent clip = storageService.getClipById(clipId.toString());
+        if (clip != null && ANALYSIS_PENDING.equals(clip.getAnalysisStatus())) {
+            aiExecutor.submit(() -> processClipAsync(clipId));
+            logger.info("[ClipService] 已提交异步 AI 分析: clipId={}", clipId);
+        }
+    }
+
+    /**
+     * 异步执行剪藏 AI 分析。
+     * <p>
+     * 在独立线程中运行：读取剪藏 → 调用 AI 生成摘要/分析/标签/分类 →
+     * 根据失败标记更新 analysisStatus（ready/failed）并持久化。
+     * 调用方保证数据已落盘（先保存再触发），无需 sleep 等待。
+     * </p>
+     *
+     * @param clipId 剪藏记录 ID
+     */
     public void processClipAsync(Long clipId) {
         try {
-            // 等待 1 秒确保主流程已持久化数据
-            Thread.sleep(1000);
             ClipContent clip = storageService.getClipById(clipId.toString());
-            if (clip != null) {
-                // 分别调用 AI 生成摘要和分析
-                String sourceText = resolveAiSourceText(clip);
-                String summary = aiService.generateSummary(sourceText);
-                String analysis = aiService.analyzeContent(sourceText);
-                clip.setSummary(summary);
-                clip.setAnalysis(analysis);
-                storageService.saveClip(clip);
+            if (clip == null) {
+                return;
             }
+            // 幂等：已就绪/失败/无需分析 的剪藏跳过
+            if (!ANALYSIS_PENDING.equals(clip.getAnalysisStatus())) {
+                return;
+            }
+            boolean useAiCategory = clip.getCategory() == null || clip.getCategory().isBlank();
+            processWithAi(clip, useAiCategory);
+            // 根据失败标记判定最终状态
+            boolean failed = (clip.getSummary() != null
+                    && (clip.getSummary().contains("摘要生成失败") || clip.getSummary().contains("[文档解析失败]")))
+                    || (clip.getAnalysis() != null && clip.getAnalysis().contains("分析生成失败"));
+            clip.setAnalysisStatus(failed ? ANALYSIS_FAILED : ANALYSIS_READY);
+            storageService.replaceClip(clip);
+            logger.info("[ClipService] 异步 AI 分析完成: clipId={}, status={}", clipId, clip.getAnalysisStatus());
         } catch (Exception e) {
             logger.error("[ClipService] processClipAsync 失败: clipId={}", clipId, e);
+            try {
+                ClipContent clip = storageService.getClipById(clipId.toString());
+                if (clip != null) {
+                    clip.setAnalysisStatus(ANALYSIS_FAILED);
+                    storageService.replaceClip(clip);
+                }
+            } catch (Exception ignored) {
+                // 状态回写失败仅记录，不抛出
+            }
         }
     }
 

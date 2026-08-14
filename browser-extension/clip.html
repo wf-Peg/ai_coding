@@ -1525,6 +1525,17 @@
             }
         }
 
+        /* AI 分析中旋转指示器 */
+        .analysis-pending-spinner {
+            width: 28px;
+            height: 28px;
+            margin: 0 auto 10px;
+            border: 3px solid var(--border-light);
+            border-top-color: var(--primary, #4a9e9e);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
         @keyframes fadeIn {
             from {
                 opacity: 0;
