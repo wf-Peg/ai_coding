@@ -321,7 +321,8 @@ public class FileStorageService {
 
     /**
      * 判断路径是否属于非剪藏数据目录/文件。
-     * 逐段匹配目录名，避免旧实现 substring 匹配的误伤（如分类名恰好含 "vault" 等）。
+     * 逐段匹配目录名，避免旧实现 substring 匹配的误伤（如分类名恰好含 "vault" 等）；
+     * 但待办目录及其历史备份（todoList、todoList_backup_*）统一按前缀排除，防止待办数据混入剪藏列表。
      */
     private boolean isExcludedPath(Path path) {
         String fileName = path.getFileName().toString();
@@ -329,7 +330,8 @@ public class FileStorageService {
             return true;
         }
         for (Path segment : path) {
-            if (EXCLUDED_DIR_NAMES.contains(segment.toString())) {
+            String name = segment.toString();
+            if (EXCLUDED_DIR_NAMES.contains(name) || name.startsWith("todoList")) {
                 return true;
             }
         }

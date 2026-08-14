@@ -3856,9 +3856,13 @@
                 clips = clips.filter(clip => resolveWorkflowStatus(clip) === workflowStatus);
             }
 
-            // 过滤掉待办事项数据：仅按类型特征判断（后端已按目录排除 todoList 等）
+            // 过滤掉待办事项数据（后端已按目录排除 todoList 等，此处为防御）
             const filteredClips = clips.filter(clip => {
-                return !clip.type || clip.type !== 'todo';
+                // 待办：type 为 todo
+                if (clip.type === 'todo') return false;
+                // 空壳记录：无正文/摘要/分析（如历史待办备份解析残留），避免显示"暂无摘要"空条目
+                if (!clip.content && !clip.summary && !clip.bodyContent && !clip.analysis) return false;
+                return true;
             });
 
             console.log('===== 调试信息 =====');
