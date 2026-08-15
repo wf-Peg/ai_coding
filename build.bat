@@ -65,8 +65,9 @@ if /I "!BUMP!"=="y" (
     set /p "VERSION=请输入新版本号（回车使用建议值 !SUGGEST_VERSION!）: "
     if "!VERSION!"=="" set "VERSION=!SUGGEST_VERSION!"
 
-    REM 用 node 校验版本号格式 x.y.z（cmd 的 echo|findstr 有尾随空格与转义坑）
-    node -e "const v=process.argv[1]; if(!/^\d+\.\d+\.\d+$/.test(v)) process.exit(1)" "!VERSION!" >nul 2>&1
+    REM 用 node 校验版本号格式 x.y.z（cmd 的 echo|findstr 有尾随空格与转义坑；
+    REM 注意 JS 里不要出现 "!"，否则会被延迟展开吞掉）
+    node -e "const v=process.argv[1]; process.exit(/^\d+\.\d+\.\d+$/.test(v)?0:1)" "!VERSION!" >nul 2>&1
     if errorlevel 1 (
         echo   [ERROR] 版本号格式无效: !VERSION!（应为 x.y.z，如 1.0.8）
         pause

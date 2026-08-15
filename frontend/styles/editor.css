@@ -1451,6 +1451,46 @@ select {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
+/* Markdown 预览 + 反链抽屉同开：左反链 / 编辑区 / 右侧预览 三列并存，
+   修复此前布局类冲突导致的编辑区行号错乱、预览挤压问题 */
+.editor-workspace.markdown-preview.show-backlinks {
+  grid-template-columns: 280px minmax(0, 1fr) minmax(0, 1fr);
+}
+.editor-workspace.markdown-preview.show-backlinks > .main-pane {
+  grid-column: 2;
+  grid-row: 1;
+}
+.editor-workspace.markdown-preview.show-backlinks > .markdown-pane {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+/* ── Markdown 预览全屏：预览独占整个工作区（覆盖所有并排布局类） ── */
+.editor-workspace.markdown-preview.markdown-fullscreen,
+.editor-workspace.markdown-preview.markdown-fullscreen.show-backlinks,
+.editor-workspace.markdown-preview.markdown-fullscreen.show-filetree,
+.editor-workspace.markdown-preview.markdown-fullscreen.show-history,
+.editor-workspace.markdown-preview.markdown-fullscreen.show-recent,
+.editor-workspace.markdown-preview.markdown-fullscreen.show-fav {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.editor-workspace.markdown-fullscreen > .main-pane,
+.editor-workspace.markdown-fullscreen > .filetree-pane,
+.editor-workspace.markdown-fullscreen > .history-pane,
+.editor-workspace.markdown-fullscreen > .recent-pane,
+.editor-workspace.markdown-fullscreen > .fav-pane,
+.editor-workspace.markdown-fullscreen > .backlinks-pane,
+.editor-workspace.markdown-fullscreen > .ai-chat-pane {
+  display: none !important;
+}
+.editor-workspace.markdown-fullscreen > .markdown-pane {
+  grid-column: 1;
+  grid-row: 1;
+  border-left: 0;
+  border-top: 0;
+}
+
 /* ── 抽屉面板隐藏机制：grid 0fr 收回 + 淡出（替代 hidden 属性，可过渡） ── */
 .filetree-pane[aria-hidden="true"],
 .history-pane[aria-hidden="true"],

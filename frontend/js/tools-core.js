@@ -66,6 +66,37 @@
   };
   const SYSTEM_TOOLS = [SYSTEM_SCREENSHOT];
 
+  // ── 主题化提示/确认（替代原生 alert/confirm，贴合全局主题、无 clip-demo 标题栏） ──
+  let toastTimer = null;
+  function showToast(msg, ms) {
+    const el = document.getElementById('thToast');
+    if (!el) { alert(msg); return; }
+    el.textContent = msg;
+    el.style.display = 'block';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.style.display = 'none'; }, ms || 3500);
+  }
+  let confirmCb = null;
+  function confirmAction(msg, onOk) {
+    const mask = document.getElementById('thConfirmMask');
+    if (!mask) { if (window.confirm(msg) && onOk) onOk(); return; }
+    document.getElementById('thConfirmText').textContent = msg;
+    mask.style.display = 'flex';
+    confirmCb = onOk;
+  }
+  function hideConfirm() {
+    const mask = document.getElementById('thConfirmMask');
+    if (mask) mask.style.display = 'none';
+    confirmCb = null;
+  }
+  if (typeof document !== 'undefined') {
+    document.addEventListener('click', (e) => {
+      if (e.target && e.target.id === 'thConfirmOk') { const cb = confirmCb; hideConfirm(); if (cb) cb(); }
+      else if (e.target && e.target.id === 'thConfirmCancel') hideConfirm();
+      else if (e.target && e.target.id === 'thConfirmMask') hideConfirm();
+    });
+  }
+
   // ── Load tools ──
   async function loadTools() {
     $('loading').style.display = 'flex';
@@ -150,7 +181,7 @@
           <button class="th-card-menu" title="更多操作">⋮</button>
         </div>`;
       card.addEventListener('click', () => {
-        if (disabled) { alert('该工具已禁用，可在卡片菜单中重新启用'); return; }
+        if (disabled) { showToast('该工具已禁用，可在卡片菜单中重新启用'); return; }
         openTool(t);
       });
       card.querySelector('.th-card-menu').addEventListener('click', ev => {
@@ -275,7 +306,7 @@
         st.textContent = '✅ 已保存并生效';
         st.style.cssText = 'color:#22c55e;font-size:12px;margin-left:8px';
         document.getElementById('sysSave').after(st);
-      } catch (e) { alert('保存失败: ' + e.message); }
+      } catch (e) { showToast('保存失败: ' + e.message, 4000); }
     });
     document.getElementById('sysOcrDir').addEventListener('click', async function () {
       if (api && api.screenshotOpenOcrModelsDir) await api.screenshotOpenOcrModelsDir();
@@ -304,8 +335,8 @@
     document.getElementById('sysCopyCmd').addEventListener('click', function () {
       const cmd = 'npm i onnxruntime-node && npx electron-builder install-app-deps && powershell -ExecutionPolicy Bypass -File electron/screenshot/download-ocr-models.ps1';
       // 主进程写剪贴板（iframe 中 navigator.clipboard 常被拒）
-      if (api && api.screenshotCopyText) { api.screenshotCopyText(cmd); alert('安装命令已复制（在项目根目录执行）'); }
-      else { try { navigator.clipboard.writeText(cmd); alert('安装命令已复制'); } catch (e) { alert(cmd); } }
+      if (api && api.screenshotCopyText) { api.screenshotCopyText(cmd); showToast('安装命令已复制（在项目根目录执行）', 4000); }
+      else { try { navigator.clipboard.writeText(cmd); showToast('安装命令已复制'); } catch (e) { showToast(cmd, 6000); } }
     });
 
     currentPromptId = null;
@@ -392,18 +423,16 @@
         body: JSON.stringify({ enabled: target })
       });
       const data = await res.json();
-      if (!res.ok) { alert(data.error || '操作失败'); return; }
+      if (!res.ok) { showToast(data.error || '操作失败', 4000); return; }
       loadTools();
     } catch (e) {
-      alert('操作失败: ' + e.message);
+      showToast('操作失败: ' + e.message, 4000);
     }
   }
 
   // ── Confirm & delete（非内置）──
   function confirmDelete(t) {
-    const action = window.confirm('删除工具「' + t.name + '」？\n该操作不可恢复。');
-    if (!action) return;
-    deleteTool(t.id);
+    confirmAction('删除工具「' + t.name + '」？\n该操作不可恢复。', function () { deleteTool(t.id); });
   }
 
   // ── Prompt modal ──
@@ -417,7 +446,7 @@
       if (copyBtn) copyBtn.style.display = '';
       $('promptModal').style.display = 'flex';
     } catch (e) {
-      alert('获取提示词失败: ' + e.message);
+      showToast('获取提示词失败: ' + e.message, 4000);
     }
   }
   $('viewPromptBtn').addEventListener('click', () => currentPromptId && viewPrompt(currentPromptId));
@@ -438,10 +467,10 @@
     try {
       const res = await fetch(API_BASE + '/api/tools/' + id, { method: 'DELETE' });
       const data = await res.json();
-      if (!res.ok) { alert(data.error || '删除失败'); return; }
+      if (!res.ok) { showToast(data.error || '删除失败', 4000); return; }
       loadTools();
     } catch (e) {
-      alert('删除失败: ' + e.message);
+      showToast('删除失败: ' + e.message, 4000);
     }
   }
 

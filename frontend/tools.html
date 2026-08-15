@@ -8,6 +8,18 @@
 <link rel="stylesheet" href="styles/tools.css">
 </head>
 <body>
+<!-- 主题化 Toast（无标题栏，贴合全局主题） -->
+<div id="thToast" style="display:none;position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;max-width:70vw;padding:10px 18px;border-radius:10px;font-size:13px;line-height:1.6;background:var(--app-surface);color:var(--app-text);border:1px solid var(--app-border);box-shadow:0 8px 28px rgba(0,0,0,0.18);white-space:pre-wrap;text-align:center;pointer-events:auto;"></div>
+<!-- 主题化确认弹窗 -->
+<div id="thConfirmMask" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9998;align-items:center;justify-content:center;">
+  <div style="background:var(--app-surface);color:var(--app-text);border:1px solid var(--app-border);border-radius:12px;padding:20px 24px;min-width:300px;max-width:420px;box-shadow:0 12px 40px rgba(0,0,0,0.3);">
+    <div id="thConfirmText" style="font-size:13.5px;line-height:1.7;margin-bottom:16px;white-space:pre-wrap;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button id="thConfirmCancel" style="padding:7px 16px;border-radius:8px;border:1px solid var(--app-border);background:transparent;color:var(--app-text);cursor:pointer;font-size:12.5px;">取消</button>
+      <button id="thConfirmOk" style="padding:7px 18px;border-radius:8px;border:none;background:var(--app-primary,#3f8cff);color:#fff;cursor:pointer;font-size:12.5px;">确认</button>
+    </div>
+  </div>
+</div>
 <div id="app">
   <!-- 头部 -->
   <header class="th-header">
