@@ -138,6 +138,8 @@ function createScreenshotWindow(bgDataUrl, display) {
   });
   screenshotWindow = win;
   win.loadFile(path.join(__dirname, 'screenshot-window.html'));
+  // 确保覆盖层获得焦点（Esc/Enter/Ctrl+S 等快捷键依赖焦点）
+  try { win.focus(); } catch (e) {}
   win.webContents.on('did-finish-load', () => {
     win.webContents.send('screenshot:init', { bg: bgDataUrl, display });
   });
@@ -311,7 +313,8 @@ function getOcrStatus() {
 // ==================== 窗口辅助 ====================
 
 function closeScreenshotWindow() {
-  if (screenshotWindow && !screenshotWindow.isDestroyed()) screenshotWindow.close();
+  // 覆盖层 closable:false，close() 无效；用 destroy() 强制关闭（兼容取消/确认/异常路径）
+  if (screenshotWindow && !screenshotWindow.isDestroyed()) screenshotWindow.destroy();
   screenshotWindow = null;
 }
 
@@ -362,6 +365,42 @@ function registerIpc() {
     return { status: 'no-main-window' };
   });
   ipcMain.on('screenshot:close-paste-windows', () => closeAllPasteWindows());
+
+  // ── 贴图窗口交互（移动/缩放/保存） ──
+  ipcMain.handle('paste:move', (e, payload) => {
+    const win = deps.BrowserWindow.fromWebContents(e.sender);
+    if (!win) return false;
+    const [x, y] = win.getPosition();
+    win.setPosition(Math.round(x + (payload.dx || 0)), Math.round(y + (payload.dy || 0)));
+    return true;
+  });
+  ipcMain.handle('paste:resize', (e, payload) => {
+    const win = deps.BrowserWindow.fromWebContents(e.sender);
+    if (!win) return false;
+    if (!win.__pasteBaseSize) win.__pasteBaseSize = win.getSize();
+    const scale = payload.scale || 1;
+    win.setSize(
+      Math.max(40, Math.round(win.__pasteBaseSize[0] * scale)),
+      Math.max(40, Math.round(win.__pasteBaseSize[1] * scale))
+    );
+    return true;
+  });
+  ipcMain.handle('paste:save', async (e, payload) => {
+    if (!payload || !payload.dataUrl) return { status: 'error' };
+    const img = deps.nativeImage.createFromDataURL(payload.dataUrl);
+    if (img.isEmpty()) return { status: 'error', message: '无图片数据' };
+    return saveImage(img);
+  });
+
+  // ── OCR 模型目录（工具卡片配置面板用） ──
+  ipcMain.handle('screenshot:open-ocr-models-dir', () => {
+    try {
+      const dir = path.join(__dirname, 'ocr-models');
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      deps.shell.openPath(dir);
+      return { status: 'ok', dir };
+    } catch (e) { return { status: 'error', message: e.message }; }
+  });
 }
 
 /**

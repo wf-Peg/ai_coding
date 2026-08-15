@@ -194,6 +194,48 @@ public class PromptLibraryController {
         }
     }
 
+    /**
+     * AI 辅助生成 / 改写提示词。
+     * <p>body: {mode: "generate"|"rewrite", description?, existingText?}，返回解析后的模板结构 {name, langgpt, sections, content}。</p>
+     */
+    @PostMapping("/ai-assist")
+    public ResponseEntity<?> aiAssist(@RequestBody Map<String, Object> body) {
+        try {
+            Map<String, Object> parsed = promptLibraryService.aiAssist(
+                    str(body.get("mode")),
+                    str(body.get("description")),
+                    str(body.get("existingText")));
+            return ResponseEntity.ok(parsed);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            logger.error("[PromptLibrary] AI 生成/改写失败: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(Map.of("error", "AI 生成失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 批量从 GitHub raw URL 抓取导入 LangGPT 提示词。
+     * <p>body: {urls: [...], category?}，逐个抓取解析入库，返回统计。</p>
+     */
+    @PostMapping("/import-batch")
+    public ResponseEntity<?> importBatch(@RequestBody Map<String, Object> body) {
+        try {
+            Object raw = body.get("urls");
+            if (!(raw instanceof List) || ((List<?>) raw).isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "urls 不能为空"));
+            }
+            List<String> urls = strList(raw);
+            Map<String, Object> result = promptLibraryService.importBatch(urls, str(body.get("category")));
+            return ResponseEntity.ok(result);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            logger.error("[PromptLibrary] 批量导入失败: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(Map.of("error", "批量导入失败: " + e.getMessage()));
+        }
+    }
+
     // ==================== 辅助 ====================
 
     private String str(Object o) {

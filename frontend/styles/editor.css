@@ -364,7 +364,8 @@ select {
 .editor-workspace > .filetree-pane,
 .editor-workspace > .history-pane,
 .editor-workspace > .recent-pane,
-.editor-workspace > .fav-pane {
+.editor-workspace > .fav-pane,
+.editor-workspace > .backlinks-pane {
   grid-column: 1;
   grid-row: 1;
   /* 左侧面板：阴影在右侧，与右侧面板拉开层次 */

@@ -1,0 +1,85 @@
+{
+  "version": "2.0",
+  "requirement": {
+    "title": "工具模块全局主题与后端就绪刷新",
+    "summary": "工具模块（Tools Hub）支持全局界面主题（notion/regular/dark，含滚动条样式），工具内页面主题跟随全局；确认并接通主框架的后端启动广播，实现工具列表与运行中工具的即时刷新",
+    "tags": ["product-dev", "tools", "theme", "frontend"],
+    "phase": "completed",
+    "createdAt": "2026-08-15T22:00:00",
+    "completedAt": "2026-08-15T23:33:10"
+  },
+  "featurePoints": [
+    {
+      "id": "fp-001",
+      "name": "工具模块主题化滚动条与深色细化",
+      "description": "tools.css 新增全局滚动条样式（WebKit 8px 圆角 + Firefox scrollbar-width/scrollbar-color），全部基于 design-tokens 的 --app-* 变量，自动适配 notion/regular/dark 三主题；补充深色下滚动条 thumb 细化与 .th-modal-mask 遮罩透明度优化。",
+      "layer": "frontend",
+      "tags": ["product-dev", "tools", "theme", "css"],
+      "designSections": ["二、技术方案", "2.1 滚动条主题化"],
+      "tasks": [
+        { "title": "新增 WebKit/Firefox 滚动条样式，引用 --app-border-strong/--app-text-muted 令牌", "status": "done" },
+        { "title": "深色主题滚动条 thumb/hover 细化与 .th-modal-mask 遮罩优化", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "notion/regular/dark 三种主题下滚动条配色随 design-tokens 自动变化", "status": "done" },
+        { "title": "Firefox scrollbar-color 跟随主题（亮/暗各有值）", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-002",
+      "name": "工具模块主题同步与工具内主题跟随",
+      "description": "tools-core.js 主题解析升级为与主框架一致的 resolveTheme（notion/regular/dark/system），新增 forwardThemeToTool 将当前主题经 postMessage({action:'themeChange'}) 转发给运行中的工具 iframe，openTool 在 onload 补发；后端 ToolRegistryService.getToolPage 返回前向工具页面注入「全局主题桥」脚本（插在 </body> 前，带去重标记），以 html[data-theme=...] 高优先级覆盖工具页面 CSS 变量（含滚动条配色），即使系统深色偏好与全局主题冲突也以全局主题为准。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "tools", "theme", "bridge"],
+      "designSections": ["二、技术方案", "2.2 嵌套 iframe 主题传递", "2.3 服务端主题桥注入"],
+      "tasks": [
+        { "title": "tools-core.js resolveTheme/applyTheme 升级，支持 notion/regular/dark/system", "status": "done" },
+        { "title": "openTool 设置 onload 补发主题，forwardThemeToTool 转发到工具 iframe", "status": "done" },
+        { "title": "ToolRegistryService 注入 THEME_BRIDGE_SCRIPT（</body> 前，无则回退 </html>/追加，含 __cut_shelter_theme 去重标记）", "status": "done" },
+        { "title": "主题桥内置三套调色板（notion/regular/dark）与滚动条 CSS", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "打开工具后工具内主题与全局一致", "status": "done" },
+        { "title": "运行中切换全局主题，工具内即时跟随", "status": "done" },
+        { "title": "系统深色偏好与全局主题（如 notion 亮色）冲突时以全局主题为准", "status": "done" },
+        { "title": "已带主题桥的页面不重复注入", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-003",
+      "name": "后端就绪广播即时刷新",
+      "description": "确认主框架 index.html 本就向 toolsFrame 广播 {action:'refresh'}（refreshAllSubPages + 时序竞态兜底补发）与 {action:'backendState'}（手动启动路径），但 tools-core.js 此前完全未监听。新增统一消息处理：refresh 或 backendState:ready 触发 onBackendReadyRefresh（1 秒去重），刷新工具列表并重载正在运行的工具页面，使依赖后端服务的工具（图片转换、CSV↔JSON 等）恢复可用。",
+      "layer": "frontend",
+      "tags": ["product-dev", "tools", "backend-ready", "refresh"],
+      "designSections": ["二、技术方案", "2.4 后端就绪广播链路"],
+      "tasks": [
+        { "title": "监听 {action:'refresh'} 触发 onBackendReadyRefresh", "status": "done" },
+        { "title": "监听 {action:'backendState', state:'ready'} 触发同样刷新（覆盖手动启动路径）", "status": "done" },
+        { "title": "refreshOpenTool 重载运行中工具页面并补发主题", "status": "done" },
+        { "title": "1 秒去重，避免 refresh 与 backendState 同时到达重复刷新", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "后端启动/就绪后工具列表自动重载", "status": "done" },
+        { "title": "正在运行的工具页面自动重连后端恢复可用", "status": "done" },
+        { "title": "refresh 与 backendState:ready 同时到达时不重复刷新", "status": "done" }
+      ]
+    }
+  ],
+  "knowledgePoints": [
+    {
+      "title": "主框架→iframe 三类广播的语义与触发时机",
+      "content": "index.html 向所有子 iframe（含 toolsFrame）广播三类 postMessage：themeChange（applyTheme/broadcastThemeChange 或 storage 事件）、refresh（handleBackendReady→refreshAllSubPages，含 5 秒去重与 iframe 加载竞态兜底补发）、backendState（setGlobalBackendState→notifyAllFrames，手动点击标题栏启动后端时只发这一条）。子模块需分别监听 refresh 与 backendState:ready 才能覆盖自动/手动两条启动路径。",
+      "tags": ["product-dev", "architecture", "broadcast"]
+    },
+    {
+      "title": "服务端注入主题桥解决工具页面副本无版本机制",
+      "content": "内置工具页面只在首次启动缺失时从 classpath 复制到 ~/.cut-shelter/tools/，无版本覆盖机制，直接改资源文件对存量安装无效。改为在 ToolRegistryService.getToolPage 返回前注入脚本（插 </body> 前，回退 </html>/追加，含标记去重），对内置/存量副本/导入工具一律生效；桥脚本监听父框架 themeChange 并以 html[data-theme=...]（特异性高于 :root 媒体查询）覆盖工具页面 CSS 变量。",
+      "tags": ["product-dev", "backend", "injection"]
+    },
+    {
+      "title": "嵌套 iframe 的主题传递链路",
+      "content": "主框架只广播到一层 iframe（toolsFrame），工具运行在 tools.html 内的二级 iframe（toolFrame）中，需要工具模块转发：applyTheme 后 forwardThemeToTool，openTool 在 onload 补发保证打开即同步；转发用 postMessage('*') 天然支持跨域（工具页由后端 8081 提供，与前端不同源）。",
+      "tags": ["product-dev", "frontend", "iframe"]
+    }
+  ]
+}

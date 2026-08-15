@@ -173,33 +173,126 @@
     $('overlay').classList.add('show');
   }
 
-  // 系统工具说明弹窗（截图工具：快捷键/OCR 状态/跳设置页）
+  // 系统工具配置面板（截图工具：快捷键/OCR 下载/高级开关，可交互）
+  let recordingSysKey = null; // 'shot' | 'paste' | null
+
   async function openSystemTool(t) {
     const api = (window.parent && window.parent.electronAPI) || window.electronAPI;
-    let shot = 'F1', paste = 'F2', ocrText = 'OCR：查询中...';
+    let shot = 'F1', paste = 'F2', hideMain = true, ocrText = '查询中...';
     if (api && api.screenshotGetShortcuts) {
-      try { const c = await api.screenshotGetShortcuts(); shot = c.screenshot || 'F1'; paste = c.paste || 'F2'; } catch (e) {}
+      try {
+        const cfg = await api.screenshotGetShortcuts();
+        shot = cfg.screenshot || 'F1'; paste = cfg.paste || 'F2';
+        hideMain = cfg.hideMain !== false;
+      } catch (e) {}
     }
     if (api && api.screenshotOcrStatus) {
-      try { const s = await api.screenshotOcrStatus(); ocrText = s.available ? '✅ 离线 OCR 可用' : ('⚠️ ' + (s.reason || 'OCR 未就绪')); } catch (e) {}
+      try {
+        const s = await api.screenshotOcrStatus();
+        ocrText = s.available ? '✅ 离线 OCR 可用' : ('⚠️ ' + (s.reason || 'OCR 未就绪'));
+      } catch (e) { ocrText = '⚠️ 查询 OCR 状态失败'; }
     }
+    const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     $('promptContent').innerHTML =
-      '<div style="font-size:13px;line-height:1.9">' +
-      '<p style="margin-bottom:8px"><b>📸 截图工具</b>（Snipaste 风格）</p>' +
-      '<p>🖥 <b>' + escapeHtml(shot) + '</b> — 全屏选区截图，确认后复制 / 保存 / OCR / 贴图</p>' +
-      '<p>📌 <b>' + escapeHtml(paste) + '</b> — 将剪贴板图片（或最近截图）置顶钉住，可拖动、双击关闭</p>' +
-      '<p>🔤 ' + ocrText + '</p>' +
-      '<p style="margin-top:8px;color:var(--app-text-secondary)">快捷键可在「设置 → 截图工具」中修改；OCR 模型见 electron/screenshot/download-ocr-models.ps1。</p>' +
+      '<div style="font-size:13px;line-height:2">' +
+      '<p style="margin-bottom:6px"><b>📸 截图工具</b> 配置（Snipaste 风格，即时生效）</p>' +
+      '<div style="display:flex;align-items:center;gap:10px;margin:4px 0">' +
+        '<span style="width:96px">截图快捷键</span>' +
+        '<input id="sysShotKey" type="text" readonly value="' + esc(shot) + '" ' +
+          'style="width:140px;text-align:center;padding:5px 8px;border:1px solid var(--app-border);border-radius:6px;background:var(--app-surface);color:var(--app-text);cursor:pointer">' +
+        '<span style="color:var(--app-text-muted);font-size:11px">F1 全屏选区</span>' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:10px;margin:4px 0">' +
+        '<span style="width:96px">贴图快捷键</span>' +
+        '<input id="sysPasteKey" type="text" readonly value="' + esc(paste) + '" ' +
+          'style="width:140px;text-align:center;padding:5px 8px;border:1px solid var(--app-border);border-radius:6px;background:var(--app-surface);color:var(--app-text);cursor:pointer">' +
+        '<span style="color:var(--app-text-muted);font-size:11px">F2 置顶贴图</span>' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:10px;margin:4px 0">' +
+        '<span style="width:96px">收起主窗口</span>' +
+        '<input id="sysHideMain" type="checkbox" ' + (hideMain ? 'checked' : '') + '>' +
+        '<span style="color:var(--app-text-muted);font-size:11px">截图时自动收起应用窗口</span>' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:10px;margin:4px 0">' +
+        '<span style="width:96px">OCR 组件</span>' +
+        '<span id="sysOcrStatus" style="font-size:12px">' + ocrText + '</span>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;margin:8px 0 4px">' +
+        '<button id="sysSave" style="background:#3f8cff;color:#fff;border:none;border-radius:6px;padding:7px 18px;cursor:pointer;font-size:12.5px">保存配置</button>' +
+        '<button id="sysOcrDir" style="background:transparent;color:var(--app-text);border:1px solid var(--app-border);border-radius:6px;padding:7px 12px;cursor:pointer;font-size:12.5px">打开模型目录</button>' +
+        '<button id="sysCopyCmd" style="background:transparent;color:var(--app-text);border:1px solid var(--app-border);border-radius:6px;padding:7px 12px;cursor:pointer;font-size:12.5px">复制安装命令</button>' +
+      '</div>' +
+      '<p style="color:var(--app-text-muted);font-size:11px;margin-top:6px">标注 / GIF 录制 / 长截图将在后续版本提供。</p>' +
       '</div>';
+
+    // 快捷键录制：点击输入框进入录制，window keydown 捕获
+    document.getElementById('sysShotKey').addEventListener('click', function () { window.__recordSysKey('shot'); });
+    document.getElementById('sysPasteKey').addEventListener('click', function () { window.__recordSysKey('paste'); });
+    window.__recordSysKey = function (which) {
+      recordingSysKey = which;
+      const input = document.getElementById(which === 'paste' ? 'sysPasteKey' : 'sysShotKey');
+      if (!input) return;
+      input.value = '按下快捷键...';
+      input.style.borderColor = '#3f8cff';
+    };
+    const keyHandler = function (e) {
+      if (!recordingSysKey) return;
+      e.preventDefault(); e.stopPropagation();
+      const parts = [];
+      if (e.ctrlKey || e.metaKey) parts.push('Ctrl');
+      if (e.altKey) parts.push('Alt');
+      if (e.shiftKey) parts.push('Shift');
+      const key = e.key;
+      if (key === 'Control' || key === 'Alt' || key === 'Shift' || key === 'Meta' || key === 'Escape') return;
+      if (parts.length === 0) parts.push('Ctrl');
+      parts.push(key.length === 1 ? key.toUpperCase() : key);
+      const input = document.getElementById(recordingSysKey === 'paste' ? 'sysPasteKey' : 'sysShotKey');
+      if (input) { input.value = parts.join('+'); input.style.borderColor = ''; }
+      recordingSysKey = null;
+    };
+    window.__sysKeyHandler = keyHandler;
+    window.addEventListener('keydown', keyHandler);
+
+    document.getElementById('sysSave').addEventListener('click', async function () {
+      const payload = {
+        screenshot: (document.getElementById('sysShotKey').value.trim() || 'F1'),
+        paste: (document.getElementById('sysPasteKey').value.trim() || 'F2'),
+        hideMain: document.getElementById('sysHideMain').checked
+      };
+      try {
+        if (api && api.screenshotSetShortcuts) await api.screenshotSetShortcuts(payload);
+        const st = document.createElement('span');
+        st.textContent = '✅ 已保存并生效';
+        st.style.cssText = 'color:#22c55e;font-size:12px;margin-left:8px';
+        document.getElementById('sysSave').after(st);
+      } catch (e) { alert('保存失败: ' + e.message); }
+    });
+    document.getElementById('sysOcrDir').addEventListener('click', async function () {
+      if (api && api.screenshotOpenOcrModelsDir) await api.screenshotOpenOcrModelsDir();
+    });
+    document.getElementById('sysCopyCmd').addEventListener('click', function () {
+      const cmd = 'npm i onnxruntime-node && npx electron-builder install-app-deps && powershell -ExecutionPolicy Bypass -File electron/screenshot/download-ocr-models.ps1';
+      try { navigator.clipboard.writeText(cmd); alert('安装命令已复制（在项目根目录执行）'); }
+      catch (e) { alert(cmd); }
+    });
+
     currentPromptId = null;
     $('promptModal').style.display = 'flex';
-    // 隐藏复制提示词按钮（系统工具无 prompt）
     const copyBtn = $('copyPromptBtn');
     if (copyBtn) copyBtn.style.display = 'none';
+    // 面板关闭时清理录制监听
+    const closeBtn = $('promptClose');
+    if (closeBtn) {
+      const orig = closeBtn.onclick;
+      closeBtn.onclick = function (ev) {
+        recordingSysKey = null;
+        if (window.__sysKeyHandler) window.removeEventListener('keydown', window.__sysKeyHandler);
+        if (orig) orig.call(closeBtn, ev); else $('promptModal').style.display = 'none';
+      };
+    }
   }
-  $('overlayCloseBtn').addEventListener('click', () => { $('overlay').classList.remove('show'); $('toolFrame').src = ''; });
 
-  // ── Card menu (dropdown: prompt / enable-disable / delete) ──
+// ── Card menu (dropdown: prompt / enable-disable / delete) ──
   let menuEl = null;
   function openMenu(t, card) {
     closeMenu();

@@ -132,6 +132,14 @@ textarea.code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,mono
 .lgpt-tab:hover{color:var(--text)}
 .lgpt-tab.active{background:var(--primary);border-color:var(--primary);color:#fff}
 .seg-field textarea{min-height:120px}
+
+/* 官方模板库批量导入 */
+.bc-item{display:flex;align-items:center;gap:10px;background:var(--surface-subtle);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;cursor:pointer;transition:all .18s ease}
+.bc-item:hover{border-color:var(--border-strong);background:var(--surface-hover)}
+.bc-item.checked{border-color:var(--primary);background:var(--primary-soft)}
+.bc-item input{width:16px;height:16px;accent-color:var(--primary);flex-shrink:0;cursor:pointer}
+.bc-item .bc-name{font-size:.88rem;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bc-item .bc-badge{font-size:.68rem;color:var(--primary);background:var(--primary-soft);padding:2px 8px;border-radius:999px;flex-shrink:0}
 </style>
 </head>
 <body>
@@ -142,6 +150,8 @@ textarea.code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,mono
       <p>收藏 / 分类 / 复用提示词模板，可应用到系统槽位，支持 LangGPT 结构化编辑</p>
     </div>
     <div class="header-actions">
+      <button class="btn btn-ghost" id="aiBtn">✨ AI 生成/改写</button>
+      <button class="btn btn-ghost" id="batchBtn">⤵ 官方模板库</button>
       <button class="btn btn-ghost" id="importBtn">⇪ 导入 LangGPT</button>
       <button class="btn btn-primary" id="newBtn">+ 新建模板</button>
     </div>
@@ -275,6 +285,67 @@ textarea.code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,mono
       <span class="form-msg" id="importMsg"></span>
       <button class="btn btn-ghost" id="importCancel">取消</button>
       <button class="btn btn-primary" id="importSave">导入</button>
+    </div>
+  </div>
+</div>
+
+<!-- AI 生成/改写弹窗 -->
+<div class="mask" id="aiModal">
+  <div class="modal wide">
+    <div class="modal-header">
+      <h3>✨ AI 生成 / 改写提示词</h3>
+      <button class="modal-close" id="aiClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="lgpt-tabs" id="aiModeTabs">
+        <button class="lgpt-tab active" data-mode="generate">生成新提示词</button>
+        <button class="lgpt-tab" data-mode="rewrite">改写已有提示词</button>
+      </div>
+      <div class="field" id="aiDescWrap">
+        <label id="aiDescLabel">描述你想让提示词扮演的角色或用途</label>
+        <textarea class="input code" id="aiDesc" placeholder="例如：一位严谨的产品经理，负责需求分析与文档撰写…" style="min-height:120px"></textarea>
+        <div class="hint">描述越具体，生成的 LangGPT 结构化提示词越贴合需求</div>
+      </div>
+      <div class="field" id="aiExistingWrap" style="display:none">
+        <label>粘贴需要改写的提示词</label>
+        <textarea class="input code" id="aiExisting" placeholder="粘贴你的提示词正文…" style="min-height:120px"></textarea>
+        <div class="hint">AI 将改写为更规范的 LangGPT 结构化提示词</div>
+      </div>
+      <div class="field" id="aiResultWrap" style="display:none">
+        <label>生成结果</label>
+        <div class="detail-content" id="aiResult" style="max-height:30vh"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <span class="form-msg" id="aiMsg"></span>
+      <button class="btn btn-ghost" id="aiSave" style="display:none">保存为新模板</button>
+      <button class="btn btn-ghost" id="aiCancel">取消</button>
+      <button class="btn btn-primary" id="aiRun">✨ 生成</button>
+    </div>
+  </div>
+</div>
+
+<!-- 官方模板库批量导入弹窗 -->
+<div class="mask" id="batchModal">
+  <div class="modal wide">
+    <div class="modal-header">
+      <h3>⤵ 官方模板库</h3>
+      <button class="modal-close" id="batchClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px">
+        <div class="hint" id="batchHint" style="margin:0">勾选后导入为「LangGPT 模板库」分类模板，可与内置系统提示词区分</div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn btn-ghost-sm" id="batchAll">全选</button>
+          <button class="btn btn-ghost-sm" id="batchNone">清空</button>
+        </div>
+      </div>
+      <div id="batchList" style="display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow-y:auto"></div>
+    </div>
+    <div class="modal-footer">
+      <span class="form-msg" id="batchMsg"></span>
+      <button class="btn btn-ghost" id="batchCancel">取消</button>
+      <button class="btn btn-primary" id="batchImport">导入所选 (0)</button>
     </div>
   </div>
 </div>
@@ -717,6 +788,66 @@ textarea.code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,mono
     finally { btn.disabled = false; btn.textContent = '导入'; }
   });
 
+  // ── AI 生成/改写 ──
+  let aiMode = 'generate';
+  let aiResult = null;   // 缓存生成结果 {name, content, sections, langgpt}
+
+  function aiSetMode(mode) {
+    aiMode = mode;
+    $('aiDescWrap').style.display = mode === 'generate' ? 'block' : 'none';
+    $('aiExistingWrap').style.display = mode === 'rewrite' ? 'block' : 'none';
+    $('aiResultWrap').style.display = 'none';
+    $('aiSave').style.display = 'none';
+    $('aiMsg').textContent = '';
+    document.querySelectorAll('#aiModeTabs .lgpt-tab').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  }
+  $('aiBtn').addEventListener('click', () => { aiSetMode('generate'); $('aiModal').classList.add('show'); });
+  $('aiClose').addEventListener('click', () => $('aiModal').classList.remove('show'));
+  $('aiCancel').addEventListener('click', () => $('aiModal').classList.remove('show'));
+  document.querySelectorAll('#aiModeTabs .lgpt-tab').forEach(b => b.addEventListener('click', () => aiSetMode(b.dataset.mode)));
+
+  $('aiRun').addEventListener('click', async () => {
+    const text = (aiMode === 'generate' ? $('aiDesc').value : $('aiExisting').value).trim();
+    if (!text) { $('aiMsg').textContent = aiMode === 'generate' ? '请描述角色或用途' : '请粘贴需要改写的提示词'; return; }
+    const btn = $('aiRun');
+    btn.disabled = true; btn.textContent = 'AI 思考中…';
+    $('aiMsg').style.color = 'var(--text-secondary)';
+    $('aiMsg').textContent = aiMode === 'generate' ? '正在生成 LangGPT 结构化提示词…' : '正在改写为 LangGPT 结构化提示词…';
+    try {
+      const res = await fetch(API_BASE + '/api/prompt-library/ai-assist', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(aiMode === 'generate'
+          ? { mode: 'generate', description: text }
+          : { mode: 'rewrite', existingText: text })
+      });
+      const d = await res.json();
+      if (!res.ok) { $('aiMsg').style.color = 'var(--danger)'; $('aiMsg').textContent = d.error || 'AI 生成失败'; return; }
+      aiResult = d;
+      $('aiResult').textContent = d.content || '';
+      $('aiResultWrap').style.display = 'block';
+      $('aiSave').style.display = 'inline-flex';
+      $('aiMsg').style.color = 'var(--success)';
+      $('aiMsg').textContent = '生成完成 ✓ 可保存为新模板';
+    } catch (e) { $('aiMsg').style.color = 'var(--danger)'; $('aiMsg').textContent = 'AI 生成失败: ' + e.message; }
+    finally { btn.disabled = false; btn.textContent = '✨ 生成'; }
+  });
+
+  $('aiSave').addEventListener('click', () => {
+    if (!aiResult) return;
+    // 预填编辑弹窗为新建模板
+    openEdit(null);
+    $('fName').value = aiResult.name || 'AI 生成提示词';
+    $('fLangGpt').checked = !!aiResult.langgpt;
+    const sections = aiResult.sections || {};
+    currentLgptKey = 'Role';
+    renderLgptTabs(sections);
+    renderLgptField(sections);
+    $('fContent').value = aiResult.langgpt ? '' : (aiResult.content || '');
+    syncLgptMode();
+    $('aiModal').classList.remove('show');
+    toast('已填入编辑弹窗，可继续调整后保存');
+  });
+
   // ── 新建 ──
   $('newBtn').addEventListener('click', () => openEdit(null));
 
@@ -742,6 +873,85 @@ textarea.code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,mono
     clearTimeout(toastEl._t);
     toastEl._t = setTimeout(() => { toastEl.style.opacity = '0'; toastEl.style.transform = 'translateX(-50%)'; }, 1800);
   }
+
+  // ── 官方模板库批量导入 ──
+  // LangGPT 官方仓库 Prompts/ 目录的 11 个原始地址（raw.githubusercontent）
+  const OFFICIAL_PROMPTS = [
+    { name: '巴菲特AI分身', url: 'https://raw.githubusercontent.com/langgptai/LangGPT/main/Prompts/巴菲特AI分身.md' },
+    { name: '马斯克AI分身', url: 'https://raw.githubusercontent.com/langgptai/LangGPT/main/Prompts/马斯克AI分身.md' },
+    { name: '梵高AI分身', url: 'https://raw.githubusercontent.com/langgptai/LangGPT/main/Prompts/梵高AI分身.md' },
+    { name: '段永平AI分身', url: 'https://raw.githubusercontent.com/langgptai/LangGPT/main/Prompts/段永平AI分身.md' },
+    { name: '曾国藩人心学顾问', url: 'https://raw.githubusercontent.com/langgptai/LangGPT/main/Prompts/曾国藩人心学顾问.md' },
+    { name: '权力结构诊断', url: 'https://raw.githubusercontent.com/langgptai/LangGPT/main/Prompts/权力结构诊断.md' },
+    { name: '手相大师-玄师', url: 'https://raw.githubusercontent.com/langgptai/LangGPT/main/Prompts/手相大师-玄师.md' },
+    { name: '小红书爆款规律——流量黑客', url: 'https://raw.githubusercontent.com/langgptai/LangGPT/main/Prompts/小红书爆款规律——流量黑客.md' },
+    { name: '小红书爆款账号定位架构师', url: 'https://raw.githubusercontent.com/langgptai/LangGPT/main/Prompts/小红书爆款账号定位架构师.md' },
+    { name: '小红书风控和增长官', url: 'https://raw.githubusercontent.com/langgptai/LangGPT/main/Prompts/小红书风控和增长官.md' },
+    { name: '天涯大神KK回魂自由版', url: 'https://raw.githubusercontent.com/langgptai/LangGPT/main/Prompts/天涯大神KK回魂自由版.md' }
+  ];
+  let batchSelected = new Set();
+
+  function renderBatchList() {
+    const list = $('batchList');
+    list.innerHTML = '';
+    OFFICIAL_PROMPTS.forEach(p => {
+      const item = document.createElement('label');
+      item.className = 'bc-item' + (batchSelected.has(p.name) ? ' checked' : '');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = batchSelected.has(p.name);
+      cb.addEventListener('change', () => {
+        if (cb.checked) batchSelected.add(p.name); else batchSelected.delete(p.name);
+        item.classList.toggle('checked', cb.checked);
+        updateBatchCount();
+      });
+      const name = document.createElement('span');
+      name.className = 'bc-name';
+      name.textContent = p.name;
+      const badge = document.createElement('span');
+      badge.className = 'bc-badge';
+      badge.textContent = 'LangGPT';
+      item.appendChild(cb); item.appendChild(name); item.appendChild(badge);
+      list.appendChild(item);
+    });
+  }
+
+  function updateBatchCount() {
+    $('batchImport').textContent = '导入所选 (' + batchSelected.size + ')';
+  }
+
+  $('batchBtn').addEventListener('click', () => {
+    batchSelected = new Set(OFFICIAL_PROMPTS.map(p => p.name));
+    renderBatchList();
+    updateBatchCount();
+    $('batchMsg').textContent = '';
+    $('batchModal').classList.add('show');
+  });
+  $('batchClose').addEventListener('click', () => $('batchModal').classList.remove('show'));
+  $('batchCancel').addEventListener('click', () => $('batchModal').classList.remove('show'));
+  $('batchAll').addEventListener('click', () => { batchSelected = new Set(OFFICIAL_PROMPTS.map(p => p.name)); renderBatchList(); updateBatchCount(); });
+  $('batchNone').addEventListener('click', () => { batchSelected = new Set(); renderBatchList(); updateBatchCount(); });
+
+  $('batchImport').addEventListener('click', async () => {
+    const urls = OFFICIAL_PROMPTS.filter(p => batchSelected.has(p.name)).map(p => p.url);
+    if (!urls.length) { $('batchMsg').textContent = '请至少勾选一个模板'; return; }
+    const btn = $('batchImport');
+    btn.disabled = true; btn.textContent = '导入中…';
+    $('batchMsg').style.color = 'var(--text-secondary)';
+    $('batchMsg').textContent = '正在批量抓取导入，请稍候…';
+    try {
+      const res = await fetch(API_BASE + '/api/prompt-library/import-batch', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls, category: 'LangGPT 模板库' })
+      });
+      const d = await res.json();
+      if (!res.ok) { $('batchMsg').style.color = 'var(--danger)'; $('batchMsg').textContent = d.error || '批量导入失败'; return; }
+      $('batchMsg').style.color = 'var(--success)';
+      $('batchMsg').textContent = '成功 ' + d.imported + ' 个，失败 ' + d.failed + ' 个';
+      load();
+    } catch (e) { $('batchMsg').style.color = 'var(--danger)'; $('batchMsg').textContent = '批量导入失败: ' + e.message; }
+    finally { btn.disabled = false; btn.textContent = '导入所选 (' + batchSelected.size + ')'; }
+  });
 
   load();
 })();

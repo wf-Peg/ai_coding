@@ -2781,6 +2781,24 @@
   document.getElementById('closeCompareBtn').addEventListener('click', () => toggleCompare(false));
   document.getElementById('markdownBtn').addEventListener('click', () => toggleMarkdownPreview());
   elements.closeMarkdownBtn.addEventListener('click', () => toggleMarkdownPreview(false));
+  document.getElementById('terminalBtn').addEventListener('click', openTerminalInDir);
+
+  // 在系统终端中打开当前文件所在目录（无则回退知识库根目录）
+  function openTerminalInDir() {
+    const api = getElectronAPI();
+    if (!api || typeof api.openTerminal !== 'function') {
+      showToast('当前环境不支持打开系统终端');
+      return;
+    }
+    api.openTerminal({ fileToken: state.fileToken })
+      .then(function(res) {
+        if (res && res.success) showToast('已在 ' + res.cwd + ' 打开终端');
+        else showToast((res && res.message) || '打开终端失败');
+      })
+      .catch(function(err) {
+        showToast('打开终端失败：' + (err && err.message ? err.message : err));
+      });
+  }
 
   // ── 图文一体（M3）：图片插入（按钮/粘贴/拖拽 → 压缩 → 上传 → 光标处插入）──
   const editorImageInput = document.getElementById('editorImageInput');
@@ -3241,6 +3259,14 @@
   document.addEventListener('keydown', function(e) {
     if ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R')) {
       e.preventDefault();
+    }
+  });
+
+  // Alt+T 在系统终端中打开当前文件所在目录
+  document.addEventListener('keydown', function(e) {
+    if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.key === 't' || e.key === 'T')) {
+      e.preventDefault();
+      openTerminalInDir();
     }
   });
 
@@ -5199,6 +5225,26 @@
       langTools.addCompleter(completer);
     } else if (mainEditor.completers) {
       mainEditor.completers.push(completer);
+    }
+
+    // 输入 `[[` 后主动触发补全，避免依赖 live completion 的“单词字符”触发规则
+    // （ACE 默认只在输入字母/中文等 word 字符时弹窗，两个 `[` 不触发）
+    if (mainEditor.session && !mainEditor.__wikilinkTriggerBound) {
+      var lastTriggerTime = 0;
+      mainEditor.session.on('change', function() {
+        var pos = mainEditor.getCursorPosition();
+        var line = mainEditor.session.getLine(pos.row).slice(0, pos.column);
+        // 光标紧跟在 `[[` 之后（可带部分已输入字符）
+        var m = line.match(/\[\[([^\[\]]*)$/);
+        if (!m) return;
+        var now = Date.now();
+        if (now - lastTriggerTime < 300) return; // 限流，避免反复弹窗
+        lastTriggerTime = now;
+        setTimeout(function() {
+          try { mainEditor.execCommand('startAutocomplete'); } catch (e) { /* 忽略 */ }
+        }, 0);
+      });
+      mainEditor.__wikilinkTriggerBound = true;
     }
   }
 

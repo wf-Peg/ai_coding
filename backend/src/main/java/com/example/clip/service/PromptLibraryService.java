@@ -2,6 +2,7 @@ package com.example.clip.service;
 
 import com.example.clip.config.PromptConfig;
 import com.example.clip.config.PromptTemplate;
+import com.example.clip.core.LlmProvider;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -11,10 +12,15 @@ import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -51,12 +57,14 @@ public class PromptLibraryService {
 
     private final ObjectMapper objectMapper;
     private final PromptConfigService promptConfigService;
+    private final LlmProvider llmProvider;
 
-    public PromptLibraryService(PromptConfigService promptConfigService) {
+    public PromptLibraryService(PromptConfigService promptConfigService, LlmProvider llmProvider) {
         ObjectMapper mapper = new ObjectMapper();
         mapper.enable(SerializationFeature.INDENT_OUTPUT);
         this.objectMapper = mapper;
         this.promptConfigService = promptConfigService;
+        this.llmProvider = llmProvider;
     }
 
     // ==================== 系统槽位元数据 ====================
@@ -566,5 +574,136 @@ public class PromptLibraryService {
 
     private String normalize(String value, String def) {
         return value == null || value.trim().isEmpty() ? def : value.trim();
+    }
+
+    // ==================== AI 辅助生成/改写 ====================
+
+    /**
+     * AI 辅助生成 / 改写提示词。
+     * <p>
+     * mode=generate：根据用户描述生成一份 LangGPT 结构化提示词；
+     * mode=rewrite：将已有提示词改写为更规范的 LangGPT 结构化提示词。
+     * 使用 simple 模型档位，输出经 {@link #parseLangGpt} 解析后返回。
+     * </p>
+     *
+     * @param mode        generate | rewrite
+     * @param description 生成模式下的角色/用途描述
+     * @param existingText 改写模式下的已有提示词文本
+     * @return 解析结果 {name, langgpt, sections, content}
+     */
+    public Map<String, Object> aiAssist(String mode, String description, String existingText) {
+        String m = normalize(mode, "generate");
+        boolean rewrite = "rewrite".equalsIgnoreCase(m);
+
+        String systemPrompt;
+        String userMessage;
+        if (rewrite) {
+            systemPrompt = "你是提示词优化专家。请将用户提供的提示词改写为更规范、更清晰、更可复用的 LangGPT 结构化提示词，必须包含以下分段：\n"
+                    + "# Role（角色名）\n"
+                    + "## Profile\n- Author: LangGPT\n- Version: 1.0\n- Language: 中文\n- Description: 一句话概述角色核心能力\n"
+                    + "## Skills（具体技能）\n"
+                    + "## Rules（边界与约束）\n"
+                    + "## Workflow（交互流程）\n"
+                    + "## Initialization（开场与初始化）\n"
+                    + "要求：尽量保留原意并补齐缺失分段，删除冗余表述，语言精炼。\n"
+                    + "只输出 LangGPT 提示词正文，不要输出任何解释、前缀或额外文字。";
+            userMessage = existingText == null || existingText.trim().isEmpty() ? "请改写你的提示词" : existingText.trim();
+        } else {
+            systemPrompt = "你是 LangGPT 结构化提示词生成器。请根据用户描述的角色或用途，生成一份可直接使用的 LangGPT 结构化提示词，必须包含以下分段：\n"
+                    + "# Role（角色名）\n"
+                    + "## Profile\n- Author: LangGPT\n- Version: 1.0\n- Language: 中文\n- Description: 一句话概述角色核心能力\n"
+                    + "## Skills（具体技能，2-4 条）\n"
+                    + "## Rules（边界与约束，2-4 条）\n"
+                    + "## Workflow（交互流程，3-5 步）\n"
+                    + "## Initialization（开场与初始化）\n"
+                    + "要求：内容具体、可执行、贴合用户描述的场景。\n"
+                    + "只输出 LangGPT 提示词正文，不要输出任何解释、前缀或额外文字。";
+            userMessage = description == null || description.trim().isEmpty() ? "请描述你想要的提示词角色或用途" : description.trim();
+        }
+
+        String raw = llmProvider.chatForTier(systemPrompt, userMessage, "simple");
+        if (raw == null || raw.trim().isEmpty()) {
+            throw new IllegalStateException("AI 未返回内容，请重试");
+        }
+        // 剥离可能的 markdown 代码块包裹
+        String cleaned = raw.trim();
+        if (cleaned.startsWith("```")) {
+            int firstNl = cleaned.indexOf('\n');
+            int lastIdx = cleaned.lastIndexOf("```");
+            if (firstNl != -1 && lastIdx > firstNl) {
+                cleaned = cleaned.substring(firstNl + 1, lastIdx).trim();
+            }
+        }
+        Map<String, Object> parsed = parseLangGpt(cleaned);
+        if (Boolean.FALSE.equals(parsed.get("langgpt"))) {
+            // AI 未按结构输出时仍返回原文，交由前端以普通模板落库
+            parsed.put("content", cleaned);
+        }
+        return parsed;
+    }
+
+    /**
+     * 批量从 GitHub raw URL 抓取并导入 LangGPT 提示词。
+     * <p>逐个抓取 .md 原文，解析后以指定分类入库（默认「LangGPT 模板库」）。单个失败不影响其他。</p>
+     *
+     * @param urls     raw.githubusercontent.com 的 .md 地址列表
+     * @param category 统一分类（为空默认「LangGPT 模板库」）
+     * @return {imported, failed, results:[{name, ok, error?}]}
+     */
+    public Map<String, Object> importBatch(List<String> urls, String category) {
+        String cat = normalize(category, "LangGPT 模板库");
+        HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
+        List<Map<String, Object>> results = new ArrayList<>();
+        int imported = 0, failed = 0;
+        for (String url : urls) {
+            String base = url == null ? "" : url.trim();
+            String name = deriveName(base);
+            try {
+                HttpRequest req = HttpRequest.newBuilder(URI.create(base))
+                        .timeout(Duration.ofSeconds(25))
+                        .header("User-Agent", "Mozilla/5.0")
+                        .GET().build();
+                HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+                if (resp.statusCode() != 200) {
+                    throw new IOException("HTTP " + resp.statusCode());
+                }
+                Map<String, Object> parsed = parseLangGpt(resp.body());
+                Object parsedName = parsed.get("name");
+                if (parsedName != null && !parsedName.toString().trim().isEmpty()) {
+                    name = parsedName.toString().trim();
+                }
+                @SuppressWarnings("unchecked")
+                Map<String, String> sections = (Map<String, String>) parsed.get("sections");
+                createPrompt(name, cat, "来自 LangGPT 官方提示词库", (String) parsed.get("content"),
+                        new ArrayList<>(), null, Boolean.TRUE.equals(parsed.get("langgpt")), sections);
+                imported++;
+                results.add(Map.of("name", name, "ok", true));
+            } catch (Exception e) {
+                log.warn("[PromptLibrary] 批量导入失败 {}: {}", base, e.getMessage());
+                failed++;
+                results.add(Map.of("name", name, "ok", false, "error", e.getMessage()));
+            }
+        }
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("imported", imported);
+        r.put("failed", failed);
+        r.put("results", results);
+        return r;
+    }
+
+    /** 从 raw URL 提取文件名（去 .md 后缀与路径）作为默认名称。 */
+    private String deriveName(String url) {
+        if (url == null || url.isEmpty()) return "LangGPT 提示词";
+        String f = url;
+        int q = f.indexOf('?');
+        if (q != -1) f = f.substring(0, q);
+        int slash = f.lastIndexOf('/');
+        if (slash != -1) f = f.substring(slash + 1);
+        if (f.endsWith(".md")) f = f.substring(0, f.length() - 3);
+        if (f.endsWith(".")) f = f.substring(0, f.length() - 1);
+        return f.replaceAll("_+", " ").trim().isEmpty() ? "LangGPT 提示词" : f;
     }
 }

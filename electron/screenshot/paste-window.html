@@ -5,20 +5,21 @@
 <title>贴图</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
-  html, body { background: transparent; overflow: hidden; height: 100vh; }
-  #wrap {
-    width: 100vw; height: 100vh;
-    -webkit-app-region: drag;          /* 整窗可拖动 */
-    border: 1px solid rgba(255,255,255,0.25);
-    border-radius: 8px;
-    position: relative;
-    background: transparent;
+  html, body { background: transparent; overflow: hidden; height: 100vh; width: 100vw; }
+  #wrap { position: relative; width: 100vw; height: 100vh; cursor: grab; }
+  #wrap.dragging { cursor: grabbing; }
+  img {
+    width: 100%; height: 100%; object-fit: contain; display: block;
+    border-radius: 8px; pointer-events: none;
   }
-  #wrap:hover { border-color: rgba(255,255,255,0.5); }
-  img { width: 100%; height: 100%; object-fit: contain; display: block; border-radius: 8px; pointer-events: none; }
+  #frame {
+    position: absolute; inset: 0; border: 1px solid rgba(255,255,255,0.28);
+    border-radius: 8px; pointer-events: none;
+  }
+  #wrap:hover #frame { border-color: rgba(255,255,255,0.55); }
   #bar {
     position: absolute; top: 6px; right: 6px; display: flex; gap: 4px;
-    -webkit-app-region: no-drag; opacity: 0; transition: opacity 0.15s;
+    opacity: 0; transition: opacity 0.15s; z-index: 5;
   }
   #wrap:hover #bar { opacity: 1; }
   #bar button {
@@ -32,39 +33,123 @@
     position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%);
     background: rgba(0,0,0,0.55); color: #fff; font-size: 11px;
     padding: 3px 10px; border-radius: 999px; white-space: nowrap;
-    -webkit-app-region: no-drag; opacity: 0; transition: opacity 0.15s;
+    opacity: 0; transition: opacity 0.15s; z-index: 5; pointer-events: none;
   }
   #wrap:hover #hint { opacity: 1; }
+  /* 右键菜单 */
+  #menu {
+    position: absolute; display: none; z-index: 10; min-width: 120px;
+    background: rgba(30,30,30,0.96); border-radius: 8px; padding: 4px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);
+  }
+  #menu button {
+    display: block; width: 100%; text-align: left; border: none; background: transparent;
+    color: #e5e7eb; font-size: 12.5px; padding: 7px 12px; border-radius: 5px; cursor: pointer;
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+  }
+  #menu button:hover { background: rgba(255,255,255,0.12); }
+  #menu .sep { height: 1px; background: rgba(255,255,255,0.12); margin: 4px 6px; }
 </style>
 </head>
 <body>
 <div id="wrap">
   <img id="img" alt="">
+  <div id="frame"></div>
   <div id="bar">
     <button id="btnCopy" title="复制图片">📋</button>
     <button id="btnOcr" title="OCR 识别">🔤</button>
+    <button id="btnSave" title="保存">💾</button>
     <button id="btnClose" class="close" title="关闭贴图">✕</button>
   </div>
-  <div id="hint">拖动移动 · 双击/✕ 关闭</div>
+  <div id="hint">拖动移动 · 滚轮缩放 · Ctrl+滚轮透明度 · 双击放大 · 右键菜单</div>
+  <div id="menu"></div>
 </div>
 <script>
-  const { ipcRenderer, clipboard } = require('electron');
+  const { ipcRenderer } = require('electron');
   const img = document.getElementById('img');
+  const wrap = document.getElementById('wrap');
+  const menu = document.getElementById('menu');
+  let scale = 1;
+  let opacity = 1;
+  let moving = false, moved = false, downPos = null;
+
   ipcRenderer.on('paste:init', (e, payload) => { img.src = payload.dataUrl; });
 
-  document.getElementById('btnCopy').addEventListener('click', async () => {
-    // 主进程已持有图片：通知复制（贴图窗口自身也可直接写剪贴板，但主进程更统一）
-    await ipcRenderer.invoke('screenshot:copy-last');
+  // ── 手动拖动（IPC 通知主进程 setPosition，允许叠加缩放/滚轮/双击） ──
+  wrap.addEventListener('mousedown', (e) => {
+    if (e.button !== 0 || e.target.closest('#bar') || e.target.closest('#menu')) return;
+    moving = true; moved = false;
+    downPos = { x: e.clientX, y: e.clientY };
+    wrap.classList.add('dragging');
+    e.preventDefault();
   });
-  document.getElementById('btnOcr').addEventListener('click', async () => {
-    // 对当前贴图图片 OCR：取 dataURL 送主进程识别
-    const dataUrl = img.src;
-    const res = await ipcRenderer.invoke('screenshot:ocr', { dataUrl });
-    alert(res.status === 'ok' ? res.text : ('OCR 不可用：' + (res.message || '')));
+  wrap.addEventListener('mousemove', (e) => {
+    if (!moving || !downPos) return;
+    const dx = e.clientX - downPos.x, dy = e.clientY - downPos.y;
+    if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+    if (moved) ipcRenderer.invoke('paste:move', { dx, dy });
+    downPos = { x: e.clientX, y: e.clientY };
   });
+  window.addEventListener('mouseup', () => { moving = false; wrap.classList.remove('dragging'); });
+
+  // ── 滚轮缩放 / Ctrl+滚轮透明度 ──
+  window.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const d = e.deltaY > 0 ? -1 : 1;
+    if (e.ctrlKey || e.metaKey) {
+      opacity = Math.max(0.2, Math.min(1, opacity + d * 0.05));
+      wrap.style.opacity = opacity;
+    } else {
+      scale = Math.max(0.1, Math.min(4, scale + d * 0.1));
+      applyScale();
+    }
+  }, { passive: false });
+
+  function applyScale() {
+    // 窗口大小由主进程按原图尺寸创建；缩放通过调整窗口尺寸实现
+    ipcRenderer.invoke('paste:resize', { scale });
+  }
+
+  // ── 双击放大/还原 ──
+  window.addEventListener('dblclick', () => {
+    scale = scale > 1.01 ? 1 : 2;
+    applyScale();
+  });
+
+  // ── 右键菜单 ──
+  window.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    showMenu(e.clientX, e.clientY);
+  });
+  function showMenu(x, y) {
+    menu.innerHTML =
+      '<button data-a="copy">📋 复制图片</button>' +
+      '<button data-a="ocr">🔤 OCR 识别</button>' +
+      '<button data-a="save">💾 保存为文件</button>' +
+      '<div class="sep"></div>' +
+      '<button data-a="close">✕ 关闭贴图</button>';
+    menu.style.display = 'block';
+    const mw = 130;
+    menu.style.left = Math.min(x, window.innerWidth - mw - 4) + 'px';
+    menu.style.top = Math.min(y, window.innerHeight - 150) + 'px';
+  }
+  menu.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    menu.style.display = 'none';
+    const a = btn.dataset.a;
+    if (a === 'copy') ipcRenderer.invoke('screenshot:copy-last');
+    else if (a === 'ocr') { ipcRenderer.invoke('screenshot:ocr', { dataUrl: img.src }); }
+    else if (a === 'save') ipcRenderer.invoke('paste:save', { dataUrl: img.src });
+    else if (a === 'close') window.close();
+  });
+  window.addEventListener('click', (e) => { if (!e.target.closest('#menu')) menu.style.display = 'none'; });
+
+  // ── 顶栏按钮 ──
+  document.getElementById('btnCopy').addEventListener('click', () => ipcRenderer.invoke('screenshot:copy-last'));
+  document.getElementById('btnOcr').addEventListener('click', () => ipcRenderer.invoke('screenshot:ocr', { dataUrl: img.src }));
+  document.getElementById('btnSave').addEventListener('click', () => ipcRenderer.invoke('paste:save', { dataUrl: img.src }));
   document.getElementById('btnClose').addEventListener('click', () => window.close());
-  // 双击关闭
-  window.addEventListener('dblclick', () => window.close());
 </script>
 </body>
 </html>

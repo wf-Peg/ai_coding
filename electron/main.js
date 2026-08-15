@@ -1990,6 +1990,50 @@ function setupIPC() {
     }
   });
 
+  // 唤起系统终端，定位到当前文件目录；无则回退知识库根目录（跨平台）
+  ipcMain.handle('editor-open-terminal', async (event, payload) => {
+    try {
+      const config = loadConfig();
+      // 1) 优先使用当前打开文件所在目录
+      let cwd = null;
+      const fileToken = payload && payload.fileToken;
+      if (fileToken) {
+        try {
+          const fp = editorFileService.resolveToken(fileToken);
+          const dir = path.dirname(fp);
+          if (fs.existsSync(dir) && fs.statSync(dir).isDirectory()) cwd = dir;
+        } catch (e) { /* 忽略，回退 */ }
+      }
+      // 2) 无有效文件目录 → 回退知识库根目录（系统设置中的存储路径）
+      if (!cwd) cwd = resolveVaultRoot(config);
+      if (!cwd || !fs.existsSync(cwd)) {
+        return { success: false, message: '无法确定有效目录' };
+      }
+
+      // 3) 跨平台唤起系统终端
+      if (process.platform === 'darwin') {
+        // macOS：open -a Terminal <dir> 以该目录为工作目录打开新窗口
+        spawn('open', ['-a', 'Terminal', cwd], { detached: true, stdio: 'ignore' })
+          .unref();
+      } else if (process.platform === 'win32') {
+        // Windows：优先 Windows Terminal，失败回退 cmd.exe
+        try {
+          spawn('wt.exe', ['-d', cwd], { detached: true, stdio: 'ignore' }).unref();
+        } catch (e) {
+          spawn('cmd.exe', ['/k', 'cd', '/d', cwd], { detached: true, stdio: 'ignore' }).unref();
+        }
+      } else {
+        // Linux/其它：x-terminal-emulator（多发行版通用），以 cwd 为工作目录
+        spawn('x-terminal-emulator', [], { detached: true, stdio: 'ignore', cwd }).unref();
+      }
+      log.info('[EditorTerminal] opened terminal at', cwd);
+      return { success: true, cwd };
+    } catch (err) {
+      log.error('[EditorTerminal] open failed:', err.message);
+      return { success: false, message: err.message };
+    }
+  });
+
   // 通过文件路径打开文件
   ipcMain.handle('editor-open-file-by-path', async (event, filePath) => {
     try {
@@ -2012,11 +2056,25 @@ function setupIPC() {
   // ===== 编辑器双链（wikilink）目标索引 =====
   // 扫描知识根目录（vault root）下所有 .md，返回 basename + 相对路径 + 绝对路径，
   // 供前端双链补全、反链与跳转使用。
+  // 解析知识根目录（vault root）：兼容 config.organizedPath（旧格式显式指定）与
+  // config.storagePath（Clip_Bed 父目录，clip-organized 为固定子目录，新格式）。
+  function resolveVaultRoot(config) {
+    const candidates = [];
+    if (config.organizedPath) candidates.push(config.organizedPath);
+    if (config.storagePath) {
+      candidates.push(path.join(config.storagePath, 'clip-organized'));
+      candidates.push(config.storagePath); // 兼容 storagePath 直接指向 clip-organized
+    }
+    for (const c of candidates) {
+      if (c && fs.existsSync(c) && fs.statSync(c).isDirectory()) return c;
+    }
+    return candidates[0] || path.join(config.storagePath || APP_DIR, 'clip-organized');
+  }
+
   ipcMain.handle('editor-list-wikilink-targets', async () => {
     try {
       const config = loadConfig();
-      const rootPath = config.storagePath || APP_DIR;
-      const vaultRoot = path.join(rootPath, 'clip-organized');
+      const vaultRoot = resolveVaultRoot(config);
       const targets = [];
       if (!fs.existsSync(vaultRoot)) return { targets: [] };
       const walk = (dir, relPrefix) => {
@@ -2050,8 +2108,7 @@ function setupIPC() {
   ipcMain.handle('editor-save-to-vault', async (event, payload) => {
     try {
       const config = loadConfig();
-      const rootPath = config.storagePath || APP_DIR;
-      const vaultRoot = path.join(rootPath, 'clip-organized');
+      const vaultRoot = resolveVaultRoot(config);
       const notesDir = path.join(vaultRoot, 'notes');
       if (!fs.existsSync(notesDir)) fs.mkdirSync(notesDir, { recursive: true });
       const text = payload?.text || '';
@@ -2071,8 +2128,7 @@ function setupIPC() {
   ipcMain.handle('editor-find-backlinks', async (event, basename) => {
     try {
       const config = loadConfig();
-      const rootPath = config.storagePath || APP_DIR;
-      const vaultRoot = path.join(rootPath, 'clip-organized');
+      const vaultRoot = resolveVaultRoot(config);
       if (!fs.existsSync(vaultRoot)) return { backlinks: [] };
       const backlinks = [];
       const walk = (dir) => {
@@ -3136,7 +3192,7 @@ app.whenReady().then(async () => {
   // 截图小工具初始化（F1 截图 / F2 贴图 / OCR），快捷键随 Alt+X 一并注册
   try {
     screenshotService.initScreenshotService({
-      app, BrowserWindow, globalShortcut, desktopCapturer, clipboard, nativeImage, ipcMain, screen, dialog, log,
+      app, BrowserWindow, globalShortcut, desktopCapturer, clipboard, nativeImage, ipcMain, screen, dialog, shell, log,
       loadConfig, saveConfig,
       getMainWindow: () => mainWindow,
       showMainWindow: () => showMainWindow()

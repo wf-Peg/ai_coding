@@ -6,42 +6,63 @@
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 100%; height: 100%; overflow: hidden; cursor: crosshair; }
-  #bg { position: fixed; inset: 0; width: 100%; height: 100%; }
+  #bg { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   #mask { position: fixed; inset: 0; pointer-events: none; }
-  #sel { position: fixed; border: 1px solid #3f8cff; background: rgba(63,140,255,0.12); display: none; pointer-events: none; }
-  #sel .handle { position: absolute; width: 10px; height: 10px; background: #3f8cff; border-radius: 2px; }
+  #sel {
+    position: fixed; border: 1px solid #3f8cff; background: rgba(63,140,255,0.12);
+    display: none; pointer-events: none;
+  }
+  #sel .handle {
+    position: absolute; width: 9px; height: 9px; background: #fff;
+    border: 1.5px solid #3f8cff; border-radius: 2px; pointer-events: auto;
+    display: none;
+  }
+  #sel.resize .handle { display: block; }
   #sel .size-label {
-    position: absolute; left: 0; top: -22px;
-    background: rgba(0,0,0,0.72); color: #fff; font-size: 12px;
+    position: absolute; left: 0; top: -24px;
+    background: rgba(0,0,0,0.75); color: #fff; font-size: 12px;
     padding: 2px 8px; border-radius: 4px; white-space: nowrap;
+    font-variant-numeric: tabular-nums; pointer-events: none;
+  }
+  #magnifier {
+    position: fixed; width: 120px; height: 120px; display: none; z-index: 6;
+    border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; overflow: hidden;
+    background: #fff; box-shadow: 0 4px 16px rgba(0,0,0,0.4); pointer-events: none;
+  }
+  #magnifier canvas { width: 100%; height: 100%; }
+  #magnifier .mp-pos {
+    position: absolute; left: 4px; bottom: 4px; background: rgba(0,0,0,0.6);
+    color: #fff; font-size: 10px; padding: 1px 5px; border-radius: 3px;
+    font-variant-numeric: tabular-nums;
   }
   #toolbar {
-    position: fixed; display: none; gap: 6px; z-index: 10;
-    background: rgba(30,30,30,0.92); border-radius: 10px; padding: 6px 8px;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.4); align-items: center;
+    position: fixed; display: none; gap: 4px; z-index: 10;
+    background: rgba(30,30,30,0.94); border-radius: 10px; padding: 5px 7px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.45); align-items: center;
   }
   #toolbar button {
-    border: none; background: transparent; color: #e5e7eb; font-size: 13px;
-    padding: 6px 12px; border-radius: 6px; cursor: pointer; white-space: nowrap;
+    border: none; background: transparent; color: #e5e7eb; font-size: 12.5px;
+    padding: 6px 11px; border-radius: 6px; cursor: pointer; white-space: nowrap;
     font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
   }
-  #toolbar button:hover { background: rgba(255,255,255,0.12); }
+  #toolbar button:hover { background: rgba(255,255,255,0.13); }
   #toolbar button.primary { background: #3f8cff; color: #fff; }
   #toolbar button.primary:hover { background: #2f72d8; }
-  #toolbar .sep { width: 1px; height: 20px; background: rgba(255,255,255,0.2); }
+  #toolbar .sep { width: 1px; height: 20px; background: rgba(255,255,255,0.22); }
   #hint {
-    position: fixed; left: 50%; top: 18px; transform: translateX(-50%);
-    background: rgba(0,0,0,0.6); color: #fff; font-size: 13px;
+    position: fixed; left: 50%; top: 16px; transform: translateX(-50%);
+    background: rgba(0,0,0,0.62); color: #fff; font-size: 12.5px;
     padding: 6px 16px; border-radius: 999px; z-index: 5; pointer-events: none;
-    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif; white-space: nowrap;
   }
 </style>
 </head>
 <body>
 <img id="bg" alt="">
 <canvas id="mask" width="0" height="0"></canvas>
-<div id="hint">拖拽选择截图区域，Esc 取消</div>
-<div id="sel"><div class="size-label" id="sizeLabel"></div></div>
+<div id="hint">拖拽选择区域 · 手柄/方向键微调 · 滚轮缩放 · Esc 取消 · Enter 复制</div>
+<div id="sel"><div class="size-label" id="sizeLabel"></div><div class="handle" data-h="nw"></div><div class="handle" data-h="n"></div><div class="handle" data-h="ne"></div><div class="handle" data-h="e"></div><div class="handle" data-h="se"></div><div class="handle" data-h="s"></div><div class="handle" data-h="sw"></div><div class="handle" data-h="w"></div></div>
+<div id="magnifier"><canvas id="magCanvas"></canvas><div class="mp-pos" id="magPos"></div></div>
 <div id="toolbar">
   <button class="primary" id="btnCopy">✓ 复制</button>
   <button id="btnSave">💾 保存</button>
@@ -58,29 +79,38 @@
   const sizeLabel = document.getElementById('sizeLabel');
   const toolbar = document.getElementById('toolbar');
   const hint = document.getElementById('hint');
+  const mag = document.getElementById('magnifier');
+  const magCanvas = document.getElementById('magCanvas');
+  const magPos = document.getElementById('magPos');
+  const magCtx = magCanvas.getContext('2d');
+  const MAG_SIZE = 120, MAG_SCALE = 6; // 放大镜 120px，6 倍
 
-  let display = null;
-  let start = null;      // 拖拽起点
-  let selRect = null;    // {x,y,w,h} 当前选区
-  let selecting = false;
-  let SCALE = 1;
+  let display = null;      // {width,height,scaleFactor} DIP
+  let sf = 1;              // 显示器缩放（裁剪用）
+  let selRect = null;      // {x,y,w,h} 全为 CSS/DIP 坐标
+  let dragMode = null;     // 'draw'(拖拽新建) | {dir: 手柄方向}（调整）
+  let dragStart = null;    // 拖拽起点
+  let lastRect = null;     // 调整前的选区（用于手柄计算）
 
   ipcRenderer.on('screenshot:init', (e, payload) => {
     display = payload.display;
-    SCALE = (window.devicePixelRatio || 1) / (display.scaleFactor || 1);
+    sf = display.scaleFactor || 1;
     bg.src = payload.bg;
     bg.onload = () => {
-      mask.width = bg.naturalWidth; mask.height = bg.naturalHeight;
-      mask.style.width = '100%'; mask.style.height = '100%';
+      // canvas 像素 = CSS/DIP 坐标（与鼠标一致），不再用背景自然像素
+      mask.width = display.width;
+      mask.height = display.height;
+      mask.style.width = '100%';
+      mask.style.height = '100%';
       drawMask(null);
     };
   });
 
+  // ── 遮罩：压暗选区外区域（全 DIP 坐标） ──
   function drawMask(rect) {
     const ctx = mask.getContext('2d');
     const W = mask.width, H = mask.height;
     ctx.clearRect(0, 0, W, H);
-    // 半透明遮罩（选区外压暗）
     ctx.fillStyle = 'rgba(0,0,0,0.45)';
     if (!rect) { ctx.fillRect(0, 0, W, H); return; }
     ctx.fillRect(0, 0, W, rect.y);
@@ -89,62 +119,200 @@
     ctx.fillRect(rect.x + rect.w, rect.y, W - rect.x - rect.w, rect.h);
   }
 
+  // ── 选区 DOM 更新 ──
   function updateSel(rect) {
-    sel.style.display = rect ? 'block' : 'none';
-    if (!rect) return;
+    if (!rect || rect.w < 4 || rect.h < 4) {
+      sel.style.display = 'none';
+      toolbar.style.display = 'none';
+      hint.style.display = '';
+      return;
+    }
+    sel.style.display = 'block';
     sel.style.left = rect.x + 'px';
     sel.style.top = rect.y + 'px';
     sel.style.width = rect.w + 'px';
     sel.style.height = rect.h + 'px';
-    sizeLabel.textContent = Math.round(rect.w / SCALE) + ' × ' + Math.round(rect.h / SCALE);
-    // 工具栏跟随选区
-    const tbW = toolbar.offsetWidth || 220;
+    sizeLabel.textContent = Math.round(rect.w) + ' × ' + Math.round(rect.h);
+    // 手柄位置
+    const h = (dir) => sel.querySelector('.handle[data-h="' + dir + '"]');
+    const hw = 9;
+    h('nw').style.cssText = hStyle(0, 0);
+    h('n').style.cssText = hStyle(rect.w / 2 - hw / 2, 0);
+    h('ne').style.cssText = hStyle(rect.w - hw, 0);
+    h('e').style.cssText = hStyle(rect.w - hw, rect.h / 2 - hw / 2);
+    h('se').style.cssText = hStyle(rect.w - hw, rect.h - hw);
+    h('s').style.cssText = hStyle(rect.w / 2 - hw / 2, rect.h - hw);
+    h('sw').style.cssText = hStyle(0, rect.h - hw);
+    h('w').style.cssText = hStyle(0, rect.h / 2 - hw / 2);
+    sel.classList.add('resize');
+    // 工具栏跟随
+    const tbW = 300;
     let tx = rect.x + rect.w - tbW;
-    let ty = rect.y + rect.h + 10;
-    if (ty + 50 > window.innerHeight) ty = rect.y - 44;
+    let ty = rect.y + rect.h + 12;
+    if (ty + 48 > window.innerHeight) ty = Math.max(8, rect.y - 48);
     if (tx < 8) tx = 8;
+    if (tx + tbW > window.innerWidth) tx = window.innerWidth - tbW - 8;
     toolbar.style.left = tx + 'px';
     toolbar.style.top = ty + 'px';
     toolbar.style.display = 'flex';
     hint.style.display = 'none';
   }
+  function hStyle(x, y) { return 'position:absolute;left:' + x + 'px;top:' + y + 'px;'; }
 
+  // ── 鼠标拖拽：新建选区 / 手柄调整 ──
   window.addEventListener('mousedown', (e) => {
     if (e.target.closest('#toolbar')) return;
-    start = { x: e.clientX, y: e.clientY };
-    selecting = true;
+    const handle = e.target.closest('.handle');
+    if (handle) {
+      dragMode = { dir: handle.dataset.h };
+      dragStart = { x: e.clientX, y: e.clientY };
+      lastRect = { ...selRect };
+      e.preventDefault();
+      return;
+    }
+    if (selRect && e.clientX >= selRect.x && e.clientX <= selRect.x + selRect.w &&
+        e.clientY >= selRect.y && e.clientY <= selRect.y + selRect.h) {
+      // 点击选区内部：整体移动
+      dragMode = 'move';
+      dragStart = { x: e.clientX, y: e.clientY };
+      lastRect = { ...selRect };
+      e.preventDefault();
+      return;
+    }
+    dragMode = 'draw';
+    dragStart = { x: e.clientX, y: e.clientY };
     selRect = { x: e.clientX, y: e.clientY, w: 0, h: 0 };
   });
 
   window.addEventListener('mousemove', (e) => {
-    if (!selecting || !start) return;
-    const x = Math.min(e.clientX, start.x);
-    const y = Math.min(e.clientY, start.y);
-    selRect = { x, y, w: Math.abs(e.clientX - start.x), h: Math.abs(e.clientY - start.y) };
-    // canvas 坐标（与 bg 原始像素对应）
-    const cs = { x: x * SCALE, y: y * SCALE, w: selRect.w * SCALE, h: selRect.h * SCALE };
-    drawMask(cs);
+    // 放大镜（在选区边缘 8px 内或拖拽调整时显示）
+    updateMagnifier(e.clientX, e.clientY);
+    if (!dragMode) return;
+    const x = e.clientX, y = e.clientY;
+    if (dragMode === 'draw') {
+      selRect = normRect(dragStart.x, dragStart.y, x, y);
+    } else if (dragMode === 'move') {
+      const dx = x - dragStart.x, dy = y - dragStart.y;
+      selRect = { x: lastRect.x + dx, y: lastRect.y + dy, w: lastRect.w, h: lastRect.h };
+      clampRect();
+    } else if (dragMode.dir) {
+      selRect = resizeByHandle(lastRect, dragMode.dir, x - dragStart.x, y - dragStart.y);
+      clampRect();
+    }
+    drawMask(selRect);
     updateSel(selRect);
   });
 
   window.addEventListener('mouseup', () => {
-    if (!selecting) return;
-    selecting = false;
-    if (selRect && selRect.w > 3 && selRect.h > 3) {
-      // 完成选区，工具栏显示
-    } else {
+    if (!dragMode) return;
+    dragMode = null;
+    if (!selRect || selRect.w < 4 || selRect.h < 4) {
       selRect = null;
       drawMask(null);
       updateSel(null);
-      toolbar.style.display = 'none';
-      hint.style.display = '';
+    } else {
+      updateSel(selRect);
     }
   });
 
+  // 手柄方向调整（snipaste 风格：8 方向独立拖拽）
+  function resizeByHandle(base, dir, dx, dy) {
+    let r = { x: base.x, y: base.y, w: base.w, h: base.h };
+    if (dir.includes('e')) r.w = Math.max(4, base.w + dx);
+    if (dir.includes('s')) r.h = Math.max(4, base.h + dy);
+    if (dir.includes('w')) { const nx = Math.min(base.x + base.w - 4, base.x + dx); r.w = base.w + (base.x - nx); r.x = nx; }
+    if (dir.includes('n')) { const ny = Math.min(base.y + base.h - 4, base.y + dy); r.h = base.h + (base.y - ny); r.y = ny; }
+    return r;
+  }
+
+  function normRect(x1, y1, x2, y2) {
+    return { x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) };
+  }
+  function clampRect() {
+    if (!selRect) return;
+    selRect.x = Math.max(0, Math.min(selRect.x, display.width - 4));
+    selRect.y = Math.max(0, Math.min(selRect.y, display.height - 4));
+    selRect.w = Math.min(selRect.w, display.width - selRect.x);
+    selRect.h = Math.min(selRect.h, display.height - selRect.y);
+  }
+
+  // ── 方向键微调选区（Shift 1px） ──
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); ipcRenderer.invoke('screenshot:cancel'); return; }
+    if (!selRect) return;
+    const step = e.shiftKey ? 1 : 10;
+    let dx = 0, dy = 0;
+    if (e.key === 'ArrowLeft') dx = -step;
+    else if (e.key === 'ArrowRight') dx = step;
+    else if (e.key === 'ArrowUp') dy = -step;
+    else if (e.key === 'ArrowDown') dy = step;
+    else if (e.key === 'Enter') { e.preventDefault(); confirm('copy'); return; }
+    else if (e.key.toLowerCase() === 'c' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); confirm('copy'); return; }
+    else if (e.key.toLowerCase() === 's' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); confirm('save'); return; }
+    if (dx || dy) {
+      e.preventDefault();
+      selRect.x += dx; selRect.y += dy;
+      clampRect();
+      drawMask(selRect); updateSel(selRect);
+    }
+  });
+
+  // ── 滚轮缩放选区（悬停选区时） ──
+  window.addEventListener('wheel', (e) => {
+    if (!selRect) return;
+    const inSel = e.clientX >= selRect.x && e.clientX <= selRect.x + selRect.w &&
+                  e.clientY >= selRect.y && e.clientY <= selRect.y + selRect.h;
+    if (!inSel) return;
+    e.preventDefault();
+    const d = e.deltaY > 0 ? 1 : -1;
+    const step = Math.max(2, Math.round(selRect.w * 0.02));
+    // 以鼠标为锚点缩放右下
+    const anchorX = e.clientX - selRect.x;
+    const anchorY = e.clientY - selRect.y;
+    const growW = Math.max(0, Math.min(step, display.width - selRect.x - selRect.w));
+    const growH = Math.max(0, Math.min(step, display.height - selRect.y - selRect.h));
+    selRect.w = Math.max(4, selRect.w + d * step);
+    selRect.h = Math.max(4, selRect.h + d * step);
+    clampRect();
+    drawMask(selRect); updateSel(selRect);
+  }, { passive: false });
+
+  // ── 放大镜（光标周围 6 倍放大 + 坐标） ──
+  function updateMagnifier(cx, cy) {
+    if (!bg.naturalWidth) return;
+    const show = !!dragMode || (selRect &&
+      (Math.abs(cx - selRect.x) < 8 || Math.abs(cx - (selRect.x + selRect.w)) < 8 ||
+       Math.abs(cy - selRect.y) < 8 || Math.abs(cy - (selRect.y + selRect.h)) < 8));
+    if (!show) { mag.style.display = 'none'; return; }
+    mag.style.display = 'block';
+    // 位置：光标右上偏移，越界翻转
+    let mx = cx + 16, my = cy - MAG_SIZE - 16;
+    if (mx + MAG_SIZE > window.innerWidth) mx = cx - MAG_SIZE - 16;
+    if (my < 0) my = cy + 16;
+    mag.style.left = mx + 'px';
+    mag.style.top = my + 'px';
+    // 绘制：bg 自然像素 = CSS×sf
+    const srcSize = Math.ceil((MAG_SIZE / MAG_SCALE) * sf);
+    const sx = Math.max(0, Math.min(bg.naturalWidth - srcSize, cx * sf - srcSize / 2));
+    const sy = Math.max(0, Math.min(bg.naturalHeight - srcSize, cy * sf - srcSize / 2));
+    magCanvas.width = MAG_SIZE; magCanvas.height = MAG_SIZE;
+    magCtx.imageSmoothingEnabled = false;
+    magCtx.clearRect(0, 0, MAG_SIZE, MAG_SIZE);
+    magCtx.drawImage(bg, sx, sy, srcSize, srcSize, 0, 0, MAG_SIZE, MAG_SIZE);
+    // 十字线
+    magCtx.strokeStyle = 'rgba(255,80,80,0.8)';
+    magCtx.beginPath();
+    magCtx.moveTo(MAG_SIZE / 2, 0); magCtx.lineTo(MAG_SIZE / 2, MAG_SIZE);
+    magCtx.moveTo(0, MAG_SIZE / 2); magCtx.lineTo(MAG_SIZE, MAG_SIZE / 2);
+    magCtx.stroke();
+    magPos.textContent = Math.round(cx) + ', ' + Math.round(cy);
+  }
+
+  // ── 确认 ──
   function confirm(action) {
     if (!selRect) return;
     ipcRenderer.invoke('screenshot:confirm', {
-      rect: { x: selRect.x * SCALE, y: selRect.y * SCALE, width: selRect.w * SCALE, height: selRect.h * SCALE },
+      rect: { x: selRect.x, y: selRect.y, width: selRect.w, height: selRect.h },
       action: action
     });
   }
@@ -155,10 +323,10 @@
   document.getElementById('btnPaste').addEventListener('click', () => confirm('paste'));
   document.getElementById('btnCancel').addEventListener('click', () => ipcRenderer.invoke('screenshot:cancel'));
 
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { e.preventDefault(); ipcRenderer.invoke('screenshot:cancel'); }
-    else if (e.key === 'Enter' && selRect) { confirm('copy'); }
-    else if (e.key.toLowerCase() === 's' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); confirm('save'); }
+  // 双击选区确认
+  window.addEventListener('dblclick', (e) => {
+    if (selRect && e.clientX >= selRect.x && e.clientX <= selRect.x + selRect.w &&
+        e.clientY >= selRect.y && e.clientY <= selRect.y + selRect.h) confirm('copy');
   });
 </script>
 </body>

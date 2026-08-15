@@ -316,6 +316,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getFileDirectory: (fileToken) => ipcRenderer.invoke('editor-get-file-directory', fileToken),
 
   /**
+   * 唤起系统终端，定位到当前文件所在目录（无则回退知识库根目录）
+   * @param {{fileToken?: string}} payload
+   * @returns {Promise<{success: boolean, cwd?: string, message?: string}>}
+   */
+  openTerminal: (payload) => ipcRenderer.invoke('editor-open-terminal', payload),
+
+  /**
    * 通过文件路径打开文件
    * @param {string} filePath - 文件绝对路径
    * @returns {Promise<Object>} 文件内容与元数据
@@ -545,4 +552,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   /** 监听主窗口转发给编辑器的 OCR 文本打开请求 */
   onScreenshotOpenInEditor: (callback) => ipcRenderer.on('screenshot:open-in-editor', (event, data) => callback(data)),
+
+  /** 打开 OCR 模型目录（工具卡片配置面板用） */
+  screenshotOpenOcrModelsDir: () => ipcRenderer.invoke('screenshot:open-ocr-models-dir'),
 });
