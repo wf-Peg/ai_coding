@@ -105,33 +105,23 @@ REM Step 2: 版本号确认（询问是否递增版本号并更新）
 REM ============================================================
 echo [2/9] 版本号确认
 
-for /f "usebackq tokens=*" %%v in (`node -p "require('./package.json').version"`) do set "CURRENT_VERSION=%%v"
-if not defined CURRENT_VERSION set "CURRENT_VERSION=1.0.0"
-echo   当前版本: %CURRENT_VERSION%
-
 if "%ARG_VERSION%"=="" (
-    set /p "BUMP=是否递增版本号并更新 package.json？(y/N): "
-    if /I "!BUMP!"=="y" (
-        REM 建议下一 patch 版本（x.y.z -> x.y.(z+1)）
-        for /f "tokens=1,2,3 delims=." %%a in ("!CURRENT_VERSION!") do (
-            set "MAJOR=%%a"
-            set "MINOR=%%b"
-            set /a "PATCH=%%c + 1" 2>nul
-        )
-        if not defined PATCH set "PATCH=1"
-        set "SUGGEST_VERSION=!MAJOR!.!MINOR!.!PATCH!"
-        set /p "VERSION=请输入新版本号（回车使用建议值 !SUGGEST_VERSION!）: "
-        if "!VERSION!"=="" set "VERSION=!SUGGEST_VERSION!"
-    ) else (
-        set "VERSION=!CURRENT_VERSION!"
-        echo   沿用当前版本 !CURRENT_VERSION!
+    REM 交互提示由 node 实现（chcp 65001 下 bat 的 set /p 对管道/重定向 stdin 不可靠）
+    node scripts\version-prompt.js
+    if %ERRORLEVEL% NEQ 0 (
+        echo   [ERROR] 版本号确认失败
+        goto :fail
     )
+    set "VERSION="
+    if exist ".tmp\version-result.txt" set /p VERSION=<.tmp\version-result.txt
+    del /f /q ".tmp\version-result.txt" 2>nul
+    if "!VERSION!"=="" set "VERSION=1.0.0"
+    echo   发布版本: %VERSION%
 ) else (
     set "VERSION=%ARG_VERSION%"
 )
 
-REM 用 node 校验版本号格式 x.y.z（cmd 的 echo|findstr 有尾随空格与转义坑；
-REM 注意 JS 里不要出现 "!"，否则会被延迟展开吞掉）
+REM 用 node 校验版本号格式 x.y.z（命令行指定版本时兜底校验）
 node -e "const v=process.argv[1]; process.exit(/^\d+\.\d+\.\d+$/.test(v)?0:1)" "%VERSION%" >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo   [ERROR] 版本号格式无效: %VERSION%（应为 x.y.z，如 1.0.8）
@@ -142,9 +132,12 @@ set "TAG=v%VERSION%"
 echo   [OK] 发布版本: %TAG%  平台: %PLATFORM%
 
 REM ============================================================
-REM Step 3: 更新 package.json 版本号（如递增）
+REM Step 3: 确保 package.json 版本号与发布版本一致（如不一致则更新）
 REM ============================================================
-if not "!VERSION!"=="!CURRENT_VERSION!" (
+for /f "usebackq tokens=*" %%v in (`node -p "require('./package.json').version"`) do set "PKG_VERSION=%%v"
+if not defined PKG_VERSION set "PKG_VERSION=1.0.0"
+
+if not "!PKG_VERSION!"=="!VERSION!" (
     echo [3/9] 更新版本号到 !VERSION! ...
     node -e "const pkg = require('./package.json'); pkg.version = '!VERSION!'; require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\r\n');"
     if %ERRORLEVEL% NEQ 0 (

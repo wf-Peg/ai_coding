@@ -71,7 +71,7 @@
     {
       "id": "fp-004",
       "name": "发布脚本版本号交互提示与统一打包",
-      "description": "scripts/release.bat 与 release.sh：新增交互询问“是否递增版本号并更新 package.json”，回车建议下一 patch 版本并校验 x.y.z 格式；版本未变时检测 tag 已存在并确认覆盖；更新包统一走 node scripts/build-update-zip.js；gh release create 附带 zip 与 sha256",
+      "description": "scripts/release.bat 与 release.sh 及 build.bat/build.sh：新增交互询问“是否递增版本号并更新 package.json”，回车建议下一 patch 版本并校验 x.y.z 格式；版本未变时检测 tag 已存在并确认覆盖；更新包统一走 node scripts/build-update-zip.js；gh release create 附带 zip 与 sha256；build.bat/build.sh 打包前询问版本号、打包后询问是否推送到 GitHub Release",
       "layer": "backend",
       "tags": ["product-dev", "发布", "脚本"],
       "designSections": ["技术方案", "关键决策"],
@@ -80,10 +80,15 @@
         { "title": "建议下一 patch 版本 + x.y.z 格式校验", "status": "done" },
         { "title": "版本未变时检查 Release tag 已存在并确认覆盖", "status": "done" },
         { "title": "更新包统一走 node scripts/build-update-zip.js（替代内联压缩）", "status": "done" },
-        { "title": "Release 上传 clip-update-{version}.zip + .sha256", "status": "done" }
+        { "title": "Release 上传 clip-update-{version}.zip + .sha256", "status": "done" },
+        { "title": "build.bat/build.sh 打包前询问是否递增版本号，打包后询问是否推送到 GitHub Release", "status": "done" },
+        { "title": "交互提示改用 node readline（scripts/version-prompt.js），规避 chcp 65001 下 set /p 不稳定", "status": "done" },
+        { "title": "批处理文件统一 CRLF 行尾（LF 会导致括号块解析错乱）", "status": "done" }
       ],
       "verifications": [
-        { "title": "交互流程 y/N 两分支逻辑评审通过（实际发版时验证）", "status": "done" }
+        { "title": "交互流程 y/N 两分支逻辑评审通过（实际发版时验证）", "status": "done" },
+        { "title": "version-prompt.js 三场景实测：y+回车→1.0.8、n→沿用、非法版本→exit 1", "status": "done" },
+        { "title": "build.bat Step 2 集成实测：管道 stdin 可达 node readline，版本写回正确", "status": "done" }
       ]
     },
     {
@@ -128,6 +133,16 @@
       "title": "分发渠道取舍结论",
       "content": "本期不做 Gitee 分发：GitHub 为权威源 + gh-proxy 镜像兜底（零成本立即生效）；Gitee 发行版（国内最快）作为备选记录在调研文档，单文件限额需官方核实；jsDelivr 仅适合 ≤20MB 的 manifest 快速检查源；Cloudflare R2 国内访问一般；COS/OSS 需实名+备案、非永久免费，用户量大后再接入",
       "tags": ["product-dev", "调研", "分发"]
+    },
+    {
+      "title": "chcp 65001 下 set /p 不可靠，交互改 node readline",
+      "content": "批处理在 chcp 65001（UTF-8 控制台）下，set /p 对重定向/管道 stdin 会读到空值（实测 BUMP=[]），交互体验不可靠。解决：把版本号交互提示做成 scripts/version-prompt.js（node readline），中文/编码由 node 原生处理，控制台、管道、文件输入均稳定；bat 只负责调用并读取 .tmp/version-result.txt 结果文件（set /p <file 在 chcp 65001 下正常）",
+      "tags": ["product-dev", "技术", "Bug修复"]
+    },
+    {
+      "title": ".bat 文件必须 CRLF 行尾",
+      "content": "LF 行尾的 .bat 在包含括号块、backtick（usebackq）等语法时会被 cmd 错误拼接解析（表现为命令识别错误、括号不匹配）。仓库既有 .bat 均为 CRLF，新写/改写 .bat 后需统一转 CRLF（UTF-8 无 BOM），再交给 cmd 执行",
+      "tags": ["product-dev", "技术", "Bug修复"]
     }
   ]
 }
