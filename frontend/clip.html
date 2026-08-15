@@ -4524,6 +4524,7 @@
             const clipItem = createClipItem(clip, false);
             clipItemsContainer.appendChild(clipItem);
             renderLinkedKnowledge(clip.id);
+            renderPlanBacklinks(clip.id);
         });
 
         // 加载更多（客户端分页，保留现有筛选/排序逻辑）
@@ -4550,6 +4551,7 @@
               if (text) text.textContent = '收起';
             }
             renderLinkedKnowledge(parseInt(id));
+            renderPlanBacklinks(parseInt(id));
           }
         });
 
@@ -4895,6 +4897,7 @@
             const clipId = detail.dataset.clipId;
             if (clipId) {
                 renderLinkedKnowledge(parseInt(clipId));
+                renderPlanBacklinks(parseInt(clipId));
             }
         } else {
             text.textContent = '展开';
@@ -5925,7 +5928,10 @@ window.addEventListener('message', (e) => {
   } else if (e.data.action === 'refreshKnowledge') {
     document.querySelectorAll('.clip-detail.expanded').forEach(detail => {
       const clipId = detail.dataset.clipId;
-      if (clipId) renderLinkedKnowledge(parseInt(clipId));
+      if (clipId) {
+        renderLinkedKnowledge(parseInt(clipId));
+        renderPlanBacklinks(parseInt(clipId));
+      }
     });
   }
 });
@@ -6088,6 +6094,39 @@ async function renderLinkedKnowledge(clipId) {
             btn.classList.remove('loading');
             btn.innerHTML = '创建知识条目';
         }
+    }
+}
+
+// ====== 被学习计划引用（剪藏反链）=======
+async function renderPlanBacklinks(clipId) {
+    const section = document.getElementById(`planBacklinksSection-${clipId}`);
+    const listEl = document.getElementById(`planBacklinksList-${clipId}`);
+    if (!section || !listEl) return;
+    try {
+        const response = await axios.get(`${API_ROOT}/learning-plan/by-clip/${clipId}`);
+        const plans = response.data || [];
+        if (!plans || plans.length === 0) {
+            section.style.display = 'none';
+            return;
+        }
+        section.style.display = '';
+        listEl.innerHTML = plans.map(p => `
+            <div class="linked-knowledge-item" style="cursor:pointer;">
+                <div class="knowledge-title">
+                    <a href="javascript:void(0)" onclick="openLearningPlanFromClip(${p.planId})">📘 ${escapeHtml(p.planTitle)}</a>
+                    <span style="font-size:0.72rem;color:var(--text-muted);">${(p.phases || []).map(ph => `阶段 ${ph.phaseNumber}`).join('、')}</span>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        console.error('获取学习计划引用失败:', e);
+        section.style.display = 'none';
+    }
+}
+
+function openLearningPlanFromClip(planId) {
+    if (window.parent && window.parent.postMessage) {
+        window.parent.postMessage({ type: 'navigateLearningPlan', planId: parseInt(planId) }, '*');
     }
 }
 
