@@ -24,9 +24,30 @@ let lastCaptureSize = null;   // 缩略图实际像素尺寸（裁剪换算基�
 let pendingAction = null;      // 截图确认后的动作（copy/save/ocr/paste）
 let ocrService = null;         // 延迟加载（依赖 onnxruntime-node）
 
-function log(...args) { if (deps && deps.log) deps.log('[Screenshot]', ...args); }
+function log(...args) {
+  if (!deps || !deps.log) return;
+  try {
+    if (typeof deps.log.info === 'function') deps.log.info('[Screenshot]', ...args);
+    else if (typeof deps.log === 'function') deps.log('[Screenshot]', ...args);
+  } catch (e) {}
+}
 
 /** 动态获取主窗口（兼容 getMainWindow 函数与静态属性） */
+function getMainWindow() {
+  if (deps && typeof deps.getMainWindow === 'function') return deps.getMainWindow();
+  return deps ? deps.mainWindow : null;
+}
+
+/** OCR 模型目录：优先 userData（打包后 asar 内不可写），源码模式回退 __dirname/ocr-models */
+function getModelsDir() {
+  try {
+    if (deps && deps.app && typeof deps.app.getPath === 'function') {
+      const ud = deps.app.getPath('userData');
+      if (ud) return path.join(ud, 'ocr-models');
+    }
+  } catch (e) {}
+  return path.join(__dirname, 'ocr-models');
+}
 function getMainWindow() {
   if (deps && typeof deps.getMainWindow === 'function') return deps.getMainWindow();
   return deps ? getMainWindow() : null;
@@ -278,6 +299,7 @@ async function runOcr(image) {
   try {
     if (!ocrService) {
       ocrService = require('./ocr-service'); // 延迟加载（避免缺依赖时拖垮启动）
+      try { ocrService.setModelsDir(getModelsDir()); } catch (e) {}
     }
     const result = await ocrService.recognize(image.toPNG(), deps);
     if (!result) {
@@ -318,7 +340,8 @@ function showOcrResult(result) {
 /** 供渲染层查询 OCR 可用状态 */
 function getOcrStatus() {
   try {
-    if (!ocrService) ocrService = require('./ocr-service');
+    if (!ocrService) { ocrService = require('./ocr-service'); }
+    try { ocrService.setModelsDir(getModelsDir()); } catch (e) {}
     return ocrService.status(deps);
   } catch (e) { return { available: false, reason: 'onnxruntime-node 未安装' }; }
 }
@@ -338,16 +361,27 @@ function closeAllPasteWindows() {
 
 // ==================== IPC 与初始化 ====================
 
-/** 执行外部命令并等待退出（OCR 模型下载等） */
-function spawnAsync(cmd, args) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { stdio: 'inherit', windowsHide: true });
-    child.on('error', reject);
-    child.on('exit', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(cmd + ' 退出码 ' + code));
-    });
-  });
+/** 内联 PowerShell 下载模型（EncodedCommand，避免打包 asar 内脚本路径不可执行） */
+function downloadModelsInline(modelsDir) {
+  const ps = 
+    "$ErrorActionPreference = 'Stop'" + '\n' +
+    "$dir = '" + modelsDir + "'" + '\n' +
+    "New-Item -ItemType Directory -Force -Path $dir | Out-Null" + '\n' +
+    "$base = if ($env:OCR_BASE_URL) { $env:OCR_BASE_URL } else { 'https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0' }" + '\n' +
+    "$files = @(" + '\n' +
+    "  @{ n = 'ch_PP-OCRv4_det_infer.onnx'; u = \"$base/det.onnx\" }," + '\n' +
+    "  @{ n = 'ch_PP-OCRv4_rec_infer.onnx'; u = \"$base/rec.onnx\" }," + '\n' +
+    "  @{ n = 'ch_PP-OCRv4_cls_infer.onnx'; u = \"$base/cls.onnx\" }," + '\n' +
+    "  @{ n = 'ppocr_keys_v1.txt'; u = \"$base/ppocr_keys_v1.txt\" }" + '\n' +
+    ")" + '\n' +
+    "foreach ($f in $files) {" + '\n' +
+    "  $t = Join-Path $dir $f.n" + '\n' +
+    "  if (Test-Path $t) { continue }" + '\n' +
+    "  Invoke-WebRequest -Uri $f.u -OutFile $t -UseBasicParsing -TimeoutSec 180" + '\n' +
+    "}";
+  // EncodedCommand: UTF-16LE Base64，规避引号/编码/路径问题
+  const encoded = Buffer.from(ps, 'utf16le').toString('base64');
+  return spawnAsync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded]);
 }
 
 function registerIpc() {
@@ -426,15 +460,14 @@ function registerIpc() {
     // 1) onnxruntime-node 检测
     let ortInstalled = false;
     try { require.resolve('onnxruntime-node'); ortInstalled = true; } catch (e) {}
-    // 2) 模型文件检测
-    const modelsDir = path.join(__dirname, 'ocr-models');
+    // 2) 模型文件检测（userData/ocr-models，打包兼容）
+    const modelsDir = getModelsDir();
     const required = ['ch_PP-OCRv4_det_infer.onnx', 'ch_PP-OCRv4_rec_infer.onnx', 'ch_PP-OCRv4_cls_infer.onnx', 'ppocr_keys_v1.txt'];
     const needModel = !required.every(f => fs.existsSync(path.join(modelsDir, f)));
-    // 3) 下载模型（spawn PowerShell 执行下载脚本）
+    // 3) 下载模型：内联 PowerShell（EncodedCommand，避免打包后 asar 内脚本不可执行）
     if (needModel) {
-      const script = path.join(__dirname, 'download-ocr-models.ps1');
       try {
-        await spawnAsync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script]);
+        await downloadModelsInline(modelsDir);
       } catch (e) {
         return { status: 'error', message: '模型下载失败: ' + e.message };
       }
@@ -452,7 +485,7 @@ function registerIpc() {
   // ── OCR 模型目录（工具卡片配置面板用） ──
   ipcMain.handle('screenshot:open-ocr-models-dir', async () => {
     try {
-      const dir = path.join(__dirname, 'ocr-models');
+      const dir = getModelsDir();
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       const err = await deps.shell.openPath(dir); // 返回空字符串=成功，否则为错误信息
       if (err) return { status: 'error', message: err };

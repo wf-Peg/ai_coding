@@ -13,7 +13,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const MODELS_DIR = path.join(__dirname, 'ocr-models');
+let MODELS_DIR = path.join(__dirname, 'ocr-models'); // 默认源码模式；打包环境由 service 注入 userData
+/** 设置模型目录（打包环境 userData/ocr-models） */
+function setModelsDir(dir) { if (dir) MODELS_DIR = dir; }
 const DET_MODEL = 'ch_PP-OCRv4_det_infer.onnx';
 const REC_MODEL = 'ch_PP-OCRv4_rec_infer.onnx';
 const CLS_MODEL = 'ch_PP-OCRv4_cls_infer.onnx';
@@ -231,4 +233,4 @@ function ctcDecode(probs, width, dictArr, blankIdx) {
   return text.trim();
 }
 
-module.exports = { recognize, status, modelsDir: MODELS_DIR };
+module.exports = { recognize, status, setModelsDir, modelsDir: MODELS_DIR };

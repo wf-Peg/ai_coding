@@ -148,6 +148,29 @@ body {
 .th-card:hover .th-card-menu { opacity: 1; }
 .th-card-menu:hover { background: var(--app-surface-hover, #ececea); color: var(--app-text, #2f3437); }
 
+/* 卡片操作区（拖拽手柄 + 更多） */
+.th-card-actions { display: flex; align-items: center; gap: 0; }
+.th-drag-handle {
+  color: var(--app-text-muted, #92969d);
+  font-size: 13px; line-height: 1; padding: 2px 6px; border-radius: var(--app-radius-sm, 6px);
+  opacity: 0; transition: all .15s ease; cursor: grab; user-select: none;
+}
+.th-card:hover .th-drag-handle { opacity: 1; }
+.th-drag-handle:hover { color: var(--app-text, #2f3437); background: var(--app-surface-hover, #ececea); }
+
+/* 拖拽排序状态 */
+.th-card.th-drg { cursor: grab; }
+.th-card.th-drg:active { cursor: grabbing; }
+.th-grid-dragging .th-card { cursor: grabbing; }
+.th-grid-dragging .th-card:hover { transform: none; box-shadow: none; }
+.th-card.th-dragging {
+  opacity: .35;
+  border-color: var(--app-primary, #2383e2);
+  border-style: dashed;
+  box-shadow: none;
+  transform: none;
+}
+
 /* Disabled card */
 .th-card.disabled { opacity: .55; filter: grayscale(.4); }
 .th-card.disabled:hover { transform: none; border-color: var(--app-border, #e3e3df); box-shadow: none; }

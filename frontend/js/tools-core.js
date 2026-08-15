@@ -298,8 +298,7 @@
   function persistOrder() {
     const ids = dragCards().map(c => c.dataset.id);
     const system = tools.filter(t => t.system);
-    let rest = tools.filter(t => !t.system);
-    const idSet = new Set(ids);
+    const rest = tools.filter(t => !t.system);
     // 按 DOM 顺序重排可见的工具；被筛选隐藏的按原相对顺序追加到末尾
     const ordered = ids.map(id => rest.find(t => t.id === id)).filter(Boolean);
     const shown = new Set(ordered.map(t => t.id));
@@ -680,5 +679,6 @@
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
+  initDragSort();
   loadTools();
 })();
