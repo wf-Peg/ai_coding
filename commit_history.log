@@ -2,6 +2,7 @@
 # 格式: 日期 时间 | 提交说明
 # 每次提交代码后自动追加到此文件
 
+2026-08-16 06:30 | OCR cls 方向分类模型改为可选（HF space 无 text_cls 目录，det/rec/字典即可识别正立文本；有 cls 则启用）→ 用户现有 3 文件即可用 OCR
 2026-08-16 06:00 | OCR 状态提示明细化：缺失模型文件逐个列出（当前用户 4 缺 1：缺 ch_PP-OCRv4_cls_infer.onnx）+ 显示模型目录路径
 2026-08-16 05:30 | OCR 模型路径确认（rec/cls 与 det 同结构，字典 PaddleOCR 官方 raw）+ 首次启动引导（OCR 未就绪 → 全局引导条点击跳工具配置，会话去重）；det 模型已入库
 2026-08-16 05:00 | OCR 集成到应用：模型内置打包（resources/ocr-models 优先加载 + electron-builder extraResources）用户零安装；下载脚本升级多源回退（GitHub+hf-mirror+HF+PaddleOCR字典）；复制命令引导一键安装

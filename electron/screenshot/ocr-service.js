@@ -33,13 +33,17 @@ function init() {
   try {
     if (!ort) ort = require('onnxruntime-node');
     if (!sharp) sharp = require('sharp');
-    const hasAll = [DET_MODEL, REC_MODEL, CLS_MODEL, DICT_FILE].every(f => fs.existsSync(path.join(MODELS_DIR, f)));
+    // 必需：det + rec + 字典；cls（方向分类）可选（缺失时跳过，正立文本不受影响）
+    const required = [DET_MODEL, REC_MODEL, DICT_FILE];
+    const hasAll = required.every(f => fs.existsSync(path.join(MODELS_DIR, f)));
     if (!hasAll) return null;
     dict = fs.readFileSync(path.join(MODELS_DIR, DICT_FILE), 'utf-8').split(/\r?\n/).filter(Boolean);
     sessions = {
       det: ort.InferenceSession.create(path.join(MODELS_DIR, DET_MODEL)),
       rec: ort.InferenceSession.create(path.join(MODELS_DIR, REC_MODEL)),
-      cls: ort.InferenceSession.create(path.join(MODELS_DIR, CLS_MODEL))
+      cls: fs.existsSync(path.join(MODELS_DIR, CLS_MODEL))
+        ? ort.InferenceSession.create(path.join(MODELS_DIR, CLS_MODEL))
+        : null
     };
     return sessions;
   } catch (e) {
@@ -53,14 +57,14 @@ function status() {
   let ortOk = true;
   try { require.resolve('onnxruntime-node'); } catch (e) { ortOk = false; }
   if (!ortOk) return { available: false, reason: 'onnxruntime-node 未安装（npm i onnxruntime-node + electron-builder install-app-deps）' };
-  // 列出缺失的模型文件（4 缺几一目了然）
-  const required = ['ch_PP-OCRv4_det_infer.onnx', 'ch_PP-OCRv4_rec_infer.onnx', 'ch_PP-OCRv4_cls_infer.onnx', 'ppocr_keys_v1.txt'];
+  // 必需模型（det/rec/字典）；cls 可选
+  const required = ['ch_PP-OCRv4_det_infer.onnx', 'ch_PP-OCRv4_rec_infer.onnx', 'ppocr_keys_v1.txt'];
   const missing = required.filter(f => !fs.existsSync(path.join(MODELS_DIR, f)));
-  if (missing.length === 0) return { available: true, reason: '' };
-  return {
-    available: false,
-    reason: 'OCR 模型缺失：' + missing.join(', ') + '（模型目录 ' + MODELS_DIR + '，可用一键安装或运行 download-ocr-models.ps1）'
-  };
+  if (missing.length > 0) {
+    return { available: false, reason: 'OCR 模型缺失：' + missing.join(', ') + '（模型目录 ' + MODELS_DIR + '，可用一键安装）' };
+  }
+  const clsOk = fs.existsSync(path.join(MODELS_DIR, CLS_MODEL));
+  return { available: true, reason: clsOk ? '' : '（可选的方向分类模型缺失，正立文本识别不受影响）' };
 }
 
 // ==================== 图像预处理 ====================
