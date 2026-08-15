@@ -141,7 +141,7 @@
       .selectAll('line')
       .data(allLinks)
       .join('line')
-      .attr('class', function(d) { return 'link ' + (d.type === 'derived_from' ? 'link-derived' : 'link-linked'); })
+      .attr('class', function(d) { return 'link link-' + (d.type === 'derived_from' ? 'derived' : (d.type === 'plan_links' ? 'plan' : 'linked')); })
       .attr('stroke-dasharray', function(d) { return d.type === 'derived_from' ? '5 4' : null; });
 
     // Render nodes
@@ -153,9 +153,10 @@
       .attr('class', 'node')
       .call(dragBehavior());
 
-    // Node shapes: clip = square, knowledge = circle
+    // Node shapes: clip = square, knowledge = circle, learning-plan = triangle
     var clipNodes = nodeElements.filter(function(d) { return isClip(d); });
-    var knoNodes = nodeElements.filter(function(d) { return !isClip(d); });
+    var planNodes = nodeElements.filter(function(d) { return isLearningPlan(d); });
+    var knoNodes = nodeElements.filter(function(d) { return !isClip(d) && !isLearningPlan(d); });
 
     clipNodes.append('rect')
       .attr('x', function(d) { return -getNodeRadius(d); })
@@ -163,6 +164,10 @@
       .attr('width', function(d) { return getNodeRadius(d) * 2; })
       .attr('height', function(d) { return getNodeRadius(d) * 2; })
       .attr('rx', 3)
+      .attr('fill', function(d) { return getNodeColor(d); });
+
+    planNodes.append('polygon')
+      .attr('points', function(d) { var r = getNodeRadius(d) + 3; return '0,' + (-r) + ' ' + (r * 0.87) + ',' + (r * 0.5) + ' ' + (-r * 0.87) + ',' + (r * 0.5); })
       .attr('fill', function(d) { return getNodeColor(d); });
 
     knoNodes.append('circle')
@@ -182,12 +187,12 @@
 
     // Node hover
     nodeElements.on('mouseenter', function(event, d) {
-      var sel = d3.select(this).select(isClip(d) ? 'rect' : 'circle');
+      var sel = d3.select(this).select(shapeSelector(d));
       sel.transition().duration(150)
         .call(scaleShape, d, 1.15);
     }).on('mouseleave', function(event, d) {
       if (selectedNodeId !== String(d.id)) {
-        var sel = d3.select(this).select(isClip(d) ? 'rect' : 'circle');
+        var sel = d3.select(this).select(shapeSelector(d));
         sel.transition().duration(150)
           .call(scaleShape, d, 1);
       }
@@ -217,11 +222,19 @@
 
   function scaleShape(selection, d, factor) {
     var r = getNodeRadius(d) * factor;
-    if (isClip(d)) {
+    if (isLearningPlan(d)) {
+      var rr = r + 3;
+      selection.attr('points', '0,' + (-rr) + ' ' + (rr * 0.87) + ',' + (rr * 0.5) + ' ' + (-rr * 0.87) + ',' + (rr * 0.5));
+    } else if (isClip(d)) {
       selection.attr('x', -r).attr('y', -r).attr('width', r * 2).attr('height', r * 2);
     } else {
       selection.attr('r', r);
     }
+  }
+
+  function shapeSelector(d) {
+    if (isLearningPlan(d)) return 'polygon';
+    return isClip(d) ? 'rect' : 'circle';
   }
 
   // ---- Node Helpers ----
@@ -230,8 +243,13 @@
     return d.type === 'clip';
   }
 
+  function isLearningPlan(d) {
+    return d.type === 'learning-plan';
+  }
+
   function getNodeRadius(d) {
     if (isClip(d)) return 8;
+    if (isLearningPlan(d)) return 10;
     var degree = (d.linkedCount || 0) + (d.sourceCount || 0);
     if (!degree) return d.linkedCount ? 10 : 9;
     var r = 9 + (degree * 1.6);
@@ -239,6 +257,7 @@
   }
 
   function getNodeColor(d) {
+    if (isLearningPlan(d)) return '#22c55e';
     if (isClip(d)) return '#f59e0b';
     var degree = (d.linkedCount || 0) + (d.sourceCount || 0);
     if (degree >= 10) return '#2f72d8';
@@ -252,7 +271,9 @@
   }
 
   function fnLinkDistance(d) {
-    return d.type === 'derived_from' ? 90 : 130;
+    if (d.type === 'derived_from') return 90;
+    if (d.type === 'plan_links') return 120;
+    return 130;
   }
 
   function fnLinkStrength() {
@@ -309,7 +330,7 @@
       return !(neighborIds.has(sourceId) && neighborIds.has(targetId));
     });
 
-    nodeElements.select('circle, rect')
+    nodeElements.select('circle, rect, polygon')
       .attr('stroke', function(n) {
         return String(n.id) === String(d.id) ? '#ff9800' : null;
       })
@@ -324,7 +345,7 @@
     selectedNodeId = null;
     nodeElements.classed('dimmed', false);
     linkElements.classed('dimmed', false);
-    nodeElements.select('circle, rect')
+    nodeElements.select('circle, rect, polygon')
       .attr('stroke', null)
       .attr('stroke-width', 2);
     hideSidePanel();
@@ -365,7 +386,7 @@
       return !(cluster.has(sourceId) && cluster.has(targetId));
     });
 
-    nodeElements.select('circle, rect').attr('stroke', function(n) {
+    nodeElements.select('circle, rect, polygon').attr('stroke', function(n) {
       return matched.has(String(n.id)) ? '#ff9800' : null;
     });
   }
@@ -406,7 +427,9 @@
     panelTitle.textContent = d.title;
     panelSummary.textContent = d.summary || '暂无摘要';
 
-    if (isClip(d)) {
+    if (isLearningPlan(d)) {
+      panelMeta.textContent = '学习计划 · ' + (d.linkedCount || 0) + ' 个关联 · ' + (d.sourceCount || 0) + ' 个来源';
+    } else if (isClip(d)) {
       panelMeta.textContent = '来源剪藏' + (d.category ? ' · ' + d.category : '');
     } else {
       panelMeta.textContent = '知识条目 · ' + (d.linkedCount || 0) + ' 个关联 · ' + (d.sourceCount || 0) + ' 个来源';
@@ -417,7 +440,10 @@
     }).join('');
     panelTags.innerHTML = tagsHtml || '<span style="color:var(--text-muted);font-size:0.85rem;">暂无标签</span>';
 
-    if (isClip(d)) {
+    if (isLearningPlan(d)) {
+      panelDetailLink.textContent = '前往学习计划';
+      panelDetailLink.href = 'learning-plan.html?planId=' + encodeURIComponent(d.sourceId != null ? d.sourceId : d.id);
+    } else if (isClip(d)) {
       panelDetailLink.textContent = '前往剪藏模块';
       panelDetailLink.href = 'clip.html';
     } else {
@@ -448,8 +474,11 @@
     svg.selectAll('.link-derived')
       .attr('stroke', isDark ? '#f59e0b' : '#fb923c')
       .attr('stroke-opacity', 0.55);
+    svg.selectAll('.link-plan')
+      .attr('stroke', isDark ? '#22c55e' : '#22c55e')
+      .attr('stroke-opacity', 0.6);
 
-    svg.selectAll('.node circle, .node rect')
+    svg.selectAll('.node circle, .node rect, .node polygon')
       .attr('stroke', nodeStroke);
 
     svg.selectAll('.node text')
