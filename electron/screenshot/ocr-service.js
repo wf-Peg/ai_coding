@@ -50,13 +50,17 @@ function init() {
 
 /** 查询 OCR 可用状态 */
 function status() {
-  const available = !!init();
-  let reason = '';
-  if (!available) {
-    try { require.resolve('onnxruntime-node'); } catch (e) { reason = 'onnxruntime-node 未安装（npm i onnxruntime-node + electron-builder install-app-deps）'; }
-    if (!reason) reason = 'OCR 模型缺失（运行 electron/screenshot/download-ocr-models.ps1 下载）';
-  }
-  return { available, reason };
+  let ortOk = true;
+  try { require.resolve('onnxruntime-node'); } catch (e) { ortOk = false; }
+  if (!ortOk) return { available: false, reason: 'onnxruntime-node 未安装（npm i onnxruntime-node + electron-builder install-app-deps）' };
+  // 列出缺失的模型文件（4 缺几一目了然）
+  const required = ['ch_PP-OCRv4_det_infer.onnx', 'ch_PP-OCRv4_rec_infer.onnx', 'ch_PP-OCRv4_cls_infer.onnx', 'ppocr_keys_v1.txt'];
+  const missing = required.filter(f => !fs.existsSync(path.join(MODELS_DIR, f)));
+  if (missing.length === 0) return { available: true, reason: '' };
+  return {
+    available: false,
+    reason: 'OCR 模型缺失：' + missing.join(', ') + '（模型目录 ' + MODELS_DIR + '，可用一键安装或运行 download-ocr-models.ps1）'
+  };
 }
 
 // ==================== 图像预处理 ====================
