@@ -6,7 +6,7 @@
     "tags": ["product-dev", "editor"],
     "phase": "completed",
     "createdAt": "2026-07-01T00:00:00",
-    "completedAt": "2026-08-01T00:00:00"
+    "completedAt": "2026-08-16T03:30:00"
   },
   "featurePoints": [
     {
@@ -417,6 +417,48 @@
       "verifications": [
         { "title": "Markdown 预览中 > [!note] 渲染为 Callout 提示块", "status": "done" },
         { "title": "渲染不被 sanitizeHtml 过滤", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-019",
+      "name": "多模块多类型双向链接（双链/反链/出链，Obsidian 对齐）",
+      "description": "双向链接从单一根（clip-organized/md）升级为多模块多类型：以 storagePath 为基自动发现所有含可链接文本文件的一级子目录作为独立模块，每模块独立索引 + fs.watch 自动重建 + TTL 兜底；可链接类型扩展为 md + 编辑器文本类型（txt/sql/json/xml/csv/log/yaml/yml/ini/conf），自动排除 clip-storage 与点开头目录；反链/出链跨模块聚合、就近优先（同模块>相对路径短）、同名歧义弹窗选择；新增出链面板（断链标红），交互样式对齐 Obsidian。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "editor", "wikilink", "backlink", "obsidian", "multi-module"],
+      "designSections": ["多模块 + 多类型索引设计", "后端（electron/main.js）", "前端（frontend/js/editor.js + editor.html + editor.css）", "Obsidian 对齐的产品/交互"],
+      "tasks": [
+        { "title": "main.js 新增 LINKABLE_EXT_RE（md+编辑器文本类型）与 EXCLUDED_MODULE_DIRS", "status": "done" },
+        { "title": "main.js 实现 discoverLinkModules 自动发现模块（storagePath 一级子目录）", "status": "done" },
+        { "title": "main.js 实现 buildModuleIndex 逐模块构建（10MB 大小守卫）", "status": "done" },
+        { "title": "main.js 逐模块 fs.watch 监听 + 500ms 防抖重建 + TTL 兜底", "status": "done" },
+        { "title": "main.js aggregateBacklinks(currentPath) 多键查+去自引用+就近排序", "status": "done" },
+        { "title": "main.js 新增 editor-find-outgoing 出链扫描 IPC", "status": "done" },
+        { "title": "main.js editor-save-to-vault 优先使用 clip-organized 模块根", "status": "done" },
+        { "title": "preload.js findBacklinks(currentPath) + 新增 findOutgoing(currentPath)", "status": "done" },
+        { "title": "editor.js wikilinkState 兼容新结构（targets/modules）", "status": "done" },
+        { "title": "editor.js getModuleIdByPath 模块归属判定", "status": "done" },
+        { "title": "editor.js resolveWikilink 就近优先 + fileName 精确匹配", "status": "done" },
+        { "title": "editor.js 修复反链点击用 openWikilinkByPath 打开精确文件", "status": "done" },
+        { "title": "editor.js 反链条目显示模块小标签、标题显示真实文件名", "status": "done" },
+        { "title": "editor.js 新增 buildOutgoing 出链面板渲染（断链标红）", "status": "done" },
+        { "title": "editor.js scheduleBacklinksRefresh 按激活 tab 刷新", "status": "done" },
+        { "title": "editor.js 打开新文件后显式刷新反链/出链", "status": "done" },
+        { "title": "editor.js registerWikilinkCompleter 同名消歧（basename+ext 去重、[[相对路径]] 候选）", "status": "done" },
+        { "title": "editor.html 反链面板新增「反链|出链」标签栏与 outgoingList", "status": "done" },
+        { "title": "editor.css 新增分段 tab、模块小标签、出链条目、断链样式（Obsidian 对齐）", "status": "done" },
+        { "title": "验证脚本 verify-wikilink 多模块/跨模块/非 md 断言（用后删除）", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "模块自动发现 ≈ [clip-organized, clip-weekly-report, obsidian-vault, tmp]，不含 clip-storage/.tmp/.git", "status": "done" },
+        { "title": "tmp 下 test.txt/test.sql 可被 [[test]]/[[test.txt]] 补全、跳转、反链、出链", "status": "done" },
+        { "title": "跨模块互引反链正确（如 clip-organized 引用 obsidian-vault 文件）", "status": "done" },
+        { "title": "反链条目点击打开精确文件（不误开同名/不误弹选择框）", "status": "done" },
+        { "title": "自引用不进入反链", "status": "done" },
+        { "title": "同名目标就近优先排序（同模块>相对路径短），歧义弹窗选择列表", "status": "done" },
+        { "title": "出链面板显示目标解析结果，断链标红不可点", "status": "done" },
+        { "title": "面板交互（tab/数量徽标/条目卡片/行号高亮）对齐 Obsidian，暗色主题适配", "status": "done" },
+        { "title": "Ctrl+Shift+B 开关、[[ 补全（含同名消歧候选）回归正常", "status": "done" },
+        { "title": "verify-wikilink 脚本断言全部通过（含模块发现/跨模块反链/非 md 链接/就近排序/消歧）", "status": "done" }
       ]
     }
   ],
