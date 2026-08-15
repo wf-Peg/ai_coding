@@ -746,6 +746,15 @@
           const kf = document.getElementById('knowledgeFrame');
           if (kf) kf.src = 'knowledge-editor.html';
         }
+        if (event.data && event.data.type === 'navigateLearningPlan' && event.data.planId) {
+          renderView('learning-plan');
+          window.history.pushState({ view: 'learning-plan' }, '', '/learning-plan');
+          const lpf = document.getElementById('learningPlanFrame');
+          if (lpf) lpf.src = `learning-plan.html?planId=${event.data.planId}`;
+        }
+        if (event.data && event.data.type === 'openTextData') {
+          sendToEditor({ type: 'openTextData', text: event.data.text || '', title: event.data.title || '' });
+        }
         if (event.data && event.data.type === 'navigateClip') {
           renderView('clip');
           window.history.pushState({ view: 'clip' }, '', '/clip');
