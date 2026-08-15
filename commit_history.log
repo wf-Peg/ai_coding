@@ -2,6 +2,7 @@
 # 格式: 日期 时间 | 提交说明
 # 每次提交代码后自动追加到此文件
 
+2026-08-16 08:30 | OCR 管线一次性收敛：沙箱实测 det/rec 32 对齐后推理全通（855 vs 856/51 vs 52 根因=非 32 倍数）；det 长边960+32对齐、rec 高48+宽32对齐动态、输出 T=W/8 + 6625 类别 + blank=0 的 CTC 解码；端到端管线跑通
 2026-08-16 08:00 | 修复 OCR Add 广播维度不匹配(51 vs 52)：PP-OCRv4 rec 输入固定 48×320（原动态宽导致 onnx 报错）
 2026-08-16 07:30 | 修复 OCR 识别失败 ss.det.run is not a function：onnxruntime InferenceSession.create 为异步(返回Promise)，init 改 async + await 三会话创建；status 改纯文件检查
 2026-08-16 07:00 | 修复 OCR 无反馈：截图选 OCR 后覆盖层关闭结果静默 → 失败/未就绪主窗口通知条显示原因，成功弹结果窗口

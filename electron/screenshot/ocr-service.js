@@ -171,26 +171,29 @@ async function recognize(pngBuffer) {
   const sharpMod = sharp;
   const { width: srcW, height: srcH } = await sharpMod(pngBuffer).metadata();
 
-  // ---- det：resize 到高 960 ----
-  const detH = 960;
-  const detW = Math.max(32, Math.round(srcW * (detH / srcH)));
+  // ---- det：长边 960 + 宽高 32 对齐（PP-OCR 预处理标准，非 32 倍数会致 onnx 采样取整冲突） ----
+  const detLimit = 960;
+  const dScale = detLimit / Math.max(srcW, srcH);
+  let detW = Math.max(32, Math.round((srcW * dScale) / 32) * 32);
+  let detH = Math.max(32, Math.round((srcH * dScale) / 32) * 32);
   const detImg = await resizeImage(pngBuffer, detW, detH);
   const detInput = rgbToNchw(detImg.data, detW, detH);
   const detOut = await ss.det.run({ x: makeTensor(detInput, detW, detH) });
-  // probability map: 输出名通常是 'sigmoid_0.tmp_0' 或 'out'，取第一个 float 输出
+  // probability map（输出 sigmoid_0.tmp_0），尺寸以张量实际 dims 为准（det 输出为输入/4 或同尺寸）
   const probTensor = firstFloatTensor(detOut);
-  const prob = probTensor.data; // HxW
-  const pW = detW, pH = detH;
+  const prob = probTensor.data;
+  const pDims = (probTensor.dims && probTensor.dims.length >= 4) ? probTensor.dims : [1, 1, detH, detW];
+  const pW = pDims[3] || detW;
+  const pH = pDims[2] || detH;
 
-  const scaleX = srcW / detW;
-  const scaleY = srcH / detH;
+  const scaleX = srcW / pW;
+  const scaleY = srcH / pH;
   const boxes = extractTextBoxes(prob, pW, pH, 0.3, 12);
 
   // ---- rec：对每个文本框识别 ----
   const lines = [];
-  const recH = 48;             // PP-OCRv4 rec 固定输入高 48
-  const recW = 320;            // PP-OCRv4 rec 固定输入宽 320（动态宽会导致 onnx Add 广播维度不匹配）
-  const blankIdx = dict.length; // CTC blank 在字典末尾
+  const recH = 48;             // PP-OCRv4 rec 输入高固定 48
+  const recMaxW = 320;         // rec 宽上限（动态宽，但需 32 对齐）
 
   for (const box of boxes) {
     // 映射回原图坐标 + 外扩 4px
@@ -200,13 +203,19 @@ async function recognize(pngBuffer) {
     const h = Math.min(srcH - y, Math.round(box.h * scaleY) + 8);
     if (w < 4 || h < 4) continue;
 
-    // 裁剪文本框并 resize 到 rec 固定输入 48×320（PP-OCR 标准预处理）
+    // 裁剪文本框并 resize 到高 48、宽按比例且 32 对齐（避免 onnx 采样取整冲突）
     const crop = await sharpMod(pngBuffer).extract({ left: x, top: y, width: w, height: h }).toBuffer();
+    let recW = Math.max(16, Math.round(w * (recH / h)));
+    recW = Math.min(recMaxW, Math.max(32, Math.round(recW / 32) * 32));
     const recImg = await resizeImage(crop, recW, recH);
     const recInput = rgbToNchw(recImg.data, recW, recH);
     const recOut = await ss.rec.run({ x: makeTensor(recInput, recW, recH) });
-    const recProbs = firstFloatTensor(recOut).data; // [recW, dict+blank]
-    const text = ctcDecode(recProbs, recW, dict, blankIdx);
+    const recTensor = firstFloatTensor(recOut); // 输出 [1, T, numClasses]，T = 输入宽/8
+    const recProbs = recTensor.data;
+    const rDims = recTensor.dims || [1, 1, 6625];
+    const tSteps = rDims[1] || Math.max(1, Math.round(recProbs.length / 6625));
+    const numClasses = rDims[2] || 6625;
+    const text = ctcDecode(recProbs, tSteps, dict, numClasses);
     if (text) lines.push({ text, x, y, w, h });
   }
 
@@ -225,18 +234,25 @@ function firstFloatTensor(output) {
   throw new Error('OCR 模型输出解析失败');
 }
 
-/** CTC 贪心解码（去重 + 去 blank） */
-function ctcDecode(probs, width, dictArr, blankIdx) {
+/** CTC 贪心解码（去重 + 去 blank）。
+ *  PP-OCR rec 输出 [T, numClasses]：index 0 = blank，index 1..dictLen = 字典字符，尾部为额外类。
+ *  @param {number} numClasses 输出类别数（如 6625 = 字典 6623 + blank + extra） */
+function ctcDecode(probs, width, dictArr, numClasses) {
+  const blankIdx = 0; // PP-OCR blank 在索引 0
+  const nc = numClasses || dictArr.length + 1;
   let last = blankIdx;
   let text = '';
   for (let i = 0; i < width; i++) {
     let best = blankIdx;
-    let bestP = probs[i * (dictArr.length + 1)];
-    for (let c = 0; c < dictArr.length; c++) {
-      const p = probs[i * (dictArr.length + 1) + 1 + c];
+    let bestP = probs[i * nc];
+    for (let c = 1; c < nc; c++) { // 从 1 起（0 是 blank）
+      const p = probs[i * nc + c];
       if (p > bestP) { bestP = p; best = c; }
     }
-    if (best !== blankIdx && best !== last) text += dictArr[best];
+    if (best !== blankIdx && best !== last) {
+      const charIdx = best - 1;
+      if (charIdx >= 0 && charIdx < dictArr.length) text += dictArr[charIdx];
+    }
     last = best;
   }
   return text.trim();
