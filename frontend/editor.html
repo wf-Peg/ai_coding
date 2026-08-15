@@ -103,6 +103,16 @@
         </div>
         <div class="fav-list" id="favList"></div>
       </div>
+      <div class="editor-pane backlinks-pane" id="backlinksPane" aria-hidden="true">
+        <div class="filetree-header">
+          <span>反链（引用 <strong id="backlinksTarget"></strong>）</span>
+          <div class="filetree-header-actions">
+            <button class="inline-btn" id="saveToVaultBtn" title="保存当前文档到知识库 notes/">存入知识库</button>
+            <button class="inline-btn" id="closeBacklinksBtn">关闭</button>
+          </div>
+        </div>
+        <div class="backlinks-list" id="backlinksList"></div>
+      </div>
       <div class="editor-pane main-pane" id="mainPane">
         <div id="mainEditor" class="ace-host" aria-label="文本编辑器"></div>
         <div id="overviewRuler" class="overview-ruler" aria-hidden="true"></div>

@@ -498,6 +498,14 @@ public class PromptLibraryService {
             }
         }
 
+        // 内联 Role 名（如 "# Role: 逻辑学家"）无 body 时，把名称回填到 Role 段，保证分段编辑时 Role 非空
+        if (roleName != null && !roleName.isEmpty()) {
+            String role = sections.get("Role");
+            if (role == null || role.trim().isEmpty()) {
+                sections.put("Role", roleName);
+            }
+        }
+
         boolean langgpt = !sections.isEmpty();
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("name", roleName);

@@ -29,6 +29,8 @@
   /** 允许的属性白名单（D-K） */
   var ALLOWED_ATTRS = new Set([
     'src', 'href', 'alt', 'title', 'class',
+    // 双链 wikilink 目标（Obsidian basename / 库内相对路径）
+    'data-target',
     // SVG 展示属性
     'viewBox', 'fill', 'stroke', 'stroke-width', 'stroke-linecap',
     'stroke-linejoin', 'd', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r',
@@ -38,7 +40,7 @@
   ]);
 
   /** class 前缀白名单 */
-  var ALLOWED_CLASS_PREFIXES = ['language-', 'markdown-content', 'media-image', 'callout', 'mermaid'];
+  var ALLOWED_CLASS_PREFIXES = ['language-', 'markdown-content', 'media-image', 'callout', 'mermaid', 'wikilink'];
 
   /** 判断相对路径是否指向 media 资源 */
   function isMediaRelative(path) {
@@ -130,12 +132,38 @@
   }
 
   /**
+   * Obsidian 双链（wikilink）预替换（FP-1）。
+   * 在 marked 解析前，把 `[[target|alias]]` / `[[target]]` 替换为
+   * `<a class="wikilink" data-target="{target}">{alias}</a>`。
+   * - target 支持 basename（如 `笔记名`）或库内相对路径（如 `文件夹/笔记名`）。
+   * - 无 alias 时显示 basename（`文件夹/笔记名` → `笔记名`）。
+   * 点击行为由各页面（editor.js 等）在容器上委托处理。
+   */
+  function renderWikilinks(md) {
+    if (!md || md.indexOf('[[') === -1) return md;
+    return md.replace(/\[\[([^\[\]|]+?)(?:\|([^\[\]]*?))?\]\]/g, function (match, target, alias) {
+      var t = String(target).trim();
+      if (!t) return match;
+      var label = (alias != null ? String(alias).trim() : '') || basename(t);
+      return '<a class="wikilink" data-target="' + escapeHtml(t) + '">' + escapeHtml(label) + '</a>';
+    });
+  }
+
+  /** 取路径的 basename（`a/b/c` → `c`） */
+  function basename(p) {
+    var parts = String(p).split('/');
+    return parts[parts.length - 1];
+  }
+
+  /**
    * Markdown → 安全 HTML（marked → 消毒 → 图片重写）。
    * 无 marked 时降级为纯文本转义。
    */
   function renderMarkdown(md) {
     if (!md) return '';
     var html;
+    // 加点：Obsidian 双链预替换，再交给 marked
+    md = renderWikilinks(md);
     if (global.marked && typeof global.marked.parse === 'function') {
       try {
         html = global.marked.parse(md, { renderer: getCalloutRenderer() });
@@ -261,6 +289,7 @@
     rewriteImageSrc: rewriteImageSrc,
     sanitizeHtml: sanitizeHtml,
     renderMarkdown: renderMarkdown,
+    renderWikilinks: renderWikilinks,
     renderMermaid: renderMermaid,
     escapeHtml: escapeHtml
   };

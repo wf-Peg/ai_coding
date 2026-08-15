@@ -2009,6 +2009,111 @@ function setupIPC() {
     }
   });
 
+  // ===== 编辑器双链（wikilink）目标索引 =====
+  // 扫描知识根目录（vault root）下所有 .md，返回 basename + 相对路径 + 绝对路径，
+  // 供前端双链补全、反链与跳转使用。
+  ipcMain.handle('editor-list-wikilink-targets', async () => {
+    try {
+      const config = loadConfig();
+      const rootPath = config.storagePath || APP_DIR;
+      const vaultRoot = path.join(rootPath, 'clip-organized');
+      const targets = [];
+      if (!fs.existsSync(vaultRoot)) return { targets: [] };
+      const walk = (dir, relPrefix) => {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.name.startsWith('.')) continue;
+          const abs = path.join(dir, entry.name);
+          const rel = relPrefix ? path.join(relPrefix, entry.name) : entry.name;
+          if (entry.isDirectory()) {
+            walk(abs, rel);
+          } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
+            targets.push({
+              basename: path.basename(entry.name, path.extname(entry.name)),
+              fileName: entry.name,
+              relativePath: rel.split(path.sep).join('/'),
+              absolutePath: abs
+            });
+          }
+        }
+      };
+      walk(vaultRoot, '');
+      return { targets };
+    } catch (err) {
+      log.error('[EditorWikilink] list targets failed:', err.message);
+      return { targets: [], message: err.message };
+    }
+  });
+
+  // ===== 编辑器保存到知识库（vault root/notes/{basename}.md）=====
+  // 让编辑器文件的可解析 basename 全局进入 Obsidian 生态。
+  ipcMain.handle('editor-save-to-vault', async (event, payload) => {
+    try {
+      const config = loadConfig();
+      const rootPath = config.storagePath || APP_DIR;
+      const vaultRoot = path.join(rootPath, 'clip-organized');
+      const notesDir = path.join(vaultRoot, 'notes');
+      if (!fs.existsSync(notesDir)) fs.mkdirSync(notesDir, { recursive: true });
+      const text = payload?.text || '';
+      const base = (payload?.basename || '未命名').replace(/[\\/:*?"<>|]/g, '_').trim() || '未命名';
+      const filePath = path.join(notesDir, base + '.md');
+      fs.writeFileSync(filePath, text, 'utf-8');
+      log.info('[EditorWikilink] saved to vault', filePath);
+      return { success: true, filePath };
+    } catch (err) {
+      log.error('[EditorWikilink] save to vault failed:', err.message);
+      return { success: false, message: err.message };
+    }
+  });
+
+  // ===== 编辑器双链反链搜索 =====
+  // 扫描 vault root 下所有 .md，找出含 `[[basename]]` 的行（basename 无扩展名）。
+  ipcMain.handle('editor-find-backlinks', async (event, basename) => {
+    try {
+      const config = loadConfig();
+      const rootPath = config.storagePath || APP_DIR;
+      const vaultRoot = path.join(rootPath, 'clip-organized');
+      if (!fs.existsSync(vaultRoot)) return { backlinks: [] };
+      const backlinks = [];
+      const walk = (dir) => {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.name.startsWith('.')) continue;
+          const abs = path.join(dir, entry.name);
+          if (entry.isDirectory()) { walk(abs); continue; }
+          if (!entry.isFile() || !/\.md$/i.test(entry.name)) continue;
+          const content = fs.readFileSync(abs, 'utf-8');
+          const pattern = new RegExp(`\\[\\[${escapeRegex(basename)}(?:\\||\\]\\])`, 'i');
+          const lines = content.split('\n');
+          const matches = [];
+          lines.forEach((line, idx) => {
+            if (pattern.test(line)) {
+              matches.push({ lineNumber: idx + 1, text: line.trim().substring(0, 120) });
+            }
+          });
+          if (matches.length > 0) {
+            backlinks.push({
+              fileName: entry.name,
+              basename: path.basename(entry.name, '.md'),
+              absolutePath: abs,
+              relativePath: path.relative(vaultRoot, abs).split(path.sep).join('/'),
+              matches
+            });
+          }
+        }
+      };
+      walk(vaultRoot);
+      return { backlinks };
+    } catch (err) {
+      log.error('[EditorWikilink] find backlinks failed:', err.message);
+      return { backlinks: [], message: err.message };
+    }
+  });
+
+  function escapeRegex(s) {
+    return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
   // ===== 编辑器自动保存 =====
   ipcMain.handle('editor-autosave-file', async (event, payload) => {
     try {
@@ -2032,8 +2137,6 @@ function setupIPC() {
       return { error: err.message };
     }
   });
-
-  // ===== 看板娘图标上传 =====
   // 将上传的图标保存到本地文件系统，覆盖原预设图标文件
   ipcMain.handle('save-mascot-image', async (event, { characterId, action, dataUrl }) => {
     try {

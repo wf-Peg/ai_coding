@@ -322,6 +322,29 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   openFileByPath: (filePath) => ipcRenderer.invoke('editor-open-file-by-path', filePath),
 
+  // ===================== 编辑器双链（wikilink）=====================
+
+  /**
+   * 扫描知识根目录（vault root）下所有 .md，返回 basename + 相对路径 + 绝对路径，
+   * 供双链补全、反链与跳转使用。
+   * @returns {Promise<{targets: Array}>}
+   */
+  listWikilinkTargets: () => ipcRenderer.invoke('editor-list-wikilink-targets'),
+
+  /**
+   * 保存当前编辑器内容到知识库（vault root/notes/{basename}.md）
+   * @param {{text: string, basename: string}} payload
+   * @returns {Promise<{success: boolean, filePath?: string, message?: string}>}
+   */
+  saveToVault: (payload) => ipcRenderer.invoke('editor-save-to-vault', payload),
+
+  /**
+   * 扫描知识根目录下所有 .md，找出引用 `[[basename]]` 的文件与行。
+   * @param {string} basename - 被引用文件的不含扩展名名称
+   * @returns {Promise<{backlinks: Array}>}
+   */
+  findBacklinks: (basename) => ipcRenderer.invoke('editor-find-backlinks', basename),
+
   // ===================== 编辑器自动保存 =====================
 
   /**

@@ -86,7 +86,8 @@
     'fullscreenBtn', 'fileTreePane', 'fileTreeTitle', 'fileTreeBody', 'closeFileTreeBtn', 'selectDirBtn',
     'autosaveStatus', 'historyCount', 'historyList', 'closeHistoryBtn',
     'undoHistoryBtn', 'redoHistoryBtn', 'clearHistoryBtn', 'mainPane', 'historyPane', 'recentPane',
-    'recentList', 'closeRecentBtn', 'clearRecentBtn', 'favPane', 'favList', 'closeFavBtn', 'clearFavBtn', 'aiChatPane', 'aiChatMessages', 'aiChatInput',
+    'recentList', 'closeRecentBtn', 'clearRecentBtn', 'favPane', 'favList', 'closeFavBtn', 'clearFavBtn',
+    'backlinksPane', 'backlinksList', 'backlinksTarget', 'saveToVaultBtn', 'closeBacklinksBtn', 'aiChatPane', 'aiChatMessages', 'aiChatInput',
     'aiChatSendBtn', 'aiChatStopBtn', 'aiChatClearBtn', 'aiChatCloseBtn', 'aiChatStatus',
     'aiChatResizeHandle', 'aiPetBtn', 'editorContextMenu', 'aiSearchContextBtn', 'smartIngestContextBtn', 'aiImportPasswordContextBtn',
     'offlineTranslateContextBtn', 'onlineTranslateContextBtn', 'addCustomMappingContextBtn', 'addToDictLibContextBtn', 'aiContextAnalysisContextBtn',
@@ -1079,6 +1080,8 @@
     try {
       // 图文一体：marked → 白名单消毒 → 图片重写（media/ 相对路径 → /api/media/...）
       elements.markdownBody.innerHTML = window.MediaKit.render.renderMarkdown(text);
+      // 双链状态标注（命中/缺失）与点击跳转已由 markdownBody 委托处理
+      markWikilinkStatus();
       // Mermaid 流程图异步渲染（` ```mermaid ` 代码块 → SVG）
       if (window.MediaKit.render.renderMermaid) {
         window.MediaKit.render.renderMermaid(elements.markdownBody);
@@ -5062,6 +5065,263 @@
   setupDictModal();
   // 延迟注册 completer（等待编辑器完全初始化）
   setTimeout(registerDictCompleter, 500);
+
+  // ══════════════════════════════════════════════════════════
+  // FP-1 / FP-6 Obsidian 双链（wikilink）支持
+  // ─ 补全 / 索引 / 解析 / 跳转 / 反链 / 存入知识库
+  // ══════════════════════════════════════════════════════════
+  var wikilinkState = { targets: [], loaded: false };
+  var registeredWikilinkCompleter = null;
+
+  /** 当前文档 basename（去扩展名） */
+  function getCurrentBasename() {
+    var name = (state && state.fileName) || '';
+    return name.replace(/\.[^.]+$/, '');
+  }
+
+  /** 构建链接索引：扫描 vault root 下 *.md 的 basename + 相对路径 */
+  async function buildLinkIndex() {
+    var api = getElectronAPI();
+    if (!api || !api.listWikilinkTargets) {
+      wikilinkState.targets = [];
+      wikilinkState.loaded = true;
+      return;
+    }
+    try {
+      var res = await api.listWikilinkTargets();
+      wikilinkState.targets = (res && res.targets) || [];
+      wikilinkState.loaded = true;
+    } catch (e) {
+      wikilinkState.targets = [];
+      wikilinkState.loaded = true;
+    }
+  }
+
+  /**
+   * 解析 wikilink 目标（Obsidian basename 全局解析 + 库内相对路径辅助语法）。
+   * 返回：命中唯一 → 目标对象；命中多个 → 数组；未命中 → null。
+   */
+  function resolveWikilink(target) {
+    var t = String(target || '').trim();
+    if (!t) return null;
+    var targets = wikilinkState.targets || [];
+    // 相对路径精确匹配（含 `/`）
+    var rel = targets.filter(function(x) { return x.relativePath === t; });
+    if (rel.length) return rel.length === 1 ? rel[0] : rel;
+    // basename 精确匹配
+    var byBase = targets.filter(function(x) { return x.basename === t; });
+    if (byBase.length) return byBase.length === 1 ? byBase[0] : byBase;
+    return null;
+  }
+
+  /** 打开 wikilink 目标（编辑器新标签页，通过 Electron openFileByPath） */
+  async function openWikilink(target) {
+    var resolved = resolveWikilink(target);
+    if (!resolved) {
+      showToast('未找到链接目标：' + target, true);
+      return;
+    }
+    if (Array.isArray(resolved)) {
+      showToast('存在多个同名目标「' + target + '」，请使用相对路径消除歧义', true);
+      return;
+    }
+    var api = getElectronAPI();
+    if (!api || !api.openFileByPath || !resolved.absolutePath) {
+      showToast('双链跳转仅桌面模式可用', true);
+      return;
+    }
+    try {
+      var result = await api.openFileByPath(resolved.absolutePath);
+      if (result && !result.canceled) {
+        openFileDataInNewTab(result);
+      } else {
+        showToast('无法打开目标：' + resolved.basename, true);
+      }
+    } catch (e) {
+      showToast('打开目标失败：' + (e.message || '未知错误'), true);
+    }
+  }
+
+  /** 标注预览区双链命中/缺失状态 */
+  function markWikilinkStatus() {
+    if (!elements.markdownBody) return;
+    var links = elements.markdownBody.querySelectorAll('a.wikilink');
+    for (var i = 0; i < links.length; i++) {
+      var target = links[i].getAttribute('data-target');
+      links[i].classList.toggle('wikilink-missing', !resolveWikilink(target));
+    }
+  }
+
+  /** 注册双链补全：`[[` 前缀触发，候选来自链接索引 */
+  function registerWikilinkCompleter() {
+    if (!mainEditor) return;
+    var langTools = null;
+    try {
+      langTools = ace.require('ace/ext/language_tools');
+    } catch (e) { return; }
+    if (!langTools) return;
+
+    // 移除旧的 completer（如果有）
+    if (registeredWikilinkCompleter) {
+      var completers = mainEditor.completers || [];
+      var idx = completers.indexOf(registeredWikilinkCompleter);
+      if (idx !== -1) completers.splice(idx, 1);
+    }
+
+    var completer = {
+      identifierRegexps: [/\[\[[a-zA-Z0-9\u4e00-\u9fff._\/\-]*/],
+      getCompletions: function(editor, session, pos, prefix, callback) {
+        if (!prefix || prefix.indexOf('[[') === -1) { callback(null, []); return; }
+        var query = prefix.replace(/\[\[/, '').toLowerCase();
+        var results = [];
+        var seen = {};
+        var targets = wikilinkState.targets || [];
+        for (var i = 0; i < targets.length; i++) {
+          var t = targets[i];
+          var hay = (t.basename + ' ' + (t.relativePath || '')).toLowerCase();
+          if (query && hay.indexOf(query) === -1) continue;
+          if (seen[t.basename]) continue;
+          seen[t.basename] = true;
+          results.push({
+            caption: t.basename,
+            value: '[[' + t.basename + ']]',
+            meta: t.relativePath || '知识库',
+            score: t.basename.toLowerCase().indexOf(query) === 0 ? 1000 : 500
+          });
+        }
+        results.sort(function(a, b) { return b.score - a.score; });
+        callback(null, results.slice(0, 30));
+      }
+    };
+
+    registeredWikilinkCompleter = completer;
+    if (langTools.addCompleter) {
+      langTools.addCompleter(completer);
+    } else if (mainEditor.completers) {
+      mainEditor.completers.push(completer);
+    }
+  }
+
+  /** 构建反链表：扫描 vault root 下 *.md 找出含 `[[当前basename]]` 的行 */
+  async function buildBacklinks() {
+    var listEl = elements.backlinksList;
+    if (!listEl) return;
+    var base = getCurrentBasename();
+    if (!base) {
+      listEl.innerHTML = '<div class="backlinks-empty">当前文档尚未命名</div>';
+      return;
+    }
+    elements.backlinksTarget.textContent = base;
+    var api = getElectronAPI();
+    if (!api || !api.findBacklinks) {
+      listEl.innerHTML = '<div class="backlinks-empty">反链扫描仅桌面模式可用</div>';
+      return;
+    }
+    listEl.innerHTML = '<div class="backlinks-empty">正在扫描…</div>';
+    try {
+      var res = await api.findBacklinks(base);
+      var items = (res && res.backlinks) || [];
+      if (!items.length) {
+        listEl.innerHTML = '<div class="backlinks-empty">暂无文档引用「' + base + '」</div>';
+        return;
+      }
+      listEl.innerHTML = '';
+      items.forEach(function(b) {
+        var item = document.createElement('div');
+        item.className = 'backlinks-item';
+        item.setAttribute('role', 'button');
+        item.title = b.relativePath || b.fileName;
+        var nameEl = document.createElement('div');
+        nameEl.className = 'bl-name';
+        nameEl.textContent = b.basename;
+        var pathEl = document.createElement('div');
+        pathEl.className = 'bl-path';
+        pathEl.textContent = b.relativePath || b.fileName;
+        item.appendChild(nameEl);
+        item.appendChild(pathEl);
+        (b.matches || []).slice(0, 3).forEach(function(m) {
+          var lineEl = document.createElement('div');
+          lineEl.className = 'bl-line';
+          lineEl.textContent = m.text;
+          item.appendChild(lineEl);
+        });
+        item.addEventListener('click', function() {
+          openWikilink(b.basename);
+        });
+        listEl.appendChild(item);
+      });
+    } catch (e) {
+      listEl.innerHTML = '<div class="backlinks-empty">扫描失败：' + (e.message || '未知错误') + '</div>';
+    }
+  }
+
+  // 反链/知识库面板开关（与文件树/历史/最近/收藏抽屉互斥）
+  var backlinksVisible = false;
+  function toggleBacklinks(forceOpen) {
+    backlinksVisible = forceOpen !== undefined ? forceOpen : !backlinksVisible;
+    elements.backlinksPane.setAttribute('aria-hidden', String(!backlinksVisible));
+    elements.editorWorkspace.classList.toggle('show-backlinks', backlinksVisible);
+    if (backlinksBtn) backlinksBtn.classList.toggle('active', backlinksVisible);
+    if (backlinksVisible) {
+      // 互斥关闭其它左抽屉
+      var closePane = function(pane, cls, btn) {
+        pane.setAttribute('aria-hidden', 'true');
+        elements.editorWorkspace.classList.remove(cls);
+        if (btn) btn.classList.remove('active');
+      };
+      closePane(elements.fileTreePane, 'show-filetree', fileTreeBtn);
+      closePane(elements.historyPane, 'show-history', historyBtn);
+      closePane(elements.recentPane, 'show-recent', recentBtn);
+      closePane(elements.favPane, 'show-fav', favBtn);
+      fileTreeOpen = false;
+      buildBacklinks();
+    }
+    setTimeout(function() { mainEditor.resize(); }, 250);
+  }
+
+  // 预览区 .wikilink 点击委托
+  elements.markdownBody.addEventListener('click', function(e) {
+    var a = e.target && e.target.closest ? e.target.closest('a.wikilink') : null;
+    if (!a) return;
+    e.preventDefault();
+    openWikilink(a.getAttribute('data-target'));
+  });
+
+  // 反链面板按钮 + 存入知识库
+  elements.closeBacklinksBtn.addEventListener('click', function() { toggleBacklinks(false); });
+  elements.saveToVaultBtn.addEventListener('click', async function() {
+    var api = getElectronAPI();
+    if (!api || !api.saveToVault) {
+      showToast('存入知识库仅桌面模式可用', true);
+      return;
+    }
+    var base = getCurrentBasename() || '未命名';
+    var res = await api.saveToVault({ text: mainEditor.getValue(), basename: base });
+    if (res && res.success) {
+      showToast('已存入知识库 notes/' + base + '.md', false, 'success');
+      buildLinkIndex();
+      markWikilinkStatus();
+    } else {
+      showToast('存入失败：' + ((res && res.message) || '未知错误'), true);
+    }
+  });
+
+  // 状态栏「反链」按钮（在文件树按钮旁）
+  var backlinksBtn = createStatusBtn('反链', '🔗', '双链反链面板', 'Ctrl+Shift+B');
+  backlinksBtn.addEventListener('click', function() { toggleBacklinks(); });
+  elements.runtimeStatus.parentNode.insertBefore(backlinksBtn, fileTreeBtn);
+
+  // Ctrl/Cmd+Shift+B 反链面板快捷键
+  document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'b' || e.key === 'B')) {
+      e.preventDefault();
+      toggleBacklinks();
+    }
+  });
+
+  // 初始化：构建双链索引 + 注册补全（延迟到编辑器就绪）
+  buildLinkIndex();
+  setTimeout(registerWikilinkCompleter, 600);
 
   window.parent.postMessage({ type: 'editorReady' }, '*');
 

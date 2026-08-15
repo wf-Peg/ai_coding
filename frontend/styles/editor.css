@@ -1405,7 +1405,8 @@ select {
   min-width: 0;
 }
 
-.fav-pane {
+.fav-pane,
+.backlinks-pane {
   border-right: 1px solid var(--app-border-strong);
   display: flex;
   flex-direction: column;
@@ -1416,7 +1417,8 @@ select {
 
 .editor-workspace.show-history,
 .editor-workspace.show-recent,
-.editor-workspace.show-fav {
+.editor-workspace.show-fav,
+.editor-workspace.show-backlinks {
   grid-template-columns: 280px minmax(0, 1fr) 0fr;
 }
 
@@ -1453,6 +1455,7 @@ select {
 .history-pane[aria-hidden="true"],
 .recent-pane[aria-hidden="true"],
 .fav-pane[aria-hidden="true"],
+.backlinks-pane[aria-hidden="true"],
 .ai-chat-pane[aria-hidden="true"] {
   visibility: hidden;
   opacity: 0;
@@ -1463,6 +1466,7 @@ select {
 .history-pane[aria-hidden="false"],
 .recent-pane[aria-hidden="false"],
 .fav-pane[aria-hidden="false"],
+.backlinks-pane[aria-hidden="false"],
 .ai-chat-pane[aria-hidden="false"] {
   visibility: visible;
   opacity: 1;
@@ -1472,7 +1476,8 @@ select {
 /* 面板内容方向性滑入（左面板从左，机器人面板从右） */
 .filetree-pane[aria-hidden="false"],
 .history-pane[aria-hidden="false"],
-.recent-pane[aria-hidden="false"] {
+.recent-pane[aria-hidden="false"],
+.backlinks-pane[aria-hidden="false"] {
   animation: pane-slide-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -1827,7 +1832,8 @@ select {
 .editor-workspace.show-filetree .main-pane::before,
 .editor-workspace.show-history .main-pane::before,
 .editor-workspace.show-recent .main-pane::before,
-.editor-workspace.show-fav .main-pane::before {
+.editor-workspace.show-fav .main-pane::before,
+.editor-workspace.show-backlinks .main-pane::before {
   content: '';
   position: absolute;
   z-index: 5;
@@ -2701,3 +2707,93 @@ html[data-theme="dark"] .markdown-body blockquote {
   color: #b0b0b0;
 }
 html[data-theme="dark"] .markdown-body table th { background: #323232; }
+
+/* ── Obsidian 双链（wikilink）样式 ── */
+a.wikilink {
+  color: var(--app-primary);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--app-primary) 45%, transparent);
+  cursor: pointer;
+  padding: 0 1px;
+  border-radius: 3px;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+a.wikilink:hover {
+  background: var(--app-primary-soft);
+  border-bottom-color: var(--app-primary);
+}
+a.wikilink.wikilink-missing {
+  color: var(--app-text-muted);
+  border-bottom-style: dashed;
+  border-bottom-color: var(--app-border-strong);
+}
+a.wikilink.wikilink-missing:hover {
+  background: transparent;
+  color: var(--app-warning);
+}
+
+/* ── 反链面板 ── */
+.backlinks-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 0;
+}
+.backlinks-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  text-align: center;
+  gap: 8px;
+}
+.backlinks-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--app-border);
+  transition: background 120ms ease;
+  user-select: none;
+}
+.backlinks-item:hover {
+  background: var(--app-primary-soft);
+}
+.backlinks-item:last-child {
+  border-bottom: 0;
+}
+.backlinks-item .bl-name {
+  color: var(--app-text);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.backlinks-item .bl-path {
+  color: var(--app-text-muted);
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.backlinks-item .bl-line {
+  color: var(--app-text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backlinks-empty {
+  padding: 16px 12px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
+}
