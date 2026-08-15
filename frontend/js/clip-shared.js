@@ -479,6 +479,7 @@ var selectedClipIds = new Set();
         handleTypeChange();
         bindImageEvents();
         updateImageAreaVisibility(document.getElementById('type').value);
+        loadDispatchTargets();
 
         const themeToggle = document.getElementById('themeToggle');
         if (themeToggle) {

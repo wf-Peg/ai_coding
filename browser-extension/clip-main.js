@@ -692,12 +692,21 @@ function dispatchTargetsHtml(clipId) {
     `).join('');
 }
 
-/** 展开/收起投递面板 */
+/** 展开/收起投递面板（自动展开外层详情，避免面板被折叠的详情遮住） */
 function toggleDispatchPanel(clipId) {
     const section = document.getElementById(`dispatch-section-${clipId}`);
-    if (!section) return;
+    if (!section) {
+        showToast('未找到投递面板，请刷新重试');
+        return;
+    }
     section.style.display = section.style.display === 'none' ? 'block' : 'none';
     if (section.style.display === 'block') {
+        // 若外层详情处于折叠态，先展开详情（复用 toggleDetail）
+        const detail = section.closest('.clip-detail');
+        if (detail && !detail.classList.contains('expanded')) {
+            const btn = detail.closest('.clip-item')?.querySelector('.toggle-detail-btn');
+            if (btn) toggleDetail(btn);
+        }
         const targetsBox = document.getElementById(`dispatch-targets-${clipId}`);
         if (targetsBox) targetsBox.innerHTML = dispatchTargetsHtml(clipId);
         const modelBox = document.getElementById(`dispatch-model-${clipId}`);

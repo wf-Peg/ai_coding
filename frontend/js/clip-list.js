@@ -340,6 +340,8 @@
             buildFanActionButton('organize-auto', clip.id, '快速AI整理', renderFanActionIcon('organizeAuto')),
             buildFanActionButton('organize-manual', clip.id, '编辑', renderFanActionIcon('organizeManual')),
             buildFanActionButton('to-todo', clip.id, '转待办', renderFanActionIcon('toTodo')),
+            buildFanActionButton('dispatch', clip.id, '投递到AI', renderFanActionIcon('dispatch')),
+            buildFanActionButton('export', clip.id, '导出', renderFanActionIcon('export')),
         ];
         if (!isStoreOnly) {
             fanButtons.push(buildFanActionButton('divergent', clip.id, '发散性总结', renderFanActionIcon('divergent')));
@@ -506,6 +508,22 @@
                     </div>
                     `}
                     ` : ''}
+                    <div class="content-section" id="dispatch-section-${clip.id}" style="display: none;">
+                        <h4>📤 投递到 AI<span class="dispatch-model-info" id="dispatch-model-${clip.id}"></span></h4>
+                        <div class="dispatch-targets" id="dispatch-targets-${clip.id}">
+                            <p style="color: var(--text-secondary);">投递目标加载中...</p>
+                        </div>
+                        <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                            <button class="btn-secondary" onclick="dispatchRun(${clip.id})">🚀 投递所选</button>
+                            <button class="btn-secondary" onclick="dispatchDistill(${clip.id})">🧪 蒸馏总结</button>
+                            <span style="flex: 1;"></span>
+                            <button class="btn-secondary" onclick="exportClipById(${clip.id}, 'md')">导出 MD</button>
+                            <button class="btn-secondary" onclick="exportClipById(${clip.id}, 'txt')">TXT</button>
+                            <button class="btn-secondary" onclick="exportClipById(${clip.id}, 'html')">HTML</button>
+                        </div>
+                        ${clip.lastDispatchTarget ? `<div style="margin-top: 8px; font-size: 0.85rem; color: var(--text-secondary);">上次投递: ${escapeHtml(clip.lastDispatchTarget)} @ ${escapeHtml(clip.lastDispatchAt || '')}</div>` : ''}
+                        <div id="dispatch-results-${clip.id}" style="margin-top: 10px;"></div>
+                    </div>
                     <div class="linked-knowledge-section" id="linkedKnowledgeSection-${clip.id}">
                         <h4>已关联知识</h4>
                         <div id="linkedKnowledgeList-${clip.id}">
@@ -660,6 +678,10 @@
                 return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M9 11l2 2 4-4"/><rect x="3" y="4" width="18" height="16" rx="2"/></svg>';
             case 'divergent':
                 return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2v2"/><path d="M5 9H3"/><path d="M21 9h-2"/><path d="M6.3 4.3 7.7 5.7"/><path d="M17.7 5.7 19.1 4.3"/><path d="M8 14h8"/></svg>';
+            case 'dispatch':
+                return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>';
+            case 'export':
+                return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
             case 'delete':
                 return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>';
             default:
@@ -671,7 +693,7 @@
         event.stopPropagation();
         closeAllMoreActions();
         const label = getMoreActionLabel(action);
-        if (action === 'organize-manual' || action === 'edit-in-editor') {
+        if (action === 'organize-manual' || action === 'edit-in-editor' || action === 'dispatch' || action === 'export') {
             performMoreAction(action, clipId)
         } else {
             showActionConfirm(`确定执行「${label}」吗？`, () => performMoreAction(action, clipId));
@@ -695,6 +717,12 @@
             case 'divergent':
                 generateDivergentSummary(clipId);
                 break;
+            case 'dispatch':
+                toggleDispatchPanel(clipId);
+                break;
+            case 'export':
+                exportClipById(clipId, 'md');
+                break;
             case 'delete':
                 deleteClip(clipId);
                 break;
@@ -715,10 +743,195 @@
                 return '转待办';
             case 'divergent':
                 return '发散性总结';
+            case 'dispatch':
+                return '投递到 AI';
+            case 'export':
+                return '导出';
             case 'delete':
                 return '删除';
             default:
                 return '该操作';
         }
+    }
+
+    // ==================== 内容分发（MVP）：投递 / 蒸馏 / 导出 ====================
+
+    /** 投递目标缓存（全局一次加载） */
+    let dispatchTargetsCache = null;
+    let dispatchModelInfo = {};
+
+    /** 构造 /api/dispatch 前缀（与 API_ROOT 对齐） */
+    function dispatchApiBase() {
+        return API_ROOT + '/dispatch';
+    }
+
+    /** 加载投递目标（全局缓存，成功后回填已渲染的容器） */
+    async function loadDispatchTargets() {
+        try {
+            const response = await axios.get(`${dispatchApiBase()}/targets`);
+            dispatchTargetsCache = response.data.targets || [];
+            dispatchModelInfo = response.data.currentModel || {};
+            document.querySelectorAll('.dispatch-targets').forEach(el => {
+                const clipId = el.id.replace('dispatch-targets-', '');
+                el.innerHTML = dispatchTargetsHtml(clipId);
+            });
+            document.querySelectorAll('.dispatch-model-info').forEach(el => {
+                el.textContent = dispatchModelInfo.model ? `（${dispatchModelInfo.model}）` : '';
+            });
+        } catch (e) {
+            console.error('加载投递目标失败:', e);
+        }
+    }
+
+    /** 生成投递目标复选框 HTML（无缓存时占位） */
+    function dispatchTargetsHtml(clipId) {
+        if (!dispatchTargetsCache || dispatchTargetsCache.length === 0) {
+            return '<p style="color: var(--text-secondary);">投递目标加载中...</p>';
+        }
+        return dispatchTargetsCache.map(t => `
+            <label style="display: block; margin: 4px 0; cursor: pointer; font-size: 0.9rem;">
+                <input type="checkbox" class="dispatch-target-check" data-target="${escapeHtml(t.id)}" data-clip="${clipId}">
+                <strong>${escapeHtml(t.name)}</strong>
+                <span style="color: var(--text-secondary); margin-left: 6px;">${escapeHtml(t.description || '')}</span>
+            </label>
+        `).join('');
+    }
+
+    /** 展开/收起投递面板（自动展开外层详情，避免面板被折叠的详情遮住） */
+    function toggleDispatchPanel(clipId) {
+        const section = document.getElementById(`dispatch-section-${clipId}`);
+        if (!section) {
+            showToast('未找到投递面板，请刷新重试');
+            return;
+        }
+        section.style.display = section.style.display === 'none' ? 'block' : 'none';
+        if (section.style.display === 'block') {
+            // 若外层详情处于折叠态，先展开详情（复用 toggleDetail）
+            const detail = section.closest('.clip-detail');
+            if (detail && !detail.classList.contains('expanded')) {
+                const btn = detail.closest('.clip-item')?.querySelector('.expand-btn[data-clip-id]');
+                if (btn) toggleDetail(btn);
+            }
+            const targetsBox = document.getElementById(`dispatch-targets-${clipId}`);
+            if (targetsBox) targetsBox.innerHTML = dispatchTargetsHtml(clipId);
+            const modelBox = document.getElementById(`dispatch-model-${clipId}`);
+            if (modelBox) modelBox.textContent = dispatchModelInfo.model ? `（${dispatchModelInfo.model}）` : '';
+        }
+    }
+
+    /** 依次投递所选目标，结果逐条追加展示 */
+    async function dispatchRun(clipId) {
+        const resultsBox = document.getElementById(`dispatch-results-${clipId}`);
+        const checks = document.querySelectorAll(`#dispatch-targets-${clipId} .dispatch-target-check:checked`);
+        if (checks.length === 0) {
+            showToast('请先选择至少一个投递目标');
+            return;
+        }
+        const targets = [...checks].map(c => c.dataset.target);
+        if (resultsBox) resultsBox.innerHTML = '';
+        for (const targetId of targets) {
+            const item = document.createElement('div');
+            item.style.cssText = 'margin-top: 10px; padding: 10px; border: 1px solid var(--border-color, #e5e5e5); border-radius: 8px;';
+            item.innerHTML = `<div style="font-weight: 600; margin-bottom: 6px;">🚀 ${escapeHtml(targetId)} <span class="dispatch-result-status" style="color: var(--text-secondary); font-weight: 400;">投递中...</span></div>
+                <div class="dispatch-result-body markdown-content"></div>`;
+            resultsBox.appendChild(item);
+            const body = item.querySelector('.dispatch-result-body');
+            const statusEl = item.querySelector('.dispatch-result-status');
+            try {
+                const response = await axios.post(`${dispatchApiBase()}/${encodeURIComponent(targetId)}`, { clipId });
+                const data = response.data;
+                if (data.success) {
+                    statusEl.textContent = '✓ 完成';
+                    body.innerHTML = window.MediaKit.render.renderMarkdown(data.result || '');
+                } else {
+                    statusEl.textContent = '✗ 失败';
+                    body.innerHTML = `<p style="color: var(--error);">${escapeHtml(data.error || '未知错误')}</p>`;
+                }
+            } catch (e) {
+                statusEl.textContent = '✗ 错误';
+                body.innerHTML = `<p style="color: var(--error);">${escapeHtml(e.message || '网络错误')}</p>`;
+            }
+        }
+        showToast('投递完成，结果已回存剪藏');
+    }
+
+    /** 汇总蒸馏：将全部投递结果蒸馏为一份精炼总结 */
+    async function dispatchDistill(clipId) {
+        const resultsBox = document.getElementById(`dispatch-results-${clipId}`);
+        const item = document.createElement('div');
+        item.style.cssText = 'margin-top: 10px; padding: 10px; border: 1px solid var(--border-color, #e5e5e5); border-radius: 8px;';
+        item.innerHTML = `<div style="font-weight: 600; margin-bottom: 6px;">🧪 蒸馏总结 <span class="dispatch-result-status" style="color: var(--text-secondary); font-weight: 400;">蒸馏中...</span></div>
+            <div class="dispatch-result-body markdown-content"></div>`;
+        if (resultsBox) resultsBox.appendChild(item);
+        const body = item.querySelector('.dispatch-result-body');
+        const statusEl = item.querySelector('.dispatch-result-status');
+        try {
+            const response = await axios.post(`${dispatchApiBase()}/distill`, { clipId });
+            const data = response.data;
+            if (data.success) {
+                statusEl.textContent = '✓ 完成';
+                body.innerHTML = window.MediaKit.render.renderMarkdown(data.result || '');
+            } else {
+                statusEl.textContent = '✗ 失败';
+                body.innerHTML = `<p style="color: var(--error);">${escapeHtml(data.error || '未知错误')}</p>`;
+            }
+        } catch (e) {
+            statusEl.textContent = '✗ 错误';
+            body.innerHTML = `<p style="color: var(--error);">${escapeHtml(e.message || '网络错误')}</p>`;
+        }
+    }
+
+    /** 按 id 从 clipCache 取剪藏对象（列表/搜索渲染时均已填充） */
+    function getCachedClip(clipId) {
+        return clipCache.get(String(clipId));
+    }
+
+    /** 导出剪藏为 md / txt / html（纯前端 Blob 下载） */
+    function exportClipById(clipId, format) {
+        const clip = getCachedClip(clipId);
+        if (!clip) {
+            showToast('未找到该剪藏数据，请刷新列表后重试');
+            return;
+        }
+        exportClipAs(clip, format);
+    }
+
+    function exportClipAs(clip, format) {
+        const rawTitle = clip.title || clip.category || '剪藏';
+        const safeTitle = rawTitle.replace(/[\\/:*?"<>|]/g, '_').slice(0, 40);
+        const date = (clip.createdAt || '').slice(0, 10) || new Date().toISOString().slice(0, 10);
+
+        const meta = `# ${rawTitle}\n\n> 来源: ${clip.source || ''}${clip.sourceUrl ? ' | ' + clip.sourceUrl : ''}\n> 分类: ${clip.category || ''} | 标签: ${(clip.tags || []).join(', ')}\n> 时间: ${clip.createdAt || ''}\n\n---\n\n`;
+        const body = clip.bodyContent || clip.content || '';
+        const stripMd = s => String(s).replace(/[#>*`_~[\](!)<>|]/g, '').replace(/\n{3,}/g, '\n\n');
+
+        let content, mime;
+        if (format === 'md') {
+            content = meta + body;
+            mime = 'text/markdown;charset=utf-8';
+        } else if (format === 'txt') {
+            content = stripMd(meta) + stripMd(body);
+            mime = 'text/plain;charset=utf-8';
+        } else {
+            const htmlBody = window.MediaKit.render.renderMarkdown(meta + body);
+            content = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(rawTitle)}</title>
+<style>body{max-width:860px;margin:40px auto;padding:0 20px;font-family:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;line-height:1.7;color:#333}
+blockquote{color:#666;border-left:4px solid #ddd;margin-left:0;padding-left:16px}
+pre{background:#f6f8fa;padding:12px;border-radius:6px;overflow:auto}
+code{background:#f6f8fa;padding:2px 4px;border-radius:4px}
+img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:6px 10px}</style></head><body>${htmlBody}</body></html>`;
+            mime = 'text/html;charset=utf-8';
+        }
+
+        const blob = new Blob([content], { type: mime });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `剪藏-${safeTitle}-${date}.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        showToast(`已导出 ${format.toUpperCase()}`);
     }
 

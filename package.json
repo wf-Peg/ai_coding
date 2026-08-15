@@ -28,6 +28,9 @@
     "build:portable:mac-x64": "npm run prebuild && electron-builder --mac --x64 zip",
     "build:portable:mac-arm": "npm run prebuild && electron-builder --mac --arm64 zip",
     "build:portable:all": "npm run prebuild && electron-builder --win portable --x64 --mac --arm64 --x64 zip",
+    "test:clip": "node scripts/smoke-clip.js",
+    "test:workspace": "node scripts/smoke-workspace.js",
+    "test:frontend-split": "node scripts/smoke-clip.js && node scripts/smoke-workspace.js",
     "test:build": "node scripts/test-build.js",
     "release": "bash scripts/release.sh",
     "release:win": "scripts\\release.bat"
@@ -38,7 +41,7 @@
     "asarUnpack": [
       "./node_modules/node-notifier/**/*"
     ],
-    "copyright": "Copyright © 2024",
+    "copyright": "Copyright 漏 2024",
     "directories": {
       "output": "dist-electron"
     },
@@ -114,7 +117,7 @@
         "NSServices": [
           {
             "NSMenuItem": {
-              "default": "添加到剪藏收件箱"
+              "default": "娣诲姞鍒板壀钘忔敹浠剁"
             },
             "NSMessage": "clipFile",
             "NSPortName": "CutShelter",
