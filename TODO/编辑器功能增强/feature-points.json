@@ -343,9 +343,94 @@
         { "title": "后端启动失败显示错误信息 + 重试按钮", "status": "done" },
         { "title": "浏览器环境下不显示遮罩", "status": "done" }
       ]
+    },
+    {
+      "id": "fp-015",
+      "name": "Obsidian 双链（wikilink）支持",
+      "description": "编辑器支持 Obsidian 风格双链 [[target|alias]]，含输入补全、Markdown 预览渲染为可点击链接、点击跳转（编辑器文件/剪藏/知识）、反链面板。采用 basename 全局解析为主 + 库内相对路径为辅，vault root 默认 {storagePath}/clip-organized。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "editor", "wikilink", "obsidian"],
+      "designSections": ["双链相对路径解析", "FP-1 Obsidian 双链支持"],
+      "tasks": [
+        { "title": "media-render.js 新增 renderWikilinks 预替换 [[target|alias]] 为可点击链接，白名单放行 a[data-target]", "status": "done" },
+        { "title": "editor.js 新增 buildLinkIndex / resolveWikilink / openWikilink / registerWikilinkCompleter / buildBacklinks", "status": "done" },
+        { "title": "main.js/preload.js 新增 IPC editor:list-wikilink-targets 扫描 organizedPath 下 md 返回索引", "status": "done" },
+        { "title": "editor.js 新增 main.js IPC editor:save-to-vault 保存到知识库", "status": "done" },
+        { "title": "editor.css 新增 .wikilink 样式与反链面板样式", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "输入 [[ 触发补全，候选来自链接索引", "status": "done" },
+        { "title": "[[文件名]] 在 Markdown 预览渲染为可点击链接", "status": "done" },
+        { "title": "点击跳转到编辑器文件/剪藏/知识", "status": "done" },
+        { "title": "反链面板在被引用文件里看到当前文件", "status": "done" },
+        { "title": "tmp 文件与 clip-organized/clips 剪藏 md 均可被 basename 命中", "status": "done" },
+        { "title": "basename 冲突时补全/预览给出提示", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-016",
+      "name": "打通知识图谱与 Obsidian",
+      "description": "双链对知识条目标题命中时跳转知识详情/图谱聚焦，复用现有知识 API 与 openTextData/navigate 路由，不新增后端；renderWikilinks 对剪藏/知识目标生成可点击链接。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "editor", "wikilink", "knowledge-graph", "obsidian"],
+      "designSections": ["FP-6 打通知识图谱与 Obsidian"],
+      "tasks": [
+        { "title": "editor.js resolveWikilink 对知识条目标题命中时跳转知识详情/图谱聚焦", "status": "done" },
+        { "title": "media-render.js renderWikilinks 对剪藏/知识目标生成可点击链接", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "点击指向知识条目的双链跳转知识详情/图谱", "status": "done" },
+        { "title": "点击指向剪藏的双链跳转剪藏详情", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-017",
+      "name": "Mermaid 流程图渲染",
+      "description": "编辑器 Markdown 预览支持 ```mermaid 代码块渲染为 SVG 流程图，引入 libs/mermaid.min.js，扩展 sanitizeHtml 白名单（mermaid 前缀类），渲染后异步注入。",
+      "layer": "frontend",
+      "tags": ["product-dev", "editor", "mermaid", "render"],
+      "designSections": ["FP-7 Mermaid 流程图渲染"],
+      "tasks": [
+        { "title": "editor.html 引入 libs/mermaid.min.js", "status": "done" },
+        { "title": "media-render.js renderMermaid 异步渲染 mermaid 代码块为 SVG", "status": "done" },
+        { "title": "media-render.js 白名单扩展示禁 mermaid 前缀类", "status": "done" },
+        { "title": "editor.js 预览 DOM 注入后触发 Mermaid 渲染", "status": "done" },
+        { "title": "editor.css 新增 Mermaid 样式", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "Markdown 预览中 ```mermaid 代码块渲染为流程图", "status": "done" },
+        { "title": "渲染不被 sanitizeHtml 过滤", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-018",
+      "name": "Callout 提示块渲染",
+      "description": "编辑器 Markdown 预览支持 Obsidian 风格 > [!type] callout 提示块渲染，借用 marked blockquote 渲染器识别，扩展白名单（callout 前缀类）。",
+      "layer": "frontend",
+      "tags": ["product-dev", "editor", "callout", "render"],
+      "designSections": ["FP-8 Callout 提示块渲染"],
+      "tasks": [
+        { "title": "media-render.js getCalloutRenderer 借用 marked blockquote 渲染器识别 > [!type]", "status": "done" },
+        { "title": "media-render.js 白名单放行 callout 相关 class", "status": "done" },
+        { "title": "editor.css 新增 Callout 样式", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "Markdown 预览中 > [!note] 渲染为 Callout 提示块", "status": "done" },
+        { "title": "渲染不被 sanitizeHtml 过滤", "status": "done" }
+      ]
     }
   ],
   "knowledgePoints": [
+    {
+      "title": "Mermaid 渲染与 XSS 安全",
+      "content": "Mermaid 渲染需在 sanitizeHtml 之后进行，并在 sanitizeHtml 白名单上扩展 SVG 相关标签和属性（mermaid 前缀类），确保渲染安全且不被过滤。先渲染白名单放行，再异步渲染 mermaid 代码块为 SVG 注入预览 DOM。",
+      "tags": ["product-dev", "技术", "render", "mermaid"]
+    },
+    {
+      "title": "双链 basename 全局解析语义",
+      "content": "Obsidian 双链采用 basename 全局解析（与目录无关），配合可配置 vault root 与编辑器文件「保存到知识库」（写入 vault root notes/）机制，绕开编辑器临时目录与剪藏归档目录不一致的问题。链接写 [[文件basename|别名]]，冲突时建议相对路径消歧。",
+      "tags": ["product-dev", "技术", "wikilink", "obsidian"]
+    },
     {
       "title": "单 Ace 实例 + 标签快照方案",
       "content": "多标签功能采用单 Ace 实例 + 标签快照方案，而非创建多个 Ace 实例。原因：Ace 实例创建开销大、内存占用高。切换标签时，先将当前标签的内容、光标/滚动位置、选择状态保存到快照，再切换到目标标签恢复快照。每个标签维护独立的 TabState 对象。",
