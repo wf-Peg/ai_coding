@@ -392,6 +392,8 @@
     updateStatusBar();
     renderTabBar();
     renderAiChat();
+    // 切换标签 → 当前文件 basename 可能变化 → 刷新反链（面板可见时生效）
+    scheduleBacklinksRefresh();
 
     // 切换标签时退出对比和 Markdown 预览模式
     if (!elements.comparePane.hidden) {
@@ -872,6 +874,7 @@
         setModified(false);
         renderTabBar();
         showToast('已保存为 ' + state.encoding, false, 'success');
+        scheduleBacklinksRefresh();
         FrontendLogger.info('[Editor] Saved file', result.fileName, result.size, state.encoding);
       } catch (error) {
         // 令牌失效或其它错误时自动降级为另存为
@@ -897,6 +900,7 @@
             setModified(false);
             renderTabBar();
             showToast('已保存为 ' + state.encoding, false, 'success');
+            scheduleBacklinksRefresh();
             FrontendLogger.info('[Editor] Saved file (fallback)', retryResult.fileName, retryResult.size);
             return;
           } catch (fallbackError) {
@@ -5321,9 +5325,28 @@
       closePane(elements.favPane, 'show-fav', favBtn);
       fileTreeOpen = false;
       buildBacklinks();
+    } else {
+      // 关闭面板时取消待执行的自动刷新
+      if (backlinksRefreshTimer) {
+        clearTimeout(backlinksRefreshTimer);
+        backlinksRefreshTimer = null;
+      }
     }
     setTimeout(function() { mainEditor.resize(); }, 250);
   }
+
+  // 反链面板自动刷新：内容/保存变化时防抖重建（仅面板可见时执行）
+  var backlinksRefreshTimer = null;
+  function scheduleBacklinksRefresh() {
+    if (!backlinksVisible) return;
+    if (backlinksRefreshTimer) clearTimeout(backlinksRefreshTimer);
+    backlinksRefreshTimer = setTimeout(function() {
+      backlinksRefreshTimer = null;
+      buildBacklinks();
+    }, 800);
+  }
+  // 编辑内容变化 → 主页名/引用关系可能改变 → 自动刷新反链
+  mainEditor.session.on('change', scheduleBacklinksRefresh);
 
   // 预览区 .wikilink 点击委托
   elements.markdownBody.addEventListener('click', function(e) {
