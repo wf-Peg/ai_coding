@@ -662,7 +662,7 @@ public class PromptLibraryService {
             String base = url == null ? "" : url.trim();
             String name = deriveName(base);
             try {
-                HttpRequest req = HttpRequest.newBuilder(URI.create(base))
+                HttpRequest req = HttpRequest.newBuilder(URI.create(encodeUrl(base)))
                         .timeout(Duration.ofSeconds(25))
                         .header("User-Agent", "Mozilla/5.0")
                         .GET().build();
@@ -705,5 +705,37 @@ public class PromptLibraryService {
         if (f.endsWith(".md")) f = f.substring(0, f.length() - 3);
         if (f.endsWith(".")) f = f.substring(0, f.length() - 1);
         return f.replaceAll("_+", " ").trim().isEmpty() ? "LangGPT 提示词" : f;
+    }
+
+    /**
+     * 对 URL 路径中的非 ASCII 字符做百分号编码，同时保留已有的合法 %XX 编码与 ASCII 保留字符。
+     * 避免使用 URI.create 直接解析含中文的 URL（会抛异常），改为按段处理。
+     * 用于解决含中文文件名的 raw URL 在 HttpRequest 中 404 的问题。
+     */
+    private String encodeUrl(String url) {
+        if (url == null || url.isEmpty()) return url;
+        int schemeSep = url.indexOf("://");
+        String prefix = "";
+        String rest = url;
+        if (schemeSep != -1) {
+            prefix = url.substring(0, schemeSep + 3); // scheme://
+            rest = url.substring(schemeSep + 3);
+        }
+        int slash = rest.indexOf('/');
+        String host = (slash == -1) ? rest : rest.substring(0, slash);
+        String pathQuery = (slash == -1) ? "" : rest.substring(slash);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < pathQuery.length(); i++) {
+            char c = pathQuery.charAt(i);
+            if (c < 0x80) {
+                sb.append(c);
+            } else {
+                byte[] b = String.valueOf(c).getBytes(StandardCharsets.UTF_8);
+                for (byte x : b) {
+                    sb.append('%').append(String.format("%02X", x));
+                }
+            }
+        }
+        return prefix + host + sb;
     }
 }
