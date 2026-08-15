@@ -28,7 +28,7 @@ let ort = null;   // onnxruntime-node
 let sharp = null; // sharp（图像解码/缩放）
 
 /** 惰性初始化：加载 onnxruntime + 模型；失败返回 null（上层降级） */
-function init() {
+async function init() {
   if (sessions) return sessions;
   try {
     if (!ort) ort = require('onnxruntime-node');
@@ -38,11 +38,12 @@ function init() {
     const hasAll = required.every(f => fs.existsSync(path.join(MODELS_DIR, f)));
     if (!hasAll) return null;
     dict = fs.readFileSync(path.join(MODELS_DIR, DICT_FILE), 'utf-8').split(/\r?\n/).filter(Boolean);
+    // onnxruntime-node 的 create() 是异步（返回 Promise），必须 await
     sessions = {
-      det: ort.InferenceSession.create(path.join(MODELS_DIR, DET_MODEL)),
-      rec: ort.InferenceSession.create(path.join(MODELS_DIR, REC_MODEL)),
+      det: await ort.InferenceSession.create(path.join(MODELS_DIR, DET_MODEL)),
+      rec: await ort.InferenceSession.create(path.join(MODELS_DIR, REC_MODEL)),
       cls: fs.existsSync(path.join(MODELS_DIR, CLS_MODEL))
-        ? ort.InferenceSession.create(path.join(MODELS_DIR, CLS_MODEL))
+        ? await ort.InferenceSession.create(path.join(MODELS_DIR, CLS_MODEL))
         : null
     };
     return sessions;
@@ -54,6 +55,7 @@ function init() {
 
 /** 查询 OCR 可用状态 */
 function status() {
+  // 纯文件/依赖检查（不加载会话，避免异步）
   let ortOk = true;
   try { require.resolve('onnxruntime-node'); } catch (e) { ortOk = false; }
   if (!ortOk) return { available: false, reason: 'onnxruntime-node 未安装（npm i onnxruntime-node + electron-builder install-app-deps）' };
@@ -164,7 +166,7 @@ function extractTextBoxes(probMap, width, height, threshold, minArea) {
  * @returns {Promise<{text: string, lines: Array<{text, x, y, w, h}>}|null>}
  */
 async function recognize(pngBuffer) {
-  const ss = init();
+  const ss = await init();
   if (!ss) return null;
   const sharpMod = sharp;
   const { width: srcW, height: srcH } = await sharpMod(pngBuffer).metadata();
