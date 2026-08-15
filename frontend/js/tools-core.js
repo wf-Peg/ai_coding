@@ -26,6 +26,19 @@
   let searchTerm = '';
   let currentPromptId = null;
 
+  // ── 系统工具（Electron 主进程能力，不走后端注册表）──
+  const SYSTEM_SCREENSHOT = {
+    id: 'screenshot-system',
+    name: '截图工具',
+    icon: '📸',
+    category: '系统工具',
+    description: 'F1 全屏截图 · F2 贴图 · 离线 OCR，快捷键可在设置页修改',
+    keywords: ['截图', '贴图', 'ocr', 'screenshot', 'screen'],
+    builtin: true,
+    system: true
+  };
+  const SYSTEM_TOOLS = [SYSTEM_SCREENSHOT];
+
   // ── Load tools ──
   async function loadTools() {
     $('loading').style.display = 'flex';
@@ -33,7 +46,9 @@
     try {
       const res = await fetch(API_BASE + '/api/tools');
       const data = await res.json();
-      tools = data.tools || [];
+      tools = (data.tools || []).slice();
+      // 前置系统工具卡片（截图等 Electron 能力）
+      tools.unshift.apply(tools, SYSTEM_TOOLS);
       renderChips();
       renderGrid();
     } catch (e) {
@@ -95,13 +110,39 @@
     });
   }
 
-  // ── Open tool in overlay ──
+  // ── Open tool in overlay（系统工具走说明弹窗）──
   function openTool(t) {
+    if (t.system) { openSystemTool(t); return; }
     $('overlayTitle').textContent = (t.icon || '🧰') + ' ' + t.name;
     currentPromptId = t.id;
     const frame = $('toolFrame');
     frame.src = API_BASE + '/api/tools/' + t.id + '/page';
     $('overlay').classList.add('show');
+  }
+
+  // 系统工具说明弹窗（截图工具：快捷键/OCR 状态/跳设置页）
+  async function openSystemTool(t) {
+    const api = (window.parent && window.parent.electronAPI) || window.electronAPI;
+    let shot = 'F1', paste = 'F2', ocrText = 'OCR：查询中...';
+    if (api && api.screenshotGetShortcuts) {
+      try { const c = await api.screenshotGetShortcuts(); shot = c.screenshot || 'F1'; paste = c.paste || 'F2'; } catch (e) {}
+    }
+    if (api && api.screenshotOcrStatus) {
+      try { const s = await api.screenshotOcrStatus(); ocrText = s.available ? '✅ 离线 OCR 可用' : ('⚠️ ' + (s.reason || 'OCR 未就绪')); } catch (e) {}
+    }
+    $('promptContent').innerHTML =
+      '<div style="font-size:13px;line-height:1.9">' +
+      '<p style="margin-bottom:8px"><b>📸 截图工具</b>（Snipaste 风格）</p>' +
+      '<p>🖥 <b>' + escapeHtml(shot) + '</b> — 全屏选区截图，确认后复制 / 保存 / OCR / 贴图</p>' +
+      '<p>📌 <b>' + escapeHtml(paste) + '</b> — 将剪贴板图片（或最近截图）置顶钉住，可拖动、双击关闭</p>' +
+      '<p>🔤 ' + ocrText + '</p>' +
+      '<p style="margin-top:8px;color:var(--app-text-secondary)">快捷键可在「设置 → 截图工具」中修改；OCR 模型见 electron/screenshot/download-ocr-models.ps1。</p>' +
+      '</div>';
+    currentPromptId = null;
+    $('promptModal').style.display = 'flex';
+    // 隐藏复制提示词按钮（系统工具无 prompt）
+    const copyBtn = $('copyPromptBtn');
+    if (copyBtn) copyBtn.style.display = 'none';
   }
   $('overlayCloseBtn').addEventListener('click', () => { $('overlay').classList.remove('show'); $('toolFrame').src = ''; });
 
@@ -124,6 +165,8 @@
       const data = await res.json();
       $('promptContent').textContent = data.prompt || '(无提示词)';
       currentPromptId = id;
+      const copyBtn = $('copyPromptBtn');
+      if (copyBtn) copyBtn.style.display = '';
       $('promptModal').style.display = 'flex';
     } catch (e) {
       alert('获取提示词失败: ' + e.message);

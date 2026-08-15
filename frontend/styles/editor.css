@@ -541,6 +541,67 @@ select {
   border-radius: var(--app-radius);
 }
 
+/* ── Mermaid 流程图渲染（FP-7）── */
+.markdown-body .mermaid {
+  margin: 0 0 1em;
+  padding: 12px 14px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-subtle);
+  overflow-x: auto;
+  text-align: center;
+}
+.markdown-body .mermaid svg {
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+.markdown-body .mermaid-error {
+  color: var(--app-text-secondary);
+  font-family: var(--app-font-mono);
+  font-size: 13px;
+  white-space: pre-wrap;
+  text-align: left;
+}
+
+/* ── Callout 提示块渲染（FP-8，Obsidian 风格）── */
+.markdown-body .callout {
+  margin: 0 0 1em;
+  padding: 0;
+  border: 1px solid var(--app-border);
+  border-left-width: 4px;
+  border-radius: var(--app-radius);
+  background: var(--app-surface-subtle);
+  overflow: hidden;
+}
+.markdown-body .callout-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-weight: 600;
+  font-size: 0.95em;
+  border-bottom: 1px solid var(--app-border);
+}
+.markdown-body .callout-body {
+  padding: 10px 14px;
+}
+.markdown-body .callout-body > :last-child { margin-bottom: 0; }
+.markdown-body .callout-note { border-left-color: #3b82f6; }
+.markdown-body .callout-note .callout-title { color: #3b82f6; }
+.markdown-body .callout-quote { border-left-color: var(--app-text-muted); }
+.markdown-body .callout-quote .callout-title { color: var(--app-text-secondary); }
+.markdown-body .callout-info { border-left-color: #06b6d4; }
+.markdown-body .callout-info .callout-title { color: #06b6d4; }
+.markdown-body .callout-tip { border-left-color: #10b981; }
+.markdown-body .callout-tip .callout-title { color: #10b981; }
+.markdown-body .callout-warning { border-left-color: #f59e0b; }
+.markdown-body .callout-warning .callout-title { color: #f59e0b; }
+.markdown-body .callout-danger { border-left-color: #ef4444; }
+.markdown-body .callout-danger .callout-title { color: #ef4444; }
+.markdown-body .callout-success { border-left-color: #22c55e; }
+.markdown-body .callout-success .callout-title { color: #22c55e; }
+
 /* ── 编辑器滚动条 ── */
 .editor-app ::-webkit-scrollbar { width: 5px; height: 5px; }
 .editor-app ::-webkit-scrollbar-track { background: transparent; }

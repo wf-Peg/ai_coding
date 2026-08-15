@@ -490,4 +490,36 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * @param {Function} callback - 无参数回调
    */
   onOpenSettings: (callback) => ipcRenderer.on('open-settings', () => callback()),
+
+  // ===================== 截图小工具（F1/F2/OCR） =====================
+
+  /** 截图覆盖层取消（Esc/取消按钮） */
+  screenshotCancel: () => ipcRenderer.invoke('screenshot:cancel'),
+
+  /** 截图确认：选区 rect（CSS 像素）+ 动作 copy/save/ocr/paste */
+  screenshotConfirm: (payload) => ipcRenderer.invoke('screenshot:confirm', payload),
+
+  /** 复制最近一次截图到剪贴板 */
+  screenshotCopyLast: () => ipcRenderer.invoke('screenshot:copy-last'),
+
+  /** 贴图：剪贴板图片或最近截图置顶 */
+  screenshotPaste: () => ipcRenderer.invoke('screenshot:paste'),
+
+  /** 对图片 dataUrl 执行 OCR 识别 */
+  screenshotOcr: (dataUrl) => ipcRenderer.invoke('screenshot:ocr', { dataUrl }),
+
+  /** 查询 OCR 可用状态（onnxruntime + 模型是否就绪） */
+  screenshotOcrStatus: () => ipcRenderer.invoke('screenshot:ocr-status'),
+
+  /** 获取截图快捷键/配置 */
+  screenshotGetShortcuts: () => ipcRenderer.invoke('screenshot:get-shortcuts'),
+
+  /** 更新截图快捷键/配置（持久化 + 即时重注册） */
+  screenshotSetShortcuts: (payload) => ipcRenderer.invoke('screenshot:set-shortcuts', payload),
+
+  /** OCR 结果跳转编辑器：主窗口转发消息 */
+  screenshotOpenInEditor: (payload) => ipcRenderer.invoke('screenshot:open-in-editor', payload),
+
+  /** 监听主窗口转发给编辑器的 OCR 文本打开请求 */
+  onScreenshotOpenInEditor: (callback) => ipcRenderer.on('screenshot:open-in-editor', (event, data) => callback(data)),
 });

@@ -47,7 +47,7 @@ public class ContentIndexService {
         ContentRefMapper mapper = new ContentRefMapper();
         List<ContentRef> refs = new ArrayList<>();
         storageService.getAllClips().forEach(item -> refs.add(mapper.fromClip(item)));
-        storageService.getAllKnowledgeEntries().forEach(item -> refs.add(mapper.fromKnowledge(item)));
+        storageService.getAllKnowledge().forEach(item -> refs.add(mapper.fromKnowledgeBase(item)));
         storageService.getAllTodos().forEach(item -> refs.add(mapper.fromTodo(item)));
         storageService.getAllLearningPlans().forEach(item -> refs.add(mapper.fromLearningPlan(item)));
         rebuild(refs);

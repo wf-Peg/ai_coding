@@ -971,6 +971,19 @@
         editorFrame.contentWindow.postMessage({ action: 'editorPing' }, '*');
       });
 
+      // 截图工具：OCR 结果 → 编辑器新标签打开（主进程 IPC 事件）
+      if (window.electronAPI && window.electronAPI.onScreenshotOpenInEditor) {
+        window.electronAPI.onScreenshotOpenInEditor((data) => {
+          renderView('editor');
+          window.history.pushState({ view: 'editor' }, '', '/editor');
+          sendToEditor({
+            type: 'openTextData',
+            text: (data && data.text) || '',
+            title: (data && data.title) || 'OCR 识别结果'
+          });
+        });
+      }
+
       // ====== 窗口控制（仅 Electron 环境） ======
       // 懒加载 iframe：从 data-src 读取真实 URL 并设置 src
       function lazyLoadIframes() {

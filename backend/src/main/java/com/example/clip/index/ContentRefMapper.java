@@ -1,6 +1,7 @@
 package com.example.clip.index;
 
 import com.example.clip.model.ClipContent;
+import com.example.clip.model.Knowledge;
 import com.example.clip.model.KnowledgeEntry;
 import com.example.clip.model.TodoContent;
 import com.example.clip.model.LearningPlan;
@@ -43,6 +44,25 @@ public class ContentRefMapper {
                 null,
                 knowledge.getCreatedAt(),
                 null,
+                null
+        );
+    }
+
+    /** 知识库（knowledge-base）模型映射，与 {@link com.example.clip.model.Knowledge} 对应。 */
+    public ContentRef fromKnowledgeBase(Knowledge knowledge) {
+        if (knowledge == null || knowledge.getId() == null) {
+            throw new IllegalArgumentException("knowledge and knowledge id are required");
+        }
+        return new ContentRef(
+                typedId("knowledge", knowledge.getId()),
+                "knowledge",
+                String.valueOf(knowledge.getId()),
+                resolveTitle(knowledge.getTitle(), null, "knowledge", knowledge.getId()),
+                knowledge.getCategory(),
+                safeTags(knowledge.getTags()),
+                null,
+                knowledge.getCreatedAt(),
+                knowledge.getUpdatedAt(),
                 null
         );
     }

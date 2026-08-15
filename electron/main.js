@@ -8,7 +8,7 @@
  * 4. 提供 IPC 通道供渲染进程调用
  */
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, Notification, globalShortcut, clipboard, session, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, Notification, globalShortcut, clipboard, session, screen, desktopCapturer } = require('electron');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -23,6 +23,8 @@ const updateManager = require('./update-manager');
 
 // 右键菜单注册管理器
 const { registerContextMenu, unregisterContextMenu } = require('./context-menu-registry');
+// 截图小工具（F1 截图 / F2 贴图 / OCR）
+const screenshotService = require('./screenshot/screenshot-service');
 // 命令行参数解析器
 const { parseCommandLineArgs, dispatchActions } = require('./command-line-handler');
 
@@ -162,7 +164,12 @@ const DEFAULT_CONFIG = {
   customProviderName: '',        // 自定义 OpenAI 兼容提供商名称
   customBaseUrl: '',             // 自定义 OpenAI 兼容 API 地址
   customApiKey: '',              // 自定义 OpenAI 兼容 API Key
-  customModel: ''                // 自定义 OpenAI 兼容模型名称
+  customModel: '',               // 自定义 OpenAI 兼容模型名称
+  // 截图小工具配置
+  screenshotShortcut: 'F1',      // 截图快捷键（默认 F1）
+  pasteShortcut: 'F2',           // 贴图快捷键（默认 F2）
+  screenshotHideMain: true,      // 截图时是否收起主窗口
+  screenshotSaveDir: ''          // 截图默认保存目录（空 = 弹保存对话框）
 };
 
 /**
@@ -2466,6 +2473,8 @@ function registerGlobalShortcut() {
     });
     if (!ret) log.warn('[Shortcut] Registration failed:', shortcutAccelerator);
   } catch (e) { log.warn('[Shortcut] Error:', e.message); }
+  // 联动注册截图小工具快捷键（F1/F2），避免 unregisterAll 清掉后丢失
+  try { screenshotService.refreshShortcuts(); } catch (e) { log.warn('[Shortcut] screenshot shortcuts:', e.message); }
 }
 
 /** 注销全局快捷键 */
@@ -2971,6 +2980,18 @@ app.whenReady().then(async () => {
   log.cleanupOldLogs();
 
   setupIPC();
+
+  // 截图小工具初始化（F1 截图 / F2 贴图 / OCR），快捷键随 Alt+X 一并注册
+  try {
+    screenshotService.initScreenshotService({
+      app, BrowserWindow, globalShortcut, desktopCapturer, clipboard, nativeImage, ipcMain, screen, dialog, log,
+      loadConfig, saveConfig,
+      getMainWindow: () => mainWindow,
+      showMainWindow: () => showMainWindow()
+    });
+  } catch (e) {
+    log.error('[Screenshot] init failed:', e.message);
+  }
 
   // 预创建系统托盘图标（不等窗口创建）
   if (!tray) {

@@ -870,6 +870,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   loadMascotConfig();
   loadShortcutConfig();
+  loadScreenshotConfig();
   loadStartupMode();
   initUpdateUI();
 });
@@ -966,6 +967,82 @@ async function onShortcutChange() {
   await api.setShortcutConfig({ enabled, accelerator });
   showToast('快捷键已更新');
 }
+
+// ==================== 截图工具配置 ====================
+
+let recordingShotField = null; // 'shot' | 'paste' | null
+
+/** 加载截图工具配置（快捷键 + 收起主窗口开关） */
+async function loadScreenshotConfig() {
+  const api = getElectronAPI();
+  if (!api || !api.screenshotGetShortcuts) return;
+  try {
+    const cfg = await api.screenshotGetShortcuts();
+    if (document.getElementById('shotKey')) {
+      document.getElementById('shotKey').value = cfg.screenshot || 'F1';
+      document.getElementById('pasteKey').value = cfg.paste || 'F2';
+      document.getElementById('shotHideMain').checked = cfg.hideMain !== false;
+    }
+  } catch (e) {}
+}
+
+/** 开始录制截图/贴图快捷键 */
+function startShotRecording(field) {
+  recordingShotField = field;
+  const input = document.getElementById(field === 'paste' ? 'pasteKey' : 'shotKey');
+  input.value = '按下快捷键...';
+  input.style.borderColor = 'var(--text)';
+  input.style.background = 'var(--primary-light)';
+}
+
+/** 保存截图快捷键 + 配置（即时重注册） */
+async function saveScreenshotConfig() {
+  const api = getElectronAPI();
+  if (!api || !api.screenshotSetShortcuts) return;
+  const payload = {
+    screenshot: (document.getElementById('shotKey').value.trim() || 'F1'),
+    paste: (document.getElementById('pasteKey').value.trim() || 'F2'),
+    hideMain: document.getElementById('shotHideMain').checked
+  };
+  await api.screenshotSetShortcuts(payload);
+  showToast('截图工具配置已保存');
+}
+
+// 截图快捷键录制：keydown 处理（与全局快捷键录制分离，互不干扰）
+document.addEventListener('keydown', (e) => {
+  if (!recordingShotField) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const parts = [];
+  if (e.ctrlKey || e.metaKey) parts.push('Ctrl');
+  if (e.altKey) parts.push('Alt');
+  if (e.shiftKey) parts.push('Shift');
+  const key = e.key;
+  if (key === 'Control' || key === 'Alt' || key === 'Shift' || key === 'Meta' || key === 'Escape') return;
+  if (parts.length === 0) parts.push('Ctrl');
+  parts.push(key.length === 1 ? key.toUpperCase() : key);
+  const accelerator = parts.join('+');
+  const input = document.getElementById(recordingShotField === 'paste' ? 'pasteKey' : 'shotKey');
+  input.value = accelerator;
+  recordingShotField = null;
+  input.style.borderColor = '';
+  input.style.background = '';
+  saveScreenshotConfig();
+});
+
+// 点击其它区域取消录制并恢复原值
+document.addEventListener('click', (e) => {
+  if (!recordingShotField) return;
+  if (!e.target.closest('#shotKey') && !e.target.closest('#pasteKey')) {
+    recordingShotField = null;
+    loadScreenshotConfig();
+  }
+});
+
+// 收起主窗口开关即时保存
+document.addEventListener('change', (e) => {
+  if (e.target && e.target.id === 'shotHideMain') saveScreenshotConfig();
+});
 
 // ==================== 更新管理 ====================
 

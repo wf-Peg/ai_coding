@@ -1079,6 +1079,10 @@
     try {
       // 图文一体：marked → 白名单消毒 → 图片重写（media/ 相对路径 → /api/media/...）
       elements.markdownBody.innerHTML = window.MediaKit.render.renderMarkdown(text);
+      // Mermaid 流程图异步渲染（` ```mermaid ` 代码块 → SVG）
+      if (window.MediaKit.render.renderMermaid) {
+        window.MediaKit.render.renderMermaid(elements.markdownBody);
+      }
     } catch (error) {
       elements.markdownBody.innerHTML = '<p style="color:var(--app-danger);">渲染失败：' + error.message + '</p>';
     }

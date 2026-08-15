@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>OCR 识别结果</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1e1e1e; color: #e5e7eb; height: 100vh; display: flex; flex-direction: column;
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+  }
+  .head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #333; }
+  .head h3 { font-size: 14px; font-weight: 600; flex: 1; }
+  .head button {
+    border: none; border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 12px;
+    background: #3f8cff; color: #fff;
+  }
+  .head button.ghost { background: transparent; color: #9ca3af; border: 1px solid #444; }
+  .head button:hover { opacity: 0.85; }
+  textarea {
+    flex: 1; border: none; resize: none; outline: none; padding: 12px 14px;
+    background: transparent; color: #e5e7eb; font-size: 13px; line-height: 1.7;
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+  }
+  .foot { padding: 8px 14px; border-top: 1px solid #333; font-size: 11px; color: #6b7280; }
+</style>
+</head>
+<body>
+<div class="head">
+  <h3>🔤 OCR 识别结果</h3>
+  <button class="ghost" id="btnEditor">📝 在编辑器中打开</button>
+  <button id="btnCopy">📋 复制</button>
+  <button class="ghost" id="btnClose">关闭</button>
+</div>
+<textarea id="text" placeholder="识别结果为空..."></textarea>
+<div class="foot" id="status"></div>
+<script>
+  const { ipcRenderer } = require('electron');
+  const text = document.getElementById('text');
+  const status = document.getElementById('status');
+  let lastText = '';
+
+  ipcRenderer.on('ocr-result:init', (e, payload) => {
+    lastText = (payload && payload.text) || '';
+    text.value = lastText;
+    status.textContent = (payload && payload.lines) ? '识别到 ' + payload.lines + ' 行' : '';
+  });
+
+  document.getElementById('btnCopy').addEventListener('click', async () => {
+    const val = text.value.trim();
+    if (!val) return;
+    try { await navigator.clipboard.writeText(val); status.textContent = '✅ 已复制'; }
+    catch (e) { status.textContent = '复制失败：' + e.message; }
+  });
+
+  document.getElementById('btnEditor').addEventListener('click', () => {
+    const val = text.value.trim();
+    if (!val) return;
+    // 通知主窗口 → 编辑器新标签打开文本
+    ipcRenderer.invoke('screenshot:open-in-editor', { text: val, title: 'OCR 识别结果' });
+    window.close();
+  });
+
+  document.getElementById('btnClose').addEventListener('click', () => window.close());
+  // Ctrl+Enter 复制后关闭
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') window.close();
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      navigator.clipboard.writeText(text.value.trim());
+      window.close();
+    }
+  });
+</script>
+</body>
+</html>

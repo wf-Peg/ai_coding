@@ -14,18 +14,31 @@
 (function (global) {
   'use strict';
 
-  /** 允许的标签白名单（D-K） */
+  /** 允许的标签白名单（D-K）。
+   *  Mermaid 渲染产物为 SVG，故加入 svg 及常用子标签；Mermaid 实际输出在
+   *  sanize 之后直接注入 DOM（不经 sanitize），此处白名单主要供普通内容与兜底路径使用。 */
   var ALLOWED_TAGS = new Set([
     'p', 'div', 'strong', 'em', 'code', 'pre', 'blockquote',
     'ul', 'ol', 'li', 'a', 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-    'br', 'hr', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'span'
+    'br', 'hr', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'span',
+    'svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polygon',
+    'polyline', 'text', 'tspan', 'defs', 'marker', 'use', 'foreignObject',
+    'style', 'clipPath', 'title', 'desc'
   ]);
 
   /** 允许的属性白名单（D-K） */
-  var ALLOWED_ATTRS = new Set(['src', 'href', 'alt', 'title', 'class']);
+  var ALLOWED_ATTRS = new Set([
+    'src', 'href', 'alt', 'title', 'class',
+    // SVG 展示属性
+    'viewBox', 'fill', 'stroke', 'stroke-width', 'stroke-linecap',
+    'stroke-linejoin', 'd', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r',
+    'rx', 'ry', 'width', 'height', 'transform', 'points', 'marker-end',
+    'marker-start', 'font-size', 'font-family', 'text-anchor',
+    'dominant-baseline', 'clip-path', 'style', 'preserveAspectRatio', 'id'
+  ]);
 
   /** class 前缀白名单 */
-  var ALLOWED_CLASS_PREFIXES = ['language-', 'markdown-content', 'media-image'];
+  var ALLOWED_CLASS_PREFIXES = ['language-', 'markdown-content', 'media-image', 'callout', 'mermaid'];
 
   /** 判断相对路径是否指向 media 资源 */
   function isMediaRelative(path) {
@@ -125,14 +138,108 @@
     var html;
     if (global.marked && typeof global.marked.parse === 'function') {
       try {
-        html = global.marked.parse(md);
+        html = global.marked.parse(md, { renderer: getCalloutRenderer() });
       } catch (e) {
         html = String(md);
       }
     } else {
       html = String(md).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
-    return rewriteImageSrc(sanitizeHtml(html));
+    // 加点：Mermaid 代码块在消毒后占位，交由异步 renderMermaid 渲染
+    return extractMermaid(rewriteImageSrc(sanitizeHtml(html)));
+  }
+
+  // ── Callout 提示块渲染（Obsidian 风格，FP-8）──
+
+  /** Callout 类型 → 标题图标 */
+  var CALLOUT_ICONS = {
+    note: '💡', quote: '💬', info: 'ℹ️', tip: '✨',
+    warning: '⚠️', danger: '🔥', success: '✅'
+  };
+
+  /** Callout 类型 → 默认标题（当未手写标题时） */
+  var CALLOUT_TITLES = {
+    note: 'Note', quote: 'Quote', info: 'Info', tip: 'Tip',
+    warning: 'Warning', danger: 'Danger', success: 'Success'
+  };
+
+  var calloutRenderer = null;
+
+  /**
+   * 借用 marked 的 blockquote 渲染器识别 Obsidian Callout 语法
+   * `> [!type] 标题`，转为带颜色的 callout 卡片。优先于普通 blockquote。
+   */
+  function getCalloutRenderer() {
+    if (calloutRenderer || !global.marked || !global.marked.Renderer) return calloutRenderer;
+    var r = new global.marked.Renderer();
+    var origBlockquote = r.blockquote.bind(r);
+    r.blockquote = function (quote) {
+      var m = quote.match(/^\s*<p>\[!([a-z]+)\]([^<]*)<\/p>\s*/i);
+      if (m) {
+        var type = String(m[1]).toLowerCase();
+        var titleText = String(m[2]).trim();
+        var body = quote
+          .replace(/^\s*<p>\[![a-z]+\][^<]*<\/p>\s*/i, '')
+          .replace(/<\/p>\s*$/, '</p>');
+        var title = titleText || CALLOUT_TITLES[type] || type;
+        return '<div class="callout callout-' + type + '">' +
+          '<div class="callout-title">' + (CALLOUT_ICONS[type] || '📌') + ' ' + escapeHtml(title) + '</div>' +
+          '<div class="callout-body">' + body + '</div>' +
+          '</div>';
+      }
+      return origBlockquote(quote);
+    };
+    calloutRenderer = r;
+    return calloutRenderer;
+  }
+
+  // ── Mermaid 流程图渲染（FP-7）──
+
+  var mermaidInited = false;
+  var mermaidSeq = 0;
+
+  function ensureMermaidInit() {
+    if (mermaidInited || !global.mermaid) return;
+    mermaidInited = true;
+    try {
+      global.mermaid.initialize({ startOnLoad: false, theme: 'default' });
+    } catch (e) { /* 忽略初始化失败，走到 render 时兜底 */ }
+  }
+
+  /** 把 `<pre><code class="language-mermaid">code</code></pre>` 替换为 `.mermaid` 占位 div */
+  function extractMermaid(html) {
+    if (!html || !global.mermaid) return html;
+    return html.replace(
+      /<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/gi,
+      '<div class="mermaid">$1</div>'
+    );
+  }
+
+  /**
+   * 异步渲染容器内所有 `.mermaid` 占位为 SVG 流程图。
+   * 在把 renderMarkdown 结果写入 DOM 后调用；失败时保留源码并加 .mermaid-error。
+   * @returns {Promise}
+   */
+  function renderMermaid(container) {
+    if (!container || !global.mermaid) return Promise.resolve();
+    ensureMermaidInit();
+    var els = container.querySelectorAll('.mermaid');
+    var promises = [];
+    Array.prototype.forEach.call(els, function (el) {
+      var code = el.textContent || '';
+      if (!code.trim()) { el.classList.add('mermaid-error'); return; }
+      var id = 'mmd-' + (++mermaidSeq);
+      promises.push(
+        global.mermaid.render(id, code).then(function (res) {
+          el.innerHTML = res.svg;
+          el.classList.add('mermaid-rendered');
+        }).catch(function () {
+          el.classList.add('mermaid-error');
+          el.textContent = code;
+        })
+      );
+    });
+    return Promise.all(promises).catch(function () { });
   }
 
   /** 渲染纯文本（转义 HTML） */
@@ -154,6 +261,7 @@
     rewriteImageSrc: rewriteImageSrc,
     sanitizeHtml: sanitizeHtml,
     renderMarkdown: renderMarkdown,
+    renderMermaid: renderMermaid,
     escapeHtml: escapeHtml
   };
 })(typeof window !== 'undefined' ? window : globalThis);

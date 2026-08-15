@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>贴图</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+  html, body { background: transparent; overflow: hidden; height: 100vh; }
+  #wrap {
+    width: 100vw; height: 100vh;
+    -webkit-app-region: drag;          /* 整窗可拖动 */
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 8px;
+    position: relative;
+    background: transparent;
+  }
+  #wrap:hover { border-color: rgba(255,255,255,0.5); }
+  img { width: 100%; height: 100%; object-fit: contain; display: block; border-radius: 8px; pointer-events: none; }
+  #bar {
+    position: absolute; top: 6px; right: 6px; display: flex; gap: 4px;
+    -webkit-app-region: no-drag; opacity: 0; transition: opacity 0.15s;
+  }
+  #wrap:hover #bar { opacity: 1; }
+  #bar button {
+    width: 24px; height: 24px; border-radius: 6px; border: none;
+    background: rgba(0,0,0,0.55); color: #fff; font-size: 12px; cursor: pointer;
+    line-height: 24px; text-align: center; padding: 0;
+  }
+  #bar button:hover { background: rgba(63,140,255,0.85); }
+  #bar button.close:hover { background: rgba(220,38,38,0.9); }
+  #hint {
+    position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%);
+    background: rgba(0,0,0,0.55); color: #fff; font-size: 11px;
+    padding: 3px 10px; border-radius: 999px; white-space: nowrap;
+    -webkit-app-region: no-drag; opacity: 0; transition: opacity 0.15s;
+  }
+  #wrap:hover #hint { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <img id="img" alt="">
+  <div id="bar">
+    <button id="btnCopy" title="复制图片">📋</button>
+    <button id="btnOcr" title="OCR 识别">🔤</button>
+    <button id="btnClose" class="close" title="关闭贴图">✕</button>
+  </div>
+  <div id="hint">拖动移动 · 双击/✕ 关闭</div>
+</div>
+<script>
+  const { ipcRenderer, clipboard } = require('electron');
+  const img = document.getElementById('img');
+  ipcRenderer.on('paste:init', (e, payload) => { img.src = payload.dataUrl; });
+
+  document.getElementById('btnCopy').addEventListener('click', async () => {
+    // 主进程已持有图片：通知复制（贴图窗口自身也可直接写剪贴板，但主进程更统一）
+    await ipcRenderer.invoke('screenshot:copy-last');
+  });
+  document.getElementById('btnOcr').addEventListener('click', async () => {
+    // 对当前贴图图片 OCR：取 dataURL 送主进程识别
+    const dataUrl = img.src;
+    const res = await ipcRenderer.invoke('screenshot:ocr', { dataUrl });
+    alert(res.status === 'ok' ? res.text : ('OCR 不可用：' + (res.message || '')));
+  });
+  document.getElementById('btnClose').addEventListener('click', () => window.close());
+  // 双击关闭
+  window.addEventListener('dblclick', () => window.close());
+</script>
+</body>
+</html>
