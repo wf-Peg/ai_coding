@@ -417,7 +417,7 @@
     activeTabIndex = tabs.length - 1;
     state = tabs[activeTabIndex];
     ensureAiChatState(state);
-    setEditorContent('', { fileName: '未命名.txt', encoding: 'UTF-8', lineEnding: 'LF' });
+    setEditorContent('', { language: 'markdown', encoding: 'UTF-8', lineEnding: 'LF' });
     renderTabBar();
     renderAiChat();
     mainEditor.focus();

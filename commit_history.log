@@ -2,6 +2,7 @@
 # 格式: 日期 时间 | 提交说明
 # 每次提交代码后自动追加到此文件
 
+2026-08-16 08:00 | 修复 OCR Add 广播维度不匹配(51 vs 52)：PP-OCRv4 rec 输入固定 48×320（原动态宽导致 onnx 报错）
 2026-08-16 07:30 | 修复 OCR 识别失败 ss.det.run is not a function：onnxruntime InferenceSession.create 为异步(返回Promise)，init 改 async + await 三会话创建；status 改纯文件检查
 2026-08-16 07:00 | 修复 OCR 无反馈：截图选 OCR 后覆盖层关闭结果静默 → 失败/未就绪主窗口通知条显示原因，成功弹结果窗口
 2026-08-16 06:30 | OCR cls 方向分类模型改为可选（HF space 无 text_cls 目录，det/rec/字典即可识别正立文本；有 cls 则启用）→ 用户现有 3 文件即可用 OCR

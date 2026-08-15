@@ -59,7 +59,7 @@
     name: '截图工具',
     icon: '📸',
     category: '系统工具',
-    description: 'F1 全屏截图 · F2 贴图 · 离线 OCR，快捷键可在设置页修改',
+    description: '截图 / 贴图 / 离线 OCR，快捷键可在设置页修改',
     keywords: ['截图', '贴图', 'ocr', 'screenshot', 'screen'],
     builtin: true,
     system: true
@@ -361,13 +361,13 @@
         '<span style="width:96px">截图快捷键</span>' +
         '<input id="sysShotKey" type="text" readonly value="' + esc(shot) + '" ' +
           'style="width:140px;text-align:center;padding:5px 8px;border:1px solid var(--app-border);border-radius:6px;background:var(--app-surface);color:var(--app-text);cursor:pointer">' +
-        '<span style="color:var(--app-text-muted);font-size:11px">F1 全屏选区</span>' +
+        '<span style="color:var(--app-text-muted);font-size:11px">全屏选区</span>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:10px;margin:4px 0">' +
         '<span style="width:96px">贴图快捷键</span>' +
         '<input id="sysPasteKey" type="text" readonly value="' + esc(paste) + '" ' +
           'style="width:140px;text-align:center;padding:5px 8px;border:1px solid var(--app-border);border-radius:6px;background:var(--app-surface);color:var(--app-text);cursor:pointer">' +
-        '<span style="color:var(--app-text-muted);font-size:11px">F2 置顶贴图</span>' +
+        '<span style="color:var(--app-text-muted);font-size:11px">置顶贴图</span>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:10px;margin:4px 0">' +
         '<span style="width:96px">收起主窗口</span>' +

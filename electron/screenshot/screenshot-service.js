@@ -23,6 +23,8 @@ let lastCapture = null;        // 最近一次截图 nativeImage（供贴图兜�
 let lastCaptureSize = null;   // 缩略图实际像素尺寸（裁剪换算基准）
 let pendingAction = null;      // 截图确认后的动作（copy/save/ocr/paste）
 let ocrService = null;         // 延迟加载（依赖 onnxruntime-node）
+let inFlight = false;          // 捕获进行中（覆盖层已显示但图像未就绪，可中止）
+let lastCaptureDisplaySize = null; // 最近一次捕获的显示器 DIP 尺寸（裁剪换算基准）
 
 function log(...args) {
   if (!deps || !deps.log) return;
@@ -100,12 +102,12 @@ function refreshShortcuts() { unregisterShortcuts(); registerShortcuts(); }
 
 // ==================== 截图流程 ====================
 
-/** 捕获当前屏幕（主显示器）为 nativeImage */
-async function captureScreen() {
+/** 捕获指定显示器为 nativeImage（默认光标所在显示器） */
+async function captureScreen(display) {
   const { desktopCapturer } = deps;
-  const display = deps.screen.getPrimaryDisplay();
-  const sf = display.scaleFactor || 1;
-  const size = display.size; // DIP {width, height}
+  const disp = display || getTargetDisplay();
+  const sf = disp.scaleFactor || 1;
+  const size = disp.size; // DIP {width, height}
   // 真实像素缩略图（HiDPI 不失真）：thumbnailSize 传 size×scaleFactor
   const full = await desktopCapturer.getSources({
     types: ['screen'],
@@ -114,36 +116,77 @@ async function captureScreen() {
   if (!full || full.length === 0) throw new Error('未找到可捕获的屏幕');
   const img = full[0].thumbnail;
   lastCapture = img;
+  lastCaptureDisplaySize = size; // 记录本次捕获的显示器 DIP 尺寸（裁剪换算基准）
   const actual = img.getSize(); // 实际缩略图像素（双保险）
   lastCaptureSize = actual;
   return { image: img, display: size, actualSize: actual, scaleFactor: sf };
 }
 
-/** 启动截图：捕获屏幕 → 打开全屏覆盖层 */
+/** 目标显示器：光标所在显示器（回退主显示器），符合"截哪里"直觉 */
+function getTargetDisplay() {
+  try {
+    const pt = deps.screen.getCursorScreenPoint();
+    return deps.screen.getDisplayNearestPoint(pt) || deps.screen.getPrimaryDisplay();
+  } catch (e) { return deps.screen.getPrimaryDisplay(); }
+}
+
+/** 性能打点：记录某阶段相对 t0 的耗时 */
+function logPerf(stage, t0) {
+  log('perf:', stage, Date.now() - t0 + 'ms');
+}
+
+/** 启动截图：立即显示预建覆盖层（即时反馈）→ 隐藏抓屏（避免入镜）→ 回填图像 */
 async function startScreenshot(defaultAction) {
   if (!deps) return;
-  if (screenshotWindow && !screenshotWindow.isDestroyed()) return; // 防重入
+  if (inFlight) return; // 捕获进行中，忽略连按
+  if (screenshotWindow && !screenshotWindow.isDestroyed() && screenshotWindow.isVisible()) return; // 覆盖层已显示，防重入
   pendingAction = defaultAction || 'copy';
+  const t0 = Date.now();
   try {
-    if (loadScreenshotConfig().hideMain && getMainWindow() && !getMainWindow().isDestroyed()) {
+    const cfg = loadScreenshotConfig();
+    if (cfg.hideMain && getMainWindow() && !getMainWindow().isDestroyed()) {
       getMainWindow().minimize(); // 截图时收起主窗口（可配置）
     }
-    const shot = await captureScreen();
-    const bgDataUrl = shot.image.toDataURL();
-    createScreenshotWindow(bgDataUrl, shot.display);
+    const display = getTargetDisplay();
+    const win = getOrCreateOverlayWindow(display);
+    // 1) 立即显示：深色底 + “正在截取屏幕…”（按键即有感知反馈）
+    win.show();
+    try { win.focus(); } catch (e) {}
+    win.webContents.send('screenshot:loading', {});
+    // 2) 隐藏覆盖层抓屏（否则覆盖层会出现在截图里），抓完回填
+    win.hide();
+    inFlight = true;
+    const shot = await captureScreen(display);
+    logPerf('capture', t0);
+    const png = shot.image.toPNG();
+    logPerf('encode', t0);
+    if (!inFlight) return; // 捕获期间被 Esc 取消
+    win.show();
+    try { win.focus(); } catch (e) {}
+    // 3) PNG Buffer 直传（不再 base64，省 33% 体积 + 解码开销）
+    win.webContents.send('screenshot:init', { bg: png, mime: 'image/png', display: shot.display, t0 });
+    logPerf('send', t0);
   } catch (e) {
     log('startScreenshot failed:', e.message);
+    inFlight = false;
+    if (screenshotWindow && !screenshotWindow.isDestroyed()) { try { screenshotWindow.hide(); } catch (e2) {} }
     if (deps.showMainWindow) deps.showMainWindow();
   }
 }
 
-/** 创建全屏覆盖层窗口 */
-function createScreenshotWindow(bgDataUrl, display) {
+/** 获取/预建全屏覆盖层窗口（复用，避免每次新建窗口+loadFile 的延迟） */
+function getOrCreateOverlayWindow(display) {
   const { BrowserWindow } = deps;
+  if (screenshotWindow && !screenshotWindow.isDestroyed()) {
+    // 复用：显示器可能变化，按目标显示器调整位置/尺寸
+    try { screenshotWindow.setBounds(display.bounds || display.workArea); } catch (e) {}
+    return screenshotWindow;
+  }
+  const disp = display || getTargetDisplay();
   const win = new BrowserWindow({
     x: 0, y: 0,
-    width: display.width,
-    height: display.height,
+    width: disp.size.width,
+    height: disp.size.height,
     frame: false,
     transparent: false,
     fullscreen: true,
@@ -155,6 +198,7 @@ function createScreenshotWindow(bgDataUrl, display) {
     alwaysOnTop: true,
     skipTaskbar: true,
     hasShadow: false,
+    show: false, // 预建隐藏，F1 时即时显示
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -163,13 +207,10 @@ function createScreenshotWindow(bgDataUrl, display) {
   });
   screenshotWindow = win;
   win.loadFile(path.join(__dirname, 'screenshot-window.html'));
-  // 确保覆盖层获得焦点（Esc/Enter/Ctrl+S 等快捷键依赖焦点）
-  try { win.focus(); } catch (e) {}
-  win.webContents.on('did-finish-load', () => {
-    win.webContents.send('screenshot:init', { bg: bgDataUrl, display });
-  });
   win.on('closed', () => { screenshotWindow = null; });
-  // 防 Esc 后残留：渲染层发送 cancel 关闭
+  // 确保覆盖层获得焦点（Esc/Enter/Ctrl+S 等快捷键依赖焦点）
+  win.on('show', () => { try { win.focus(); } catch (e) {} });
+  return win;
 }
 
 // ==================== 动作分发 ====================
@@ -190,7 +231,7 @@ async function handleConfirm(payload) {
   }
   // crop 基于缩略图实际像素：CSS/DIP 坐标 × (实际像素 / DIP 尺寸)
   const actual = lastCaptureSize || lastCapture.getSize();
-  const displaySize = deps.screen.getPrimaryDisplay().size;
+  const displaySize = lastCaptureDisplaySize || deps.screen.getPrimaryDisplay().size;
   const sx = actual.width / Math.max(1, displaySize.width);
   const sy = actual.height / Math.max(1, displaySize.height);
   const cropRect = {
@@ -259,7 +300,9 @@ let pasteWindows = [];
 /** 创建置顶贴图窗口（可拖动，双击/右键关闭） */
 function showPasteWindow(image) {
   const { BrowserWindow } = deps;
-  const [iw, ih] = image.getSize();
+  // 注意：nativeImage.getSize() 返回 {width,height} 对象，不能数组解构（v1.2 曾因此回归导致贴图失效）
+  const size = image.getSize();
+  const iw = size.width, ih = size.height;
   // 等比适配（Snipaste 手感）：最长边限制 900/700，只缩小不放大，保持原图比例
   const maxW = 900, maxH = 700;
   const fit = Math.min(1, maxW / Math.max(1, iw), maxH / Math.max(1, ih));
@@ -271,8 +314,9 @@ function showPasteWindow(image) {
     x: 100 + pasteWindows.length * 30,
     y: 100 + pasteWindows.length * 30,
     frame: false,
-    transparent: true,
-    resizable: false,          // 尺寸由程序控制（滚轮缩放/双击），避免用户拖边变形
+    transparent: false,          // 不透明：规避 Windows 透明窗口渲染不可靠（黑屏/内容不显示）
+    backgroundColor: '#000000',  // 图片按原比例铺满窗口，黑色仅作兜底
+    resizable: false,            // 尺寸由程序控制（滚轮缩放/双击），避免用户拖边变形
     alwaysOnTop: true,
     skipTaskbar: true,
     hasShadow: true,
@@ -283,12 +327,19 @@ function showPasteWindow(image) {
   pasteWindows.push(win);
   win.loadFile(path.join(__dirname, 'paste-window.html'));
   win.webContents.on('did-finish-load', () => {
-    win.webContents.send('paste:init', { dataUrl: image.toDataURL() });
+    // PNG Buffer 直传（不再 base64 dataURL）
+    win.webContents.send('paste:init', { buf: image.toPNG(), mime: 'image/png', w: iw, h: ih });
+    log('paste:init sent', iw + 'x' + ih, '->', w + 'x' + h);
+  });
+  // 渲染层报错不再静默：console error / 图片解码失败都会落日志
+  win.webContents.on('console-message', (e, level, message) => {
+    if (level >= 2) log('paste-window console[' + level + ']:', String(message).slice(0, 200));
   });
   win.on('closed', () => {
     const i = pasteWindows.indexOf(win);
     if (i >= 0) pasteWindows.splice(i, 1);
   });
+  log('paste window created:', w + 'x' + h, 'src', iw + 'x' + ih, 'total', pasteWindows.length);
   return { status: 'pasted', count: pasteWindows.length };
 }
 
@@ -365,9 +416,11 @@ function getOcrStatus() {
 // ==================== 窗口辅助 ====================
 
 function closeScreenshotWindow() {
-  // 覆盖层 closable:false，close() 无效；用 destroy() 强制关闭（兼容取消/确认/异常路径）
-  if (screenshotWindow && !screenshotWindow.isDestroyed()) screenshotWindow.destroy();
-  screenshotWindow = null;
+  inFlight = false;
+  // 覆盖层复用：隐藏而非销毁；异常损坏时销毁由下次 F1 重建
+  if (screenshotWindow && !screenshotWindow.isDestroyed()) {
+    try { screenshotWindow.hide(); } catch (e) { try { screenshotWindow.destroy(); } catch (e2) {} }
+  }
 }
 
 function closeAllPasteWindows() {
@@ -435,11 +488,16 @@ function registerIpc() {
   });
   ipcMain.handle('screenshot:paste', () => pasteFromClipboard());
   ipcMain.handle('screenshot:ocr', (e, payload) => {
-    // 供贴图窗口/结果弹窗对图片再识别
-    if (payload && payload.dataUrl) {
+    // 供贴图窗口/结果弹窗对图片再识别（兼容 Buffer 与 dataURL）
+    if (payload) {
       const { nativeImage } = deps;
-      const img = nativeImage.createFromDataURL(payload.dataUrl);
-      if (!img.isEmpty()) return runOcr(img);
+      let img = null;
+      if (payload.buf) {
+        img = nativeImage.createFromBuffer(Buffer.isBuffer(payload.buf) ? payload.buf : Buffer.from(payload.buf));
+      } else if (payload.dataUrl) {
+        img = nativeImage.createFromDataURL(payload.dataUrl);
+      }
+      if (img && !img.isEmpty()) return runOcr(img);
     }
     return { status: 'error', message: '无图片数据' };
   });
@@ -465,6 +523,17 @@ function registerIpc() {
   });
   ipcMain.on('screenshot:close-paste-windows', () => closeAllPasteWindows());
 
+  // ── 渲染反馈（性能/错误可观测，贴图"失效"不再静默） ──
+  ipcMain.on('screenshot:painted', (e, payload) => {
+    if (payload && payload.delta != null) log('perf: painted', payload.delta + 'ms');
+  });
+  ipcMain.on('paste:rendered', (e, payload) => {
+    log('paste:rendered ok', (payload && payload.delta != null) ? payload.delta + 'ms' : '');
+  });
+  ipcMain.on('paste:render-error', (e, payload) => {
+    log('paste:render-error:', (payload && payload.message) || 'unknown');
+  });
+
   // ── 贴图窗口交互（移动/缩放/保存） ──
   ipcMain.handle('paste:move', (e, payload) => {
     const win = deps.BrowserWindow.fromWebContents(e.sender);
@@ -485,9 +554,14 @@ function registerIpc() {
     return true;
   });
   ipcMain.handle('paste:save', async (e, payload) => {
-    if (!payload || !payload.dataUrl) return { status: 'error' };
-    const img = deps.nativeImage.createFromDataURL(payload.dataUrl);
-    if (img.isEmpty()) return { status: 'error', message: '无图片数据' };
+    if (!payload) return { status: 'error' };
+    let img = null;
+    if (payload.buf) {
+      img = deps.nativeImage.createFromBuffer(Buffer.isBuffer(payload.buf) ? payload.buf : Buffer.from(payload.buf));
+    } else if (payload.dataUrl) {
+      img = deps.nativeImage.createFromDataURL(payload.dataUrl);
+    }
+    if (!img || img.isEmpty()) return { status: 'error', message: '无图片数据' };
     return saveImage(img);
   });
 
@@ -544,6 +618,8 @@ function initScreenshotService(d) {
   deps = d;
   registerIpc();
   registerShortcuts();
+  // 预建截图覆盖层（隐藏），F1 按下即时显示，省去每次新建窗口+加载页面的延迟
+  try { getOrCreateOverlayWindow(getTargetDisplay()); } catch (e) { log('overlay prewarm failed:', e.message); }
   // 首次启动引导：延迟检测 OCR 组件（模型/onnxruntime 缺失时通知主窗口一次）
   try {
     setTimeout(checkOcrSetupNotice, 6000);

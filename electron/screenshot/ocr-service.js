@@ -188,8 +188,8 @@ async function recognize(pngBuffer) {
 
   // ---- rec：对每个文本框识别 ----
   const lines = [];
-  const recH = 48;             // PP-OCR rec 输入高 48
-  const maxRecW = 320;
+  const recH = 48;             // PP-OCRv4 rec 固定输入高 48
+  const recW = 320;            // PP-OCRv4 rec 固定输入宽 320（动态宽会导致 onnx Add 广播维度不匹配）
   const blankIdx = dict.length; // CTC blank 在字典末尾
 
   for (const box of boxes) {
@@ -200,9 +200,8 @@ async function recognize(pngBuffer) {
     const h = Math.min(srcH - y, Math.round(box.h * scaleY) + 8);
     if (w < 4 || h < 4) continue;
 
-    // 裁剪文本框并 resize 到 rec 输入（保持比例，宽动态）
+    // 裁剪文本框并 resize 到 rec 固定输入 48×320（PP-OCR 标准预处理）
     const crop = await sharpMod(pngBuffer).extract({ left: x, top: y, width: w, height: h }).toBuffer();
-    const recW = Math.min(maxRecW, Math.max(16, Math.round(w * (recH / h))));
     const recImg = await resizeImage(crop, recW, recH);
     const recInput = rgbToNchw(recImg.data, recW, recH);
     const recOut = await ss.rec.run({ x: makeTensor(recInput, recW, recH) });

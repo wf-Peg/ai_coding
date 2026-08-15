@@ -5,16 +5,16 @@
 <title>贴图</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
-  html, body { background: transparent; overflow: hidden; height: 100vh; width: 100vw; }
+  html, body { background: #000; overflow: hidden; height: 100vh; width: 100vw; }
   #wrap { position: relative; width: 100vw; height: 100vh; cursor: grab; }
   #wrap.dragging { cursor: grabbing; }
   img {
     width: 100%; height: 100%; object-fit: contain; display: block;
-    border-radius: 8px; pointer-events: none;
+    pointer-events: none;
   }
   #frame {
     position: absolute; inset: 0; border: 1px solid rgba(255,255,255,0.28);
-    border-radius: 8px; pointer-events: none;
+    pointer-events: none;
   }
   #wrap:hover #frame { border-color: rgba(255,255,255,0.55); }
   #bar {
@@ -72,8 +72,23 @@
   let scale = 1;
   let opacity = 1;
   let moving = false, moved = false, downPos = null;
+  let currentUrl = null;   // 当前 Blob URL
+  let imgBuf = null;       // 原始 PNG Buffer（保存/OCR 复用，避免 blob URL 无法回传）
 
-  ipcRenderer.on('paste:init', (e, payload) => { img.src = payload.dataUrl; });
+  ipcRenderer.on('paste:init', (e, payload) => {
+    if (currentUrl) { URL.revokeObjectURL(currentUrl); currentUrl = null; }
+    if (payload.buf) {
+      imgBuf = payload.buf;
+      const blob = new Blob([payload.buf], { type: payload.mime || 'image/png' });
+      currentUrl = URL.createObjectURL(blob);
+      img.src = currentUrl;
+    } else if (payload.dataUrl) {
+      imgBuf = null;
+      img.src = payload.dataUrl; // 兼容旧主进程
+    }
+  });
+  img.onload = () => ipcRenderer.send('paste:rendered', { delta: Date.now() });
+  img.onerror = (ev) => ipcRenderer.send('paste:render-error', { message: (ev && ev.message) || 'image decode failed' });
 
   // ── 手动拖动（IPC 通知主进程 setPosition，允许叠加缩放/滚轮/双击） ──
   wrap.addEventListener('mousedown', (e) => {
@@ -149,16 +164,16 @@
     menu.style.display = 'none';
     const a = btn.dataset.a;
     if (a === 'copy') ipcRenderer.invoke('screenshot:copy-last');
-    else if (a === 'ocr') { ipcRenderer.invoke('screenshot:ocr', { dataUrl: img.src }); }
-    else if (a === 'save') ipcRenderer.invoke('paste:save', { dataUrl: img.src });
+    else if (a === 'ocr') { ipcRenderer.invoke('screenshot:ocr', { buf: imgBuf || img.src }); }
+    else if (a === 'save') ipcRenderer.invoke('paste:save', { buf: imgBuf || img.src });
     else if (a === 'close') window.close();
   });
   window.addEventListener('click', (e) => { if (!e.target.closest('#menu')) menu.style.display = 'none'; });
 
   // ── 顶栏按钮 ──
   document.getElementById('btnCopy').addEventListener('click', () => ipcRenderer.invoke('screenshot:copy-last'));
-  document.getElementById('btnOcr').addEventListener('click', () => ipcRenderer.invoke('screenshot:ocr', { dataUrl: img.src }));
-  document.getElementById('btnSave').addEventListener('click', () => ipcRenderer.invoke('paste:save', { dataUrl: img.src }));
+  document.getElementById('btnOcr').addEventListener('click', () => ipcRenderer.invoke('screenshot:ocr', { buf: imgBuf || img.src }));
+  document.getElementById('btnSave').addEventListener('click', () => ipcRenderer.invoke('paste:save', { buf: imgBuf || img.src }));
   document.getElementById('btnClose').addEventListener('click', () => window.close());
 </script>
 </body>

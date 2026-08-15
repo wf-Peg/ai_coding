@@ -5,7 +5,7 @@
 <title>截图</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { width: 100%; height: 100%; overflow: hidden; cursor: crosshair; }
+  html, body { width: 100%; height: 100%; overflow: hidden; cursor: crosshair; background: #101014; }
   #bg { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   #mask { position: fixed; inset: 0; pointer-events: none; }
   #sel {
@@ -94,11 +94,35 @@
   let dragMode = null;     // 'draw'(拖拽新建) | {dir: 手柄方向}（调整）
   let dragStart = null;    // 拖拽起点
   let lastRect = null;     // 调整前的选区（用于手柄计算）
+  let currentUrl = null;   // 当前背景 Blob URL（复用窗口时释放）
+
+  /** 每次开始截图前复位状态（窗口复用，必须清掉上一轮的选区/工具栏/遮罩/背景） */
+  function resetOverlay() {
+    selRect = null; dragMode = null; dragStart = null; lastRect = null;
+    sel.style.display = 'none';
+    toolbar.style.display = 'none';
+    mag.style.display = 'none';
+    const ctx = mask.getContext('2d');
+    ctx.clearRect(0, 0, mask.width || 0, mask.height || 0);
+    bg.removeAttribute('src'); // 清掉上一轮背景，加载态不显示陈旧画面
+  }
+
+  /** 加载态：主进程按下 F1 后立即广播（深色底 + 提示，感知即时响应） */
+  ipcRenderer.on('screenshot:loading', () => {
+    resetOverlay();
+    hint.style.display = '';
+    hint.textContent = '正在截取屏幕…';
+  });
 
   ipcRenderer.on('screenshot:init', (e, payload) => {
     display = payload.display;
     sf = display.scaleFactor || 1;
-    bg.src = payload.bg;
+    resetOverlay();
+    if (currentUrl) { URL.revokeObjectURL(currentUrl); currentUrl = null; }
+    // Buffer 直传：避免 base64 的 33% 体积膨胀与解码开销
+    const blob = new Blob([payload.bg], { type: payload.mime || 'image/png' });
+    currentUrl = URL.createObjectURL(blob);
+    bg.src = currentUrl;
     bg.onload = () => {
       // canvas 像素 = CSS/DIP 坐标（与鼠标一致），不再用背景自然像素
       mask.width = display.width;
@@ -112,7 +136,11 @@
       octx.fillStyle = 'rgba(0,0,0,0.45)';
       octx.fillRect(0, 0, offDark.width, offDark.height);
       drawMask(null);
+      hint.textContent = '拖拽选择区域 · 手柄/方向键微调 · 滚轮缩放 · Esc 取消 · Enter 复制';
+      // 性能回传：主进程记录"发送→渲染完成"耗时
+      ipcRenderer.send('screenshot:painted', { delta: Date.now() - (payload.t0 || Date.now()) });
     };
+    bg.onerror = () => ipcRenderer.send('screenshot:painted', { delta: -1 });
   });
 
   // ── 遮罩：离屏底图 + 选区亮区（性能优化，避免全屏重绘） ──

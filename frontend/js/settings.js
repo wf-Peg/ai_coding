@@ -152,9 +152,9 @@ const MASCOT_ACTION_LABELS = { run: '奔跑中', wave: '挥手中', jump: '跳�
 const MASCOT_ACTION_NAMES = { run: '奔跑', wave: '挥手', jump: '跳跃', think: '思考', sleep: '打盹', celebrate: '庆祝' };
 const MASCOT_COLORS = ['#569cff', '#e5b93f', '#49b883', '#2d3748', '#e05d76', '#d0a23c'];
 const MASCOT_PRESETS = [
-  { id: 'robot-blue', name: '机器人', color: '#569cff' },
+  { id: 'robot-blue', name: '机器宝宝', color: '#569cff' },
   { id: 'pikachu-yellow', name: '皮卡丘', color: '#e5b93f' },
-  { id: 'turtle-green', name: '小乌龟', color: '#49b883' },
+  { id: 'turtle-green', name: '杰尼龟', color: '#49b883' },
   { id: 'luoxiaohei', name: '罗小黑', color: '#2d3748' }
 ];
 
