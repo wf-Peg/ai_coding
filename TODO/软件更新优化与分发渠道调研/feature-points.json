@@ -1,0 +1,133 @@
+{
+  "version": "2.0",
+  "requirement": {
+    "title": "软件更新优化与分发渠道调研",
+    "summary": "调研并优化设置页软件更新链路：更新包瘦身与结构修复、客户端 SHA-256 校验与 gh-proxy 镜像多源回退、后端检查接口加固、发布脚本版本号交互提示，并调研 GitHub 之外的免费分发渠道（本期不做 Gitee 分发）",
+    "tags": ["product-dev", "软件更新", "发布脚本", "分发渠道"],
+    "phase": "completed",
+    "createdAt": "2026-08-15T09:00:00",
+    "completedAt": "2026-08-15T23:20:00"
+  },
+  "featurePoints": [
+    {
+      "id": "fp-001",
+      "name": "更新包瘦身与资源结构修复",
+      "description": "重写 scripts/build-update-zip.js：剔除 jre/ 与 frontend/clip-backend.jar 重复 JAR（package.json extraResources 排除），保留 TODO/ 产品概览，统一命名 clip-update-{version}.zip，修复 resources/ 顶层目录结构，输出 .sha256 校验文件（--with-jre 可打全量包）",
+      "layer": "backend",
+      "tags": ["product-dev", "构建", "更新包"],
+      "designSections": ["技术方案", "关键决策"],
+      "tasks": [
+        { "title": "extraResources.frontend 排除 clip-backend.jar 并删除实体（88MB 重复 JAR）", "status": "done" },
+        { "title": "build-update-zip.js 剔除 jre/（保留 TODO/，--with-jre 全量包）", "status": "done" },
+        { "title": "统一命名 clip-update-{version}.zip 并修复 resources/ 顶层结构", "status": "done" },
+        { "title": "输出 clip-update-{version}.zip.sha256 校验文件", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "更新包体积 232.6MB → 107.3MB（-54%）", "status": "done" },
+        { "title": "zip 含 resources/ 顶层、含 TODO/、无 jre/ 与重复 jar（实测核对）", "status": "done" },
+        { "title": "sha256 与 Get-FileHash 实测一致", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-002",
+      "name": "客户端检查/下载链路优化",
+      "description": "electron/update-manager.js + main.js + settings.js：删除死代码与本地版本缓存，downloadUpdate 增加 SHA-256 校验，新增 buildDownloadCandidates/downloadUpdateWithFallback gh-proxy 镜像多源回退（update-config.json 的 mirrorUrls 可配置），checkForUpdates 后端不可达回退直连 GitHub，静默检查弹系统通知，applyUpdate 仅替换包内条目（保留 jre/ 与 *.log），saveUpdateConfig 合并写入",
+      "layer": "frontend",
+      "tags": ["product-dev", "更新", "镜像", "校验"],
+      "designSections": ["架构设计", "技术方案", "关键决策"],
+      "tasks": [
+        { "title": "删除 fetchLatestRelease 死代码与版本缓存（检查统一走后端）", "status": "done" },
+        { "title": "downloadUpdate 增加 expectedSha256 下载后校验", "status": "done" },
+        { "title": "新增镜像多源回退下载（默认 ghproxy/mirror.ghproxy/ghfast 前缀，mirrorUrls 可配置）", "status": "done" },
+        { "title": "checkForUpdates 后端不可达时回退 updateManager.checkLatestRelease 直连 GitHub", "status": "done" },
+        { "title": "静默自动检查发现新版本弹系统通知（用户不在设置页也能看到）", "status": "done" },
+        { "title": "applyUpdate 仅替换更新包内存在的顶层条目（jre/、*.log 保留）", "status": "done" },
+        { "title": "saveUpdateConfig 改为合并写入（不再覆盖 lastCheck/mirrorUrls）", "status": "done" },
+        { "title": "设置页透传 {downloadUrl, sha256} 给主进程", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "node --check 全部通过（update-manager/main/settings）", "status": "done" },
+        { "title": "镜像源失败自动切 GitHub 原地址（逻辑验证）", "status": "done" },
+        { "title": "SHA-256 校验失败中止且不重启（逻辑验证）", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-003",
+      "name": "后端更新检查接口加固",
+      "description": "backend UpdateController.java：Jackson 替换手工字符串解析，10 分钟进程内缓存避免频繁请求 GitHub API，支持 GH_TOKEN/GITHUB_TOKEN 认证防速率限制，响应新增 sha256（GitHub asset digest）与 size 供客户端下载校验",
+      "layer": "backend",
+      "tags": ["product-dev", "接口", "缓存"],
+      "designSections": ["技术方案", "接口定义"],
+      "tasks": [
+        { "title": "Jackson ObjectMapper 替换 extractJsonString/extractJsonArray", "status": "done" },
+        { "title": "ConcurrentHashMap 10 分钟缓存（避免每次检查打 GitHub API）", "status": "done" },
+        { "title": "读取 GH_TOKEN/GITHUB_TOKEN 环境变量加 Authorization 头", "status": "done" },
+        { "title": "响应新增 sha256（asset.digest）与 size", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "mvn compile 通过", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-004",
+      "name": "发布脚本版本号交互提示与统一打包",
+      "description": "scripts/release.bat 与 release.sh：新增交互询问“是否递增版本号并更新 package.json”，回车建议下一 patch 版本并校验 x.y.z 格式；版本未变时检测 tag 已存在并确认覆盖；更新包统一走 node scripts/build-update-zip.js；gh release create 附带 zip 与 sha256",
+      "layer": "backend",
+      "tags": ["product-dev", "发布", "脚本"],
+      "designSections": ["技术方案", "关键决策"],
+      "tasks": [
+        { "title": "读取当前版本并询问是否递增版本号（y/N）", "status": "done" },
+        { "title": "建议下一 patch 版本 + x.y.z 格式校验", "status": "done" },
+        { "title": "版本未变时检查 Release tag 已存在并确认覆盖", "status": "done" },
+        { "title": "更新包统一走 node scripts/build-update-zip.js（替代内联压缩）", "status": "done" },
+        { "title": "Release 上传 clip-update-{version}.zip + .sha256", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "交互流程 y/N 两分支逻辑评审通过（实际发版时验证）", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-005",
+      "name": "更新分发渠道调研文档",
+      "description": "新增 docs/更新分发渠道调研.md：对比 GitHub Releases / gh-proxy 镜像 / Gitee 发行版 / jsDelivr / Cloudflare R2 / 腾讯云 COS·阿里云 OSS，明确本期不做 Gitee 分发，给出推荐架构（GitHub 权威源 + gh-proxy 镜像兜底）与未来接入指引",
+      "layer": "fullstack",
+      "tags": ["product-dev", "调研", "分发"],
+      "designSections": ["技术方案"],
+      "tasks": [
+        { "title": "对比各免费分发渠道的额度/API/国内速度/风险", "status": "done" },
+        { "title": "明确本期不做 Gitee 分发（仅备选记录）", "status": "done" },
+        { "title": "给出推荐架构与 Gitee/jsDelivr/COS 接入指引", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "文档已入库 docs/更新分发渠道调研.md", "status": "done" }
+      ]
+    }
+  ],
+  "knowledgePoints": [
+    {
+      "title": "更新包结构与 applyUpdate 解压预期必须一致",
+      "content": "applyUpdate 按 extractDir/resources 查找更新内容，但旧打包脚本 Compress-Archive -Path 'resources\\*' 打出的 zip 无顶层 resources/ 目录，导致更新实际是“空操作”（解压后找不到目标直接重启）。修复：打包时传入目录本身（或 staging 目录），zip 顶层包含 resources/，并在打包脚本注释中固化该约束",
+      "tags": ["product-dev", "技术", "Bug修复"]
+    },
+    {
+      "title": "多源回退 + SHA-256 端到端校验",
+      "content": "GitHub 国内下载慢：客户端按序尝试 GitHub 原地址 → gh-proxy 镜像（ghproxy.com / mirror.ghproxy.com / ghfast.top，update-config.json 的 mirrorUrls 可配置覆盖），单源网络错误/超时/校验失败自动切换；后端返回 GitHub asset.digest 的 sha256，客户端下载后 crypto 校验，失败删文件中止，防中间人篡改与传输损坏",
+      "tags": ["product-dev", "技术", "镜像"]
+    },
+    {
+      "title": "版本检查统一走后端，客户端直连仅作降级",
+      "content": "正常路径：客户端 → 本地后端 /api/update/check（ConcurrentHashMap 10 分钟缓存）→ GitHub API，减少 GitHub API 调用与速率限制；后端不可达时客户端回退 update-manager.checkLatestRelease 直连 GitHub（代理优先），保证功能可用",
+      "tags": ["product-dev", "技术", "架构"]
+    },
+    {
+      "title": "saveUpdateConfig 必须合并写入",
+      "content": "前端保存更新配置只传 {autoUpdate, frequency}，原实现整体覆写会抹掉 lastCheck 与手配的 mirrorUrls；改为与现有配置对象合并（{...existing, ...config}）后再写盘",
+      "tags": ["product-dev", "技术", "Bug修复"]
+    },
+    {
+      "title": "分发渠道取舍结论",
+      "content": "本期不做 Gitee 分发：GitHub 为权威源 + gh-proxy 镜像兜底（零成本立即生效）；Gitee 发行版（国内最快）作为备选记录在调研文档，单文件限额需官方核实；jsDelivr 仅适合 ≤20MB 的 manifest 快速检查源；Cloudflare R2 国内访问一般；COS/OSS 需实名+备案、非永久免费，用户量大后再接入",
+      "tags": ["product-dev", "调研", "分发"]
+    }
+  ]
+}
