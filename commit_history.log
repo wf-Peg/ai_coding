@@ -2,6 +2,7 @@
 # 格式: 日期 时间 | 提交说明
 # 每次提交代码后自动追加到此文件
 
+2026-08-15 02:05 | UI 修复三连：① 上传缩略条重做（进度条/绿色完成圆点替代文字勾号、删除按钮 hover 变红、重试居中）；② .markdown-content strong 不再染蓝(var(--text))、content-preview 显式主题色适配；③ main.js 关闭提示弹窗改读实际 data-theme（失败回退浅色），修复总显示深色主题样式；已同步打包前端 resources/frontend
 2026-08-15 01:10 | 修复图片上传根因：clip.html/editor/扩展的 const/let API 常量不挂 window，media-uploader getUploadUrl 回退相对路径打到前端静态服务器返回 HTML 200。改为 window 暴露 API_ROOT/API_BASE_URL + setApiRoot 显式配置 + 缺配置抛明确错误；已同步打包前端 resources/frontend
 2026-08-15 00:20 | 修复图片上传失败：media-uploader 错误诊断改进（非 JSON 响应显示状态码/404提示重启应用）、Accept: application/json、multipart 上限 12MB（jar 已重新打包部署）
 2026-08-15 12:32 | 剪藏落库Obsidian：一剪藏一文件，AI字段反写frontmatter，汇总双链引用

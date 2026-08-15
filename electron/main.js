@@ -1144,25 +1144,19 @@ async function showCloseDialog(win) {
   const parent = win || BrowserWindow.getFocusedWindow();
   if (!parent) return;
 
-  // 从父窗口读取主题设置（app_appearance_v1: regular/dark/notion/system）
-  let appearance = 'dark'; // 默认深色
+  // 从父窗口读取实际生效主题：index.html 的 applyTheme 已将 appearance 归一化为
+  // document.documentElement 的 data-theme（regular/dark/notion），直接读取最可靠，
+  // 避免 localStorage 键读取失败时误用深色样式。
+  let appearance = 'notion'; // 读取失败时默认浅色，避免关闭提示错配为深色
   try {
-    appearance = await parent.webContents.executeJavaScript(
-      'localStorage.getItem("app_appearance_v1")'
-    ) || 'dark';
-    if (appearance === 'system') {
-      const isSystemDark = await parent.webContents.executeJavaScript(
-        'window.matchMedia("(prefers-color-scheme: dark)").matches'
-      );
-      appearance = isSystemDark ? 'dark' : 'regular';
-    } else if (appearance === 'notion') {
-      const isNotionDark = await parent.webContents.executeJavaScript(
-        'document.documentElement.getAttribute("data-theme") === "dark"'
-      );
-      appearance = isNotionDark ? 'dark' : 'notion';
-    }
-  } catch (e) {
-    // 读取失败时使用默认深色
+    const dataTheme = await parent.webContents.executeJavaScript(
+      'document.documentElement.getAttribute("data-theme") || "notion"'
+    );
+    appearance = (dataTheme === 'regular' || dataTheme === 'dark' || dataTheme === 'notion')
+      ? dataTheme
+      : 'notion';
+  } catch (err) {
+    // 读取失败时使用默认浅色（notion）
   }
 
   // 根据外观值计算颜色方案
