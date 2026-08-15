@@ -74,6 +74,13 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "electron/screenshot/ocr-models",
+        "to": "ocr-models",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {
@@ -290,6 +297,7 @@
     "iconv-lite": "^0.6.3",
     "js-yaml": "^4.1.0",
     "node-notifier": "^10.0.1",
+    "onnxruntime-node": "^1.27.0",
     "serve-static": "^1.15.0",
     "sharp": "^0.35.3"
   },

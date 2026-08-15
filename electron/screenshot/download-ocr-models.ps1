@@ -1,36 +1,43 @@
-﻿# download-ocr-models.ps1 - 下载 RapidOCR / PaddleOCR PP-OCRv4 ONNX 模型
-# 注意：本文件必须为 UTF-8 带 BOM（Windows PowerShell 5.1 按 ANSI 读取无 BOM 脚本会中文乱码导致解析失败）
+﻿# download-ocr-models.ps1 - 下载 RapidOCR / PaddleOCR PP-OCRv4 ONNX 模型（多源回退）
+# 本文件必须为 UTF-8 带 BOM（Windows PowerShell 5.1 无 BOM 中文乱码解析崩溃）
+#
+# 用法：powershell -ExecutionPolicy Bypass -File electron/screenshot/download-ocr-models.ps1
+# 模型将下载到 electron/screenshot/ocr-models/（源码模式）或随应用打包内置。
 
 $ErrorActionPreference = 'Stop'
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $OutDir = Join-Path $ScriptDir 'ocr-models'
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
-# RapidOCR 官方模型下载根（可被 $env:OCR_BASE_URL 覆盖）
-$Base = $env:OCR_BASE_URL
-if (-not $Base) {
-  $Base = 'https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0'
-}
+# 多源镜像（按顺序回退）：GitHub Release → hf-mirror 国内镜像 → HuggingFace → PaddleOCR 官方 raw
+$GH = 'https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0'
+$HF = 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main'
+$HFRAW = 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main'
+$PP = 'https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/ppocr_keys_v1.txt'
 
-$Files = @(
-  @{ name = 'ch_PP-OCRv4_det_infer.onnx'; url = "$Base/det.onnx" },
-  @{ name = 'ch_PP-OCRv4_rec_infer.onnx'; url = "$Base/rec.onnx" },
-  @{ name = 'ch_PP-OCRv4_cls_infer.onnx'; url = "$Base/cls.onnx" },
-  @{ name = 'ppocr_keys_v1.txt';          url = "$Base/ppocr_keys_v1.txt" }
+$Jobs = @(
+  @{ n = 'ch_PP-OCRv4_det_infer.onnx'; urls = @("$GH/det.onnx", "$HF/models/text_det/ch_PP-OCRv4_det_infer.onnx", "$HFRAW/models/text_det/ch_PP-OCRv4_det_infer.onnx") },
+  @{ n = 'ch_PP-OCRv4_rec_infer.onnx'; urls = @("$GH/rec.onnx", "$HF/models/text_rec/ch_PP-OCRv4_rec_infer.onnx", "$HFRAW/models/text_rec/ch_PP-OCRv4_rec_infer.onnx") },
+  @{ n = 'ch_PP-OCRv4_cls_infer.onnx'; urls = @("$GH/cls.onnx", "$HF/models/text_cls/ch_PP-OCRv4_cls_infer.onnx", "$HFRAW/models/text_cls/ch_PP-OCRv4_cls_infer.onnx") },
+  @{ n = 'ppocr_keys_v1.txt';          urls = @("$GH/ppocr_keys_v1.txt", $PP, "$HF/models/ppocr_keys_v1.txt") }
 )
 
 $done = 0
-foreach ($f in $Files) {
-  $target = Join-Path $OutDir $f.name
-  if (Test-Path $target) { Write-Host "[OK] 已存在，跳过: $($f.name)"; $done++; continue }
-  Write-Host "下载 $($f.name) ..."
-  try {
-    Invoke-WebRequest -Uri $f.url -OutFile $target -UseBasicParsing -TimeoutSec 120
-    Write-Host "  完成: $($f.name) ($((Get-Item $target).Length) bytes)"
-    $done++
-  } catch {
-    Write-Host "  [FAIL] $($f.name) -> $($_.Exception.Message)" -ForegroundColor Yellow
+foreach ($job in $Jobs) {
+  $t = Join-Path $OutDir $job.n
+  if (Test-Path $t) { Write-Host "[OK] 已存在: $($job.n)"; $done++; continue }
+  Write-Host "下载 $($job.n) ..."
+  $ok = $false
+  foreach ($u in $job.urls) {
+    try {
+      Invoke-WebRequest -Uri $u -OutFile $t -UseBasicParsing -TimeoutSec 90
+      Write-Host "  [OK] $($job.n) ($((Get-Item $t).Length) bytes)"
+      $ok = $true; $done++; break
+    } catch {
+      Write-Host "  [skip] $($job.n) <- $($_.Exception.Message)" -ForegroundColor DarkGray
+    }
   }
+  if (-not $ok) { Write-Host "  [FAIL] $($job.n) 所有下载源均失败" -ForegroundColor Yellow }
 }
 
 Write-Host ""
@@ -38,9 +45,7 @@ Write-Host "OCR 模型目录: $OutDir"
 Write-Host "就绪: $done/4"
 if ($done -eq 4) { Write-Host "[OK] OCR 模型就绪，重启应用后生效" }
 else {
-  Write-Host "[WARN] 部分模型缺失；可尝试以下方式：" -ForegroundColor Yellow
-  Write-Host "  1) 设置镜像源后重试：$env:OCR_BASE_URL = 'https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0'" -ForegroundColor Yellow
-  Write-Host "  2) 浏览器打开模型下载页手动下载后放入 $OutDir :" -ForegroundColor Yellow
-  Write-Host "     https://github.com/RapidAI/RapidOCR/releases" -ForegroundColor Yellow
-  Write-Host "     需要的文件: ch_PP-OCRv4_det_infer.onnx / ch_PP-OCRv4_rec_infer.onnx / ch_PP-OCRv4_cls_infer.onnx / ppocr_keys_v1.txt" -ForegroundColor Yellow
+  Write-Host "[WARN] 部分模型缺失；可浏览器打开以下页面手动下载放入 $OutDir :" -ForegroundColor Yellow
+  Write-Host "  https://huggingface.co/spaces/RapidAI/RapidOCR/tree/main/models" -ForegroundColor Yellow
+  Write-Host "  需要: text_det/ ch_PP-OCRv4_det_infer.onnx, text_rec/ ch_PP-OCRv4_rec_infer.onnx, text_cls/ ch_PP-OCRv4_cls_infer.onnx, ppocr_keys_v1.txt" -ForegroundColor Yellow
 }

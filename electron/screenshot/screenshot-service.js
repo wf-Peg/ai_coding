@@ -38,8 +38,16 @@ function getMainWindow() {
   return deps ? deps.mainWindow : null;
 }
 
-/** OCR 模型目录：优先 userData（打包后 asar 内不可写），源码模式回退 __dirname/ocr-models */
+/** OCR 模型目录（优先级：打包内置 resources/ocr-models → userData 下载 → 源码 __dirname/ocr-models）
+ *  开箱即用：模型随应用分发（electron-builder extraResources），用户零安装。
+ */
 function getModelsDir() {
+  try {
+    if (typeof process.resourcesPath === 'string') {
+      const builtin = path.join(process.resourcesPath, 'ocr-models');
+      if (fs.existsSync(builtin)) return builtin;
+    }
+  } catch (e) {}
   try {
     if (deps && deps.app && typeof deps.app.getPath === 'function') {
       const ud = deps.app.getPath('userData');
