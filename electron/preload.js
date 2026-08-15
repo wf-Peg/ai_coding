@@ -566,6 +566,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** 监听主进程 OCR 未就绪引导通知 */
   onScreenshotOcrNeedsSetup: (callback) => ipcRenderer.on('screenshot:ocr-needs-setup', (event, data) => callback(data)),
 
+  /** 监听截图模块后台动作提示（OCR 结果/失败等） */
+  onScreenshotNotify: (callback) => ipcRenderer.on('screenshot:notify', (event, data) => callback(data)),
+
   /** OCR 一键安装：检测依赖 + 下载模型（主进程执行） */
   screenshotInstallOcr: () => ipcRenderer.invoke('screenshot:install-ocr'),
 

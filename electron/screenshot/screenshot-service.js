@@ -308,14 +308,26 @@ async function runOcr(image) {
     const result = await ocrService.recognize(image.toPNG(), deps);
     if (!result) {
       const st = ocrService.status();
+      notifyMainWindow('🔤 OCR 未就绪：' + (st.reason || '组件未就绪') + '（可前往 工具→截图工具 一键安装）', 'warn', 6000);
       return { status: 'unavailable', message: st.reason || 'OCR 组件未就绪' };
     }
     showOcrResult(result);
     return { status: 'ok', text: result.text, lines: result.lines };
   } catch (e) {
     log('OCR failed:', e.message);
+    notifyMainWindow('🔤 OCR 识别失败：' + e.message, 'error', 6000);
     return { status: 'error', message: e.message };
   }
+}
+
+/** 向主窗口发送用户可见提示（OCR 等后台动作反馈） */
+function notifyMainWindow(message, type, ms) {
+  try {
+    const mw = getMainWindow();
+    if (mw && !mw.isDestroyed()) {
+      mw.webContents.send('screenshot:notify', { message, type: type || 'info', ms: ms || 4000 });
+    }
+  } catch (e) {}
 }
 
 /** 展示 OCR 结果窗口（文本 + 复制 + 跳转编辑器） */

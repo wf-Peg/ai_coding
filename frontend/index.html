@@ -984,6 +984,19 @@
         });
       }
 
+      // 截图模块后台动作提示（OCR 失败/未就绪等，用户可见反馈）
+      if (window.electronAPI && window.electronAPI.onScreenshotNotify) {
+        window.electronAPI.onScreenshotNotify(function (data) {
+          try {
+            const msg = (data && data.message) || '';
+            if (!msg) return;
+            if (data.type === 'error') { showGlobalNotification(msg, 'error'); return; }
+            if (data.type === 'warn') { showGlobalNotification(msg, 'warning'); return; }
+            showGlobalNotification(msg, 'info');
+          } catch (e) {}
+        });
+      }
+
       // 截图工具：OCR 组件未就绪 → 首次启动引导条（点击前往工具模块配置）
       if (window.electronAPI && window.electronAPI.onScreenshotOcrNeedsSetup) {
         window.electronAPI.onScreenshotOcrNeedsSetup(function (data) {
