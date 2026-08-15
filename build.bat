@@ -6,6 +6,9 @@ REM Clip Demo - Build Script (Windows)
 REM 本地打包 + 可选交互：
 REM   ① 打包前询问是否递增版本号并更新 package.json
 REM   ② 打包完成后询问是否推送到 GitHub Release（含更新包）
+REM
+REM 注意：交互输入/暂停统一走 node（scripts/version-prompt.js / console-helper.js），
+REM 因为 chcp 65001 下 bat 的 set /p、pause 在控制台/管道输入时可能不等待或读到空值。
 REM ============================================
 
 cd /d "%~dp0"
@@ -36,7 +39,7 @@ if not "%MISSING%"=="" (
     echo   2. JDK 17+        https://adoptium.net/
     echo   3. Maven 3.6+     https://maven.apache.org/download.cgi
     echo.
-    pause
+    node scripts\console-helper.js waitkey "[ERROR] 缺少构建工具"
     endlocal
     exit /b 1
 )
@@ -51,7 +54,7 @@ REM 交互提示由 node 实现（chcp 65001 下 bat 的 set /p 对管道/重定
 node scripts\version-prompt.js
 if errorlevel 1 (
     echo   [ERROR] 版本号确认失败
-    pause
+    node scripts\console-helper.js waitkey "[ERROR] 版本号确认失败"
     endlocal
     exit /b 1
 )
@@ -70,7 +73,7 @@ call mvn clean package -DskipTests -q
 if not exist "target\clip-demo-0.0.1-SNAPSHOT.jar" (
     echo [ERROR] JAR build failed
     cd /d "%~dp0"
-    pause
+    node scripts\console-helper.js waitkey "[ERROR] JAR 构建失败"
     endlocal
     exit /b 1
 )
@@ -122,7 +125,7 @@ if not exist "node_modules" (
     call npm install
     if %errorlevel% neq 0 (
         echo [ERROR] npm install failed
-        pause
+        node scripts\console-helper.js waitkey "[ERROR] npm install 失败"
         endlocal
         exit /b 1
     )
@@ -138,7 +141,7 @@ call npm run build:win
 if %errorlevel% neq 0 (
     echo.
     echo [ERROR] Build failed, check error messages above
-    pause
+    node scripts\console-helper.js waitkey "[ERROR] 打包失败"
     endlocal
     exit /b 1
 )
@@ -151,11 +154,15 @@ echo ========================================
 echo.
 
 REM ---------- 可选：推送到 GitHub Release ----------
-set /p "PUBLISH=是否推送到 GitHub Release（含更新包 clip-update-!VERSION!.zip）？(y/N): "
+node scripts\console-helper.js ask "是否推送到 GitHub Release（含更新包 clip-update-!VERSION!.zip）？(y/N)" ".tmp\pub-answer.txt"
+set "PUBLISH="
+if exist ".tmp\pub-answer.txt" set /p PUBLISH=<.tmp\pub-answer.txt
+del /f /q ".tmp\pub-answer.txt" 2>nul
+
 if /I not "!PUBLISH!"=="y" (
-    echo   已跳过发布。
-    echo   如需一键发布（含版本号提示），也可运行: scripts\release.bat
-    pause
+    echo.
+    echo   已跳过发布。如需一键发布（含版本号提示）可运行: scripts\release.bat
+    node scripts\console-helper.js waitkey "跳过发布"
     endlocal
     exit /b 0
 )
@@ -167,7 +174,7 @@ where gh >nul 2>&1
 if errorlevel 1 (
     echo   [ERROR] 未安装 GitHub CLI (gh)，跳过发布。
     echo   安装: winget install GitHub.cli  然后: gh auth login
-    pause
+    node scripts\console-helper.js waitkey "[ERROR] 未安装 gh"
     endlocal
     exit /b 0
 )
@@ -175,7 +182,7 @@ if errorlevel 1 (
 gh auth status >nul 2>&1
 if errorlevel 1 (
     echo   [ERROR] GitHub CLI 未登录，跳过发布。请先运行: gh auth login
-    pause
+    node scripts\console-helper.js waitkey "[ERROR] gh 未登录"
     endlocal
     exit /b 0
 )
@@ -189,16 +196,20 @@ set "REPO=wf-Peg/ai_coding"
 set "DIST_DIR=dist-electron"
 
 REM Release 说明（可选输入）
+node scripts\console-helper.js ask "请输入 Release 说明（回车默认「版本更新」）" ".tmp\notes-answer.txt"
 set "NOTES=版本更新"
-set /p "NOTES_INPUT=请输入 Release 说明（回车默认「版本更新」）: "
+set "NOTES_INPUT="
+if exist ".tmp\notes-answer.txt" set /p NOTES_INPUT=<.tmp\notes-answer.txt
+del /f /q ".tmp\notes-answer.txt" 2>nul
 if not "!NOTES_INPUT!"=="" set "NOTES=!NOTES_INPUT!"
 
 REM 推送代码
 for /f "tokens=*" %%b in ('git branch --show-current') do set "BRANCH=%%b"
 git push origin "!BRANCH!"
 if errorlevel 1 (
-    echo   [ERROR] git push 失败，发布中止
-    pause
+    echo   [ERROR] git push 失败，发布中止。
+    echo   请检查: 1) git 已安装  2) 凭据可用（gh auth login 后运行 gh auth setup-git）
+    node scripts\console-helper.js waitkey "[ERROR] git push 失败"
     endlocal
     exit /b 1
 )
@@ -212,8 +223,8 @@ for %%f in ("%DIST_DIR%\*.exe" "%DIST_DIR%\*.dmg" "%DIST_DIR%\*.AppImage" "%DIST
 
 !RELEASE_CMD!
 if errorlevel 1 (
-    echo   [ERROR] GitHub Release 创建失败
-    pause
+    echo   [ERROR] GitHub Release 创建失败（tag 已存在时需先删除或换版本号）
+    node scripts\console-helper.js waitkey "[ERROR] Release 创建失败"
     endlocal
     exit /b 1
 )
@@ -225,6 +236,6 @@ echo   Version: %TAG%
 echo   URL: https://github.com/%REPO%/releases/tag/%TAG%
 echo ========================================
 echo.
-pause
+node scripts\console-helper.js waitkey "发布完成"
 endlocal
 exit /b 0

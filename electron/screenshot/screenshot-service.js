@@ -361,6 +361,18 @@ function closeAllPasteWindows() {
 
 // ==================== IPC 与初始化 ====================
 
+/** 执行外部命令并等待退出（OCR 模型下载等） */
+function spawnAsync(cmd, args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { stdio: 'inherit', windowsHide: true });
+    child.on('error', reject);
+    child.on('exit', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(cmd + ' 退出码 ' + code));
+    });
+  });
+}
+
 /** 内联 PowerShell 下载模型（EncodedCommand，避免打包 asar 内脚本路径不可执行） */
 function downloadModelsInline(modelsDir) {
   const ps = 
