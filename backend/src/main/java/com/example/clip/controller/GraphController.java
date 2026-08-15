@@ -42,7 +42,7 @@ public class GraphController {
     public ResponseEntity<Map<String, Object>> getGraph(
             @RequestParam(required = false) String includeTypes) {
         Set<String> types = (includeTypes == null || includeTypes.isBlank())
-                ? new HashSet<>(Arrays.asList("clip", "knowledge"))
+                ? new HashSet<>(Arrays.asList("clip", "knowledge", "learning-plan"))
                 : new HashSet<>(Arrays.asList(includeTypes.split(",")));
         return ResponseEntity.ok(graphService.getGraph(types));
     }

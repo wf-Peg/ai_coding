@@ -523,6 +523,20 @@
     resetSelection();
   });
 
+  if (panelDetailLink) {
+    panelDetailLink.addEventListener('click', function(e) {
+      var href = panelDetailLink.getAttribute('href') || '';
+      if (href.indexOf('learning-plan.html') === 0) {
+        e.preventDefault();
+        var m = href.match(/planId=(\d+)/);
+        var planId = m ? parseInt(m[1]) : null;
+        if (planId && window.parent && window.parent.postMessage) {
+          window.parent.postMessage({ type: 'navigateLearningPlan', planId: planId }, '*');
+        }
+      }
+    });
+  }
+
   // ---- Init ----
 
   document.addEventListener('DOMContentLoaded', function() {
