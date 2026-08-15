@@ -113,23 +113,40 @@
       </div>
       <div class="editor-pane backlinks-pane" id="backlinksPane" aria-hidden="true">
         <div class="filetree-header backlinks-header">
-          <span class="backlinks-title">反链（引用 <strong id="backlinksTarget"></strong>）<span class="backlinks-count" id="backlinksCount" hidden></span></span>
+          <div class="backlinks-tabs" role="tablist" aria-label="双向链接">
+            <button class="backlinks-tab active" id="tabBacklinks" role="tab" aria-selected="true" data-tab="backlinks">反链<span class="backlinks-tab-count" id="tabBacklinksCount" hidden></span></button>
+            <button class="backlinks-tab" id="tabOutgoing" role="tab" aria-selected="false" data-tab="outgoing">出链<span class="backlinks-tab-count" id="tabOutgoingCount" hidden></span></button>
+          </div>
+          <span class="backlinks-title" id="backlinksPaneTitle" title="">双向链接</span>
           <div class="filetree-header-actions">
             <button class="inline-btn" id="saveToVaultBtn" title="保存当前文档到知识库 notes/">存入知识库</button>
             <button class="inline-btn" id="closeBacklinksBtn">关闭</button>
           </div>
         </div>
         <div class="backlinks-list" id="backlinksList"></div>
+        <div class="outgoing-list" id="outgoingList"></div>
       </div>
       <div class="editor-pane main-pane" id="mainPane">
         <div id="mainEditor" class="ace-host" aria-label="文本编辑器"></div>
         <div id="overviewRuler" class="overview-ruler" aria-hidden="true"></div>
-        <button class="tool-btn terminal-float-btn" id="terminalBtn" title="在当前目录打开系统终端（Alt+T）">
-          <svg class="btn-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polyline points="4 17 10 11 4 5"></polyline>
-            <line x1="12" y1="19" x2="20" y2="19"></line>
+        <button class="ai-pet-button canvas-float" id="aiPetBtn" type="button" title="打开Pet" aria-label="打开Pet">
+          <svg class="ai-pet-svg" viewBox="0 0 64 64" aria-hidden="true">
+            <ellipse class="ai-pet-glow" cx="32" cy="50" rx="14" ry="4" fill="var(--mascot-color,var(--app-primary))" opacity=".2"></ellipse>
+            <g class="ai-pet-figure">
+              <circle cx="32" cy="28" r="18" fill="var(--mascot-color,var(--app-primary))" fill-opacity=".85" stroke="var(--mascot-color,var(--app-primary))" stroke-width="2.5"></circle>
+            </g>
+            <g class="ai-pet-face">
+              <circle cx="23" cy="25" r="5" fill="#fff" stroke="none"></circle>
+              <circle cx="41" cy="25" r="5" fill="#fff" stroke="none"></circle>
+              <circle class="ai-pet-eye" cx="23" cy="25" r="3" fill="#2d3748" stroke="none"></circle>
+              <circle class="ai-pet-eye" cx="41" cy="25" r="3" fill="#2d3748" stroke="none"></circle>
+              <circle class="ai-pet-eye-highlight" cx="22" cy="23.5" r="1.5" fill="#fff" stroke="none"></circle>
+              <circle class="ai-pet-eye-highlight" cx="40" cy="23.5" r="1.5" fill="#fff" stroke="none"></circle>
+              <ellipse class="ai-pet-blush" cx="18" cy="31" rx="4" ry="2.5" fill="#ff8a9e" opacity=".5" stroke="none"></ellipse>
+              <ellipse class="ai-pet-blush" cx="46" cy="31" rx="4" ry="2.5" fill="#ff8a9e" opacity=".5" stroke="none"></ellipse>
+              <path d="M27 34c2 2 6 2 8 0" fill="none" stroke="#2d3748" stroke-width="2" stroke-linecap="round"></path>
+            </g>
           </svg>
-          终端
         </button>
       </div>
       <div class="editor-pane markdown-pane" id="markdownPane" hidden>
@@ -205,24 +222,12 @@
       <span id="matchStatus">未选择词语</span>
       <button class="status-btn" id="autosaveStatus" title="自动保存已开启：每 10 秒保存一次，点击关闭">自动保存</button>
       <span class="status-spacer"></span>
-      <button class="ai-pet-button" id="aiPetBtn" type="button" title="打开Pet" aria-label="打开Pet">
-        <svg class="ai-pet-svg" viewBox="0 0 64 64" aria-hidden="true">
-          <ellipse class="ai-pet-glow" cx="32" cy="50" rx="14" ry="4" fill="var(--mascot-color,var(--app-primary))" opacity=".2"></ellipse>
-          <g class="ai-pet-figure">
-            <circle cx="32" cy="28" r="18" fill="var(--mascot-color,var(--app-primary))" fill-opacity=".85" stroke="var(--mascot-color,var(--app-primary))" stroke-width="2.5"></circle>
-          </g>
-          <g class="ai-pet-face">
-            <circle cx="23" cy="25" r="5" fill="#fff" stroke="none"></circle>
-            <circle cx="41" cy="25" r="5" fill="#fff" stroke="none"></circle>
-            <circle class="ai-pet-eye" cx="23" cy="25" r="3" fill="#2d3748" stroke="none"></circle>
-            <circle class="ai-pet-eye" cx="41" cy="25" r="3" fill="#2d3748" stroke="none"></circle>
-            <circle class="ai-pet-eye-highlight" cx="22" cy="23.5" r="1.5" fill="#fff" stroke="none"></circle>
-            <circle class="ai-pet-eye-highlight" cx="40" cy="23.5" r="1.5" fill="#fff" stroke="none"></circle>
-            <ellipse class="ai-pet-blush" cx="18" cy="31" rx="4" ry="2.5" fill="#ff8a9e" opacity=".5" stroke="none"></ellipse>
-            <ellipse class="ai-pet-blush" cx="46" cy="31" rx="4" ry="2.5" fill="#ff8a9e" opacity=".5" stroke="none"></ellipse>
-            <path d="M27 34c2 2 6 2 8 0" fill="none" stroke="#2d3748" stroke-width="2" stroke-linecap="round"></path>
-          </g>
+      <button class="status-btn" id="terminalBtn" title="在当前目录打开系统终端（Alt+T）">
+        <svg class="status-btn-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="4 17 10 11 4 5"></polyline>
+          <line x1="12" y1="19" x2="20" y2="19"></line>
         </svg>
+        <span class="status-btn-label">终端</span>
       </button>
       <span id="runtimeStatus">浏览器模式</span>
     </footer>
@@ -484,6 +489,23 @@
       </div>
       <div class="panel-actions">
         <button class="tool-btn" data-close-modal="dictModal">关闭</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- 双链同名目标选择弹窗 -->
+  <div class="modal-backdrop" id="wikilinkPickerModal">
+    <section class="modal-card wikilink-picker-card" role="dialog" aria-modal="true" aria-labelledby="wikilinkPickerTitle">
+      <div class="panel-header">
+        <div>
+          <h2 id="wikilinkPickerTitle">选择链接目标</h2>
+          <p id="wikilinkPickerHint">存在多个同名目标，请选择要打开的文件</p>
+        </div>
+        <button class="icon-close" data-close-modal="wikilinkPickerModal" aria-label="关闭">×</button>
+      </div>
+      <div class="wikilink-picker-list" id="wikilinkPickerList"></div>
+      <div class="panel-actions">
+        <button class="tool-btn" data-close-modal="wikilinkPickerModal">取消</button>
       </div>
     </section>
   </div>

@@ -87,12 +87,13 @@
     'autosaveStatus', 'historyCount', 'historyList', 'closeHistoryBtn',
     'undoHistoryBtn', 'redoHistoryBtn', 'clearHistoryBtn', 'mainPane', 'historyPane', 'recentPane',
     'recentList', 'closeRecentBtn', 'clearRecentBtn', 'favPane', 'favList', 'closeFavBtn', 'clearFavBtn',
-    'backlinksPane', 'backlinksList', 'backlinksTarget', 'backlinksCount', 'saveToVaultBtn', 'closeBacklinksBtn', 'aiChatPane', 'aiChatMessages', 'aiChatInput',
+    'backlinksPane', 'backlinksList', 'backlinksTarget', 'backlinksCount', 'backlinksPaneTitle', 'saveToVaultBtn', 'closeBacklinksBtn', 'tabBacklinks', 'tabOutgoing', 'tabBacklinksCount', 'tabOutgoingCount', 'outgoingList', 'aiChatPane', 'aiChatMessages', 'aiChatInput',
     'aiChatSendBtn', 'aiChatStopBtn', 'aiChatClearBtn', 'aiChatCloseBtn', 'aiChatStatus',
     'aiChatResizeHandle', 'aiPetBtn', 'editorContextMenu', 'aiSearchContextBtn', 'smartIngestContextBtn', 'aiImportPasswordContextBtn',
     'offlineTranslateContextBtn', 'onlineTranslateContextBtn', 'addCustomMappingContextBtn', 'addToDictLibContextBtn', 'aiContextAnalysisContextBtn',
     'manageDictionaryContextBtn', 'aiChatContextBtn',
     'dictModal', 'dictSourceInput', 'dictTargetInput', 'dictAddBtn', 'dictList', 'dictLibList', 'dictTabMapping', 'dictTabLibrary',
+    'wikilinkPickerModal', 'wikilinkPickerHint', 'wikilinkPickerList',
     'aiChatSelectionHint', 'aiChatSelectionHintText', 'aiChatSelectionHintClear'
   ].map(id => [id, document.getElementById(id)]));
 
@@ -151,7 +152,7 @@
       else elements.aiPetBtn.innerHTML = '<svg class="ai-pet-svg" viewBox="0 0 64 64" aria-hidden="true"><ellipse class="ai-pet-glow" cx="32" cy="50" rx="14" ry="4" fill="var(--mascot-color,var(--app-primary))" opacity=".2"></ellipse><g class="ai-pet-figure"><circle cx="32" cy="28" r="18" fill="var(--mascot-color,var(--app-primary))" fill-opacity=".85" stroke="var(--mascot-color,var(--app-primary))" stroke-width="2.5"></circle></g><g class="ai-pet-face"><circle cx="23" cy="25" r="5" fill="#fff" stroke="none"></circle><circle cx="41" cy="25" r="5" fill="#fff" stroke="none"></circle><circle class="ai-pet-eye" cx="23" cy="25" r="3" fill="#2d3748" stroke="none"></circle><circle class="ai-pet-eye" cx="41" cy="25" r="3" fill="#2d3748" stroke="none"></circle><circle class="ai-pet-eye-highlight" cx="22" cy="23.5" r="1.5" fill="#fff" stroke="none"></circle><circle class="ai-pet-eye-highlight" cx="40" cy="23.5" r="1.5" fill="#fff" stroke="none"></circle><ellipse class="ai-pet-blush" cx="18" cy="31" rx="4" ry="2.5" fill="#ff8a9e" opacity=".5" stroke="none"></ellipse><ellipse class="ai-pet-blush" cx="46" cy="31" rx="4" ry="2.5" fill="#ff8a9e" opacity=".5" stroke="none"></ellipse><path d="M27 34c2 2 6 2 8 0" fill="none" stroke="#2d3748" stroke-width="2" stroke-linecap="round"></path></g></svg>';
       elements.aiPetBtn.title = `打开Pet · ${({ run: '奔跑', wave: '挥手', jump: '跳跃', think: '思考', sleep: '打盹', celebrate: '庆祝' })[action] || '奔跑'}`;
     } catch (_) {
-      elements.aiPetBtn.dataset.action = 'run';
+      elements.aiPetBtn.dataset.action = 'wave';
     }
   }
   applyMascotPreference();
@@ -708,6 +709,8 @@
     setLanguage(options.language || EditorCore.detectLanguage(state.fileName, text));
     setModified(false);
     mainEditor.focus();
+    // 载入新文件后刷新双向链接面板（当前激活 tab；面板可见时生效）
+    scheduleBacklinksRefresh();
   }
 
   function setLanguage(language) {
@@ -5124,65 +5127,114 @@
   // FP-1 / FP-6 Obsidian 双链（wikilink）支持
   // ─ 补全 / 索引 / 解析 / 跳转 / 反链 / 存入知识库
   // ══════════════════════════════════════════════════════════
-  var wikilinkState = { targets: [], loaded: false };
+  var wikilinkState = { targets: [], modules: [], loaded: false };
   var registeredWikilinkCompleter = null;
+  var currentLinkTab = 'backlinks';   // 双向链接面板当前激活 tab：backlinks | outgoing
 
-  /** 当前文档 basename（去扩展名） */
-  function getCurrentBasename() {
+  /** 当前文档真实文件名（含扩展名，非 md 文件标题显示准确） */
+  function getCurrentFileName() {
     var name = (state && state.fileName) || '';
-    // 防御：个别来源可能传入完整路径，仅保留 basename 以匹配知识库双链
+    // 防御：个别来源可能传入完整路径，仅保留 basename
     if (name.indexOf('/') !== -1 || name.indexOf('\\') !== -1) {
       name = String(name).split(/[\\/]/).pop();
     }
-    return name.replace(/\.[^.]+$/, '');
+    return name;
   }
 
-  /** 构建链接索引：扫描 vault root 下 *.md 的 basename + 相对路径 */
+  /** 当前文档 basename（去扩展名） */
+  function getCurrentBasename() {
+    return getCurrentFileName().replace(/\.[^.]+$/, '');
+  }
+
+  /** 由当前文件绝对路径推断其所属模块 id（未保存/未纳管返回 null，即无就近优先级） */
+  function getModuleIdByPath(currentPath) {
+    if (!currentPath) return null;
+    var norm = String(currentPath).replace(/\\/g, '/');
+    var best = null;
+    var bestLen = -1;
+    var targets = wikilinkState.targets || [];
+    for (var i = 0; i < targets.length; i++) {
+      var abs = targets[i].absolutePath || '';
+      if (abs && norm.indexOf(abs.replace(/\\/g, '/')) === 0 && abs.length > bestLen) {
+        best = targets[i].moduleId;
+        bestLen = abs.length;
+      }
+    }
+    return best;
+  }
+
+  /** 构建链接索引：扫描各模块下所有可链接文本文件（md + txt/sql/json 等）的 basename + 相对路径 + 模块信息 */
   async function buildLinkIndex() {
     var api = getElectronAPI();
     if (!api || !api.listWikilinkTargets) {
       wikilinkState.targets = [];
+      wikilinkState.modules = [];
       wikilinkState.loaded = true;
       return;
     }
     try {
       var res = await api.listWikilinkTargets();
       wikilinkState.targets = (res && res.targets) || [];
+      wikilinkState.modules = (res && res.modules) || [];
       wikilinkState.loaded = true;
     } catch (e) {
       wikilinkState.targets = [];
+      wikilinkState.modules = [];
       wikilinkState.loaded = true;
     }
   }
 
   /**
-   * 解析 wikilink 目标（Obsidian basename 全局解析 + 库内相对路径辅助语法）。
+   * 解析 wikilink 目标（多模块就近优先）。
+   * 1) 含 `/` → 相对路径精确匹配（Obsidian 库内相对路径语法）；
+   * 2) fileName（含扩展名）精确匹配（支持 [[query.sql]] 显式消歧）；
+   * 3) basename 匹配 → 就近优先排序（同模块优先 → relativePath 短者优先）。
    * 返回：命中唯一 → 目标对象；命中多个 → 数组；未命中 → null。
    */
-  function resolveWikilink(target) {
+  function resolveWikilink(target, currentPath) {
     var t = String(target || '').trim();
     if (!t) return null;
     var targets = wikilinkState.targets || [];
-    // 相对路径精确匹配（含 `/`）
-    var rel = targets.filter(function(x) { return x.relativePath === t; });
-    if (rel.length) return rel.length === 1 ? rel[0] : rel;
-    // basename 精确匹配
-    var byBase = targets.filter(function(x) { return x.basename === t; });
-    if (byBase.length) return byBase.length === 1 ? byBase[0] : byBase;
-    return null;
+    var rel, byFile, byBase;
+    // 1) 相对路径精确匹配（含 `/`）
+    if (t.indexOf('/') !== -1) {
+      rel = targets.filter(function(x) { return x.relativePath === t; });
+      if (rel.length) return rel.length === 1 ? rel[0] : rel;
+    }
+    // 2) fileName 精确匹配（含扩展名）
+    byFile = targets.filter(function(x) { return x.fileName === t; });
+    if (byFile.length) return byFile.length === 1 ? byFile[0] : byFile;
+    // 3) basename 匹配 → 就近优先排序
+    byBase = targets.filter(function(x) { return x.basename === t; });
+    if (byBase.length === 0) return null;
+    if (byBase.length === 1) return byBase[0];
+    var currentModuleId = getModuleIdByPath(currentPath);
+    byBase.sort(function(a, b) {
+      var am = a.moduleId === currentModuleId ? 0 : 1;
+      var bm = b.moduleId === currentModuleId ? 0 : 1;
+      if (am !== bm) return am - bm;
+      return a.relativePath.length - b.relativePath.length;
+    });
+    return byBase;
   }
 
   /** 打开 wikilink 目标（编辑器新标签页，通过 Electron openFileByPath） */
   async function openWikilink(target) {
-    var resolved = resolveWikilink(target);
+    var resolved = resolveWikilink(target, state.displayPath);
     if (!resolved) {
       showToast('未找到链接目标：' + target, true);
       return;
     }
     if (Array.isArray(resolved)) {
-      showToast('存在多个同名目标「' + target + '」，请使用相对路径消除歧义', true);
+      // 多个同名目标 → 弹出选择列表，由用户决定打开哪个
+      showWikilinkPicker(resolved, target);
       return;
     }
+    openWikilinkByPath(resolved);
+  }
+
+  /** 按已解析目标打开文件（共用 openWikilink 的打开逻辑） */
+  async function openWikilinkByPath(resolved) {
     var api = getElectronAPI();
     if (!api || !api.openFileByPath || !resolved.absolutePath) {
       showToast('双链跳转仅桌面模式可用', true);
@@ -5200,13 +5252,43 @@
     }
   }
 
+  /** 同名目标选择弹窗：多个目标命中时展示列表（含相对路径），点击打开对应文件 */
+  function showWikilinkPicker(candidates, target) {
+    var modal = elements.wikilinkPickerModal;
+    var listEl = elements.wikilinkPickerList;
+    if (!modal || !listEl || !candidates || !candidates.length) return;
+    if (elements.wikilinkPickerHint) {
+      elements.wikilinkPickerHint.textContent = '「' + target + '」存在 ' + candidates.length + ' 个同名目标，请选择要打开的文件';
+    }
+    listEl.innerHTML = '';
+    candidates.forEach(function(c) {
+      var item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'wikilink-picker-item';
+      var nameEl = document.createElement('span');
+      nameEl.className = 'wlp-name';
+      nameEl.textContent = c.fileName || c.basename;
+      var pathEl = document.createElement('span');
+      pathEl.className = 'wlp-path';
+      pathEl.textContent = (c.moduleName || c.moduleId || '') + '/' + (c.relativePath || c.fileName);
+      item.appendChild(nameEl);
+      item.appendChild(pathEl);
+      item.addEventListener('click', function() {
+        closeModal(modal);
+        openWikilinkByPath(c);
+      });
+      listEl.appendChild(item);
+    });
+    openModal(modal);
+  }
+
   /** 标注预览区双链命中/缺失状态 */
   function markWikilinkStatus() {
     if (!elements.markdownBody) return;
     var links = elements.markdownBody.querySelectorAll('a.wikilink');
     for (var i = 0; i < links.length; i++) {
       var target = links[i].getAttribute('data-target');
-      links[i].classList.toggle('wikilink-missing', !resolveWikilink(target));
+      links[i].classList.toggle('wikilink-missing', !resolveWikilink(target, state.displayPath));
     }
   }
 
@@ -5239,21 +5321,40 @@
         if (!m) { callback(null, []); return; }
         var query = m[1].toLowerCase();
         var results = [];
-        var seen = {};
         var targets = wikilinkState.targets || [];
+        // 统计同名 fileName 冲突（同名文件需额外给出 [[相对路径]] 精确候选消歧）
+        var nameCounts = {};
         for (var i = 0; i < targets.length; i++) {
-          var t = targets[i];
-          var hay = (t.basename + ' ' + (t.relativePath || '')).toLowerCase();
+          var fn = targets[i].fileName || targets[i].basename;
+          nameCounts[fn] = (nameCounts[fn] || 0) + 1;
+        }
+        var seen = {};
+        for (var j = 0; j < targets.length; j++) {
+          var t = targets[j];
+          var fn = t.fileName || t.basename;
+          if (seen[fn]) continue; // 同名文件只补一个（foo.md 与 foo.sql 可分别补出）
+          seen[fn] = true;
+          var hay = (fn + ' ' + (t.basename || '') + ' ' + (t.relativePath || '')).toLowerCase();
           if (query && hay.indexOf(query) === -1) continue;
-          if (seen[t.basename]) continue;
-          seen[t.basename] = true;
+          // md 用 basename（Obsidian 原生语法），非 md 用 fileName（含扩展名显式消歧）
+          var label = /\.(md|mdown|markdown)$/i.test(fn) ? t.basename : fn;
+          var meta = (t.moduleName || t.moduleId || '') + '/' + (t.relativePath || '');
           results.push({
             // caption 需包含 `[[` 前缀，否则会被 ACE 的 setFilter 过滤掉
-            caption: '[[' + t.basename + ']]',
-            value: '[[' + t.basename + ']]',
-            meta: t.relativePath || '知识库',
-            score: t.basename.toLowerCase().indexOf(query) === 0 ? 1000 : 500
+            caption: '[[' + label + ']]',
+            value: '[[' + label + ']]',
+            meta: meta,
+            score: (t.basename || fn).toLowerCase().indexOf(query) === 0 ? 1000 : 500
           });
+          // 同名冲突 → 额外给出 [[相对路径]] 精确候选用于歧义消除
+          if (nameCounts[fn] > 1 && t.relativePath && t.relativePath.indexOf('/') !== -1) {
+            results.push({
+              caption: '[[' + t.relativePath + ']]',
+              value: '[[' + t.relativePath + ']]',
+              meta: (t.moduleName || t.moduleId || '') + ' 精确路径',
+              score: 900
+            });
+          }
         }
         results.sort(function(a, b) { return b.score - a.score; });
         callback(null, results.slice(0, 30));
@@ -5268,9 +5369,9 @@
     }
   }
 
-  /** 更新反链面板头部引用数量徽标（0 / null → 隐藏） */
-  function setBacklinksCount(count) {
-    var el = elements.backlinksCount;
+  /** 更新双向链接 tab 数量徽标（0 / null → 隐藏） */
+  function setLinkTabCount(tab, count) {
+    var el = tab === 'outgoing' ? elements.tabOutgoingCount : elements.tabBacklinksCount;
     if (!el) return;
     if (typeof count === 'number' && count > 0) {
       el.textContent = count;
@@ -5281,73 +5382,164 @@
     }
   }
 
-  /** 构建反链表：扫描 vault root 下 *.md 找出含 `[[当前basename]]` 的行 */
+  /** 构建反链表：聚合各模块引用来源（含模块标签，点击直达精确文件，标题显示真实文件名） */
   async function buildBacklinks() {
     var listEl = elements.backlinksList;
     if (!listEl) return;
-    var base = getCurrentBasename();
-    if (!base) {
+    var fileName = getCurrentFileName();
+    if (elements.backlinksPaneTitle) {
+      elements.backlinksPaneTitle.textContent = fileName || '双向链接';
+      elements.backlinksPaneTitle.title = state.displayPath || fileName || '';
+    }
+    if (!fileName) {
       listEl.innerHTML = '<div class="backlinks-empty"><strong>当前文档尚未命名</strong><span>保存后再查看反链</span></div>';
-      setBacklinksCount(null);
+      setLinkTabCount('backlinks', null);
       return;
     }
-    elements.backlinksTarget.textContent = base;
-    elements.backlinksTarget.title = base;
     var api = getElectronAPI();
     if (!api || !api.findBacklinks) {
       listEl.innerHTML = '<div class="backlinks-empty"><strong>反链扫描仅桌面模式可用</strong></div>';
-      setBacklinksCount(null);
+      setLinkTabCount('backlinks', null);
       return;
     }
     listEl.innerHTML = '<div class="backlinks-empty"><span class="backlinks-loading"></span><span>正在扫描…</span></div>';
-    setBacklinksCount(null);
+    setLinkTabCount('backlinks', null);
     try {
-      var res = await api.findBacklinks(base);
+      var res = await api.findBacklinks(state.displayPath);
       // 后端扫描异常（读文件失败等）不再误报为“暂无引用”，展示真实原因便于排查
       if (res && res.message) {
         listEl.innerHTML = '<div class="backlinks-empty backlinks-error"><strong>扫描失败</strong><span>' + escapeHtml(res.message) + '</span></div>';
-        setBacklinksCount(null);
+        setLinkTabCount('backlinks', null);
         return;
       }
       var items = (res && res.backlinks) || [];
       if (!items.length) {
-        listEl.innerHTML = '<div class="backlinks-empty"><span class="backlinks-empty-dot"></span><strong>暂无文档引用</strong><span>在其它笔记中写入 <code>[[' + escapeHtml(base) + ']]</code> 即可在此显示关联</span></div>';
-        setBacklinksCount(0);
+        listEl.innerHTML = '<div class="backlinks-empty"><span class="backlinks-empty-dot"></span><strong>暂无文档引用</strong><span>在其它笔记中写入 <code>[[' + escapeHtml(getCurrentBasename()) + ']]</code> 即可在此显示关联</span></div>';
+        setLinkTabCount('backlinks', 0);
         return;
       }
-      setBacklinksCount(items.length);
+      setLinkTabCount('backlinks', items.length);
       listEl.innerHTML = '';
+      // 精确高亮：匹配当前文件 basename / fileName（含扩展名）/ 相对路径 的双链（可带别名）
+      var hlKeys = [getCurrentFileName(), getCurrentBasename()].filter(Boolean);
+      var hlRe = new RegExp('(\\[\\[' + hlKeys.map(escapeRegExp).join('|') + '(?:\\|[^\\]]*)?\\]\\])', 'gi');
       items.forEach(function(b) {
         var item = document.createElement('div');
         item.className = 'backlinks-item';
         item.setAttribute('role', 'button');
-        item.title = b.relativePath || b.fileName;
-        var nameEl = document.createElement('div');
+        item.title = (b.moduleName ? b.moduleName + '/' : '') + (b.relativePath || b.fileName);
+        var nameRow = document.createElement('div');
+        nameRow.className = 'bl-name-row';
+        var nameEl = document.createElement('span');
         nameEl.className = 'bl-name';
-        nameEl.textContent = b.basename;
+        nameEl.textContent = b.fileName || b.basename;
+        nameRow.appendChild(nameEl);
+        if (b.moduleName) {
+          var modEl = document.createElement('span');
+          modEl.className = 'bl-module';
+          modEl.textContent = b.moduleName;
+          nameRow.appendChild(modEl);
+        }
+        item.appendChild(nameRow);
         var pathEl = document.createElement('div');
         pathEl.className = 'bl-path';
         pathEl.textContent = b.relativePath || b.fileName;
-        item.appendChild(nameEl);
         item.appendChild(pathEl);
         (b.matches || []).slice(0, 3).forEach(function(m) {
           var lineEl = document.createElement('div');
           lineEl.className = 'bl-line';
-          // 高亮匹配行中的双链 [[basename]]
-          var hlPattern = new RegExp('(\\[\\[' + escapeRegExp(base) + '(?:\\|[^\\]]*)?\\]\\])', 'gi');
           var text = escapeHtml(m.text || '');
-          text = text.replace(hlPattern, '<span class="bl-hl">$1</span>');
+          text = text.replace(hlRe, '<span class="bl-hl">$1</span>');
           lineEl.innerHTML = '<span class="bl-ln">' + (m.lineNumber || 0) + '</span><span class="bl-text">' + text + '</span>';
           item.appendChild(lineEl);
         });
+        // 直接按反链条目携带的 absolutePath 打开，避免同名误判/误弹选择框
         item.addEventListener('click', function() {
-          openWikilink(b.basename);
+          openWikilinkByPath(b);
         });
         listEl.appendChild(item);
       });
     } catch (e) {
       listEl.innerHTML = '<div class="backlinks-empty backlinks-error"><strong>扫描失败</strong><span>' + escapeHtml(e.message || '未知错误') + '</span></div>';
-      setBacklinksCount(null);
+      setLinkTabCount('backlinks', null);
+    }
+  }
+
+  /** 构建出链表：解析当前文件内所有 [[链接]]，展示目标解析结果与断链状态 */
+  async function buildOutgoing() {
+    var listEl = elements.outgoingList;
+    if (!listEl) return;
+    var currentPath = state.displayPath;
+    if (!currentPath) {
+      listEl.innerHTML = '<div class="outgoing-empty"><strong>当前文档尚未保存</strong><span>保存后再查看出链</span></div>';
+      setLinkTabCount('outgoing', null);
+      return;
+    }
+    var api = getElectronAPI();
+    if (!api || !api.findOutgoing) {
+      listEl.innerHTML = '<div class="outgoing-empty"><strong>出链扫描仅桌面模式可用</strong></div>';
+      setLinkTabCount('outgoing', null);
+      return;
+    }
+    listEl.innerHTML = '<div class="outgoing-empty"><span class="backlinks-loading"></span><span>正在扫描…</span></div>';
+    setLinkTabCount('outgoing', null);
+    try {
+      var res = await api.findOutgoing(currentPath);
+      if (res && res.message) {
+        listEl.innerHTML = '<div class="outgoing-empty outgoing-error"><strong>扫描失败</strong><span>' + escapeHtml(res.message) + '</span></div>';
+        setLinkTabCount('outgoing', null);
+        return;
+      }
+      var items = (res && res.outgoing) || [];
+      if (!items.length) {
+        listEl.innerHTML = '<div class="outgoing-empty"><span class="backlinks-empty-dot"></span><strong>暂无出链</strong><span>在当前笔记中写入 <code>[[目标]]</code> 即可在此显示关联</span></div>';
+        setLinkTabCount('outgoing', 0);
+        return;
+      }
+      setLinkTabCount('outgoing', items.length);
+      listEl.innerHTML = '';
+      items.forEach(function(item) {
+        var rowEl = document.createElement('div');
+        rowEl.className = 'outgoing-item' + (item.missing ? ' wikilink-missing' : '');
+        rowEl.setAttribute('role', 'button');
+        var linkEl = document.createElement('span');
+        linkEl.className = 'ol-link';
+        linkEl.textContent = '[[' + item.target + ']]';
+        rowEl.appendChild(linkEl);
+        if (item.resolved) {
+          var pathEl = document.createElement('span');
+          pathEl.className = 'ol-path';
+          pathEl.textContent = item.resolved.moduleName + '/' + item.resolved.relativePath;
+          rowEl.appendChild(pathEl);
+          rowEl.addEventListener('click', function() {
+            openWikilinkByPath(item.resolved);
+          });
+        } else {
+          var missingEl = document.createElement('span');
+          missingEl.className = 'ol-missing';
+          missingEl.textContent = '未找到目标';
+          rowEl.appendChild(missingEl);
+        }
+        listEl.appendChild(rowEl);
+      });
+    } catch (e) {
+      listEl.innerHTML = '<div class="outgoing-empty outgoing-error"><strong>扫描失败</strong><span>' + escapeHtml(e.message || '未知错误') + '</span></div>';
+      setLinkTabCount('outgoing', null);
+    }
+  }
+
+  /** 切换双向链接面板 tab（反链 | 出链） */
+  function switchLinkTab(tab) {
+    currentLinkTab = tab === 'outgoing' ? 'outgoing' : 'backlinks';
+    var isBack = currentLinkTab === 'backlinks';
+    elements.tabBacklinks.classList.toggle('active', isBack);
+    elements.tabOutgoing.classList.toggle('active', !isBack);
+    elements.tabBacklinks.setAttribute('aria-selected', String(isBack));
+    elements.tabOutgoing.setAttribute('aria-selected', String(!isBack));
+    elements.backlinksList.style.display = isBack ? 'block' : 'none';
+    elements.outgoingList.style.display = isBack ? 'none' : 'block';
+    if (backlinksVisible) {
+      if (isBack) buildBacklinks(); else buildOutgoing();
     }
   }
 
@@ -5370,7 +5562,13 @@
       closePane(elements.recentPane, 'show-recent', recentBtn);
       closePane(elements.favPane, 'show-fav', favBtn);
       fileTreeOpen = false;
-      buildBacklinks();
+      // 打开面板时同步刷新链接索引（走主进程缓存，开销极小），保证补全与双链数据最新
+      buildLinkIndex();
+      if (currentLinkTab === 'outgoing') {
+        buildOutgoing();
+      } else {
+        buildBacklinks();
+      }
     } else {
       // 关闭面板时取消待执行的自动刷新
       if (backlinksRefreshTimer) {
@@ -5381,18 +5579,26 @@
     setTimeout(function() { mainEditor.resize(); }, 250);
   }
 
-  // 反链面板自动刷新：内容/保存变化时防抖重建（仅面板可见时执行）
+  // 双向链接面板自动刷新：内容/保存/切换文件变化时防抖重建（仅面板可见时执行）
   var backlinksRefreshTimer = null;
   function scheduleBacklinksRefresh() {
     if (!backlinksVisible) return;
     if (backlinksRefreshTimer) clearTimeout(backlinksRefreshTimer);
     backlinksRefreshTimer = setTimeout(function() {
       backlinksRefreshTimer = null;
-      buildBacklinks();
-    }, 800);
+      if (currentLinkTab === 'outgoing') {
+        buildOutgoing();
+      } else {
+        buildBacklinks();
+      }
+    }, 400);
   }
-  // 编辑内容变化 → 主页名/引用关系可能改变 → 自动刷新反链
+  // 编辑内容变化 → 主页名/引用关系可能改变 → 自动刷新当前激活 tab
   mainEditor.session.on('change', scheduleBacklinksRefresh);
+
+  // 双向链接 tab 切换
+  elements.tabBacklinks.addEventListener('click', function() { switchLinkTab('backlinks'); });
+  elements.tabOutgoing.addEventListener('click', function() { switchLinkTab('outgoing'); });
 
   // 预览区 .wikilink 点击委托
   elements.markdownBody.addEventListener('click', function(e) {
@@ -5416,6 +5622,7 @@
       showToast('已存入知识库 notes/' + base + '.md', false, 'success');
       buildLinkIndex();
       markWikilinkStatus();
+      scheduleBacklinksRefresh();
     } else {
       showToast('存入失败：' + ((res && res.message) || '未知错误'), true);
     }
@@ -5434,7 +5641,8 @@
     }
   });
 
-  // 初始化：构建双链索引 + 注册补全（延迟到编辑器就绪）
+  // 初始化：同步双向链接 tab 初始显示态 + 构建双链索引 + 注册补全（延迟到编辑器就绪）
+  switchLinkTab('backlinks');
   buildLinkIndex();
   setTimeout(registerWikilinkCompleter, 600);
 

@@ -332,25 +332,32 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ===================== 编辑器双链（wikilink）=====================
 
   /**
-   * 扫描知识根目录（vault root）下所有 .md，返回 basename + 相对路径 + 绝对路径，
+   * 扫描知识库各模块下所有可链接文本文件（md + txt/sql/json 等），返回 basename + 相对路径 + 绝对路径，
    * 供双链补全、反链与跳转使用。
-   * @returns {Promise<{targets: Array}>}
+   * @returns {Promise<{targets: Array, modules: Array}>}
    */
   listWikilinkTargets: () => ipcRenderer.invoke('editor-list-wikilink-targets'),
 
   /**
-   * 保存当前编辑器内容到知识库（vault root/notes/{basename}.md）
+   * 保存当前编辑器内容到知识库（clip-organized/notes/{basename}.md）
    * @param {{text: string, basename: string}} payload
    * @returns {Promise<{success: boolean, filePath?: string, message?: string}>}
    */
   saveToVault: (payload) => ipcRenderer.invoke('editor-save-to-vault', payload),
 
   /**
-   * 扫描知识根目录下所有 .md，找出引用 `[[basename]]` 的文件与行。
-   * @param {string} basename - 被引用文件的不含扩展名名称
+   * 扫描知识库各模块，找出引用当前文件的来源（过滤自引用，就近优先排序）。
+   * @param {string} currentPath - 当前文件绝对路径
    * @returns {Promise<{backlinks: Array}>}
    */
-  findBacklinks: (basename) => ipcRenderer.invoke('editor-find-backlinks', basename),
+  findBacklinks: (currentPath) => ipcRenderer.invoke('editor-find-backlinks', currentPath),
+
+  /**
+   * 扫描当前文件的出链（[[链接]]），返回目标解析结果与断链标记。
+   * @param {string} currentPath - 当前文件绝对路径
+   * @returns {Promise<{outgoing: Array, message?: string}>}
+   */
+  findOutgoing: (currentPath) => ipcRenderer.invoke('editor-find-outgoing', currentPath),
 
   // ===================== 编辑器自动保存 =====================
 
