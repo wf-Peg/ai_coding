@@ -88,7 +88,8 @@
       "verifications": [
         { "title": "交互流程 y/N 两分支逻辑评审通过（实际发版时验证）", "status": "done" },
         { "title": "version-prompt.js 三场景实测：y+回车→1.0.8、n→沿用、非法版本→exit 1", "status": "done" },
-        { "title": "build.bat Step 2 集成实测：管道 stdin 可达 node readline，版本写回正确", "status": "done" }
+        { "title": "build.bat Step 2 集成实测：管道 stdin 可达 node readline，版本写回正确", "status": "done" },
+        { "title": "发布段实测：回车→跳过+等待；y→发布流程；git push 失败→错误提示+等待（不再闪退）", "status": "done" }
       ]
     },
     {
@@ -142,6 +143,11 @@
     {
       "title": ".bat 文件必须 CRLF 行尾",
       "content": "LF 行尾的 .bat 在包含括号块、backtick（usebackq）等语法时会被 cmd 错误拼接解析（表现为命令识别错误、括号不匹配）。仓库既有 .bat 均为 CRLF，新写/改写 .bat 后需统一转 CRLF（UTF-8 无 BOM），再交给 cmd 执行",
+      "tags": ["product-dev", "技术", "Bug修复"]
+    },
+    {
+      "title": "if 块内 echo 文本不能含 ASCII 括号",
+      "content": "cmd 解析父括号块时，块内 echo 文本若含 ASCII `)`（如 \"1) git 已安装\"、\"(gh)\"）会提前闭合代码块，后续行错乱，实测表现为 exit=255 / \"X was unexpected at this time\"，窗口闪退。修复：块内提示文本的括号用全角（）或方括号 []，或行尾用 ^ 转义；这也是 build.bat 发布段闪退的根因之一",
       "tags": ["product-dev", "技术", "Bug修复"]
     }
   ]

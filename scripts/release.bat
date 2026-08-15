@@ -94,7 +94,10 @@ git status --porcelain 2>nul | findstr /r "." >nul
 if %ERRORLEVEL% EQU 0 (
     echo   [WARNING] Uncommitted changes detected:
     git status --short
-    set /p "CONTINUE=Continue? (y/N): "
+    node scripts\console-helper.js ask "工作区有未提交更改，是否继续？(y/N)" ".tmp\cont-answer.txt"
+    set "CONTINUE="
+    if exist ".tmp\cont-answer.txt" set /p CONTINUE=<.tmp\cont-answer.txt
+    del /f /q ".tmp\cont-answer.txt" 2>nul
     if /I not "!CONTINUE!"=="y" goto :fail
 )
 
@@ -153,7 +156,10 @@ if not "!PKG_VERSION!"=="!VERSION!" (
     REM 检查 Release 是否已存在，避免覆盖已有发布
     gh release view "!TAG!" --repo %REPO% >nul 2>&1
     if !ERRORLEVEL! EQU 0 (
-        set /p "CONTINUE=Release !TAG! 已存在，是否覆盖发布？(y/N): "
+        node scripts\console-helper.js ask "Release !TAG! 已存在，是否覆盖发布？(y/N)" ".tmp\cont-answer.txt"
+        set "CONTINUE="
+        if exist ".tmp\cont-answer.txt" set /p CONTINUE=<.tmp\cont-answer.txt
+        del /f /q ".tmp\cont-answer.txt" 2>nul
         if /I not "!CONTINUE!"=="y" goto :fail
     )
 )
@@ -258,12 +264,12 @@ if /I "%PLATFORM%"=="win" (
     echo   Building macOS ...
     call npm run build:mac
     if %ERRORLEVEL% NEQ 0 (
-        echo   [WARNING] macOS build failed (may need macOS host)
+        echo   [WARNING] macOS build failed [may need macOS host]
     )
     echo   Building Linux ...
     call npm run build:linux
     if %ERRORLEVEL% NEQ 0 (
-        echo   [WARNING] Linux build failed (may need Linux host)
+        echo   [WARNING] Linux build failed [may need Linux host]
     )
 )
 
@@ -353,8 +359,7 @@ echo.
 
 :end
 if "%LAUNCHED_BY_DBLCLICK%"=="1" (
-    echo Press any key to exit ...
-    pause >nul
+    node scripts\console-helper.js waitkey "发布完成"
 )
 endlocal
 exit /b 0
@@ -366,8 +371,7 @@ echo   Release FAILED. Check errors above.
 echo ============================================
 if "%LAUNCHED_BY_DBLCLICK%"=="1" (
     echo.
-    echo Press any key to exit ...
-    pause >nul
+    node scripts\console-helper.js waitkey "发布失败"
 )
 endlocal
 exit /b 1
@@ -386,5 +390,5 @@ echo   scripts\release.bat 1.0.1 "" win
 echo.
 echo Platforms: win, mac, linux, all (default)
 echo.
-pause
+node scripts\console-helper.js waitkey "用法说明"
 exit /b 0

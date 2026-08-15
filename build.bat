@@ -172,7 +172,7 @@ echo   正在准备发布 v!VERSION! ...
 
 where gh >nul 2>&1
 if errorlevel 1 (
-    echo   [ERROR] 未安装 GitHub CLI (gh)，跳过发布。
+    echo   [ERROR] 未安装 GitHub CLI [gh]，跳过发布。
     echo   安装: winget install GitHub.cli  然后: gh auth login
     node scripts\console-helper.js waitkey "[ERROR] 未安装 gh"
     endlocal
@@ -208,7 +208,7 @@ for /f "tokens=*" %%b in ('git branch --show-current') do set "BRANCH=%%b"
 git push origin "!BRANCH!"
 if errorlevel 1 (
     echo   [ERROR] git push 失败，发布中止。
-    echo   请检查: 1) git 已安装  2) 凭据可用（gh auth login 后运行 gh auth setup-git）
+    echo   请检查: 1. git 已安装  2. 凭据可用（gh auth login 后运行 gh auth setup-git）
     node scripts\console-helper.js waitkey "[ERROR] git push 失败"
     endlocal
     exit /b 1

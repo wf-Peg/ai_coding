@@ -30,16 +30,18 @@ if (mode === 'waitkey') {
   });
 } else if (mode === 'ask') {
   rl.question(`${text}: `, (ans) => {
+    // trim：去掉管道/echo 输入可能带的尾随空格，保证 "y" 比较可靠
+    const trimmed = ans.trim();
     if (outFile) {
       try {
         fs.mkdirSync(path.dirname(outFile), { recursive: true });
-        fs.writeFileSync(outFile, ans, 'utf-8');
+        fs.writeFileSync(outFile, trimmed, 'utf-8');
       } catch (e) {
         console.error(`[console-helper] 写入结果失败: ${e.message}`);
         process.exit(1);
       }
     } else {
-      process.stdout.write(ans);
+      process.stdout.write(trimmed);
     }
     rl.close();
   });
