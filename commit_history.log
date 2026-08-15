@@ -5,6 +5,7 @@
 2026-08-15 01:10 | 修复图片上传根因：clip.html/editor/扩展的 const/let API 常量不挂 window，media-uploader getUploadUrl 回退相对路径打到前端静态服务器返回 HTML 200。改为 window 暴露 API_ROOT/API_BASE_URL + setApiRoot 显式配置 + 缺配置抛明确错误；已同步打包前端 resources/frontend
 2026-08-15 00:20 | 修复图片上传失败：media-uploader 错误诊断改进（非 JSON 响应显示状态码/404提示重启应用）、Accept: application/json、multipart 上限 12MB（jar 已重新打包部署）
 2026-08-15 12:32 | 剪藏落库Obsidian：一剪藏一文件，AI字段反写frontmatter，汇总双链引用
+2026-08-15 14:17 | wiki查询SSE流式进度（思维链）+剪藏图片上传进度条优化
 2026-08-14 23:40 | 产品开发归档（skill: product-dev-archive）：剪藏图片功能重新设计生成 feature-points.json（7 功能点/8 知识点），workspace.html 验收标准兼容 {title,status} 对象格式
 2026-08-14 23:19 | 剪藏图文一体：media 通用层（/api/media/*）、multipart 上传、正文 markdown 渲染+消毒、编辑器/扩展对齐、M0-M5 完成
 2026-08-13 23:30 | 修复工作台右下角置顶与刷新
