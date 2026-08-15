@@ -157,6 +157,124 @@ public class ObsidianExportFormatter {
     }
 
     /**
+     * 生成单条剪藏的 YAML frontmatter 块（含 AI 提炼字段）。
+     * <p>
+     * 专用于「一剪藏一文件」落库，将剪藏的 AI 产出（摘要/发散/思考）写入
+     * frontmatter，供 Obsidian Dataview 结构化检索。字段按
+     * {@link ObsidianExportConfig#getClipFrontmatterFields()} 配置顺序输出，
+     * 仅输出非空字段。
+     * </p>
+     *
+     * @param date          采集/整理日期
+     * @param tags          标签列表（自动去重）
+     * @param categoryName  分类中文名
+     * @param sourceUrl     来源 URL（可为空）
+     * @param siteName      来源站点（可为空）
+     * @param analysisStatus AI 分析状态（pending/ready/failed/empty，可为空）
+     * @param summary       AI 摘要（可为空，空则不输出）
+     * @param divergent     AI 发散总结（可为空，空则不输出）
+     * @param thoughts      我的思考（可为空，空则不输出）
+     * @return {@code ---\n...\n---\n\n} 格式的 YAML frontmatter 字符串
+     */
+    public String generateClipFrontmatter(LocalDate date, List<String> tags, String categoryName,
+                                           String sourceUrl, String siteName, String analysisStatus,
+                                           String summary, String divergent, String thoughts) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("---\n");
+
+        // 标签去重（保持顺序）
+        LinkedHashSet<String> uniqueTags = new LinkedHashSet<>();
+        if (tags != null) {
+            for (String tag : tags) {
+                if (tag != null && !tag.trim().isEmpty()) {
+                    uniqueTags.add(tag.trim());
+                }
+            }
+        }
+
+        for (String field : config.getClipFrontmatterFields()) {
+            switch (field) {
+                case "date":
+                    sb.append("date: ").append(date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))).append("\n");
+                    break;
+                case "updated":
+                    sb.append("updated: ").append(date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))).append("\n");
+                    break;
+                case "type":
+                    sb.append("type: clip\n");
+                    break;
+                case "category":
+                    sb.append("category: ").append(escapeYaml(categoryName)).append("\n");
+                    break;
+                case "tags":
+                    sb.append("tags:\n");
+                    if (uniqueTags.isEmpty()) {
+                        sb.append("  []\n");
+                    } else {
+                        for (String tag : uniqueTags) {
+                            sb.append("  - ").append(tag).append("\n");
+                        }
+                    }
+                    break;
+                case "source":
+                    if (sourceUrl != null && !sourceUrl.trim().isEmpty()) {
+                        sb.append("source:\n  - ").append(escapeYaml(sourceUrl)).append("\n");
+                    }
+                    break;
+                case "site":
+                    if (siteName != null && !siteName.trim().isEmpty()) {
+                        sb.append("site: ").append(escapeYaml(siteName)).append("\n");
+                    }
+                    break;
+                case "analysis_status":
+                    if (analysisStatus != null && !analysisStatus.trim().isEmpty()) {
+                        sb.append("analysis_status: ").append(escapeYaml(analysisStatus)).append("\n");
+                    }
+                    break;
+                case "summary":
+                    if (summary != null && !summary.trim().isEmpty()) {
+                        sb.append("summary: \"").append(yamlEscapeValue(summary)).append("\"\n");
+                    }
+                    break;
+                case "divergent":
+                    if (divergent != null && !divergent.trim().isEmpty()) {
+                        sb.append("divergent: \"").append(yamlEscapeValue(divergent)).append("\"\n");
+                    }
+                    break;
+                case "thoughts":
+                    if (thoughts != null && !thoughts.trim().isEmpty()) {
+                        sb.append("thoughts: \"").append(yamlEscapeValue(thoughts)).append("\"\n");
+                    }
+                    break;
+                default:
+                    // 未识别的字段跳过
+                    break;
+            }
+        }
+
+        sb.append("---\n\n");
+        return sb.toString();
+    }
+
+    /**
+     * 将多行文本转义为 YAML 单行字符串值（去除换行、压缩空白、转义引号）。
+     * <p>
+     * 用于 summary/divergent/thoughts 等可能含换行的字段，确保 frontmatter 为合法单行 YAML。
+     * </p>
+     *
+     * @param value 原始多行文本
+     * @return 压缩后的单行 YAML 安全值
+     */
+    private String yamlEscapeValue(String value) {
+        if (value == null) {
+            return "";
+        }
+        // 去掉换行和多余空白，压缩为单行
+        String singleLine = value.replaceAll("\\s+", " ").trim();
+        return singleLine.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    /**
      * 将标签列表格式化为 Obsidian 行内标签格式。
      *
      * @param tags 标签列表

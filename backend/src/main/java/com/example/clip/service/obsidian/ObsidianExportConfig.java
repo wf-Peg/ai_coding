@@ -54,6 +54,19 @@ public class ObsidianExportConfig {
     /** 归档文件名中的日期格式 */
     private String fileNameDateFormat = "yyyy-MM-dd";
 
+    /**
+     * 单条剪藏文件的 frontmatter 字段列表，顺序即为输出顺序。
+     * <p>
+     * 在 {@link #frontmatterFields} 基础上额外支持 AI 提炼字段：
+     * {@code summary}（摘要）、{@code analysis_status}（分析状态）、
+     * {@code divergent}（发散总结）、{@code thoughts}（我的思考）、
+     * {@code site}（来源站点）。用户可通过配置文件自定义覆盖。
+     * </p>
+     */
+    private List<String> clipFrontmatterFields = new ArrayList<>(
+            List.of("date", "updated", "type", "category", "tags", "source", "site",
+                    "analysis_status", "summary", "divergent", "thoughts"));
+
     public List<String> getFrontmatterFields() {
         return frontmatterFields;
     }
@@ -68,6 +81,14 @@ public class ObsidianExportConfig {
 
     public void setCalloutTypes(Map<String, String> calloutTypes) {
         this.calloutTypes = calloutTypes;
+    }
+
+    public List<String> getClipFrontmatterFields() {
+        return clipFrontmatterFields;
+    }
+
+    public void setClipFrontmatterFields(List<String> clipFrontmatterFields) {
+        this.clipFrontmatterFields = clipFrontmatterFields;
     }
 
     public String getFileNameDateFormat() {

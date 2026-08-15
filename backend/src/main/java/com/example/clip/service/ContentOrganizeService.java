@@ -288,6 +288,12 @@ public class ContentOrganizeService {
                 contentBuilder.append(obsidianExportFormatter.formatTagsInline(clip.getTags())).append("\n\n");
             }
 
+            // 一剪藏一文件落库 + 汇总双链引用
+            String clipLink = exportClipToVault(clip, category, LocalDate.now());
+            if (clipLink != null) {
+                contentBuilder.append("📎 来源：").append(clipLink).append("\n\n");
+            }
+
             contentBuilder.append("---\n\n");
         }
 
@@ -320,6 +326,129 @@ public class ContentOrganizeService {
         } catch (IOException e) {
             log.error("[Organize] copy images to assets failed: category={}, clipId={}", category, clip.getId(), e);
         }
+    }
+
+    /**
+     * 将单条剪藏导出为独立 Markdown 文件（一剪藏一文件），并返回 Obsidian wikilink。
+     * <p>
+     * 存储位置：{@code {organizedPath}/clips/{yyyy}/{MM}/{categoryDir}/{yyMMdd}_{短id}.md}，
+     * 按年/月分片避免单目录文件过多。frontmatter 含 AI 提炼字段（summary/divergent/thoughts），
+     * 供 Dataview 结构化检索。汇总文件通过返回的 {@code [[文件名|标题]]} 引用本条剪藏。
+     * </p>
+     *
+     * @param clip     剪藏内容
+     * @param category 分类值
+     * @param date     整理日期
+     * @return wikilink 字符串（{@code [[2026-08-12_3f2a9c|标题]]}）；导出失败返回 null
+     */
+    private String exportClipToVault(ClipContent clip, String category, LocalDate date) {
+        try {
+            String topCategoryName = getTopCategoryName(category);
+            // 短 ID：取剪藏 id 的稳定短哈希，避免链接因标题改动失效
+            String shortId = shortIdOf(clip.getId());
+            String dateStr = date.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+            String fileName = dateStr + "_" + shortId + ".md";
+
+            // 目录：clips/{yyyy}/{MM}/{一级分类目录}
+            Path baseDir = organizedStoragePath.resolve("clips")
+                    .resolve(String.valueOf(date.getYear()))
+                    .resolve(String.format("%02d", date.getMonthValue()))
+                    .resolve(sanitizeDirName(topCategoryName));
+            Files.createDirectories(baseDir);
+
+            // frontmatter：含 AI 提炼字段
+            List<String> tags = clip.getTags() != null ? clip.getTags() : List.of();
+            String frontmatter = obsidianExportFormatter.generateClipFrontmatter(
+                    date, tags, topCategoryName,
+                    clip.getSourceUrl(), clip.getSiteName(), clip.getAnalysisStatus(),
+                    clip.getSummary(), clip.getDivergentSummary(), clip.getMyThoughts());
+
+            StringBuilder sb = new StringBuilder(frontmatter);
+            sb.append("# ").append(clip.getTitle() != null ? clip.getTitle() : "剪藏").append("\n\n");
+            if (clip.getSummary() != null && !clip.getSummary().isEmpty()) {
+                sb.append("> ").append(clip.getSummary()).append("\n\n");
+            }
+            if (clip.getContent() != null) {
+                sb.append("## 原文\n\n").append(rewriteImageReferences(clip.getContent())).append("\n\n");
+            }
+            if (clip.getAnalysis() != null && !clip.getAnalysis().isEmpty()) {
+                sb.append(obsidianExportFormatter.wrapCallout("AI 分析", clip.getAnalysis(), "analysis")).append("\n");
+            }
+            if (clip.getDivergentSummary() != null && !clip.getDivergentSummary().isEmpty()) {
+                sb.append(obsidianExportFormatter.wrapCallout("发散总结", clip.getDivergentSummary(), "analysis")).append("\n");
+            }
+            if (clip.getMyThoughts() != null && !clip.getMyThoughts().isEmpty()) {
+                sb.append(obsidianExportFormatter.wrapCallout("💭 我的思考", clip.getMyThoughts(), "thoughts")).append("\n");
+            }
+            if (clip.getSourceUrl() != null && !clip.getSourceUrl().isEmpty()) {
+                sb.append("\n🔗 来源：[").append(clip.getSourceUrl()).append("](").append(clip.getSourceUrl()).append(")\n");
+            }
+
+            Path filePath = baseDir.resolve(fileName);
+            Files.write(filePath, sb.toString().getBytes("UTF-8"));
+            log.info("[Organize] export clip to vault: file={}, clipId={}", filePath, clip.getId());
+
+            // 显示标题：优先用标题，否则用摘要截断
+            String display = clip.getTitle() != null && !clip.getTitle().isEmpty()
+                    ? clip.getTitle()
+                    : (clip.getSummary() != null && !clip.getSummary().isEmpty()
+                            ? clip.getSummary()
+                            : "剪藏" + shortId);
+            return "[[" + stripMdExtension(fileName) + "|" + yamlSafeDisplay(display) + "]]";
+        } catch (Exception e) {
+            log.error("[Organize] export clip to vault failed: clipId={}", clip.getId(), e);
+            return null;
+        }
+    }
+
+    /**
+     * 生成剪藏 id 的稳定短哈希（8 位 hex），用于文件名与 wikilink。
+     *
+     * @param id 剪藏 id
+     * @return 8 位小写 hex 字符串
+     */
+    private String shortIdOf(Long id) {
+        if (id == null) {
+            return "0";
+        }
+        int hash = id.hashCode();
+        return String.format("%08x", hash);
+    }
+
+    /**
+     * 移除 wikilink 文件名中的 .md 后缀。
+     *
+     * @param fileName 文件名（含 .md）
+     * @return 去后缀后的链接锚名
+     */
+    private String stripMdExtension(String fileName) {
+        return fileName.endsWith(".md") ? fileName.substring(0, fileName.length() - 3) : fileName;
+    }
+
+    /**
+     * 将 wikilink 显示文本转为 YAML/链接安全值（去除换行、压缩空白）。
+     *
+     * @param display 原始显示文本
+     * @return 压缩后的单行安全值
+     */
+    private String yamlSafeDisplay(String display) {
+        if (display == null) {
+            return "";
+        }
+        return display.replaceAll("\\s+", " ").trim();
+    }
+
+    /**
+     * 净化目录名，移除文件系统不安全字符。
+     *
+     * @param name 目录名
+     * @return 净化后的目录名
+     */
+    private String sanitizeDirName(String name) {
+        if (name == null || name.isEmpty()) {
+            return "default";
+        }
+        return name.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
     }
 
     /**
