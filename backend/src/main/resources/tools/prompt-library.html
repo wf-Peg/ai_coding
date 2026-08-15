@@ -57,7 +57,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC","Mic
 .chip.active{background:var(--primary);border-color:var(--primary);color:#fff}
 .chip.active:hover{background:var(--primary-hover)}
 
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px;transition:opacity .16s var(--ease-out-expo),transform .16s var(--ease-out-expo)}
+.grid.swap-out{opacity:0;transform:translateY(6px)}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;cursor:pointer;transition:all .2s var(--ease-out-expo);position:relative;animation:fade .3s ease}
 .card:hover{transform:translateY(-2px);border-color:var(--border-strong);box-shadow:var(--shadow)}
 .card.faved{border-color:var(--star);background:linear-gradient(180deg,var(--star-soft),transparent 70%)}
@@ -365,6 +366,7 @@ textarea.code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,mono
   let slots = [];
   let activeCategory = '全部';
   let searchTerm = '';
+  let suppressCardAnim = false;   // 分类切换时抑制单卡动画，由容器完成交叉淡入淡出
   let editingId = null;      // 正在编辑的模板 id（null=新建）
   let detailId = null;       // 详情弹窗当前模板 id
   let applyId = null;        // 应用槽位当前模板 id
@@ -416,9 +418,24 @@ textarea.code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,mono
       const el = document.createElement('button');
       el.className = 'chip' + (c === activeCategory ? ' active' : '');
       el.textContent = c;
-      el.addEventListener('click', () => { activeCategory = c; renderChips(); renderGrid(); });
+      el.addEventListener('click', () => switchCategory(c));
       chips.appendChild(el);
     });
+  }
+
+  // 分类切换：容器淡出 → 更新列表 → 容器淡入，避免整屏闪烁
+  function switchCategory(c) {
+    if (c === activeCategory) return;
+    activeCategory = c;
+    renderChips();
+    const grid = $('grid');
+    suppressCardAnim = true;
+    grid.classList.add('swap-out');
+    setTimeout(() => {
+      renderGrid();
+      grid.classList.remove('swap-out');
+      setTimeout(() => { suppressCardAnim = false; }, 200);
+    }, 150);
   }
 
   function filtered() {
@@ -441,7 +458,11 @@ textarea.code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,mono
     list.forEach((p, i) => {
       const card = document.createElement('div');
       card.className = 'card' + (p.favorite ? ' faved' : '');
-      card.style.animationDelay = (i * 0.02) + 's';
+      if (suppressCardAnim) {
+        card.style.animation = 'none';
+      } else {
+        card.style.animationDelay = (i * 0.02) + 's';
+      }
       card.innerHTML =
         '<div class="card-top">' +
           '<div class="card-name">' + (p.favorite ? '<span style="color:var(--star)">★</span>' : '') + '<span>' + escapeHtml(p.name) + '</span>' +

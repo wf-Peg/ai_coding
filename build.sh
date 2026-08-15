@@ -1,6 +1,9 @@
 #!/bin/bash
 # ============================================
 # 剪藏 - 一键构建脚本 (macOS / Linux)
+# 本地打包 + 可选交互：
+#   ① 打包前询问是否递增版本号并更新 package.json
+#   ② 打包完成后询问是否推送到 GitHub Release（含更新包）
 # ============================================
 
 set -e
@@ -35,9 +38,45 @@ fi
 
 echo -e "${GREEN}✓ 环境检查通过${NC}"
 
-# 步骤1: 编译后端 JAR
+# ============================================
+# 版本号确认（询问是否递增版本号并更新）
+# ============================================
 echo ""
-echo -e "${YELLOW}[1/3] 编译后端 JAR 包...${NC}"
+echo -e "${YELLOW}[1/4] 版本号确认...${NC}"
+
+CURRENT_VERSION="$(node -p "require('./package.json').version" 2>/dev/null || echo 1.0.0)"
+echo "  当前版本: ${CURRENT_VERSION}"
+
+VERSION="$CURRENT_VERSION"
+read -p "  是否递增版本号并更新 package.json？(y/N) " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    # 建议下一 patch 版本（x.y.z -> x.y.(z+1)）
+    IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+    SUGGEST_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+    read -p "  请输入新版本号（回车使用建议值 ${SUGGEST_VERSION}）: " VERSION
+    if [ -z "$VERSION" ]; then
+        VERSION="$SUGGEST_VERSION"
+    fi
+
+    if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo -e "${RED}错误: 版本号格式无效: ${VERSION}（应为 x.y.z，如 1.0.8）${NC}"
+        exit 1
+    fi
+
+    node -e "
+    const pkg = require('./package.json');
+    pkg.version = '${VERSION}';
+    require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');
+    "
+    echo -e "${GREEN}✓ 版本号已更新为 ${VERSION}${NC}"
+else
+    echo "  沿用当前版本 ${VERSION}"
+fi
+
+# 步骤2: 编译后端 JAR
+echo ""
+echo -e "${YELLOW}[2/4] 编译后端 JAR 包...${NC}"
 cd backend
 mvn clean package -DskipTests -q
 if [ ! -f "target/clip-demo-0.0.1-SNAPSHOT.jar" ]; then
@@ -47,9 +86,9 @@ fi
 echo -e "${GREEN}✓ 后端 JAR 包构建成功${NC}"
 cd ..
 
-# 步骤2: 生成最小化 JRE（jlink 裁剪）
+# 步骤3: 生成最小化 JRE（jlink 裁剪）
 echo ""
-echo -e "${YELLOW}[2/4] 生成最小化 JRE（jlink 裁剪）...${NC}"
+echo -e "${YELLOW}[3/4] 生成最小化 JRE（jlink 裁剪）...${NC}"
 echo "  将 JRE 从 316MB 裁剪到约 50MB"
 if command -v jlink &> /dev/null; then
     if [ ! -f "jre/bin/java" ] && [ ! -f "jre/bin/java.exe" ]; then
@@ -68,17 +107,12 @@ if [ ! -f "jre/bin/java" ] && [ ! -f "jre/bin/java.exe" ]; then
     echo -e "${YELLOW}! 无嵌入式 JRE，打包后的应用需要用户自行安装 JDK 17+${NC}"
 fi
 
-# 步骤3: 安装 Electron 依赖
+# 步骤4: 安装 Electron 依赖 + 打包
 echo ""
-echo -e "${YELLOW}[3/4] 安装 Electron 依赖...${NC}"
+echo -e "${YELLOW}[4/4] 安装依赖并打包桌面应用...${NC}"
 if [ ! -d "node_modules" ]; then
     npm install
 fi
-echo -e "${GREEN}✓ Electron 依赖安装完成${NC}"
-
-# 步骤4: 打包桌面应用
-echo ""
-echo -e "${YELLOW}[4/4] 打包桌面应用...${NC}"
 
 # 检测平台
 OS="$(uname -s)"
@@ -105,4 +139,71 @@ echo ""
 echo -e "${GREEN}========================================"
 echo "  打包完成！"
 echo "  输出目录: dist-electron/"
+echo "========================================${NC}"
+echo ""
+
+# ============================================
+# 可选：推送到 GitHub Release
+# ============================================
+read -p "  是否推送到 GitHub Release（含更新包）？(y/N) " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "  已跳过发布。"
+    echo "  如需一键发布（含版本号提示），也可运行: ./scripts/release.sh"
+    exit 0
+fi
+
+echo ""
+echo -e "${YELLOW}  正在准备发布 v${VERSION} ...${NC}"
+
+if ! command -v gh &> /dev/null; then
+    echo -e "${RED}错误: 未安装 GitHub CLI (gh)，跳过发布${NC}"
+    exit 0
+fi
+
+if ! gh auth status &> /dev/null; then
+    echo -e "${RED}错误: GitHub CLI 未登录，跳过发布。请先运行: gh auth login${NC}"
+    exit 0
+fi
+
+# 提交版本号变更（如已更新）
+if [ "$VERSION" != "$CURRENT_VERSION" ]; then
+    git add package.json
+    git commit -m "chore: bump version to ${VERSION}" 2>/dev/null || true
+fi
+
+TAG="v${VERSION}"
+REPO="wf-Peg/ai_coding"
+DIST_DIR="dist-electron"
+
+# Release 说明（可选输入）
+NOTES="版本更新"
+read -p "  请输入 Release 说明（回车默认「版本更新」）: " NOTES_INPUT
+if [ -n "$NOTES_INPUT" ]; then
+    NOTES="$NOTES_INPUT"
+fi
+
+# 推送代码
+git push origin "$(git branch --show-current)"
+echo -e "${GREEN}✓ 代码已推送${NC}"
+
+# 创建 GitHub Release（附带安装包 + 更新包 + 校验文件）
+RELEASE_ARGS=(
+    --repo "${REPO}"
+    --title "${TAG}"
+    --notes "${NOTES}"
+)
+for f in "$DIST_DIR"/*.exe "$DIST_DIR"/*.dmg "$DIST_DIR"/*.AppImage "$DIST_DIR"/*.zip "$DIST_DIR"/*.sha256; do
+    if [ -f "$f" ]; then
+        RELEASE_ARGS+=("$f")
+    fi
+done
+
+gh release create "${TAG}" "${RELEASE_ARGS[@]}"
+
+echo ""
+echo -e "${GREEN}========================================"
+echo "  Release Complete!"
+echo "  版本: ${TAG}"
+echo "  URL: https://github.com/${REPO}/releases/tag/${TAG}"
 echo "========================================${NC}"

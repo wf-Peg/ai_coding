@@ -5199,10 +5199,17 @@
     }
 
     var completer = {
-      identifierRegexps: [/\[\[[a-zA-Z0-9\u4e00-\u9fff._\/\-]*/],
+      // 关键：必须是“单字符”匹配正则。ACE 会逐字符回溯检测前缀，
+      // 多字符的 `\[\[...` 会导致单个 `[` 无法匹配，getCompletionPrefix 返回空串，
+      // 进而 live autocomplete 不触发、本 completer 的 getCompletions 也不会被调用。
+      identifierRegexps: [/\[[a-zA-Z0-9\u4e00-\u9fff._\/\-]*/],
       getCompletions: function(editor, session, pos, prefix, callback) {
-        if (!prefix || prefix.indexOf('[[') === -1) { callback(null, []); return; }
-        var query = prefix.replace(/\[\[/, '').toLowerCase();
+        // 以光标所在行实时判断是否处于 `[[` 上下文（比 prefix 更可靠，
+        // 因为 prefix 由 ACE 按 identifierRegexps 逐字符回溯得出，可能不完整）。
+        var line = session.getLine(pos.row).slice(0, pos.column);
+        var m = line.match(/\[\[([^\[\]]*)$/);
+        if (!m) { callback(null, []); return; }
+        var query = m[1].toLowerCase();
         var results = [];
         var seen = {};
         var targets = wikilinkState.targets || [];
@@ -5213,7 +5220,8 @@
           if (seen[t.basename]) continue;
           seen[t.basename] = true;
           results.push({
-            caption: t.basename,
+            // caption 需包含 `[[` 前缀，否则会被 ACE 的 setFilter 过滤掉
+            caption: '[[' + t.basename + ']]',
             value: '[[' + t.basename + ']]',
             meta: t.relativePath || '知识库',
             score: t.basename.toLowerCase().indexOf(query) === 0 ? 1000 : 500
@@ -5229,68 +5237,6 @@
       langTools.addCompleter(completer);
     } else if (mainEditor.completers) {
       mainEditor.completers.push(completer);
-    }
-
-    // 输入 `[[` 后立即弹出双链候选。
-    // 注意：不能依赖 ACE 的 startAutocomplete / live completion——它们只在输入
-    // “单词字符”（字母/中文）时触发，纯 `[[` 不弹；且 startAutocomplete 只显示
-    // 空 popup 不填充数据。因此这里手动收集候选并 setData + showPopup。
-    function triggerWikilinkCompletion() {
-      var completer = mainEditor.completer;
-      // `enableLiveAutocompletion` 只在输入“单词字符”（字母/中文）时才会用到 completer，
-      // 纯 `[[` 不会触发，导致首次输入 `[[` 时 mainEditor.completer 仍为 null。
-      // 这里先执行 startAutocomplete 命令强制创建 completer 实例（并最小化初始化）。
-      if (!completer) {
-        try { mainEditor.execCommand('startAutocomplete'); } catch (e) { /* 忽略 */ }
-        completer = mainEditor.completer;
-      }
-      if (!completer || !completer.popup) return;
-      var pos = mainEditor.getCursorPosition();
-      var line = mainEditor.session.getLine(pos.row).slice(0, pos.column);
-      var m = line.match(/\[\[([^\[\]]*)$/);
-      if (!m) return;
-      var query = m[1].toLowerCase();
-      var results = [];
-      var seen = {};
-      var targets = wikilinkState.targets || [];
-      for (var i = 0; i < targets.length; i++) {
-        var t = targets[i];
-        var hay = (t.basename + ' ' + (t.relativePath || '')).toLowerCase();
-        if (query && hay.indexOf(query) === -1) continue;
-        if (seen[t.basename]) continue;
-        seen[t.basename] = true;
-        results.push({
-          caption: t.basename,
-          value: '[[' + t.basename + ']]',
-          meta: t.relativePath || '知识库',
-          score: t.basename.toLowerCase().indexOf(query) === 0 ? 1000 : 500
-        });
-      }
-      results.sort(function(a, b) { return b.score - a.score; });
-      results = results.slice(0, 30);
-      if (!results.length) { completer.popup.hide(); return; }
-      completer.completions = results;
-      completer.popup.setData(results);
-      completer.showPopup(mainEditor);
-      mainEditor.focus();
-    }
-
-    if (mainEditor.session && !mainEditor.__wikilinkTriggerBound) {
-      var lastTriggerTime = 0;
-      mainEditor.session.on('change', function() {
-        var pos = mainEditor.getCursorPosition();
-        var line = mainEditor.session.getLine(pos.row).slice(0, pos.column);
-        // 光标紧跟在 `[[` 之后（可带部分已输入字符）
-        var isWikilinkContext = /\[\[[^\[\]]*$/.test(line);
-        if (!isWikilinkContext) return;
-        var now = Date.now();
-        if (now - lastTriggerTime < 300) return; // 限流，避免反复弹窗
-        lastTriggerTime = now;
-        setTimeout(function() {
-          try { triggerWikilinkCompletion(); } catch (e) { /* 忽略 */ }
-        }, 0);
-      });
-      mainEditor.__wikilinkTriggerBound = true;
     }
   }
 

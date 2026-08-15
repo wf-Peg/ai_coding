@@ -1,15 +1,22 @@
 @echo off
+chcp 65001 >nul 2>&1
+setlocal enabledelayedexpansion
 REM ============================================
 REM Clip Demo - Build Script (Windows)
-REM Includes embedded JRE for portable deployment
+REM 本地打包 + 可选交互：
+REM   ① 打包前询问是否递增版本号并更新 package.json
+REM   ② 打包完成后询问是否推送到 GitHub Release（含更新包）
 REM ============================================
+
+cd /d "%~dp0"
 
 echo ========================================
 echo   Clip Demo - Desktop App Builder
 echo ========================================
 echo.
 
-REM ---------- Check Build Environment ----------
+REM ---------- Step 1: Check Build Environment ----------
+echo [1/6] 检查构建环境 ...
 set "MISSING="
 
 where node >nul 2>nul
@@ -30,29 +37,74 @@ if not "%MISSING%"=="" (
     echo   3. Maven 3.6+     https://maven.apache.org/download.cgi
     echo.
     pause
+    endlocal
     exit /b 1
 )
 
 echo [OK] Build environment check passed
 echo.
 
-REM ---------- Step 1: Build Backend JAR ----------
-echo [1/4] Building backend JAR...
+REM ---------- Step 2: 版本号确认（询问是否递增版本号并更新） ----------
+echo [2/6] 版本号确认 ...
+
+for /f "usebackq tokens=*" %%v in (`node -p "require('./package.json').version"`) do set "CURRENT_VERSION=%%v"
+if not defined CURRENT_VERSION set "CURRENT_VERSION=1.0.0"
+echo   当前版本: !CURRENT_VERSION!
+
+set "VERSION=!CURRENT_VERSION!"
+set /p "BUMP=是否递增版本号并更新 package.json？(y/N): "
+if /I "!BUMP!"=="y" (
+    REM 建议下一 patch 版本（x.y.z -> x.y.(z+1)）
+    for /f "tokens=1,2,3 delims=." %%a in ("!CURRENT_VERSION!") do (
+        set "MAJOR=%%a"
+        set "MINOR=%%b"
+        set /a "PATCH=%%c + 1" 2>nul
+    )
+    if not defined PATCH set "PATCH=1"
+    set "SUGGEST_VERSION=!MAJOR!.!MINOR!.!PATCH!"
+    set /p "VERSION=请输入新版本号（回车使用建议值 !SUGGEST_VERSION!）: "
+    if "!VERSION!"=="" set "VERSION=!SUGGEST_VERSION!"
+
+    REM 用 node 校验版本号格式 x.y.z（cmd 的 echo|findstr 有尾随空格与转义坑）
+    node -e "const v=process.argv[1]; if(!/^\d+\.\d+\.\d+$/.test(v)) process.exit(1)" "!VERSION!" >nul 2>&1
+    if errorlevel 1 (
+        echo   [ERROR] 版本号格式无效: !VERSION!（应为 x.y.z，如 1.0.8）
+        pause
+        endlocal
+        exit /b 1
+    )
+
+    node -e "const pkg = require('./package.json'); pkg.version = '!VERSION!'; require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\r\n');"
+    if errorlevel 1 (
+        echo   [ERROR] 更新版本号失败
+        pause
+        endlocal
+        exit /b 1
+    )
+    echo   [OK] 版本号已更新为 !VERSION!
+) else (
+    echo   沿用当前版本 !CURRENT_VERSION!
+)
+echo.
+
+REM ---------- Step 3: Build Backend JAR ----------
+echo [3/6] 构建后端 JAR ...
 cd /d "%~dp0backend"
 call mvn clean package -DskipTests -q
 if not exist "target\clip-demo-0.0.1-SNAPSHOT.jar" (
     echo [ERROR] JAR build failed
     cd /d "%~dp0"
     pause
+    endlocal
     exit /b 1
 )
 echo [OK] Backend JAR built successfully
 cd /d "%~dp0"
 
-REM ---------- Step 2: Prepare JRE (jlink 裁剪最小化) ----------
+REM ---------- Step 4: Prepare JRE (jlink 裁剪最小化) ----------
 echo.
-echo [2/4] Generating minimal JRE via jlink...
-echo        This reduces JRE from 316MB to ~50MB
+echo [4/6] 生成最小化 JRE (jlink)...
+echo       可将 JRE 从 316MB 裁剪到约 50MB
 
 REM 检查是否有 jlink 工具（需要 JDK 17+）
 set "HAS_JLINK=0"
@@ -64,7 +116,7 @@ set "HAS_JLINK=1"
 :jlink_check_done
 
 if "%HAS_JLINK%"=="1" (
-    echo        jlink tool found, generating minimal JRE...
+    echo       jlink tool found, generating minimal JRE...
     if not exist "jre\bin\java.exe" (
         call scripts\build-jlink.bat
         if errorlevel 1 (
@@ -87,29 +139,31 @@ if not exist "jre\bin\java.exe" (
     echo        Or:  scripts\download-jre.bat (no JDK needed)
 )
 
-REM ---------- Step 3: Install Electron Dependencies ----------
+REM ---------- Step 5: Install Electron Dependencies ----------
 echo.
-echo [3/4] Installing Electron dependencies...
+echo [5/6] 安装 Electron 依赖...
 if not exist "node_modules" (
     call npm install
     if %errorlevel% neq 0 (
         echo [ERROR] npm install failed
         pause
+        endlocal
         exit /b 1
     )
 ) else (
     echo [OK] node_modules exists, skipping
 )
 
-REM ---------- Step 4: Package Desktop App ----------
+REM ---------- Step 6: Package Desktop App ----------
 echo.
-echo [4/4] Packaging desktop app (Windows .exe)...
-echo     This includes JRE (~150MB), please wait...
+echo [6/6] 打包桌面应用（Windows .exe + 更新包）...
+echo     请耐心等待...
 call npm run build:win
 if %errorlevel% neq 0 (
     echo.
     echo [ERROR] Build failed, check error messages above
     pause
+    endlocal
     exit /b 1
 )
 
@@ -119,8 +173,84 @@ echo   Build Complete!
 echo   Output: dist-electron\
 echo ========================================
 echo.
-echo The app includes embedded JRE.
-echo Users do NOT need to install Java.
-echo Run Setup.exe in dist-electron\ to install.
+
+REM ---------- 可选：推送到 GitHub Release ----------
+set /p "PUBLISH=是否推送到 GitHub Release（含更新包 clip-update-!VERSION!.zip）？(y/N): "
+if /I not "!PUBLISH!"=="y" (
+    echo   已跳过发布。
+    echo   如需一键发布（含版本号提示），也可运行: scripts\release.bat
+    pause
+    endlocal
+    exit /b 0
+)
+
+echo.
+echo   正在准备发布 v!VERSION! ...
+
+where gh >nul 2>&1
+if errorlevel 1 (
+    echo   [ERROR] 未安装 GitHub CLI (gh)，跳过发布。
+    echo   安装: winget install GitHub.cli  然后: gh auth login
+    pause
+    endlocal
+    exit /b 0
+)
+
+gh auth status >nul 2>&1
+if errorlevel 1 (
+    echo   [ERROR] GitHub CLI 未登录，跳过发布。请先运行: gh auth login
+    pause
+    endlocal
+    exit /b 0
+)
+
+REM 提交版本号变更（如已更新）
+if not "!VERSION!"=="!CURRENT_VERSION!" (
+    git add package.json
+    git commit -m "chore: bump version to !VERSION!" 2>nul
+)
+
+set "TAG=v!VERSION!"
+set "REPO=wf-Peg/ai_coding"
+set "DIST_DIR=dist-electron"
+
+REM Release 说明（可选输入）
+set "NOTES=版本更新"
+set /p "NOTES_INPUT=请输入 Release 说明（回车默认「版本更新」）: "
+if not "!NOTES_INPUT!"=="" set "NOTES=!NOTES_INPUT!"
+
+REM 推送代码
+for /f "tokens=*" %%b in ('git branch --show-current') do set "BRANCH=%%b"
+git push origin "!BRANCH!"
+if errorlevel 1 (
+    echo   [ERROR] git push 失败，发布中止
+    pause
+    endlocal
+    exit /b 1
+)
+echo   [OK] 代码已推送
+
+REM 创建 GitHub Release（附带安装包 + 更新包 + 校验文件）
+set "RELEASE_CMD=gh release create %TAG% --repo %REPO% --title "%TAG%" --notes "!NOTES!""
+for %%f in ("%DIST_DIR%\*.exe" "%DIST_DIR%\*.dmg" "%DIST_DIR%\*.AppImage" "%DIST_DIR%\*.zip" "%DIST_DIR%\*.sha256") do (
+    if exist %%f set "RELEASE_CMD=!RELEASE_CMD! %%f"
+)
+
+!RELEASE_CMD!
+if errorlevel 1 (
+    echo   [ERROR] GitHub Release 创建失败
+    pause
+    endlocal
+    exit /b 1
+)
+
+echo.
+echo ========================================
+echo   Release Complete!
+echo   Version: %TAG%
+echo   URL: https://github.com/%REPO%/releases/tag/%TAG%
+echo ========================================
 echo.
 pause
+endlocal
+exit /b 0
