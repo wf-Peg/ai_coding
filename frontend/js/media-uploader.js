@@ -23,6 +23,15 @@
     configuredApiRoot = root ? String(root).replace(/\/+$/, '') : '';
   }
 
+  /** 后端状态读取钩子：页面注入返回 'ready'|'stopped'|'starting'|'error' 的函数（来自主框架广播） */
+  var backendStatusProvider = null;
+  function setBackendStatusProvider(fn) {
+    backendStatusProvider = typeof fn === 'function' ? fn : null;
+  }
+  function getBackendStatus() {
+    try { return backendStatusProvider ? backendStatusProvider() : null; } catch (e) { return null; }
+  }
+
   /** 上传地址：{API_ROOT}/media/upload */
   function getUploadUrl() {
     var root = configuredApiRoot
@@ -42,11 +51,15 @@
    */
   function compressImage(file) {
     return new Promise(function (resolve, reject) {
-      if (!file || !file.type || file.type.indexOf('image/') !== 0) {
-        return reject(new Error('不是图片文件: ' + (file && file.name)));
+      if (!file) {
+        return reject(new Error('不是图片文件'));
       }
+      // 兼容拖拽本地文件 type 为空的情况：交由 Image 实际加载判断，扩展名兜底
+      var lowerName = (file.name || '').toLowerCase();
+      var isGif = file.type === 'image/gif' || /.gif$/i.test(lowerName);
+      var isPng = file.type === 'image/png' || /.png$/i.test(lowerName);
       // gif 动图保持原样（canvas 会丢失动画）
-      if (file.type === 'image/gif') {
+      if (isGif) {
         return resolve(file);
       }
       var objectUrl = URL.createObjectURL(file);
@@ -66,7 +79,7 @@
           canvas.height = height;
           var ctx = canvas.getContext('2d');
           // webp → jpg（白底）；png 保留透明 → png
-          var mime = (file.type === 'image/png') ? 'image/png' : 'image/jpeg';
+          var mime = isPng ? 'image/png' : 'image/jpeg';
           if (mime === 'image/jpeg') {
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, width, height);
@@ -137,7 +150,24 @@
         }
         reject(new Error(detail || '上传失败（HTTP ' + xhr.status + '）'));
       };
-      xhr.onerror = function () { reject(new Error('网络错误，上传失败')); };
+      xhr.onerror = function () {
+        // 分级提示：优先依据主框架广播的后端状态；无钩子时探测连通性
+        var status = getBackendStatus();
+        if (status && status !== 'ready') {
+          reject(new Error('后端服务未就绪（' + status + '），请确认后端已启动后再上传'));
+        } else if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+          reject(new Error('网络不可用，请检查网络连接'));
+        } else {
+          // 无广播钩子（扩展等独立环境）：快速探测后端连通性
+          var probe = new XMLHttpRequest();
+          probe.open('GET', getUploadUrl().replace(/\/media\/upload$/, '/clip/list'), true);
+          probe.timeout = 2000;
+          probe.onload = function () { reject(new Error('网络错误，上传失败')); };
+          probe.onerror = function () { reject(new Error('无法连接后端服务，请确认后端已启动（8081）')); };
+          probe.ontimeout = function () { reject(new Error('无法连接后端服务，请确认后端已启动（8081）')); };
+          probe.send();
+        }
+      };
       xhr.send(formData);
     });
   }
@@ -183,6 +213,7 @@
     MAX_SIZE: MAX_SIZE,
     getUploadUrl: getUploadUrl,
     setApiRoot: setApiRoot,
+    setBackendStatusProvider: setBackendStatusProvider,
     compressImage: compressImage,
     uploadImage: uploadImage,
     uploadFiles: uploadFiles

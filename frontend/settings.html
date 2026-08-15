@@ -1247,7 +1247,8 @@
             }
             const result = await api.clearCache();
             if (result.success) {
-                resultEl.textContent = '✅ 缓存已清除，刷新页面后生效（Ctrl+Shift+R 强制刷新）';
+                const cleanedNote = (result && result.cleanedCount) ? '，已清理 ' + result.cleanedCount + ' 张未引用的临时图片' : '';
+                resultEl.textContent = '✅ 缓存已清除' + cleanedNote + '，刷新页面后生效（Ctrl+Shift+R 强制刷新）';
                 resultEl.style.color = '#10b981';
             } else {
                 resultEl.textContent = '❌ 清除失败: ' + (result.message || '未知错误');

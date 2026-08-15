@@ -922,7 +922,8 @@ function startFrontendServer(config) {
       if (urlPath.startsWith('/api/')) {
         const isAiStream = urlPath.startsWith('/api/ai/chat/stream');
         const isWikiQuery = urlPath.startsWith('/api/wiki/query');
-        const noTimeout = isAiStream || isWikiQuery;
+        const isWikiLint = urlPath.startsWith('/api/wiki/lint');
+        const noTimeout = isAiStream || isWikiQuery || isWikiLint;
         const proxyReq = http.request({
           hostname: '127.0.0.1',
           port: config.backendPort,
@@ -2252,7 +2253,20 @@ function setupIPC() {
         });
       }
       log.info('[Cache] Browser cache cleared');
-      return { success: true };
+      // 联动清理未被引用的临时图片（media 孤儿：上传但未提交剪藏的图片），
+      // 避免临时上传文件在 media/ 中永久残留。
+      let cleanedCount = 0;
+      try {
+        const res = await fetch('http://127.0.0.1:' + (config.backendPort || 8081) + '/api/media/cleanup-orphans', { method: 'POST' });
+        if (res.ok) {
+          const data = await res.json();
+          cleanedCount = (data && data.cleanedCount) || 0;
+        }
+        log.info('[Cache] Orphan media cleaned: ' + cleanedCount);
+      } catch (err) {
+        log.warn('[Cache] Orphan media cleanup failed: ' + err.message);
+      }
+      return { success: true, cleanedCount: cleanedCount };
     } catch (e) {
       log.error('[Cache] Clear failed:', e.message);
       return { success: false, message: e.message };

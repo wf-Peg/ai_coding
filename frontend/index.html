@@ -1007,6 +1007,10 @@
               globalIndicator.title = '后端服务状态: ' + (label || state);
             }
           }
+          // 广播后端状态到所有 iframe 子页面（剪藏/编辑器等图片上传按此状态分级提示）
+          try {
+            notifyAllFrames({ action: 'backendState', state: state, label: label || '' });
+          } catch (e) {}
         }
 
         /**

@@ -2291,6 +2291,26 @@
             min-height: 80px;
         }
         html[data-theme="dark"] .content-preview { background: #2d2d2d; color: #d4d4d4; }
+
+        /* 深色主题 markdown 渲染适配：中性底色 + 高对比文字，避免"深蓝底浅蓝字" */
+        html[data-theme="dark"] .markdown-content { color: #d4d4d4; }
+        html[data-theme="dark"] .markdown-content strong { color: #e5e7eb; }
+        html[data-theme="dark"] .markdown-content a { color: #7db4ff; border-bottom-color: rgba(125,180,255,0.4); }
+        html[data-theme="dark"] .markdown-content code {
+            background-color: #3a3a3a !important;
+            color: #e5e7eb !important;
+        }
+        html[data-theme="dark"] .markdown-content pre {
+            background-color: #1f1f1f !important;
+            border-color: #3e3e3e !important;
+        }
+        html[data-theme="dark"] .markdown-content pre code { color: #d4d4d4 !important; }
+        html[data-theme="dark"] .markdown-content blockquote {
+            background-color: rgba(255,255,255,0.04) !important;
+            color: #b0b0b0 !important;
+            border-left-color: #569cff !important;
+        }
+        html[data-theme="dark"] .markdown-content img { opacity: 0.92; }
         .content-preview img, .markdown-content img {
             max-width: 100%;
             border-radius: 8px;
@@ -3431,21 +3451,34 @@
     }
 
     // 从剪贴板/拖拽中提取图片文件
+    // 兼容拖拽本地文件时 item.type 为空的情况：MIME 判断 + 文件名扩展名兜底，
+    // items 与 files 两路合并去重，避免拖拽图片被漏识别导致浏览器插入文件路径文本
     function extractImageFiles(dataTransfer) {
         const files = [];
         if (!dataTransfer) return files;
+        const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'];
+        const isImageFile = (file) => {
+            if (!file) return false;
+            if (file.type && file.type.startsWith('image/')) return true;
+            if (file.name) {
+                const ext = (file.name.split('.').pop() || '').toLowerCase();
+                return IMAGE_EXTS.indexOf(ext) >= 0;
+            }
+            return false;
+        };
         if (dataTransfer.items && dataTransfer.items.length) {
             for (let i = 0; i < dataTransfer.items.length; i++) {
                 const item = dataTransfer.items[i];
-                if (item.kind === 'file' && item.type && item.type.startsWith('image/')) {
+                if (item.kind === 'file') {
                     const file = item.getAsFile();
-                    if (file) files.push(file);
+                    if (file && isImageFile(file)) files.push(file);
                 }
             }
-        } else if (dataTransfer.files && dataTransfer.files.length) {
+        }
+        if (dataTransfer.files && dataTransfer.files.length) {
             for (let i = 0; i < dataTransfer.files.length; i++) {
                 const file = dataTransfer.files[i];
-                if (file.type && file.type.startsWith('image/')) files.push(file);
+                if (file && isImageFile(file) && files.indexOf(file) < 0) files.push(file);
             }
         }
         return files;
@@ -3507,7 +3540,8 @@
         uploadedImages.forEach((entry, index) => {
             const el = document.createElement('div');
             el.className = 'image-preview-item';
-            el.dataset.index = index;
+            el.dataset.id = entry.localId;
+            el.dataset.status = entry.status;
             let inner = '';
             if (entry.dataUrl) {
                 inner += '<img src="' + entry.dataUrl + '" alt="">';
@@ -3519,21 +3553,22 @@
                 inner += '<div class="preview-status"><div class="preview-progress" style="width:' + pct + '%"></div></div>';
             } else if (entry.status === 'error') {
                 inner += '<div class="preview-status error"></div>';
-                inner += '<button type="button" class="preview-retry" data-index="' + index + '">重试</button>';
+                inner += '<button type="button" class="preview-retry" data-id="' + entry.localId + '">重试</button>';
             } else if (entry.status === 'done') {
                 inner += '<div class="preview-dot" title="上传完成"></div>';
             }
-            inner += '<button type="button" class="preview-remove" data-index="' + index + '" title="移除图片（同时移除内容引用）">✕</button>';
+            inner += '<button type="button" class="preview-remove" data-id="' + entry.localId + '" title="移除图片（同时移除内容引用）">✕</button>';
             el.innerHTML = inner;
             box.appendChild(el);
         });
     }
 
     // 移除图片：从列表移除 + 移除 content 中对应引用
-    function removeUploadedImage(index) {
-        const entry = uploadedImages[index];
-        if (!entry) return;
-        uploadedImages.splice(index, 1);
+    function removeUploadedImage(id) {
+        const idx = uploadedImages.findIndex(x => x.localId === id);
+        if (idx < 0) return;
+        const entry = uploadedImages[idx];
+        uploadedImages.splice(idx, 1);
         if (entry.dataUrl) URL.revokeObjectURL(entry.dataUrl);
         // 移除 content 中的引用（已上传完成的）
         if (entry.path) {
@@ -3550,9 +3585,11 @@
     }
 
     // 重试单张上传
-    function retryUpload(index) {
-        const entry = uploadedImages[index];
-        if (!entry || !entry.file) return;
+    function retryUpload(id) {
+        const idx = uploadedImages.findIndex(x => x.localId === id);
+        if (idx < 0) return;
+        const entry = uploadedImages[idx];
+        if (!entry.file) return;
         entry.status = 'compressing';
         entry.error = null;
         renderImagePreviews();
@@ -3626,6 +3663,12 @@
 
     // 图片区事件绑定
     function bindImageEvents() {
+        // 注入后端状态读取钩子（主框架广播 backendState 维护 window.__backendState）
+        try {
+            window.MediaKit.uploader.setBackendStatusProvider(function () {
+                return window.__backendState || null;
+            });
+        } catch (e) {}
         const btn = document.getElementById('image-upload-btn');
         const input = getImageInput();
         const previewToggle = document.getElementById('image-preview-toggle');
@@ -3670,8 +3713,8 @@
             previews.addEventListener('click', function (e) {
                 const removeBtn = e.target.closest('.preview-remove');
                 const retryBtn = e.target.closest('.preview-retry');
-                if (removeBtn) removeUploadedImage(parseInt(removeBtn.dataset.index, 10));
-                if (retryBtn) retryUpload(parseInt(retryBtn.dataset.index, 10));
+                if (removeBtn) removeUploadedImage(Number(removeBtn.dataset.id));
+                if (retryBtn) retryUpload(Number(retryBtn.dataset.id));
             });
         }
     }
@@ -5858,7 +5901,10 @@
 
 // ====== 接收主框架消息：滚动到顶部 / 刷新 ======
 window.addEventListener('message', (e) => {
-  if (e.data.action === 'scrollToTop') {
+  if (e.data.action === 'backendState') {
+    // 主框架广播的后端状态（ready/stopped/starting/error），供上传失败分级提示
+    window.__backendState = e.data.state || '';
+  } else if (e.data.action === 'scrollToTop') {
     document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
   } else if (e.data.action === 'refresh') {
     location.reload();

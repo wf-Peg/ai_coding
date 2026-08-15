@@ -3164,7 +3164,11 @@
 
   window.addEventListener('message', event => {
     const data = event.data || {};
-    if (data.action === 'themeChange' || data.type === 'themeChanged' || data.type === 'appearanceChanged') {
+    if (data.action === 'backendState') {
+      // 主框架广播的后端状态，供编辑器图片上传失败分级提示
+      window.__backendState = data.state || '';
+      try { window.MediaKit.uploader.setBackendStatusProvider(function () { return window.__backendState || null; }); } catch (e) {}
+    } else if (data.action === 'themeChange' || data.type === 'themeChanged' || data.type === 'appearanceChanged') {
       applyTheme();
     } else if (data.action === 'editorPing') {
       window.parent.postMessage({ type: 'editorReady' }, '*');

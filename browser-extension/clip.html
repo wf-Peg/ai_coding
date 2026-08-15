@@ -1704,6 +1704,81 @@
 
     @keyframes extSlideIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
     @keyframes extSlideOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(30px); } }
+
+    /* ── 图文一体缩略条（与主页面 clip.html 同一套 class，D-L 同步）── */
+    .image-preview-item {
+        position: relative;
+        width: 72px;
+        height: 72px;
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        background: var(--surface-hover);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        flex-shrink: 0;
+    }
+    .image-preview-item img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+    .image-preview-item .preview-status {
+        position: absolute;
+        left: 0; right: 0; bottom: 0;
+        height: 4px;
+        background: rgba(0,0,0,0.3);
+        overflow: hidden;
+    }
+    .image-preview-item .preview-progress {
+        height: 100%;
+        background: var(--primary);
+        transition: width 0.2s ease;
+    }
+    .image-preview-item .preview-status.error {
+        height: 100%;
+        background: rgba(220,38,38,0.4);
+    }
+    .image-preview-item .preview-dot {
+        position: absolute;
+        right: 4px; bottom: 4px;
+        width: 10px; height: 10px;
+        border-radius: 50%;
+        background: #22c55e;
+        box-shadow: 0 0 0 2px rgba(255,255,255,0.75);
+    }
+    .image-preview-item .preview-remove {
+        position: absolute;
+        top: 3px; right: 3px;
+        width: 20px; height: 20px;
+        border: none;
+        border-radius: 50%;
+        background: rgba(0,0,0,0.5);
+        color: #fff;
+        font-size: 0.72rem;
+        line-height: 20px;
+        text-align: center;
+        cursor: pointer;
+        padding: 0;
+        transition: background 0.15s ease;
+    }
+    .image-preview-item .preview-remove:hover {
+        background: rgba(220,38,38,0.9);
+    }
+    .image-preview-item .preview-retry {
+        position: absolute;
+        left: 50%; top: 50%;
+        transform: translate(-50%, -50%);
+        padding: 3px 10px;
+        border: none;
+        border-radius: 999px;
+        background: rgba(220,38,38,0.92);
+        color: #fff;
+        font-size: 0.68rem;
+        cursor: pointer;
+        white-space: nowrap;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    }
 </style>
     <link id="clipThemeNotion" rel="stylesheet" href="./styles/clip-theme-notion.css" disabled>
 </head>

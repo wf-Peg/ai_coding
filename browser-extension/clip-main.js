@@ -23,6 +23,7 @@ const MAX_TAGS = 10;
 let uploadedFileBase64 = null;
 let uploadedFileName = null;
 let uploadedImages = [];
+let extImageLocalId = 0; // 缩略条 localId 自增（删除/重试按 id 定位，避免下标错位）
 const THEME_STORAGE_KEY = 'app_theme_v1';
 let currentPromptType = 'daily';
 let promptConfigCache = null;
@@ -1185,7 +1186,7 @@ function handleImageFiles(files) {
     window.MediaKit.uploader.uploadFiles(imageFiles, {
         onStart: (item) => {
             const entry = {
-                localId: Date.now() + Math.random(),
+                localId: ++extImageLocalId,
                 name: item.name,
                 status: 'compressing',
                 dataUrl: URL.createObjectURL(item.file),
@@ -1234,10 +1235,11 @@ function insertImageMarkdown(path) {
 }
 
 // 移除图片：列表移除 + 移除 content 中对应引用
-function removeUploadedImage(index) {
-    const entry = uploadedImages[index];
-    if (!entry) return;
-    uploadedImages.splice(index, 1);
+function removeUploadedImage(id) {
+    const idx = uploadedImages.findIndex(x => x.localId === id);
+    if (idx < 0) return;
+    const entry = uploadedImages[idx];
+    uploadedImages.splice(idx, 1);
     if (entry.dataUrl) URL.revokeObjectURL(entry.dataUrl);
     if (entry.path) {
         const textarea = document.getElementById('content');
@@ -1252,9 +1254,11 @@ function removeUploadedImage(index) {
 }
 
 // 重试单张上传
-function retryUpload(index) {
-    const entry = uploadedImages[index];
-    if (!entry || !entry.file) return;
+function retryUpload(id) {
+    const idx = uploadedImages.findIndex(x => x.localId === id);
+    if (idx < 0) return;
+    const entry = uploadedImages[idx];
+    if (!entry.file) return;
     entry.status = 'compressing';
     entry.error = null;
     renderImagePreviews();
@@ -1289,46 +1293,35 @@ function renderImagePreviews() {
     grid.innerHTML = '';
     uploadedImages.forEach((entry, index) => {
         const item = document.createElement('div');
-        item.style.cssText = 'position: relative; width: 80px; height: 80px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border);';
-        const imgEl = document.createElement('img');
+        item.className = 'image-preview-item';
+        item.dataset.id = entry.localId;
+        item.dataset.status = entry.status;
+        let inner = '';
         if (entry.dataUrl) {
-            imgEl.src = entry.dataUrl;
+            inner += '<img src="' + entry.dataUrl + '" alt="">';
         } else if (entry.path) {
-            imgEl.src = window.MediaKit.render.mediaUrl(entry.path) + '?thumb=1';
+            inner += '<img src="' + window.MediaKit.render.mediaUrl(entry.path) + '?thumb=1" alt="">';
         }
-        imgEl.style.cssText = 'width: 100%; height: 100%; object-fit: cover; display: block;';
-        item.appendChild(imgEl);
-        // 状态角标
         if (entry.status === 'uploading' || entry.status === 'compressing') {
-            const status = document.createElement('div');
-            status.style.cssText = 'position: absolute; left: 0; right: 0; bottom: 0; font-size: 10px; text-align: center; color: #fff; background: rgba(0,0,0,0.55);';
-            status.textContent = entry.status === 'compressing' ? '压缩中' : (entry.progress != null ? entry.progress + '%' : '上传中');
-            item.appendChild(status);
+            const pct = (entry.status === 'compressing' || entry.progress == null) ? 0 : entry.progress;
+            inner += '<div class="preview-status"><div class="preview-progress" style="width:' + pct + '%"></div></div>';
         } else if (entry.status === 'error') {
-            const status = document.createElement('div');
-            status.style.cssText = 'position: absolute; left: 0; right: 0; bottom: 0; font-size: 10px; text-align: center; color: #fff; background: rgba(220,38,38,0.8);';
-            status.textContent = '失败';
-            item.appendChild(status);
-            const retry = document.createElement('button');
-            retry.textContent = '重试';
-            retry.style.cssText = 'position: absolute; top: 2px; left: 2px; border: none; border-radius: 8px; background: rgba(220,38,38,0.85); color: #fff; font-size: 10px; cursor: pointer; padding: 1px 6px;';
-            retry.addEventListener('click', () => retryUpload(index));
-            item.appendChild(retry);
+            inner += '<div class="preview-status error"></div>';
+            inner += '<button type="button" class="preview-retry" data-id="' + entry.localId + '">重试</button>';
         } else if (entry.status === 'done') {
-            const status = document.createElement('div');
-            status.style.cssText = 'position: absolute; left: 0; right: 0; bottom: 0; font-size: 10px; text-align: center; color: #fff; background: rgba(16,185,129,0.7);';
-            status.textContent = '✓';
-            item.appendChild(status);
+            inner += '<div class="preview-dot" title="上传完成"></div>';
         }
-        // 移除按钮
-        const close = document.createElement('button');
-        close.textContent = '\u00d7';
-        close.title = '移除图片（同时移除内容引用）';
-        close.style.cssText = 'position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; border: none; background: rgba(0,0,0,0.55); color: #fff; font-size: 12px; line-height: 18px; cursor: pointer; padding: 0;';
-        close.addEventListener('click', () => removeUploadedImage(index));
-        item.appendChild(close);
+        inner += '<button type="button" class="preview-remove" data-id="' + entry.localId + '" title="移除图片（同时移除内容引用）">✕</button>';
+        item.innerHTML = inner;
         grid.appendChild(item);
     });
+    // 事件委托：删除/重试（按 localId，避免数组下标错位）
+    grid.onclick = function (e) {
+        const removeBtn = e.target.closest('.preview-remove');
+        const retryBtn = e.target.closest('.preview-retry');
+        if (removeBtn) removeUploadedImage(Number(removeBtn.dataset.id));
+        if (retryBtn) retryUpload(Number(retryBtn.dataset.id));
+    };
 }
 
 function handleFile(file) {
@@ -1414,22 +1407,61 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // 内容框粘贴图片
+    // 从剪贴板/拖拽中提取图片文件（兼容拖拽本地文件 item.type 为空：扩展名兜底）
+    function extractImageFiles(dataTransfer) {
+        const files = [];
+        if (!dataTransfer) return files;
+        const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'];
+        const isImageFile = (file) => {
+            if (!file) return false;
+            if (file.type && file.type.startsWith('image/')) return true;
+            if (file.name) {
+                const ext = (file.name.split('.').pop() || '').toLowerCase();
+                return IMAGE_EXTS.indexOf(ext) >= 0;
+            }
+            return false;
+        };
+        if (dataTransfer.items && dataTransfer.items.length) {
+            for (const item of dataTransfer.items) {
+                if (item.kind === 'file') {
+                    const file = item.getAsFile();
+                    if (file && isImageFile(file)) files.push(file);
+                }
+            }
+        }
+        if (dataTransfer.files && dataTransfer.files.length) {
+            for (const file of dataTransfer.files) {
+                if (file && isImageFile(file) && files.indexOf(file) < 0) files.push(file);
+            }
+        }
+        return files;
+    }
+
+    // 内容框粘贴/拖拽图片
     const contentTextarea = document.getElementById('content');
     if (contentTextarea) {
         contentTextarea.addEventListener('paste', function(e) {
-            const items = e.clipboardData && e.clipboardData.items;
-            if (!items) return;
-            const imageFiles = [];
-            for (const item of items) {
-                if (item.type && item.type.startsWith('image/')) {
-                    const file = item.getAsFile();
-                    if (file) imageFiles.push(file);
-                }
-            }
+            const imageFiles = extractImageFiles(e.clipboardData || window.clipboardData);
             if (imageFiles.length > 0) {
                 e.preventDefault();
                 handleImageFiles(imageFiles);
+            }
+        });
+        // 拖拽图片到内容框（与粘贴走同一上传流，避免浏览器插入文件路径文本）
+        contentTextarea.addEventListener('dragover', function(e) {
+            if (e.dataTransfer && Array.prototype.some.call(e.dataTransfer.types || [], t => t === 'Files')) {
+                e.preventDefault();
+            }
+        });
+        contentTextarea.addEventListener('drop', function(e) {
+            const imageFiles = extractImageFiles(e.dataTransfer);
+            if (imageFiles.length > 0) {
+                e.preventDefault();
+                handleImageFiles(imageFiles);
+            } else if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+                // 有文件但非图片：阻止默认插入路径文本
+                e.preventDefault();
+                showToast('仅支持图片文件');
             }
         });
     }
