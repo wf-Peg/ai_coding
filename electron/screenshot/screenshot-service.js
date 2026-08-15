@@ -357,36 +357,48 @@ function closeAllPasteWindows() {
 
 // ==================== IPC 与初始化 ====================
 
-/** 执行外部命令并等待退出（OCR 模型下载等） */
+/** 执行外部命令并等待退出；失败时携带输出摘要便于诊断 */
 function spawnAsync(cmd, args) {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { stdio: 'inherit', windowsHide: true });
+    const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    let out = '', errOut = '';
+    child.stdout.on('data', d => { out += d.toString(); });
+    child.stderr.on('data', d => { errOut += d.toString(); });
     child.on('error', reject);
     child.on('exit', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(cmd + ' 退出码 ' + code));
+      if (code === 0) resolve(out);
+      else {
+        const detail = (errOut || out || '').replace(/\s+/g, ' ').slice(-300);
+        reject(new Error(cmd + ' 退出码 ' + code + (detail ? '：' + detail : '')));
+      }
     });
   });
 }
 
 /** 内联 PowerShell 下载模型（EncodedCommand，避免打包 asar 内脚本路径不可执行） */
 function downloadModelsInline(modelsDir) {
-  const ps = 
-    "$ErrorActionPreference = 'Stop'" + '\n' +
-    "$dir = '" + modelsDir + "'" + '\n' +
-    "New-Item -ItemType Directory -Force -Path $dir | Out-Null" + '\n' +
-    "$base = if ($env:OCR_BASE_URL) { $env:OCR_BASE_URL } else { 'https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0' }" + '\n' +
-    "$files = @(" + '\n' +
-    "  @{ n = 'ch_PP-OCRv4_det_infer.onnx'; u = \"$base/det.onnx\" }," + '\n' +
-    "  @{ n = 'ch_PP-OCRv4_rec_infer.onnx'; u = \"$base/rec.onnx\" }," + '\n' +
-    "  @{ n = 'ch_PP-OCRv4_cls_infer.onnx'; u = \"$base/cls.onnx\" }," + '\n' +
-    "  @{ n = 'ppocr_keys_v1.txt'; u = \"$base/ppocr_keys_v1.txt\" }" + '\n' +
-    ")" + '\n' +
-    "foreach ($f in $files) {" + '\n' +
-    "  $t = Join-Path $dir $f.n" + '\n' +
-    "  if (Test-Path $t) { continue }" + '\n' +
-    "  Invoke-WebRequest -Uri $f.u -OutFile $t -UseBasicParsing -TimeoutSec 180" + '\n' +
-    "}";
+  const ps = [
+    "$ErrorActionPreference = 'Stop'",
+    "$dir = '" + modelsDir + "'",
+    "New-Item -ItemType Directory -Force -Path $dir | Out-Null",
+    "$jobs = @(",
+    "  @{ n = 'ch_PP-OCRv4_det_infer.onnx'; urls = @('https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/det.onnx', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv4_det_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv4_det_infer.onnx') },",
+    "  @{ n = 'ch_PP-OCRv4_rec_infer.onnx'; urls = @('https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/rec.onnx', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv4_rec_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv4_rec_infer.onnx') },",
+    "  @{ n = 'ch_PP-OCRv4_cls_infer.onnx'; urls = @('https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/cls.onnx', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_cls/ch_PP-OCRv4_cls_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_cls/ch_PP-OCRv4_cls_infer.onnx') },",
+    "  @{ n = 'ppocr_keys_v1.txt'; urls = @('https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/ppocr_keys_v1.txt', 'https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/ppocr_keys_v1.txt', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/ppocr_keys_v1.txt') }",
+    ")",
+    "foreach ($job in $jobs) {",
+    "  $t = Join-Path $dir $job.n",
+    "  if (Test-Path $t) { Write-Output ('[OK] 已存在 ' + $job.n); continue }",
+    "  $ok = $false",
+    "  foreach ($u in $job.urls) {",
+    "    try { Invoke-WebRequest -Uri $u -OutFile $t -UseBasicParsing -TimeoutSec 60; $ok = $true; Write-Output ('[OK] ' + $job.n); break }",
+    "    catch { Write-Output ('  [skip] ' + $job.n + ' <- ' + $_.Exception.Message) }",
+    "  }",
+    "  if (-not $ok) { Write-Output ('[FAIL] ' + $job.n + ' 所有下载源均失败') }",
+    "}",
+    "Write-Output ('DONE: ' + $dir)"
+  ].join('\n');
   // EncodedCommand: UTF-16LE Base64，规避引号/编码/路径问题
   const encoded = Buffer.from(ps, 'utf16le').toString('base64');
   return spawnAsync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded]);

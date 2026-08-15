@@ -2,6 +2,7 @@
 # 格式: 日期 时间 | 提交说明
 # 每次提交代码后自动追加到此文件
 
+2026-08-16 04:30 | OCR 一键安装增强：多源回退下载（GitHub release + hf-mirror 国内镜像 + HuggingFace + PaddleOCR 官方字典），spawnAsync 捕获输出返回具体失败原因；沙箱实测 exit 0 镜像可达
 2026-08-16 04:00 | 修复 spawnAsync 定义丢失（一键安装报 spawnAsync is not defined）→ 恢复 helper 定义
 2026-08-16 03:40 | 截图修复三连：deps.log 非函数导致快捷键注册中断（贴图/截图失效）→ log helper 兼容；模型目录改 userData（打包 asar 内 ENOTDIR）；一键安装改 EncodedCommand 内联（asar 脚本不可执行致 4294770688）→ 沙箱实测解析正常
 2026-08-16 03:00 | 修复快捷键录制自动加 Ctrl（功能键 F1-F12 直接保存，普通键需修饰键）、打开模型目录按钮（await openPath + 结果反馈 + 未更新提示）

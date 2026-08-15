@@ -10,7 +10,9 @@
     sql: 'sql',
     txt: 'text',
     log: 'text',
-    md: 'text',
+    md: 'markdown',
+    mdown: 'markdown',
+    markdown: 'markdown',
     csv: 'text'
   };
 

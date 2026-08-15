@@ -2137,7 +2137,11 @@ function setupIPC() {
     try {
       const config = loadConfig();
       const vaultRoot = resolveVaultRoot(config);
-      if (!fs.existsSync(vaultRoot)) return { backlinks: [] };
+      log.info('[EditorWikilink] find backlinks for', basename, '| vaultRoot=', vaultRoot);
+      if (!fs.existsSync(vaultRoot)) {
+        log.warn('[EditorWikilink] vault root not found:', vaultRoot);
+        return { backlinks: [] };
+      }
       const backlinks = [];
       const walk = (dir) => {
         const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -2169,6 +2173,7 @@ function setupIPC() {
         }
       };
       walk(vaultRoot);
+      log.info('[EditorWikilink] find backlinks result', basename, '| count=', backlinks.length);
       return { backlinks };
     } catch (err) {
       log.error('[EditorWikilink] find backlinks failed:', err.message);

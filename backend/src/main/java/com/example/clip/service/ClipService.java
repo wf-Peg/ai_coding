@@ -572,6 +572,30 @@ public class ClipService {
     }
 
     /**
+     * 回存"内容分发"最近一次投递结果（内容分发 MVP）。
+     * <p>
+     * 仅更新 lastDispatchTarget / lastDispatchResult / lastDispatchAt 三个
+     * 可空字段，不动既有字段；找不到剪藏时返回 null。
+     * </p>
+     *
+     * @param id       剪藏 ID
+     * @param targetId 投递目标标识（如 internal:divergent）
+     * @param result   投递结果文本（Markdown）
+     * @return 更新后的剪藏对象；剪藏不存在返回 null
+     */
+    public ClipContent updateDispatchResult(Long id, String targetId, String result) {
+        ClipContent clip = getClipById(id);
+        if (clip == null) {
+            return null;
+        }
+        clip.setLastDispatchTarget(targetId);
+        clip.setLastDispatchResult(result);
+        clip.setLastDispatchAt(java.time.LocalDateTime.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        return storageService.saveClip(clip);
+    }
+
+    /**
      * 使用文本编辑器提交的白名单字段更新剪藏。
      *
      * 更新后使用 replaceClip 持久化，确保分类改变时旧分类文件中的记录会被移除。

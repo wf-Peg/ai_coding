@@ -5,7 +5,7 @@
   window.API_BASE_URL = API_BASE_URL; // 暴露给 media-uploader.js（const 不挂 window）
   const AI_CHAT_API_URL = API_BASE_URL.replace(/\/api\/clip$/, '/api/ai/chat/stream');
   const MAX_TRANSFORM_LENGTH = 5 * 1024 * 1024;
-  const LANGUAGE_EXTENSIONS = { json: 'json', xml: 'xml', sql: 'sql', text: 'txt' };
+  const LANGUAGE_EXTENSIONS = { json: 'json', xml: 'xml', sql: 'sql', text: 'txt', markdown: 'md' };
   const THEME_STORAGE_KEY = 'app_theme_v1';
   const APPEARANCE_KEY = 'app_appearance_v1';
   const Range = ace.require('ace/range').Range;
@@ -27,7 +27,7 @@
     return {
       id: `tab_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       fileToken: null,
-      fileName: '未命名.txt',
+      fileName: '未命名.md',
       displayPath: '',
       encoding: 'UTF-8',
       encodingConfidence: '',
@@ -41,7 +41,7 @@
       clipType: 'store-only',
       clipMetadata: null,
       content: '',
-      language: 'text',
+      language: 'markdown',
       scrollTop: 0,
       scrollLeft: 0,
       cursorRow: 0,
@@ -87,7 +87,7 @@
     'autosaveStatus', 'historyCount', 'historyList', 'closeHistoryBtn',
     'undoHistoryBtn', 'redoHistoryBtn', 'clearHistoryBtn', 'mainPane', 'historyPane', 'recentPane',
     'recentList', 'closeRecentBtn', 'clearRecentBtn', 'favPane', 'favList', 'closeFavBtn', 'clearFavBtn',
-    'backlinksPane', 'backlinksList', 'backlinksTarget', 'saveToVaultBtn', 'closeBacklinksBtn', 'aiChatPane', 'aiChatMessages', 'aiChatInput',
+    'backlinksPane', 'backlinksList', 'backlinksTarget', 'backlinksCount', 'saveToVaultBtn', 'closeBacklinksBtn', 'aiChatPane', 'aiChatMessages', 'aiChatInput',
     'aiChatSendBtn', 'aiChatStopBtn', 'aiChatClearBtn', 'aiChatCloseBtn', 'aiChatStatus',
     'aiChatResizeHandle', 'aiPetBtn', 'editorContextMenu', 'aiSearchContextBtn', 'smartIngestContextBtn', 'aiImportPasswordContextBtn',
     'offlineTranslateContextBtn', 'onlineTranslateContextBtn', 'addCustomMappingContextBtn', 'addToDictLibContextBtn', 'aiContextAnalysisContextBtn',
@@ -711,7 +711,7 @@
   }
 
   function setLanguage(language) {
-    const normalized = ['json', 'xml', 'sql'].includes(language) ? language : 'text';
+    const normalized = ['json', 'xml', 'sql', 'markdown'].includes(language) ? language : 'text';
     elements.languageSelect.value = normalized;
     mainEditor.session.setMode(`ace/mode/${normalized}`);
     compareEditor.session.setMode(`ace/mode/${normalized}`);
@@ -2394,7 +2394,7 @@
   }
 
   function updateStatusBar() {
-    const langMap = { text: '纯文本', json: 'JSON', xml: 'XML', sql: 'SQL' };
+    const langMap = { text: '纯文本', json: 'JSON', xml: 'XML', sql: 'SQL', markdown: 'Markdown' };
     const lang = elements.languageSelect.value;
     elements.statusLang.textContent = langMap[lang] || lang;
     const tabSize = mainEditor.session.getTabSize();
@@ -2632,7 +2632,7 @@
       const editorContent = (clip.bodyContent && clip.bodyContent.trim()) ? clip.bodyContent : (clip.content || '');
       const format = clip.contentFormat || EditorCore.detectLanguage(clip.sourceFileName || clip.title, editorContent);
       setEditorContent(editorContent, {
-        fileName: clip.sourceFileName || `${clip.title || `clip-${clip.id}`}.${format === 'text' ? 'txt' : format}`,
+        fileName: clip.sourceFileName || `${clip.title || `clip-${clip.id}`}.${format === 'text' ? 'txt' : (format === 'markdown' ? 'md' : format)}`,
         displayPath: `剪藏 #${clip.id}`,
         encoding: clip.sourceEncoding || 'UTF-8',
         encodingConfidence: '剪藏元数据',
@@ -2681,7 +2681,7 @@
       const editorContent = (clip.bodyContent && clip.bodyContent.trim()) ? clip.bodyContent : (clip.content || '');
       const format = clip.contentFormat || EditorCore.detectLanguage(clip.sourceFileName || clip.title, editorContent);
       setEditorContent(editorContent, {
-        fileName: clip.sourceFileName || `${clip.title || `clip-${clip.id}`}.${format === 'text' ? 'txt' : format}`,
+        fileName: clip.sourceFileName || `${clip.title || `clip-${clip.id}`}.${format === 'text' ? 'txt' : (format === 'markdown' ? 'md' : format)}`,
         displayPath: `剪藏 #${clip.id}`,
         encoding: clip.sourceEncoding || 'UTF-8',
         encodingConfidence: '剪藏元数据',
@@ -5130,6 +5130,10 @@
   /** 当前文档 basename（去扩展名） */
   function getCurrentBasename() {
     var name = (state && state.fileName) || '';
+    // 防御：个别来源可能传入完整路径，仅保留 basename 以匹配知识库双链
+    if (name.indexOf('/') !== -1 || name.indexOf('\\') !== -1) {
+      name = String(name).split(/[\\/]/).pop();
+    }
     return name.replace(/\.[^.]+$/, '');
   }
 
@@ -5264,29 +5268,54 @@
     }
   }
 
+  /** 更新反链面板头部引用数量徽标（0 / null → 隐藏） */
+  function setBacklinksCount(count) {
+    var el = elements.backlinksCount;
+    if (!el) return;
+    if (typeof count === 'number' && count > 0) {
+      el.textContent = count;
+      el.hidden = false;
+    } else {
+      el.textContent = '';
+      el.hidden = true;
+    }
+  }
+
   /** 构建反链表：扫描 vault root 下 *.md 找出含 `[[当前basename]]` 的行 */
   async function buildBacklinks() {
     var listEl = elements.backlinksList;
     if (!listEl) return;
     var base = getCurrentBasename();
     if (!base) {
-      listEl.innerHTML = '<div class="backlinks-empty">当前文档尚未命名</div>';
+      listEl.innerHTML = '<div class="backlinks-empty"><strong>当前文档尚未命名</strong><span>保存后再查看反链</span></div>';
+      setBacklinksCount(null);
       return;
     }
     elements.backlinksTarget.textContent = base;
+    elements.backlinksTarget.title = base;
     var api = getElectronAPI();
     if (!api || !api.findBacklinks) {
-      listEl.innerHTML = '<div class="backlinks-empty">反链扫描仅桌面模式可用</div>';
+      listEl.innerHTML = '<div class="backlinks-empty"><strong>反链扫描仅桌面模式可用</strong></div>';
+      setBacklinksCount(null);
       return;
     }
-    listEl.innerHTML = '<div class="backlinks-empty">正在扫描…</div>';
+    listEl.innerHTML = '<div class="backlinks-empty"><span class="backlinks-loading"></span><span>正在扫描…</span></div>';
+    setBacklinksCount(null);
     try {
       var res = await api.findBacklinks(base);
-      var items = (res && res.backlinks) || [];
-      if (!items.length) {
-        listEl.innerHTML = '<div class="backlinks-empty">暂无文档引用「' + base + '」</div>';
+      // 后端扫描异常（读文件失败等）不再误报为“暂无引用”，展示真实原因便于排查
+      if (res && res.message) {
+        listEl.innerHTML = '<div class="backlinks-empty backlinks-error"><strong>扫描失败</strong><span>' + escapeHtml(res.message) + '</span></div>';
+        setBacklinksCount(null);
         return;
       }
+      var items = (res && res.backlinks) || [];
+      if (!items.length) {
+        listEl.innerHTML = '<div class="backlinks-empty"><span class="backlinks-empty-dot"></span><strong>暂无文档引用</strong><span>在其它笔记中写入 <code>[[' + escapeHtml(base) + ']]</code> 即可在此显示关联</span></div>';
+        setBacklinksCount(0);
+        return;
+      }
+      setBacklinksCount(items.length);
       listEl.innerHTML = '';
       items.forEach(function(b) {
         var item = document.createElement('div');
@@ -5308,7 +5337,7 @@
           var hlPattern = new RegExp('(\\[\\[' + escapeRegExp(base) + '(?:\\|[^\\]]*)?\\]\\])', 'gi');
           var text = escapeHtml(m.text || '');
           text = text.replace(hlPattern, '<span class="bl-hl">$1</span>');
-          lineEl.innerHTML = '<span class="bl-ln">L' + (m.lineNumber || 0) + '</span>' + text;
+          lineEl.innerHTML = '<span class="bl-ln">' + (m.lineNumber || 0) + '</span><span class="bl-text">' + text + '</span>';
           item.appendChild(lineEl);
         });
         item.addEventListener('click', function() {
@@ -5317,7 +5346,8 @@
         listEl.appendChild(item);
       });
     } catch (e) {
-      listEl.innerHTML = '<div class="backlinks-empty">扫描失败：' + (e.message || '未知错误') + '</div>';
+      listEl.innerHTML = '<div class="backlinks-empty backlinks-error"><strong>扫描失败</strong><span>' + escapeHtml(e.message || '未知错误') + '</span></div>';
+      setBacklinksCount(null);
     }
   }
 

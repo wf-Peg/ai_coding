@@ -150,6 +150,17 @@ public class ClipContent {
     /** 来源或保存目标换行符：LF/CRLF/CR */
     private String sourceLineEnding;
 
+    // ===== 内容分发（Dispatch）结果字段（MVP，全部可空，旧数据兼容） =====
+
+    /** 上次投递目标标识（如 internal:divergent），未投递过为 null */
+    private String lastDispatchTarget;
+
+    /** 上次投递结果（Markdown 文本），未投递过为 null */
+    private String lastDispatchResult;
+
+    /** 上次投递时间（yyyy-MM-dd HH:mm:ss），未投递过为 null */
+    private String lastDispatchAt;
+
     /**
      * 无参构造函数。
      * 自动设置创建时间（{@code createdAt}）为当前时间。
@@ -425,5 +436,29 @@ public class ClipContent {
 
     public void setSourceLineEnding(String sourceLineEnding) {
         this.sourceLineEnding = sourceLineEnding;
+    }
+
+    public String getLastDispatchTarget() {
+        return lastDispatchTarget;
+    }
+
+    public void setLastDispatchTarget(String lastDispatchTarget) {
+        this.lastDispatchTarget = lastDispatchTarget;
+    }
+
+    public String getLastDispatchResult() {
+        return lastDispatchResult;
+    }
+
+    public void setLastDispatchResult(String lastDispatchResult) {
+        this.lastDispatchResult = lastDispatchResult;
+    }
+
+    public String getLastDispatchAt() {
+        return lastDispatchAt;
+    }
+
+    public void setLastDispatchAt(String lastDispatchAt) {
+        this.lastDispatchAt = lastDispatchAt;
     }
 }

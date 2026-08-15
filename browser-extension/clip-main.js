@@ -301,6 +301,7 @@ function displaySearchResults(results) {
             const clipItem = createClipItem(clip, true);
             searchResultsContainer.appendChild(clipItem);
         });
+        allClipsCache = results;
     }
 
     document.getElementById('search-results-page').style.display = 'block';
@@ -336,6 +337,7 @@ async function fetchClips() {
         }
 
         filteredClips.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        allClipsCache = filteredClips;
 
         filteredClips.forEach(clip => {
             const clipItem = createClipItem(clip, false);
@@ -416,6 +418,7 @@ function createClipItem(clip, isSearch) {
                 <div class="clip-actions">
                     ${!isSearch ? `<button class="delete-btn" data-id="${clip.id}">删除</button>` : ''}
                     ${!isStoreOnly ? `<button class="expand-btn divergent-btn" data-id="${clip.id}" title="发散总结">💡</button>` : ''}
+                    <button class="expand-btn dispatch-btn" data-id="${clip.id}" title="投递到 AI / 导出">📤</button>
                     <button class="expand-btn toggle-detail-btn">
                         <span class="icon">▼</span>
                         <span class="text">展开</span>
@@ -482,6 +485,22 @@ function createClipItem(clip, isSearch) {
                     </div>
                 </div>
                 `) : ''}
+                <div class="content-section" id="dispatch-section-${clip.id}" style="display: none;">
+                    <h4>📤 投递到 AI<span class="dispatch-model-info" id="dispatch-model-${clip.id}"></span></h4>
+                    <div class="dispatch-targets" id="dispatch-targets-${clip.id}">
+                        <p class="dispatch-loading" style="color: var(--text-secondary);">投递目标加载中...</p>
+                    </div>
+                    <div class="dispatch-actions" style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                        <button class="btn-secondary dispatch-run-btn" data-id="${clip.id}">🚀 投递所选</button>
+                        <button class="btn-secondary dispatch-distill-btn" data-id="${clip.id}">🧪 蒸馏总结</button>
+                        <span style="flex: 1;"></span>
+                        <button class="btn-secondary export-clip-btn" data-id="${clip.id}" data-format="md">导出 MD</button>
+                        <button class="btn-secondary export-clip-btn" data-id="${clip.id}" data-format="txt">TXT</button>
+                        <button class="btn-secondary export-clip-btn" data-id="${clip.id}" data-format="html">HTML</button>
+                    </div>
+                    ${clip.lastDispatchTarget ? `<div class="dispatch-last" style="margin-top: 8px; font-size: 0.85rem; color: var(--text-secondary);">上次投递: ${escapeHtml(clip.lastDispatchTarget)} @ ${escapeHtml(clip.lastDispatchAt || '')}</div>` : ''}
+                    <div class="dispatch-results" id="dispatch-results-${clip.id}" style="margin-top: 10px;"></div>
+                </div>
             </div>
         `;
 
@@ -625,6 +644,183 @@ function typeWriterEffect(element, html) {
     }
 
     typeChar();
+}
+
+// ==================== 内容分发（MVP）：投递 / 蒸馏 / 导出 ====================
+
+/** 当前渲染的剪藏列表缓存（导出按 id 取对象用） */
+let allClipsCache = [];
+
+/** 投递目标缓存（全局一次加载） */
+let dispatchTargetsCache = null;
+let dispatchModelInfo = {};
+
+/** 构造 /api/dispatch 前缀（兼容 API_BASE_URL 配置化） */
+function dispatchApiBase() {
+    return API_BASE_URL.replace(/\/api\/clip\/?$/, '') + '/api/dispatch';
+}
+
+/** 加载投递目标（全局缓存，成功后回填已渲染的容器） */
+async function loadDispatchTargets() {
+    try {
+        const response = await axios.get(`${dispatchApiBase()}/targets`);
+        dispatchTargetsCache = response.data.targets || [];
+        dispatchModelInfo = response.data.currentModel || {};
+        document.querySelectorAll('.dispatch-targets').forEach(el => {
+            const clipId = el.id.replace('dispatch-targets-', '');
+            el.innerHTML = dispatchTargetsHtml(clipId);
+        });
+        document.querySelectorAll('.dispatch-model-info').forEach(el => {
+            el.textContent = dispatchModelInfo.model ? `（${dispatchModelInfo.model}）` : '';
+        });
+    } catch (e) {
+        console.error('加载投递目标失败:', e);
+    }
+}
+
+/** 生成投递目标复选框 HTML（无缓存时占位） */
+function dispatchTargetsHtml(clipId) {
+    if (!dispatchTargetsCache || dispatchTargetsCache.length === 0) {
+        return '<p class="dispatch-loading" style="color: var(--text-secondary);">投递目标加载中...</p>';
+    }
+    return dispatchTargetsCache.map(t => `
+        <label class="dispatch-target-item" style="display: block; margin: 4px 0; cursor: pointer; font-size: 0.9rem;">
+            <input type="checkbox" class="dispatch-target-check" data-target="${escapeHtml(t.id)}" data-clip="${clipId}">
+            <strong>${escapeHtml(t.name)}</strong>
+            <span style="color: var(--text-secondary); margin-left: 6px;">${escapeHtml(t.description || '')}</span>
+        </label>
+    `).join('');
+}
+
+/** 展开/收起投递面板 */
+function toggleDispatchPanel(clipId) {
+    const section = document.getElementById(`dispatch-section-${clipId}`);
+    if (!section) return;
+    section.style.display = section.style.display === 'none' ? 'block' : 'none';
+    if (section.style.display === 'block') {
+        const targetsBox = document.getElementById(`dispatch-targets-${clipId}`);
+        if (targetsBox) targetsBox.innerHTML = dispatchTargetsHtml(clipId);
+        const modelBox = document.getElementById(`dispatch-model-${clipId}`);
+        if (modelBox) modelBox.textContent = dispatchModelInfo.model ? `（${dispatchModelInfo.model}）` : '';
+    }
+}
+
+/** 依次投递所选目标，结果逐条追加展示 */
+async function dispatchRun(clipId) {
+    const resultsBox = document.getElementById(`dispatch-results-${clipId}`);
+    const checks = document.querySelectorAll(`#dispatch-targets-${clipId} .dispatch-target-check:checked`);
+    if (checks.length === 0) {
+        showToast('请先选择至少一个投递目标');
+        return;
+    }
+    const targets = [...checks].map(c => c.dataset.target);
+    if (resultsBox) resultsBox.innerHTML = '';
+    for (const targetId of targets) {
+        const item = document.createElement('div');
+        item.className = 'dispatch-result-item';
+        item.style.cssText = 'margin-top: 10px; padding: 10px; border: 1px solid var(--border-color, #e5e5e5); border-radius: 8px;';
+        item.innerHTML = `<div style="font-weight: 600; margin-bottom: 6px;">🚀 ${escapeHtml(targetId)} <span class="dispatch-result-status" style="color: var(--text-secondary); font-weight: 400;">投递中...</span></div>
+            <div class="dispatch-result-body markdown-content"></div>`;
+        resultsBox.appendChild(item);
+        const body = item.querySelector('.dispatch-result-body');
+        const statusEl = item.querySelector('.dispatch-result-status');
+        try {
+            const response = await axios.post(`${dispatchApiBase()}/${encodeURIComponent(targetId)}`, { clipId });
+            const data = response.data;
+            if (data.success) {
+                statusEl.textContent = '✓ 完成';
+                body.innerHTML = window.MediaKit.render.renderMarkdown(data.result || '');
+            } else {
+                statusEl.textContent = '✗ 失败';
+                body.innerHTML = `<p style="color: var(--error);">${escapeHtml(data.error || '未知错误')}</p>`;
+            }
+        } catch (e) {
+            statusEl.textContent = '✗ 错误';
+            body.innerHTML = `<p style="color: var(--error);">${escapeHtml(e.message || '网络错误')}</p>`;
+        }
+    }
+    showToast('投递完成，结果已回存剪藏');
+}
+
+/** 汇总蒸馏：将全部投递结果蒸馏为一份精炼总结 */
+async function dispatchDistill(clipId) {
+    const resultsBox = document.getElementById(`dispatch-results-${clipId}`);
+    const item = document.createElement('div');
+    item.className = 'dispatch-result-item';
+    item.style.cssText = 'margin-top: 10px; padding: 10px; border: 1px solid var(--border-color, #e5e5e5); border-radius: 8px;';
+    item.innerHTML = `<div style="font-weight: 600; margin-bottom: 6px;">🧪 蒸馏总结 <span class="dispatch-result-status" style="color: var(--text-secondary); font-weight: 400;">蒸馏中...</span></div>
+        <div class="dispatch-result-body markdown-content"></div>`;
+    if (resultsBox) resultsBox.appendChild(item);
+    const body = item.querySelector('.dispatch-result-body');
+    const statusEl = item.querySelector('.dispatch-result-status');
+    try {
+        const response = await axios.post(`${dispatchApiBase()}/distill`, { clipId });
+        const data = response.data;
+        if (data.success) {
+            statusEl.textContent = '✓ 完成';
+            body.innerHTML = window.MediaKit.render.renderMarkdown(data.result || '');
+        } else {
+            statusEl.textContent = '✗ 失败';
+            body.innerHTML = `<p style="color: var(--error);">${escapeHtml(data.error || '未知错误')}</p>`;
+        }
+    } catch (e) {
+        statusEl.textContent = '✗ 错误';
+        body.innerHTML = `<p style="color: var(--error);">${escapeHtml(e.message || '网络错误')}</p>`;
+    }
+}
+
+/** 按 id 从缓存取剪藏对象 */
+function getCachedClip(clipId) {
+    return (allClipsCache || []).find(c => String(c.id) === String(clipId));
+}
+
+/** 导出剪藏为 md / txt / html（纯前端 Blob 下载） */
+function exportClipById(clipId, format) {
+    const clip = getCachedClip(clipId);
+    if (!clip) {
+        showToast('未找到该剪藏数据，请刷新列表后重试');
+        return;
+    }
+    exportClipAs(clip, format);
+}
+
+function exportClipAs(clip, format) {
+    const rawTitle = clip.title || clip.category || '剪藏';
+    const safeTitle = rawTitle.replace(/[\\/:*?"<>|]/g, '_').slice(0, 40);
+    const date = (clip.createdAt || '').slice(0, 10) || new Date().toISOString().slice(0, 10);
+
+    const meta = `# ${rawTitle}\n\n> 来源: ${clip.source || ''}${clip.sourceUrl ? ' | ' + clip.sourceUrl : ''}\n> 分类: ${clip.category || ''} | 标签: ${(clip.tags || []).join(', ')}\n> 时间: ${clip.createdAt || ''}\n\n---\n\n`;
+    const body = clip.content || '';
+    const stripMd = s => String(s).replace(/[#>*`_~[\](!)<>|]/g, '').replace(/\n{3,}/g, '\n\n');
+
+    let content, mime;
+    if (format === 'md') {
+        content = meta + body;
+        mime = 'text/markdown;charset=utf-8';
+    } else if (format === 'txt') {
+        content = stripMd(meta) + stripMd(body);
+        mime = 'text/plain;charset=utf-8';
+    } else {
+        const htmlBody = window.MediaKit.render.renderMarkdown(meta + body);
+        content = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(rawTitle)}</title>
+<style>body{max-width:860px;margin:40px auto;padding:0 20px;font-family:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;line-height:1.7;color:#333}
+blockquote{color:#666;border-left:4px solid #ddd;margin-left:0;padding-left:16px}
+pre{background:#f6f8fa;padding:12px;border-radius:6px;overflow:auto}
+code{background:#f6f8fa;padding:2px 4px;border-radius:4px}
+img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:6px 10px}</style></head><body>${htmlBody}</body></html>`;
+        mime = 'text/html;charset=utf-8';
+    }
+
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `剪藏-${safeTitle}-${date}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast(`已导出 ${format.toUpperCase()}`);
 }
 
 function toggleTags(btn, tagsStr) {
@@ -1555,6 +1751,35 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // 内容分发：投递面板 / 投递所选 / 蒸馏总结 / 导出（事件委托）
+    document.addEventListener('click', function(e) {
+        const dispatchBtn = e.target.closest('.dispatch-btn');
+        if (dispatchBtn) {
+            toggleDispatchPanel(dispatchBtn.dataset.id);
+            return;
+        }
+        const runBtn = e.target.closest('.dispatch-run-btn');
+        if (runBtn) {
+            dispatchRun(parseInt(runBtn.dataset.id));
+            return;
+        }
+        const distillBtn = e.target.closest('.dispatch-distill-btn');
+        if (distillBtn) {
+            dispatchDistill(parseInt(distillBtn.dataset.id));
+            return;
+        }
+        const exportBtn = e.target.closest('.export-clip-btn');
+        if (exportBtn) {
+            exportClipById(parseInt(exportBtn.dataset.id), exportBtn.dataset.format);
+            return;
+        }
+        const copyDispatch = e.target.closest('.dispatch-copy-btn');
+        if (copyDispatch) {
+            const text = document.getElementById(`dispatch-results-${copyDispatch.dataset.id}`).textContent;
+            copyToClipboard(text);
+        }
+    });
+
     // 复制按钮点击事件
     document.addEventListener('click', function(e) {
         if (e.target.classList.contains('copy-btn') || e.target.closest('.copy-btn')) {
@@ -1590,4 +1815,5 @@ document.addEventListener('DOMContentLoaded', function() {
     handleTypeChange();
     fetchClips();
     startRefreshCheck();
+    loadDispatchTargets();
 });

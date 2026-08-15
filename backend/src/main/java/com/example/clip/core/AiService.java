@@ -262,6 +262,36 @@ public class AiService {
         }
     }
 
+    // ==================== 内容分发：答案汇总蒸馏（MVP） ====================
+
+    /**
+     * 答案汇总蒸馏。
+     * <p>
+     * 将同一剪藏内容经多个投递目标（场景/模型）产生的多个回答汇总为一份
+     * 精炼总结：提取核心结论、按视角列出要点、标注分歧点，不新增事实。
+     * </p>
+     * <p>
+     * MVP 使用内置蒸馏提示词（systemPrompt），后续可迁移至 PromptConfigService 管理。
+     * </p>
+     *
+     * @param combinedAnswers 多个回答的拼接文本（含目标名标注）
+     * @return 蒸馏总结文本；失败时返回错误信息字符串
+     */
+    public String distillAnswers(String combinedAnswers) {
+        String systemPrompt = "你是一个信息蒸馏助手。下面是用不同 AI 模型或分析场景对同一内容生成的多个回答。"
+                + "请将它们汇总、去重、取精，输出一份结构化的精炼总结，格式如下：\n"
+                + "## 核心结论\n（1-3 条，综合各回答的共同点与最可靠判断）\n"
+                + "## 各视角要点\n（按回答来源分点列出独特见解，注明来源名）\n"
+                + "## 分歧与待确认\n（如有不同观点或矛盾之处，如实列出；没有则写「无」）\n"
+                + "要求：忠于原回答，不新增事实；总字数控制在 400 字以内。";
+        try {
+            return llmProvider.chatForTier(systemPrompt, combinedAnswers, "simple");
+        } catch (Exception e) {
+            logger.error("[AI] distillAnswers failed: {}", e.getMessage(), e);
+            return "蒸馏总结生成过程中发生错误: " + e.getMessage();
+        }
+    }
+
     // ==================== 预设分类树 ====================
 
     /**
