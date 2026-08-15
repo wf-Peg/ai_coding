@@ -4,8 +4,9 @@
     "title": "学习模块深度打通",
     "summary": "借鉴 Obsidian/Notion，通过学习计划与剪藏、知识、编辑器的深度串联打通各模块数据流转：阶段级关联、反链、学习计划入图谱、编辑器打开阶段说明",
     "tags": ["product-dev", "学习计划", "知识图谱", "打通串联"],
-    "phase": "design",
-    "createdAt": "2026-08-15T09:00:00"
+    "phase": "completed",
+    "createdAt": "2026-08-15T09:00:00",
+    "completedAt": "2026-08-15T22:55:00"
   },
   "featurePoints": [
     {
@@ -16,10 +17,10 @@
       "tags": ["product-dev", "数据模型"],
       "designSections": ["三、数据模型变更"],
       "tasks": [
-        { "title": "Phase 新增两字段及 getter/setter", "status": "todo" }
+        { "title": "Phase 新增两字段及 getter/setter", "status": "done" }
       ],
       "verifications": [
-        { "title": "字段随 LearningPlan JSON 持久化", "status": "todo" }
+        { "title": "字段随 LearningPlan JSON 持久化", "status": "done" }
       ]
     },
     {
@@ -30,13 +31,13 @@
       "tags": ["product-dev", "接口", "反链"],
       "designSections": ["四、后端变更"],
       "tasks": [
-        { "title": "updatePhaseLinks 写关联并同步图谱", "status": "todo" },
-        { "title": "GET /{id}/phase/{phaseNum}/links", "status": "todo" },
-        { "title": "GET /by-knowledge/{id}", "status": "todo" },
-        { "title": "GET /by-clip/{id}", "status": "todo" }
+        { "title": "updatePhaseLinks 写关联并同步图谱", "status": "done" },
+        { "title": "PUT /{id}/phase/{phaseNum}/links", "status": "done" },
+        { "title": "GET /by-knowledge/{id}", "status": "done" },
+        { "title": "GET /by-clip/{id}", "status": "done" }
       ],
       "verifications": [
-        { "title": "mvn test 全量通过", "status": "todo" }
+        { "title": "mvn test 全量通过", "status": "done" }
       ]
     },
     {
@@ -47,13 +48,13 @@
       "tags": ["product-dev", "知识图谱"],
       "designSections": ["四、后端变更", "五、前端变更"],
       "tasks": [
-        { "title": "recordPlanRelations 写入 plan_links", "status": "todo" },
-        { "title": "syncRelations/getGraph 扩展", "status": "todo" },
-        { "title": "前端图谱学习计划节点绿色三角渲染", "status": "todo" },
-        { "title": "前端图谱 plan_links 边与图例", "status": "todo" }
+        { "title": "recordPlanRelations 写入 plan_links", "status": "done" },
+        { "title": "syncRelations/getGraph 扩展", "status": "done" },
+        { "title": "前端图谱学习计划节点绿色三角渲染", "status": "done" },
+        { "title": "前端图谱 plan_links 边与图例", "status": "done" }
       ],
       "verifications": [
-        { "title": "GET /api/graph 返回 learning-plan 节点与 plan_links 边", "status": "todo" }
+        { "title": "GET /api/graph 返回 learning-plan 节点与 plan_links 边", "status": "done" }
       ]
     },
     {
@@ -64,13 +65,13 @@
       "tags": ["product-dev", "UX", "编辑器"],
       "designSections": ["五、前端变更"],
       "tasks": [
-        { "title": "阶段卡片关联知识/剪藏 chips", "status": "todo" },
-        { "title": "多选 picker 弹窗", "status": "todo" },
-        { "title": "编辑器打开阶段说明(openTextData)", "status": "todo" },
-        { "title": "?planId= URL 直达", "status": "todo" }
+        { "title": "阶段卡片关联知识/剪藏 chips", "status": "done" },
+        { "title": "多选 picker 弹窗", "status": "done" },
+        { "title": "编辑器打开阶段说明(openTextData)", "status": "done" },
+        { "title": "?planId= URL 直达", "status": "done" }
       ],
       "verifications": [
-        { "title": "关联 chips 点击跳转正确", "status": "todo" }
+        { "title": "关联 chips 点击跳转正确", "status": "done" }
       ]
     },
     {
@@ -81,12 +82,12 @@
       "tags": ["product-dev", "反链", "导航"],
       "designSections": ["五、前端变更"],
       "tasks": [
-        { "title": "knowledge-detail 反链区块", "status": "todo" },
-        { "title": "clip 反链区块", "status": "todo" },
-        { "title": "index.html navigateLearningPlan/openTextData", "status": "todo" }
+        { "title": "knowledge-detail 反链区块", "status": "done" },
+        { "title": "clip 反链区块", "status": "done" },
+        { "title": "index.html navigateLearningPlan/openTextData", "status": "done" }
       ],
       "verifications": [
-        { "title": "反链点击跳转学习计划详情", "status": "todo" }
+        { "title": "反链点击跳转学习计划详情", "status": "done" }
       ]
     }
   ],
@@ -102,9 +103,9 @@
       "tags": ["product-dev", "技术"]
     },
     {
-      "title": "已知断层：两套知识模型",
-      "content": "图谱节点来自 content-index.json(旧 KnowledgeEntry)，边来自 relation-index.json(主模型 Knowledge)，两套 ID 体系不保证一致，本次不处理，记录待后续单独梳理",
-      "tags": ["product-dev", "技术", "已知问题"]
+      "title": "两套知识模型断层已修复",
+      "content": "图谱节点来自 content-index.json(旧 KnowledgeEntry)，边来自 relation-index.json(主模型 Knowledge)，两套 ID 体系不一致导致图谱 links 恒为 0。修复：ContentRefMapper 新增 fromKnowledgeBase(Knowledge)，ContentIndexService.rebuildFromStorage 改用 getAllKnowledge() 统一数据源，重建索引后 derived_from/plan_links 边正常渲染",
+      "tags": ["product-dev", "技术", "Bug修复"]
     }
   ]
 }
