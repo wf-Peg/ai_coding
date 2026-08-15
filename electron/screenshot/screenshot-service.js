@@ -532,7 +532,25 @@ function initScreenshotService(d) {
   deps = d;
   registerIpc();
   registerShortcuts();
+  // 首次启动引导：延迟检测 OCR 组件（模型/onnxruntime 缺失时通知主窗口一次）
+  try {
+    setTimeout(checkOcrSetupNotice, 6000);
+  } catch (e) {}
   log('initialized');
+}
+
+/** 检测 OCR 组件状态，模型/引擎缺失时向主窗口发送引导通知（每次启动一次） */
+function checkOcrSetupNotice() {
+  try {
+    const st = getOcrStatus();
+    if (st.available) return;
+    const mw = getMainWindow();
+    if (!mw || mw.isDestroyed()) return;
+    mw.webContents.send('screenshot:ocr-needs-setup', {
+      reason: st.reason || 'OCR 组件未就绪',
+      modelsDir: getModelsDir()
+    });
+  } catch (e) { log('ocr setup check failed:', e.message); }
 }
 
 module.exports = {

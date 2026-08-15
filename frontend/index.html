@@ -984,6 +984,29 @@
         });
       }
 
+      // 截图工具：OCR 组件未就绪 → 首次启动引导条（点击前往工具模块配置）
+      if (window.electronAPI && window.electronAPI.onScreenshotOcrNeedsSetup) {
+        window.electronAPI.onScreenshotOcrNeedsSetup(function (data) {
+          try {
+            if (sessionStorage.getItem('ocr-setup-notified')) return;
+            sessionStorage.setItem('ocr-setup-notified', '1');
+            showOcrSetupBar(data && data.reason);
+          } catch (e) {}
+        });
+      }
+      function showOcrSetupBar(reason) {
+        if (!notifBar || !notifMsg) return;
+        notifMsg.textContent = '🔤 ' + (reason || 'OCR 组件未就绪') + '（点击前往配置）';
+        notifBar.className = 'global-notification-bar info';
+        notifBar.style.display = 'block';
+        notifBar.style.cursor = 'pointer';
+        notifBar.onclick = function () {
+          hideGlobalNotification();
+          renderView('tools');
+          window.history.pushState({ view: 'tools' }, '', '/tools');
+        };
+      }
+
       // ====== 窗口控制（仅 Electron 环境） ======
       // 懒加载 iframe：从 data-src 读取真实 URL 并设置 src
       function lazyLoadIframes() {

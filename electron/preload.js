@@ -563,6 +563,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** 打开 OCR 模型目录（工具卡片配置面板用） */
   screenshotOpenOcrModelsDir: () => ipcRenderer.invoke('screenshot:open-ocr-models-dir'),
 
+  /** 监听主进程 OCR 未就绪引导通知 */
+  onScreenshotOcrNeedsSetup: (callback) => ipcRenderer.on('screenshot:ocr-needs-setup', (event, data) => callback(data)),
+
   /** OCR 一键安装：检测依赖 + 下载模型（主进程执行） */
   screenshotInstallOcr: () => ipcRenderer.invoke('screenshot:install-ocr'),
 
