@@ -3294,6 +3294,9 @@
 <script>
     const API_BASE_URL = 'http://127.0.0.1:8081/api/clip';
     const API_ROOT = 'http://127.0.0.1:8081/api';
+    // 暴露到 window：const 顶层声明不挂 window，media-uploader.js 等共享 helper 依赖 window.API_ROOT
+    window.API_BASE_URL = API_BASE_URL;
+    window.API_ROOT = API_ROOT;
     const KNOWLEDGE_API_BASE_URL = 'http://127.0.0.1:8081/api/knowledge';
     const GIT_API_BASE_URL = 'http://127.0.0.1:8081/api/git';
     const SYNC_API_BASE_URL = 'http://127.0.0.1:8081/api/sync';

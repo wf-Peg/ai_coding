@@ -1,5 +1,8 @@
 let API_BASE_URL = 'http://127.0.0.1:8081/api/clip';
 let GIT_API_BASE_URL = 'http://127.0.0.1:8081/api/git';
+// 暴露到 window：let 顶层声明不挂 window，media-uploader.js 的 getUploadUrl 依赖 window.API_BASE_URL
+window.API_BASE_URL = API_BASE_URL;
+window.GIT_API_BASE_URL = GIT_API_BASE_URL;
 // 读取扩展配置中的自定义 API 地址（与 options 页/background.js 保持一致），
 // 避免修改配置后独立页面仍指向硬编码地址
 if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -8,6 +11,9 @@ if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
             const base = result.apiUrl.replace(/\/api\/clip\/add$/, '').replace(/\/+$/, '');
             API_BASE_URL = base + '/api/clip';
             GIT_API_BASE_URL = base + '/api/git';
+            // 动态更新后同步到 window（上传/请求均读取 window 或最新值）
+            window.API_BASE_URL = API_BASE_URL;
+            window.GIT_API_BASE_URL = GIT_API_BASE_URL;
         }
     });
 }

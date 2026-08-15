@@ -18,9 +18,21 @@
   var JPEG_QUALITY = 0.82;
   var MAX_SIZE = 10 * 1024 * 1024; // 10MB 后端上限
 
+  /** 显式配置的 API 根地址（优先；const 声明不挂 window，页面需通过 setApiRoot 或 window.API_ROOT 提供） */
+  var configuredApiRoot = '';
+  function setApiRoot(root) {
+    configuredApiRoot = root ? String(root).replace(/\/+$/, '') : '';
+  }
+
   /** 上传地址：{API_ROOT}/media/upload */
   function getUploadUrl() {
-    var root = global.API_ROOT || (global.API_BASE_URL ? String(global.API_BASE_URL).replace(/\/clip\/?$/, '') : '');
+    var root = configuredApiRoot
+      || global.API_ROOT
+      || (global.API_BASE_URL ? String(global.API_BASE_URL).replace(/\/clip\/?$/, '') : '');
+    if (!root) {
+      // 兜底：没有任何 API 配置时抛明确错误，避免请求打到前端静态服务器返回 HTML
+      throw new Error('未配置 API 地址（缺少 API_ROOT / API_BASE_URL），请检查页面脚本加载顺序');
+    }
     return root + '/media/upload';
   }
 
@@ -171,6 +183,7 @@
     MAX_DIM: MAX_DIM,
     MAX_SIZE: MAX_SIZE,
     getUploadUrl: getUploadUrl,
+    setApiRoot: setApiRoot,
     compressImage: compressImage,
     uploadImage: uploadImage,
     uploadFiles: uploadFiles

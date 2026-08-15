@@ -2,6 +2,7 @@
   'use strict';
 
   const API_BASE_URL = 'http://127.0.0.1:8081/api/clip';
+  window.API_BASE_URL = API_BASE_URL; // 暴露给 media-uploader.js（const 不挂 window）
   const AI_CHAT_API_URL = API_BASE_URL.replace(/\/api\/clip$/, '/api/ai/chat/stream');
   const MAX_TRANSFORM_LENGTH = 5 * 1024 * 1024;
   const LANGUAGE_EXTENSIONS = { json: 'json', xml: 'xml', sql: 'sql', text: 'txt' };
