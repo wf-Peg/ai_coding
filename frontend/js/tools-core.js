@@ -173,6 +173,14 @@
     $('overlay').classList.add('show');
   }
 
+  // ── Close tool overlay（返回工具列表）──
+  function closeOverlay() {
+    $('overlay').classList.remove('show');
+    const frame = $('toolFrame');
+    frame.src = '';
+    currentPromptId = null;
+  }
+
   // 系统工具配置面板（截图工具：快捷键/OCR 下载/高级开关，可交互）
   let recordingSysKey = null; // 'shot' | 'paste' | null
 
@@ -217,11 +225,13 @@
         '<span style="width:96px">OCR 组件</span>' +
         '<span id="sysOcrStatus" style="font-size:12px">' + ocrText + '</span>' +
       '</div>' +
-      '<div style="display:flex;gap:8px;margin:8px 0 4px">' +
+      '<div style="display:flex;gap:8px;margin:8px 0 4px;flex-wrap:wrap">' +
         '<button id="sysSave" style="background:#3f8cff;color:#fff;border:none;border-radius:6px;padding:7px 18px;cursor:pointer;font-size:12.5px">保存配置</button>' +
+        '<button id="sysInstall" style="background:#22c55e;color:#fff;border:none;border-radius:6px;padding:7px 14px;cursor:pointer;font-size:12.5px">⚡ 一键安装 OCR</button>' +
         '<button id="sysOcrDir" style="background:transparent;color:var(--app-text);border:1px solid var(--app-border);border-radius:6px;padding:7px 12px;cursor:pointer;font-size:12.5px">打开模型目录</button>' +
         '<button id="sysCopyCmd" style="background:transparent;color:var(--app-text);border:1px solid var(--app-border);border-radius:6px;padding:7px 12px;cursor:pointer;font-size:12.5px">复制安装命令</button>' +
       '</div>' +
+      '<div id="sysOcrMsg" style="margin-top:6px;font-size:12px;color:var(--app-text-secondary)"></div>' +
       '<p style="color:var(--app-text-muted);font-size:11px;margin-top:6px">标注 / GIF 录制 / 长截图将在后续版本提供。</p>' +
       '</div>';
 
@@ -270,10 +280,32 @@
     document.getElementById('sysOcrDir').addEventListener('click', async function () {
       if (api && api.screenshotOpenOcrModelsDir) await api.screenshotOpenOcrModelsDir();
     });
+    document.getElementById('sysInstall').addEventListener('click', async function () {
+      const btn = this;
+      const msgEl = document.getElementById('sysOcrMsg');
+      if (!api || !api.screenshotInstallOcr) { if (msgEl) msgEl.textContent = '当前环境不支持一键安装（需桌面应用）'; return; }
+      btn.disabled = true; btn.textContent = '安装中...';
+      if (msgEl) msgEl.textContent = '正在检测 OCR 组件并下载模型（约 16MB）...';
+      try {
+        const res = await api.screenshotInstallOcr();
+        if (msgEl) { msgEl.style.color = res.status === 'error' ? '#ef4444' : '#22c55e'; msgEl.textContent = res.message || ''; }
+        // 刷新 OCR 状态
+        if (api.screenshotOcrStatus) {
+          const s = await api.screenshotOcrStatus();
+          const st = document.getElementById('sysOcrStatus');
+          if (st) st.textContent = s.available ? '✅ 离线 OCR 可用' : ('⚠️ ' + (s.reason || '未就绪'));
+        }
+      } catch (e) {
+        if (msgEl) { msgEl.style.color = '#ef4444'; msgEl.textContent = '安装失败: ' + e.message; }
+      } finally {
+        btn.disabled = false; btn.textContent = '⚡ 一键安装 OCR';
+      }
+    });
     document.getElementById('sysCopyCmd').addEventListener('click', function () {
       const cmd = 'npm i onnxruntime-node && npx electron-builder install-app-deps && powershell -ExecutionPolicy Bypass -File electron/screenshot/download-ocr-models.ps1';
-      try { navigator.clipboard.writeText(cmd); alert('安装命令已复制（在项目根目录执行）'); }
-      catch (e) { alert(cmd); }
+      // 主进程写剪贴板（iframe 中 navigator.clipboard 常被拒）
+      if (api && api.screenshotCopyText) { api.screenshotCopyText(cmd); alert('安装命令已复制（在项目根目录执行）'); }
+      else { try { navigator.clipboard.writeText(cmd); alert('安装命令已复制'); } catch (e) { alert(cmd); } }
     });
 
     currentPromptId = null;
@@ -396,6 +428,10 @@
       setTimeout(() => $('copyPromptBtn').textContent = '复制提示词', 1500);
     });
   });
+
+  // 返回工具列表：左上角返回按钮 + 右上角关闭按钮
+  $('overlayBackBtn').addEventListener('click', closeOverlay);
+  $('overlayCloseBtn').addEventListener('click', closeOverlay);
 
   // ── Delete tool ──
   async function deleteTool(id) {

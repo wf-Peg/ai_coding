@@ -657,7 +657,14 @@ public class PromptLibraryService {
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .build();
         List<Map<String, Object>> results = new ArrayList<>();
-        int imported = 0, failed = 0;
+        int imported = 0, skipped = 0, failed = 0;
+        // 已存在的同名模板名称集合（同级分类下，按名称去重避免重复导入）
+        java.util.Set<String> existingNames = new java.util.HashSet<>();
+        for (PromptTemplate t : loadLibrary()) {
+            if (cat.equalsIgnoreCase(normalize(t.getCategory(), "通用"))) {
+                existingNames.add(t.getName().trim());
+            }
+        }
         for (String url : urls) {
             String base = url == null ? "" : url.trim();
             String name = deriveName(base);
@@ -675,6 +682,11 @@ public class PromptLibraryService {
                 if (parsedName != null && !parsedName.toString().trim().isEmpty()) {
                     name = parsedName.toString().trim();
                 }
+                if (!existingNames.add(name)) {
+                    skipped++;
+                    results.add(Map.of("name", name, "ok", true, "skipped", true));
+                    continue;
+                }
                 @SuppressWarnings("unchecked")
                 Map<String, String> sections = (Map<String, String>) parsed.get("sections");
                 createPrompt(name, cat, "来自 LangGPT 官方提示词库", (String) parsed.get("content"),
@@ -689,6 +701,7 @@ public class PromptLibraryService {
         }
         Map<String, Object> r = new LinkedHashMap<>();
         r.put("imported", imported);
+        r.put("skipped", skipped);
         r.put("failed", failed);
         r.put("results", results);
         return r;

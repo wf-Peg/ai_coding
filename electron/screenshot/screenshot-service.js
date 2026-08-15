@@ -12,6 +12,7 @@
  */
 const path = require('path');
 const fs = require('fs');
+const { spawn } = require('child_process');
 
 /** 全局实例与依赖（initScreenshotService 注入） */
 let deps = null;
@@ -19,6 +20,7 @@ let shortcuts = { screenshot: 'F1', paste: 'F2' };
 let screenshotWindow = null;   // 当前截图覆盖层
 let pasteWindow = null;        // 当前贴图窗口
 let lastCapture = null;        // 最近一次截图 nativeImage（供贴图兜底）
+let lastCaptureSize = null;   // 缩略图实际像素尺寸（裁剪换算基准）
 let pendingAction = null;      // 截图确认后的动作（copy/save/ocr/paste）
 let ocrService = null;         // 延迟加载（依赖 onnxruntime-node）
 
@@ -76,22 +78,20 @@ function refreshShortcuts() { unregisterShortcuts(); registerShortcuts(); }
 /** 捕获当前屏幕（主显示器）为 nativeImage */
 async function captureScreen() {
   const { desktopCapturer } = deps;
-  const sources = await desktopCapturer.getSources({
-    types: ['screen'],
-    thumbnailSize: { width: 0, height: 0 } // 0 = 原始尺寸（主进程再按 display size 取）
-  });
-  if (!sources || sources.length === 0) throw new Error('未找到可捕获的屏幕');
   const display = deps.screen.getPrimaryDisplay();
-  const size = display.size; // {width, height}
-  // 重新获取指定尺寸缩略图（desktopCapturer thumbnailSize 为 0 时返回原始）
-  const full = await deps.desktopCapturer.getSources({
+  const sf = display.scaleFactor || 1;
+  const size = display.size; // DIP {width, height}
+  // 真实像素缩略图（HiDPI 不失真）：thumbnailSize 传 size×scaleFactor
+  const full = await desktopCapturer.getSources({
     types: ['screen'],
-    thumbnailSize: { width: size.width, height: size.height }
+    thumbnailSize: { width: Math.round(size.width * sf), height: Math.round(size.height * sf) }
   });
-  const src = full && full[0] ? full[0] : sources[0];
-  const img = src.thumbnail;
+  if (!full || full.length === 0) throw new Error('未找到可捕获的屏幕');
+  const img = full[0].thumbnail;
   lastCapture = img;
-  return { image: img, display: size, scaleFactor: display.scaleFactor || 1 };
+  const actual = img.getSize(); // 实际缩略图像素（双保险）
+  lastCaptureSize = actual;
+  return { image: img, display: size, actualSize: actual, scaleFactor: sf };
 }
 
 /** 启动截图：捕获屏幕 → 打开全屏覆盖层 */
@@ -163,28 +163,34 @@ async function handleConfirm(payload) {
     if (deps.showMainWindow) deps.showMainWindow();
     return;
   }
-  // nativeImage.crop 需要 DIP 坐标；desktopCapturer 缩略图尺寸与显示器逻辑尺寸一致
-  const scale = deps.screen.getPrimaryDisplay().scaleFactor || 1;
+  // crop 基于缩略图实际像素：CSS/DIP 坐标 × (实际像素 / DIP 尺寸)
+  const actual = lastCaptureSize || lastCapture.getSize();
+  const displaySize = deps.screen.getPrimaryDisplay().size;
+  const sx = actual.width / Math.max(1, displaySize.width);
+  const sy = actual.height / Math.max(1, displaySize.height);
   const cropRect = {
-    x: Math.round(rect.x * scale),
-    y: Math.round(rect.y * scale),
-    width: Math.max(1, Math.round(rect.width * scale)),
-    height: Math.max(1, Math.round(rect.height * scale))
+    x: Math.round(rect.x * sx),
+    y: Math.round(rect.y * sy),
+    width: Math.max(1, Math.round(rect.width * sx)),
+    height: Math.max(1, Math.round(rect.height * sy))
   };
   let cropped;
   try { cropped = lastCapture.crop(cropRect); } catch (e) { cropped = lastCapture; }
   closeScreenshotWindow();
-  if (deps.showMainWindow) deps.showMainWindow();
 
   switch (action) {
     case 'save':
+      if (deps.showMainWindow) deps.showMainWindow();
       return saveImage(cropped);
     case 'ocr':
+      if (deps.showMainWindow) deps.showMainWindow();
       return runOcr(cropped);
     case 'paste':
+      // 贴图：直接贴出，不恢复主窗口（与 Snipaste 一致，避免"弹出软件窗口"）
       return showPasteWindow(cropped);
     case 'copy':
     default:
+      if (deps.showMainWindow) deps.showMainWindow();
       clipboard.writeImage(cropped);
       log('copied to clipboard');
       return { status: 'copied' };
@@ -228,20 +234,27 @@ let pasteWindows = [];
 /** 创建置顶贴图窗口（可拖动，双击/右键关闭） */
 function showPasteWindow(image) {
   const { BrowserWindow } = deps;
-  const size = image.getSize();
+  const [iw, ih] = image.getSize();
+  // 等比适配（Snipaste 手感）：最长边限制 900/700，只缩小不放大，保持原图比例
+  const maxW = 900, maxH = 700;
+  const fit = Math.min(1, maxW / Math.max(1, iw), maxH / Math.max(1, ih));
+  const w = Math.max(1, Math.round(iw * fit));
+  const h = Math.max(1, Math.round(ih * fit));
   const win = new BrowserWindow({
-    width: Math.min(size.width, 900),
-    height: Math.min(size.height, 700),
+    width: w,
+    height: h,
     x: 100 + pasteWindows.length * 30,
     y: 100 + pasteWindows.length * 30,
     frame: false,
     transparent: true,
-    resizable: true,
+    resizable: false,          // 尺寸由程序控制（滚轮缩放/双击），避免用户拖边变形
     alwaysOnTop: true,
     skipTaskbar: true,
     hasShadow: true,
     webPreferences: { nodeIntegration: true, contextIsolation: false }
   });
+  win.__pasteBaseSize = [w, h]; // 缩放基准（等比适配后的初始尺寸）
+  try { win.setAspectRatio(iw / ih); } catch (e) {}
   pasteWindows.push(win);
   win.loadFile(path.join(__dirname, 'paste-window.html'));
   win.webContents.on('did-finish-load', () => {
@@ -325,6 +338,18 @@ function closeAllPasteWindows() {
 
 // ==================== IPC 与初始化 ====================
 
+/** 执行外部命令并等待退出（OCR 模型下载等） */
+function spawnAsync(cmd, args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { stdio: 'inherit', windowsHide: true });
+    child.on('error', reject);
+    child.on('exit', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(cmd + ' 退出码 ' + code));
+    });
+  });
+}
+
 function registerIpc() {
   const { ipcMain } = deps;
   ipcMain.handle('screenshot:cancel', () => { closeScreenshotWindow(); return true; });
@@ -390,6 +415,38 @@ function registerIpc() {
     const img = deps.nativeImage.createFromDataURL(payload.dataUrl);
     if (img.isEmpty()) return { status: 'error', message: '无图片数据' };
     return saveImage(img);
+  });
+
+  // ── OCR 一键安装 / 复制文本（工具卡片配置面板用） ──
+  ipcMain.handle('screenshot:copy-text', (e, payload) => {
+    deps.clipboard.writeText((payload && payload.text) || '');
+    return { status: 'ok' };
+  });
+  ipcMain.handle('screenshot:install-ocr', async () => {
+    // 1) onnxruntime-node 检测
+    let ortInstalled = false;
+    try { require.resolve('onnxruntime-node'); ortInstalled = true; } catch (e) {}
+    // 2) 模型文件检测
+    const modelsDir = path.join(__dirname, 'ocr-models');
+    const required = ['ch_PP-OCRv4_det_infer.onnx', 'ch_PP-OCRv4_rec_infer.onnx', 'ch_PP-OCRv4_cls_infer.onnx', 'ppocr_keys_v1.txt'];
+    const needModel = !required.every(f => fs.existsSync(path.join(modelsDir, f)));
+    // 3) 下载模型（spawn PowerShell 执行下载脚本）
+    if (needModel) {
+      const script = path.join(__dirname, 'download-ocr-models.ps1');
+      try {
+        await spawnAsync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script]);
+      } catch (e) {
+        return { status: 'error', message: '模型下载失败: ' + e.message };
+      }
+    }
+    const modelOk = required.every(f => fs.existsSync(path.join(modelsDir, f)));
+    if (!ortInstalled) {
+      return {
+        status: 'need-npm',
+        message: 'OCR 模型已就绪，但需要安装推理引擎：在项目目录执行 npm i onnxruntime-node && npx electron-builder install-app-deps，然后重启应用'
+      };
+    }
+    return { status: 'done', message: modelOk ? '✅ OCR 组件已就绪，重启应用生效' : '模型下载未完成，请检查网络后重试' };
   });
 
   // ── OCR 模型目录（工具卡片配置面板用） ──

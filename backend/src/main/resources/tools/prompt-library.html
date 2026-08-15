@@ -140,6 +140,10 @@ textarea.code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,mono
 .bc-item input{width:16px;height:16px;accent-color:var(--primary);flex-shrink:0;cursor:pointer}
 .bc-item .bc-name{font-size:.88rem;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bc-item .bc-badge{font-size:.68rem;color:var(--primary);background:var(--primary-soft);padding:2px 8px;border-radius:999px;flex-shrink:0}
+
+/* 官方模板库来源链接 */
+.batch-src-link{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;color:var(--primary);text-decoration:none;margin-bottom:12px;transition:color .18s ease}
+.batch-src-link:hover{color:var(--primary-hover);text-decoration:underline}
 </style>
 </head>
 <body>
@@ -340,6 +344,7 @@ textarea.code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,mono
           <button class="btn btn-ghost-sm" id="batchNone">清空</button>
         </div>
       </div>
+      <a class="batch-src-link" id="batchSrcLink" href="https://github.com/langgptai/LangGPT/blob/main/README_zh.md" target="_blank" rel="noopener">📖 LangGPT 官方提示词库（GitHub 仓库） ↗</a>
       <div id="batchList" style="display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow-y:auto"></div>
     </div>
     <div class="modal-footer">
@@ -947,7 +952,7 @@ textarea.code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,mono
       const d = await res.json();
       if (!res.ok) { $('batchMsg').style.color = 'var(--danger)'; $('batchMsg').textContent = d.error || '批量导入失败'; return; }
       $('batchMsg').style.color = 'var(--success)';
-      $('batchMsg').textContent = '成功 ' + d.imported + ' 个，失败 ' + d.failed + ' 个';
+      $('batchMsg').textContent = '成功 ' + d.imported + ' 个，跳过 ' + (d.skipped || 0) + ' 个，失败 ' + d.failed + ' 个';
       load();
     } catch (e) { $('batchMsg').style.color = 'var(--danger)'; $('batchMsg').textContent = '批量导入失败: ' + e.message; }
     finally { btn.disabled = false; btn.textContent = '导入所选 (' + batchSelected.size + ')'; }

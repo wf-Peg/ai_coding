@@ -5231,21 +5231,63 @@
       mainEditor.completers.push(completer);
     }
 
-    // 输入 `[[` 后主动触发补全，避免依赖 live completion 的“单词字符”触发规则
-    // （ACE 默认只在输入字母/中文等 word 字符时弹窗，两个 `[` 不触发）
+    // 输入 `[[` 后立即弹出双链候选。
+    // 注意：不能依赖 ACE 的 startAutocomplete / live completion——它们只在输入
+    // “单词字符”（字母/中文）时触发，纯 `[[` 不弹；且 startAutocomplete 只显示
+    // 空 popup 不填充数据。因此这里手动收集候选并 setData + showPopup。
+    function triggerWikilinkCompletion() {
+      var completer = mainEditor.completer;
+      // `enableLiveAutocompletion` 只在输入“单词字符”（字母/中文）时才会用到 completer，
+      // 纯 `[[` 不会触发，导致首次输入 `[[` 时 mainEditor.completer 仍为 null。
+      // 这里先执行 startAutocomplete 命令强制创建 completer 实例（并最小化初始化）。
+      if (!completer) {
+        try { mainEditor.execCommand('startAutocomplete'); } catch (e) { /* 忽略 */ }
+        completer = mainEditor.completer;
+      }
+      if (!completer || !completer.popup) return;
+      var pos = mainEditor.getCursorPosition();
+      var line = mainEditor.session.getLine(pos.row).slice(0, pos.column);
+      var m = line.match(/\[\[([^\[\]]*)$/);
+      if (!m) return;
+      var query = m[1].toLowerCase();
+      var results = [];
+      var seen = {};
+      var targets = wikilinkState.targets || [];
+      for (var i = 0; i < targets.length; i++) {
+        var t = targets[i];
+        var hay = (t.basename + ' ' + (t.relativePath || '')).toLowerCase();
+        if (query && hay.indexOf(query) === -1) continue;
+        if (seen[t.basename]) continue;
+        seen[t.basename] = true;
+        results.push({
+          caption: t.basename,
+          value: '[[' + t.basename + ']]',
+          meta: t.relativePath || '知识库',
+          score: t.basename.toLowerCase().indexOf(query) === 0 ? 1000 : 500
+        });
+      }
+      results.sort(function(a, b) { return b.score - a.score; });
+      results = results.slice(0, 30);
+      if (!results.length) { completer.popup.hide(); return; }
+      completer.completions = results;
+      completer.popup.setData(results);
+      completer.showPopup(mainEditor);
+      mainEditor.focus();
+    }
+
     if (mainEditor.session && !mainEditor.__wikilinkTriggerBound) {
       var lastTriggerTime = 0;
       mainEditor.session.on('change', function() {
         var pos = mainEditor.getCursorPosition();
         var line = mainEditor.session.getLine(pos.row).slice(0, pos.column);
         // 光标紧跟在 `[[` 之后（可带部分已输入字符）
-        var m = line.match(/\[\[([^\[\]]*)$/);
-        if (!m) return;
+        var isWikilinkContext = /\[\[[^\[\]]*$/.test(line);
+        if (!isWikilinkContext) return;
         var now = Date.now();
         if (now - lastTriggerTime < 300) return; // 限流，避免反复弹窗
         lastTriggerTime = now;
         setTimeout(function() {
-          try { mainEditor.execCommand('startAutocomplete'); } catch (e) { /* 忽略 */ }
+          try { triggerWikilinkCompletion(); } catch (e) { /* 忽略 */ }
         }, 0);
       });
       mainEditor.__wikilinkTriggerBound = true;

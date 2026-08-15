@@ -1402,6 +1402,14 @@ function createMainWindow(config) {
     });
   }
 
+  // 拦截新窗口打开：外部链接用系统默认浏览器打开，其余拒绝
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//.test(url)) {
+      shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
+
   // 监听页面加载失败事件（如连接被拒绝 ERR_CONNECTION_REFUSED: -102）
   mainWindow.webContents.on('did-fail-load', (event, errorCode) => {
     if (errorCode === -102 || errorCode === -3) {

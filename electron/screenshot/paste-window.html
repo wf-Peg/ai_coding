@@ -83,17 +83,27 @@
     wrap.classList.add('dragging');
     e.preventDefault();
   });
+  let rafMove = null, pendingDelta = { dx: 0, dy: 0 };
   wrap.addEventListener('mousemove', (e) => {
     if (!moving || !downPos) return;
     const dx = e.clientX - downPos.x, dy = e.clientY - downPos.y;
-    if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
-    if (moved) ipcRenderer.invoke('paste:move', { dx, dy });
     downPos = { x: e.clientX, y: e.clientY };
+    if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+    if (!moved) return;
+    pendingDelta.dx += dx; pendingDelta.dy += dy;
+    if (rafMove) return;
+    rafMove = requestAnimationFrame(() => {
+      rafMove = null;
+      if (!pendingDelta.dx && !pendingDelta.dy) return;
+      ipcRenderer.invoke('paste:move', { dx: pendingDelta.dx, dy: pendingDelta.dy });
+      pendingDelta = { dx: 0, dy: 0 };
+    });
   });
   window.addEventListener('mouseup', () => { moving = false; wrap.classList.remove('dragging'); });
 
   // ── 滚轮缩放 / Ctrl+滚轮透明度 ──
   window.addEventListener('wheel', (e) => {
+    if (moving) return; // 移动中忽略滚轮，杜绝"拖动时自动放大"
     e.preventDefault();
     const d = e.deltaY > 0 ? -1 : 1;
     if (e.ctrlKey || e.metaKey) {

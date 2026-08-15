@@ -198,6 +198,8 @@ body {
   border-bottom: 1px solid var(--app-border, #e3e3df);
 }
 .th-overlay-title { font-weight: 600; font-size: 15px; }
+.th-overlay-leading { display: flex; align-items: center; gap: 8px; }
+.th-overlay-back { font-size: 18px; line-height: 1; padding: 4px 10px; }
 .th-overlay-actions { display: flex; gap: 6px; }
 .th-overlay-frame { flex: 1; border: none; width: 100%; }
 

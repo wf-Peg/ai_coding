@@ -45,10 +45,13 @@
 <!-- 工具运行遮罩层 -->
 <div class="th-overlay" id="overlay">
   <div class="th-overlay-header">
-    <span class="th-overlay-title" id="overlayTitle">工具</span>
+    <div class="th-overlay-leading">
+      <button class="th-btn th-btn-ghost-sm th-overlay-back" id="overlayBackBtn" title="返回工具列表">←</button>
+      <span class="th-overlay-title" id="overlayTitle">工具</span>
+    </div>
     <div class="th-overlay-actions">
       <button class="th-btn th-btn-ghost-sm" id="viewPromptBtn" title="查看开发提示词">📋 提示词</button>
-      <button class="th-btn th-btn-ghost-sm" id="overlayCloseBtn" title="关闭">✕</button>
+      <button class="th-btn th-btn-ghost-sm" id="overlayCloseBtn" title="返回工具列表">✕</button>
     </div>
   </div>
   <iframe class="th-overlay-frame" id="toolFrame"></iframe>
@@ -62,7 +65,7 @@
       <button class="th-btn th-btn-ghost-sm" id="promptClose">✕</button>
     </div>
     <div class="th-modal-body">
-      <pre id="promptContent"></pre>
+      <div id="promptContent" style="max-height:60vh;overflow-y:auto;font-size:13px;line-height:1.8;color:var(--app-text);"></div>
     </div>
     <div class="th-modal-footer">
       <button class="th-btn th-btn-primary" id="copyPromptBtn">复制提示词</button>

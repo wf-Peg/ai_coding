@@ -84,6 +84,9 @@
   const magPos = document.getElementById('magPos');
   const magCtx = magCanvas.getContext('2d');
   const MAG_SIZE = 120, MAG_SCALE = 6; // 放大镜 120px，6 倍
+  let offDark = null;      // 离屏全暗遮罩底图（性能优化：选区变化仅 drawImage+clearRect）
+  let rafPending = null;   // RAF 节流：合并 mousemove
+  let pendingMouse = null; // 待处理的最新鼠标坐标
 
   let display = null;      // {width,height,scaleFactor} DIP
   let sf = 1;              // 显示器缩放（裁剪用）
@@ -102,21 +105,22 @@
       mask.height = display.height;
       mask.style.width = '100%';
       mask.style.height = '100%';
+      // 预渲染全暗遮罩底图（一次）
+      offDark = document.createElement('canvas');
+      offDark.width = mask.width; offDark.height = mask.height;
+      const octx = offDark.getContext('2d');
+      octx.fillStyle = 'rgba(0,0,0,0.45)';
+      octx.fillRect(0, 0, offDark.width, offDark.height);
       drawMask(null);
     };
   });
 
-  // ── 遮罩：压暗选区外区域（全 DIP 坐标） ──
+  // ── 遮罩：离屏底图 + 选区亮区（性能优化，避免全屏重绘） ──
   function drawMask(rect) {
     const ctx = mask.getContext('2d');
-    const W = mask.width, H = mask.height;
-    ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = 'rgba(0,0,0,0.45)';
-    if (!rect) { ctx.fillRect(0, 0, W, H); return; }
-    ctx.fillRect(0, 0, W, rect.y);
-    ctx.fillRect(0, rect.y + rect.h, W, H - rect.y - rect.h);
-    ctx.fillRect(0, rect.y, rect.x, rect.h);
-    ctx.fillRect(rect.x + rect.w, rect.y, W - rect.x - rect.w, rect.h);
+    ctx.clearRect(0, 0, mask.width, mask.height);
+    if (offDark) ctx.drawImage(offDark, 0, 0);
+    if (rect) ctx.clearRect(rect.x, rect.y, rect.w, rect.h); // 亮区露出背景
   }
 
   // ── 选区 DOM 更新 ──
@@ -136,14 +140,14 @@
     // 手柄位置
     const h = (dir) => sel.querySelector('.handle[data-h="' + dir + '"]');
     const hw = 9;
-    h('nw').style.cssText = hStyle(0, 0);
-    h('n').style.cssText = hStyle(rect.w / 2 - hw / 2, 0);
-    h('ne').style.cssText = hStyle(rect.w - hw, 0);
-    h('e').style.cssText = hStyle(rect.w - hw, rect.h / 2 - hw / 2);
-    h('se').style.cssText = hStyle(rect.w - hw, rect.h - hw);
-    h('s').style.cssText = hStyle(rect.w / 2 - hw / 2, rect.h - hw);
-    h('sw').style.cssText = hStyle(0, rect.h - hw);
-    h('w').style.cssText = hStyle(0, rect.h / 2 - hw / 2);
+    h('nw').style.transform = 'translate(0px,0px)';
+    h('n').style.transform = 'translate(' + (rect.w / 2 - hw / 2) + 'px,0px)';
+    h('ne').style.transform = 'translate(' + (rect.w - hw) + 'px,0px)';
+    h('e').style.transform = 'translate(' + (rect.w - hw) + 'px,' + (rect.h / 2 - hw / 2) + 'px)';
+    h('se').style.transform = 'translate(' + (rect.w - hw) + 'px,' + (rect.h - hw) + 'px)';
+    h('s').style.transform = 'translate(' + (rect.w / 2 - hw / 2) + 'px,' + (rect.h - hw) + 'px)';
+    h('sw').style.transform = 'translate(0px,' + (rect.h - hw) + 'px)';
+    h('w').style.transform = 'translate(0px,' + (rect.h / 2 - hw / 2) + 'px)';
     sel.classList.add('resize');
     // 工具栏跟随
     const tbW = 300;
@@ -185,15 +189,25 @@
   });
 
   window.addEventListener('mousemove', (e) => {
+    // RAF 节流：合并连续 mousemove，仅按帧处理
+    pendingMouse = { x: e.clientX, y: e.clientY };
+    if (rafPending) return;
+    rafPending = requestAnimationFrame(processMouseMove);
+  });
+
+  function processMouseMove() {
+    rafPending = null;
+    const e = pendingMouse;
+    pendingMouse = null;
+    if (!e) return;
     // 放大镜（在选区边缘 8px 内或拖拽调整时显示）
-    updateMagnifier(e.clientX, e.clientY);
+    updateMagnifier(e.x, e.y);
     if (!dragMode) return;
-    const x = e.clientX, y = e.clientY;
+    const x = e.x, y = e.y;
     if (dragMode === 'draw') {
       selRect = normRect(dragStart.x, dragStart.y, x, y);
     } else if (dragMode === 'move') {
-      const dx = x - dragStart.x, dy = y - dragStart.y;
-      selRect = { x: lastRect.x + dx, y: lastRect.y + dy, w: lastRect.w, h: lastRect.h };
+      selRect = { x: lastRect.x + (x - dragStart.x), y: lastRect.y + (y - dragStart.y), w: lastRect.w, h: lastRect.h };
       clampRect();
     } else if (dragMode.dir) {
       selRect = resizeByHandle(lastRect, dragMode.dir, x - dragStart.x, y - dragStart.y);
@@ -201,7 +215,7 @@
     }
     drawMask(selRect);
     updateSel(selRect);
-  });
+  }
 
   window.addEventListener('mouseup', () => {
     if (!dragMode) return;
