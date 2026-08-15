@@ -462,7 +462,8 @@
 
             <div class="loading" id="queryLoading" style="display: none;">
                 <div class="spinner"></div>
-                <p>正在查询中，请稍候...</p>
+                <div id="progress-stage" style="font-weight: 600; margin-bottom: 4px;">准备查询...</div>
+                <div id="progress-message" style="font-size: 0.85rem; color: var(--fg-secondary);"></div>
             </div>
         </div>
 
@@ -627,7 +628,7 @@
         const archiveBtn = document.getElementById('archiveBtn');
         let currentAnswer = '';
 
-        queryBtn.addEventListener('click', async () => {
+        queryBtn.addEventListener('click', () => {
             const question = document.getElementById('questionInput').value.trim();
             if (!question) {
                 alert('请输入问题');
@@ -637,19 +638,35 @@
             queryBtn.disabled = true;
             showLoading('queryLoading');
             document.getElementById('resultCard').style.display = 'none';
+            document.getElementById('progress-stage').textContent = '准备查询...';
+            document.getElementById('progress-message').textContent = '正在建立连接...';
 
-            try {
-                const data = await fetchJson(API_BASE + '/api/wiki/query', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        question: question,
-                        includeClips: document.getElementById('includeClipsCheck').checked,
-                        includeKnowledge: document.getElementById('includeKnowledgeCheck').checked
-                    })
-                });
+            const includeClips = document.getElementById('includeClipsCheck').checked;
+            const includeKnowledge = document.getElementById('includeKnowledgeCheck').checked;
 
-                if (data.status === 'success') {
+            const url = API_BASE + '/api/wiki/query/stream?question=' + encodeURIComponent(question)
+                    + '&includeClips=' + includeClips
+                    + '&includeKnowledge=' + includeKnowledge;
+
+            const eventSource = new EventSource(url);
+
+            eventSource.addEventListener('progress', (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    document.getElementById('progress-stage').textContent = data.stage || '';
+                    document.getElementById('progress-message').textContent = data.message || '';
+                } catch (err) {
+                    // ignore parse errors
+                }
+            });
+
+            eventSource.addEventListener('complete', (e) => {
+                eventSource.close();
+                hideLoading('queryLoading');
+                queryBtn.disabled = false;
+                let data;
+                try { data = JSON.parse(e.data); } catch (err) { data = null; }
+                if (data && data.status === 'success') {
                     currentAnswer = data.answer || '';
                     renderQueryResult(data);
                     archiveBtn.disabled = false;
@@ -657,21 +674,23 @@
                     document.getElementById('resultCard').style.display = 'block';
                     document.getElementById('answerMeta').innerHTML = '';
                     document.getElementById('relevantPages').innerHTML = '';
-                    document.getElementById('answerBody').innerHTML = '<div class="error-msg">' + escapeHtml(data.message || '查询失败') + '</div>';
+                    document.getElementById('answerBody').innerHTML = '<div class="error-msg">' + escapeHtml((data && data.message) || '查询失败') + '</div>';
                     archiveBtn.disabled = true;
                     currentAnswer = '';
                 }
-            } catch (e) {
+            });
+
+            eventSource.addEventListener('error', (e) => {
+                eventSource.close();
+                hideLoading('queryLoading');
+                queryBtn.disabled = false;
                 document.getElementById('resultCard').style.display = 'block';
                 document.getElementById('answerMeta').innerHTML = '';
                 document.getElementById('relevantPages').innerHTML = '';
-                document.getElementById('answerBody').innerHTML = '<div class="error-msg">查询请求失败: ' + escapeHtml(e.message) + '</div>';
+                document.getElementById('answerBody').innerHTML = '<div class="error-msg">查询连接中断，请重试</div>';
                 archiveBtn.disabled = true;
                 currentAnswer = '';
-            } finally {
-                hideLoading('queryLoading');
-                queryBtn.disabled = false;
-            }
+            });
         });
 
         clearQueryBtn.addEventListener('click', () => {

@@ -1930,7 +1930,7 @@
         }
 
         .markdown-content strong {
-            color: var(--primary);
+            color: var(--text);
             font-weight: 600;
         }
 
@@ -2207,49 +2207,79 @@
             position: relative;
             width: 72px;
             height: 72px;
-            border-radius: 8px;
+            border-radius: 10px;
             overflow: hidden;
             border: 1px solid var(--border);
             background: var(--surface-hover);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+            flex-shrink: 0;
         }
         .image-preview-item img {
             width: 100%;
             height: 100%;
             object-fit: cover;
+            display: block;
         }
+        /* 上传进度条（底部细条） */
         .image-preview-item .preview-status {
             position: absolute;
             left: 0; right: 0; bottom: 0;
-            font-size: 0.6rem;
-            text-align: center;
-            padding: 1px 2px;
-            color: #fff;
-            background: rgba(0,0,0,0.55);
+            height: 4px;
+            background: rgba(0,0,0,0.3);
+            overflow: hidden;
         }
-        .image-preview-item .preview-status.error { background: rgba(220,38,38,0.8); }
+        .image-preview-item .preview-progress {
+            height: 100%;
+            background: var(--primary);
+            transition: width 0.2s ease;
+        }
+        /* 失败遮罩 */
+        .image-preview-item .preview-status.error {
+            height: 100%;
+            background: rgba(220,38,38,0.4);
+        }
+        /* 完成圆点（替代文字勾号） */
+        .image-preview-item .preview-dot {
+            position: absolute;
+            right: 4px; bottom: 4px;
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: #22c55e;
+            box-shadow: 0 0 0 2px rgba(255,255,255,0.75);
+        }
+        /* 删除按钮 */
         .image-preview-item .preview-remove {
             position: absolute;
-            top: 2px; right: 2px;
-            width: 18px; height: 18px;
+            top: 3px; right: 3px;
+            width: 20px; height: 20px;
             border: none;
             border-radius: 50%;
-            background: rgba(0,0,0,0.55);
+            background: rgba(0,0,0,0.5);
             color: #fff;
-            font-size: 0.7rem;
-            line-height: 18px;
+            font-size: 0.72rem;
+            line-height: 20px;
             text-align: center;
             cursor: pointer;
+            padding: 0;
+            transition: background 0.15s ease;
         }
+        .image-preview-item .preview-remove:hover {
+            background: rgba(220,38,38,0.9);
+        }
+        /* 重试按钮（失败态，居中） */
         .image-preview-item .preview-retry {
             position: absolute;
-            top: 2px; left: 2px;
-            padding: 1px 6px;
+            left: 50%; top: 50%;
+            transform: translate(-50%, -50%);
+            padding: 3px 10px;
             border: none;
-            border-radius: 8px;
-            background: rgba(220,38,38,0.85);
+            border-radius: 999px;
+            background: rgba(220,38,38,0.92);
             color: #fff;
-            font-size: 0.65rem;
+            font-size: 0.68rem;
             cursor: pointer;
+            white-space: nowrap;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
         }
         .content-preview {
             margin-top: 8px;
@@ -2257,8 +2287,10 @@
             border: 1px solid var(--border);
             border-radius: 10px;
             background: var(--surface);
+            color: var(--text); /* 跟随全局主题，避免继承异常 */
             min-height: 80px;
         }
+        html[data-theme="dark"] .content-preview { background: #2d2d2d; color: #d4d4d4; }
         .content-preview img, .markdown-content img {
             max-width: 100%;
             border-radius: 8px;
@@ -2504,7 +2536,7 @@
         }
 
         .markdown-content strong {
-            color: var(--primary);
+            color: var(--text);
             font-weight: 600;
         }
 
@@ -3483,12 +3515,13 @@
                 inner += '<img src="' + window.MediaKit.render.mediaUrl(entry.path) + '?thumb=1" alt="">';
             }
             if (entry.status === 'uploading' || entry.status === 'compressing') {
-                inner += '<div class="preview-status">' + (entry.status === 'compressing' ? '压缩中' : (entry.progress != null ? entry.progress + '%' : '上传中')) + '</div>';
+                var pct = (entry.status === 'compressing' || entry.progress == null) ? 0 : entry.progress;
+                inner += '<div class="preview-status"><div class="preview-progress" style="width:' + pct + '%"></div></div>';
             } else if (entry.status === 'error') {
-                inner += '<div class="preview-status error">失败</div>';
+                inner += '<div class="preview-status error"></div>';
                 inner += '<button type="button" class="preview-retry" data-index="' + index + '">重试</button>';
             } else if (entry.status === 'done') {
-                inner += '<div class="preview-status">✓</div>';
+                inner += '<div class="preview-dot" title="上传完成"></div>';
             }
             inner += '<button type="button" class="preview-remove" data-index="' + index + '" title="移除图片（同时移除内容引用）">✕</button>';
             el.innerHTML = inner;

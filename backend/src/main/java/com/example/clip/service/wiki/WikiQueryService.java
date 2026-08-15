@@ -128,6 +128,25 @@ public class WikiQueryService {
      * @return 查询结果 Map：status / answer / relevantPages / tokenEstimate / message
      */
     public Map<String, Object> query(String question, boolean includeClips, boolean includeKnowledge) {
+        return query(question, includeClips, includeKnowledge, null);
+    }
+
+    /**
+     * 执行 Wiki 综合查询（带进度回调）。
+     * <p>
+     * 与 {@link #query(String, boolean, boolean)} 语义一致，但在查询的各个阶段
+     * （读取索引、定位页面、读取内容、补充资源、生成答案）通过 {@link ProgressCallback}
+     * 向前端推送实时进度，便于展示"思维链"式的执行过程。
+     * </p>
+     *
+     * @param question         用户问题
+     * @param includeClips     是否纳入应用内剪藏内容
+     * @param includeKnowledge 是否纳入知识条目内容
+     * @param callback         进度回调；可为 null（此时不推送）
+     * @return 查询结果 Map：status / answer / relevantPages / tokenEstimate / message
+     */
+    public Map<String, Object> query(String question, boolean includeClips, boolean includeKnowledge,
+                                     ProgressCallback callback) {
         Map<String, Object> result = new LinkedHashMap<>();
         if (question == null || question.trim().isEmpty()) {
             result.put("status", "error");
@@ -140,6 +159,7 @@ public class WikiQueryService {
 
         try {
             // 1. 读取 index.md
+            notify(callback, "读取索引", "正在读取 Wiki 索引文件...");
             Path indexPath = wikiIndexService.getIndexPath();
             String indexContent = wikiPageService.readPage(indexPath);
             if (indexContent == null || indexContent.trim().isEmpty()) {
@@ -147,6 +167,7 @@ public class WikiQueryService {
             }
 
             // 2. 定位相关页面：本地拆词检索优先，未命中降级 LLM
+            notify(callback, "定位页面", "正在定位相关页面（本地检索优先）...");
             List<String> relevantPageNames;
             boolean usedLocalRetrieval = false;
             if (wikiConfig != null && wikiConfig.isQueryLocalRetrievalEnabled()) {
@@ -158,14 +179,17 @@ public class WikiQueryService {
                     usedLocalRetrieval = true;
                     log.info("[WikiQuery] Local retrieval located {} pages (skip LLM stage-1)", localPages.size());
                 } else {
+                    notify(callback, "定位页面", "本地检索未命中，正在调用大模型挑选相关页面...");
                     relevantPageNames = aiService.locateRelevantPages(question, indexContent);
                 }
             } else {
+                notify(callback, "定位页面", "正在调用大模型挑选相关页面...");
                 relevantPageNames = aiService.locateRelevantPages(question, indexContent);
             }
             log.info("[WikiQuery] Located {} relevant pages for question", relevantPageNames.size());
 
             // 3. 仅读取相关页面内容（非全量扫描）
+            notify(callback, "读取内容", "正在读取 " + relevantPageNames.size() + " 个相关页面内容...");
             Map<String, String> pageContents = new LinkedHashMap<>();
             for (String pageName : relevantPageNames) {
                 if (pageName == null || pageName.trim().isEmpty()) {
@@ -187,6 +211,7 @@ public class WikiQueryService {
             int clipCount = 0;
             int knowledgeCount = 0;
             if (includeClips || includeKnowledge) {
+                notify(callback, "补充资源", "正在纳入剪藏/知识条目...");
                 int extraTopK = wikiConfig != null ? wikiConfig.getQueryExtraTopK() : 5;
                 int extraMaxChars = wikiConfig != null ? wikiConfig.getQueryExtraMaxChars() : 800;
                 // 提取问题关键词，用于兜底搜索
@@ -240,6 +265,7 @@ public class WikiQueryService {
             }
 
             // 4. 调用强模型综合答案
+            notify(callback, "生成答案", "大模型正在综合 " + pageContents.size() + " 份内容生成答案...");
             String answer = aiService.synthesizeAnswer(question, pageContents);
 
             // 5. 估算 Token 消耗（粗略：字符数 / 4）
@@ -259,12 +285,46 @@ public class WikiQueryService {
             extraSources.put("knowledge", knowledgeCount);
             result.put("extraSources", extraSources);
             result.put("message", "Query completed: " + pageContents.size() + " pages used");
+            notify(callback, "完成", "查询完成");
             return result;
         } catch (Exception e) {
             log.error("[WikiQuery] Query failed: {}", e.getMessage(), e);
             result.put("status", "error");
             result.put("message", "Query failed: " + e.getMessage());
+            notify(callback, "失败", "查询失败：" + e.getMessage());
             return result;
+        }
+    }
+
+    /**
+     * 进度回调接口 —— 供{@link #query(String, boolean, boolean, ProgressCallback)}
+     * 在查询各阶段向前端推送实时进度。
+     */
+    @FunctionalInterface
+    public interface ProgressCallback {
+        /**
+         * 查询进入新阶段时回调。
+         *
+         * @param stage   阶段名（如"读取索引"、"生成答案"）
+         * @param message 阶段说明文字
+         */
+        void onProgress(String stage, String message);
+    }
+
+    /**
+     * 触发进度回调（回调为 null 时静默跳过）。
+     *
+     * @param callback 进度回调
+     * @param stage    阶段名
+     * @param message  阶段说明文字
+     */
+    private void notify(ProgressCallback callback, String stage, String message) {
+        if (callback != null) {
+            try {
+                callback.onProgress(stage, message);
+            } catch (Exception e) {
+                log.warn("[WikiQuery] Progress callback failed: {}", e.getMessage());
+            }
         }
     }
 

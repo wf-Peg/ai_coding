@@ -6,8 +6,11 @@ import com.example.clip.service.wiki.WikiPageService;
 import com.example.clip.service.wiki.WikiQueryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter.SseEventBuilder;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -80,6 +83,61 @@ public class WikiQueryController {
         log.info("[WikiQuery] Query request received");
         Map<String, Object> result = wikiQueryService.query(question, includeClips, includeKnowledge);
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * 执行 Wiki 综合查询（SSE 流式进度）。
+     * <p>
+     * 与 {@code POST /api/wiki/query} 语义一致，但通过 Server-Sent Events 实时推送
+     * 查询各阶段（读取索引 → 定位页面 → 读取内容 → 补充资源 → 生成答案 → 完成）的进度，
+     * 便于前端展示类似"思维链"的执行过程。完成时推送 {@code complete} 事件携带完整结果。
+     * </p>
+     *
+     * @param question         用户问题
+     * @param includeClips     是否纳入应用内剪藏内容
+     * @param includeKnowledge 是否纳入知识条目内容
+     * @return SSE 流 {@code progress} / {@code complete} 事件
+     */
+    @GetMapping(value = "/query/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter queryStream(@RequestParam String question,
+                                  @RequestParam(defaultValue = "false") boolean includeClips,
+                                  @RequestParam(defaultValue = "false") boolean includeKnowledge) {
+        // 5 分钟超时
+        SseEmitter emitter = new SseEmitter(300_000L);
+        log.info("[WikiQuery] SSE stream request received");
+
+        new Thread(() -> {
+            try {
+                WikiQueryService.ProgressCallback callback = (stage, message) -> {
+                    try {
+                        SseEventBuilder event = SseEmitter.event()
+                                .name("progress")
+                                .data(Map.of("stage", stage, "message", message));
+                        emitter.send(event);
+                    } catch (Exception e) {
+                        log.warn("[WikiQuery] Failed to send progress event: {}", e.getMessage());
+                    }
+                };
+                Map<String, Object> result = wikiQueryService.query(question, includeClips, includeKnowledge, callback);
+                SseEventBuilder complete = SseEmitter.event().name("complete").data(result);
+                emitter.send(complete);
+                emitter.complete();
+            } catch (Exception e) {
+                log.error("[WikiQuery] SSE stream failed: {}", e.getMessage(), e);
+                // 尽量将错误信息推送给前端
+                try {
+                    SseEventBuilder error = SseEmitter.event()
+                            .name("error")
+                            .data(Map.of("message", e.getMessage() != null ? e.getMessage() : "Unknown error"));
+                    emitter.send(error);
+                } catch (Exception ignored) {
+                    // ignore
+                }
+                emitter.completeWithError(e);
+            }
+        }).start();
+
+        return emitter;
     }
 
     /**
