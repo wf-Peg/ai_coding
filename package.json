@@ -54,7 +54,8 @@
         "from": "frontend",
         "to": "frontend",
         "filter": [
-          "**/*"
+          "**/*",
+          "!**/clip-backend.jar"
         ]
       },
       {

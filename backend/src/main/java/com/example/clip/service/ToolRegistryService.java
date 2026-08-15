@@ -47,6 +47,44 @@ public class ToolRegistryService {
     /** 注册表文件名 */
     private static final String REGISTRY_FILE = "registry.json";
 
+    /**
+     * 注入到工具页面中的「全局主题桥」脚本。
+     * <p>工具页面在 Tools Hub 的 iframe 中运行，本身感知不到主框架的 data-theme。
+     * 该脚本监听父框架广播的 {@code themeChange} 消息，将全局主题（notion/regular/dark，
+     * 含滚动条配色）应用到工具页面自身的 CSS 变量上，保证工具内主题与全局一致。</p>
+     */
+    private static final String THEME_BRIDGE_SCRIPT = """
+            <script>
+            /* CutShelter 全局主题桥：工具内主题跟随主框架 data-theme（含滚动条配色） */
+            (function(){
+              function paletteCss(t){
+                if(t==='dark') return 'html[data-theme="dark"]{color-scheme:dark;--bg:#1e1e1e;--surface:#282828;--surface-subtle:#323232;--surface-hover:#3b3b3b;--border:#414141;--border-strong:#525252;--text:#dedede;--text-secondary:#aaaaaa;--text-muted:#777777;--primary:#61a6ff;--primary-hover:#7bb5ff;--primary-soft:rgba(97,166,255,.14);--success:#56c997;--danger:#ef7777;--danger-soft:rgba(239,119,119,.12);--shadow:0 10px 28px rgba(0,0,0,.32)}';
+                if(t==='regular') return 'html[data-theme="regular"]{--bg:#edf5ff;--surface:#ffffff;--surface-subtle:#e2efff;--surface-hover:#d7e8fd;--border:#c9dcf5;--border-strong:#adc8eb;--text:#2f3437;--text-secondary:#6b6f76;--text-muted:#92969d;--primary:#2383e2;--primary-hover:#1f76c9;--primary-soft:rgba(35,131,226,.1);--success:#238b63;--danger:#d14343;--danger-soft:rgba(209,67,67,.1);--shadow:0 1px 2px rgba(15,23,42,.06),0 10px 24px rgba(15,23,42,.06)}';
+                return 'html[data-theme="notion"]{--bg:#f7f7f5;--surface:#ffffff;--surface-subtle:#f1f1ef;--surface-hover:#ececea;--border:#e3e3df;--border-strong:#d2d2cd;--text:#2f3437;--text-secondary:#6b6f76;--text-muted:#92969d;--primary:#2383e2;--primary-hover:#1f76c9;--primary-soft:rgba(35,131,226,.1);--success:#238b63;--danger:#d14343;--danger-soft:rgba(209,67,67,.1);--shadow:0 1px 2px rgba(15,23,42,.06),0 10px 24px rgba(15,23,42,.06)}';
+              }
+              var scrollCss='::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:999px;border:2px solid transparent;background-clip:padding-box}::-webkit-scrollbar-thumb:hover{background:var(--text-muted)}::-webkit-scrollbar-corner{background:transparent}*{scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}';
+              function applyTheme(theme){
+                var t=theme==='dark'?'dark':(theme==='regular'?'regular':'notion');
+                var root=document.documentElement;
+                root.setAttribute('data-theme',t);
+                var st=document.getElementById('__cut_shelter_theme');
+                if(!st){st=document.createElement('style');st.id='__cut_shelter_theme';(document.head||root).appendChild(st);}
+                st.textContent=paletteCss(t)+scrollCss;
+              }
+              window.addEventListener('message',function(e){
+                if(e.data&&e.data.action==='themeChange'&&e.data.theme)applyTheme(e.data.theme);
+              });
+              try{
+                var pt=window.parent&&window.parent.document&&window.parent.document.documentElement.getAttribute('data-theme');
+                if(pt)applyTheme(pt);
+              }catch(err){}
+            })();
+            </script>
+            """;
+
+    /** 注入标记：工具页面本身已带主题桥（避免重复注入） */
+    private static final String THEME_BRIDGE_MARKER = "__cut_shelter_theme";
+
     private final ObjectMapper objectMapper;
 
     public ToolRegistryService() {
@@ -75,6 +113,9 @@ public class ToolRegistryService {
         list.add(tool("csv-json", "CSV ↔ JSON", "🧾", "文件处理", "CSV 与 JSON 互转，支持自定义分隔符与缩进",
                 Arrays.asList("csv", "json", "转换", "表格"),
                 "开发一个 CSV 与 JSON 双向转换工具：粘贴或上传内容，选择转换方向与分隔符，调用后端 /api/tools/csv-json 转换。自包含单 HTML。"));
+        list.add(tool("prompt-library", "提示词库", "🧠", "AI 工具", "提示词模板集：收藏/分类/复用，支持应用到系统槽位与 LangGPT 结构化编辑",
+                Arrays.asList("提示词", "prompt", "模板", "langgpt", "收藏", "结构化"),
+                "开发一个提示词库工具：卡片网格展示模板，支持搜索、分类 chips、收藏置顶；新建/编辑/删除模板；复制到剪贴板；应用到系统槽位（调用 /api/prompt-library/{id}/apply）；LangGPT 结构化导入与分段编辑（调用 /api/prompt-library/import-langgpt）。自包含单 HTML，风格参考 Notion，需自带设计令牌与暗色适配。"));
         return list;
     }
 
@@ -220,6 +261,7 @@ public class ToolRegistryService {
 
     /**
      * 列出全部工具元数据（不含页面内容）。
+     * <p>对缺少 enabled 字段的旧记录默认补充为 true（启用），保证前端可用。</p>
      *
      * @return 工具列表
      */
@@ -227,7 +269,42 @@ public class ToolRegistryService {
     public List<Map<String, Object>> listTools() {
         Map<String, Object> registry = loadRegistry();
         Object toolsObj = registry.get("tools");
-        return toolsObj instanceof List ? (List<Map<String, Object>>) toolsObj : new ArrayList<>();
+        if (!(toolsObj instanceof List)) {
+            return new ArrayList<>();
+        }
+        List<Map<String, Object>> tools = (List<Map<String, Object>>) toolsObj;
+        for (Map<String, Object> t : tools) {
+            if (!t.containsKey("enabled")) {
+                t.put("enabled", true);
+            }
+        }
+        return tools;
+    }
+
+    /**
+     * 启用或禁用指定工具。
+     * <p>禁用后该工具仍保留在注册表与页面文件中，仅不再可打开运行。内置工具同样支持禁用。</p>
+     *
+     * @param id      工具 id
+     * @param enabled true 启用，false 禁用
+     * @return 更新后的工具元数据；工具不存在返回 null
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> setToolEnabled(String id, boolean enabled) {
+        Map<String, Object> registry = loadRegistry();
+        Object toolsObj = registry.get("tools");
+        List<Map<String, Object>> tools = toolsObj instanceof List
+                ? (List<Map<String, Object>>) toolsObj : new ArrayList<>();
+        for (Map<String, Object> t : tools) {
+            if (id.equals(t.get("id"))) {
+                t.put("enabled", enabled);
+                registry.put("tools", tools);
+                saveRegistry(registry);
+                log.info("[ToolRegistry] {} tool: {}", enabled ? "Enabled" : "Disabled", id);
+                return t;
+            }
+        }
+        return null;
     }
 
     /**
@@ -326,7 +403,7 @@ public class ToolRegistryService {
     }
 
     /**
-     * 读取工具页面 HTML 内容。
+     * 读取工具页面 HTML 内容（自动注入全局主题桥脚本）。
      *
      * @param id 工具 id
      * @return HTML 内容；工具不存在返回 null
@@ -343,7 +420,7 @@ public class ToolRegistryService {
                 Path page = getToolsDir().resolve(t.get("file").toString());
                 if (Files.exists(page)) {
                     try {
-                        return Files.readString(page, StandardCharsets.UTF_8);
+                        return injectThemeBridge(Files.readString(page, StandardCharsets.UTF_8));
                     } catch (IOException e) {
                         log.warn("[ToolRegistry] Failed to read tool page {}: {}", t.get("file"), e.getMessage());
                         return null;
@@ -352,6 +429,26 @@ public class ToolRegistryService {
             }
         }
         return null;
+    }
+
+    /**
+     * 向工具页面 HTML 注入全局主题桥脚本（插在 {@code </body>} 前，缺失则回退 {@code </html>} / 追加末尾）。
+     * <p>已带主题桥的页面（如用户自行改造过的导入工具）不重复注入。</p>
+     */
+    private String injectThemeBridge(String html) {
+        if (html == null || html.isEmpty() || html.contains(THEME_BRIDGE_MARKER)) {
+            return html;
+        }
+        String lower = html.toLowerCase();
+        int idx = lower.indexOf("</body>");
+        if (idx >= 0) {
+            return html.substring(0, idx) + THEME_BRIDGE_SCRIPT + html.substring(idx);
+        }
+        idx = lower.indexOf("</html>");
+        if (idx >= 0) {
+            return html.substring(0, idx) + THEME_BRIDGE_SCRIPT + html.substring(idx);
+        }
+        return html + THEME_BRIDGE_SCRIPT;
     }
 
     /**

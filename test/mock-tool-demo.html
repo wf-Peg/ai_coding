@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mock 工具演示</title>
+<style>
+  :root { --accent:#4f6ef7; --bg:#f7f7f5; --card:#fff; --text:#2f3437; --muted:#92969d; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,"Segoe UI","PingFang SC",sans-serif; background:var(--bg); color:var(--text); }
+  .wrap { max-width:560px; margin:48px auto; padding:0 20px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:13px; margin:0 0 24px; }
+  .card { background:var(--card); border:1px solid #e7e7e2; border-radius:12px; padding:20px; box-shadow:0 2px 8px rgba(15,23,42,.04); }
+  .card h2 { font-size:15px; margin:0 0 12px; }
+  .row { display:flex; gap:10px; margin-bottom:12px; }
+  input { flex:1; padding:9px 12px; border:1px solid #deded9; border-radius:8px; font:inherit; outline:none; }
+  input:focus { border-color:var(--accent); }
+  button { padding:9px 16px; border:none; border-radius:8px; background:var(--accent); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  button.secondary { background:#ececea; color:var(--text); }
+  .log { margin-top:16px; background:#f2f2ef; border-radius:8px; padding:12px; font:12px/1.6 ui-monospace,Consolas,monospace; min-height:80px; white-space:pre-wrap; }
+  .tag { display:inline-block; padding:2px 8px; border-radius:999px; background:#eef1ff; color:var(--accent); font-size:12px; margin-bottom:16px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🎠 Mock 演示工具</h1>
+    <p class="sub">这是一个用于验证「热插拔」机制的示例工具，可以被禁用 / 启用 / 删除。</p>
+    <div class="card">
+      <span class="tag">mock · 可插拔</span>
+      <h2>计算器</h2>
+      <div class="row">
+        <input id="a" type="number" placeholder="数字 A">
+        <input id="b" type="number" placeholder="数字 B">
+      </div>
+      <div class="row">
+        <button onclick="calc('+')">+</button>
+        <button onclick="calc('-')">-</button>
+        <button onclick="calc('*')">×</button>
+        <button onclick="calc('/')">÷</button>
+        <button class="secondary" onclick="reset()">清空</button>
+      </div>
+      <div class="log" id="log">就绪。</div>
+    </div>
+  </div>
+<script>
+  function calc(op) {
+    var a = parseFloat(document.getElementById('a').value || 0);
+    var b = parseFloat(document.getElementById('b').value || 0);
+    var r = op === '+' ? a + b : op === '-' ? a - b : op === '*' ? a * b : b === 0 ? '除零' : a / b;
+    log(a + ' ' + op + ' ' + b + ' = ' + r);
+  }
+  function reset() {
+    document.getElementById('a').value = '';
+    document.getElementById('b').value = '';
+    log('已清空。');
+  }
+  function log(t) {
+    document.getElementById('log').textContent = '> ' + t + '\n' + document.getElementById('log').textContent;
+  }
+</script>
+</body>
+</html>

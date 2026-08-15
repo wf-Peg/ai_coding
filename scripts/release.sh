@@ -1,12 +1,11 @@
 #!/bin/bash
 # ============================================================
-# 一键发布脚本：构建 → 打包 → 创建 GitHub Release
+# 一键发布脚本：版本号交互确认 → 构建 → 打包 → 创建 GitHub Release
 #
 # 用法：
+#   ./scripts/release.sh                        # 交互：询问是否递增版本号并更新
 #   ./scripts/release.sh 1.0.1 "更新说明"
-#   ./scripts/release.sh 1.0.1                    # 不写说明则用默认
-#   ./scripts/release.sh 1.0.1 "" win             # 只构建 Windows
-#   ./scripts/release.sh 1.0.1 "" all             # 构建所有平台
+#   ./scripts/release.sh 1.0.1 "" win           # 只构建 Windows
 #
 # 前置条件：
 #   1. 已安装 JDK 21 + Maven + Node.js
@@ -15,7 +14,7 @@
 # ============================================================
 set -e
 
-VERSION="${1:-}"
+ARG_VERSION="${1:-}"
 NOTES="${2:-"版本更新"}"
 PLATFORM="${3:-all}"
 
@@ -30,13 +29,8 @@ log_ok()   { echo -e "${GREEN}  ✓${NC} $1"; }
 log_warn() { echo -e "${YELLOW}  ⚠${NC} $1"; }
 log_err()  { echo -e "${RED}  ✗${NC} $1"; }
 
-if [ -z "$VERSION" ]; then
-  echo "用法: ./scripts/release.sh <版本号> [更新说明] [平台: win|mac|linux|all]"
-  echo "示例: ./scripts/release.sh 1.0.1 \"新增我的思考功能\" all"
-  exit 1
-fi
-
-TAG="v${VERSION}"
+TOTAL_STEPS=9
+TAG=""
 REPO="wf-Peg/ai_coding"
 DIST_DIR="dist-electron"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -44,18 +38,15 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 cd "$PROJECT_DIR"
 
-# 计算总步骤数
-TOTAL_STEPS=8
 echo ""
 echo "========================================="
-echo "  发布版本: ${TAG}"
-echo "  目标平台: ${PLATFORM}"
+echo "  发布工具 (Release Publisher)"
 echo "  仓库: ${REPO}"
 echo "========================================="
 echo ""
 
 # ============================================================
-# 前置检查
+# 1. 前置检查
 # ============================================================
 log_step 1 "前置检查"
 
@@ -76,7 +67,7 @@ fi
 if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
   log_warn "工作区有未提交的更改，请先提交或暂存"
   git status --short
-  read -p "是否继续? (y/N) " -n 1 -r
+  read -p "  是否继续? (y/N) " -n 1 -r
   echo
   if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     exit 1
@@ -89,24 +80,75 @@ gh auth status >/dev/null 2>&1 || { log_err "GitHub CLI 未认证，请运行: g
 log_ok "前置检查通过"
 
 # ============================================================
-# 版本号更新
+# 2. 版本号确认（询问是否递增版本号并更新）
 # ============================================================
-log_step 2 "更新版本号到 ${VERSION}"
+log_step 2 "版本号确认"
 
-node -e "
-const pkg = require('./package.json');
-pkg.version = '${VERSION}';
-require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');
-"
-git add package.json
-git commit -m "chore: bump version to ${VERSION}" 2>/dev/null || log_warn "版本号可能未变化"
+CURRENT_VERSION="$(node -p "require('./package.json').version" 2>/dev/null || echo 1.0.0)"
+echo "  当前版本: ${CURRENT_VERSION}"
 
-log_ok "版本号已更新"
+if [ -n "$ARG_VERSION" ]; then
+  VERSION="$ARG_VERSION"
+  echo "  使用命令行指定版本: ${VERSION}"
+else
+  read -p "  是否递增版本号并更新 package.json？(y/N) " -n 1 -r
+  echo
+  if [[ $REPLY =~ ^[Yy]$ ]]; then
+    # 建议下一 patch 版本（x.y.z -> x.y.(z+1)）
+    IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+    SUGGEST_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+    read -p "  请输入新版本号（回车使用建议值 ${SUGGEST_VERSION}）: " VERSION
+    if [ -z "$VERSION" ]; then
+      VERSION="$SUGGEST_VERSION"
+    fi
+  else
+    VERSION="$CURRENT_VERSION"
+    echo "  沿用当前版本 ${VERSION}"
+  fi
+fi
+
+# 校验版本号格式 x.y.z
+if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  log_err "版本号格式无效: ${VERSION}（应为 x.y.z，如 1.0.8）"
+  exit 1
+fi
+
+TAG="v${VERSION}"
+echo "  发布版本: ${TAG}  平台: ${PLATFORM}"
+log_ok "版本号确认完成"
 
 # ============================================================
-# 下载 JRE
+# 3. 更新 package.json 版本号（如递增）
 # ============================================================
-log_step 3 "下载 JDK 21 JRE（免安装便携版）"
+if [ "$VERSION" != "$CURRENT_VERSION" ]; then
+  log_step 3 "更新版本号到 ${VERSION}"
+
+  node -e "
+  const pkg = require('./package.json');
+  pkg.version = '${VERSION}';
+  require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');
+  "
+  git add package.json
+  git commit -m "chore: bump version to ${VERSION}" 2>/dev/null || log_warn "版本号可能未变化"
+
+  log_ok "版本号已更新为 ${VERSION}"
+else
+  log_step 3 "版本号未变化（${VERSION}），跳过版本更新"
+
+  # 检查 Release 是否已存在，避免覆盖已有发布
+  if gh release view "${TAG}" --repo "${REPO}" >/dev/null 2>&1; then
+    read -p "  Release ${TAG} 已存在，是否覆盖发布？(y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+      exit 1
+    fi
+  fi
+fi
+
+# ============================================================
+# 4. 下载 JRE
+# ============================================================
+log_step 4 "下载 JDK 21 JRE（免安装便携版）"
 
 # 检查本地 JDK/JRE
 JRE_NEEDED=true
@@ -129,9 +171,9 @@ if [ "$JRE_NEEDED" = true ]; then
 fi
 
 # ============================================================
-# 构建后端 JAR
+# 5. 构建后端 JAR
 # ============================================================
-log_step 4 "构建后端 JAR"
+log_step 5 "构建后端 JAR"
 
 cd backend
 mvn clean package -DskipTests -q 2>&1 | tail -5
@@ -146,23 +188,23 @@ else
 fi
 
 # ============================================================
-# 构建桌面客户端
+# 6. 构建桌面客户端
 # ============================================================
-log_step 5 "构建桌面客户端"
+log_step 6 "构建桌面客户端"
 
 build_platform() {
   local p="$1"
   case "$p" in
     win)
-      log_step 5 "构建 Windows 便携版..."
+      log_step 6 "构建 Windows 便携版..."
       npm run build:win 2>&1 | tail -3
       ;;
     mac)
-      log_step 5 "构建 macOS..."
+      log_step 6 "构建 macOS..."
       npm run build:mac 2>&1 | tail -3
       ;;
     linux)
-      log_step 5 "构建 Linux..."
+      log_step 6 "构建 Linux..."
       npm run build:linux 2>&1 | tail -3
       ;;
     all)
@@ -180,29 +222,27 @@ log_ok "构建产物:"
 find "$DIST_DIR" -maxdepth 1 -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.zip" \) -exec ls -lh {} \; 2>/dev/null | sed 's/^/  /'
 
 # ============================================================
-# 创建更新包 ZIP
+# 7. 创建更新包 ZIP（统一走 scripts/build-update-zip.js）
 # ============================================================
-log_step 6 "创建增量更新包"
+log_step 7 "创建增量更新包"
 
-UPDATE_ZIP="clip-update-${VERSION}.zip"
-if [ -d "${DIST_DIR}/win-unpacked/resources" ]; then
-  cd "${DIST_DIR}"
-  rm -f "../${UPDATE_ZIP}"
-  zip -rq "../${UPDATE_ZIP}" win-unpacked/resources/*
-  cd ..
+node scripts/build-update-zip.js 2>&1 | sed 's/^/  /' || log_warn "build-update-zip.js 失败，更新包可能缺失"
+
+UPDATE_ZIP="${DIST_DIR}/clip-update-${VERSION}.zip"
+if [ -f "$UPDATE_ZIP" ]; then
   UPDATE_SIZE=$(ls -lh "$UPDATE_ZIP" | awk '{print $5}')
   log_ok "更新包已创建: ${UPDATE_ZIP} ($UPDATE_SIZE)"
 else
-  log_warn "win-unpacked 目录不存在，跳过更新包创建"
+  log_warn "更新包未生成（可能缺少 win-unpacked/resources）"
 fi
 
 # ============================================================
-# 验证产物
+# 8. 验证产物
 # ============================================================
-log_step 7 "验证构建产物"
+log_step 8 "验证构建产物"
 
 HAS_ARTIFACTS=false
-for f in "$DIST_DIR"/*.exe "$DIST_DIR"/*.dmg "$DIST_DIR"/*.AppImage "$DIST_DIR"/*.zip "$UPDATE_ZIP"; do
+for f in "$DIST_DIR"/*.exe "$DIST_DIR"/*.dmg "$DIST_DIR"/*.AppImage "$DIST_DIR"/*.zip "$DIST_DIR"/*.sha256; do
   if [ -f "$f" ]; then
     HAS_ARTIFACTS=true
     log_ok "$(basename "$f") ($(ls -lh "$f" | awk '{print $5}'))"
@@ -215,17 +255,12 @@ if [ "$HAS_ARTIFACTS" = false ]; then
 fi
 
 # ============================================================
-# 推送代码
+# 9. 推送代码 + 创建 Release
 # ============================================================
-log_step 8 "推送代码到远程"
+log_step 9 "推送代码并创建 GitHub Release"
 
 git push origin "$(git branch --show-current)" 2>&1 | tail -1
 log_ok "代码已推送"
-
-# ============================================================
-# 创建 GitHub Release
-# ============================================================
-log_step 8 "创建 GitHub Release"
 
 RELEASE_ARGS=(
   --repo "${REPO}"
@@ -233,8 +268,8 @@ RELEASE_ARGS=(
   --notes "${NOTES}"
 )
 
-# 附加所有构建产物
-for f in "$DIST_DIR"/*.exe "$DIST_DIR"/*.dmg "$DIST_DIR"/*.AppImage "$DIST_DIR"/*.zip "$UPDATE_ZIP"; do
+# 附加所有构建产物（含更新包与 sha256 校验文件）
+for f in "$DIST_DIR"/*.exe "$DIST_DIR"/*.dmg "$DIST_DIR"/*.AppImage "$DIST_DIR"/*.zip "$DIST_DIR"/*.sha256; do
   if [ -f "$f" ]; then
     RELEASE_ARGS+=("$f")
   fi
@@ -250,5 +285,6 @@ echo "  Release: https://github.com/${REPO}/releases/tag/${TAG}"
 echo "========================================="
 echo ""
 echo "构建产物列表:"
-find "$DIST_DIR" -maxdepth 1 -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.zip" \) -exec echo "  {}" \; 2>/dev/null
+find "$DIST_DIR" -maxdepth 1 -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.zip" -o -name "*.sha256" \) -exec echo "  {}" \; 2>/dev/null
 [ -f "$UPDATE_ZIP" ] && echo "  ${UPDATE_ZIP} (增量更新包)"
+[ -f "${UPDATE_ZIP}.sha256" ] && echo "  ${UPDATE_ZIP}.sha256 (校验文件)"

@@ -2372,7 +2372,15 @@ function setupIPC() {
   });
 
   // 开始下载并应用更新
-  ipcMain.handle('download-and-apply-update', async (event, downloadUrl) => {
+  ipcMain.handle('download-and-apply-update', async (event, payload) => {
+    // payload: { downloadUrl, sha256 } 或兼容旧的字符串 downloadUrl
+    const downloadUrl = typeof payload === 'string' ? payload : (payload && payload.downloadUrl);
+    const expectedSha256 = typeof payload === 'object' && payload ? (payload.sha256 || null) : null;
+
+    if (!downloadUrl) {
+      return { success: false, message: '更新失败: 缺少下载地址' };
+    }
+
     try {
       // 通过 IPC 事件向渲染进程发送进度
       const sendProgress = (msg, percent) => {
@@ -2381,17 +2389,21 @@ function setupIPC() {
         }
       };
 
+      // 候选下载地址：GitHub 原地址 + gh-proxy 镜像兜底
+      const candidates = updateManager.buildDownloadCandidates(downloadUrl);
+
       const isExe = downloadUrl.toLowerCase().endsWith('.exe');
 
       if (isExe) {
         // EXE 安装包：下载后打开，提示用户手动安装
         log.info('[Update] Downloading EXE installer:', downloadUrl);
         sendProgress('正在下载安装包...', 0);
-        const exePath = await updateManager.downloadUpdate(downloadUrl, (received, total, percent) => {
+        const exePath = await updateManager.downloadUpdateWithFallback(candidates, (received, total, percent, source) => {
           const sizeMB = (received / 1024 / 1024).toFixed(1);
           const totalMB = total > 0 ? (total / 1024 / 1024).toFixed(1) : '?';
-          sendProgress(`正在下载安装包... ${sizeMB}MB / ${totalMB}MB`, Math.min(percent, 90));
-        });
+          const prefix = percent === 0 && received === 0 ? `正在从 ${source} 下载安装包...` : `正在从 ${source} 下载安装包... ${sizeMB}MB / ${totalMB}MB`;
+          sendProgress(prefix, Math.min(percent, 90));
+        }, expectedSha256);
         sendProgress('下载完成，即将打开安装包...', 100);
         updateManager.recordCheckTime();
         setTimeout(() => {
@@ -2406,11 +2418,15 @@ function setupIPC() {
       // ZIP 更新包：下载后解压替换 resources
       sendProgress('正在下载更新...', 0);
 
-      const zipPath = await updateManager.downloadUpdate(downloadUrl, (received, total, percent) => {
+      const zipPath = await updateManager.downloadUpdateWithFallback(candidates, (received, total, percent, source) => {
+        if (percent === 0 && received === 0) {
+          sendProgress(`正在从 ${source} 下载更新...`, 0);
+          return;
+        }
         const sizeMB = (received / 1024 / 1024).toFixed(1);
         const totalMB = total > 0 ? (total / 1024 / 1024).toFixed(1) : '?';
-        sendProgress(`正在下载更新... ${sizeMB}MB / ${totalMB}MB`, Math.min(percent, 65));
-      });
+        sendProgress(`正在从 ${source} 下载更新... ${sizeMB}MB / ${totalMB}MB`, Math.min(percent, 65));
+      }, expectedSha256);
 
       sendProgress('正在应用更新...', 70);
 
@@ -2542,53 +2558,86 @@ ipcMain.handle('set-shortcut-config', (event, config) => {
  */
 async function checkForUpdates(silent = true) {
   const currentVersion = updateManager.getCurrentVersion();
-  log.info(`[Update] Checking for updates via backend (current: ${currentVersion}, silent: ${silent})`);
+  log.info(`[Update] Checking for updates (current: ${currentVersion}, silent: ${silent})`);
 
+  let result = null;
+
+  // 方案 1：后端 /api/update/check（带 10 分钟缓存，正常路径）
   try {
     const config = loadConfig();
     const url = `http://127.0.0.1:${config.backendPort}/api/update/check?currentVersion=${encodeURIComponent(currentVersion)}`;
     const body = await httpGet(url);
-    const result = JSON.parse(body);
+    result = JSON.parse(body);
+  } catch (e) {
+    log.error('[Update] Backend check failed, falling back to direct GitHub:', e.message);
+    // 方案 2：后端不可达时直连 GitHub Releases API（代理 + token，无本地缓存）
+    try {
+      const release = await updateManager.checkLatestRelease();
+      if (release && release.version) {
+        const hasUpdate = updateManager.compareVersions(release.version, currentVersion) > 0;
+        result = {
+          hasUpdate,
+          latestVersion: release.version,
+          currentVersion,
+          releaseNotes: release.notes,
+          releaseUrl: release.releaseUrl,
+          downloadUrl: release.downloadUrl,
+          sha256: release.sha256 || null,
+          size: release.size || 0,
+          message: hasUpdate ? `发现新版本 v${release.version}` : '已是最新版本'
+        };
+      }
+    } catch (e2) {
+      log.error('[Update] Direct GitHub check failed:', e2.message);
+    }
+  }
 
-    if (result.hasUpdate) {
-      updateManager.recordCheckTime();
-      log.info(`[Update] New version available: ${result.latestVersion}`);
-      // 自动检查（silent）时发送事件通知用户；手动检查靠返回值驱动 UI
-      if (silent && mainWindow && !mainWindow.isDestroyed()) {
+  if (!result) {
+    if (!silent) {
+      return { hasUpdate: false, currentVersion, message: '无法连接到更新服务，请检查网络后重试' };
+    }
+    return { hasUpdate: false };
+  }
+
+  if (result.hasUpdate) {
+    updateManager.recordCheckTime();
+    log.info(`[Update] New version available: ${result.latestVersion}`);
+    // 自动检查（silent）时：发送事件 + 系统通知（用户可能不在设置页）
+    if (silent) {
+      if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('update-available', {
           version: result.latestVersion,
           currentVersion,
           notes: result.releaseNotes,
           releaseUrl: result.releaseUrl,
-          downloadUrl: result.downloadUrl
+          downloadUrl: result.downloadUrl,
+          sha256: result.sha256
         });
       }
-      return {
-        hasUpdate: true,
-        version: result.latestVersion,
-        latestVersion: result.latestVersion,
-        currentVersion,
-        releaseNotes: result.releaseNotes,
-        releaseUrl: result.releaseUrl,
-        downloadUrl: result.downloadUrl,
-        message: `发现新版本 v${result.latestVersion}`
-      };
+      // 系统通知，确保用户看到新版本提示
+      showNotification('发现新版本', `CutShelter v${result.latestVersion} 已可用，请到「设置 → 软件更新」查看并更新`);
     }
-
-    updateManager.recordCheckTime();
     return {
-      hasUpdate: false,
-      currentVersion,
+      hasUpdate: true,
+      version: result.latestVersion,
       latestVersion: result.latestVersion,
-      message: result.message || '已是最新版本'
+      currentVersion,
+      releaseNotes: result.releaseNotes,
+      releaseUrl: result.releaseUrl,
+      downloadUrl: result.downloadUrl,
+      sha256: result.sha256 || null,
+      size: result.size || 0,
+      message: `发现新版本 v${result.latestVersion}`
     };
-  } catch (e) {
-    log.error('[Update] Backend check failed:', e.message);
-    if (!silent) {
-      return { hasUpdate: false, currentVersion, message: '无法连接到后端服务，请确认后端已启动' };
-    }
-    return { hasUpdate: false };
   }
+
+  updateManager.recordCheckTime();
+  return {
+    hasUpdate: false,
+    currentVersion,
+    latestVersion: result.latestVersion,
+    message: result.message || '已是最新版本'
+  };
 }
 
 /**

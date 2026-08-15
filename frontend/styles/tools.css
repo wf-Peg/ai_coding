@@ -74,6 +74,7 @@ body {
 }
 .th-search {
   width: 100%;
+  box-sizing: border-box;
   padding: 10px 32px 10px 34px;
   border: 1px solid var(--app-border, #e3e3df);
   border-radius: var(--app-radius, 9px);
@@ -146,6 +147,32 @@ body {
 }
 .th-card:hover .th-card-menu { opacity: 1; }
 .th-card-menu:hover { background: var(--app-surface-hover, #ececea); color: var(--app-text, #2f3437); }
+
+/* Disabled card */
+.th-card.disabled { opacity: .55; filter: grayscale(.4); }
+.th-card.disabled:hover { transform: none; border-color: var(--app-border, #e3e3df); box-shadow: none; }
+.th-card.disabled .th-card-name { color: var(--app-text-muted, #92969d); }
+.th-card.disabled .th-card-badge { background: var(--app-border, #e3e3df); color: var(--app-text-muted, #92969d); }
+
+/* Card dropdown menu */
+.th-menu {
+  position: fixed; z-index: 300; min-width: 150px;
+  background: var(--app-surface, #fff);
+  border: 1px solid var(--app-border-strong, #d2d2cd);
+  border-radius: var(--app-radius, 9px);
+  box-shadow: var(--app-shadow-lg, 0 10px 15px rgba(15,23,42,.08), 0 4px 6px rgba(15,23,42,.04));
+  padding: 5px;
+  animation: thFade .15s ease;
+}
+.th-menu-item {
+  display: block; width: 100%; text-align: left;
+  border: none; background: transparent; color: var(--app-text, #2f3437);
+  font: inherit; font-size: 13px; padding: 8px 10px; border-radius: 6px; cursor: pointer;
+  transition: background .12s ease;
+}
+.th-menu-item:hover { background: var(--app-surface-hover, #ececea); }
+.th-menu-item-danger { color: var(--app-danger, #d14343); }
+.th-menu-item-danger:hover { background: var(--app-danger-soft, rgba(209,67,67,.08)); }
 
 /* Empty / Loading */
 .th-empty { text-align: center; padding: 80px 20px; color: var(--app-text-secondary, #6b6f76); }
@@ -228,6 +255,25 @@ body {
 @keyframes thModalIn { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
 @keyframes thSpin { to { transform: rotate(360deg); } }
 
+/* Scrollbars — 跟随全局主题（design-tokens 变量自动适配 notion/regular/dark） */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--app-border-strong, #d2d2cd);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background .2s ease;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--app-text-muted, #92969d); border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+* { scrollbar-width: thin; scrollbar-color: var(--app-border-strong, #d2d2cd) transparent; }
+
+html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: var(--app-border-strong, #525252); border: 2px solid transparent; background-clip: padding-box; }
+html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: var(--app-text-muted, #777777); border: 2px solid transparent; background-clip: padding-box; }
+html[data-theme="dark"] * { scrollbar-color: var(--app-border-strong, #525252) transparent; }
+
 /* Dark theme refinements */
 html[data-theme="dark"] .th-card, html[data-theme="dark"] .th-modal { border-color: var(--app-border, #3a3f42); }
 html[data-theme="dark"] .th-card:hover { box-shadow: 0 10px 15px rgba(0,0,0,.3); }
+html[data-theme="dark"] .th-modal-mask { background: rgba(0, 0, 0, .55); }

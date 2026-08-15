@@ -2,16 +2,17 @@
  * update-manager.js — 桌面客户端自动更新模块
  * 
  * 职责：
- * 1. 查询 GitHub Releases API 检测最新版本
- * 2. 下载更新包（clip-update-x.x.x.zip）
- * 3. 解压并替换 resources 目录（保留配置和日志）
+ * 1. 下载更新包（clip-update-x.x.x.zip），支持 GitHub 直连与 gh-proxy 镜像多源回退
+ * 2. 下载后校验 SHA-256 完整性
+ * 3. 解压并替换 resources 目录（保留配置、日志与 jre）
  * 4. 通过 IPC 事件向渲染进程推送进度
  * 5. 支持自动更新（每日/每周/每月）和手动检查
+ * 6. 提供最小直连 GitHub 检查（后端不可达时的降级路径）
  * 
  * 更新策略：
  * - 保留用户配置（userData 目录，与安装目录分离）
- * - 保留日志文件（APP_DIR/*.log）
- * - 仅替换 resources/ 下的后端 JAR 和前端文件
+ * - 保留日志文件（APP_DIR/*.log）与 jre/（版本间不变，不随更新包下发）
+ * - 仅替换更新包内存在的 resources/ 顶层条目（后端 JAR、前端文件、TODO 概览等）
  * - 更新完成后重启应用
  */
 
@@ -32,15 +33,23 @@ const GITHUB_REPO = 'wf-Peg/ai_coding';
 /** GitHub Releases API */
 const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 
+/**
+ * gh-proxy 类镜像前缀（国内下载加速兜底）。
+ * 按序拼接在 GitHub 下载 URL 之前；实例可能变更，可通过
+ * update-config.json 的 mirrorUrls 数组覆盖/扩展（默认前置使用）。
+ */
+const DEFAULT_MIRROR_PREFIXES = [
+  'https://ghproxy.com/',
+  'https://mirror.ghproxy.com/',
+  'https://ghfast.top/'
+];
+
 /** 更新检查间隔（毫秒）映射 */
 const CHECK_INTERVALS = {
   daily: 24 * 60 * 60 * 1000,      // 每天
   weekly: 7 * 24 * 60 * 60 * 1000,  // 每周
   monthly: 30 * 24 * 60 * 60 * 1000 // 每月
 };
-
-/** 上次检查时间戳存储键 */
-const LAST_CHECK_KEY = 'lastUpdateCheck';
 
 /** 更新配置存储路径 */
 function getUpdateConfigPath() {
@@ -74,6 +83,8 @@ function loadUpdateConfig() {
 
 /**
  * 保存更新配置。
+ * 与现有配置合并写入，避免覆盖 lastCheck / mirrorUrls 等字段
+ * （前端只传 { autoUpdate, frequency }，整体覆写会丢数据）。
  * 
  * @param {Object} config - 更新配置对象
  */
@@ -84,7 +95,16 @@ function saveUpdateConfig(config) {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(cfgPath, JSON.stringify(config, null, 2), 'utf-8');
+    let merged = config;
+    try {
+      if (fs.existsSync(cfgPath)) {
+        const existing = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
+        merged = { ...existing, ...config };
+      }
+    } catch (e) {
+      // 现有配置损坏时直接用新配置
+    }
+    fs.writeFileSync(cfgPath, JSON.stringify(merged, null, 2), 'utf-8');
   } catch (e) {
     console.error('[Update] Failed to save update config:', e.message);
   }
@@ -92,56 +112,8 @@ function saveUpdateConfig(config) {
 
 // ==================== 版本缓存 ====================
 
-/** 版本缓存文件路径 */
-function getVersionCachePath() {
-  return path.join(app.getPath('userData'), 'config', 'version-cache.json');
-}
-
-/** 版本缓存有效期（毫秒），默认 1 小时 */
-const VERSION_CACHE_TTL = 60 * 60 * 1000;
-
-/**
- * 从本地缓存读取版本信息。
- * 如果缓存有效（未过期），直接返回，避免重复请求 GitHub API。
- * 
- * @returns {Object|null} 缓存的版本信息，无效或过期返回 null
- */
-function loadVersionCache() {
-  try {
-    const cachePath = getVersionCachePath();
-    if (fs.existsSync(cachePath)) {
-      const cache = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
-      if (cache.cachedAt && Date.now() - cache.cachedAt < VERSION_CACHE_TTL) {
-        console.log('[Update] Using cached version info (cached at', new Date(cache.cachedAt).toISOString(), ')');
-        return cache.data;
-      }
-    }
-  } catch (e) {
-    console.error('[Update] Failed to load version cache:', e.message);
-  }
-  return null;
-}
-
-/**
- * 保存版本信息到本地缓存。
- * 
- * @param {Object} data - 版本信息对象
- */
-function saveVersionCache(data) {
-  try {
-    const cachePath = getVersionCachePath();
-    const dir = path.dirname(cachePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(cachePath, JSON.stringify({
-      cachedAt: Date.now(),
-      data
-    }, null, 2), 'utf-8');
-  } catch (e) {
-    console.error('[Update] Failed to save version cache:', e.message);
-  }
-}
+// 注：版本检查统一由后端 /api/update/check 完成（带 10 分钟进程内缓存），
+// 此处不再维护本地版本缓存。仅保留最小直连 GitHub 检查作为后端不可达时的降级路径。
 
 /**
  * 获取当前应用版本号。
@@ -356,52 +328,24 @@ async function httpsGet(url, headers = {}) {
 // ==================== 版本检查 ====================
 
 /**
- * 从 GitHub Releases API 获取最新版本信息。
- * 使用 GH_TOKEN 环境变量认证以避免 API 速率限制。
+ * 从 GitHub Releases API 获取最新版本信息（后端不可达时的降级路径）。
+ * 使用 GH_TOKEN 环境变量认证以避免 API 速率限制，走系统代理/手动代理。
+ * 注意：正常路径由后端 /api/update/check 完成（带缓存）；本函数仅在本地后端
+ * 不可达时由 main.js 调用，不维护本地版本缓存。
  * 
- * @returns {Promise<Object|null>} 包含 version, notes, downloadUrl, releaseUrl 的对象，失败返回 null
+ * @returns {Promise<Object|null>} 包含 version, tagName, notes, downloadUrl,
+ *          releaseUrl, sha256, size, publishedAt 的对象，失败返回 null
  */
-async function fetchLatestRelease() {
-  // 先检查本地缓存（1 小时内有效，避免频繁请求 API）
-  const cached = loadVersionCache();
-  if (cached) {
-    return cached;
-  }
-
+async function checkLatestRelease() {
   let lastError = null;
-  
+
   // 尝试带 Token 请求（避免速率限制）
   const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
 
   try {
     const body = await httpsGet(GITHUB_API, headers);
-    const release = JSON.parse(body);
-
-    // 提取版本号（去掉 "v" 前缀）
-    const tagName = release.tag_name || '';
-    const version = tagName.replace(/^[vV]/, '');
-
-    // 查找更新包下载地址（文件名包含 "clip-update"）
-    let downloadUrl = null;
-    const assets = release.assets || [];
-    for (const asset of assets) {
-      if (asset.name && asset.name.includes('clip-update') && asset.name.endsWith('.zip')) {
-        downloadUrl = asset.browser_download_url;
-        break;
-      }
-    }
-
-    const result = {
-      version,
-      tagName,
-      notes: release.body || '',
-      releaseUrl: release.html_url || '',
-      downloadUrl,
-      publishedAt: release.published_at || ''
-    };
-    saveVersionCache(result);  // 缓存结果
-    return result;
+    return parseReleaseJson(body);
   } catch (e) {
     lastError = e.message;
     console.error('[Update] Failed to fetch latest release:', lastError);
@@ -412,27 +356,7 @@ async function fetchLatestRelease() {
     try {
       console.log('[Update] Retrying without token...');
       const body = await httpsGet(GITHUB_API, {});
-      const release = JSON.parse(body);
-      const tagName = release.tag_name || '';
-      const version = tagName.replace(/^[vV]/, '');
-      let downloadUrl = null;
-      const assets = release.assets || [];
-      for (const asset of assets) {
-        if (asset.name && asset.name.includes('clip-update') && asset.name.endsWith('.zip')) {
-          downloadUrl = asset.browser_download_url;
-          break;
-        }
-      }
-      const result = {
-        version,
-        tagName,
-        notes: release.body || '',
-        releaseUrl: release.html_url || '',
-        downloadUrl,
-        publishedAt: release.published_at || ''
-      };
-      saveVersionCache(result);  // 缓存结果
-      return result;
+      return parseReleaseJson(body);
     } catch (e2) {
       lastError = e2.message;
       console.error('[Update] Retry without token also failed:', lastError);
@@ -441,6 +365,48 @@ async function fetchLatestRelease() {
 
   console.error(`[Update] All attempts failed. Last error: ${lastError}`);
   return null;
+}
+
+/**
+ * 解析 GitHub Releases API 响应，提取版本信息与更新包 asset。
+ * 
+ * @param {string} body - GitHub API 响应 JSON 字符串
+ * @returns {Object} 版本信息对象
+ */
+function parseReleaseJson(body) {
+  const release = JSON.parse(body);
+
+  // 提取版本号（去掉 "v" 前缀）
+  const tagName = release.tag_name || '';
+  const version = tagName.replace(/^[vV]/, '');
+
+  // 查找更新包下载地址（文件名包含 "clip-update"）
+  let downloadUrl = null;
+  let sha256 = null;
+  let size = 0;
+  const assets = release.assets || [];
+  for (const asset of assets) {
+    if (asset.name && asset.name.includes('clip-update') && asset.name.endsWith('.zip')) {
+      downloadUrl = asset.browser_download_url;
+      // GitHub API 的 asset.digest 形如 "sha256:xxxx"
+      if (asset.digest && asset.digest.startsWith('sha256:')) {
+        sha256 = asset.digest.substring('sha256:'.length);
+      }
+      size = asset.size || 0;
+      break;
+    }
+  }
+
+  return {
+    version,
+    tagName,
+    notes: release.body || '',
+    releaseUrl: release.html_url || '',
+    downloadUrl,
+    sha256,
+    size,
+    publishedAt: release.published_at || ''
+  };
 }
 
 /**
@@ -465,16 +431,47 @@ function compareVersions(v1, v2) {
 // ==================== 下载更新包 ====================
 
 /**
+ * 构建下载候选 URL 列表（GitHub 原地址 + gh-proxy 镜像兜底）。
+ * 镜像前缀可通过 update-config.json 的 mirrorUrls 数组覆盖/扩展（优先级：配置 > 默认）。
+ * 
+ * @param {string} downloadUrl - GitHub asset 下载 URL
+ * @returns {Array<{url: string, name: string}>} 候选列表，name 用于进度文案
+ */
+function buildDownloadCandidates(downloadUrl) {
+  if (!downloadUrl) return [];
+  const candidates = [{ url: downloadUrl, name: 'GitHub' }];
+
+  let prefixes;
+  try {
+    const cfg = loadUpdateConfig();
+    prefixes = (Array.isArray(cfg.mirrorUrls) && cfg.mirrorUrls.length > 0)
+      ? cfg.mirrorUrls
+      : DEFAULT_MIRROR_PREFIXES;
+  } catch (e) {
+    prefixes = DEFAULT_MIRROR_PREFIXES;
+  }
+
+  for (const prefix of prefixes) {
+    const normalized = prefix.endsWith('/') ? prefix : prefix + '/';
+    // 已带镜像前缀的 URL 跳过，避免重复拼接
+    if (downloadUrl.startsWith(normalized)) continue;
+    candidates.push({ url: normalized + downloadUrl, name: new URL(normalized).hostname });
+  }
+  return candidates;
+}
+
+/**
  * 下载更新包到临时目录，并通过回调报告进度。
  * 
  * 支持 HTTP 重定向（GitHub 下载链接通常需要重定向到 S3/CDN）。
  * 下载过程中每收到数据块就调用 onProgress 回调。
  * 
  * @param {string} downloadUrl - 更新包下载 URL
- * @param {Function} onProgress - 进度回调 (receivedBytes, totalBytes, percent)
+ * @param {Function} onProgress - 进度回调 (receivedBytes, totalBytes, percent, sourceName)
+ * @param {string} [expectedSha256] - 期望的 SHA-256（可选，提供则下载后校验）
  * @returns {Promise<string>} 下载文件路径
  */
-function downloadUpdate(downloadUrl, onProgress) {
+function downloadUpdate(downloadUrl, onProgress, expectedSha256) {
   return new Promise((resolve, reject) => {
     const tempDir = path.join(app.getPath('temp'), 'clip-update');
     if (!fs.existsSync(tempDir)) {
@@ -503,9 +500,9 @@ function downloadUpdate(downloadUrl, onProgress) {
     };
 
     const req = transport.request(options, (res) => {
-      // 处理重定向
+      // 处理重定向（透传校验参数）
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        downloadUpdate(res.headers.location, onProgress).then(resolve).catch(reject);
+        downloadUpdate(res.headers.location, onProgress, expectedSha256).then(resolve).catch(reject);
         return;
       }
 
@@ -536,6 +533,16 @@ function downloadUpdate(downloadUrl, onProgress) {
       });
 
       fileStream.on('finish', () => {
+        // 下载完成：SHA-256 完整性校验
+        if (expectedSha256) {
+          const hash = crypto.createHash('sha256').update(fs.readFileSync(destPath)).digest('hex');
+          if (hash.toLowerCase() !== expectedSha256.toLowerCase()) {
+            fs.rmSync(destPath, { force: true });
+            reject(new Error(`Checksum mismatch: expected ${expectedSha256.slice(0, 12)}..., got ${hash.slice(0, 12)}...`));
+            return;
+          }
+          console.log('[Update] SHA-256 verified:', hash.slice(0, 16) + '...');
+        }
         resolve(destPath);
       });
 
@@ -556,6 +563,41 @@ function downloadUpdate(downloadUrl, onProgress) {
 
     req.end();
   });
+}
+
+/**
+ * 多源回退下载：按候选列表依次尝试，全部失败才抛出最后一次错误。
+ * 单个候选失败（网络错误/超时/校验失败）自动切换到下一个，并在进度回调标注当前源。
+ * 
+ * @param {Array<{url: string, name: string}>} candidates - buildDownloadCandidates 的结果
+ * @param {Function} onProgress - 进度回调 (receivedBytes, totalBytes, percent, sourceName)
+ * @param {string} [expectedSha256] - 期望的 SHA-256
+ * @returns {Promise<string>} 下载文件路径
+ */
+async function downloadUpdateWithFallback(candidates, onProgress, expectedSha256) {
+  if (!candidates || candidates.length === 0) {
+    throw new Error('没有可用的下载地址');
+  }
+
+  let lastError = null;
+  for (const candidate of candidates) {
+    try {
+      console.log(`[Update] Downloading via ${candidate.name}: ${candidate.url}`);
+      if (onProgress) {
+        onProgress(0, 0, 0, candidate.name); // 通知源切换
+      }
+      return await downloadUpdate(candidate.url, (received, total, percent) => {
+        if (onProgress) onProgress(received, total, percent, candidate.name);
+      }, expectedSha256);
+    } catch (e) {
+      lastError = e;
+      console.error(`[Update] Download failed via ${candidate.name}:`, e.message);
+      if (onProgress) {
+        onProgress(-1, -1, -1, candidate.name); // 标记失败，前端可提示切换
+      }
+    }
+  }
+  throw lastError || new Error('下载失败');
 }
 
 // ==================== 应用更新 ====================
@@ -618,24 +660,38 @@ async function applyUpdate(zipPath, sendProgress) {
     if (isPackaged) {
       // 4. 替换 resources 目录内容
       // 更新包内结构：resources/backend/..., resources/frontend/..., resources/app.asar
+      // 只替换更新包内存在的顶层条目；不在包内的目录（如 jre/）原样保留。
       const srcResources = path.join(extractDir, 'resources');
 
       if (fs.existsSync(srcResources)) {
-        // 删除旧文件（保留日志）
-        const entries = fs.readdirSync(resourcesPath);
-        for (const entry of entries) {
-          const fullPath = path.join(resourcesPath, entry);
-          // 保留日志文件
+        const packageEntries = fs.readdirSync(srcResources);
+        const replaced = [];
+
+        for (const entry of packageEntries) {
+          const srcPath = path.join(srcResources, entry);
+          const destPath = path.join(resourcesPath, entry);
+          // 保留日志文件（如 backend.log）
           if (entry.endsWith('.log')) continue;
           try {
-            fs.rmSync(fullPath, { recursive: true, force: true });
+            if (fs.existsSync(destPath)) {
+              fs.rmSync(destPath, { recursive: true, force: true });
+            }
+            if (fs.statSync(srcPath).isDirectory()) {
+              copyDir(srcPath, destPath);
+            } else {
+              fs.mkdirSync(path.dirname(destPath), { recursive: true });
+              fs.copyFileSync(srcPath, destPath);
+            }
+            replaced.push(entry);
           } catch (e) {
-            console.error(`[Update] Failed to remove ${entry}:`, e.message);
+            console.error(`[Update] Failed to replace ${entry}:`, e.message);
           }
         }
 
-        // 复制新文件
-        copyDir(srcResources, resourcesPath);
+        console.log(`[Update] Replaced entries: ${replaced.join(', ') || '(none)'}`);
+        console.log(`[Update] Preserved entries not in package: ${fs.readdirSync(resourcesPath).filter(n => !replaced.includes(n)).join(', ') || '(none)'}`);
+      } else {
+        console.error('[Update] Update package has no resources/ directory, nothing to apply');
       }
     } else {
       // 开发模式：仅更新 frontend 和 backend 文件
@@ -782,9 +838,11 @@ function recordCheckTime() {
 
 module.exports = {
   getCurrentVersion,
-  fetchLatestRelease,
+  checkLatestRelease,
   compareVersions,
+  buildDownloadCandidates,
   downloadUpdate,
+  downloadUpdateWithFallback,
   applyUpdate,
   startAutoCheck,
   stopAutoCheck,

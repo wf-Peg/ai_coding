@@ -1047,6 +1047,7 @@ document.addEventListener('change', (e) => {
 // ==================== 更新管理 ====================
 
 let updateDownloadUrl = null;
+let updateDownloadSha256 = null;
 let isUpdating = false;
 
 /**
@@ -1267,9 +1268,10 @@ function showUpdateAvailable(data) {
   document.getElementById('updateNowBtn').style.display = 'block';
   document.getElementById('cancelUpdateBtn').style.display = 'none';
 
-  // 保存下载地址
+  // 保存下载地址与校验值
   updateDownloadUrl = data.downloadUrl;
-  console.log('[Update] Available, downloadUrl:', updateDownloadUrl || '(none)');
+  updateDownloadSha256 = data.sha256 || null;
+  console.log('[Update] Available, downloadUrl:', updateDownloadUrl || '(none)', 'sha256:', updateDownloadSha256 ? updateDownloadSha256.slice(0, 12) + '...' : '(none)');
 }
 
 /**
@@ -1297,7 +1299,10 @@ async function startUpdate() {
   document.getElementById('updateProgressBar').style.display = 'block';
 
   try {
-    const result = await electronAPI.downloadAndApplyUpdate(updateDownloadUrl);
+    const result = await electronAPI.downloadAndApplyUpdate({
+      downloadUrl: updateDownloadUrl,
+      sha256: updateDownloadSha256
+    });
     if (!result.success) {
       throw new Error(result.message);
     }

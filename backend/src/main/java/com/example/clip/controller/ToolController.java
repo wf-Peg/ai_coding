@@ -148,6 +148,33 @@ public class ToolController {
     }
 
     /**
+     * 启用或禁用指定工具。
+     * <p>PATCH /api/tools/{id}/enabled，JSON 体：{enabled: true|false}。禁用后卡片灰显且不可打开，但仍保留在注册表中。</p>
+     *
+     * @param id   工具 id
+     * @param body 请求体，需含 enabled 布尔字段
+     * @return 更新后的工具元数据；工具不存在返回 404
+     */
+    @PatchMapping("/{id}/enabled")
+    public ResponseEntity<?> setToolEnabled(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        logger.info("[ToolController] {} 工具: {}", Boolean.TRUE.equals(body.get("enabled")) ? "启用" : "禁用", id);
+        try {
+            Object enabledObj = body.get("enabled");
+            if (!(enabledObj instanceof Boolean)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "enabled 字段必须为布尔值"));
+            }
+            Map<String, Object> tool = toolRegistryService.setToolEnabled(id, (Boolean) enabledObj);
+            if (tool == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "工具不存在: " + id));
+            }
+            return ResponseEntity.ok(tool);
+        } catch (Exception e) {
+            logger.error("[ToolController] 设置工具状态失败: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(Map.of("error", "操作失败: " + e.getMessage()));
+        }
+    }
+
+    /**
      * 图片格式转换与压缩。
      * <p>POST /api/tools/image/convert，multipart：file + format(png/jpg/webp/gif) + quality(0-100)。</p>
      *

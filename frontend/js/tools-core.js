@@ -6,16 +6,43 @@
   const API_BASE = window.location.protocol === 'file:' ? 'http://127.0.0.1:8081' : '';
 
   // ── Theme sync ──
-  function applyTheme() {
-    const theme = localStorage.getItem('app_appearance_v1') || 'notion';
-    let isDark = theme === 'dark';
-    if (theme === 'system') {
-      isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  // 当前生效主题（notion | regular | dark），与主框架 data-theme 保持一致
+  let currentTheme = 'notion';
+  function resolveTheme(theme) {
+    if (theme) return theme === 'dark' ? 'dark' : (theme === 'regular' ? 'regular' : 'notion');
+    const appearance = localStorage.getItem('app_appearance_v1') || 'notion';
+    if (appearance === 'dark') return 'dark';
+    if (appearance === 'regular') return 'regular';
+    if (appearance === 'system') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'notion';
     }
-    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : theme);
+    return 'notion';
+  }
+  function applyTheme(theme) {
+    currentTheme = resolveTheme(theme);
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    // 同步给正在运行的工具 iframe（工具内主题跟随全局）
+    forwardThemeToTool();
+  }
+  // 将当前主题转发给工具运行 iframe；未加载完成时静默跳过（openTool 的 onload 会补发）
+  function forwardThemeToTool() {
+    try {
+      const frame = document.getElementById('toolFrame');
+      if (frame && frame.contentWindow && frame.src) {
+        frame.contentWindow.postMessage({ action: 'themeChange', theme: currentTheme }, '*');
+      }
+    } catch (e) { /* 跨域或未加载，忽略 */ }
   }
   window.addEventListener('message', e => {
-    if (e.data && e.data.action === 'themeChange') applyTheme();
+    const d = e.data;
+    if (!d || typeof d !== 'object') return;
+    if (d.action === 'themeChange') {
+      applyTheme(d.theme);
+    } else if (d.action === 'refresh' || (d.action === 'backendState' && d.state === 'ready')) {
+      // 后端就绪广播（refresh / backendState:ready）：立即刷新工具列表，
+      // 并重载正在运行的工具页面（依赖后端服务的工具恢复可用）
+      onBackendReadyRefresh();
+    }
   });
   applyTheme();
 
@@ -59,6 +86,26 @@
     }
   }
 
+  // ── 后端就绪即时刷新（主框架广播 refresh / backendState:ready）──
+  let lastReadyRefreshAt = 0;
+  function onBackendReadyRefresh() {
+    const now = Date.now();
+    // 去重：主框架可能同时广播 refresh 与 backendState:ready，1 秒内只刷新一次
+    if (now - lastReadyRefreshAt < 1000) return;
+    lastReadyRefreshAt = now;
+    loadTools();
+    refreshOpenTool();
+  }
+  // 重载正在运行的工具页面，使其重新连接后端（依赖后端服务的工具有效）
+  function refreshOpenTool() {
+    const frame = document.getElementById('toolFrame');
+    if (!frame || !frame.src) return;
+    const url = frame.src;
+    frame.onload = () => forwardThemeToTool();
+    frame.src = '';
+    frame.src = url;
+  }
+
   function renderChips() {
     const cats = ['全部'];
     tools.forEach(t => { if (t.category && !cats.includes(t.category)) cats.push(t.category); });
@@ -91,7 +138,8 @@
     $('empty').style.display = list.length ? 'none' : 'block';
     list.forEach((t, i) => {
       const card = document.createElement('div');
-      card.className = 'th-card';
+      const disabled = t.system ? false : (t.enabled === false);
+      card.className = 'th-card' + (disabled ? ' disabled' : '');
       card.style.animationDelay = (i * 0.03) + 's';
       card.innerHTML = `
         <div class="th-card-icon">${t.icon || '🧰'}</div>
@@ -101,7 +149,10 @@
           <span class="th-card-badge">${escapeHtml(t.category || '其他')}</span>
           <button class="th-card-menu" title="更多操作">⋮</button>
         </div>`;
-      card.addEventListener('click', () => openTool(t));
+      card.addEventListener('click', () => {
+        if (disabled) { alert('该工具已禁用，可在卡片菜单中重新启用'); return; }
+        openTool(t);
+      });
       card.querySelector('.th-card-menu').addEventListener('click', ev => {
         ev.stopPropagation();
         openMenu(t, card);
@@ -116,6 +167,8 @@
     $('overlayTitle').textContent = (t.icon || '🧰') + ' ' + t.name;
     currentPromptId = t.id;
     const frame = $('toolFrame');
+    // 页面加载完成后补发当前主题，确保工具内主题跟随全局
+    frame.onload = () => forwardThemeToTool();
     frame.src = API_BASE + '/api/tools/' + t.id + '/page';
     $('overlay').classList.add('show');
   }
@@ -146,13 +199,83 @@
   }
   $('overlayCloseBtn').addEventListener('click', () => { $('overlay').classList.remove('show'); $('toolFrame').src = ''; });
 
-  // ── Card menu (prompt / delete) ──
+  // ── Card menu (dropdown: prompt / enable-disable / delete) ──
+  let menuEl = null;
   function openMenu(t, card) {
-    currentPromptId = t.id;
-    if (t.builtin) {
-      viewPrompt(t.id);
-      return;
+    closeMenu();
+    const rect = card.querySelector('.th-card-menu').getBoundingClientRect();
+    menuEl = document.createElement('div');
+    menuEl.className = 'th-menu';
+    menuEl.style.top = (rect.bottom + 6) + 'px';
+    menuEl.style.right = (window.innerWidth - rect.right) + 'px';
+
+    if (t.system) {
+      // 系统工具：仅说明
+      const item = document.createElement('button');
+      item.className = 'th-menu-item';
+      item.textContent = '📖 查看说明';
+      item.addEventListener('click', () => { closeMenu(); openSystemTool(t); });
+      menuEl.appendChild(item);
+    } else {
+      // 查看提示词
+      const viewP = document.createElement('button');
+      viewP.className = 'th-menu-item';
+      viewP.textContent = '📋 查看提示词';
+      viewP.addEventListener('click', () => { closeMenu(); viewPrompt(t.id); });
+      menuEl.appendChild(viewP);
+
+      // 禁用 / 启用（内置工具同样支持）
+      const enabled = t.enabled !== false;
+      const toggle = document.createElement('button');
+      toggle.className = 'th-menu-item';
+      toggle.textContent = enabled ? '⏸ 禁用' : '▶ 启用';
+      toggle.addEventListener('click', () => { closeMenu(); toggleEnabled(t); });
+      menuEl.appendChild(toggle);
+
+      // 删除（仅非内置）
+      if (!t.builtin) {
+        const del = document.createElement('button');
+        del.className = 'th-menu-item th-menu-item-danger';
+        del.textContent = '🗑 删除';
+        del.addEventListener('click', () => { closeMenu(); confirmDelete(t); });
+        menuEl.appendChild(del);
+      }
     }
+
+    document.body.appendChild(menuEl);
+    setTimeout(() => {
+      document.addEventListener('mousedown', onMenuOutside, true);
+    });
+  }
+
+  function onMenuOutside(e) {
+    if (menuEl && !menuEl.contains(e.target)) { closeMenu(); }
+  }
+
+  function closeMenu() {
+    if (menuEl) { menuEl.remove(); menuEl = null; }
+    document.removeEventListener('mousedown', onMenuOutside, true);
+  }
+
+  // ── Enable / Disable ──
+  async function toggleEnabled(t) {
+    const target = t.enabled === false;
+    try {
+      const res = await fetch(API_BASE + '/api/tools/' + t.id + '/enabled', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: target })
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || '操作失败'); return; }
+      loadTools();
+    } catch (e) {
+      alert('操作失败: ' + e.message);
+    }
+  }
+
+  // ── Confirm & delete（非内置）──
+  function confirmDelete(t) {
     const action = window.confirm('删除工具「' + t.name + '」？\n该操作不可恢复。');
     if (!action) return;
     deleteTool(t.id);

@@ -2,29 +2,28 @@
 chcp 65001 >nul 2>&1
 REM ============================================================
 REM release.bat
-REM One-click release: build -> pack -> GitHub Release (Windows)
+REM One-click release: version prompt -> build -> pack -> GitHub Release (Windows)
 REM
 REM Usage:
+REM   scripts\release.bat [version] ["release notes"] [platform]
+REM
+REM Interactive (recommended):
+REM   scripts\release.bat                          : 询问是否递增版本号并更新
 REM   scripts\release.bat 1.0.1 "release notes"
-REM   scripts\release.bat 1.0.1                      : default notes
-REM   scripts\release.bat 1.0.1 "" win               : Windows only
-REM   scripts\release.bat 1.0.1 "" all               : all platforms
+REM   scripts\release.bat 1.0.1 "" win             : Windows only
 REM
 REM Prereq: JDK 21 + Maven + Node.js + GitHub CLI
 REM ============================================================
 setlocal enabledelayedexpansion
 title Release Publisher
 
-set "VERSION=%~1"
+set "ARG_VERSION=%~1"
 set "NOTES=%~2"
 set "PLATFORM=%~3"
-
-if "%VERSION%"=="" goto :usage
 
 if "%NOTES%"=="" set "NOTES=Version update"
 if "%PLATFORM%"=="" set "PLATFORM=all"
 
-set "TAG=v%VERSION%"
 set "REPO=wf-Peg/ai_coding"
 set "DIST_DIR=dist-electron"
 set "SCRIPT_DIR=%~dp0"
@@ -39,8 +38,7 @@ cd /d "%PROJECT_DIR%"
 
 echo.
 echo ============================================
-echo   Release: %TAG%
-echo   Platform: %PLATFORM%
+echo   Release Publisher
 echo   Repo: %REPO%
 echo ============================================
 echo.
@@ -48,7 +46,7 @@ echo.
 REM ============================================================
 REM Step 1: Pre-check
 REM ============================================================
-echo [1/8] Pre-check
+echo [1/9] Pre-check
 
 echo   Checking tools ...
 
@@ -103,39 +101,86 @@ if %ERRORLEVEL% EQU 0 (
 echo   [OK] Pre-check passed
 
 REM ============================================================
-REM Step 2: Bump version
+REM Step 2: 版本号确认（询问是否递增版本号并更新）
 REM ============================================================
-echo [2/8] Bump version to %VERSION% ...
+echo [2/9] 版本号确认
 
-node -e "const pkg = require('./package.json'); pkg.version = '%VERSION%'; require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\r\n');"
+for /f "usebackq tokens=*" %%v in (`node -p "require('./package.json').version"`) do set "CURRENT_VERSION=%%v"
+if not defined CURRENT_VERSION set "CURRENT_VERSION=1.0.0"
+echo   当前版本: %CURRENT_VERSION%
+
+if "%ARG_VERSION%"=="" (
+    set /p "BUMP=是否递增版本号并更新 package.json？(y/N): "
+    if /I "!BUMP!"=="y" (
+        REM 建议下一 patch 版本（x.y.z -> x.y.(z+1)）
+        for /f "tokens=1,2,3 delims=." %%a in ("!CURRENT_VERSION!") do (
+            set "MAJOR=%%a"
+            set "MINOR=%%b"
+            set /a "PATCH=%%c + 1" 2>nul
+        )
+        if not defined PATCH set "PATCH=1"
+        set "SUGGEST_VERSION=!MAJOR.!MINOR.!PATCH!"
+        set /p "VERSION=请输入新版本号（回车使用建议值 !SUGGEST_VERSION!）: "
+        if "!VERSION!"=="" set "VERSION=!SUGGEST_VERSION!"
+    ) else (
+        set "VERSION=!CURRENT_VERSION!"
+        echo   沿用当前版本 !CURRENT_VERSION!
+    )
+) else (
+    set "VERSION=%ARG_VERSION%"
+)
+
+REM 校验版本号格式 x.y.z
+echo !VERSION! | findstr /r "^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$" >nul
 if %ERRORLEVEL% NEQ 0 (
-    echo   [ERROR] Failed to update version
+    echo   [ERROR] 版本号格式无效: !VERSION!（应为 x.y.z，如 1.0.8）
     goto :fail
 )
 
-git add package.json
-git commit -m "chore: bump version to %VERSION%" 2>nul
-if %ERRORLEVEL% NEQ 0 echo   [WARNING] Version may be unchanged
-
-echo   [OK] Version updated
+set "TAG=v%VERSION%"
+echo   [OK] 发布版本: %TAG%  平台: %PLATFORM%
 
 REM ============================================================
-REM Step 3: JRE / JDK (jlink 裁剪 or 完整下载)
+REM Step 3: 更新 package.json 版本号（如递增）
 REM ============================================================
-echo [3/8] JRE / JDK check ...
+if not "!VERSION!"=="!CURRENT_VERSION!" (
+    echo [3/9] 更新版本号到 !VERSION! ...
+    node -e "const pkg = require('./package.json'); pkg.version = '!VERSION!'; require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\r\n');"
+    if %ERRORLEVEL% NEQ 0 (
+        echo   [ERROR] Failed to update version
+        goto :fail
+    )
+    git add package.json
+    git commit -m "chore: bump version to !VERSION!" 2>nul
+    if %ERRORLEVEL% NEQ 0 echo   [WARNING] Version may be unchanged
+    echo   [OK] 版本号已更新为 !VERSION!
+) else (
+    echo [3/9] 版本号未变化（!VERSION!），跳过版本更新
+    REM 检查 Release 是否已存在，避免覆盖已有发布
+    gh release view "!TAG!" --repo %REPO% >nul 2>&1
+    if !ERRORLEVEL! EQU 0 (
+        set /p "CONTINUE=Release !TAG! 已存在，是否覆盖发布？(y/N): "
+        if /I not "!CONTINUE!"=="y" goto :fail
+    )
+)
+
+REM ============================================================
+REM Step 4: JRE / JDK (jlink 裁剪 or 完整下载)
+REM ============================================================
+echo [4/9] JRE / JDK check ...
 
 REM check if jre/ already exists
 if exist "jre\bin\java.exe" (
     echo   [OK] jlink-minimal JRE found: jre\
-    goto :step4
+    goto :step5
 )
 if exist "jre\win\bin\java.exe" (
     echo   [OK] Built-in JRE found: jre\win
-    goto :step4
+    goto :step5
 )
 if exist "jre\mac\bin\java" (
     echo   [OK] Built-in JRE found: jre\mac
-    goto :step4
+    goto :step5
 )
 
 REM try jlink 裁剪（需要 JDK 17+ 的 jlink 工具）
@@ -146,7 +191,7 @@ if defined JAVA_HOME (
         call scripts\build-jlink.bat
         if exist "jre\bin\java.exe" (
             echo   [OK] jlink-minimal JRE generated
-            goto :step4
+            goto :step5
         )
     )
 )
@@ -155,14 +200,14 @@ REM fallback: check if system JDK is available
 if defined JAVA_HOME (
     if exist "%JAVA_HOME%\bin\java.exe" (
         echo   [OK] Using JAVA_HOME: %JAVA_HOME%
-        goto :step4
+        goto :step5
     )
 )
 
 where java.exe >nul 2>&1
 if %ERRORLEVEL% EQU 0 (
     echo   [OK] Using system Java
-    goto :step4
+    goto :step5
 )
 
 REM no JDK/JRE found, try to download full JRE
@@ -173,12 +218,12 @@ if %ERRORLEVEL% NEQ 0 (
     echo   [WARNING] Run manually: scripts\build-jlink.bat or scripts\download-jre.bat all
 )
 
-:step4
+:step5
 
 REM ============================================================
-REM Step 4: Build backend JAR
+REM Step 5: Build backend JAR
 REM ============================================================
-echo [4/8] Build backend JAR ...
+echo [5/9] Build backend JAR ...
 
 cd backend
 call mvn clean package -DskipTests -q 2>&1
@@ -199,9 +244,9 @@ if exist "backend\target\clip-demo-0.0.1-SNAPSHOT.jar" (
 )
 
 REM ============================================================
-REM Step 5: Build desktop client
+REM Step 6: Build desktop client
 REM ============================================================
-echo [5/8] Build desktop client ...
+echo [6/9] Build desktop client ...
 
 if /I "%PLATFORM%"=="win" (
     echo   Building Windows ...
@@ -237,31 +282,29 @@ echo   [OK] Build artifacts:
 dir /b "%DIST_DIR%\*.exe" "%DIST_DIR%\*.dmg" "%DIST_DIR%\*.AppImage" "%DIST_DIR%\*.zip" 2>nul
 
 REM ============================================================
-REM Step 6: Create update zip
+REM Step 7: Create update zip（统一走 scripts/build-update-zip.js）
 REM ============================================================
-echo [6/8] Create update package ...
+echo [7/9] Create update package ...
 
-set "UPDATE_ZIP=clip-update-%VERSION%.zip"
-if exist "%DIST_DIR%\win-unpacked\resources" (
-    if exist "%UPDATE_ZIP%" del /f "%UPDATE_ZIP%"
-    powershell -NoProfile -Command ^
-        "Compress-Archive -Path '%DIST_DIR%\win-unpacked\resources\*' -DestinationPath '%UPDATE_ZIP%' -Force"
+node scripts\build-update-zip.js
+if %ERRORLEVEL% NEQ 0 (
+    echo   [WARNING] build-update-zip.js failed, update package may be missing
+) else (
+    set "UPDATE_ZIP=%DIST_DIR%\clip-update-%VERSION%.zip"
     if exist "%UPDATE_ZIP%" (
         for %%f in ("%UPDATE_ZIP%") do set "UPDATE_SIZE=%%~zf"
         set /a "UPDATE_SIZE_MB=!UPDATE_SIZE! / 1048576"
         echo   [OK] Update package: %UPDATE_ZIP% ^(!UPDATE_SIZE_MB! MB^)
     )
-) else (
-    echo   [WARNING] win-unpacked not found, skipping update package
 )
 
 REM ============================================================
-REM Step 7: Verify
+REM Step 8: Verify
 REM ============================================================
-echo [7/8] Verify artifacts ...
+echo [8/9] Verify artifacts ...
 
 set "HAS_ARTIFACTS=0"
-for %%f in ("%DIST_DIR%\*.exe" "%DIST_DIR%\*.dmg" "%DIST_DIR%\*.AppImage" "%DIST_DIR%\*.zip" "%UPDATE_ZIP%") do (
+for %%f in ("%DIST_DIR%\*.exe" "%DIST_DIR%\*.dmg" "%DIST_DIR%\*.AppImage" "%DIST_DIR%\*.zip" "%DIST_DIR%\*.sha256") do (
     if exist %%f (
         set "HAS_ARTIFACTS=1"
         echo   [OK] %%~nxf
@@ -274,9 +317,9 @@ if "!HAS_ARTIFACTS!"=="0" (
 )
 
 REM ============================================================
-REM Step 8: Push + Release
+REM Step 9: Push + Release
 REM ============================================================
-echo [8/8] Push code + Create Release ...
+echo [9/9] Push code + Create Release ...
 
 for /f "tokens=*" %%b in ('git branch --show-current') do set "BRANCH=%%b"
 
@@ -291,10 +334,9 @@ echo   Creating GitHub Release ...
 
 set "RELEASE_CMD=gh release create %TAG% --repo %REPO% --title "%TAG%" --notes "%NOTES%""
 
-for %%f in ("%DIST_DIR%\*.exe" "%DIST_DIR%\*.dmg" "%DIST_DIR%\*.AppImage" "%DIST_DIR%\*.zip") do (
+for %%f in ("%DIST_DIR%\*.exe" "%DIST_DIR%\*.dmg" "%DIST_DIR%\*.AppImage" "%DIST_DIR%\*.zip" "%DIST_DIR%\*.sha256") do (
     if exist %%f set "RELEASE_CMD=!RELEASE_CMD! %%f"
 )
-if exist "%UPDATE_ZIP%" set "RELEASE_CMD=!RELEASE_CMD! %UPDATE_ZIP%"
 
 !RELEASE_CMD!
 if %ERRORLEVEL% NEQ 0 (
@@ -311,7 +353,8 @@ echo ============================================
 echo.
 echo Artifacts:
 dir /b "%DIST_DIR%\*.exe" "%DIST_DIR%\*.dmg" "%DIST_DIR%\*.AppImage" "%DIST_DIR%\*.zip" 2>nul
-if exist "%UPDATE_ZIP%" echo %UPDATE_ZIP% (update package)
+if exist "%DIST_DIR%\clip-update-%VERSION%.zip" echo clip-update-%VERSION%.zip (update package)
+if exist "%DIST_DIR%\clip-update-%VERSION%.zip.sha256" echo clip-update-%VERSION%.zip.sha256 (checksum)
 echo.
 
 :end
@@ -340,13 +383,14 @@ echo.
 echo Release Publisher
 echo.
 echo Usage:
-echo   scripts\release.bat ^<version^> ["release notes"] [platform]
+echo   scripts\release.bat [version] ["release notes"] [platform]
 echo.
 echo Examples:
+echo   scripts\release.bat                       : 询问是否递增版本号并更新
 echo   scripts\release.bat 1.0.1 "New feature" all
 echo   scripts\release.bat 1.0.1 "" win
 echo.
 echo Platforms: win, mac, linux, all (default)
 echo.
 pause
-exit /b 0
+exit /b 0
