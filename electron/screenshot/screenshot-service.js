@@ -48,10 +48,6 @@ function getModelsDir() {
   } catch (e) {}
   return path.join(__dirname, 'ocr-models');
 }
-function getMainWindow() {
-  if (deps && typeof deps.getMainWindow === 'function') return deps.getMainWindow();
-  return deps ? getMainWindow() : null;
-}
 
 /** 读取截图配置（快捷键等） */
 function loadScreenshotConfig() {
