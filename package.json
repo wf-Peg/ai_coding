@@ -1,6 +1,6 @@
 {
   "name": "clip-demo",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "CutShelter - Information Retrieval & Clip System",
   "main": "electron/main.js",
   "scripts": {
@@ -113,25 +113,43 @@
       "extendInfo": {
         "NSServices": [
           {
-            "NSMenuItem": { "default": "添加到剪藏收件箱" },
+            "NSMenuItem": {
+              "default": "添加到剪藏收件箱"
+            },
             "NSMessage": "clipFile",
             "NSPortName": "CutShelter",
-            "NSRequiredContext": { "NSEnd": "NSMenuItem" },
-            "NSSendTypes": ["NSFilenamesPboardType"]
+            "NSRequiredContext": {
+              "NSEnd": "NSMenuItem"
+            },
+            "NSSendTypes": [
+              "NSFilenamesPboardType"
+            ]
           },
           {
-            "NSMenuItem": { "default": "AI 解析文件并添加剪藏" },
+            "NSMenuItem": {
+              "default": "AI 解析文件并添加剪藏"
+            },
             "NSMessage": "aiClipFile",
             "NSPortName": "CutShelter",
-            "NSRequiredContext": { "NSEnd": "NSMenuItem" },
-            "NSSendTypes": ["NSFilenamesPboardType"]
+            "NSRequiredContext": {
+              "NSEnd": "NSMenuItem"
+            },
+            "NSSendTypes": [
+              "NSFilenamesPboardType"
+            ]
           },
           {
-            "NSMenuItem": { "default": "用编辑器打开文件" },
+            "NSMenuItem": {
+              "default": "用编辑器打开文件"
+            },
             "NSMessage": "openEditor",
             "NSPortName": "CutShelter",
-            "NSRequiredContext": { "NSEnd": "NSMenuItem" },
-            "NSSendTypes": ["NSFilenamesPboardType"]
+            "NSRequiredContext": {
+              "NSEnd": "NSMenuItem"
+            },
+            "NSSendTypes": [
+              "NSFilenamesPboardType"
+            ]
           }
         ]
       },
