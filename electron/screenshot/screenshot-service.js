@@ -450,11 +450,12 @@ function registerIpc() {
   });
 
   // ── OCR 模型目录（工具卡片配置面板用） ──
-  ipcMain.handle('screenshot:open-ocr-models-dir', () => {
+  ipcMain.handle('screenshot:open-ocr-models-dir', async () => {
     try {
       const dir = path.join(__dirname, 'ocr-models');
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      deps.shell.openPath(dir);
+      const err = await deps.shell.openPath(dir); // 返回空字符串=成功，否则为错误信息
+      if (err) return { status: 'error', message: err };
       return { status: 'ok', dir };
     } catch (e) { return { status: 'error', message: e.message }; }
   });

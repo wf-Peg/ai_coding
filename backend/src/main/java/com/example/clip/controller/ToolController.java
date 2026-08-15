@@ -175,6 +175,31 @@ public class ToolController {
     }
 
     /**
+     * 重排工具顺序（拖拽排序后持久化）。
+     * <p>PUT /api/tools/reorder，JSON 体：{ids: [工具id按新顺序]}。仅重排已注册工具，系统工具不纳入。</p>
+     *
+     * @param body 请求体，需含 ids 数组
+     * @return {ok: true}
+     */
+    @PutMapping("/reorder")
+    public ResponseEntity<?> reorderTools(@RequestBody Map<String, Object> body) {
+        try {
+            Object idsObj = body.get("ids");
+            if (!(idsObj instanceof List)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "ids 字段必须为数组"));
+            }
+            @SuppressWarnings("unchecked")
+            List<String> ids = (List<String>) idsObj;
+            boolean ok = toolRegistryService.reorderTools(ids);
+            return ok ? ResponseEntity.ok(Map.of("ok", true))
+                      : ResponseEntity.internalServerError().body(Map.of("error", "重排工具顺序失败"));
+        } catch (Exception e) {
+            logger.error("[ToolController] 重排工具顺序失败: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(Map.of("error", "操作失败: " + e.getMessage()));
+        }
+    }
+
+    /**
      * 图片格式转换与压缩。
      * <p>POST /api/tools/image/convert，multipart：file + format(png/jpg/webp/gif) + quality(0-100)。</p>
      *

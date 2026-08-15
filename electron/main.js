@@ -2152,7 +2152,9 @@ function setupIPC() {
           const matches = [];
           lines.forEach((line, idx) => {
             if (pattern.test(line)) {
-              matches.push({ lineNumber: idx + 1, text: line.trim().substring(0, 120) });
+              // 保留原始换行与空白，便于前端折行展示；截断超长行避免渲染过宽
+              const raw = line.replace(/\t/g, '    ').trim();
+              matches.push({ lineNumber: idx + 1, text: raw.length > 240 ? raw.substring(0, 240) + '…' : raw });
             }
           });
           if (matches.length > 0) {

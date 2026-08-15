@@ -77,7 +77,7 @@
     'documentName', 'documentPath', 'modifiedDot', 'clipSourceBadge', 'languageSelect',
     'encodingLabel', 'encodingConfidence', 'lineEndingSelect', 'cursorStatus',
     'selectionStatus', 'matchStatus', 'runtimeStatus', 'compareToolbar', 'comparePane',
-    'editorWorkspace', 'compareFileName', 'diffCounter', 'markdownPane', 'markdownBody', 'closeMarkdownBtn', 'transformPanel',
+    'editorWorkspace', 'compareFileName', 'diffCounter', 'markdownPane', 'markdownBody', 'mdFullscreenBtn', 'closeMarkdownBtn', 'transformPanel',
     'transformOperation', 'transformPreview', 'encodingModal', 'encodingSelect',
     'encodingNote', 'clipModal', 'clipModalTitle', 'clipScopeDescription', 'discardModal',
     'clipTitleInput', 'clipModeSelect', 'clipCategorySelect', 'clipTagsInput',
@@ -1054,6 +1054,11 @@
     elements.markdownPane.hidden = !shouldOpen;
     elements.editorWorkspace.classList.toggle('markdown-preview', shouldOpen);
 
+    // 关闭预览时同步退出预览全屏态
+    if (!shouldOpen && markdownFullscreen) {
+      toggleMarkdownFullscreen(false);
+    }
+
     // 进入 Markdown 预览时退出对比模式
     if (shouldOpen && !elements.comparePane.hidden) {
       toggleCompare(false);
@@ -1067,6 +1072,19 @@
       mainEditor.session.off('change', scheduleMarkdownRender);
     }
 
+    setTimeout(() => mainEditor.resize(), 0);
+  }
+
+  // Markdown 预览全屏：预览独占整个工作区（编辑区/反链等面板临时隐藏）
+  let markdownFullscreen = false;
+  function toggleMarkdownFullscreen(forceOpen) {
+    if (elements.markdownPane.hidden) return;
+    markdownFullscreen = forceOpen !== undefined ? forceOpen : !markdownFullscreen;
+    elements.editorWorkspace.classList.toggle('markdown-fullscreen', markdownFullscreen);
+    if (elements.mdFullscreenBtn) {
+      elements.mdFullscreenBtn.textContent = markdownFullscreen ? '退出全屏' : '⛶ 全屏';
+      elements.mdFullscreenBtn.title = markdownFullscreen ? '退出预览全屏 (Esc)' : '预览全屏';
+    }
     setTimeout(() => mainEditor.resize(), 0);
   }
 
@@ -2785,6 +2803,7 @@
   document.getElementById('closeCompareBtn').addEventListener('click', () => toggleCompare(false));
   document.getElementById('markdownBtn').addEventListener('click', () => toggleMarkdownPreview());
   elements.closeMarkdownBtn.addEventListener('click', () => toggleMarkdownPreview(false));
+  elements.mdFullscreenBtn.addEventListener('click', () => toggleMarkdownFullscreen());
   document.getElementById('terminalBtn').addEventListener('click', openTerminalInDir);
 
   // 在系统终端中打开当前文件所在目录（无则回退知识库根目录）
@@ -3340,6 +3359,11 @@
     if (e.key === 'F11' || isMacFullscreen) {
       e.preventDefault();
       toggleFullscreen();
+    }
+    // Esc 退出 Markdown 预览全屏
+    if (e.key === 'Escape' && markdownFullscreen) {
+      e.preventDefault();
+      toggleMarkdownFullscreen(false);
     }
   });
 
@@ -5280,7 +5304,11 @@
         (b.matches || []).slice(0, 3).forEach(function(m) {
           var lineEl = document.createElement('div');
           lineEl.className = 'bl-line';
-          lineEl.textContent = m.text;
+          // 高亮匹配行中的双链 [[basename]]
+          var hlPattern = new RegExp('(\\[\\[' + escapeRegExp(base) + '(?:\\|[^\\]]*)?\\]\\])', 'gi');
+          var text = escapeHtml(m.text || '');
+          text = text.replace(hlPattern, '<span class="bl-hl">$1</span>');
+          lineEl.innerHTML = '<span class="bl-ln">L' + (m.lineNumber || 0) + '</span>' + text;
           item.appendChild(lineEl);
         });
         item.addEventListener('click', function() {

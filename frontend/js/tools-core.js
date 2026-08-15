@@ -161,7 +161,8 @@
     });
   }
 
-  function renderGrid() {
+  function renderGrid(opts) {
+    opts = opts || {};
     const list = filteredTools();
     const grid = $('grid');
     $('loading').style.display = 'none';
@@ -170,16 +171,25 @@
     list.forEach((t, i) => {
       const card = document.createElement('div');
       const disabled = t.system ? false : (t.enabled === false);
-      card.className = 'th-card' + (disabled ? ' disabled' : '');
-      card.style.animationDelay = (i * 0.03) + 's';
+      card.className = 'th-card' + (disabled ? ' disabled' : '') + (t.system ? '' : ' th-drg');
+      card.dataset.id = t.id;
+      if (opts.animate === false) {
+        card.style.animation = 'none';
+      } else {
+        card.style.animationDelay = (i * 0.03) + 's';
+      }
       card.innerHTML = `
         <div class="th-card-icon">${t.icon || '🧰'}</div>
         <div class="th-card-name">${escapeHtml(t.name)}</div>
         <div class="th-card-desc">${escapeHtml(t.description || '')}</div>
         <div class="th-card-footer">
           <span class="th-card-badge">${escapeHtml(t.category || '其他')}</span>
-          <button class="th-card-menu" title="更多操作">⋮</button>
+          <div class="th-card-actions">
+            <span class="th-drag-handle" title="拖拽排序">⠿</span>
+            <button class="th-card-menu" title="更多操作">⋮</button>
+          </div>
         </div>`;
+      if (!t.system) card.draggable = true;
       card.addEventListener('click', () => {
         if (disabled) { showToast('该工具已禁用，可在卡片菜单中重新启用'); return; }
         openTool(t);
@@ -190,6 +200,119 @@
       });
       grid.appendChild(card);
     });
+  }
+
+  // ── 拖拽排序（HTML5 原生 DnD + FLIP 平滑重排动画）──
+  let dragState = null; // { el, id, persisted }
+
+  function dragCards() {
+    return [...$('grid').querySelectorAll('.th-card.th-drg')];
+  }
+
+  function initDragSort() {
+    const grid = $('grid');
+
+    grid.addEventListener('dragstart', (e) => {
+      const card = e.target.closest('.th-card.th-drg');
+      if (!card) { e.preventDefault(); return; }
+      dragState = { el: card, id: card.dataset.id, persisted: false };
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', card.dataset.id);
+      // 自定义幽灵图：卡片放大 + 微旋转 + 浮起阴影
+      const ghost = card.cloneNode(true);
+      ghost.style.cssText =
+        'position:absolute;top:-9999px;left:-9999px;width:' + card.offsetWidth + 'px;' +
+        'opacity:.92;pointer-events:none;transform:rotate(2deg) scale(1.04);' +
+        'box-shadow:0 18px 40px rgba(15,23,42,.25);border-radius:12px;';
+      document.body.appendChild(ghost);
+      e.dataTransfer.setDragImage(ghost, card.offsetWidth / 2, 24);
+      setTimeout(() => document.body.removeChild(ghost), 0);
+      grid.classList.add('th-grid-dragging');
+      requestAnimationFrame(() => card.classList.add('th-dragging'));
+    });
+
+    grid.addEventListener('dragover', (e) => {
+      if (!dragState) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const over = e.target.closest('.th-card.th-drg');
+      if (!over || over === dragState.el) return;
+      const rect = over.getBoundingClientRect();
+      const placeAfter = e.clientY > rect.top + rect.height / 2;
+      reorderLive(over, placeAfter);
+    });
+
+    grid.addEventListener('drop', (e) => { e.preventDefault(); finishDrag(true); });
+    grid.addEventListener('dragend', (e) => { e.preventDefault(); finishDrag(true); });
+  }
+
+  // FLIP：把被拖卡片插到目标卡片前/后，其余卡片平滑让位
+  function reorderLive(over, placeAfter) {
+    const el = dragState.el;
+    const cards = dragCards();
+    if (placeAfter) {
+      if (over.nextSibling === el) return;
+      over.after(el);
+    } else {
+      if (over.previousSibling === el) return;
+      over.before(el);
+    }
+    // FLIP：记录移动前位置
+    cards.forEach(c => { c.style.transition = 'none'; c.style.transform = ''; });
+    const first = new Map();
+    cards.forEach(c => first.set(c, c.getBoundingClientRect()));
+    requestAnimationFrame(() => {
+      cards.forEach(c => {
+        const b = c.getBoundingClientRect();
+        const a = first.get(c);
+        const dx = a.left - b.left, dy = a.top - b.top;
+        if (dx || dy) c.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+      });
+      requestAnimationFrame(() => {
+        cards.forEach(c => {
+          c.style.transition = 'transform .32s var(--app-ease-out-expo, cubic-bezier(.16,1,.3,1))';
+          c.style.transform = '';
+        });
+      });
+    });
+  }
+
+  function finishDrag(persist) {
+    const grid = $('grid');
+    grid.classList.remove('th-grid-dragging');
+    if (!dragState) return;
+    const el = dragState.el;
+    if (el) {
+      el.classList.remove('th-dragging');
+      el.style.transition = '';
+      el.style.transform = '';
+    }
+    if (persist && !dragState.persisted) {
+      dragState.persisted = true;
+      persistOrder();
+    }
+    dragState = null;
+  }
+
+  // 读取 DOM 新顺序 → 同步 tools 数组 → 提交后端持久化 → 无动画重渲染
+  function persistOrder() {
+    const ids = dragCards().map(c => c.dataset.id);
+    const system = tools.filter(t => t.system);
+    let rest = tools.filter(t => !t.system);
+    const idSet = new Set(ids);
+    // 按 DOM 顺序重排可见的工具；被筛选隐藏的按原相对顺序追加到末尾
+    const ordered = ids.map(id => rest.find(t => t.id === id)).filter(Boolean);
+    const shown = new Set(ordered.map(t => t.id));
+    rest.forEach(t => { if (!shown.has(t.id)) ordered.push(t); });
+    tools = [...system, ...ordered];
+    fetch(API_BASE + '/api/tools/reorder', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ordered.map(t => t.id) })
+    }).then(r => r.json()).then(d => {
+      if (!d || d.ok !== true) showToast('排序保存失败', 3000);
+    }).catch(() => showToast('排序保存失败', 3000));
+    renderGrid({ animate: false });
   }
 
   // ── Open tool in overlay（系统工具走说明弹窗）──
@@ -285,7 +408,12 @@
       if (e.shiftKey) parts.push('Shift');
       const key = e.key;
       if (key === 'Control' || key === 'Alt' || key === 'Shift' || key === 'Meta' || key === 'Escape') return;
-      if (parts.length === 0) parts.push('Ctrl');
+      // 功能键（F1-F12 等）直接保存；普通键必须配合修饰键，避免裸字母全局拦截
+      const isFunctionKey = /^F([1-9]|1[0-2])$/.test(key) || ['PrintScreen', 'Insert', 'Home', 'End', 'PageUp', 'PageDown', 'Delete', 'Backspace', 'Tab', 'CapsLock'].indexOf(key) >= 0;
+      if (!isFunctionKey && parts.length === 0) {
+        showToast('请同时按 Ctrl / Alt / Shift + 键，或直接按 F1-F12 功能键');
+        return;
+      }
       parts.push(key.length === 1 ? key.toUpperCase() : key);
       const input = document.getElementById(recordingSysKey === 'paste' ? 'sysPasteKey' : 'sysShotKey');
       if (input) { input.value = parts.join('+'); input.style.borderColor = ''; }
@@ -309,7 +437,11 @@
       } catch (e) { showToast('保存失败: ' + e.message, 4000); }
     });
     document.getElementById('sysOcrDir').addEventListener('click', async function () {
-      if (api && api.screenshotOpenOcrModelsDir) await api.screenshotOpenOcrModelsDir();
+      if (!api || !api.screenshotOpenOcrModelsDir) { showToast('当前环境不支持打开目录，请重启应用后重试（主进程需更新）', 4000); return; }
+      try {
+        const res = await api.screenshotOpenOcrModelsDir();
+        showToast(res && res.status === 'ok' ? '已打开模型目录：' + res.dir : ('打开失败：' + (res && res.message || '')));
+      } catch (e) { showToast('打开模型目录失败：' + e.message, 4000); }
     });
     document.getElementById('sysInstall').addEventListener('click', async function () {
       const btn = this;

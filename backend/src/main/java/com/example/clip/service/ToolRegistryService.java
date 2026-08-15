@@ -19,9 +19,11 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -305,6 +307,54 @@ public class ToolRegistryService {
             }
         }
         return null;
+    }
+
+    /**
+     * 按给定的 id 顺序重排注册表工具列表并持久化。
+     * <p>仅重排传入的 id；未传入的已注册工具按原相对顺序追加到末尾，
+     * 未知 id 被忽略。前端拖拽排序后调用本接口保存新顺序。</p>
+     *
+     * @param ids 期望的工具 id 顺序
+     * @return 是否成功
+     */
+    @SuppressWarnings("unchecked")
+    public boolean reorderTools(List<String> ids) {
+        if (ids == null) {
+            return false;
+        }
+        Map<String, Object> registry = loadRegistry();
+        Object toolsObj = registry.get("tools");
+        List<Map<String, Object>> tools = toolsObj instanceof List
+                ? (List<Map<String, Object>>) toolsObj : new ArrayList<>();
+
+        Map<String, Map<String, Object>> byId = new LinkedHashMap<>();
+        for (Map<String, Object> t : tools) {
+            byId.put(String.valueOf(t.get("id")), t);
+        }
+
+        List<Map<String, Object>> reordered = new ArrayList<>();
+        Set<String> used = new HashSet<>();
+        for (String id : ids) {
+            if (id == null || used.contains(id)) {
+                continue;
+            }
+            Map<String, Object> t = byId.get(id);
+            if (t != null) {
+                reordered.add(t);
+                used.add(id);
+            }
+        }
+        // 追加未参与排序的既有工具（保持其相对顺序）
+        for (Map<String, Object> t : tools) {
+            if (!used.contains(String.valueOf(t.get("id")))) {
+                reordered.add(t);
+            }
+        }
+
+        registry.put("tools", reordered);
+        saveRegistry(registry);
+        log.info("[ToolRegistry] Reordered {} tools", reordered.size());
+        return true;
     }
 
     /**

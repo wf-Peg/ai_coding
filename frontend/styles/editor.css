@@ -432,6 +432,12 @@ select {
   flex-shrink: 0;
 }
 
+.markdown-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .markdown-body {
   flex: 1;
   overflow-y: auto;
@@ -2825,10 +2831,30 @@ a.wikilink.wikilink-missing:hover {
 .backlinks-item .bl-line {
   color: var(--app-text-secondary);
   font-size: 11px;
-  line-height: 1.4;
+  line-height: 1.5;
+  margin-top: 3px;
+  padding: 2px 0 2px 8px;
+  border-left: 2px solid var(--app-border-strong);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.backlinks-item .bl-line .bl-hl {
+  color: var(--app-primary);
+  font-weight: 600;
+  background: var(--app-primary-soft);
+  border-radius: 3px;
+  padding: 0 2px;
+}
+.backlinks-item .bl-line .bl-ln {
+  display: block;
+  margin-bottom: 1px;
+  color: var(--app-text-muted);
+  font-size: 9px;
+  letter-spacing: 0.3px;
 }
 
 .backlinks-empty {

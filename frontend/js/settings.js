@@ -938,7 +938,12 @@ document.addEventListener('keydown', (e) => {
   if (e.shiftKey) parts.push('Shift');
   const key = e.key;
   if (key === 'Control' || key === 'Alt' || key === 'Shift' || key === 'Meta') return;
-  if (parts.length === 0) parts.push('Ctrl');
+  // 功能键（F1-F12 等）直接保存；普通键必须配合修饰键，避免裸字母全局拦截
+  const isFunctionKey = /^F([1-9]|1[0-2])$/.test(key) || ['PrintScreen', 'Insert', 'Home', 'End', 'PageUp', 'PageDown', 'Delete', 'Backspace', 'Tab', 'CapsLock'].indexOf(key) >= 0;
+  if (!isFunctionKey && parts.length === 0) {
+    showToast('请同时按 Ctrl / Alt / Shift + 键，或直接按 F1-F12 功能键');
+    return;
+  }
   parts.push(key.length === 1 ? key.toUpperCase() : key);
   const accelerator = parts.join('+');
   const input = document.getElementById('shortcutKey');
