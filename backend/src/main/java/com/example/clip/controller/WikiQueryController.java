@@ -108,14 +108,29 @@ public class WikiQueryController {
 
         new Thread(() -> {
             try {
-                WikiQueryService.ProgressCallback callback = (stage, message) -> {
-                    try {
-                        SseEventBuilder event = SseEmitter.event()
-                                .name("progress")
-                                .data(Map.of("stage", stage, "message", message));
-                        emitter.send(event);
-                    } catch (Exception e) {
-                        log.warn("[WikiQuery] Failed to send progress event: {}", e.getMessage());
+                WikiQueryService.ProgressCallback callback = new WikiQueryService.ProgressCallback() {
+                    @Override
+                    public void onProgress(String stage, String message) {
+                        try {
+                            SseEventBuilder event = SseEmitter.event()
+                                    .name("progress")
+                                    .data(Map.of("stage", stage, "message", message));
+                            emitter.send(event);
+                        } catch (Exception e) {
+                            log.warn("[WikiQuery] Failed to send progress event: {}", e.getMessage());
+                        }
+                    }
+
+                    @Override
+                    public void onData(String type, Object data) {
+                        try {
+                            SseEventBuilder event = SseEmitter.event()
+                                    .name("data")
+                                    .data(Map.of("type", type, "data", data));
+                            emitter.send(event);
+                        } catch (Exception e) {
+                            log.warn("[WikiQuery] Failed to send data event: {}", e.getMessage());
+                        }
                     }
                 };
                 Map<String, Object> result = wikiQueryService.query(question, includeClips, includeKnowledge, callback);

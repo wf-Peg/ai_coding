@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSV ↔ JSON</title>
+<style>
+:root{
+  --bg:#f7f7f5; --surface:#ffffff; --surface-subtle:#f1f1ef; --surface-hover:#ececea;
+  --border:#e3e3df; --border-strong:#d2d2cd; --text:#2f3437; --text-secondary:#6b6f76;
+  --text-muted:#92969d; --primary:#2383e2; --primary-hover:#1f76c9; --primary-soft:rgba(35,131,226,.1);
+  --success:#238b63; --danger:#d14343; --danger-soft:rgba(209,67,67,.1);
+  --radius-sm:6px; --radius:9px; --radius-lg:12px;
+  --shadow:0 1px 2px rgba(15,23,42,.06),0 10px 24px rgba(15,23,42,.06);
+  --ease-out-expo:cubic-bezier(.16,1,.3,1);
+  --font-mono:"SF Mono","Fira Code","Consolas",monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#1f2224; --surface:#2a2e31; --surface-subtle:#33373a; --surface-hover:#3a3f42;
+    --border:#3a3f42; --border-strong:#4a4f53; --text:#e8eaec; --text-secondary:#a6acb2;
+    --text-muted:#7d8389; --primary:#4b9cf0; --primary-hover:#5fa8f2; --primary-soft:rgba(75,156,240,.15);
+    --success:#3aa97c; --danger:#e05b5b; --danger-soft:rgba(224,91,91,.15);
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 24px rgba(0,0,0,.25); }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5;-webkit-font-smoothing:antialiased}
+.app{max-width:720px;margin:0 auto;padding:28px 20px 56px}
+.header{margin-bottom:22px;animation:slideDown .4s var(--ease-out-expo)}
+.header h1{font-size:1.4rem;font-weight:700;letter-spacing:-.01em;margin-bottom:6px}
+.header p{font-size:.9rem;color:var(--text-secondary)}
+@keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+
+.direction-bar{display:flex;gap:6px;background:var(--surface-subtle);padding:4px;border-radius:var(--radius);margin-bottom:18px;width:fit-content}
+.dir-btn{border:none;background:transparent;color:var(--text-secondary);padding:8px 16px;border-radius:var(--radius-sm);font-size:.9rem;font-weight:500;cursor:pointer;transition:all .2s var(--ease-out-expo)}
+.dir-btn:hover{color:var(--text)}
+.dir-btn.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+
+.editor-wrap{display:flex;flex-direction:column;gap:12px}
+textarea{width:100%;min-height:180px;padding:14px;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--surface);color:var(--text);font-family:var(--font-mono);font-size:.82rem;line-height:1.55;resize:vertical;outline:none;transition:border-color .2s}
+textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
+textarea::placeholder{color:var(--text-muted)}
+
+.controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.controls label{font-size:.85rem;color:var(--text-secondary)}
+input[type=text]{padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:.85rem;outline:none;width:60px;text-align:center}
+input[type=text]:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
+
+.btn{border:none;border-radius:var(--radius);padding:10px 18px;font-size:.88rem;font-weight:500;cursor:pointer;transition:all .2s var(--ease-out-expo)}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-hover);transform:translateY(-1px)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn-ghost{background:var(--surface);border:1px solid var(--border-strong);color:var(--text)}
+.btn-ghost:hover{background:var(--surface-hover)}
+
+.result-area{margin-top:14px}
+.result-area .label{font-size:.82rem;color:var(--text-secondary);margin-bottom:6px}
+.result-area textarea{background:var(--surface-subtle);min-height:140px}
+
+.message{font-size:.85rem;padding:10px 14px;border-radius:var(--radius);margin-top:12px}
+.message.error{background:var(--danger-soft);color:var(--danger)}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.copy-btn{position:absolute;top:8px;right:10px;border:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 10px;font-size:.75rem;color:var(--text-secondary);cursor:pointer;opacity:0;transition:opacity .2s}
+.result-area:hover .copy-btn{opacity:1}
+.result-area{position:relative}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>🧾 CSV ↔ JSON</h1>
+    <p>CSV 与 JSON 双向转换，自定义分隔符与缩进</p>
+  </div>
+
+  <div class="direction-bar">
+    <button class="dir-btn active" data-dir="csvToJson">CSV → JSON</button>
+    <button class="dir-btn" data-dir="jsonToCsv">JSON → CSV</button>
+  </div>
+
+  <div class="editor-wrap">
+    <textarea id="input" placeholder="在此粘贴或输入数据…&#10;&#10;示例 CSV:&#10;name,age,city&#10;张三,28,北京&#10;李四,32,上海&#10;&#10;示例 JSON:&#10;[&#10;  { &quot;name&quot;: &quot;张三&quot;, &quot;age&quot;: 28, &quot;city&quot;: &quot;北京&quot; },&#10;  { &quot;name&quot;: &quot;李四&quot;, &quot;age&quot;: 32, &quot;city&quot;: &quot;上海&quot; }&#10;]"></textarea>
+  </div>
+
+  <div class="controls" style="margin-top:12px;margin-bottom:8px">
+    <label>分隔符</label>
+    <input type="text" id="delimiter" value=",">
+    <button class="btn btn-primary" id="convertBtn">转换</button>
+    <button class="btn btn-ghost" id="swapBtn" title="交换输入输出">⇄ 互换</button>
+  </div>
+
+  <div class="result-area" id="resultArea" style="display:none">
+    <div class="label">输出结果</div>
+    <textarea id="output" readonly></textarea>
+    <button class="copy-btn" id="copyBtn">复制</button>
+  </div>
+  <div id="msg"></div>
+</div>
+
+<script>
+const API_BASE = (window.location.protocol === 'file:') ? 'http://127.0.0.1:8081' : '';
+const $ = id => document.getElementById(id);
+let currentDir = 'csvToJson';
+
+document.querySelectorAll('.dir-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.dir-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentDir = btn.dataset.dir;
+    $('input').placeholder = currentDir === 'csvToJson'
+      ? '在此粘贴 CSV…\n\nname,age,city\n张三,28,北京\n李四,32,上海'
+      : '在此粘贴 JSON…\n\n[{ "name": "张三", "age": 28, "city": "北京" }]';
+    $('resultArea').style.display = 'none';
+    $('msg').innerHTML = '';
+  });
+});
+
+$('convertBtn').addEventListener('click', async () => {
+  const content = $('input').value.trim();
+  if (!content) { showMsg('请输入内容', 'error'); return; }
+  const btn = $('convertBtn');
+  btn.disabled = true;
+  btn.textContent = '<span class="spinner"></span>转换中…';
+  try {
+    const res = await fetch(API_BASE + '/api/tools/csv-json', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ direction: currentDir, content, delimiter: $('delimiter').value || ',' })
+    });
+    const data = await res.json();
+    if (!res.ok) { showMsg(data.error || '转换失败', 'error'); return; }
+    $('output').value = data.result;
+    $('resultArea').style.display = 'block';
+    $('msg').innerHTML = '';
+  } catch (e) { showMsg('转换失败: ' + e.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = '转换'; }
+});
+
+$('swapBtn').addEventListener('click', () => {
+  const input = $('input').value.trim();
+  const output = $('output').value.trim();
+  if (output) $('input').value = output;
+  if (input) $('output').value = input;
+  $('resultArea').style.display = 'block';
+});
+
+$('copyBtn').addEventListener('click', () => {
+  navigator.clipboard.writeText($('output').value).then(() => {
+    $('copyBtn').textContent = '已复制';
+    setTimeout(() => $('copyBtn').textContent = '复制', 2000);
+  });
+});
+
+function showMsg(text, type) {
+  $('msg').innerHTML = `<div class="message ${type}">${text}</div>`;
+}
+</script>
+</body>
+</html>

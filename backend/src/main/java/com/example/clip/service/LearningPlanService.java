@@ -41,14 +41,17 @@ public class LearningPlanService {
     private final FileStorageService fileStorageService;
     private final ExaSearchService exaSearchService;
     private final LlmProvider llmProvider;
+    private final GraphService graphService;
     private final ObjectMapper objectMapper;
 
     public LearningPlanService(FileStorageService fileStorageService,
                                ExaSearchService exaSearchService,
-                               LlmProvider llmProvider) {
+                               LlmProvider llmProvider,
+                               GraphService graphService) {
         this.fileStorageService = fileStorageService;
         this.exaSearchService = exaSearchService;
         this.llmProvider = llmProvider;
+        this.graphService = graphService;
         this.objectMapper = new ObjectMapper()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
@@ -115,6 +118,9 @@ public class LearningPlanService {
 
         // Step 4: 保存
         LearningPlan saved = fileStorageService.saveLearningPlan(plan);
+        if (saved != null && saved.getId() != null) {
+            graphService.recordPlanRelations(saved);
+        }
         log.info("[LearningPlan] Plan '{}' created with {} phases, saved as id={}",
                 title, phases.size(), saved != null ? saved.getId() : null);
         return saved;
@@ -316,6 +322,7 @@ public class LearningPlanService {
             throw new RuntimeException("系统内置计划不可删除");
         }
         fileStorageService.deleteLearningPlan(id);
+        graphService.removePlanRelations(id);
     }
 
     /**
@@ -350,5 +357,81 @@ public class LearningPlanService {
 
         plan.setUpdatedAt(LocalDateTime.now());
         return fileStorageService.saveLearningPlan(plan);
+    }
+
+    /**
+     * 更新某阶段的关联知识/剪藏，并在更新后同步图谱关系。
+     *
+     * @param planId             计划 ID
+     * @param phaseNum           阶段编号
+     * @param linkedKnowledgeIds 关联的知识条目 ID
+     * @param sourceClipIds      关联的剪藏 ID
+     * @return 更新后的计划；计划不存在返回 null
+     */
+    public LearningPlan updatePhaseLinks(Long planId, int phaseNum,
+                                         List<Long> linkedKnowledgeIds, List<Long> sourceClipIds) {
+        LearningPlan plan = fileStorageService.getLearningPlanById(planId);
+        if (plan == null) return null;
+
+        for (Phase phase : plan.getPhases()) {
+            if (phase.getPhaseNumber() == phaseNum) {
+                phase.setLinkedKnowledgeIds(linkedKnowledgeIds != null ? linkedKnowledgeIds : new ArrayList<>());
+                phase.setSourceClipIds(sourceClipIds != null ? sourceClipIds : new ArrayList<>());
+                break;
+            }
+        }
+
+        plan.setUpdatedAt(LocalDateTime.now());
+        LearningPlan saved = fileStorageService.saveLearningPlan(plan);
+        if (saved != null && saved.getId() != null) {
+            graphService.recordPlanRelations(saved);
+        }
+        return saved;
+    }
+
+    /**
+     * 反查引用指定知识的全部学习阶段（用于知识详情反链）。
+     *
+     * @param knowledgeId 知识条目 ID
+     * @return [{planId, planTitle, phases:[{phaseNumber, phaseTitle}]}]
+     */
+    public List<Map<String, Object>> getPlansByKnowledge(Long knowledgeId) {
+        return collectPlanRefs(plan -> plan.getPhases().stream()
+                .filter(p -> p.getLinkedKnowledgeIds() != null && p.getLinkedKnowledgeIds().contains(knowledgeId))
+                .toList());
+    }
+
+    /**
+     * 反查引用指定剪藏的全部学习阶段（用于剪藏详情反链）。
+     *
+     * @param clipId 剪藏 ID
+     * @return [{planId, planTitle, phases:[{phaseNumber, phaseTitle}]}]
+     */
+    public List<Map<String, Object>> getPlansByClip(Long clipId) {
+        return collectPlanRefs(plan -> plan.getPhases().stream()
+                .filter(p -> p.getSourceClipIds() != null && p.getSourceClipIds().contains(clipId))
+                .toList());
+    }
+
+    private List<Map<String, Object>> collectPlanRefs(java.util.function.Function<LearningPlan, List<Phase>> matcher) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (LearningPlan plan : fileStorageService.getAllLearningPlans()) {
+            if (plan.getId() == null) continue;
+            List<Phase> matched = matcher.apply(plan);
+            if (matched.isEmpty()) continue;
+            List<Map<String, Object>> phases = new ArrayList<>();
+            for (Phase phase : matched) {
+                Map<String, Object> phaseRef = new LinkedHashMap<>();
+                phaseRef.put("phaseNumber", phase.getPhaseNumber());
+                phaseRef.put("phaseTitle", phase.getTitle());
+                phases.add(phaseRef);
+            }
+            Map<String, Object> planRef = new LinkedHashMap<>();
+            planRef.put("planId", plan.getId());
+            planRef.put("planTitle", plan.getTitle());
+            planRef.put("phases", phases);
+            result.add(planRef);
+        }
+        return result;
     }
 }

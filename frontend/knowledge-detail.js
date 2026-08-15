@@ -21,6 +21,7 @@ async function fetchKnowledgeDetail() {
     await renderDetail(knowledgeData);
     renderSourceClips(knowledgeData);
     renderLinkedKnowledge(knowledgeData);
+    renderPlanBacklinks(knowledgeId);
   } catch (error) {
     console.error('获取知识详情失败:', error);
     container.innerHTML = '<div class="loading"><p>加载失败，请检查网络连接</p></div>';
@@ -139,6 +140,37 @@ async function renderSourceClips(knowledge) {
       ${item.summary ? `<span class="clip-item-summary">${escapeHtml(item.summary.substring(0, 60))}${item.summary.length > 60 ? '...' : ''}</span>` : ''}
     </div>
   `).join('');
+}
+
+// 被学习计划引用（反链）
+async function renderPlanBacklinks(kid) {
+  const section = document.getElementById('planBacklinksSection');
+  const list = document.getElementById('planBacklinksList');
+  if (!section || !list) return;
+  try {
+    const resp = await fetch(`http://127.0.0.1:8081/api/learning-plan/by-knowledge/${kid}`);
+    if (!resp.ok) { section.style.display = 'none'; return; }
+    const plans = await resp.json();
+    if (!plans || plans.length === 0) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+    list.innerHTML = plans.map(p => `
+      <div class="clip-item" onclick="openLearningPlan(${p.planId})">
+        <div class="clip-item-title">
+          📘 ${escapeHtml(p.planTitle)}
+          <span class="clip-item-site">${(p.phases || []).map(ph => `阶段 ${ph.phaseNumber}`).join('、')}</span>
+        </div>
+        <span class="clip-item-summary">被 ${(p.phases || []).length} 个阶段引用</span>
+      </div>
+    `).join('');
+  } catch (e) {
+    section.style.display = 'none';
+  }
+}
+
+function openLearningPlan(planId) {
+  if (window.parent && window.parent.postMessage) {
+    window.parent.postMessage({ type: 'navigateLearningPlan', planId: parseInt(planId) }, '*');
+  }
 }
 
 // 来源剪藏内联预览弹窗

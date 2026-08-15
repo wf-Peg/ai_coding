@@ -460,10 +460,16 @@
                 <div id="archiveResult"></div>
             </div>
 
+            <div class="card" id="knowledgeSupplementCard" style="display: none; margin-top: 16px;">
+                <h2>大模型知识补充</h2>
+                <div class="markdown-body" id="knowledgeSupplementBody"></div>
+            </div>
+
             <div class="loading" id="queryLoading" style="display: none;">
                 <div class="spinner"></div>
                 <div id="progress-stage" style="font-weight: 600; margin-bottom: 4px;">准备查询...</div>
                 <div id="progress-message" style="font-size: 0.85rem; color: var(--fg-secondary);"></div>
+                <div id="progress-detail" style="margin-top: 12px; max-height: 300px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; display: none; font-size: 0.8rem;"></div>
             </div>
         </div>
 
@@ -528,7 +534,8 @@
 
             <div class="loading" id="lintLoading" style="display: none;">
                 <div class="spinner"></div>
-                <p>正在扫描...</p>
+                <div id="lint-progress-stage" style="font-weight: 600; margin-bottom: 4px;">准备扫描...</div>
+                <div id="lint-progress-message" style="font-size: 0.85rem; color: var(--fg-secondary);"></div>
             </div>
 
             <div class="card" id="lintResultCard" style="display: none;">
@@ -638,8 +645,12 @@
             queryBtn.disabled = true;
             showLoading('queryLoading');
             document.getElementById('resultCard').style.display = 'none';
+            document.getElementById('knowledgeSupplementCard').style.display = 'none';
             document.getElementById('progress-stage').textContent = '准备查询...';
             document.getElementById('progress-message').textContent = '正在建立连接...';
+            const detailEl = document.getElementById('progress-detail');
+            detailEl.style.display = 'none';
+            detailEl.innerHTML = '';
 
             const includeClips = document.getElementById('includeClipsCheck').checked;
             const includeKnowledge = document.getElementById('includeKnowledgeCheck').checked;
@@ -655,6 +666,36 @@
                     const data = JSON.parse(e.data);
                     document.getElementById('progress-stage').textContent = data.stage || '';
                     document.getElementById('progress-message').textContent = data.message || '';
+                } catch (err) {
+                    // ignore parse errors
+                }
+            });
+
+            eventSource.addEventListener('data', (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    const panel = document.getElementById('progress-detail');
+                    panel.style.display = 'block';
+                    if (data.type === 'relevantPages') {
+                        const pages = data.data || [];
+                        panel.innerHTML = '<div style="font-weight:600;margin-bottom:6px;">检索到的页面：</div>'
+                            + pages.map(p => '<span class="page-tag" style="font-size:0.8rem;">' + escapeHtml(p) + '</span>').join('');
+                    } else if (data.type === 'pageContent') {
+                        const item = data.data || {};
+                        panel.innerHTML += '<div style="margin-top:6px;padding:6px;background:var(--bg-secondary);border-radius:4px;">'
+                            + '<strong>' + escapeHtml(item.pageName) + '</strong><br>'
+                            + '<span style="color:var(--fg-secondary);">' + escapeHtml(item.snippet) + '</span></div>';
+                    } else if (data.type === 'extraSources') {
+                        const es = data.data || {};
+                        let html = '<div style="font-weight:600;margin-top:8px;margin-bottom:6px;">额外来源：</div>';
+                        (es.clips || []).forEach(c => {
+                            html += '<div style="padding:4px;">📎 [剪藏] ' + escapeHtml(c.title) + ': ' + escapeHtml(c.snippet || '') + '</div>';
+                        });
+                        (es.knowledge || []).forEach(k => {
+                            html += '<div style="padding:4px;">📖 [知识] ' + escapeHtml(k.title) + ': ' + escapeHtml(k.snippet || '') + '</div>';
+                        });
+                        panel.innerHTML += html;
+                    }
                 } catch (err) {
                     // ignore parse errors
                 }
@@ -738,6 +779,15 @@
 
             document.getElementById('answerBody').innerHTML = renderMarkdown(currentAnswer);
             document.getElementById('archiveResult').innerHTML = '';
+
+            // 展示大模型知识补充
+            const ksCard = document.getElementById('knowledgeSupplementCard');
+            if (data.knowledgeSupplement) {
+                document.getElementById('knowledgeSupplementBody').innerHTML = renderMarkdown(data.knowledgeSupplement);
+                ksCard.style.display = 'block';
+            } else {
+                ksCard.style.display = 'none';
+            }
         }
 
         // ============== 归档 ==============
@@ -896,20 +946,48 @@
             runLintBtn.disabled = true;
             showLoading('lintLoading');
             document.getElementById('lintResultCard').style.display = 'none';
-            try {
-                const data = await fetchJson(API_BASE + '/api/wiki/lint', { method: 'POST' });
-                renderLintResult(data);
-                // 同步刷新报告显示
-                await refreshLintReport();
-            } catch (e) {
-                document.getElementById('lintResultCard').style.display = 'block';
-                showError('lintIssues', '健康检查失败: ' + e.message);
-                document.getElementById('lintStats').innerHTML = '';
-                document.getElementById('lintMessage').textContent = '';
-            } finally {
+            document.getElementById('lint-progress-stage').textContent = '准备扫描...';
+            document.getElementById('lint-progress-message').textContent = '正在建立连接...';
+
+            const eventSource = new EventSource(API_BASE + '/api/wiki/lint/stream');
+
+            eventSource.addEventListener('progress', (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    document.getElementById('lint-progress-stage').textContent = data.stage || '';
+                    document.getElementById('lint-progress-message').textContent = data.message || '';
+                } catch (err) {
+                    // ignore parse errors
+                }
+            });
+
+            eventSource.addEventListener('complete', async (e) => {
+                eventSource.close();
                 hideLoading('lintLoading');
                 runLintBtn.disabled = false;
-            }
+                let data;
+                try { data = JSON.parse(e.data); } catch (err) { data = null; }
+                if (data && data.status === 'success') {
+                    renderLintResult(data);
+                    // 同步刷新报告显示
+                    await refreshLintReport();
+                } else {
+                    document.getElementById('lintResultCard').style.display = 'block';
+                    showError('lintIssues', '健康检查失败: ' + ((data && data.message) || '未知错误'));
+                    document.getElementById('lintStats').innerHTML = '';
+                    document.getElementById('lintMessage').textContent = '';
+                }
+            });
+
+            eventSource.addEventListener('error', (e) => {
+                eventSource.close();
+                hideLoading('lintLoading');
+                runLintBtn.disabled = false;
+                document.getElementById('lintResultCard').style.display = 'block';
+                showError('lintIssues', '健康检查连接中断，请重试');
+                document.getElementById('lintStats').innerHTML = '';
+                document.getElementById('lintMessage').textContent = '';
+            });
         }
 
         function renderLintResult(data) {

@@ -5,6 +5,8 @@ import com.example.clip.index.ContentRef;
 import com.example.clip.index.ContentRelation;
 import com.example.clip.index.RelationIndexService;
 import com.example.clip.model.Knowledge;
+import com.example.clip.model.LearningPlan;
+import com.example.clip.model.LearningPlan.Phase;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Path;
@@ -104,6 +106,65 @@ public class GraphService {
     }
 
     /**
+     * 记录一个学习计划的所有关联（幂等：先移除该计划旧关系，再统一写入）。
+     * <p>
+     * 每个阶段关联的知识/剪藏聚合为 plan 级 {@code plan_links} 边：
+     * <ul>
+     *   <li>{@code learning-plan:{id} → knowledge:{kid}}（阶段关联知识）</li>
+     *   <li>{@code learning-plan:{id} → clip:{cid}}（阶段关联剪藏）</li>
+     * </ul>
+     */
+    public void recordPlanRelations(LearningPlan plan) {
+        if (plan == null || plan.getId() == null) return;
+        RelationIndexService relationIndex = new RelationIndexService(getRelationIndexPath());
+        String pid = "learning-plan:" + plan.getId();
+
+        List<ContentRelation> existing = relationIndex.readAll();
+        for (ContentRelation r : existing) {
+            if (r.fromId().equals(pid) || r.toId().equals(pid)) {
+                relationIndex.remove(r.fromId(), r.toId(), r.relationType());
+            }
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (plan.getPhases() != null) {
+            for (Phase phase : plan.getPhases()) {
+                if (phase.getLinkedKnowledgeIds() != null) {
+                    for (Long kid : phase.getLinkedKnowledgeIds()) {
+                        if (kid != null) {
+                            relationIndex.add(new ContentRelation(pid, "knowledge:" + kid,
+                                    "plan_links", "learning_plan_link", 1.0, now));
+                        }
+                    }
+                }
+                if (phase.getSourceClipIds() != null) {
+                    for (Long cid : phase.getSourceClipIds()) {
+                        if (cid != null) {
+                            relationIndex.add(new ContentRelation(pid, "clip:" + cid,
+                                    "plan_links", "learning_plan_link", 1.0, now));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 移除某个学习计划的所有关系（用于删除计划时清理）。
+     */
+    public void removePlanRelations(Long planId) {
+        if (planId == null) return;
+        RelationIndexService relationIndex = new RelationIndexService(getRelationIndexPath());
+        String pid = "learning-plan:" + planId;
+        List<ContentRelation> existing = relationIndex.readAll();
+        for (ContentRelation r : existing) {
+            if (r.fromId().equals(pid) || r.toId().equals(pid)) {
+                relationIndex.remove(r.fromId(), r.toId(), r.relationType());
+            }
+        }
+    }
+
+    /**
      * 全量重建关系索引：以 JSON 权威字段（sourceClipIds / linkedKnowledgeIds）为唯一真源，
      * 幂等覆盖 relation-index.json。
      */
@@ -111,6 +172,9 @@ public class GraphService {
         new RelationIndexService(getRelationIndexPath()).clear();
         for (Knowledge knowledge : storageService.getAllKnowledge()) {
             recordKnowledgeRelations(knowledge);
+        }
+        for (LearningPlan plan : storageService.getAllLearningPlans()) {
+            recordPlanRelations(plan);
         }
     }
 
@@ -129,9 +193,14 @@ public class GraphService {
             if (knowledge.getId() != null) knowledgeById.put(knowledge.getId(), knowledge);
         }
 
+        Map<Long, LearningPlan> planById = new HashMap<>();
+        for (LearningPlan plan : storageService.getAllLearningPlans()) {
+            if (plan.getId() != null) planById.put(plan.getId(), plan);
+        }
+
         List<ContentRelation> relations = new RelationIndexService(getRelationIndexPath()).readAll();
         if (relations.isEmpty()) {
-            relations = deriveRelationsFromKnowledge(knowledgeById.values());
+            relations = deriveRelationsFromKnowledge(knowledgeById.values(), planById.values());
         }
 
         List<Map<String, Object>> nodes = new ArrayList<>();
@@ -152,6 +221,13 @@ public class GraphService {
                         ? knowledge.getLinkedKnowledgeIds().size() : 0);
                 node.put("sourceCount", knowledge != null && knowledge.getSourceClipIds() != null
                         ? knowledge.getSourceClipIds().size() : 0);
+            } else if ("learning-plan".equals(ref.type()) && ref.sourceId() != null) {
+                LearningPlan plan = planById.get(Long.valueOf(ref.sourceId()));
+                node.put("summary", plan != null ? plan.getGoal() : null);
+                int[] counts = plan != null ? countPlanLinks(plan) : new int[]{0, 0};
+                node.put("linkedCount", counts[0]);
+                node.put("sourceCount", counts[1]);
+                node.put("phaseCount", plan != null && plan.getPhases() != null ? plan.getPhases().size() : 0);
             } else {
                 node.put("summary", null);
                 node.put("linkedCount", 0);
@@ -178,7 +254,8 @@ public class GraphService {
     }
 
     /** 从权威字段派生关系（relation-index 为空时的兜底）。 */
-    private List<ContentRelation> deriveRelationsFromKnowledge(Collection<Knowledge> knowledges) {
+    private List<ContentRelation> deriveRelationsFromKnowledge(Collection<Knowledge> knowledges,
+                                                               Collection<LearningPlan> plans) {
         List<ContentRelation> relations = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
         for (Knowledge knowledge : knowledges) {
@@ -201,6 +278,43 @@ public class GraphService {
                 }
             }
         }
+        for (LearningPlan plan : plans) {
+            if (plan.getId() == null) continue;
+            String pid = "learning-plan:" + plan.getId();
+            if (plan.getPhases() != null) {
+                for (Phase phase : plan.getPhases()) {
+                    if (phase.getLinkedKnowledgeIds() != null) {
+                        for (Long kid : phase.getLinkedKnowledgeIds()) {
+                            if (kid != null) {
+                                relations.add(new ContentRelation(pid, "knowledge:" + kid,
+                                        "plan_links", "learning_plan_link", 1.0, now));
+                            }
+                        }
+                    }
+                    if (phase.getSourceClipIds() != null) {
+                        for (Long cid : phase.getSourceClipIds()) {
+                            if (cid != null) {
+                                relations.add(new ContentRelation(pid, "clip:" + cid,
+                                        "plan_links", "learning_plan_link", 1.0, now));
+                            }
+                        }
+                    }
+                }
+            }
+        }
         return relations;
+    }
+
+    /** 统计学习计划各阶段关联的去重知识数/去重剪藏数。 */
+    private int[] countPlanLinks(LearningPlan plan) {
+        Set<Long> knowledgeIds = new LinkedHashSet<>();
+        Set<Long> clipIds = new LinkedHashSet<>();
+        if (plan.getPhases() != null) {
+            for (Phase phase : plan.getPhases()) {
+                if (phase.getLinkedKnowledgeIds() != null) knowledgeIds.addAll(phase.getLinkedKnowledgeIds());
+                if (phase.getSourceClipIds() != null) clipIds.addAll(phase.getSourceClipIds());
+            }
+        }
+        return new int[]{knowledgeIds.size(), clipIds.size()};
     }
 }

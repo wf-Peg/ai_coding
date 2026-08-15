@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tools Hub - CutShelter</title>
+<link rel="stylesheet" href="styles/design-tokens.css">
+<link rel="stylesheet" href="styles/tools.css">
+</head>
+<body>
+<div id="app">
+  <!-- 头部 -->
+  <header class="th-header">
+    <div class="th-header-left">
+      <h1>🧰 工具</h1>
+      <p class="th-subtitle">小工具合集，拔插式扩展，开箱即用</p>
+    </div>
+    <button class="th-btn th-btn-ghost" id="importToolBtn">+ 导入工具</button>
+  </header>
+
+  <!-- 搜索 & 筛选 -->
+  <div class="th-toolbar">
+    <div class="th-search-wrap">
+      <svg class="th-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" class="th-search" id="searchInput" placeholder="搜索工具…" autocomplete="off">
+      <span class="th-search-clear" id="searchClear">✕</span>
+    </div>
+    <div class="th-chips" id="chips"></div>
+  </div>
+
+  <!-- 卡片网格 -->
+  <div class="th-grid" id="grid"></div>
+
+  <!-- 空状态 -->
+  <div class="th-empty" id="empty" style="display:none">
+    <div class="th-empty-icon">🧰</div>
+    <h3>暂无工具</h3>
+    <p>点击右上角「导入工具」按钮，上传自包含 HTML 工具页面</p>
+  </div>
+
+  <!-- 加载中 -->
+  <div class="th-loading" id="loading"><div class="th-spinner"></div></div>
+</div>
+
+<!-- 工具运行遮罩层 -->
+<div class="th-overlay" id="overlay">
+  <div class="th-overlay-header">
+    <span class="th-overlay-title" id="overlayTitle">工具</span>
+    <div class="th-overlay-actions">
+      <button class="th-btn th-btn-ghost-sm" id="viewPromptBtn" title="查看开发提示词">📋 提示词</button>
+      <button class="th-btn th-btn-ghost-sm" id="overlayCloseBtn" title="关闭">✕</button>
+    </div>
+  </div>
+  <iframe class="th-overlay-frame" id="toolFrame"></iframe>
+</div>
+
+<!-- 提示词 Modal -->
+<div class="th-modal-mask" id="promptModal" style="display:none">
+  <div class="th-modal">
+    <div class="th-modal-header">
+      <span>📋 开发提示词</span>
+      <button class="th-btn th-btn-ghost-sm" id="promptClose">✕</button>
+    </div>
+    <div class="th-modal-body">
+      <pre id="promptContent"></pre>
+    </div>
+    <div class="th-modal-footer">
+      <button class="th-btn th-btn-primary" id="copyPromptBtn">复制提示词</button>
+    </div>
+  </div>
+</div>
+
+<!-- 导入工具 Modal -->
+<div class="th-modal-mask" id="importModal" style="display:none">
+  <div class="th-modal th-modal-import">
+    <div class="th-modal-header">
+      <span>导入工具</span>
+      <button class="th-btn th-btn-ghost-sm" id="importModalClose">✕</button>
+    </div>
+    <div class="th-modal-body">
+      <div class="th-form">
+        <label>名称 *</label>
+        <input type="text" id="importName" placeholder="如：JSON 格式化" class="th-input">
+        <label>分类</label>
+        <input type="text" id="importCategory" placeholder="如：文件处理、文本工具" class="th-input">
+        <label>描述</label>
+        <input type="text" id="importDesc" placeholder="一句话描述工具功能" class="th-input">
+        <label>开发提示词</label>
+        <textarea id="importPrompt" placeholder="描述该工具的开发需求，方便日后复用" class="th-textarea"></textarea>
+        <label>HTML 文件 *</label>
+        <div class="th-file-zone" id="fileZone">
+          <span>点击选择或拖拽 HTML 文件</span>
+          <span class="th-file-name" id="fileName"></span>
+        </div>
+      </div>
+    </div>
+    <div class="th-modal-footer">
+      <span class="th-form-msg" id="importMsg"></span>
+      <button class="th-btn th-btn-primary" id="importConfirmBtn">导入</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/tools-core.js"></script>
+</body>
+</html>

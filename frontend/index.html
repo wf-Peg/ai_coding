@@ -528,12 +528,11 @@
             </svg>
             学习
         </button>
-        <button class="nav-btn" data-view="pdf" title="PDF 工具：读取、OCR 与转换 PDF 文档">
+        <button class="nav-btn" data-view="tools" title="工具模块：PDF 等各类小工具聚合">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"/>
             </svg>
-            PDF
+            工具
         </button>
         <button class="nav-btn" data-view="data-observability" title="数据观测台：查看使用习惯与事件统计">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -596,9 +595,9 @@
         <div class="view-panel view-panel-hidden" id="learningPlanView">
             <iframe id="learningPlanFrame" data-src="learning-plan.html" style="width:100%;height:100%;border:none;"></iframe>
         </div>
-        <!-- PDF 工具 -->
-        <div class="view-panel view-panel-hidden" id="pdfView">
-            <iframe id="pdfFrame" data-src="pdf.html" style="width:100%;height:100%;border:none;"></iframe>
+        <!-- 工具模块 -->
+        <div class="view-panel view-panel-hidden" id="toolsView">
+            <iframe id="toolsFrame" data-src="tools.html" style="width:100%;height:100%;border:none;"></iframe>
         </div>
         <!-- 数据观测 -->
         <div class="view-panel view-panel-hidden" id="dataObservabilityView">
@@ -651,13 +650,13 @@
       }
 
       function broadcastThemeChange() {
-        [editorFrame, workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, settingsFrame, learningPlanFrame, pdfFrame, dataObservabilityFrame].forEach(frame => {
+        [editorFrame, workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, settingsFrame, learningPlanFrame, toolsFrame, dataObservabilityFrame].forEach(frame => {
           try { if (frame && frame.contentWindow) frame.contentWindow.postMessage({ action: 'themeChange', theme: document.documentElement.getAttribute('data-theme') }, '*'); } catch(e) {}
         });
       }
 
       function notifyAllFrames(message) {
-        [editorFrame, workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, settingsFrame, learningPlanFrame, pdfFrame, dataObservabilityFrame].forEach(frame => {
+        [editorFrame, workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, settingsFrame, learningPlanFrame, toolsFrame, dataObservabilityFrame].forEach(frame => {
           try { if (frame && frame.contentWindow) frame.contentWindow.postMessage(message, '*'); } catch(e) {}
         });
       }
@@ -791,7 +790,7 @@
       const vaultView = document.getElementById('vaultView');
       const settingsView = document.getElementById('settingsView');
       const learningPlanView = document.getElementById('learningPlanView');
-      const pdfView = document.getElementById('pdfView');
+      const toolsView = document.getElementById('toolsView');
       const dataObservabilityView = document.getElementById('dataObservabilityView');
       const editorFrame = document.getElementById('editorFrame');
       const workspaceFrame = document.getElementById('workspaceFrame');
@@ -799,7 +798,7 @@
       const vaultFrame = document.getElementById('vaultFrame');
       const settingsFrame = document.getElementById('settingsFrame');
       const learningPlanFrame = document.getElementById('learningPlanFrame');
-      const pdfFrame = document.getElementById('pdfFrame');
+      const toolsFrame = document.getElementById('toolsFrame');
       const dataObservabilityFrame = document.getElementById('dataObservabilityFrame');
       const scrollTools = document.getElementById('scrollTools');
 
@@ -823,7 +822,7 @@
         vault: vaultView,
         settings: settingsView,
         'learning-plan': learningPlanView,
-        pdf: pdfView
+        tools: toolsView
         , 'data-observability': dataObservabilityView
       };
       const VIEW_IFRAME = {
@@ -835,7 +834,7 @@
         vault: [vaultFrame],
         settings: [settingsFrame],
         'learning-plan': [learningPlanFrame],
-        pdf: [pdfFrame]
+        tools: [toolsFrame]
         , 'data-observability': [dataObservabilityFrame]
       };
       const allPanels = Object.values(viewMap);
@@ -884,7 +883,7 @@
         if (clean === '/settings') return 'settings';
         if (clean === '/vault') return 'vault';
         if (clean === '/learning-plan') return 'learning-plan';
-        if (clean === '/pdf') return 'pdf';
+        if (clean === '/tools') return 'tools';
         if (clean === '/data-observability') return 'data-observability';
         return 'editor';
       }
@@ -1142,7 +1141,7 @@
         }
         function refreshAllSubPages() {
           // 注意：不刷新 editorFrame（避免打断用户正在编辑的内容）
-          [workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, learningPlanFrame, pdfFrame, dataObservabilityFrame, settingsFrame].forEach(function(frame) {
+          [workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, learningPlanFrame, toolsFrame, dataObservabilityFrame, settingsFrame].forEach(function(frame) {
             try {
               if (frame && frame.contentWindow) {
                 frame.contentWindow.postMessage({ action: 'refresh' }, '*');
@@ -1268,7 +1267,7 @@
 
         // 时序竞态兜底：子页面 iframe 在 backend-ready 事件之后才加载完成时，补发一次刷新。
         // 仅对「未被 refreshAllSubPages 广播过」的 frame 补发，避免 refresh → reload → load → refresh 无限循环
-        [workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, learningPlanFrame, pdfFrame, dataObservabilityFrame, settingsFrame].forEach(function(frame) {
+        [workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, learningPlanFrame, toolsFrame, dataObservabilityFrame, settingsFrame].forEach(function(frame) {
           if (!frame) return;
           frame.addEventListener('load', function() {
             try {

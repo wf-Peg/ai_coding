@@ -37,6 +37,8 @@ public class LearningPlan {
         private List<VideoResource> videos = new ArrayList<>();
         private List<QuizQuestion> knowledgeQuiz = new ArrayList<>();
         private List<PracticeTask> practiceTasks = new ArrayList<>();
+        private List<Long> linkedKnowledgeIds = new ArrayList<>();
+        private List<Long> sourceClipIds = new ArrayList<>();
         private int progress;
         private boolean completed;
         private LocalDateTime completedAt;
@@ -58,6 +60,10 @@ public class LearningPlan {
         public void setKnowledgeQuiz(List<QuizQuestion> knowledgeQuiz) { this.knowledgeQuiz = knowledgeQuiz; }
         public List<PracticeTask> getPracticeTasks() { return practiceTasks; }
         public void setPracticeTasks(List<PracticeTask> practiceTasks) { this.practiceTasks = practiceTasks; }
+        public List<Long> getLinkedKnowledgeIds() { return linkedKnowledgeIds; }
+        public void setLinkedKnowledgeIds(List<Long> linkedKnowledgeIds) { this.linkedKnowledgeIds = linkedKnowledgeIds; }
+        public List<Long> getSourceClipIds() { return sourceClipIds; }
+        public void setSourceClipIds(List<Long> sourceClipIds) { this.sourceClipIds = sourceClipIds; }
         public int getProgress() { return progress; }
         public void setProgress(int progress) { this.progress = progress; }
         public boolean isCompleted() { return completed; }

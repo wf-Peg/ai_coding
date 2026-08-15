@@ -160,7 +160,7 @@ public class AiService {
         }
 
         try {
-            String responseStr = llmProvider.chat(systemPrompt.toString(), userMessage);
+            String responseStr = llmProvider.chatForTier(systemPrompt.toString(), userMessage, "simple");
             return parseProcessResult(responseStr);
         } catch (Exception e) {
             logger.error("[AI] processClipContent with thoughts failed: {}", e.getMessage(), e);
@@ -186,7 +186,7 @@ public class AiService {
         systemPrompt.append(taskFormat);
 
         try {
-            String responseStr = llmProvider.chat(systemPrompt.toString(), content);
+            String responseStr = llmProvider.chatForTier(systemPrompt.toString(), content, "simple");
             return parseProcessResult(responseStr);
         } catch (Exception e) {
             logger.error("[AI] processClipContent failed: {}", e.getMessage(), e);
@@ -213,7 +213,7 @@ public class AiService {
      */
     public String analyzeContent(String content) {
         try {
-            return llmProvider.chat(promptConfigService.getAnalyzeContentPrompt(), content);
+            return llmProvider.chatForTier(promptConfigService.getAnalyzeContentPrompt(), content, "simple");
         } catch (Exception e) {
             return "分析过程中发生错误: " + e.getMessage();
         }
@@ -231,7 +231,7 @@ public class AiService {
      */
     public String generateSummary(String content) {
         try {
-            return llmProvider.chat(promptConfigService.getGenerateSummaryPrompt(), content);
+            return llmProvider.chatForTier(promptConfigService.getGenerateSummaryPrompt(), content, "simple");
         } catch (Exception e) {
             return "摘要生成过程中发生错误: " + e.getMessage();
         }
@@ -250,7 +250,7 @@ public class AiService {
      */
     public List<String> generateTags(String content) {
         try {
-            String tagsString = llmProvider.chat(promptConfigService.getGenerateTagsPrompt(), content);
+            String tagsString = llmProvider.chatForTier(promptConfigService.getGenerateTagsPrompt(), content, "simple");
             return Arrays.stream(tagsString.split("[,，]"))
                     .map(String::trim)
                     .filter(tag -> !tag.isEmpty())
@@ -433,7 +433,7 @@ public class AiService {
                 .replace("{{category_tree}}", categoryTreeText);
 
         try {
-            String responseStr = llmProvider.chat(systemPrompt, content);
+            String responseStr = llmProvider.chatForTier(systemPrompt, content, "simple");
             responseStr = responseStr.trim();
             if (responseStr.startsWith("```")) {
                 responseStr = responseStr.replaceAll("^```json?\\s*", "").replaceAll("\\s*```$", "");
@@ -489,8 +489,8 @@ public class AiService {
             // 根据分类和标签生成角色提示词
             String rolePrompt = generateRolePrompt(category, tags);
             // 调用 LLM 进行发散性分析
-            return llmProvider.chat(rolePrompt,
-                    "请基于以下内容进行发散性思考和深度分析，提供多角度的见解和建议：\n" + content);
+            return llmProvider.chatForTier(rolePrompt,
+                    "请基于以下内容进行发散性思考和深度分析，提供多角度的见解和建议：\n" + content, "simple");
         } catch (Exception e) {
             return "发散性总结生成过程中发生错误: " + e.getMessage();
         }
@@ -562,7 +562,7 @@ public class AiService {
         try {
             // 使用提示词服务渲染每日整理提示词（根据分类选择合适的模板）
             String systemPrompt = promptConfigService.renderDailyPrompt(category);
-            return llmProvider.chat(systemPrompt, content);
+            return llmProvider.chatForTier(systemPrompt, content, "simple");
         } catch (Exception e) {
             return "内容整理过程中发生错误: " + e.getMessage();
         }
@@ -583,7 +583,7 @@ public class AiService {
      */
     public String organizeContentForKnowledgeBase(String category, String content, String systemPrompt) {
         try {
-            return llmProvider.chat(systemPrompt, content);
+            return llmProvider.chatForTier(systemPrompt, content, "simple");
         } catch (Exception e) {
             return "内容整理过程中发生错误: " + e.getMessage();
         }
@@ -607,7 +607,7 @@ public class AiService {
      */
     public List<String> generateSynonyms(String query) {
         try {
-            String result = llmProvider.chat(promptConfigService.getGenerateSynonymsPrompt(), query);
+            String result = llmProvider.chatForTier(promptConfigService.getGenerateSynonymsPrompt(), query, "simple");
             // 流式处理：按多种分隔符分割 → 去空白 → 过滤空串 → 限制数量 → 收集
             return Arrays.stream(result.split("[,，、\\n]"))
                     .map(String::trim)
@@ -670,8 +670,8 @@ public class AiService {
     public Map<String, Object> extractKnowledgePoints(String content, String category, String systemPrompt) {
         Map<String, Object> result = new LinkedHashMap<>();
         try {
-            String responseStr = llmProvider.chat(systemPrompt,
-                    "分类：" + getCategoryName(category) + "\n\n内容：\n" + content);
+            String responseStr = llmProvider.chatForTier(systemPrompt,
+                    "分类：" + getCategoryName(category) + "\n\n内容：\n" + content, "simple");
 
             String cleaned = cleanJsonWrapper(responseStr);
             ObjectMapper mapper = new ObjectMapper()
@@ -948,6 +948,43 @@ public class AiService {
         }
     }
 
+    /**
+     * 基于已有检索内容，调用大模型结合自身知识补充扩展该问题。
+     * <p>
+     * 该步骤用于在 Wiki 检索结果之外，补充大模型自身掌握的领域知识，
+     * 使回答更完整。使用强模型以保证补充质量。
+     * </p>
+     *
+     * @param question    用户问题
+     * @param pageContents 页面名 → 页面内容映射（检索到的本地内容）
+     * @param existingAnswer 已综合生成的答案（避免重复）
+     * @return Markdown 补充说明字符串；失败时返回空字符串
+     */
+    public String generateKnowledgeSupplement(String question, Map<String, String> pageContents, String existingAnswer) {
+        try {
+            StringBuilder userMessage = new StringBuilder();
+            userMessage.append("Question: ").append(question != null ? question : "").append("\n\n");
+            userMessage.append("Local retrieved content:\n\n");
+            if (pageContents != null && !pageContents.isEmpty()) {
+                for (Map.Entry<String, String> entry : pageContents.entrySet()) {
+                    userMessage.append("## ").append(entry.getKey()).append("\n")
+                            .append(entry.getValue() != null ? entry.getValue() : "").append("\n\n");
+                }
+            }
+            userMessage.append("Existing answer:\n").append(existingAnswer != null ? existingAnswer : "").append("\n\n");
+            userMessage.append("Task: 请基于上述本地检索内容，结合你自身的领域知识，补充说明该问题中本地资料未覆盖或可进一步扩展的知识点。"
+                    + "只输出补充内容本身（Markdown 格式），不要重复已有答案，不要输出任何前言或总结性开场白。");
+
+            String systemPrompt = "你是一个资深知识顾问。请结合你自身掌握的领域知识，对用户的提问进行补充性扩展说明，"
+                    + "重点覆盖本地检索资料中未提及或可进一步深化的知识点、背景、关联概念与延伸内容。"
+                    + "输出为结构清晰的 Markdown，只输出补充内容，不要重复或概括已有答案。";
+            return llmProvider.chatForTier(systemPrompt, userMessage.toString(), "strong");
+        } catch (Exception e) {
+            logger.error("[AI] generateKnowledgeSupplement failed: {}", e.getMessage(), e);
+            return "";
+        }
+    }
+
     // ==================== LLM Wiki Lint 功能 ====================
 
     /**
@@ -1160,7 +1197,7 @@ public class AiService {
         String response = null;
         try {
             // 调用 AI，传入脱敏后的文本
-            response = llmProvider.chat(systemPrompt, sanitizedText);
+            response = llmProvider.chatForTier(systemPrompt, sanitizedText, "simple");
             String cleaned = cleanJsonWrapper(response);
             ObjectMapper mapper = new ObjectMapper()
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -1276,7 +1313,7 @@ public class AiService {
                 + "{\"title\": \"...\", \"summary\": \"...\", \"content\": \"...\"}";
 
         try {
-            String response = llmProvider.chat(systemPrompt, combinedContent);
+            String response = llmProvider.chatForTier(systemPrompt, combinedContent, "simple");
             if (response == null || response.trim().isEmpty()) {
                 return null;
             }
@@ -1312,7 +1349,7 @@ public class AiService {
                 "\n" +
                 "只返回一个单词：clip、todo 或 topic。不要返回其他任何内容。";
 
-            String response = llmProvider.chat(systemPrompt, text);
+            String response = llmProvider.chatForTier(systemPrompt, text, "simple");
             if (response == null) return null;
             String intent = response.trim().toLowerCase();
             if (intent.contains("todo")) return "todo";
@@ -1362,7 +1399,7 @@ public class AiService {
                 "4. tags 必须是字符串数组\n" +
                 "5. 不要添加任何额外解释";
 
-            String response = llmProvider.chat(systemPrompt, text);
+            String response = llmProvider.chatForTier(systemPrompt, text, "simple");
             if (response == null) return null;
 
             // 清理 LLM 输出中可能的 markdown 代码块包裹

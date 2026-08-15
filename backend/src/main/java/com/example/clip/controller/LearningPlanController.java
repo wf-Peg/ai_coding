@@ -333,6 +333,48 @@ public class LearningPlanController {
     }
 
     /**
+     * 更新某阶段的关联知识/剪藏。
+     *
+     * @param id       计划 ID
+     * @param phaseNum 阶段编号
+     * @param body     请求体：{ linkedKnowledgeIds: [], sourceClipIds: [] }
+     * @return 更新后的计划
+     */
+    @PutMapping("/{id}/phase/{phaseNum}/links")
+    public ResponseEntity<?> updatePhaseLinks(@PathVariable Long id,
+                                              @PathVariable int phaseNum,
+                                              @RequestBody Map<String, Object> body) {
+        @SuppressWarnings("unchecked")
+        List<Number> linkedRaw = (List<Number>) body.getOrDefault("linkedKnowledgeIds", List.of());
+        @SuppressWarnings("unchecked")
+        List<Number> sourceRaw = (List<Number>) body.getOrDefault("sourceClipIds", List.of());
+        List<Long> linkedIds = linkedRaw.stream().map(Number::longValue).toList();
+        List<Long> sourceIds = sourceRaw.stream().map(Number::longValue).toList();
+
+        LearningPlan updated = learningPlanService.updatePhaseLinks(id, phaseNum, linkedIds, sourceIds);
+        if (updated == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(updated);
+    }
+
+    /**
+     * 反查引用指定知识的学习阶段（知识详情反链）。
+     */
+    @GetMapping("/by-knowledge/{knowledgeId}")
+    public ResponseEntity<List<Map<String, Object>>> getPlansByKnowledge(@PathVariable Long knowledgeId) {
+        return ResponseEntity.ok(learningPlanService.getPlansByKnowledge(knowledgeId));
+    }
+
+    /**
+     * 反查引用指定剪藏的学习阶段（剪藏详情反链）。
+     */
+    @GetMapping("/by-clip/{clipId}")
+    public ResponseEntity<List<Map<String, Object>>> getPlansByClip(@PathVariable Long clipId) {
+        return ResponseEntity.ok(learningPlanService.getPlansByClip(clipId));
+    }
+
+    /**
      * 根据工作台规则筛选学习计划列表，委托给 {@link WorkspaceFilterUtils} 共享工具类。
      */
     private List<LearningPlan> filterByWorkspace(List<LearningPlan> items, String workspaceId) {

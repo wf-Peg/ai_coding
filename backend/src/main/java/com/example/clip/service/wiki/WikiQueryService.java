@@ -187,6 +187,7 @@ public class WikiQueryService {
                 relevantPageNames = aiService.locateRelevantPages(question, indexContent);
             }
             log.info("[WikiQuery] Located {} relevant pages for question", relevantPageNames.size());
+            notifyData(callback, "relevantPages", relevantPageNames);
 
             // 3. 仅读取相关页面内容（非全量扫描）
             notify(callback, "读取内容", "正在读取 " + relevantPageNames.size() + " 个相关页面内容...");
@@ -204,12 +205,17 @@ public class WikiQueryService {
                 String content = wikiPageService.readPage(pagePath);
                 if (content != null) {
                     pageContents.put(trimmedName, content);
+                    // 推送页面内容片段（前 200 字），供前端思维链展示
+                    notifyData(callback, "pageContent",
+                            Map.of("pageName", trimmedName, "snippet", buildExtraSnippet(content, 200)));
                 }
             }
 
             // 3.5 可选：纳入应用内剪藏与知识条目
             int clipCount = 0;
             int knowledgeCount = 0;
+            List<Map<String, String>> clipDetails = new ArrayList<>();
+            List<Map<String, String>> knowledgeDetails = new ArrayList<>();
             if (includeClips || includeKnowledge) {
                 notify(callback, "补充资源", "正在纳入剪藏/知识条目...");
                 int extraTopK = wikiConfig != null ? wikiConfig.getQueryExtraTopK() : 5;
@@ -230,6 +236,7 @@ public class WikiQueryService {
                                 snippet = buildExtraSnippet(clip.getContent(), extraMaxChars);
                             }
                             pageContents.put("[剪藏] " + title, snippet);
+                            clipDetails.add(Map.of("title", title, "snippet", buildExtraSnippet(snippet, 200)));
                             clipCount++;
                         }
                     } catch (Exception e) {
@@ -254,6 +261,7 @@ public class WikiQueryService {
                                 snippet = buildExtraSnippet(k.getContent(), extraMaxChars);
                             }
                             pageContents.put("[知识] " + title, snippet);
+                            knowledgeDetails.add(Map.of("title", title, "snippet", buildExtraSnippet(snippet, 200)));
                             knowledgeCount++;
                             taken++;
                         }
@@ -262,11 +270,24 @@ public class WikiQueryService {
                     }
                 }
                 log.info("[WikiQuery] Extra sources: {} clips, {} knowledges included", clipCount, knowledgeCount);
+                Map<String, Object> extraSourcesData = new LinkedHashMap<>();
+                extraSourcesData.put("clips", clipDetails);
+                extraSourcesData.put("knowledge", knowledgeDetails);
+                notifyData(callback, "extraSources", extraSourcesData);
             }
 
             // 4. 调用强模型综合答案
             notify(callback, "生成答案", "大模型正在综合 " + pageContents.size() + " 份内容生成答案...");
             String answer = aiService.synthesizeAnswer(question, pageContents);
+
+            // 4.1 调用大模型基于已有内容补充扩展知识
+            String knowledgeSupplement = "";
+            notify(callback, "知识补充", "大模型正在结合自身知识补充扩展该问题...");
+            try {
+                knowledgeSupplement = aiService.generateKnowledgeSupplement(question, pageContents, answer);
+            } catch (Exception e) {
+                log.warn("[WikiQuery] Knowledge supplement failed: {}", e.getMessage());
+            }
 
             // 5. 估算 Token 消耗（粗略：字符数 / 4）
             int inputLen = question.length() + indexContent.length()
@@ -280,6 +301,7 @@ public class WikiQueryService {
             result.put("inputChars", inputLen);
             result.put("outputChars", answer != null ? answer.length() : 0);
             result.put("usedLocalRetrieval", usedLocalRetrieval);
+            result.put("knowledgeSupplement", knowledgeSupplement != null ? knowledgeSupplement : "");
             Map<String, Object> extraSources = new LinkedHashMap<>();
             extraSources.put("clips", clipCount);
             extraSources.put("knowledge", knowledgeCount);
@@ -309,6 +331,17 @@ public class WikiQueryService {
          * @param message 阶段说明文字
          */
         void onProgress(String stage, String message);
+
+        /**
+         * 推送结构化详细数据（如检索到的页面列表、内容片段、额外来源等）。
+         * <p>默认空实现，实现方可按需覆盖以通过 SSE 透传。</p>
+         *
+         * @param type 数据类型（如 "relevantPages"、"pageContent"、"extraSources"）
+         * @param data 结构化数据对象
+         */
+        default void onData(String type, Object data) {
+            // 默认不处理
+        }
     }
 
     /**
@@ -324,6 +357,23 @@ public class WikiQueryService {
                 callback.onProgress(stage, message);
             } catch (Exception e) {
                 log.warn("[WikiQuery] Progress callback failed: {}", e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * 推送结构化详细数据（回调为 null 时静默跳过）。
+     *
+     * @param callback 进度回调
+     * @param type     数据类型
+     * @param data     结构化数据对象
+     */
+    private void notifyData(ProgressCallback callback, String type, Object data) {
+        if (callback != null) {
+            try {
+                callback.onData(type, data);
+            } catch (Exception e) {
+                log.warn("[WikiQuery] Data callback failed: {}", e.getMessage());
             }
         }
     }

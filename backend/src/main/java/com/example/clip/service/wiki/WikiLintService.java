@@ -139,21 +139,38 @@ public class WikiLintService {
      * @return 结果 Map：status / totalPages / pagesScanned / pagesSkipped / issues / issueCount / message
      */
     public Map<String, Object> lint() {
+        return lint(null);
+    }
+
+    /**
+     * 执行 Wiki 健康检查（lint），带进度回调。
+     * <p>
+     * 与 {@link #lint()} 语义一致，但通过 {@link ProgressCallback} 在各阶段
+     * （读取页面、加载缓存、比对变更、AI 检测、生成报告、完成/失败）推送实时进度。
+     * </p>
+     *
+     * @param callback 进度回调；可为 null（此时不推送）
+     * @return 结果 Map：status / totalPages / pagesScanned / pagesSkipped / issues / issueCount / message
+     */
+    public Map<String, Object> lint(ProgressCallback callback) {
         Map<String, Object> result = new LinkedHashMap<>();
         try {
             // 确保 Wiki 目录结构存在
             wikiPageService.initWikiStructure();
 
             // 1. 读取所有 wiki 页面
+            notify(callback, "读取页面", "正在读取所有 Wiki 页面...");
             List<Path> allPages = wikiPageService.listAllPages();
             int totalPages = allPages.size();
 
             // 2. 加载缓存
+            notify(callback, "加载缓存", "正在加载上次 lint 缓存...");
             Map<String, Object> cache = loadLintCache();
             Map<String, String> cachedHashes = extractPageHashes(cache);
             List<Map<String, Object>> cachedResults = extractResults(cache);
 
             // 3. 区分变更/未变更页面
+            notify(callback, "比对变更", "正在比对 " + totalPages + " 个页面的变更...");
             Map<String, String> changedPages = new LinkedHashMap<>();  // pageName -> content
             Map<String, String> newHashes = new LinkedHashMap<>();      // pageName -> updated
             List<String> changedPageNames = new ArrayList<>();
@@ -184,6 +201,7 @@ public class WikiLintService {
                     totalPages, pagesScanned, pagesSkipped);
 
             // 4. 调用 AI 检测变更页面（失败降级返回空列表）
+            notify(callback, "AI 检测", "正在调用大模型检测 " + pagesScanned + " 个变更页面...");
             List<Map<String, Object>> newIssues = aiService.lintWikiPages(changedPages);
 
             // 5. 合并结果：未变更页面使用缓存结果中相关的问题 + 变更页面的新结果
@@ -199,6 +217,7 @@ public class WikiLintService {
             int totalIssues = mergedIssues.size();
 
             // 6. 生成并保存 lint-report.md
+            notify(callback, "生成报告", "正在生成 lint 报告...");
             String report = generateReport(mergedIssues, totalPages, pagesScanned);
             saveReport(report);
 
@@ -227,12 +246,45 @@ public class WikiLintService {
             result.put("issueCount", totalIssues);
             result.put("message", "Lint completed: scanned " + pagesScanned + " pages, found " + totalIssues + " issues");
             log.info("[WikiLint] Lint completed: {} issues found", totalIssues);
+            notify(callback, "完成", "Lint 完成，共发现 " + totalIssues + " 个问题");
             return result;
         } catch (Exception e) {
             log.error("[WikiLint] Lint failed: {}", e.getMessage(), e);
             result.put("status", "error");
             result.put("message", "Lint failed: " + e.getMessage());
+            notify(callback, "失败", "Lint 失败：" + e.getMessage());
             return result;
+        }
+    }
+
+    /**
+     * 进度回调接口 —— 供 {@link #lint(ProgressCallback)} 在各阶段推送实时进度。
+     */
+    @FunctionalInterface
+    public interface ProgressCallback {
+        /**
+         * Lint 进入新阶段时回调。
+         *
+         * @param stage   阶段名（如"读取页面"、"AI 检测"）
+         * @param message 阶段说明文字
+         */
+        void onProgress(String stage, String message);
+    }
+
+    /**
+     * 触发进度回调（回调为 null 时静默跳过）。
+     *
+     * @param callback 进度回调
+     * @param stage    阶段名
+     * @param message  阶段说明文字
+     */
+    private void notify(ProgressCallback callback, String stage, String message) {
+        if (callback != null) {
+            try {
+                callback.onProgress(stage, message);
+            } catch (Exception e) {
+                log.warn("[WikiLint] Progress callback failed: {}", e.getMessage());
+            }
         }
     }
 

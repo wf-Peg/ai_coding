@@ -1377,6 +1377,7 @@ function createMainWindow(config) {
     webPreferences: {
       nodeIntegration: false,          // 安全：禁用 Node.js 集成
       contextIsolation: true,          // 安全：启用上下文隔离
+      nodeIntegrationInSubFrames: true, // 允许工具 iframe 内运行 preload（批量重命名等需要 IPC）
       preload: path.join(__dirname, 'preload.js')  // 预加载脚本暴露安全 API
     }
   });
@@ -1691,6 +1692,53 @@ function setupIPC() {
     });
     if (result.canceled || result.filePaths.length === 0) return null;
     return result.filePaths[0];
+  });
+
+  // ===== 工具模块：批量重命名 =====
+  // 选择目录（或传入已有目录）并列出其下文件
+  ipcMain.handle('tools:select-rename-directory', async (event, dirPath) => {
+    let target = dirPath;
+    if (!target) {
+      const pick = await dialog.showOpenDialog({
+        properties: ['openDirectory', 'createDirectory'],
+        title: 'Select Directory to Rename'
+      });
+      if (pick.canceled || pick.filePaths.length === 0) return null;
+      target = pick.filePaths[0];
+    }
+    try {
+      const entries = fs.readdirSync(target, { withFileTypes: true });
+      const files = entries
+        .filter(e => e.isFile())
+        .map(e => ({ name: e.name, path: path.join(target, e.name) }));
+      return { dirPath: target, files };
+    } catch (e) {
+      return { dirPath: target, files: [], error: e.message };
+    }
+  });
+
+  // 执行批量重命名
+  ipcMain.handle('tools:apply-renames', async (event, payload) => {
+    const { dirPath, renames } = payload || {};
+    if (!dirPath || !Array.isArray(renames)) {
+      return { success: false, error: '参数错误' };
+    }
+    let renamed = 0;
+    const errors = [];
+    for (const r of renames) {
+      try {
+        const src = path.join(dirPath, r.oldName);
+        const dst = path.join(dirPath, r.newName);
+        if (src === dst) { renamed++; continue; }
+        if (!fs.existsSync(src)) { errors.push(`文件不存在: ${r.oldName}`); continue; }
+        if (fs.existsSync(dst)) { errors.push(`目标已存在: ${r.newName}`); continue; }
+        fs.renameSync(src, dst);
+        renamed++;
+      } catch (e) {
+        errors.push(`${r.oldName}: ${e.message}`);
+      }
+    }
+    return { success: true, renamed, errors };
   });
 
   // ===== 轻量文本编辑器文件能力 =====

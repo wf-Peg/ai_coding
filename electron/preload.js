@@ -67,6 +67,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
 
   /**
+   * 工具模块-批量重命名：选择目录（或复用已有目录）并列出其下文件
+   * @param {string|null} dirPath - 可选，传入已有目录则直接读取，否则弹出目录选择对话框
+   * @returns {Promise<{dirPath: string, files: Array<{name, path}>}|null>}
+   */
+  selectRenameDirectory: (dirPath) => ipcRenderer.invoke('tools:select-rename-directory', dirPath),
+
+  /**
+   * 工具模块-批量重命名：执行重命名
+   * @param {Object} payload - { dirPath, renames: [{oldName, newName}] }
+   * @returns {Promise<{success: boolean, renamed: number, errors: Array<string>}>}
+   */
+  applyRenames: (payload) => ipcRenderer.invoke('tools:apply-renames', payload),
+
+  /**
    * 打开系统文本文件选择器。主进程返回文本、编码信息和不透明文件令牌，
    * 渲染进程不会获得任意路径写权限。
    */
