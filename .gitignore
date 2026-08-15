@@ -69,6 +69,7 @@ node_modules/
 # 构建输出目录
 dist/
 dist-electron/
+dist-electron-new/
 build/
 
 # Electron构建输出
