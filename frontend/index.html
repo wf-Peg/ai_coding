@@ -753,6 +753,8 @@
           if (lpf) lpf.src = `learning-plan.html?planId=${event.data.planId}`;
         }
         if (event.data && event.data.type === 'openTextData') {
+          renderView('editor');
+          window.history.pushState({ view: 'editor' }, '', '/');
           sendToEditor({ type: 'openTextData', text: event.data.text || '', title: event.data.title || '' });
         }
         if (event.data && event.data.type === 'navigateClip') {

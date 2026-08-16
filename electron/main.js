@@ -2405,6 +2405,61 @@ function setupIPC() {
     }
   });
 
+  // ===== 编辑器模板系统（templates 目录，跟随知识库根）=====
+  function resolveTemplatesDir() {
+    const config = loadConfig();
+    let vaultRoot = wikilinkModules['clip-organized'] ? wikilinkModules['clip-organized'].root : null;
+    if (!vaultRoot) vaultRoot = resolveVaultRoot(config);
+    const dir = path.join(vaultRoot, 'templates');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    return dir;
+  }
+
+  // 列出模板（*.md / *.txt）
+  ipcMain.handle('editor-list-templates', async () => {
+    try {
+      const dir = resolveTemplatesDir();
+      const names = fs.readdirSync(dir)
+        .filter(f => /\.(md|txt)$/i.test(f))
+        .sort();
+      return { success: true, dir, templates: names.map(n => ({ name: n, path: path.join(dir, n) })) };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  // 读取单个模板内容
+  ipcMain.handle('editor-read-template', async (event, name) => {
+    try {
+      const dir = resolveTemplatesDir();
+      const safe = String(name || '').replace(/[\\/:*?"<>|]/g, '_');
+      if (!safe) throw new Error('模板名无效');
+      const filePath = path.join(dir, safe);
+      if (!filePath.startsWith(dir) || !fs.existsSync(filePath)) throw new Error('模板不存在：' + name);
+      const content = fs.readFileSync(filePath, 'utf-8');
+      return { success: true, content };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  // 保存模板（覆盖同名文件）
+  ipcMain.handle('editor-save-template', async (event, payload) => {
+    try {
+      const name = String(payload?.name || '').replace(/[\\/:*?"<>|]/g, '_');
+      if (!name) throw new Error('模板名无效');
+      if (!/\.(md|txt)$/i.test(name)) throw new Error('模板仅支持 .md / .txt');
+      const dir = resolveTemplatesDir();
+      const filePath = path.join(dir, name);
+      if (!filePath.startsWith(dir)) throw new Error('模板路径非法');
+      fs.writeFileSync(filePath, payload?.content || '', 'utf-8');
+      log.info('[EditorTemplate] saved', filePath);
+      return { success: true, filePath };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
   // ===== 编辑器双链反链搜索 =====
   // 基于 currentPath 推导 basename 与 fileName 双键查询，聚合各模块反向索引，
   // 过滤自引用并按就近优先排序，无需全量扫描。

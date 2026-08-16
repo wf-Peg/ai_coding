@@ -378,7 +378,9 @@ select {
 .editor-workspace > .history-pane,
 .editor-workspace > .recent-pane,
 .editor-workspace > .fav-pane,
-.editor-workspace > .backlinks-pane {
+.editor-workspace > .backlinks-pane,
+.editor-workspace > .outline-pane,
+.editor-workspace > .tags-pane {
   grid-column: 1;
   grid-row: 1;
   /* 左侧面板：阴影在右侧，与右侧面板拉开层次 */
@@ -408,7 +410,13 @@ select {
 .editor-workspace.markdown-preview > .history-pane,
 .editor-workspace.markdown-preview > .recent-pane,
 .editor-workspace.markdown-preview > .fav-pane,
-.editor-workspace.markdown-preview > .ai-chat-pane {
+.editor-workspace.markdown-preview > .ai-chat-pane,
+/* 反链/大纲/标签抽屉默认通过 0fr 列折叠隐藏；markdown-preview 下网格变为
+   1fr 1fr 两列，若不加隐藏会泄漏进第 1 列并盖住编辑区（z-index:1），
+   导致左侧画布空白、预览关闭按钮失效。show-backlinks 场景由下方专用规则恢复。 */
+.editor-workspace.markdown-preview > .backlinks-pane,
+.editor-workspace.markdown-preview > .outline-pane,
+.editor-workspace.markdown-preview > .tags-pane {
   display: none !important;
 }
 .editor-workspace.comparing > .main-pane,
@@ -1379,6 +1387,7 @@ select {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .filetree-body {
@@ -1446,7 +1455,9 @@ select {
 }
 
 .fav-pane,
-.backlinks-pane {
+.backlinks-pane,
+.outline-pane,
+.tags-pane {
   border-right: 1px solid var(--app-border-strong);
   display: flex;
   flex-direction: column;
@@ -1458,7 +1469,9 @@ select {
 .editor-workspace.show-history,
 .editor-workspace.show-recent,
 .editor-workspace.show-fav,
-.editor-workspace.show-backlinks {
+.editor-workspace.show-backlinks,
+.editor-workspace.show-outline,
+.editor-workspace.show-tags {
   grid-template-columns: 280px minmax(0, 1fr) 0fr;
 }
 
@@ -1474,7 +1487,9 @@ select {
 
 .editor-workspace.show-history.show-ai-chat,
 .editor-workspace.show-recent.show-ai-chat,
-.editor-workspace.show-fav.show-ai-chat {
+.editor-workspace.show-fav.show-ai-chat,
+.editor-workspace.show-outline.show-ai-chat,
+.editor-workspace.show-tags.show-ai-chat {
   grid-template-columns: 280px minmax(0, 1fr) var(--ai-chat-width);
 }
 
@@ -1483,10 +1498,14 @@ select {
 .editor-workspace.comparing.show-history,
 .editor-workspace.comparing.show-recent,
 .editor-workspace.comparing.show-fav,
+.editor-workspace.comparing.show-outline,
+.editor-workspace.comparing.show-tags,
 .editor-workspace.markdown-preview.show-filetree,
 .editor-workspace.markdown-preview.show-history,
 .editor-workspace.markdown-preview.show-recent,
-.editor-workspace.markdown-preview.show-fav {
+.editor-workspace.markdown-preview.show-fav,
+.editor-workspace.markdown-preview.show-outline,
+.editor-workspace.markdown-preview.show-tags {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
@@ -1494,6 +1513,11 @@ select {
    修复此前布局类冲突导致的编辑区行号错乱、预览挤压问题 */
 .editor-workspace.markdown-preview.show-backlinks {
   grid-template-columns: 280px minmax(0, 1fr) minmax(0, 1fr);
+}
+.editor-workspace.markdown-preview.show-backlinks > .backlinks-pane {
+  display: flex;
+  grid-column: 1;
+  grid-row: 1;
 }
 .editor-workspace.markdown-preview.show-backlinks > .main-pane {
   grid-column: 2;
@@ -1510,7 +1534,9 @@ select {
 .editor-workspace.markdown-preview.markdown-fullscreen.show-filetree,
 .editor-workspace.markdown-preview.markdown-fullscreen.show-history,
 .editor-workspace.markdown-preview.markdown-fullscreen.show-recent,
-.editor-workspace.markdown-preview.markdown-fullscreen.show-fav {
+.editor-workspace.markdown-preview.markdown-fullscreen.show-fav,
+.editor-workspace.markdown-preview.markdown-fullscreen.show-outline,
+.editor-workspace.markdown-preview.markdown-fullscreen.show-tags {
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
 }
@@ -1536,6 +1562,8 @@ select {
 .recent-pane[aria-hidden="true"],
 .fav-pane[aria-hidden="true"],
 .backlinks-pane[aria-hidden="true"],
+.outline-pane[aria-hidden="true"],
+.tags-pane[aria-hidden="true"],
 .ai-chat-pane[aria-hidden="true"] {
   visibility: hidden;
   opacity: 0;
@@ -1547,6 +1575,8 @@ select {
 .recent-pane[aria-hidden="false"],
 .fav-pane[aria-hidden="false"],
 .backlinks-pane[aria-hidden="false"],
+.outline-pane[aria-hidden="false"],
+.tags-pane[aria-hidden="false"],
 .ai-chat-pane[aria-hidden="false"] {
   visibility: visible;
   opacity: 1;
@@ -3083,24 +3113,36 @@ a.wikilink.wikilink-missing:hover {
   text-decoration-color: rgba(var(--app-danger-rgb, 244, 63, 94), 0.55);
 }
 
-/* 面板头部：标题可收缩 + 引用数量徽标 */
+/* 面板头部：标题可收缩 + 引用数量徽标（自适应单行，长文件名省略号截断） */
 .backlinks-header {
   gap: 8px;
+  flex-wrap: nowrap;
 }
 .backlinks-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  flex: 1 1 auto;
   min-width: 0;
-  color: var(--app-text-secondary);
-  white-space: nowrap;
+  display: block;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--app-surface-hover);
+  border: 1px solid var(--app-border);
+  color: var(--app-text-secondary);
+  font-family: var(--app-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+.backlinks-title:hover {
+  border-color: var(--app-primary-soft);
+  background: var(--app-surface);
 }
 .backlinks-title strong {
   color: var(--app-text);
   font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .backlinks-count {
   display: inline-flex;
@@ -3272,4 +3314,295 @@ a.wikilink.wikilink-missing:hover {
   background: var(--app-primary-soft);
   border-radius: 3px;
   padding: 0 3px;
+}
+
+/* ═══════════ 大纲面板 ─────────────────────────────── */
+.outline-list,
+.tags-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 4px;
+}
+.outline-empty {
+  color: var(--app-text-muted);
+  font-size: 12px;
+  padding: 16px 12px;
+  text-align: center;
+  line-height: 1.6;
+}
+.outline-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--app-text);
+  transition: background .15s ease, color .15s ease;
+}
+.outline-item:hover {
+  background: var(--app-surface-hover);
+}
+.outline-item.active {
+  background: var(--app-primary-soft);
+  color: var(--app-primary);
+}
+.outline-marker {
+  color: var(--app-primary);
+  font-weight: 600;
+  font-size: 11px;
+  opacity: .8;
+  flex-shrink: 0;
+}
+.outline-title {
+  font-weight: 700;
+  color: var(--app-text);
+  background: var(--app-surface-hover);
+  margin-bottom: 2px;
+}
+.outline-title .outline-marker-title {
+  color: var(--app-primary);
+  font-size: 10px;
+  opacity: 1;
+}
+.outline-title .outline-line {
+  color: var(--app-text-muted);
+}
+.outline-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.outline-line {
+  color: var(--app-text-muted);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+/* ═══════════ 标签面板 ─────────────────────────────── */
+.tag-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  margin: 2px 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--app-text);
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  transition: border-color .15s ease, background .15s ease, transform .1s ease;
+}
+.tag-chip:hover {
+  border-color: var(--app-primary);
+  background: var(--app-primary-soft);
+  transform: translateX(2px);
+}
+.tag-chip-name {
+  color: var(--app-primary);
+  font-weight: 500;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tag-chip-count {
+  font-size: 11px;
+  color: var(--app-text-muted);
+  background: var(--app-surface-subtle);
+  border-radius: 10px;
+  padding: 0 8px;
+  flex-shrink: 0;
+}
+
+/* ═══════════ 命令面板(Ctrl+P) ─────────────────────── */
+.command-palette {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 540px;
+  max-width: calc(100vw - 40px);
+  background: var(--app-surface);
+  border: 1px solid var(--app-border-strong);
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow-lg);
+  z-index: 1000;
+  overflow: hidden;
+  animation: commandPaletteIn .12s ease-out;
+}
+@keyframes commandPaletteIn {
+  from { opacity: 0; transform: translate(-50%, -48%); }
+  to { opacity: 1; transform: translate(-50%, -50%); }
+}
+.command-palette-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--app-border);
+}
+.command-palette-prompt {
+  color: var(--app-primary);
+  font-size: 18px;
+  font-weight: 600;
+}
+.command-palette-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  padding: 4px 0;
+  outline: none;
+  color: var(--app-text);
+  caret-color: var(--app-primary);
+}
+.command-palette-input::placeholder {
+  color: var(--app-text-muted);
+}
+.command-palette-list {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 6px;
+}
+.command-palette-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--app-text-muted);
+  font-size: 13px;
+}
+.command-palette-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--app-text);
+  transition: background .12s ease;
+  user-select: none;
+}
+.command-palette-item.active {
+  background: var(--app-primary);
+  color: #fff;
+}
+.command-palette-item-icon {
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+  opacity: .9;
+}
+.command-palette-item-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.command-palette-hint {
+  padding: 8px 14px;
+  border-top: 1px solid var(--app-border);
+  color: var(--app-text-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+/* ═══════════ 全局文件快速搜索(Ctrl+O) ─────────────── */
+.quick-switcher {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 560px;
+  max-width: calc(100vw - 40px);
+  background: var(--app-surface);
+  border: 1px solid var(--app-border-strong);
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow-lg);
+  z-index: 1000;
+  overflow: hidden;
+  animation: commandPaletteIn .12s ease-out;
+}
+.quick-switcher-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--app-border);
+}
+.quick-switcher-prompt {
+  color: var(--app-primary);
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.quick-switcher-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  padding: 4px 0;
+  outline: none;
+  color: var(--app-text);
+  caret-color: var(--app-primary);
+}
+.quick-switcher-input::placeholder {
+  color: var(--app-text-muted);
+}
+.quick-switcher-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--app-text);
+  transition: background .12s ease;
+  user-select: none;
+}
+.quick-switcher-item.active {
+  background: var(--app-primary);
+  color: #fff;
+}
+.quick-switcher-item-icon {
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+  opacity: .9;
+}
+.quick-switcher-item-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.quick-switcher-item-meta {
+  flex-shrink: 0;
+  max-width: 45%;
+  font-size: 11px;
+  color: var(--app-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.quick-switcher-item.active .quick-switcher-item-meta {
+  color: rgba(255, 255, 255, .85);
+}
+.quick-switcher-hit {
+  background: var(--app-primary);
+  color: #fff;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+.quick-switcher-item.active .quick-switcher-hit {
+  background: rgba(255, 255, 255, .35);
+  color: #fff;
 }

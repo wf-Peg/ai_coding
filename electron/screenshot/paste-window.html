@@ -6,8 +6,16 @@
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
   html, body { background: #000; overflow: hidden; height: 100vh; width: 100vw; }
-  #wrap { position: relative; width: 100vw; height: 100vh; cursor: grab; }
+  #wrap { position: relative; width: 100vw; height: 100vh; cursor: grab;
+        box-shadow: 0 8px 28px rgba(0,0,0,0.5); }
   #wrap.dragging { cursor: grabbing; }
+  #wrap.pop { animation: pasteIn 0.16s ease; }
+  /* Snipaste：贴图未选中=黑色阴影；点击选中=蓝色描边阴影 */
+  body.selected #wrap { box-shadow: 0 0 0 3px #3f8cff, 0 8px 28px rgba(0,0,0,0.5); }
+  @keyframes pasteIn {
+    from { opacity: 0; transform: scale(0.94); }
+    to { opacity: 1; transform: scale(1); }
+  }
   img {
     width: 100%; height: 100%; object-fit: contain; display: block;
     pointer-events: none;
@@ -61,7 +69,7 @@
     <button id="btnSave" title="保存">💾</button>
     <button id="btnClose" class="close" title="关闭贴图">✕</button>
   </div>
-  <div id="hint">拖动移动 · 滚轮缩放 · Ctrl+滚轮透明度 · 双击放大 · 右键菜单</div>
+  <div id="hint">拖动移动 · 滚轮缩放 · Ctrl+滚轮透明度 · 双击关闭 · 右键菜单</div>
   <div id="menu"></div>
 </div>
 <script>
@@ -71,13 +79,24 @@
   const menu = document.getElementById('menu');
   let scale = 1;
   let opacity = 1;
-  let moving = false, moved = false, downPos = null;
+  let moving = false, moved = false;
+  let dragStartWin = null;     // 拖动开始时窗口位置（window.screenX/Y 同步读取）
+  let dragStartCursor = null;  // 拖动开始时鼠标位置
   let currentUrl = null;   // 当前 Blob URL
   let imgBuf = null;       // 原始 PNG Buffer（保存/OCR 复用，避免 blob URL 无法回传）
+  let wheelAccum = 0;      // 滚轮增量累积（跨过阈值才步进缩放）
+  let lastDragEndAt = 0;   // 最近一次拖动结束时间（松手后短冷却，屏蔽惯性滚轮）
+  let textPending = false; // 文本贴图待回传尺寸标志（img.onload 分发 paste:text-ready）
 
   ipcRenderer.on('paste:init', (e, payload) => {
     if (currentUrl) { URL.revokeObjectURL(currentUrl); currentUrl = null; }
-    if (payload.buf) {
+    if (payload.text) {
+      // 文本贴图：canvas 排版成白底黑字图片，塞入 img 走现有图片全链路（缩放/透明度/保存/OCR）
+      imgBuf = null;
+      textPending = true;
+      img.src = renderTextToImage(payload.text);
+      // 尺寸待 img.onload 后按自然尺寸回传（textPending 已置位）
+    } else if (payload.buf) {
       imgBuf = payload.buf;
       const blob = new Blob([payload.buf], { type: payload.mime || 'image/png' });
       currentUrl = URL.createObjectURL(blob);
@@ -86,60 +105,159 @@
       imgBuf = null;
       img.src = payload.dataUrl; // 兼容旧主进程
     }
+    // 内容就位时播放进入动画（重触发）
+    wrap.classList.remove('pop');
+    void wrap.offsetWidth;
+    wrap.classList.add('pop');
   });
-  img.onload = () => ipcRenderer.send('paste:rendered', { delta: Date.now() });
+  img.onload = () => {
+    if (textPending) {
+      textPending = false;
+      // 通知主进程按渲染出的 CSS 尺寸精确 resize（文本不固定宽高）
+      ipcRenderer.send('paste:text-ready', {
+        cssW: Math.ceil(img.naturalWidth / window.devicePixelRatio) || 200,
+        cssH: Math.ceil(img.naturalHeight / window.devicePixelRatio) || 120
+      });
+    }
+    ipcRenderer.send('paste:rendered', { delta: Date.now() });
+  };
   img.onerror = (ev) => ipcRenderer.send('paste:render-error', { message: (ev && ev.message) || 'image decode failed' });
 
-  // ── 手动拖动（IPC 通知主进程 setPosition，允许叠加缩放/滚轮/双击） ──
-  wrap.addEventListener('mousedown', (e) => {
-    if (e.button !== 0 || e.target.closest('#bar') || e.target.closest('#menu')) return;
-    moving = true; moved = false;
-    downPos = { x: e.clientX, y: e.clientY };
-    wrap.classList.add('dragging');
-    e.preventDefault();
-  });
-  let rafMove = null, pendingDelta = { dx: 0, dy: 0 };
-  wrap.addEventListener('mousemove', (e) => {
-    if (!moving || !downPos) return;
-    const dx = e.clientX - downPos.x, dy = e.clientY - downPos.y;
-    downPos = { x: e.clientX, y: e.clientY };
-    if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
-    if (!moved) return;
-    pendingDelta.dx += dx; pendingDelta.dy += dy;
-    if (rafMove) return;
-    rafMove = requestAnimationFrame(() => {
-      rafMove = null;
-      if (!pendingDelta.dx && !pendingDelta.dy) return;
-      ipcRenderer.invoke('paste:move', { dx: pendingDelta.dx, dy: pendingDelta.dy });
-      pendingDelta = { dx: 0, dy: 0 };
+  // ── 文本贴图：将多行文本排版成白底黑字 PNG（Snipaste 文字贴图） ──
+  function renderTextToImage(text) {
+    const lines = String(text).replace(/\r/g, '').split('\n');
+    const font = '14px "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif';
+    const lineH = 22, pad = 16, maxTextW = 640;
+    // 测量每行像素宽（含 tab 按 4 空格近似）
+    const meas = document.createElement('canvas').getContext('2d');
+    meas.font = font;
+    const widths = lines.map(l => {
+      let w = 0;
+      for (const ch of l) {
+        if (ch === '\t') w += meas.measureText('    ').width;
+        else w += meas.measureText(ch).width;
+      }
+      return w;
     });
-  });
-  window.addEventListener('mouseup', () => { moving = false; wrap.classList.remove('dragging'); });
+    const textW = Math.min(maxTextW, Math.max(8, ...widths));
+    const w = Math.ceil(textW) + pad * 2;
+    const h = Math.max(40, lines.length * lineH + pad * 2);
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#111111'; ctx.font = font;
+    lines.forEach((ln, i) => ctx.fillText(ln || ' ', pad, pad + (i + 1) * lineH - Math.round(lineH * 0.3)));
+    return c.toDataURL('image/png');
+  }
 
-  // ── 滚轮缩放 / Ctrl+滚轮透明度 ──
+  // ── 手动拖动（绝对坐标 + RAF 节流，避免增量式 IPC 竞态造成的卡顿） ──
+  // Pointer Events + setPointerCapture：光标拖出窗口也能收到 pointermove/pointerup。
+  // 关键：pointerdown 处理器必须纯同步——用 window.screenX/Y 直接取窗口位置，
+  // 不能 await IPC（await 期间 pointerup 先到会把状态复位，await 恢复后又误置回 moving=true，
+  // 一次普通点击就会让 moving 永久卡死 → 拖动失控、滚轮被屏蔽）。
+  wrapperStartup: {
+    wrap.addEventListener('pointerdown', (e) => {
+      // 点击贴图=选中（蓝色阴影），失焦自动取消
+      document.body.classList.add('selected');
+      if (e.button !== 0 || e.target.closest('#bar') || e.target.closest('#menu')) return;
+      moving = true; moved = false;
+      // 统一使用「绝对屏幕坐标」：screenX/Y（DIP）与 window.screenX/Y 同坐标系。
+      // 此前混用 clientX（窗口相对）与 screenX（窗口绝对）会形成负反馈 →
+      // 窗口每走一帧又被拉回一帧，导致抖动且落后光标约一帧。
+      dragStartCursor = { x: e.screenX, y: e.screenY };
+      dragStartWin = { x: window.screenX, y: window.screenY };
+      try { wrap.setPointerCapture(e.pointerId); } catch (err) {}
+      wrap.classList.add('dragging');
+      e.preventDefault();
+    });
+    let rafMove = null, targetPos = null;
+    wrap.addEventListener('pointermove', (e) => {
+      if (!moving || !dragStartWin || !dragStartCursor) return;
+      // 注意：不能用 e.buttons 判断松键来结束拖动——Windows 上 setPointerCapture + setPosition
+      // 拖动时 pointermove.buttons 会间歇性报 0，用它提前 endDrag 会让 moving 变 false，
+      // 滚轮守卫被绕过 → 拖动中滚轮触发缩放 → 图片"渐渐变大"。因此 moving 只由
+      // pointerup/pointercancel/blur 复位，拖满全程保持 true。
+      // 绝对坐标差 = 光标真实屏幕位移，无窗口反馈项，严格跟手
+      const dx = e.screenX - dragStartCursor.x, dy = e.screenY - dragStartCursor.y;
+      if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+      if (!moved) return;
+      // 绝对目标位置：即使 IPC 乱序也收敛到最新光标（增量式会丢步/抖动）
+      targetPos = { x: Math.round(dragStartWin.x + dx), y: Math.round(dragStartWin.y + dy) };
+      if (rafMove) return;
+      rafMove = requestAnimationFrame(() => {
+        rafMove = null;
+        if (targetPos) ipcRenderer.invoke('paste:move-to', targetPos);
+      });
+    });
+    function endDrag(e) {
+      if (!moving) return;
+      moving = false;
+      wrap.classList.remove('dragging');
+      lastDragEndAt = Date.now(); // 松手冷却起点：屏蔽紧随其后的惯性/误触滚轮
+      wheelAccum = 0;             // 清空累积，防松手瞬间步进
+      // 冲刷最后一帧位置，保证停点精确
+      if (targetPos) { ipcRenderer.invoke('paste:move-to', targetPos); targetPos = null; }
+      try { if (e && e.pointerId != null) wrap.releasePointerCapture(e.pointerId); } catch (err) {}
+    }
+    wrap.addEventListener('pointerup', endDrag);
+    wrap.addEventListener('pointercancel', endDrag);
+    // 拖动中若系统丢失指针捕获（Windows setPosition 移动时常见），只要仍在拖动就续抓，
+    // 保证后续 pointerup 仍路由到本窗口从而正确 endDrag。endDrag 里 releasePointerCapture
+    // 也会触发本事件，但此时 moving 已是 false，不会续抓，避免死循环。
+    wrap.addEventListener('lostpointercapture', (e) => {
+      if (moving) { try { wrap.setPointerCapture(e.pointerId); } catch (err) {} }
+    });
+    window.addEventListener('blur', () => { if (moving) endDrag(); document.body.classList.remove('selected'); }); // 兜底：窗口失焦必结束拖动，同时取消选中态
+  }
+
+  // ── 滚轮缩放（光标锚定，Snipaste 手感）/ Ctrl+滚轮透明度 ──
+  // 归一化 delta（像素/行/页）并累积，跨过阈值才步进：
+  // 旧实现把每次 wheel 事件都当一整格（±0.1），触控板/高精度滚轮的细小 delta
+  // 会被当成连续多次滚动 → "渐渐放大"失控。
+  const WHEEL_STEP = 100; // 约一个标准鼠标滚轮档位的像素量
+  const DRAG_COOLDOWN = 500; // 松手后冷却 ms：触控板/高精度滚轮的惯性滚动不触发缩放
   window.addEventListener('wheel', (e) => {
-    if (moving) return; // 移动中忽略滚轮，杜绝"拖动时自动放大"
+    if (moving) return;         // 移动中忽略滚轮，杜绝"拖动时自动放大"
+    if (e.buttons & 1) return;  // 双保险：即使 moving 状态异常，按住左键也绝不缩放
+    if (lastDragEndAt && Date.now() - lastDragEndAt < DRAG_COOLDOWN) {
+      e.preventDefault();       // 松手冷却期内：吞掉事件且不累积（惯性滚动防护）
+      wheelAccum = 0;
+      return;
+    }
     e.preventDefault();
-    const d = e.deltaY > 0 ? -1 : 1;
     if (e.ctrlKey || e.metaKey) {
+      const d = e.deltaY > 0 ? -1 : 1;
       opacity = Math.max(0.2, Math.min(1, opacity + d * 0.05));
-      wrap.style.opacity = opacity;
-    } else {
-      scale = Math.max(0.1, Math.min(4, scale + d * 0.1));
-      applyScale();
+      // 窗口级真透明：之前用 wrap.style.opacity 只把内容变淡并透出黑底（像"变亮度"），
+      // 现改为主进程 setOpacity，整个贴图窗口半透明，真正透出底下内容（Snipaste 手感）。
+      ipcRenderer.invoke('paste:set-opacity', opacity);
+      return;
+    }
+    let dy = e.deltaY;
+    if (e.deltaMode === 1) dy *= 16;        // 行 → 像素
+    else if (e.deltaMode === 2) dy *= 100;  // 页 → 像素
+    wheelAccum += dy;
+    const steps = Math.trunc(wheelAccum / WHEEL_STEP);
+    if (steps !== 0) {
+      wheelAccum -= steps * WHEEL_STEP;
+      const prev = scale;
+      scale = Math.max(0.1, Math.min(4, scale - steps * 0.1));
+      // 诊断：console.warn 会被主进程 console-message 收集进 app.log，用于定位非用户意图的缩放
+      console.warn('[paste-zoom] step=' + steps + ' scale=' + scale.toFixed(2) +
+        ' sinceDragEnd=' + (lastDragEndAt ? (Date.now() - lastDragEndAt) + 'ms' : 'n/a'));
+      zoomTo(prev, scale, e.clientX, e.clientY);
     }
   }, { passive: false });
 
-  function applyScale() {
-    // 窗口大小由主进程按原图尺寸创建；缩放通过调整窗口尺寸实现
-    ipcRenderer.invoke('paste:resize', { scale });
+  // 光标锚定缩放：主进程同时调整大小与位置，保持光标下的图像点不动
+  function zoomTo(prev, next, cx, cy) {
+    if (prev === next) return;
+    ipcRenderer.invoke('paste:zoom-at', { scale: next, prevScale: prev, anchorX: cx, anchorY: cy });
   }
 
-  // ── 双击放大/还原 ──
-  window.addEventListener('dblclick', () => {
-    scale = scale > 1.01 ? 1 : 2;
-    applyScale();
-  });
+  // ── 双击关闭（Snipaste 默认：双击贴图即关闭） ──
+  window.addEventListener('dblclick', () => window.close());
 
   // ── 右键菜单 ──
   window.addEventListener('contextmenu', (e) => {
@@ -148,6 +266,7 @@
   });
   function showMenu(x, y) {
     menu.innerHTML =
+      '<button data-a="pin">' + (isPinned ? '📌 取消置顶' : '📌 置顶') + '</button>' +
       '<button data-a="copy">📋 复制图片</button>' +
       '<button data-a="ocr">🔤 OCR 识别</button>' +
       '<button data-a="save">💾 保存为文件</button>' +
@@ -158,12 +277,14 @@
     menu.style.left = Math.min(x, window.innerWidth - mw - 4) + 'px';
     menu.style.top = Math.min(y, window.innerHeight - 150) + 'px';
   }
+  let isPinned = true; // 贴图默认置顶
   menu.addEventListener('click', (e) => {
     const btn = e.target.closest('button');
     if (!btn) return;
     menu.style.display = 'none';
     const a = btn.dataset.a;
-    if (a === 'copy') ipcRenderer.invoke('screenshot:copy-last');
+    if (a === 'pin') isPinned = !isPinned, ipcRenderer.invoke('paste:set-top', isPinned);
+    else if (a === 'copy') ipcRenderer.invoke('screenshot:copy-last');
     else if (a === 'ocr') { ipcRenderer.invoke('screenshot:ocr', { buf: imgBuf || img.src }); }
     else if (a === 'save') ipcRenderer.invoke('paste:save', { buf: imgBuf || img.src });
     else if (a === 'close') window.close();

@@ -46,6 +46,7 @@
           图片
         </button>
         <button class="tool-btn" id="markdownBtn" title="Markdown 预览 Ctrl+Shift+M">Markdown</button>
+        <button class="tool-btn" id="exportWordBtn" title="导出 Markdown 为 Word (.docx)">导出 Word</button>
         <button class="tool-btn" id="settingsBtn" title="编辑器设置 Ctrl+,">设置</button>
         <button class="tool-btn" id="fullscreenBtn" title="全屏模式 F11">全屏</button>
         <button class="tool-btn accent" id="clipBtn">存入剪藏</button>
@@ -125,6 +126,24 @@
         </div>
         <div class="backlinks-list" id="backlinksList"></div>
         <div class="outgoing-list" id="outgoingList"></div>
+      </div>
+      <div class="editor-pane outline-pane" id="outlinePane" aria-hidden="true">
+        <div class="filetree-header">
+          <span><strong>大纲</strong></span>
+          <div class="filetree-header-actions">
+            <button class="inline-btn" id="closeOutlineBtn">关闭</button>
+          </div>
+        </div>
+        <div class="outline-list" id="outlineList"></div>
+      </div>
+      <div class="editor-pane tags-pane" id="tagsPane" aria-hidden="true">
+        <div class="filetree-header">
+          <span><strong>标签</strong></span>
+          <div class="filetree-header-actions">
+            <button class="inline-btn" id="closeTagsBtn">关闭</button>
+          </div>
+        </div>
+        <div class="tags-list" id="tagsList"></div>
       </div>
       <div class="editor-pane main-pane" id="mainPane">
         <div id="mainEditor" class="ace-host" aria-label="文本编辑器"></div>
@@ -423,6 +442,27 @@
   </div>
 
   <input id="browserFileInput" type="file" hidden accept=".txt,.md,.json,.xml,.sql,.csv,.log,.yaml,.yml,.ini,.conf">
+
+  <!-- 命令面板（Ctrl+P） -->
+  <div class="command-palette" id="commandPalette" hidden aria-hidden="true">
+    <div class="command-palette-input-wrap">
+      <span class="command-palette-prompt">›</span>
+      <input class="command-palette-input" id="commandPaletteInput" placeholder="输入命令关键词…" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="command-palette-list" id="commandPaletteList"></div>
+    <div class="command-palette-hint">↑↓ 导航 · Enter 执行 · Esc 关闭</div>
+  </div>
+
+  <!-- 全局文件快速搜索（Ctrl+O，Obsidian Quick Switcher 风格） -->
+  <div class="quick-switcher" id="quickSwitcher" hidden aria-hidden="true">
+    <div class="quick-switcher-input-wrap">
+      <span class="quick-switcher-prompt">🔍</span>
+      <input class="quick-switcher-input" id="quickSwitcherInput" placeholder="输入文件名/路径搜索…" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="command-palette-list" id="quickSwitcherList"></div>
+    <div class="command-palette-hint">↑↓ 导航 · Enter 打开 · Esc 关闭</div>
+  </div>
+
   <div class="editor-context-menu" id="editorContextMenu" hidden role="menu">
     <!-- ─── 编辑操作 ─── -->
     <button type="button" data-context-action="copy" role="menuitem">📋 复制</button>

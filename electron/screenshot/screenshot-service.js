@@ -18,9 +18,9 @@ const { spawn } = require('child_process');
 let deps = null;
 let shortcuts = { screenshot: 'F1', paste: 'F2' };
 let screenshotWindow = null;   // 当前截图覆盖层
-let pasteWindow = null;        // 当前贴图窗口
-let lastCapture = null;        // 最近一次截图 nativeImage（供贴图兜底）
+let lastCapture = null;        // 最近一次截图 nativeImage（全屏原始图，供裁剪基准）
 let lastCaptureSize = null;   // 缩略图实际像素尺寸（裁剪换算基准）
+let lastSnip = null;           // 最近一次截图【选区】nativeImage（Snipaste 语义：F3/Ctrl+V 贴图缓存）
 let pendingAction = null;      // 截图确认后的动作（copy/save/ocr/paste）
 let ocrService = null;         // 延迟加载（依赖 onnxruntime-node）
 let inFlight = false;          // 捕获进行中（覆盖层已显示但图像未就绪，可中止）
@@ -135,6 +135,22 @@ function logPerf(stage, t0) {
   log('perf:', stage, Date.now() - t0 + 'ms');
 }
 
+/** 生成覆盖层显示数据：优先 raw 位图（toBitmap 仅内存拷贝，主线程几乎零成本），
+ *  超大分辨率降级 PNG 编码（raw 传渲染层过大反而慢）。
+ *  注意：Windows 上 toBitmap 为 BGRA 且截图不透明（alpha=255，premultiply 无影响），
+ *  渲染层负责交换 R/B 为 RGBA。最终裁剪/复制/保存仍用 lastCapture 原生图，画质不受影响。 */
+function encodeForDisplay(image) {
+  try {
+    const size = image.getSize();
+    const raw = image.toBitmap();
+    const MAX_RAW = 24 * 1024 * 1024; // ≈600 万像素（4K@100% 8.3MP 会走 PNG）
+    if (raw && raw.length > 0 && raw.length <= MAX_RAW) {
+      return { mode: 'raw', bitmap: raw, width: size.width, height: size.height, mime: 'image/png' };
+    }
+  } catch (e) { log('toBitmap failed, fallback PNG:', e.message); }
+  return { mode: 'png', bg: image.toPNG(), mime: 'image/png' };
+}
+
 /** 启动截图：立即显示预建覆盖层（即时反馈）→ 隐藏抓屏（避免入镜）→ 回填图像 */
 async function startScreenshot(defaultAction) {
   if (!deps) return;
@@ -158,13 +174,13 @@ async function startScreenshot(defaultAction) {
     inFlight = true;
     const shot = await captureScreen(display);
     logPerf('capture', t0);
-    const png = shot.image.toPNG();
+    const disp = encodeForDisplay(shot.image);
     logPerf('encode', t0);
     if (!inFlight) return; // 捕获期间被 Esc 取消
     win.show();
     try { win.focus(); } catch (e) {}
-    // 3) PNG Buffer 直传（不再 base64，省 33% 体积 + 解码开销）
-    win.webContents.send('screenshot:init', { bg: png, mime: 'image/png', display: shot.display, t0 });
+    // 3) raw 位图直传（主线程零编码阻塞），渲染层快速转换显示
+    win.webContents.send('screenshot:init', Object.assign({}, disp, { display: shot.display, t0 }));
     logPerf('send', t0);
   } catch (e) {
     log('startScreenshot failed:', e.message);
@@ -207,6 +223,10 @@ function getOrCreateOverlayWindow(display) {
   });
   screenshotWindow = win;
   win.loadFile(path.join(__dirname, 'screenshot-window.html'));
+  // 覆盖层渲染层报错落日志（可观测性，与贴图窗口一致）
+  win.webContents.on('console-message', (e, level, message) => {
+    if (level >= 2) log('overlay console[' + level + ']:', String(message).slice(0, 200));
+  });
   win.on('closed', () => { screenshotWindow = null; });
   // 确保覆盖层获得焦点（Esc/Enter/Ctrl+S 等快捷键依赖焦点）
   win.on('show', () => { try { win.focus(); } catch (e) {} });
@@ -221,7 +241,6 @@ function getOrCreateOverlayWindow(display) {
  */
 async function handleConfirm(payload) {
   const { clipboard, nativeImage } = deps;
-  const win = screenshotWindow;
   const rect = payload && payload.rect;
   const action = (payload && payload.action) || pendingAction || 'copy';
   if (!rect || !lastCapture) {
@@ -241,7 +260,16 @@ async function handleConfirm(payload) {
     height: Math.max(1, Math.round(rect.height * sy))
   };
   let cropped;
-  try { cropped = lastCapture.crop(cropRect); } catch (e) { cropped = lastCapture; }
+  if (payload.imgData) {
+    // 覆盖层已合成「背景选区 + 标注」，直接解码为图，避免重复裁剪
+    try { cropped = nativeImage.createFromDataURL(payload.imgData); }
+    catch (err) { try { cropped = lastCapture.crop(cropRect); } catch (e) { cropped = lastCapture; } }
+  } else {
+    try { cropped = lastCapture.crop(cropRect); } catch (e) { cropped = lastCapture; }
+  }
+  // 统一把选区写入贴图缓存（Snipaste 语义）：无论本次动作是复制/保存/OCR/贴图，
+  // 之后 F3 / Ctrl+V 都贴【选区】而非全屏，直到下一次截图覆盖。
+  lastSnip = cropped;
   closeScreenshotWindow();
 
   switch (action) {
@@ -259,6 +287,7 @@ async function handleConfirm(payload) {
       if (deps.showMainWindow) deps.showMainWindow();
       clipboard.writeImage(cropped);
       log('copied to clipboard');
+      notifyMainWindow('✅ 已复制到剪贴板', 'info', 2500); // 确认动作有可见反馈
       return { status: 'copied' };
   }
 }
@@ -278,58 +307,113 @@ async function saveImage(image) {
   if (result.canceled || !result.filePath) return { status: 'canceled' };
   fs.writeFileSync(result.filePath, image.toPNG());
   log('saved:', result.filePath);
+  notifyMainWindow('💾 已保存：' + path.basename(result.filePath), 'info', 3000);
   return { status: 'saved', path: result.filePath };
 }
 
-/** 贴图：剪贴板图片优先，无则最近截图 */
+/** 贴图（Snipaste 语义）：剪贴板内容优先（图片→文本）→ 最近截图选区 → 最近全屏（极端兜底） */
 function pasteFromClipboard() {
   const { clipboard } = deps;
-  let img = null;
-  try { img = clipboard.readImage(); } catch (e) {}
-  if (!img || img.isEmpty()) {
-    if (lastCapture) img = lastCapture;
-    else { log('no image to paste'); return { status: 'empty' }; }
+  const fmts = clipboard.availableFormats();
+  const hasImg = Array.isArray(fmts) && fmts.some(f => f.startsWith('image/'));
+  const hasTxt = Array.isArray(fmts) && fmts.some(f => f === 'text/plain' || f === 'text/html' || f.startsWith('text/'));
+  if (hasImg) {
+    let img = null;
+    try { img = clipboard.readImage(); } catch (e) {}
+    if (img && !img.isEmpty()) return showPasteWindow(img);
   }
-  return showPasteWindow(img);
+  if (hasTxt) {
+    let t = '';
+    try { t = clipboard.readText(); } catch (e) {}
+    if (t && t.trim()) return showPasteWindow(null, t); // 文本贴图
+  }
+  if (lastSnip) return showPasteWindow(lastSnip);
+  if (lastCapture) return showPasteWindow(lastCapture);
+  log('no image to paste');
+  return { status: 'empty' };
 }
 
 // ==================== 贴图窗口 ====================
 
 let pasteWindows = [];
 
-/** 创建置顶贴图窗口（可拖动，双击/右键关闭） */
-function showPasteWindow(image) {
+/** 创建置顶贴图窗口（可拖动，双击/右键关闭）。image 与 text 二选一：image 为原生图，text 为文本贴图。 */
+function showPasteWindow(image, text) {
   const { BrowserWindow } = deps;
-  // 注意：nativeImage.getSize() 返回 {width,height} 对象，不能数组解构（v1.2 曾因此回归导致贴图失效）
-  const size = image.getSize();
-  const iw = size.width, ih = size.height;
-  // 等比适配（Snipaste 手感）：最长边限制 900/700，只缩小不放大，保持原图比例
-  const maxW = 900, maxH = 700;
-  const fit = Math.min(1, maxW / Math.max(1, iw), maxH / Math.max(1, ih));
-  const w = Math.max(1, Math.round(iw * fit));
-  const h = Math.max(1, Math.round(ih * fit));
+  let iw, ih, w, h;
+  if (image) {
+    // 注意：nativeImage.getSize() 返回 {width,height} 对象，不能数组解构（v1.2 曾因此回归导致贴图失效）
+    const size = image.getSize();
+    iw = size.width; ih = size.height;
+    // 等比适配（Snipaste 手感）：最长边限制 900/700，只缩小不放大，保持原图比例
+    const maxW = 900, maxH = 700;
+    const fit = Math.min(1, maxW / Math.max(1, iw), maxH / Math.max(1, ih));
+    w = Math.max(1, Math.round(iw * fit));
+    h = Math.max(1, Math.round(ih * fit));
+  } else {
+    // 文本贴图：初始占位尺寸，渲染层排版后经 paste:text-ready 精确 resize
+    w = 480; h = 320;
+  }
   const win = new BrowserWindow({
     width: w,
     height: h,
     x: 100 + pasteWindows.length * 30,
     y: 100 + pasteWindows.length * 30,
     frame: false,
-    transparent: false,          // 不透明：规避 Windows 透明窗口渲染不可靠（黑屏/内容不显示）
-    backgroundColor: '#000000',  // 图片按原比例铺满窗口，黑色仅作兜底
+    transparent: false,          // 默认不透明（规避 Windows 透明窗口渲染不可靠）；透明度经 setOpacity 独立控制
+    backgroundColor: image ? '#000000' : '#ffffff',
     resizable: false,            // 尺寸由程序控制（滚轮缩放/双击），避免用户拖边变形
     alwaysOnTop: true,
     skipTaskbar: true,
-    hasShadow: true,
+    hasShadow: false,          // 关 DWM 阴影：快速拖动时阴影重绘是 Windows 卡顿源；贴图自带 #frame 描边
     webPreferences: { nodeIntegration: true, contextIsolation: false }
   });
+  win.__isText = !image;
   win.__pasteBaseSize = [w, h]; // 缩放基准（等比适配后的初始尺寸）
-  try { win.setAspectRatio(iw / ih); } catch (e) {}
+  win.__lockedSize = [w, h];    // 当前锁定尺寸：move-to 每次按此钉住，杜绝系统微调累积
+  // 诊断：捕捉一切非 zoom-at 引起的窗口尺寸变化（DPI 切换/系统干预），
+  // 若日志出现 "external resize" 即为 OS 层缩放，需另行处理。
+  win.__lastSize = [w, h];
+  win.on('resize', () => {
+    try {
+      const [cw, ch] = win.getSize();
+      const [pw, ph] = win.__lastSize || [0, 0];
+      if (cw !== pw || ch !== ph) {
+        win.__lastSize = [cw, ch];
+        const sinceZoom = win.__lastZoomAt ? Date.now() - win.__lastZoomAt : -1;
+        const sinceTextReady = win.__lastTextReadyAt ? Date.now() - win.__lastTextReadyAt : -1;
+        if ((sinceZoom < 0 || sinceZoom > 300) && (sinceTextReady < 0 || sinceTextReady > 300)) {
+          log('paste external resize:', pw + 'x' + ph, '->', cw + 'x' + ch,
+            '(zoomAt=' + (sinceZoom < 0 ? 'never' : sinceZoom + 'ms ago') +
+            ', textAt=' + (sinceTextReady < 0 ? 'never' : sinceTextReady + 'ms ago') + ')');
+        }
+      }
+    } catch (err) {}
+  });
+  // 文本模式：渲染层排版完成后回传应占尺寸（CSS/DIP），主进程按此 resize
+  win.webContents.on('paste:text-ready', (e, { cssW, cssH }) => {
+    const cw = Math.max(40, Math.round(cssW));
+    const chh = Math.max(40, Math.round(cssH));
+    win.__pasteBaseSize = [cw, chh];
+    win.__lockedSize = [cw, chh];
+    win.__lastSize = [cw, chh];
+    win.__lastTextReadyAt = Date.now();
+    try { win.setSize(cw, chh); } catch (err) {}
+    log('paste text resized to', cw + 'x' + chh);
+  });
+  // 不设 setAspectRatio：resizable:false 的窗口尺寸完全由 paste:zoom-at 的 setBounds 控制，
+  // 比例锁会与 setBounds 冲突导致宽高被系统微调、渲染层 scale 与实际尺寸漂移。
   pasteWindows.push(win);
   win.loadFile(path.join(__dirname, 'paste-window.html'));
   win.webContents.on('did-finish-load', () => {
-    // PNG Buffer 直传（不再 base64 dataURL）
-    win.webContents.send('paste:init', { buf: image.toPNG(), mime: 'image/png', w: iw, h: ih });
-    log('paste:init sent', iw + 'x' + ih, '->', w + 'x' + h);
+    if (text) {
+      win.webContents.send('paste:init', { text: text });
+      log('paste:init sent (text), chars=' + text.length);
+    } else {
+      // PNG Buffer 直传（不再 base64 dataURL）
+      win.webContents.send('paste:init', { buf: image.toPNG(), mime: 'image/png', w: iw, h: ih });
+      log('paste:init sent', iw + 'x' + ih, '->', w + 'x' + h);
+    }
   });
   // 渲染层报错不再静默：console error / 图片解码失败都会落日志
   win.webContents.on('console-message', (e, level, message) => {
@@ -381,17 +465,19 @@ function notifyMainWindow(message, type, ms) {
   } catch (e) {}
 }
 
-/** 展示 OCR 结果窗口（文本 + 复制 + 跳转编辑器） */
+/** 展示 OCR 结果窗口（文本 + 复制 + 跳转编辑器）——无系统标题栏，自定义外观见 ocr-result-window.html */
 function showOcrResult(result) {
   const { BrowserWindow } = deps;
   const win = new BrowserWindow({
-    width: 520,
-    height: 360,
+    width: 580,
+    height: 440,
     title: 'OCR 识别结果',
-    frame: true,
+    frame: false,            // 去系统标题栏：由页面内自定义标题栏（可拖拽）接管
     resizable: true,
     minimizable: false,
     maximizable: false,
+    hasShadow: true,
+    backgroundColor: '#17181c',
     webPreferences: { nodeIntegration: true, contextIsolation: false }
   });
   win.loadFile(path.join(__dirname, 'ocr-result-window.html'));
@@ -482,8 +568,9 @@ function registerIpc() {
   ipcMain.handle('screenshot:cancel', () => { closeScreenshotWindow(); return true; });
   ipcMain.handle('screenshot:confirm', (e, payload) => handleConfirm(payload));
   ipcMain.handle('screenshot:copy-last', () => {
-    if (!lastCapture) return { status: 'empty' };
-    deps.clipboard.writeImage(lastCapture);
+    const src = lastSnip || lastCapture; // 与贴图语义一致：复制最近选区（无选区才全屏）
+    if (!src) return { status: 'empty' };
+    deps.clipboard.writeImage(src);
     return { status: 'copied' };
   });
   ipcMain.handle('screenshot:paste', () => pasteFromClipboard());
@@ -535,22 +622,65 @@ function registerIpc() {
   });
 
   // ── 贴图窗口交互（移动/缩放/保存） ──
-  ipcMain.handle('paste:move', (e, payload) => {
+  // 绝对坐标拖动：渲染层用 window.screenX/Y 同步取起点，按绝对目标 setBounds（同时钉住尺寸），
+  // 无 IPC 竞态（增量式 getPosition+setPosition 在 60fps 下会丢步抖动）。
+  ipcMain.handle('paste:move-to', (e, payload) => {
     const win = deps.BrowserWindow.fromWebContents(e.sender);
     if (!win) return false;
-    const [x, y] = win.getPosition();
-    win.setPosition(Math.round(x + (payload.dx || 0)), Math.round(y + (payload.dy || 0)));
+    if (payload && typeof payload.x === 'number' && typeof payload.y === 'number') {
+      // 不用 setPosition：Windows 上对 frameless + resizable:false 窗口，纯移动调用会让
+      // 系统反复微调窗口尺寸（实测拖动中每帧 +1~2px 累积变大，external resize 日志已实锤）。
+      // 改为 setBounds 每次显式钉住宽高：任何来源的尺寸漂移都在下一帧被纠正，
+      // 从机制上杜绝「拖动渐渐变大」。
+      if (!win.__lockedSize) win.__lockedSize = win.getSize();
+      win.setBounds({ x: payload.x, y: payload.y, width: win.__lockedSize[0], height: win.__lockedSize[1] });
+      win.__lastMoveAt = Date.now(); // 供 paste:zoom-at 判断"是否正在拖动"
+      return true;
+    }
+    return false;
+  });
+  // 窗口级真实透明度（Ctrl+滚轮，Snipaste 手感）。用 BrowserWindow.setOpacity 而非
+  // 渲染层 element.opacity——后者只是把内容变淡并透出黑色底（看起来像"变亮度"），
+  // setOpacity 让整个窗口半透明，能真正透出底下内容。
+  ipcMain.handle('paste:set-opacity', (e, value) => {
+    const win = deps.BrowserWindow.fromWebContents(e.sender);
+    if (!win) return false;
+    try {
+      win.setOpacity(Math.max(0.15, Math.min(1, Number(value) || 1)));
+    } catch (err) { return false; }
     return true;
   });
-  ipcMain.handle('paste:resize', (e, payload) => {
+  // 贴图置顶开关（右键菜单切换）：alwaysOnTop false 时贴图落入普通层级，可被其他窗口覆盖
+  ipcMain.handle('paste:set-top', (e, pinned) => {
     const win = deps.BrowserWindow.fromWebContents(e.sender);
     if (!win) return false;
+    try { win.setAlwaysOnTop(Boolean(pinned), 'screen-saver'); } catch (err) { return false; }
+    return true;
+  });
+  // 光标锚定缩放：同时调整大小与位置，保持光标下的图像点不动（Snipaste 手感）
+  ipcMain.handle('paste:zoom-at', (e, payload) => {
+    const win = deps.BrowserWindow.fromWebContents(e.sender);
+    if (!win) return false;
+    // 主进程兜底：若 500ms 内刚发生过 move-to（正在拖动或松手惯性期），忽略此次缩放，
+    // 防止渲染层 moving 状态异常时拖动中误触发缩放导致图片"渐渐变大"。
+    if (win.__lastMoveAt && Date.now() - win.__lastMoveAt < 500) {
+      log('paste zoom blocked: within 500ms of move-to');
+      return false;
+    }
     if (!win.__pasteBaseSize) win.__pasteBaseSize = win.getSize();
-    const scale = payload.scale || 1;
-    win.setSize(
-      Math.max(40, Math.round(win.__pasteBaseSize[0] * scale)),
-      Math.max(40, Math.round(win.__pasteBaseSize[1] * scale))
-    );
+    const next = Math.max(0.1, Math.min(4, payload.scale || 1));
+    const prev = Math.max(0.01, payload.prevScale || 1);
+    const r = next / prev;
+    const [wx, wy] = win.getPosition();
+    const base = win.__pasteBaseSize;
+    win.__lastZoomAt = Date.now(); // 供 resize 诊断区分「zoom 引起」与「外部引起」
+    // 新位置 = 原位置 + 锚点位移 × (1 - 缩放比)，使光标下的图像点保持不动
+    const nx = Math.round(wx + (payload.anchorX || 0) * (1 - r));
+    const ny = Math.round(wy + (payload.anchorY || 0) * (1 - r));
+    const nw = Math.max(40, Math.round(base[0] * next));
+    const nh = Math.max(40, Math.round(base[1] * next));
+    win.__lockedSize = [nw, nh]; // 缩放后的新尺寸成为锁定值，后续 move-to 按此钉住
+    win.setBounds({ x: nx, y: ny, width: nw, height: nh });
     return true;
   });
   ipcMain.handle('paste:save', async (e, payload) => {

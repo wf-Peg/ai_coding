@@ -5,55 +5,159 @@
 <title>OCR 识别结果</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100vh; overflow: hidden; }
   body {
-    background: #1e1e1e; color: #e5e7eb; height: 100vh; display: flex; flex-direction: column;
-    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+    background: #17181c; color: #e5e7eb; display: flex; flex-direction: column;
+    font-family: "IBM Plex Sans", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+    animation: winIn 0.16s ease;
   }
-  .head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #333; }
-  .head h3 { font-size: 14px; font-weight: 600; flex: 1; }
-  .head button {
-    border: none; border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 12px;
-    background: #3f8cff; color: #fff;
+  @keyframes winIn {
+    from { opacity: 0; transform: scale(0.97); }
+    to { opacity: 1; transform: scale(1); }
   }
-  .head button.ghost { background: transparent; color: #9ca3af; border: 1px solid #444; }
-  .head button:hover { opacity: 0.85; }
-  textarea {
-    flex: 1; border: none; resize: none; outline: none; padding: 12px 14px;
-    background: transparent; color: #e5e7eb; font-size: 13px; line-height: 1.7;
-    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+
+  /* ── 自定义标题栏（无系统标题栏，可拖拽） ── */
+  .titlebar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 8px 0 16px; height: 46px; flex: none;
+    -webkit-app-region: drag; /* 按住可拖动窗口 */
+    background: linear-gradient(180deg, #1d1f26, #181a20);
+    border-bottom: 1px solid rgba(255,255,255,0.07);
   }
-  .foot { padding: 8px 14px; border-top: 1px solid #333; font-size: 11px; color: #6b7280; }
+  .titlebar .icon {
+    width: 24px; height: 24px; border-radius: 7px; flex: none;
+    background: linear-gradient(135deg, #3f8cff, #6f5bff);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; color: #fff;
+    box-shadow: 0 2px 8px rgba(63,140,255,0.35);
+  }
+  .titlebar .titles { flex: 1; min-width: 0; }
+  .titlebar .titles h3 { font-size: 13.5px; font-weight: 600; letter-spacing: 0.3px; }
+  .titlebar .titles .sub { font-size: 11px; color: #8b93a3; margin-top: 1px; }
+  .titlebar .win-btn {
+    -webkit-app-region: no-drag;
+    width: 34px; height: 34px; border: none; border-radius: 8px; cursor: pointer;
+    background: transparent; color: #9aa3b2; font-size: 14px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.12s, color 0.12s;
+  }
+  .titlebar .win-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+  .titlebar .win-btn.close:hover { background: #e5484d; color: #fff; }
+
+  /* ── 工具栏 ── */
+  .toolbar {
+    display: flex; align-items: center; gap: 8px; padding: 12px 16px 4px; flex: none;
+  }
+  .toolbar button {
+    border: none; border-radius: 8px; padding: 7px 16px; cursor: pointer;
+    font-size: 12.5px; font-family: inherit; font-weight: 500;
+    display: flex; align-items: center; gap: 6px;
+    transition: transform 0.08s, background 0.15s, box-shadow 0.15s;
+  }
+  .toolbar button:active { transform: scale(0.96); }
+  .toolbar .primary {
+    background: linear-gradient(135deg, #3f8cff, #2f6fe0); color: #fff;
+    box-shadow: 0 2px 10px rgba(63,140,255,0.35);
+  }
+  .toolbar .primary:hover { box-shadow: 0 4px 16px rgba(63,140,255,0.5); }
+  .toolbar .primary.done { background: linear-gradient(135deg, #22c55e, #16a34a); box-shadow: 0 2px 10px rgba(34,197,94,0.35); }
+  .toolbar .ghost {
+    background: rgba(255,255,255,0.05); color: #c3c9d4;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .toolbar .ghost:hover { background: rgba(255,255,255,0.1); color: #fff; }
+  .toolbar .spacer { flex: 1; }
+  .toolbar .meta { font-size: 11px; color: #6b7280; font-variant-numeric: tabular-nums; }
+
+  /* ── 文本区 ── */
+  .content {
+    flex: 1; margin: 8px 16px 12px; min-height: 0;
+    background: rgba(255,255,255,0.035);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px; overflow: hidden;
+    display: flex;
+  }
+  .content textarea {
+    flex: 1; border: none; resize: none; outline: none;
+    background: transparent; color: #e5e7eb; font-size: 13px; line-height: 1.75;
+    font-family: "IBM Plex Sans", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+    padding: 14px 16px;
+    caret-color: #3f8cff;
+  }
+  .content textarea::selection { background: rgba(63,140,255,0.35); }
+
+  /* ── 底部状态 ── */
+  .statusbar {
+    flex: none; display: flex; align-items: center; gap: 8px;
+    padding: 0 18px 10px; font-size: 11px; color: #6b7280;
+  }
+  .statusbar .dot { width: 6px; height: 6px; border-radius: 50%; background: #3f8cff; }
+  .statusbar .dot.ok { background: #22c55e; }
 </style>
 </head>
 <body>
-<div class="head">
-  <h3>🔤 OCR 识别结果</h3>
-  <button class="ghost" id="btnEditor">📝 在编辑器中打开</button>
-  <button id="btnCopy">📋 复制</button>
-  <button class="ghost" id="btnClose">关闭</button>
+<div class="titlebar">
+  <div class="icon">🔤</div>
+  <div class="titles">
+    <h3>OCR 识别结果</h3>
+    <div class="sub" id="subTitle">离线识别</div>
+  </div>
+  <button class="win-btn close" id="btnClose" title="关闭 (Esc)">✕</button>
 </div>
-<textarea id="text" placeholder="识别结果为空..."></textarea>
-<div class="foot" id="status"></div>
+<div class="toolbar">
+  <button class="primary" id="btnCopy">📋 复制</button>
+  <button class="ghost" id="btnEditor">📝 在编辑器中打开</button>
+  <div class="spacer"></div>
+  <span class="meta" id="meta"></span>
+</div>
+<div class="content">
+  <textarea id="text" placeholder="识别结果为空..." spellcheck="false"></textarea>
+</div>
+<div class="statusbar">
+  <span class="dot" id="statusDot"></span>
+  <span id="status">就绪</span>
+</div>
 <script>
   const { ipcRenderer } = require('electron');
   const text = document.getElementById('text');
+  const meta = document.getElementById('meta');
   const status = document.getElementById('status');
+  const statusDot = document.getElementById('statusDot');
+  const btnCopy = document.getElementById('btnCopy');
+  const btnEditor = document.getElementById('btnEditor');
   let lastText = '';
 
   ipcRenderer.on('ocr-result:init', (e, payload) => {
     lastText = (payload && payload.text) || '';
     text.value = lastText;
-    status.textContent = (payload && payload.lines) ? '识别到 ' + payload.lines + ' 行' : '';
+    if (payload && payload.lines) {
+      const chars = lastText.replace(/\s/g, '').length;
+      meta.textContent = payload.lines + ' 行 · ' + chars + ' 字';
+      status.textContent = '识别完成';
+      statusDot.classList.add('ok');
+    }
   });
 
-  document.getElementById('btnCopy').addEventListener('click', async () => {
+  function setStatus(msg, ok) {
+    status.textContent = msg;
+    statusDot.classList.toggle('ok', !!ok);
+  }
+
+  btnCopy.addEventListener('click', async () => {
     const val = text.value.trim();
     if (!val) return;
-    try { await navigator.clipboard.writeText(val); status.textContent = '✅ 已复制'; }
-    catch (e) { status.textContent = '复制失败：' + e.message; }
+    try {
+      await navigator.clipboard.writeText(val);
+      setStatus('已复制到剪贴板', true);
+      btnCopy.classList.add('done');
+      btnCopy.innerHTML = '✓ 已复制';
+      setTimeout(() => { btnCopy.classList.remove('done'); btnCopy.innerHTML = '📋 复制'; }, 1600);
+    } catch (err) {
+      setStatus('复制失败：' + err.message, false);
+    }
   });
 
-  document.getElementById('btnEditor').addEventListener('click', () => {
+  btnEditor.addEventListener('click', () => {
     const val = text.value.trim();
     if (!val) return;
     // 通知主窗口 → 编辑器新标签打开文本
@@ -62,14 +166,21 @@
   });
 
   document.getElementById('btnClose').addEventListener('click', () => window.close());
-  // Ctrl+Enter 复制后关闭
+
+  // Esc 关闭；Ctrl+Enter 复制后关闭
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') window.close();
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      navigator.clipboard.writeText(text.value.trim());
+      const val = text.value.trim();
+      if (!val) return;
+      navigator.clipboard.writeText(val);
       window.close();
     }
   });
+
+  // 载入后聚焦文本（方便直接 Ctrl+A/Ctrl+C）
+  text.focus();
+  text.select();
 </script>
 </body>
 </html>

@@ -1169,6 +1169,8 @@ public class FileStorageService {
         try {
             if (plan.getId() == null) plan.setId(idGenerator.getAndIncrement());
             Path filePath = getLearningPlanDateFilePath();
+            // 先清除其他日期文件中同 id 的旧副本，避免更新旧日期计划时产生重复
+            removeLearningPlanFromAllFiles(plan.getId());
             List<LearningPlan> plans = readLearningPlanArrayFromFile(filePath);
             boolean updated = false;
             for (int i = 0; i < plans.size(); i++) {
@@ -1184,6 +1186,26 @@ public class FileStorageService {
         } catch (Exception e) {
             log.error("Failed to save learning plan", e);
             return null;
+        }
+    }
+
+    /**
+     * 从 learning-plan 目录下所有日期文件中移除指定 id 的计划（跨文件去重）。
+     */
+    private void removeLearningPlanFromAllFiles(Long id) {
+        try {
+            Path planPath = storagePath.resolve("learning-plan");
+            if (!Files.exists(planPath) || id == null) return;
+            Files.walk(planPath)
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".json"))
+                    .forEach(path -> {
+                        List<LearningPlan> plans = readLearningPlanArrayFromFile(path);
+                        boolean found = plans.removeIf(p -> p.getId() != null && p.getId().equals(id));
+                        if (found) writeLearningPlanArrayToFile(path, plans);
+                    });
+        } catch (IOException e) {
+            log.error("Failed to remove learning plan from files", e);
         }
     }
 

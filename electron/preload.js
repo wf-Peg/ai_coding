@@ -346,6 +346,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveToVault: (payload) => ipcRenderer.invoke('editor-save-to-vault', payload),
 
   /**
+   * 列出知识库 templates 目录下的模板（*.md / *.txt）。
+   * @returns {Promise<{success: boolean, dir?: string, templates?: Array, message?: string}>}
+   */
+  listTemplates: () => ipcRenderer.invoke('editor-list-templates'),
+
+  /**
+   * 读取指定模板内容。
+   * @param {string} name - 模板文件名
+   * @returns {Promise<{success: boolean, content?: string, message?: string}>}
+   */
+  readTemplate: (name) => ipcRenderer.invoke('editor-read-template', name),
+
+  /**
+   * 保存模板（覆盖同名文件）。
+   * @param {{name: string, content: string}} payload
+   * @returns {Promise<{success: boolean, filePath?: string, message?: string}>}
+   */
+  saveTemplate: (payload) => ipcRenderer.invoke('editor-save-template', payload),
+
+  /**
    * 扫描知识库各模块，找出引用当前文件的来源（过滤自引用，就近优先排序）。
    * @param {string} currentPath - 当前文件绝对路径
    * @returns {Promise<{backlinks: Array}>}
