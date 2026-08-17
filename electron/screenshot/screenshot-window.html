@@ -625,13 +625,23 @@
   function drawPathOn(ctx, pts) { strokePathTo(ctx, pts); }
   // ── 撤销：回滚到上一次提交前的标注快照 ──
   function pushAnnoSnapshot() {
-    try { undoStack.push(annoCtx.getImageData(0, 0, anno.width, anno.height)); } catch (err) {}
-    if (undoStack.length > 50) undoStack.shift();
+    // 快照仅选区区域（物理像素），避免全屏大图（HiDPI 下每张 ~18MB）撑爆内存
+    try {
+      const x0 = selRect ? Math.max(0, Math.round(selRect.x * sf)) : 0;
+      const y0 = selRect ? Math.max(0, Math.round(selRect.y * sf)) : 0;
+      const w0 = selRect ? Math.min(anno.width - x0, Math.max(1, Math.round(selRect.w * sf))) : anno.width;
+      const h0 = selRect ? Math.min(anno.height - y0, Math.max(1, Math.round(selRect.h * sf))) : anno.height;
+      const snap = annoCtx.getImageData(x0, y0, w0, h0);
+      snap._x = x0; snap._y = y0;
+      undoStack.push(snap);
+    } catch (err) {}
+    if (undoStack.length > 30) undoStack.shift();
   }
   function undoAnno() {
     if (textActive) { cancelAnnoText(); return; }
     if (!undoStack.length) { showHint('没有可撤销的标注'); return; }
-    annoCtx.putImageData(undoStack.pop(), 0, 0);
+    const snap = undoStack.pop();
+    annoCtx.putImageData(snap, snap._x || 0, snap._y || 0);
     annoCount = Math.max(0, annoCount - 1);
     showHint('已撤销');
   }
@@ -791,6 +801,7 @@
   // ── 确认 / 取消 ──
   function confirm(action) {
     if (!selRect) return;
+    if (textActive) commitAnnoText(); // 文字输入中确认：先提交文字，避免丢失
     // 有标注时，把背景选区与标注合成一张图，随确认一起交给主进程（替代纯 crop）
     let imgData = null;
     if (annoCount > 0) imgData = composeAnno(selRect);
