@@ -158,6 +158,7 @@
 
   let display = null;      // {width,height,scaleFactor} DIP
   let sf = 1;              // 显示器缩放（裁剪用）
+  let sfPhys = 1;          // 背景实际物理缩放比 = 背景像素宽 / display.width（与 getSize 对齐，避免位置偏移）
   let selRect = null;      // {x,y,w,h} 全为 CSS/DIP 坐标
   let dragMode = null;     // 'draw'(拖拽新建) | {dir: 手柄方向}（调整）
   let dragStart = null;    // 拖拽起点
@@ -197,10 +198,12 @@
     const octx = offDark.getContext('2d');
     octx.fillStyle = 'rgba(0,0,0,0.45)';
     octx.fillRect(0, 0, offDark.width, offDark.height);
-    // 标注画布：物理分辨率覆盖全屏（坐标系与背景原图一致，绘制/合成都在物理像素下）
-    anno.width = Math.round(display.width * sf);
-    anno.height = Math.round(display.height * sf);
+    // 标注画布：物理尺寸与背景源一致（getSize 实际像素），保证标注与背景坐标完全对齐
+    const src = bgSrc();
+    anno.width = src.width || Math.round(display.width * sf);
+    anno.height = src.height || Math.round(display.height * sf);
     annoFloat.width = anno.width; annoFloat.height = anno.height;
+    sfPhys = (anno.width && display.width) ? anno.width / display.width : sf;
     drawMask(null);
     hint.textContent = '拖拽选择区域 · R/O/A/P/T/M/E 切换标注 · 数字切粗细 · C 取色 · Ctrl+Z 撤销 · Esc 取消 · Enter 复制';
     // 性能回传：主进程记录"发送→渲染完成"耗时
@@ -307,7 +310,7 @@
     // 标注工具激活且点击在选区内：开始绘制标注（锁定选区，不触发选区移动）
     if (annoTool && selRect && e.clientX >= selRect.x && e.clientX <= selRect.x + selRect.w &&
         e.clientY >= selRect.y && e.clientY <= selRect.y + selRect.h) {
-      annoStart = { x: e.clientX * sf, y: e.clientY * sf };
+      annoStart = { x: e.clientX * sfPhys, y: e.clientY * sfPhys };
       // 画笔/橡皮：记录路径起点
       if (annoTool === 'pen' || annoTool === 'eraser') {
         annoPath = [{ x: annoStart.x, y: annoStart.y }];
@@ -357,13 +360,13 @@
       if (annoTool === 'pen' || annoTool === 'eraser') {
         // 画笔/橡皮：连续追加路径点，描出整条轨迹（含中间点，避免直线折点）
         if (annoPath) {
-          const px = Math.round(e.x * sf), py = Math.round(e.y * sf);
+          const px = Math.round(e.x * sfPhys), py = Math.round(e.y * sfPhys);
           const last = annoPath[annoPath.length - 1];
           if (Math.hypot(px - last.x, py - last.y) >= 1) annoPath.push({ x: px, y: py });
           drawPathPreview();
         }
       } else {
-        drawAnnoPreview(annoStart.x, annoStart.y, e.x * sf, e.y * sf);
+        drawAnnoPreview(annoStart.x, annoStart.y, e.x * sfPhys, e.y * sfPhys);
       }
       return;
     }
@@ -384,12 +387,12 @@
 
   window.addEventListener('mouseup', () => {
     if (annoStart) {
-      const end = pendingMouse || { x: annoStart.x / sf, y: annoStart.y / sf };
+      const end = pendingMouse || { x: annoStart.x / sfPhys, y: annoStart.y / sfPhys };
       if (annoTool === 'text') {
         // 文字工具：拖出矩形后进入输入，不直接提交
         annoFloatCtx.clearRect(0, 0, annoFloat.width, annoFloat.height);
         annoFloat.style.display = 'none';
-        openTextInput(annoStart.x, annoStart.y, end.x * sf, end.y * sf);
+        openTextInput(annoStart.x, annoStart.y, end.x * sfPhys, end.y * sfPhys);
         annoStart = null;
         annoPath = null;
       } else if (annoTool === 'pen' || annoTool === 'eraser') {
@@ -402,7 +405,7 @@
         annoStart = null;
         annoPath = null;
       } else {
-        commitAnno(annoStart.x, annoStart.y, end.x * sf, end.y * sf);
+        commitAnno(annoStart.x, annoStart.y, end.x * sfPhys, end.y * sfPhys);
         annoPath = null;
       }
       return;
@@ -518,9 +521,9 @@
     mag.style.left = mx + 'px';
     mag.style.top = my + 'px';
     // 绘制：源像素（img 自然像素 / canvas 物理像素）= CSS×sf
-    const srcSize = Math.ceil((MAG_SIZE / MAG_SCALE) * sf);
-    const sx = Math.max(0, Math.min(src.width - srcSize, cx * sf - srcSize / 2));
-    const sy = Math.max(0, Math.min(src.height - srcSize, cy * sf - srcSize / 2));
+    const srcSize = Math.ceil((MAG_SIZE / MAG_SCALE) * sfPhys);
+    const sx = Math.max(0, Math.min(src.width - srcSize, cx * sfPhys - srcSize / 2));
+    const sy = Math.max(0, Math.min(src.height - srcSize, cy * sfPhys - srcSize / 2));
     magCanvas.width = MAG_SIZE; magCanvas.height = MAG_SIZE;
     magCtx.imageSmoothingEnabled = false;
     magCtx.clearRect(0, 0, MAG_SIZE, MAG_SIZE);
@@ -538,7 +541,7 @@
   function drawShapeOn(ctx, x1, y1, x2, y2) {
     ctx.save();
     ctx.strokeStyle = annoColor; ctx.fillStyle = annoColor;
-    ctx.lineWidth = Math.max(2, Math.round(2 * sf));
+    ctx.lineWidth = Math.max(2, Math.round(2 * sfPhys));
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     if (annoTool === 'rect') {
       const x = Math.min(x1, x2), y = Math.min(y1, y2);
@@ -549,7 +552,7 @@
       ctx.ellipse(cx, cy, Math.abs(x2 - x1) / 2, Math.abs(y2 - y1) / 2, 0, 0, Math.PI * 2);
       ctx.stroke();
     } else if (annoTool === 'arrow') {
-      drawArrow(ctx, x1, y1, x2, y2, Math.max(10, Math.round(14 * sf)));
+      drawArrow(ctx, x1, y1, x2, y2, Math.max(10, Math.round(14 * sfPhys)));
     }
     ctx.restore();
   }
@@ -569,7 +572,7 @@
     const x = Math.round(Math.min(x1, x2)), y = Math.round(Math.min(y1, y2));
     const w = Math.round(Math.abs(x2 - x1)), h = Math.round(Math.abs(y2 - y1));
     if (w < 2 || h < 2) return;
-    const block = Math.max(6, Math.round(8 * sf));
+    const block = Math.max(6, Math.round(8 * sfPhys));
     // 先缩到块级小图（像素化），再放大回目标区域
     const tmp = document.createElement('canvas');
     const cw = Math.max(1, Math.ceil(w / block)), ch = Math.max(1, Math.ceil(h / block));
@@ -609,7 +612,7 @@
     } else {
       ctx.strokeStyle = annoColor;
     }
-    ctx.lineWidth = annoWidth * sf;
+    ctx.lineWidth = annoWidth * sfPhys;
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.beginPath();
     ctx.moveTo(pts[0].x, pts[0].y);
@@ -627,10 +630,10 @@
   function pushAnnoSnapshot() {
     // 快照仅选区区域（物理像素），避免全屏大图（HiDPI 下每张 ~18MB）撑爆内存
     try {
-      const x0 = selRect ? Math.max(0, Math.round(selRect.x * sf)) : 0;
-      const y0 = selRect ? Math.max(0, Math.round(selRect.y * sf)) : 0;
-      const w0 = selRect ? Math.min(anno.width - x0, Math.max(1, Math.round(selRect.w * sf))) : anno.width;
-      const h0 = selRect ? Math.min(anno.height - y0, Math.max(1, Math.round(selRect.h * sf))) : anno.height;
+      const x0 = selRect ? Math.max(0, Math.round(selRect.x * sfPhys)) : 0;
+      const y0 = selRect ? Math.max(0, Math.round(selRect.y * sfPhys)) : 0;
+      const w0 = selRect ? Math.min(anno.width - x0, Math.max(1, Math.round(selRect.w * sfPhys))) : anno.width;
+      const h0 = selRect ? Math.min(anno.height - y0, Math.max(1, Math.round(selRect.h * sfPhys))) : anno.height;
       const snap = annoCtx.getImageData(x0, y0, w0, h0);
       snap._x = x0; snap._y = y0;
       undoStack.push(snap);
@@ -649,7 +652,7 @@
   function pickColorAt(cx, cy) {
     const src = bgSrc();
     if (!src || !src.width) return;
-    const px = Math.round(cx * sf), py = Math.round(cy * sf);
+    const px = Math.round(cx * sfPhys), py = Math.round(cy * sfPhys);
     if (px < 0 || py < 0 || px >= src.width || py >= src.height) return;
     const tmp = document.createElement('canvas');
     tmp.width = 1; tmp.height = 1;
@@ -681,8 +684,8 @@
   /** 把背景选区 + 标注合成一张 PNG dataURL（物理像素），随确认回传主进程 */
   function composeAnno(rect) {
     const src = bgSrc();
-    const px = Math.round(rect.x * sf), py = Math.round(rect.y * sf);
-    const pw = Math.max(1, Math.round(rect.w * sf)), ph = Math.max(1, Math.round(rect.h * sf));
+    const px = Math.round(rect.x * sfPhys), py = Math.round(rect.y * sfPhys);
+    const pw = Math.max(1, Math.round(rect.w * sfPhys)), ph = Math.max(1, Math.round(rect.h * sfPhys));
     const c = document.createElement('canvas');
     c.width = pw; c.height = ph;
     const ctx = c.getContext('2d');
@@ -734,7 +737,7 @@
   function drawTextLayer(ctx, tr, str) {
     str = String(str || '');
     if (!str.trim()) return;
-    const pad = 2 * sf;
+    const pad = 2 * sfPhys;
     const maxW = Math.max(8, tr.w - pad * 2), maxH = Math.max(8, tr.h - pad * 2);
     ctx.save(); ctx.textBaseline = 'top';
     let size = Math.floor(maxH); let lines = [''];
@@ -758,10 +761,10 @@
     annoFloatCtx.clearRect(0, 0, annoFloat.width, annoFloat.height);
     annoFloat.style.display = 'none';
     annoTextInput.value = '';
-    annoTextInput.style.left = (rx / sf) + 'px';
-    annoTextInput.style.top = (ry / sf) + 'px';
-    annoTextInput.style.width = Math.max(24, rw / sf) + 'px';
-    annoTextInput.style.height = Math.max(24, rh / sf) + 'px';
+    annoTextInput.style.left = (rx / sfPhys) + 'px';
+    annoTextInput.style.top = (ry / sfPhys) + 'px';
+    annoTextInput.style.width = Math.max(24, rw / sfPhys) + 'px';
+    annoTextInput.style.height = Math.max(24, rh / sfPhys) + 'px';
     annoTextInput.style.color = annoColor;
     annoTextInput.style.display = 'block';
     textActive = true;
