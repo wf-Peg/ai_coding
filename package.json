@@ -1,6 +1,6 @@
 {
   "name": "clip-demo",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "CutShelter - Information Retrieval & Clip System",
   "main": "electron/main.js",
   "scripts": {
