@@ -91,7 +91,7 @@
     'aiChatSendBtn', 'aiChatStopBtn', 'aiChatClearBtn', 'aiChatCloseBtn', 'aiChatStatus',
     'aiChatResizeHandle', 'aiPetBtn', 'editorContextMenu', 'aiSearchContextBtn', 'smartIngestContextBtn', 'aiImportPasswordContextBtn',
     'offlineTranslateContextBtn', 'onlineTranslateContextBtn', 'addCustomMappingContextBtn', 'addToDictLibContextBtn', 'aiContextAnalysisContextBtn',
-    'manageDictionaryContextBtn', 'aiChatContextBtn',
+    'manageDictionaryContextBtn', 'aiChatContextBtn', 'joinLineEndsContextBtn',
     'dictModal', 'dictSourceInput', 'dictTargetInput', 'dictAddBtn', 'dictList', 'dictLibList', 'dictTabMapping', 'dictTabLibrary',
     'wikilinkPickerModal', 'wikilinkPickerHint', 'wikilinkPickerList',
     'aiChatSelectionHint', 'aiChatSelectionHintText', 'aiChatSelectionHintClear'
@@ -964,6 +964,27 @@
     }
   }
 
+  /**
+   * 删除每行末尾换行符：将客户端截断的多行日志合并为整行，便于后续格式化（JSON/SQL等）。
+   * 有选中处理选中，无选中处理全文。实际把所有换行符移除（每行仅末尾有换行），
+   * 兼容 \r\n / \r / \n 三种行尾。
+   */
+  function joinLineEnds() {
+    const target = getTargetRangeAndText();
+    if (target.text.length > MAX_TRANSFORM_LENGTH) {
+      showToast('内容超过 5 MB，已阻止本次操作', true);
+      return;
+    }
+    const joined = target.text.replace(/\r\n|\r|\n/g, '');
+    if (joined.length === target.text.length) {
+      showToast('没有可删除的换行符', true);
+      return;
+    }
+    mainEditor.session.replace(target.range, joined);
+    showToast(`${target.selection ? '选中' : '全文'}:已删除每行末尾的换行符（${target.text.length - joined.length} 个）`);
+    FrontendLogger.info('[Editor] joinLineEnds', { selection: target.selection, removed: target.text.length - joined.length });
+  }
+
   function openTransformPanel() {
     sharedState.transformTarget = getTargetRangeAndText();
     elements.transformPanel.classList.add('open');
@@ -1733,6 +1754,8 @@
     elements.addToDictLibContextBtn.hidden = !hasSelection;
     // AI 分析上下文始终可用（无选中时分析全文）
     elements.aiContextAnalysisContextBtn.hidden = false;
+    // 删除每行末换行符：始终可用（无选中处理全文，有选中处理选中）
+    elements.joinLineEndsContextBtn.hidden = false;
     // 管理词典始终可用
     elements.manageDictionaryContextBtn.hidden = false;
     // 分隔线显隐：共3条分隔线，后2条（翻译相关）按选中状态
@@ -1857,6 +1880,11 @@
     // 管理词典：打开自定义词典管理弹窗
     if (action === 'manageDictionary') {
       openDictModal();
+      return;
+    }
+    // 删除每行末尾换行符：将客户端截断的多行日志合并为整行，便于后续格式化（JSON/SQL等）
+    if (action === 'joinLineEnds') {
+      joinLineEnds();
       return;
     }
     mainEditor.focus();

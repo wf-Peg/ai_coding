@@ -331,10 +331,21 @@ public class LearningPlanService {
      */
     public LearningPlan saveBuiltinPlan(LearningPlan plan) {
         List<LearningPlan> existing = fileStorageService.getAllLearningPlans();
-        boolean exists = existing.stream()
-                .anyMatch(p -> plan.getTitle().equals(p.getTitle()) && p.isBuiltin());
-        if (exists) {
-            return null; // 已存在，跳过
+        // 同名内置计划：保留 updatedAt 最新的一个，清除其余副本（自愈历史重复播种数据）
+        List<LearningPlan> sameTitleBuiltin = existing.stream()
+                .filter(p -> plan.getTitle().equals(p.getTitle()) && p.isBuiltin())
+                .collect(Collectors.toList());
+        if (!sameTitleBuiltin.isEmpty()) {
+            sameTitleBuiltin.sort(Comparator.comparing(
+                    LearningPlan::getUpdatedAt, Comparator.nullsFirst(Comparator.naturalOrder())).reversed());
+            LearningPlan keep = sameTitleBuiltin.get(0);
+            for (LearningPlan dup : sameTitleBuiltin) {
+                if (!dup.getId().equals(keep.getId())) {
+                    log.info("[LearningPlanService] 清理重复内置计划: id={}, title={}", dup.getId(), dup.getTitle());
+                    fileStorageService.deleteLearningPlan(dup.getId());
+                }
+            }
+            return null; // 已存在，跳过播种
         }
         plan.setBuiltin(true);
         return fileStorageService.saveLearningPlan(plan);

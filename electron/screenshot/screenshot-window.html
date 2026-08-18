@@ -55,6 +55,7 @@
     background: rgba(30,30,30,0.94); border-radius: 10px; padding: 5px 7px;
     box-shadow: 0 6px 20px rgba(0,0,0,0.45); align-items: center;
     animation: popIn 0.14s ease; /* display:none→flex 时播放一次 */
+    flex-wrap: wrap; max-width: calc(100vw - 16px); justify-content: center; /* 窄屏自动换行，杜绝按钮溢出/重叠 */
   }
   #toolbar button {
     border: none; background: transparent; color: #e5e7eb; font-size: 12.5px;
@@ -291,16 +292,17 @@
     h('sw').style.transform = 'translate(0px,' + (rect.h - hw) + 'px)';
     h('w').style.transform = 'translate(0px,' + (rect.h / 2 - hw / 2) + 'px)';
     sel.classList.add('resize');
-    // 工具栏跟随（宽度自适应，动画只作用于出现时）
-    const tbW = toolbar.offsetWidth || 300;
+    // 工具栏跟随：先显示再测量，避免 display:none 时 offsetWidth=0 退回 300px 导致定位偏移/按钮溢出重叠
+    toolbar.style.display = 'flex';
+    const tbW = toolbar.offsetWidth;
+    const tbH = toolbar.offsetHeight;
     let tx = rect.x + rect.w - tbW;
     let ty = rect.y + rect.h + 12;
-    if (ty + 48 > window.innerHeight) ty = Math.max(8, rect.y - 48);
+    if (ty + tbH + 8 > window.innerHeight) ty = Math.max(8, rect.y - tbH - 8);
     if (tx < 8) tx = 8;
     if (tx + tbW > window.innerWidth) tx = window.innerWidth - tbW - 8;
     toolbar.style.left = tx + 'px';
     toolbar.style.top = ty + 'px';
-    toolbar.style.display = 'flex';
     hint.style.display = 'none';
   }
 
@@ -464,6 +466,7 @@
     else if (e.key.toLowerCase() === 'o') setTool('ellipse');    // O 椭圆
     else if (e.key.toLowerCase() === 'a') setTool('arrow');      // A 箭头
     else if (e.key.toLowerCase() === 'p') setTool('pen');        // P 画笔
+    else if (e.key.toLowerCase() === 't') setTool('text');       // T 文本
     else if (e.key.toLowerCase() === 'm') setTool('mosaic');     // M 马赛克
     else if (e.key.toLowerCase() === 'e') setTool('eraser');     // E 橡皮
     else if (e.key.toLowerCase() === 'c') { e.preventDefault(); pickColorAt(e.clientX, e.clientY); return; } // C 取色
