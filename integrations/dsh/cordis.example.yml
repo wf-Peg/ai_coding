@@ -12,31 +12,34 @@
 #      以及 clip_session 工具（Phase 1：会话成果自动落库）
 #
 # 注意：
-#   - command 必须是 node 的绝对路径（Windows 下为 node.exe）；脚本路径用正斜杠。
-#   - 若 3080 被占用，可在此文件加一条 webserver patch 改端口（见下方注释示例）。
+#   - command 必须是 node 的绝对路径（Windows 下为 node.exe，用 `where node` 查）；
+#     本文件按本机（C:\nvm4w\nodejs\node.exe）填写，换机器需改。
+#   - 端口默认 3081：因为 3080 通常已被日常 DSH 实例占用，避免冲突。
 #   - 本桥无鉴权，仅绑定本机 8081 后端，不要暴露到公网。
 
 - id: webserver
   config:
     host: 127.0.0.1
-    port: 3080
-# 端口冲突时改为 3081 并重启即可。
+    port: 3081
+# 若 3081 也被占用，改其他端口后重启即可。
 
-- id: mcp-cut-shelter
-  name: '@deepseek-ai/dsh-mcp-client'
-  config:
-    serverName: cut_shelter
-    transport: stdio
-    command: 'C:/Program Files/nodejs/node.exe'
-    args:
-      - 'L:/归档/30_Projects (行动项目)/31_Work (主要工作)/code/ai_coding/integrations/dsh/mcp-server/server.mjs'
-    env:
-      CUTSHELTER_BASE_URL: http://127.0.0.1:8081
-      CUTSHELTER_TIMEOUT_MS: '60000'
-
-# Phase 1：clip_session 工具（会话成果自动落库）——本地插件，先 npm install
+# 新增插件统一放 insert 块（顶层 id 条目是"替换已有条目"语义，对不存在的新插件无效）
 - insert:
+    - id: mcp-cut-shelter
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: cut_shelter
+        transport: stdio
+        command: 'C:/nvm4w/nodejs/node.exe'
+        args:
+          - 'L:/归档/30_Projects (行动项目)/31_Work (主要工作)/code/ai_coding/integrations/dsh/mcp-server/server.mjs'
+        env:
+          CUTSHELTER_BASE_URL: http://127.0.0.1:8081
+          CUTSHELTER_TIMEOUT_MS: '60000'
+
+    # Phase 1：clip_session 工具（会话成果自动落库）——本地插件，先 npm install。
+    # 注意：Windows 上插件 name 必须是 file:// URL（盘符路径 L:/... 会被 ESM 当成 l: 协议报错）。
     - id: clip-capture
-      name: 'L:/归档/30_Projects (行动项目)/31_Work (主要工作)/code/ai_coding/integrations/dsh/plugins/clip-capture/index.mjs'
+      name: 'file:///L:/%E5%BD%92%E6%A1%A3/30_Projects%20(%E8%A1%8C%E5%8A%A8%E9%A1%B9%E7%9B%AE)/31_Work%20(%E4%B8%BB%E8%A6%81%E5%B7%A5%E4%BD%9C)/code/ai_coding/integrations/dsh/plugins/clip-capture/index.mjs'
       config:
         baseUrl: http://127.0.0.1:8081

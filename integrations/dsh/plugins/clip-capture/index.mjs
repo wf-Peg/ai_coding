@@ -17,8 +17,8 @@ import { defineTool } from '@deepseek-ai/dsh-tools';
 export const name = 'clip-capture';
 export const inject = ['tools'];
 
-export function apply(ctx) {
-  const baseUrl = (ctx.config?.baseUrl
+export function apply(ctx, config) {
+  const baseUrl = (config?.baseUrl
     || process.env.CUTSHELTER_BASE_URL
     || 'http://127.0.0.1:8081').replace(/\/+$/, '');
 

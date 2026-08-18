@@ -41,7 +41,7 @@ try {
   const expected = [
     'clip_search', 'clip_list', 'clip_add', 'clip_delete', 'clip_categories',
     'todo_list', 'todo_add', 'todo_set_status', 'learning_plan_list',
-    'wiki_index', 'weekly_report_status',
+    'wiki_index', 'weekly_report_status', 'tools_hub_list', 'tools_hub_page',
   ];
   for (const n of expected) check(`tool ${n}`, names.includes(n));
 

@@ -30,13 +30,12 @@ async function api(path, { method = 'GET', body } = {}) {
   return text ? JSON.parse(text) : null;
 }
 
-// 1) Load plugin with a fake ctx
+// 1) Load plugin with a fake ctx (config is passed as the 2nd apply argument, per Cordis)
 const tools = [];
 const fakeCtx = {
-  config: { baseUrl: BASE_URL },
   tools: { register: (t) => tools.push(t) },
 };
-apply(fakeCtx);
+apply(fakeCtx, { baseUrl: BASE_URL });
 
 check('plugin registers exactly one tool', tools.length === 1, `got ${tools.length}`);
 const tool = tools[0] || {};

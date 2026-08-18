@@ -1613,6 +1613,128 @@ function onStartupModeChange() {
   }
 }
 
+// ==================== DSH Agent 设置（AI 干活） ====================
+
+/**
+ * 初始化 DSH Agent 设置区块：回填配置、技能包状态、运行状态，并绑定操作按钮。
+ */
+function initDshAgentSection() {
+  const api = getElectronAPI();
+  if (!api || typeof api.getConfig !== 'function') {
+    const section = document.getElementById('dshAgentSection');
+    if (section) section.style.display = 'none';
+    return;
+  }
+
+  // 回填配置
+  api.getConfig().then((cfg) => {
+    if (!cfg) return;
+    const enabled = document.getElementById('dshAgentEnabled');
+    const port = document.getElementById('dshPort');
+    const binPath = document.getElementById('dshBinPath');
+    if (enabled) enabled.checked = cfg.dshAgentEnabled !== false;
+    if (port) port.value = cfg.dshPort || 3081;
+    if (binPath) binPath.value = cfg.dshBinPath || '';
+  }).catch(() => {});
+
+  // 技能包状态
+  const refreshSkillStatus = () => {
+    if (!api.dshSkillStatus) return;
+    api.dshSkillStatus().then((s) => {
+      const desc = document.getElementById('dshSkillStatusDesc');
+      if (desc && s) desc.textContent = s.installed
+        ? '✅ 已安装：' + s.target
+        : '未安装：cut-shelter 技能将复制到 ~/.dsh/skills/cut-shelter';
+    }).catch(() => {});
+  };
+  refreshSkillStatus();
+
+  // 运行状态
+  const refreshRunStatus = () => {
+    if (!api.dshAgentStatus) return;
+    api.dshAgentStatus().then((s) => {
+      const desc = document.getElementById('dshAgentRunDesc');
+      if (desc && s) desc.textContent = s.running
+        ? ('运行中（端口 ' + s.port + (s.owned ? '，本应用拉起' : '，复用实例') + '）')
+        : '未运行（端口 ' + (s && s.port || 3081) + '）';
+    }).catch(() => {});
+  };
+  refreshRunStatus();
+
+  // 保存设置
+  const btnSave = document.getElementById('btnSaveDshConfig');
+  if (btnSave) {
+    btnSave.addEventListener('click', () => {
+      const enabled = document.getElementById('dshAgentEnabled');
+      const port = document.getElementById('dshPort');
+      const binPath = document.getElementById('dshBinPath');
+      api.saveConfig({
+        dshAgentEnabled: enabled ? enabled.checked : true,
+        dshPort: parseInt(port && port.value, 10) || 3081,
+        dshBinPath: (binPath && binPath.value.trim()) || '',
+      }).then((r) => {
+        showToast(r && r.success ? 'DSH 设置已保存（端口/路径重启应用后生效）' : '保存失败');
+        refreshRunStatus();
+      }).catch((e) => showToast('保存失败: ' + e.message, true));
+    });
+  }
+
+  // 一键安装技能包
+  const btnSkill = document.getElementById('btnInstallSkill');
+  if (btnSkill) {
+    btnSkill.addEventListener('click', () => {
+      btnSkill.disabled = true;
+      btnSkill.textContent = '安装中…';
+      api.installDshSkill().then((r) => {
+        btnSkill.disabled = false;
+        btnSkill.textContent = '一键安装技能包';
+        if (r && r.success) showToast('技能包已安装到 ' + r.target);
+        else showToast('安装失败：' + ((r && r.message) || '未知错误'), true);
+        refreshSkillStatus();
+      }).catch((e) => {
+        btnSkill.disabled = false;
+        btnSkill.textContent = '一键安装技能包';
+        showToast('安装失败: ' + e.message, true);
+      });
+    });
+  }
+
+  // 启动 / 停止 / 打开
+  const btnStart = document.getElementById('btnStartDshAgent');
+  if (btnStart) {
+    btnStart.addEventListener('click', () => {
+      btnStart.disabled = true;
+      api.ensureDshAgent().then((r) => {
+        btnStart.disabled = false;
+        if (r && r.success) showToast(r.reused ? '已复用现有实例（端口 ' + r.port + '）' : 'DSH 已启动（端口 ' + r.port + '）');
+        else showToast('启动失败：' + ((r && r.message) || '未知错误'), true);
+        refreshRunStatus();
+      }).catch((e) => { btnStart.disabled = false; showToast('启动失败: ' + e.message, true); });
+    });
+  }
+  const btnStop = document.getElementById('btnStopDshAgent');
+  if (btnStop) {
+    btnStop.addEventListener('click', () => {
+      api.stopDshAgent().then(() => {
+        showToast('已停止本应用拉起的 DSH（复用实例不受影响）');
+        refreshRunStatus();
+      });
+    });
+  }
+  const btnOpen = document.getElementById('btnOpenDshAgent');
+  if (btnOpen) {
+    btnOpen.addEventListener('click', () => {
+      const port = parseInt((document.getElementById('dshPort') || {}).value, 10) || 3081;
+      window.open('http://127.0.0.1:' + port, '_blank');
+    });
+  }
+}
+
+// 页面就绪后初始化（settings.html 底部脚本调用时机）
+if (typeof getElectronAPI === 'function') {
+  initDshAgentSection();
+}
+
 // ====== 接收主框架消息：滚动到顶部 / 刷新 ======
 window.addEventListener('message', (e) => {
   if (e.data.action === 'scrollToTop') {

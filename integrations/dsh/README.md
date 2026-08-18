@@ -1,6 +1,6 @@
-# 剪藏（CutShelter）× DSH 集成 —— Phase 0/1：MCP 桥 + 会话成果落库
+# 剪藏（CutShelter）× DSH 集成 —— Phase 0/1/2/3：MCP 桥 + 会话成果落库 + Agent 面板 + Tools Hub 互通
 
-让 DeepSeek Harness（DSH）的 Agent 能**检索与写入剪藏知识库**（剪藏 / 待办 / 学习计划 / Wiki 索引 / 周报状态），并在完成工作后**把会话成果自动落库**，实现"AI 用你的知识库干活，干完自动沉淀"。
+让 DeepSeek Harness（DSH）的 Agent 能**检索与写入剪藏知识库**（剪藏 / 待办 / 学习计划 / Wiki 索引 / 周报状态 / Tools Hub），完成工作后**把会话成果自动落库**，并在剪藏桌面端提供**内嵌的「AI 干活」面板**（iframe 固定端口 3081），实现"AI 用你的知识库干活，干完自动沉淀"。
 
 完整的方向分析与路线图见 [docs/DSH集成探索.md](../../docs/DSH集成探索.md)。
 
@@ -8,19 +8,23 @@
 
 ```
 integrations/dsh/
-├── mcp-server/            Node MCP stdio server（代理剪藏 8081 REST）—— Phase 0
-│   ├── server.mjs         11 个工具：clip_search/list/add/delete/categories、
-│   │                      todo_list/add/set_status、learning_plan_list、
-│   │                      wiki_index、weekly_report_status
+├── mcp-server/            Node MCP stdio server（代理剪藏 8081 REST）—— Phase 0 + 3
+│   ├── server.mjs         13 个工具：clip_search/list/add/delete/categories、
+│   │                      todo_list/add/set_status、learning_plan_list、wiki_index、
+│   │                      weekly_report_status、tools_hub_list、tools_hub_page
 │   ├── package.json       依赖 @modelcontextprotocol/sdk
 │   └── test.mjs           standalone 测试（initialize → tools/list → tools/call）
 ├── plugins/clip-capture/   DSH 本地插件 —— Phase 1
 │   ├── index.mjs          注册 clip_session 工具（会话成果摘要 → 剪藏，source=dsh）
 │   ├── package.json       依赖 @deepseek-ai/dsh-tools
 │   └── test-plugin.mjs    standalone 测试（插件装载 + execute 端到端）
-├── cordis.example.yml     dsh web --patch 覆盖层示例（挂 mcp-client + clip-capture）
+├── cordis.example.yml     dsh web --patch 覆盖层示例（挂 mcp-client + clip-capture；端口 3081）
 └── skills/cut-shelter/    SKILL.md 技能包（存储布局 + 读写约定 + 边界 + TODO 约定）
 ```
+
+> 💡 **想直接上手体验？** 端到端步骤（启动后端 → 启动 patched DSH → 6 个体验场景 → 排查表）见 [docs/DSH体验测试指南.md](../../docs/DSH体验测试指南.md)。
+>
+> 💡 **Phase 2（剪藏内嵌 Agent 面板）**：改动在 `electron/main.js`（DSH sidecar：固定 3081、复用检测、按需启动）、`electron/preload.js`（IPC）、`frontend/index.html`（「AI 干活」视图 + 主题适配）。启动剪藏桌面应用后点导航「AI 干活」即可。
 
 ## 快速开始
 

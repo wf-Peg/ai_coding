@@ -166,10 +166,16 @@ const DEFAULT_CONFIG = {
   customApiKey: '',              // 自定义 OpenAI 兼容 API Key
   customModel: '',               // 自定义 OpenAI 兼容模型名称
   // 截图小工具配置
+  screenshotEnabled: true,        // 截图工具是否启用
   screenshotShortcut: 'F1',      // 截图快捷键（默认 F1）
   pasteShortcut: 'F2',           // 贴图快捷键（默认 F2）
   screenshotHideMain: true,      // 截图时是否收起主窗口
   screenshotSaveDir: ''          // 截图默认保存目录（空 = 弹保存对话框）
+  ,
+  // ===== DSH Agent 内嵌（Phase 2）=====
+  dshAgentEnabled: true,        // 是否启用"AI 干活"面板（打开 Agent 视图时按需拉起 dsh web sidecar）
+  dshPort: 3081,                // DSH sidecar 端口（固定 3081，避免与用户手动启动的 3080 冲突；若 3081 已有 DSH 则复用）
+  dshBinPath: ''                // DSH CLI 路径（空 = 自动探测：DSH_BIN env → 内置 node_modules → npx 缓存 → npx）
 };
 
 /**
@@ -781,6 +787,138 @@ function stopBackend() {
     killPortProcess(config.backendPort);
     killPortProcess(config.frontendPort);
   }
+}
+
+// ==================== DSH Agent sidecar（Phase 2：剪藏内嵌 DSH「Agent 模式」）====================
+// 说明：
+//   - 固定使用 3081 端口（dshPort），避免与用户手动启动的 DSH（默认 3080）冲突；
+//   - 若 3081 已有 DSH 实例在响应，直接复用（不重复拉起，退出时也不杀用户进程）；
+//   - 按需启动：前端打开"AI 干活"视图时通过 IPC 'dsh-agent:ensure' 触发。
+
+let dshAgentProcess = null;
+let dshAgentOwned = false;   // true = 进程是本应用拉起的，退出需关闭；false = 复用了已有实例
+
+/** 探测本地端口是否返回 HTTP 200（判断 DSH Web 是否就绪） */
+function checkHttpPort(port, pathname = '/') {
+  return new Promise((resolve) => {
+    const req = http.request({
+      hostname: '127.0.0.1', port: port, path: pathname, method: 'GET', timeout: 2500
+    }, (res) => {
+      res.resume();
+      resolve(res.statusCode === 200);
+    });
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+    req.end();
+  });
+}
+
+/**
+ * 解析 dsh CLI 可执行入口。
+ * 优先级：配置 dshBinPath → 环境变量 DSH_BIN → 应用内置 node_modules → npx 缓存 → npx。
+ * @returns {{mode: 'node'|'npx', file: string}}
+ */
+function resolveDshBin(config) {
+  const candidates = [
+    config && config.dshBinPath ? config.dshBinPath : '',
+    process.env.DSH_BIN || '',
+    path.join(APP_DIR, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
+  ];
+  for (const c of candidates) {
+    if (c && fs.existsSync(c)) return { mode: 'node', file: c };
+  }
+  // npx 缓存扫描（用户可能通过 npx @deepseek-ai/dsh web 运行过，缓存里已有 dsh）
+  const npxRoots = [
+    path.join(process.env.APPDATA || '', 'npm-cache', '_npx'),
+    path.join(os.homedir(), '.npm', '_npx'),
+  ];
+  for (const root of npxRoots) {
+    if (!fs.existsSync(root)) continue;
+    let dirs = [];
+    try { dirs = fs.readdirSync(root); } catch (e) { continue; }
+    for (const d of dirs) {
+      const p = path.join(root, d, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
+      if (fs.existsSync(p)) return { mode: 'node', file: p };
+    }
+  }
+  return { mode: 'npx', file: 'npx' };
+}
+
+/**
+ * 按需启动（或复用）DSH Web sidecar，供"AI 干活"面板 iframe 内嵌。
+ * @param {Object} config 应用配置
+ * @returns {Promise<{success: boolean, reused: boolean, port: number, message?: string}>}
+ */
+async function startDshAgent(config) {
+  const port = (config && config.dshPort) || 3081;
+
+  // 1) 端口已有 DSH 实例在响应 → 复用（用户手动启动的实例，避免端口冲突）
+  if (await checkHttpPort(port)) {
+    dshAgentOwned = false;
+    log.info(`[DSH Agent] Reusing existing DSH instance on port ${port}`);
+    return { success: true, reused: true, port };
+  }
+
+  // 2) 定位 patch 覆盖层（integrations/dsh/cordis.example.yml，含 MCP 桥 + clip-capture 插件）
+  const patch = process.env.DSH_PATCH || path.join(APP_DIR, 'integrations', 'dsh', 'cordis.example.yml');
+  if (!fs.existsSync(patch)) {
+    return { success: false, message: `DSH patch not found: ${patch}` };
+  }
+
+  const bin = resolveDshBin(config);
+  const args = bin.mode === 'npx'
+    ? ['-y', '@deepseek-ai/dsh', 'web', '--patch', patch]
+    : ['web', '--patch', patch];
+  log.info(`[DSH Agent] Starting: ${bin.file} ${args.join(' ')}`);
+
+  dshAgentProcess = spawn(bin.file, args, {
+    shell: bin.mode === 'npx',
+    cwd: APP_DIR,
+    env: {
+      ...process.env,
+      CUTSHELTER_BASE_URL: `http://127.0.0.1:${(config && config.backendPort) || 8081}`,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  dshAgentProcess.stdout.on('data', (d) => log.info(`[DSH Agent] ${String(d).trim()}`));
+  dshAgentProcess.stderr.on('data', (d) => log.warn(`[DSH Agent] ${String(d).trim()}`));
+  dshAgentProcess.on('close', (code) => {
+    log.info(`[DSH Agent] exited with code ${code}`);
+    if (dshAgentProcess) { dshAgentProcess = null; dshAgentOwned = false; }
+  });
+  dshAgentProcess.on('error', (err) => {
+    log.error(`[DSH Agent] start error: ${err.message}`);
+    dshAgentProcess = null;
+    dshAgentOwned = false;
+  });
+  dshAgentOwned = true;
+
+  // 3) 轮询等待就绪（最长 60 秒）
+  const deadline = Date.now() + 60000;
+  while (Date.now() < deadline) {
+    if (await checkHttpPort(port)) {
+      log.info(`[DSH Agent] ready at http://127.0.0.1:${port}`);
+      return { success: true, reused: false, port };
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  return { success: false, message: `DSH Agent startup timeout on port ${port}` };
+}
+
+/** 停止本应用拉起的 DSH sidecar（复用实例不杀） */
+function stopDshAgent() {
+  if (dshAgentProcess && dshAgentOwned) {
+    log.info('[DSH Agent] stopping...');
+    try { dshAgentProcess.kill('SIGTERM'); } catch (e) { /* ignore */ }
+    setTimeout(() => {
+      if (dshAgentProcess) {
+        try { dshAgentProcess.kill('SIGKILL'); } catch (e) { /* ignore */ }
+        dshAgentProcess = null;
+        dshAgentOwned = false;
+      }
+    }, 3000);
+  }
+  dshAgentOwned = false;
 }
 
 /**
@@ -1610,6 +1748,7 @@ function quitApp() {
 
   stopBackend();
   stopFrontendServer();
+  stopDshAgent();
   app.quit();
 }
 
@@ -1673,6 +1812,40 @@ function setupIPC() {
    */
   ipcMain.handle('is-backend-running', () => {
     return backendStarted;
+  });
+
+  /**
+   * DSH Agent sidecar 状态（Phase 2）
+   */
+  ipcMain.handle('dsh-agent:status', async () => {
+    const config = loadConfig();
+    const port = config.dshPort || 3081;
+    const running = await checkHttpPort(port);
+    return { running, owned: dshAgentOwned, port };
+  });
+
+  /**
+   * 按需启动（或复用）DSH Agent sidecar
+   */
+  ipcMain.handle('dsh-agent:ensure', async () => {
+    const config = loadConfig();
+    if (!config.dshAgentEnabled) {
+      return { success: false, message: 'DSH Agent 已在设置中禁用（dshAgentEnabled=false）' };
+    }
+    try {
+      return await startDshAgent(config);
+    } catch (e) {
+      log.error('dsh-agent:ensure failed:', e);
+      return { success: false, message: e.message };
+    }
+  });
+
+  /**
+   * 停止本应用拉起的 DSH Agent sidecar（复用实例不受影响）
+   */
+  ipcMain.handle('dsh-agent:stop', async () => {
+    stopDshAgent();
+    return { success: true };
   });
 
   /**
@@ -2079,44 +2252,318 @@ function setupIPC() {
     return candidates[0] || path.join(config.storagePath || APP_DIR, 'clip-organized');
   }
 
-  ipcMain.handle('editor-list-wikilink-targets', async () => {
+  // 多模块 + 多类型索引：以 config.storagePath 为父目录，自动发现其下所有含
+  // 「可链接文本文件」的一级子目录作为独立模块（clip-organized / clip-weekly-report /
+  // obsidian-vault / tmp 等），每个模块各自维护「目标列表 + 反链反向索引」，
+  // 通过 fs.watch 监听变化自动失效重建；watch 不可用时以 TTL 兜底，
+  // 避免每次反链刷新/补全请求都全量读盘，显著降低反链同步延迟。
+  // 可链接类型：md + 编辑器可打开的文本类型（txt/sql/json/xml/csv/log/yaml 等）。
+  const LINKABLE_EXT_RE = /\.(md|mdown|markdown|txt|sql|json|xml|csv|log|yaml|yml|ini|conf)$/i;
+  // 排除模块：原始存档目录（如 clip-storage 的海量 json），避免补全被污染。
+  const EXCLUDED_MODULE_DIRS = ['clip-storage'];
+  const LINK_INDEX_TTL = 3000;            // 模块 watch 不可用时的 TTL 兜底（毫秒）
+  const LINK_INDEX_SCAN_MAX_BYTES = 10 * 1024 * 1024; // 反链扫描大小守卫（>10MB 只作目标）
+
+  let wikilinkModules = {};               // id -> { id, name, root, targets, reverse, builtAt, watcher, watchTimer }
+  let wikilinkModulesParent = null;       // 当前发现所用的父目录
+  let wikilinkModulesDiscoveredAt = 0;    // 最近一次模块发现时间
+  let wikilinkModulesWatcher = null;      // 父目录监听（模块新增/删除）
+  let wikilinkModulesTimer = null;
+
+  /** 递归判断目录下是否存在 ≥1 个可链接文本文件 */
+  function dirHasLinkableFile(dir) {
+    let found = false;
     try {
-      const config = loadConfig();
-      const vaultRoot = resolveVaultRoot(config);
-      const targets = [];
-      if (!fs.existsSync(vaultRoot)) return { targets: [] };
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.name.startsWith('.')) continue;
+        if (entry.isDirectory()) {
+          if (dirHasLinkableFile(path.join(dir, entry.name))) { found = true; break; }
+        } else if (entry.isFile() && LINKABLE_EXT_RE.test(entry.name)) {
+          found = true; break;
+        }
+      }
+    } catch (e) { /* ignore */ }
+    return found;
+  }
+
+  /** 关闭单个模块的 watcher 与计时器 */
+  function closeModuleWatcher(mod) {
+    if (!mod) return;
+    if (mod.watchTimer) { clearTimeout(mod.watchTimer); mod.watchTimer = null; }
+    if (mod.watcher) { try { mod.watcher.close(); } catch (e) { /* ignore */ } mod.watcher = null; }
+  }
+
+  /** 为单个模块构建「目标列表 + 反向索引」（所有可链接文本文件都解析 [[...]]，真正双向） */
+  function buildModuleIndex(mod) {
+    const targets = [];
+    const reverse = Object.create(null);
+    const linkRe = /\[\[([^\[\]\n]+)\]\]/g;
+    if (fs.existsSync(mod.root)) {
       const walk = (dir, relPrefix) => {
         const entries = fs.readdirSync(dir, { withFileTypes: true });
         for (const entry of entries) {
           if (entry.name.startsWith('.')) continue;
           const abs = path.join(dir, entry.name);
           const rel = relPrefix ? path.join(relPrefix, entry.name) : entry.name;
-          if (entry.isDirectory()) {
-            walk(abs, rel);
-          } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
-            targets.push({
-              basename: path.basename(entry.name, path.extname(entry.name)),
-              fileName: entry.name,
-              relativePath: rel.split(path.sep).join('/'),
-              absolutePath: abs
-            });
-          }
+          if (entry.isDirectory()) { walk(abs, rel); continue; }
+          if (!entry.isFile() || !LINKABLE_EXT_RE.test(entry.name)) continue;
+          const basename = path.basename(entry.name, path.extname(entry.name));
+          const fileName = entry.name;
+          const relativePath = rel.split(path.sep).join('/');
+          targets.push({ moduleId: mod.id, moduleName: mod.name, basename, fileName, relativePath, absolutePath: abs });
+          // 反链扫描：大小守卫 + 解析该文件内所有 [[链接]]，按链接 basename 建立反向索引
+          let stat;
+          try { stat = fs.statSync(abs); } catch (e) { continue; }
+          if (stat.size > LINK_INDEX_SCAN_MAX_BYTES) continue;
+          let content;
+          try { content = fs.readFileSync(abs, 'utf-8'); } catch (e) { continue; }
+          const lines = content.split('\n');
+          lines.forEach((line, idx) => {
+            linkRe.lastIndex = 0;
+            let m;
+            while ((m = linkRe.exec(line)) !== null) {
+              const raw = String(m[1]).trim();
+              if (!raw) continue;
+              const t = raw.split('|')[0].split('#')[0].trim(); // 去别名与锚点
+              if (!t) continue;
+              const key = t.split('/').pop().toLowerCase(); // 取 basename（含扩展名形式）
+              if (!key) continue;
+              const text = line.replace(/\t/g, '    ').trim();
+              const match = { lineNumber: idx + 1, text: text.length > 240 ? text.substring(0, 240) + '…' : text };
+              if (!reverse[key]) reverse[key] = [];
+              const arr = reverse[key];
+              // 同一文件的多行匹配合并到一个 backlink 条目
+              const last = arr[arr.length - 1];
+              if (last && last.absolutePath === abs) {
+                last.matches.push(match);
+              } else {
+                arr.push({
+                  moduleId: mod.id,
+                  moduleName: mod.name,
+                  fileName,
+                  basename,
+                  absolutePath: abs,
+                  relativePath,
+                  matches: [match]
+                });
+              }
+            }
+          });
         }
       };
-      walk(vaultRoot, '');
-      return { targets };
+      walk(mod.root, '');
+    }
+    mod.targets = targets;
+    mod.reverse = reverse;
+    mod.builtAt = Date.now();
+  }
+
+  /** 为单个模块建立递归 watcher（不可用则走 TTL 兜底） */
+  function setupModuleWatcher(mod) {
+    closeModuleWatcher(mod);
+    try {
+      mod.watcher = fs.watch(mod.root, { recursive: true }, () => {
+        if (mod.watchTimer) clearTimeout(mod.watchTimer);
+        mod.watchTimer = setTimeout(() => {
+          mod.watchTimer = null;
+          buildModuleIndex(mod);
+        }, 500);
+      });
+    } catch (e) {
+      log.warn('[EditorWikilink] recursive watch unavailable for module', mod.id, ':', e.message);
+    }
+  }
+
+  /** 发现模块清单并与 wikilinkModules 同步（新增构建、删除关闭、变更重建） */
+  function discoverAndSyncModules(config, parentDir) {
+    const discovered = [];
+    if (parentDir && fs.existsSync(parentDir)) {
+      const entries = fs.readdirSync(parentDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+        if (EXCLUDED_MODULE_DIRS.indexOf(entry.name) !== -1) continue;
+        const root = path.join(parentDir, entry.name);
+        if (!dirHasLinkableFile(root)) continue;
+        discovered.push({ id: entry.name, name: entry.name, root });
+      }
+    }
+    // 兜底：无任何模块 → 回退 resolveVaultRoot 单一模块，保证兼容
+    if (discovered.length === 0) {
+      const root = resolveVaultRoot(config);
+      if (root) discovered.push({ id: 'default', name: '默认', root });
+    }
+    // 关闭已消失模块的 watcher
+    for (const id of Object.keys(wikilinkModules)) {
+      if (!discovered.some(m => m.id === id)) closeModuleWatcher(wikilinkModules[id]);
+    }
+    // 同步模块表（根变化才重建索引）
+    const next = {};
+    for (const d of discovered) {
+      let mod = wikilinkModules[d.id];
+      if (!mod || mod.root !== d.root) {
+        if (mod) closeModuleWatcher(mod);
+        mod = { id: d.id, name: d.name, root: d.root, targets: [], reverse: Object.create(null), builtAt: 0, watcher: null, watchTimer: null };
+      } else {
+        mod.name = d.name;
+      }
+      if (!mod.builtAt) {
+        buildModuleIndex(mod);
+        setupModuleWatcher(mod);
+      }
+      next[d.id] = mod;
+    }
+    wikilinkModules = next;
+    wikilinkModulesParent = parentDir;
+    wikilinkModulesDiscoveredAt = Date.now();
+  }
+
+  /** 监听父目录：模块新增/删除时防抖重新发现 */
+  function setupModulesWatcher(parentDir) {
+    if (wikilinkModulesWatcher) {
+      try { wikilinkModulesWatcher.close(); } catch (e) { /* ignore */ }
+      wikilinkModulesWatcher = null;
+    }
+    if (!parentDir || !fs.existsSync(parentDir)) return;
+    try {
+      wikilinkModulesWatcher = fs.watch(parentDir, () => {
+        if (wikilinkModulesTimer) clearTimeout(wikilinkModulesTimer);
+        wikilinkModulesTimer = setTimeout(() => {
+          wikilinkModulesTimer = null;
+          const config = loadConfig();
+          discoverAndSyncModules(config, config.storagePath || APP_DIR);
+        }, 500);
+      });
+    } catch (e) { /* ignore */ }
+  }
+
+  /** 确保索引就绪：发现模块 + 构建缺失模块 + TTL 兜底，返回聚合 targets 与模块列表 */
+  function ensureWikilinkIndex() {
+    const config = loadConfig();
+    const parentDir = config.storagePath || APP_DIR;
+    const needsDiscovery = wikilinkModulesParent !== parentDir
+      || Object.keys(wikilinkModules).length === 0
+      || Date.now() - wikilinkModulesDiscoveredAt > 5000;
+    if (needsDiscovery) {
+      discoverAndSyncModules(config, parentDir);
+      setupModulesWatcher(parentDir);
+    }
+    // watch 不可用模块的 TTL 兜底刷新
+    const now = Date.now();
+    for (const id of Object.keys(wikilinkModules)) {
+      const mod = wikilinkModules[id];
+      if (!mod.watcher && now - mod.builtAt > LINK_INDEX_TTL) {
+        buildModuleIndex(mod);
+        setupModuleWatcher(mod);
+      }
+    }
+    return { targets: aggregateTargets(), modules: getModuleList() };
+  }
+
+  /** 聚合所有模块的 targets */
+  function aggregateTargets() {
+    const out = [];
+    for (const id of Object.keys(wikilinkModules)) {
+      out.push.apply(out, wikilinkModules[id].targets);
+    }
+    return out;
+  }
+
+  /** 模块清单 [{id,name,root}] */
+  function getModuleList() {
+    return Object.keys(wikilinkModules).map(id => ({ id, name: wikilinkModules[id].name, root: wikilinkModules[id].root }));
+  }
+
+  /** 由绝对路径判断其所属模块（路径前缀最长匹配），未纳管返回 null */
+  function getModuleIdByAbsPath(currentPath) {
+    if (!currentPath) return null;
+    const norm = path.normalize(currentPath);
+    let best = null;
+    let bestLen = -1;
+    for (const id of Object.keys(wikilinkModules)) {
+      const root = wikilinkModules[id].root;
+      if (root && norm.indexOf(path.normalize(root) + path.sep) === 0 && root.length > bestLen) {
+        best = id;
+        bestLen = root.length;
+      }
+    }
+    return best;
+  }
+
+  /** 聚合反链：同时按 basename 与 fileName（含扩展名）查各模块 reverse，去重/去自引用/就近排序 */
+  function aggregateBacklinks(currentPath) {
+    const fileName = currentPath ? path.basename(currentPath) : '';
+    const basename = fileName.replace(/\.[^.]+$/, '');
+    const keys = [];
+    if (basename) keys.push(basename.toLowerCase());
+    if (fileName && fileName.toLowerCase() !== basename.toLowerCase()) keys.push(fileName.toLowerCase());
+    const seen = Object.create(null);
+    const out = [];
+    for (const id of Object.keys(wikilinkModules)) {
+      const reverse = wikilinkModules[id].reverse || Object.create(null);
+      for (const key of keys) {
+        const arr = reverse[key];
+        if (!arr) continue;
+        for (const item of arr) {
+          if (currentPath && path.normalize(item.absolutePath) === path.normalize(currentPath)) continue; // 自引用
+          if (seen[item.absolutePath]) continue;
+          seen[item.absolutePath] = true;
+          out.push(item);
+        }
+      }
+    }
+    const currentModuleId = getModuleIdByAbsPath(currentPath);
+    out.sort((a, b) => {
+      const am = a.moduleId === currentModuleId ? 0 : 1;
+      const bm = b.moduleId === currentModuleId ? 0 : 1;
+      if (am !== bm) return am - bm;
+      return a.relativePath.length - b.relativePath.length;
+    });
+    return out;
+  }
+
+  /** 解析链接目标（出链用）：相对路径精确 → fileName 精确 → basename 就近优先；无命中返回 null */
+  function resolveTargetForLink(linkText, currentPath) {
+    const t = String(linkText || '').trim();
+    if (!t) return null;
+    const all = aggregateTargets();
+    if (t.indexOf('/') !== -1) {
+      const rel = all.filter(x => x.relativePath === t);
+      if (rel.length) return rel.length === 1 ? rel[0] : null;
+    }
+    const byFile = all.filter(x => x.fileName === t);
+    if (byFile.length) return byFile.length === 1 ? byFile[0] : null;
+    const byBase = all.filter(x => x.basename === t);
+    if (byBase.length === 0) return null;
+    if (byBase.length === 1) return byBase[0];
+    const currentModuleId = getModuleIdByAbsPath(currentPath);
+    byBase.sort((a, b) => {
+      const am = a.moduleId === currentModuleId ? 0 : 1;
+      const bm = b.moduleId === currentModuleId ? 0 : 1;
+      if (am !== bm) return am - bm;
+      return a.relativePath.length - b.relativePath.length;
+    });
+    return byBase[0];
+  }
+
+  ipcMain.handle('editor-list-wikilink-targets', async () => {
+    try {
+      const index = ensureWikilinkIndex();
+      return { targets: index.targets, modules: index.modules };
     } catch (err) {
       log.error('[EditorWikilink] list targets failed:', err.message);
-      return { targets: [], message: err.message };
+      return { targets: [], modules: [], message: err.message };
     }
   });
 
-  // ===== 编辑器保存到知识库（vault root/notes/{basename}.md）=====
+  // ===== 编辑器保存到知识库（clip-organized/notes/{basename}.md）=====
   // 让编辑器文件的可解析 basename 全局进入 Obsidian 生态。
   ipcMain.handle('editor-save-to-vault', async (event, payload) => {
     try {
       const config = loadConfig();
-      const vaultRoot = resolveVaultRoot(config);
+      // 优先使用发现的 clip-organized 模块根；未发现则回退 resolveVaultRoot
+      let vaultRoot = wikilinkModules['clip-organized'] ? wikilinkModules['clip-organized'].root : null;
+      if (!vaultRoot) vaultRoot = resolveVaultRoot(config);
       const notesDir = path.join(vaultRoot, 'notes');
       if (!fs.existsSync(notesDir)) fs.mkdirSync(notesDir, { recursive: true });
       const text = payload?.text || '';
@@ -2131,44 +2578,69 @@ function setupIPC() {
     }
   });
 
-  // ===== 编辑器双链反链搜索 =====
-  // 扫描 vault root 下所有 .md，找出含 `[[basename]]` 的行（basename 无扩展名）。
-  ipcMain.handle('editor-find-backlinks', async (event, basename) => {
+  // ===== 编辑器模板系统（templates 目录，跟随知识库根）=====
+  function resolveTemplatesDir() {
+    const config = loadConfig();
+    let vaultRoot = wikilinkModules['clip-organized'] ? wikilinkModules['clip-organized'].root : null;
+    if (!vaultRoot) vaultRoot = resolveVaultRoot(config);
+    const dir = path.join(vaultRoot, 'templates');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    return dir;
+  }
+
+  // 列出模板（*.md / *.txt）
+  ipcMain.handle('editor-list-templates', async () => {
     try {
-      const config = loadConfig();
-      const vaultRoot = resolveVaultRoot(config);
-      if (!fs.existsSync(vaultRoot)) return { backlinks: [] };
-      const backlinks = [];
-      const walk = (dir) => {
-        const entries = fs.readdirSync(dir, { withFileTypes: true });
-        for (const entry of entries) {
-          if (entry.name.startsWith('.')) continue;
-          const abs = path.join(dir, entry.name);
-          if (entry.isDirectory()) { walk(abs); continue; }
-          if (!entry.isFile() || !/\.md$/i.test(entry.name)) continue;
-          const content = fs.readFileSync(abs, 'utf-8');
-          const pattern = new RegExp(`\\[\\[${escapeRegex(basename)}(?:\\||\\]\\])`, 'i');
-          const lines = content.split('\n');
-          const matches = [];
-          lines.forEach((line, idx) => {
-            if (pattern.test(line)) {
-              // 保留原始换行与空白，便于前端折行展示；截断超长行避免渲染过宽
-              const raw = line.replace(/\t/g, '    ').trim();
-              matches.push({ lineNumber: idx + 1, text: raw.length > 240 ? raw.substring(0, 240) + '…' : raw });
-            }
-          });
-          if (matches.length > 0) {
-            backlinks.push({
-              fileName: entry.name,
-              basename: path.basename(entry.name, '.md'),
-              absolutePath: abs,
-              relativePath: path.relative(vaultRoot, abs).split(path.sep).join('/'),
-              matches
-            });
-          }
-        }
-      };
-      walk(vaultRoot);
+      const dir = resolveTemplatesDir();
+      const names = fs.readdirSync(dir)
+        .filter(f => /\.(md|txt)$/i.test(f))
+        .sort();
+      return { success: true, dir, templates: names.map(n => ({ name: n, path: path.join(dir, n) })) };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  // 读取单个模板内容
+  ipcMain.handle('editor-read-template', async (event, name) => {
+    try {
+      const dir = resolveTemplatesDir();
+      const safe = String(name || '').replace(/[\\/:*?"<>|]/g, '_');
+      if (!safe) throw new Error('模板名无效');
+      const filePath = path.join(dir, safe);
+      if (!filePath.startsWith(dir) || !fs.existsSync(filePath)) throw new Error('模板不存在：' + name);
+      const content = fs.readFileSync(filePath, 'utf-8');
+      return { success: true, content };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  // 保存模板（覆盖同名文件）
+  ipcMain.handle('editor-save-template', async (event, payload) => {
+    try {
+      const name = String(payload?.name || '').replace(/[\\/:*?"<>|]/g, '_');
+      if (!name) throw new Error('模板名无效');
+      if (!/\.(md|txt)$/i.test(name)) throw new Error('模板仅支持 .md / .txt');
+      const dir = resolveTemplatesDir();
+      const filePath = path.join(dir, name);
+      if (!filePath.startsWith(dir)) throw new Error('模板路径非法');
+      fs.writeFileSync(filePath, payload?.content || '', 'utf-8');
+      log.info('[EditorTemplate] saved', filePath);
+      return { success: true, filePath };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  // ===== 编辑器双链反链搜索 =====
+  // 基于 currentPath 推导 basename 与 fileName 双键查询，聚合各模块反向索引，
+  // 过滤自引用并按就近优先排序，无需全量扫描。
+  ipcMain.handle('editor-find-backlinks', async (event, currentPath) => {
+    try {
+      ensureWikilinkIndex();
+      const backlinks = aggregateBacklinks(currentPath);
+      log.info('[EditorWikilink] find backlinks for', currentPath, '| count=', backlinks.length);
       return { backlinks };
     } catch (err) {
       log.error('[EditorWikilink] find backlinks failed:', err.message);
@@ -2176,9 +2648,39 @@ function setupIPC() {
     }
   });
 
-  function escapeRegex(s) {
-    return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
+  // ===== 编辑器出链扫描 =====
+  // 读取当前文件内容，解析其 [[链接]]，逐个解析到多模块目标（就近优先），
+  // 返回目标解析结果与断链标记，供出链面板展示。
+  ipcMain.handle('editor-find-outgoing', async (event, currentPath) => {
+    try {
+      if (!currentPath || !fs.existsSync(currentPath)) {
+        return { outgoing: [], message: '当前文档尚未保存，无法扫描出链' };
+      }
+      const content = fs.readFileSync(currentPath, 'utf-8');
+      const linkRe = /\[\[([^\[\]\n]+)\]\]/g;
+      const seen = Object.create(null);
+      const outgoing = [];
+      let m;
+      while ((m = linkRe.exec(content)) !== null) {
+        const raw = String(m[1]).trim();
+        if (!raw) continue;
+        const t = raw.split('|')[0].split('#')[0].trim(); // 去别名与锚点
+        if (!t) continue;
+        if (seen[t]) continue;
+        seen[t] = true;
+        const resolved = resolveTargetForLink(t, currentPath);
+        outgoing.push({
+          target: t,
+          resolved: resolved ? { moduleId: resolved.moduleId, moduleName: resolved.moduleName, basename: resolved.basename, fileName: resolved.fileName, relativePath: resolved.relativePath, absolutePath: resolved.absolutePath } : null,
+          missing: !resolved
+        });
+      }
+      return { outgoing };
+    } catch (err) {
+      log.error('[EditorWikilink] find outgoing failed:', err.message);
+      return { outgoing: [], message: err.message };
+    }
+  });
 
   // ===== 编辑器自动保存 =====
   ipcMain.handle('editor-autosave-file', async (event, payload) => {
@@ -3496,6 +3998,7 @@ app.on('before-quit', () => {
   stopReminderScheduler();
   stopBackend();
   stopFrontendServer();
+  stopDshAgent();
 });
 
 // 应用退出时：确保清理所有服务进程
@@ -3503,6 +4006,7 @@ app.on('will-quit', () => {
   unregisterGlobalShortcut();
   stopBackend();
   stopFrontendServer();
+  stopDshAgent();
 });
 
 // macOS Dock 图标点击或应用激活时

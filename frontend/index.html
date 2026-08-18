@@ -200,6 +200,87 @@
             border: none;
         }
 
+        /* ===== AI 干活（Agent）面板：主题自适应 ===== */
+        #agentView {
+            display: flex;
+            flex-direction: column;
+            background: var(--bg);
+        }
+        .agent-panel-header {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            height: 34px;
+            padding: 0 12px;
+            font-size: 0.78rem;
+            color: var(--text-secondary, #6b7280);
+            background: var(--titlebar-bg, var(--bg));
+            border-bottom: 1px solid var(--panel-border, #e2e2dd);
+        }
+        .agent-status { display: flex; align-items: center; gap: 6px; font-weight: 500; }
+        .agent-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--text-muted, #999);
+            flex-shrink: 0;
+        }
+        .agent-status.on .agent-dot { background: #2ecc71; }
+        .agent-status.off .agent-dot { background: #e74c3c; }
+        .agent-status.starting .agent-dot { background: #f1c40f; animation: agentPulse 1s infinite; }
+        @keyframes agentPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+        .agent-title { flex: 1; text-align: center; opacity: 0.75; }
+        .agent-actions { display: flex; gap: 4px; }
+        .agent-btn {
+            border: 1px solid var(--panel-border, #e2e2dd);
+            background: transparent;
+            color: var(--text-secondary, #6b7280);
+            font-size: 0.78rem;
+            border-radius: 4px;
+            padding: 2px 8px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .agent-btn:hover { color: var(--text, #1f2937); background: var(--titlebar-bg, var(--bg)); }
+        .agent-btn.active { color: var(--primary, #3f8cff); border-color: var(--primary, #3f8cff); }
+        .agent-frame-wrap { flex: 1; min-height: 0; position: relative; }
+        .agent-frame-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; }
+        /* 安装/启动进度条（首次使用自动安装 DSH 时的友好等待交互） */
+        .agent-progress {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 12px;
+            font-size: 0.75rem;
+            color: var(--text-secondary, #6b7280);
+            background: var(--primary-light, #eff6ff);
+            border-bottom: 1px solid var(--panel-border, #e2e2dd);
+        }
+        .agent-progress-text {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .agent-progress-actions { display: flex; gap: 4px; flex-shrink: 0; }
+        .agent-progress.loading .agent-progress-text::before {
+            content: '';
+            display: inline-block;
+            width: 10px; height: 10px;
+            margin-right: 6px;
+            border: 2px solid var(--primary, #3f8cff);
+            border-top-color: transparent;
+            border-radius: 50%;
+            vertical-align: -1px;
+            animation: agentSpin 0.8s linear infinite;
+        }
+        @keyframes agentSpin { to { transform: rotate(360deg); } }
+        .agent-progress.error .agent-progress-text::before { content: '⚠ '; color: var(--danger, #d14343); }
+        /* 暗色适配：iframe 反色（与 DSH Web 自身主题无关，纯视觉适配；可在面板右上角开关） */
+        #agentFrame.invert { filter: invert(0.9) hue-rotate(180deg); }
+        html[data-theme="dark"] #agentFrame.auto-invert { filter: invert(0.9) hue-rotate(180deg); }
+
         .container {
             display: grid;
             grid-template-columns: 1fr 2fr;
@@ -534,6 +615,12 @@
             </svg>
             工具
         </button>
+        <button class="nav-btn" data-view="agent" title="AI 干活：内嵌 DeepSeek Harness Agent（本地 3081）">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/>
+            </svg>
+            AI 干活
+        </button>
         <button class="nav-btn" data-view="data-observability" title="数据观测台：查看使用习惯与事件统计">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M4 19V5M4 19h16"/><path d="M7 15l3-4 3 2 5-7"/><circle cx="7" cy="15" r="1"/><circle cx="10" cy="11" r="1"/><circle cx="13" cy="13" r="1"/><circle cx="18" cy="6" r="1"/>
@@ -599,6 +686,28 @@
         <div class="view-panel view-panel-hidden" id="toolsView">
             <iframe id="toolsFrame" data-src="tools.html" style="width:100%;height:100%;border:none;"></iframe>
         </div>
+        <!-- AI 干活（内嵌 DeepSeek Harness Agent，本地 3081；主题适配：面板走主题变量，iframe 支持反色） -->
+        <div class="view-panel view-panel-hidden" id="agentView">
+            <div class="agent-panel-header" id="agentPanelHeader">
+                <span class="agent-status" id="agentStatus"><span class="agent-dot"></span>连接中…</span>
+                <span class="agent-title">DeepSeek Harness Agent（127.0.0.1:3081）</span>
+                <span class="agent-actions">
+                    <button class="agent-btn" id="agentThemeToggle" title="反色适配暗色主题">🌗 反色</button>
+                    <button class="agent-btn" id="agentReload" title="重新加载">⟳</button>
+                    <button class="agent-btn" id="agentOpenExternal" title="在新窗口打开">↗</button>
+                </span>
+            </div>
+            <div class="agent-progress" id="agentProgress" hidden>
+                <span class="agent-progress-text" id="agentProgressText"></span>
+                <span class="agent-progress-actions">
+                    <button class="agent-btn" id="agentCancel" hidden>取消</button>
+                    <button class="agent-btn" id="agentRetry" hidden>重试</button>
+                </span>
+            </div>
+            <div class="agent-frame-wrap">
+                <iframe id="agentFrame" data-src="http://127.0.0.1:3081" style="width:100%;height:100%;border:none;"></iframe>
+            </div>
+        </div>
         <!-- 数据观测 -->
         <div class="view-panel view-panel-hidden" id="dataObservabilityView">
             <iframe id="dataObservabilityFrame" data-src="data-observability.html" style="width:100%;height:100%;border:none;"></iframe>
@@ -650,13 +759,13 @@
       }
 
       function broadcastThemeChange() {
-        [editorFrame, workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, settingsFrame, learningPlanFrame, toolsFrame, dataObservabilityFrame].forEach(frame => {
+        [editorFrame, workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, settingsFrame, learningPlanFrame, toolsFrame, agentFrame, dataObservabilityFrame].forEach(frame => {
           try { if (frame && frame.contentWindow) frame.contentWindow.postMessage({ action: 'themeChange', theme: document.documentElement.getAttribute('data-theme') }, '*'); } catch(e) {}
         });
       }
 
       function notifyAllFrames(message) {
-        [editorFrame, workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, settingsFrame, learningPlanFrame, toolsFrame, dataObservabilityFrame].forEach(frame => {
+        [editorFrame, workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, settingsFrame, learningPlanFrame, toolsFrame, agentFrame, dataObservabilityFrame].forEach(frame => {
           try { if (frame && frame.contentWindow) frame.contentWindow.postMessage(message, '*'); } catch(e) {}
         });
       }
@@ -833,7 +942,8 @@
         vault: vaultView,
         settings: settingsView,
         'learning-plan': learningPlanView,
-        tools: toolsView
+        tools: toolsView,
+        agent: agentView
         , 'data-observability': dataObservabilityView
       };
       const VIEW_IFRAME = {
@@ -845,14 +955,16 @@
         vault: [vaultFrame],
         settings: [settingsFrame],
         'learning-plan': [learningPlanFrame],
-        tools: [toolsFrame]
+        tools: [toolsFrame],
+        agent: [agentFrame]
         , 'data-observability': [dataObservabilityFrame]
       };
       const allPanels = Object.values(viewMap);
 
       function ensureFramesLoaded(view) {
         (VIEW_IFRAME[view] || []).forEach(frame => {
-          if (frame && frame.dataset.src) {
+          if (!frame || frame === agentFrame) return;   // agentFrame 由 DSH sidecar 就绪后按需加载
+          if (frame.dataset.src) {
             frame.src = frame.dataset.src;
             delete frame.dataset.src;
           }
@@ -882,7 +994,219 @@
         if (normalizedView === 'knowledge' && knowledgeFrame && knowledgeFrame.contentWindow) {
           knowledgeFrame.contentWindow.postMessage({ action: 'workspaceChange', workspaceId: activeWorkspaceId }, '*');
         }
+        // 切换到 AI 干活视图：按需启动/复用 DSH sidecar，并同步状态
+        if (normalizedView === 'agent') {
+          ensureDshAgentRuntime();
+        }
       }
+
+      // ===== AI 干活（Agent）面板逻辑：DSH sidecar 状态 + 主题适配 =====
+      const AGENT_PORT = 3081;
+      const AGENT_INVERT_KEY = 'agent_frame_invert_v1';
+
+      function applyAgentInvert() {
+        const mode = localStorage.getItem(AGENT_INVERT_KEY) || 'auto';
+        const theme = document.documentElement.getAttribute('data-theme');
+        const btn = document.getElementById('agentThemeToggle');
+        if (agentFrame) {
+          agentFrame.classList.toggle('invert', mode === 'on');
+          agentFrame.classList.toggle('auto-invert', mode === 'auto' && theme === 'dark');
+        }
+        if (btn) {
+          btn.classList.toggle('active', mode === 'on' || (mode === 'auto' && theme === 'dark'));
+          btn.title = mode === 'auto'
+            ? '反色适配（跟随暗色主题）· 点击切换为常开/关闭'
+            : (mode === 'on' ? '反色：常开 · 点击关闭' : '反色：关闭 · 点击恢复自动');
+        }
+      }
+
+      // ===== AI 干活（Agent）面板：进度交互（自动安装/启动 DSH） =====
+      const AGENT_PROGRESS_EL = document.getElementById('agentProgress');
+      const AGENT_PROGRESS_TEXT = document.getElementById('agentProgressText');
+      const AGENT_CANCEL_BTN = document.getElementById('agentCancel');
+      const AGENT_RETRY_BTN = document.getElementById('agentRetry');
+      let agentEnsurePromise = null;   // 防止重复触发启动
+
+      /**
+       * 加载/重载 DSH iframe。
+       * - src 为空或地址不同 → 直接设置 src（首次加载）；
+       * - 已指向目标地址且 force=true → 强制重载（sidecar 可能重启过，或早期加载失败留下空白页）。
+       */
+      function loadAgentFrame(port, force) {
+        if (!agentFrame) return;
+        const url = 'http://127.0.0.1:' + (port || AGENT_PORT);
+        if (!agentFrame.src || agentFrame.src.indexOf(url) === -1) {
+          agentFrame.src = url;
+        } else if (force) {
+          agentFrame.src = agentFrame.src;
+        }
+      }
+
+      function setAgentStatus(state, text) {
+        const el = document.getElementById('agentStatus');
+        if (!el) return;
+        el.className = 'agent-status ' + state;   // on / off / starting
+        el.innerHTML = '<span class="agent-dot"></span>' + text;
+      }
+
+      function showAgentProgress(text, { loading = false, error = false } = {}) {
+        if (!AGENT_PROGRESS_EL) return;
+        AGENT_PROGRESS_EL.hidden = false;
+        AGENT_PROGRESS_EL.classList.toggle('loading', loading);
+        AGENT_PROGRESS_EL.classList.toggle('error', error);
+        if (AGENT_PROGRESS_TEXT) AGENT_PROGRESS_TEXT.textContent = text || '';
+        if (AGENT_CANCEL_BTN) AGENT_CANCEL_BTN.hidden = !loading;
+        if (AGENT_RETRY_BTN) AGENT_RETRY_BTN.hidden = !error;
+      }
+      function hideAgentProgress() {
+        if (AGENT_PROGRESS_EL) AGENT_PROGRESS_EL.hidden = true;
+      }
+
+      /** 主进程进度广播 → 面板（detecting/installing/starting/ready/failed） */
+      function handleAgentProgress(p) {
+        if (!p || !p.state) return;
+        const elapsed = p.elapsed ? `（已等待 ${p.elapsed} 秒）` : '';
+        switch (p.state) {
+          case 'detecting':
+            setAgentStatus('starting', '检查 DSH 环境…');
+            showAgentProgress(p.message + elapsed, { loading: true });
+            break;
+          case 'installing':
+            setAgentStatus('starting', '正在安装 DSH…');
+            showAgentProgress(p.message + elapsed, { loading: true });
+            break;
+          case 'starting':
+            setAgentStatus('starting', '正在启动 DSH…');
+            showAgentProgress(p.message + elapsed, { loading: true });
+            break;
+          case 'ready':
+            setAgentStatus('on', p.message || '运行中');
+            hideAgentProgress();
+            loadAgentFrame(AGENT_PORT, true);   // 就绪后确保面板加载/重载
+            break;
+          case 'failed':
+            setAgentStatus('off', '启动失败');
+            showAgentProgress(p.message, { error: true });
+            break;
+        }
+      }
+
+      async function ensureDshAgentRuntime() {
+        applyAgentInvert();
+        if (!(window.electronAPI && typeof window.electronAPI.ensureDshAgent === 'function')) {
+          // 纯浏览器模式：直接探测 3081（iframe 本身会显示连接状态）
+          setAgentStatus('starting', '检测 127.0.0.1:' + AGENT_PORT + '…');
+          showAgentProgress('检测 ' + AGENT_PORT + '…', { loading: true });
+          try {
+            await fetch('http://127.0.0.1:' + AGENT_PORT + '/', { mode: 'no-cors' });
+            setAgentStatus('on', '运行中（端口 ' + AGENT_PORT + '）');
+            hideAgentProgress();
+            loadAgentFrame(AGENT_PORT, false);
+          } catch (e) {
+            setAgentStatus('off', '未检测到 DSH（' + AGENT_PORT + '），请先手动启动 dsh web');
+            showAgentProgress('未检测到 DSH（' + AGENT_PORT + '）。请先手动执行 npx @deepseek-ai/dsh web，或确认网络后重试。', { error: true });
+          }
+          return;
+        }
+        // Electron 内：让主进程按需启动/复用 sidecar（端口 3081，首次自动安装）
+        if (agentEnsurePromise) return agentEnsurePromise;
+        agentEnsurePromise = (async () => {
+          setAgentStatus('starting', '启动 DSH Agent…');
+          showAgentProgress('正在准备…', { loading: true });
+          // 兜底探测：即使进度广播或 IPC 结果异常丢失，面板也应收敛到正确状态。
+          // 每 2 秒探测一次 3081；一旦可访问且状态未就绪 → 置为运行中并加载面板。
+          let probing = false;
+          let probeCount = 0;
+          const probeTimer = setInterval(async () => {
+            if (probing) return;
+            probing = true;
+            probeCount++;
+            try {
+              const stEl = document.getElementById('agentStatus');
+              if (stEl && stEl.classList.contains('on')) { clearInterval(probeTimer); return; }
+              if (probeCount > 25) { clearInterval(probeTimer); return; }   // ~50s 上限
+              await fetch('http://127.0.0.1:' + AGENT_PORT + '/', { mode: 'no-cors' });
+              setAgentStatus('on', '运行中（端口 ' + AGENT_PORT + '）');
+              hideAgentProgress();
+              loadAgentFrame(AGENT_PORT, true);
+              clearInterval(probeTimer);
+            } catch (e) {
+              // sidecar 尚未就绪，继续探测
+            } finally {
+              probing = false;
+            }
+          }, 2000);
+          try {
+            const r = await window.electronAPI.ensureDshAgent();
+            clearInterval(probeTimer);
+            if (r && r.success) {
+              setAgentStatus('on', r.reused ? '已复用现有实例（端口 ' + r.port + '）' : '运行中（端口 ' + r.port + '）');
+              hideAgentProgress();
+              loadAgentFrame(r.port || AGENT_PORT, false);
+            } else {
+              setAgentStatus('off', '启动失败');
+              showAgentProgress('启动失败：' + ((r && r.message) || '未知错误'), { error: true });
+            }
+          } catch (e) {
+            clearInterval(probeTimer);
+            setAgentStatus('off', '启动失败');
+            showAgentProgress('启动失败：' + e.message, { error: true });
+          } finally {
+            agentEnsurePromise = null;
+          }
+        })();
+        return agentEnsurePromise;
+      }
+
+      function wireAgentPanel() {
+        const toggle = document.getElementById('agentThemeToggle');
+        if (toggle) {
+          toggle.addEventListener('click', () => {
+            const mode = localStorage.getItem(AGENT_INVERT_KEY) || 'auto';
+            const next = mode === 'auto' ? 'on' : (mode === 'on' ? 'off' : 'auto');
+            localStorage.setItem(AGENT_INVERT_KEY, next);
+            applyAgentInvert();
+          });
+        }
+        const reload = document.getElementById('agentReload');
+        if (reload) reload.addEventListener('click', () => { if (agentFrame) agentFrame.src = agentFrame.src; });
+        const ext = document.getElementById('agentOpenExternal');
+        if (ext) ext.addEventListener('click', () => {
+          if (window.electronAPI && typeof window.electronAPI.openExternal === 'function') {
+            window.electronAPI.openExternal('http://127.0.0.1:' + AGENT_PORT);
+          } else {
+            window.open('http://127.0.0.1:' + AGENT_PORT, '_blank');
+          }
+        });
+        // 取消安装/启动
+        if (AGENT_CANCEL_BTN) {
+          AGENT_CANCEL_BTN.addEventListener('click', async () => {
+            if (window.electronAPI && typeof window.electronAPI.cancelDshAgent === 'function') {
+              await window.electronAPI.cancelDshAgent();
+            }
+            hideAgentProgress();
+            setAgentStatus('off', '已取消');
+          });
+        }
+        // 失败后重试
+        if (AGENT_RETRY_BTN) {
+          AGENT_RETRY_BTN.addEventListener('click', () => {
+            hideAgentProgress();
+            ensureDshAgentRuntime();
+          });
+        }
+        // 订阅主进程进度广播
+        if (window.electronAPI && typeof window.electronAPI.onDshAgentProgress === 'function') {
+          window.electronAPI.onDshAgentProgress(handleAgentProgress);
+        }
+      }
+      wireAgentPanel();
+      // 主题切换时同步 iframe 反色状态（CSS 变量已自适应，反色需 JS 刷新）
+      const origApplyTheme = applyTheme;
+      applyTheme = function (themeOverride, persist) {
+        origApplyTheme(themeOverride, persist);
+        applyAgentInvert();
+      };
 
       function pathToView(path) {
         const clean = path.replace(/\/$/, '');
@@ -895,6 +1219,7 @@
         if (clean === '/vault') return 'vault';
         if (clean === '/learning-plan') return 'learning-plan';
         if (clean === '/tools') return 'tools';
+        if (clean === '/agent') return 'agent';
         if (clean === '/data-observability') return 'data-observability';
         return 'editor';
       }
@@ -1024,8 +1349,11 @@
 
       // ====== 窗口控制（仅 Electron 环境） ======
       // 懒加载 iframe：从 data-src 读取真实 URL 并设置 src
+      // 注意：agentFrame（DSH 面板）跳过预加载——sidecar 可能尚未就绪，过早设置 src 会留下空白页；
+      //       该面板统一由 loadAgentFrame() 在 DSH 就绪后按需设置/重载。
       function lazyLoadIframes() {
         document.querySelectorAll('iframe[data-src]').forEach(iframe => {
+          if (iframe.id === 'agentFrame') return;
           iframe.src = iframe.dataset.src;
           iframe.removeAttribute('data-src');
         });
@@ -1224,6 +1552,7 @@
         // 加载子页面 iframe
         function lazyLoadIframes() {
           document.querySelectorAll('iframe[data-src]').forEach(function(iframe) {
+            if (iframe.id === 'agentFrame') return;   // DSH 面板：就绪后按需加载
             iframe.src = iframe.dataset.src;
             iframe.removeAttribute('data-src');
           });

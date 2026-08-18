@@ -748,6 +748,65 @@
             </div>
         </div>
 
+        <div class="section" id="dshAgentSection">
+            <div class="section-title">
+                DSH Agent（AI 干活）
+                <span class="section-badge immediate">即时生效</span>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">启用「AI 干活」面板</div>
+                    <div class="setting-desc">顶部导航显示入口，内嵌 DeepSeek Harness Agent</div>
+                </div>
+                <div class="setting-control">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="dshAgentEnabled" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">DSH 端口</div>
+                    <div class="setting-desc">固定 3081 避开手动启动的 3080；已有实例自动复用</div>
+                </div>
+                <div class="setting-control">
+                    <input type="number" id="dshPort" min="1024" max="65535" value="3081"
+                           style="width:120px;">
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">dsh CLI 路径</div>
+                    <div class="setting-desc">留空自动探测（配置 → DSH_BIN → 内置 → npx 缓存 → 自动安装）</div>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="dshBinPath" placeholder="自动探测" style="width:320px;">
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">技能包</div>
+                    <div class="setting-desc" id="dshSkillStatusDesc">将 cut-shelter 技能安装到 ~/.dsh/skills</div>
+                </div>
+                <div class="setting-control">
+                    <button class="btn btn-primary" id="btnInstallSkill">一键安装技能包</button>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">操作</div>
+                    <div class="setting-desc" id="dshAgentRunDesc">启动/停止本地 DSH 实例（3081）</div>
+                </div>
+                <div class="setting-control" style="display:flex;gap:8px;align-items:center;">
+                    <button class="btn btn-primary" id="btnSaveDshConfig">保存设置</button>
+                    <button class="btn" id="btnStartDshAgent">启动</button>
+                    <button class="btn" id="btnStopDshAgent">停止</button>
+                    <button class="btn" id="btnOpenDshAgent">打开面板</button>
+                </div>
+            </div>
+        </div>
+
         <div class="section save-section needs-attention" id="unifiedConfigSection">
             <div class="section-title">
                 应用配置

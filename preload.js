@@ -500,35 +500,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   stopDshAgent: () => ipcRenderer.invoke('dsh-agent:stop'),
 
   /**
-   * 取消正在进行的 DSH 安装/启动
-   * @returns {Promise<{cancelled: boolean}>}
-   */
-  cancelDshAgent: () => ipcRenderer.invoke('dsh-agent:cancel'),
-
-  /**
-   * 监听 DSH Agent 启动进度（detecting/installing/starting/ready/failed）
-   * @param {Function} callback 接收 { state, message, elapsed? }
-   * @returns {Function} 取消监听的函数
-   */
-  onDshAgentProgress: (callback) => {
-    const listener = (event, data) => callback(data);
-    ipcRenderer.on('dsh-agent-progress', listener);
-    return () => ipcRenderer.removeListener('dsh-agent-progress', listener);
-  },
-
-  /**
-   * 一键安装 CutShelter 技能包到 DSH 技能目录
-   * @returns {Promise<{success: boolean, target?: string, message?: string}>}
-   */
-  installDshSkill: () => ipcRenderer.invoke('dsh-agent:install-skill'),
-
-  /**
-   * 查询 CutShelter 技能包安装状态
-   * @returns {Promise<{installed: boolean, target: string}>}
-   */
-  dshSkillStatus: () => ipcRenderer.invoke('dsh-agent:skill-status'),
-
-  /**
    * 获取当前启动模式
    * @returns {Promise<string>} 'full' | 'frontend-only' | 'frontend-async-backend'
    */

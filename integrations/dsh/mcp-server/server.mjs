@@ -232,6 +232,37 @@ server.registerTool('weekly_report_status', {
   return textResult('周报状态：', data);
 });
 
+// ---- Phase 3：Tools Hub 互通（剪藏的 HTML 小工具注册表）----
+
+server.registerTool('tools_hub_list', {
+  description:
+    '列出剪藏工具中心（Tools Hub）的小工具注册表（id/名称/分类/描述/启用状态）。'
+    + 'Tools Hub 是自包含 HTML 小工具，与 Agent 工具是两种概念；本工具用于了解剪藏已有哪些工具。',
+  inputSchema: {},
+}, async () => {
+  const data = await callApi('/api/tools');
+  const tools = (data && Array.isArray(data.tools) ? data.tools : []);
+  const views = tools.map((t) => ({
+    id: t.id,
+    name: t.name,
+    category: t.category,
+    description: t.description,
+    enabled: t.enabled,
+  }));
+  return textResult(`Tools Hub 共 ${views.length} 个工具：`, views);
+});
+
+server.registerTool('tools_hub_page', {
+  description: '读取 Tools Hub 小工具的 HTML 页面源码（自包含单 HTML 前 3000 字符），用于了解或复用其实现。',
+  inputSchema: {
+    id: z.string().describe('工具 id（先用 tools_hub_list 获取，如 pdf-toolbox）'),
+  },
+}, async ({ id }) => {
+  const html = await callApi(`/api/tools/${encodeURIComponent(id)}/page`, {});
+  const text = typeof html === 'string' ? html : String(html);
+  return textResult(`工具 ${id} 页面（HTML，前 3000 字符）：`, text.slice(0, 3000));
+});
+
 // ---------------------------------------------------------------------------
 // Run
 // ---------------------------------------------------------------------------

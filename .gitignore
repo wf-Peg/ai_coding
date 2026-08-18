@@ -88,3 +88,6 @@ nul
 
 # Obsidian配置目录
 .obsidian/
+
+# DSH 离线依赖闭包（由 scripts/build-dsh-offline.mjs 生成）
+dist-dsh-offline/
