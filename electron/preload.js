@@ -574,6 +574,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** 更新截图快捷键/配置（持久化 + 即时重注册） */
   screenshotSetShortcuts: (payload) => ipcRenderer.invoke('screenshot:set-shortcuts', payload),
 
+  /** 启用/禁用截图工具（释放/注册快捷键） */
+  screenshotSetEnabled: (enabled) => ipcRenderer.invoke('screenshot:set-enabled', enabled),
+
   /** OCR 结果跳转编辑器：主窗口转发消息 */
   screenshotOpenInEditor: (payload) => ipcRenderer.invoke('screenshot:open-in-editor', payload),
 

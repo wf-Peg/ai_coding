@@ -339,12 +339,13 @@
 
   async function openSystemTool(t) {
     const api = (window.parent && window.parent.electronAPI) || window.electronAPI;
-    let shot = 'F1', paste = 'F2', hideMain = true, ocrText = '查询中...';
+    let shot = 'F1', paste = 'F2', hideMain = true, enabled = true, ocrText = '查询中...';
     if (api && api.screenshotGetShortcuts) {
       try {
         const cfg = await api.screenshotGetShortcuts();
         shot = cfg.screenshot || 'F1'; paste = cfg.paste || 'F2';
         hideMain = cfg.hideMain !== false;
+        enabled = cfg.enabled !== false;
       } catch (e) {}
     }
     if (api && api.screenshotOcrStatus) {
@@ -357,16 +358,22 @@
     $('promptContent').innerHTML =
       '<div style="font-size:13px;line-height:2">' +
       '<p style="margin-bottom:6px"><b>📸 截图工具</b> 配置（Snipaste 风格，即时生效）</p>' +
+      '<div style="display:flex;align-items:center;gap:10px;margin:4px 0;padding:6px 10px;border-radius:6px;background:' + (enabled ? 'rgba(34,197,94,.08)' : 'rgba(239,68,68,.08)') + '">' +
+        '<span style="width:96px">工具状态</span>' +
+        '<span id="sysToolStatus" style="font-weight:600;color:' + (enabled ? '#22c55e' : '#ef4444') + '">' + (enabled ? '🟢 已启用' : '🔴 已禁用') + '</span>' +
+        '<button id="sysToggleEnabled" style="background:' + (enabled ? '#ef4444' : '#22c55e') + ';color:#fff;border:none;border-radius:6px;padding:5px 14px;cursor:pointer;font-size:12px;margin-left:auto">' + (enabled ? '禁用工具' : '启用工具') + '</button>' +
+        '<span style="color:var(--app-text-muted);font-size:11px">' + (enabled ? '快捷键已注册' : '快捷键已释放') + '</span>' +
+      '</div>' +
       '<div style="display:flex;align-items:center;gap:10px;margin:4px 0">' +
         '<span style="width:96px">截图快捷键</span>' +
         '<input id="sysShotKey" type="text" readonly value="' + esc(shot) + '" ' +
-          'style="width:140px;text-align:center;padding:5px 8px;border:1px solid var(--app-border);border-radius:6px;background:var(--app-surface);color:var(--app-text);cursor:pointer">' +
+          'style="width:140px;text-align:center;padding:5px 8px;border:1px solid var(--app-border);border-radius:6px;background:var(--app-surface);color:var(--app-text);cursor:pointer;' + (enabled ? '' : 'opacity:0.5;') + '">' +
         '<span style="color:var(--app-text-muted);font-size:11px">全屏选区</span>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:10px;margin:4px 0">' +
         '<span style="width:96px">贴图快捷键</span>' +
         '<input id="sysPasteKey" type="text" readonly value="' + esc(paste) + '" ' +
-          'style="width:140px;text-align:center;padding:5px 8px;border:1px solid var(--app-border);border-radius:6px;background:var(--app-surface);color:var(--app-text);cursor:pointer">' +
+          'style="width:140px;text-align:center;padding:5px 8px;border:1px solid var(--app-border);border-radius:6px;background:var(--app-surface);color:var(--app-text);cursor:pointer;' + (enabled ? '' : 'opacity:0.5;') + '">' +
         '<span style="color:var(--app-text-muted);font-size:11px">置顶贴图</span>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:10px;margin:4px 0">' +
@@ -434,6 +441,15 @@
         st.style.cssText = 'color:#22c55e;font-size:12px;margin-left:8px';
         document.getElementById('sysSave').after(st);
       } catch (e) { showToast('保存失败: ' + e.message, 4000); }
+    });
+    // 启用/禁用切换
+    document.getElementById('sysToggleEnabled').addEventListener('click', async function () {
+      if (!api || !api.screenshotSetEnabled) { showToast('当前环境不支持', 3000); return; }
+      try {
+        const res = await api.screenshotSetEnabled(!enabled);
+        // 刷新整个配置面板以反映新状态
+        openSystemTool(t);
+      } catch (e) { showToast('操作失败: ' + e.message, 4000); }
     });
     document.getElementById('sysOcrDir').addEventListener('click', async function () {
       if (!api || !api.screenshotOpenOcrModelsDir) { showToast('当前环境不支持打开目录，请重启应用后重试（主进程需更新）', 4000); return; }

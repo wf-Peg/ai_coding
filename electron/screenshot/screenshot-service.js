@@ -17,6 +17,7 @@ const { spawn } = require('child_process');
 /** 全局实例与依赖（initScreenshotService 注入） */
 let deps = null;
 let shortcuts = { screenshot: 'F1', paste: 'F2' };
+let registeredAccelerators = []; // 跟踪当前已注册的快捷键（用于正确注销）
 let screenshotWindow = null;   // 当前截图覆盖层
 let lastCapture = null;        // 最近一次截图 nativeImage（全屏原始图，供裁剪基准）
 let lastCaptureSize = null;   // 缩略图实际像素尺寸（裁剪换算基准）
@@ -64,18 +65,23 @@ function loadScreenshotConfig() {
   try {
     const cfg = deps.loadConfig();
     return {
+      enabled: cfg.screenshotEnabled !== false,
       screenshot: (cfg.screenshotShortcut || 'F1'),
       paste: (cfg.pasteShortcut || 'F2'),
       hideMain: cfg.screenshotHideMain !== false,
       saveDir: cfg.screenshotSaveDir || ''
     };
-  } catch (e) { return { screenshot: 'F1', paste: 'F2', hideMain: true, saveDir: '' }; }
+  } catch (e) { return { enabled: true, screenshot: 'F1', paste: 'F2', hideMain: true, saveDir: '' }; }
 }
 
 /** 注册全局快捷键（独立注册，不影响现有 Alt+X 的 unregisterAll 流程） */
 function registerShortcuts() {
   const { globalShortcut } = deps;
   const cfg = loadScreenshotConfig();
+  if (cfg.enabled === false) {
+    log('screenshot tool is disabled, skipping shortcut registration');
+    return;
+  }
   const ok1 = registerOne('screenshot', cfg.screenshot, () => startScreenshot('copy'));
   const ok2 = registerOne('paste', cfg.paste, () => pasteFromClipboard());
   log('shortcuts registered:', cfg.screenshot, ok1, '|', cfg.paste, ok2);
@@ -85,6 +91,7 @@ function registerShortcuts() {
 function registerOne(name, accelerator, cb) {
   try {
     const ok = deps.globalShortcut.register(accelerator, cb);
+    if (ok) registeredAccelerators.push(accelerator);
     if (!ok) log('registration failed:', name, accelerator);
     return ok;
   } catch (e) { log('register error:', name, accelerator, e.message); return false; }
@@ -92,9 +99,10 @@ function registerOne(name, accelerator, cb) {
 
 /** 注销截图相关快捷键（仅本服务注册的） */
 function unregisterShortcuts() {
-  const cfg = loadScreenshotConfig();
-  try { deps.globalShortcut.unregister(cfg.screenshot); } catch (e) {}
-  try { deps.globalShortcut.unregister(cfg.paste); } catch (e) {}
+  registeredAccelerators.forEach(function(acc) {
+    try { deps.globalShortcut.unregister(acc); } catch (e) {}
+  });
+  registeredAccelerators = [];
 }
 
 /** 供设置页改动后重注册 */
@@ -598,6 +606,14 @@ function registerIpc() {
     deps.saveConfig(cfg);
     refreshShortcuts();
     return { status: 'ok', config: loadScreenshotConfig() };
+  });
+  /** 启用/禁用截图工具（释放/注册快捷键） */
+  ipcMain.handle('screenshot:set-enabled', (e, enabled) => {
+    const cfg = deps.loadConfig();
+    cfg.screenshotEnabled = enabled !== false;
+    deps.saveConfig(cfg);
+    refreshShortcuts();
+    return { status: 'ok', enabled: cfg.screenshotEnabled };
   });
   ipcMain.handle('screenshot:ocr-status', () => getOcrStatus());
   ipcMain.handle('screenshot:open-in-editor', (e, payload) => {

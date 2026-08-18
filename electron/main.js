@@ -166,6 +166,7 @@ const DEFAULT_CONFIG = {
   customApiKey: '',              // 自定义 OpenAI 兼容 API Key
   customModel: '',               // 自定义 OpenAI 兼容模型名称
   // 截图小工具配置
+  screenshotEnabled: true,        // 截图工具是否启用
   screenshotShortcut: 'F1',      // 截图快捷键（默认 F1）
   pasteShortcut: 'F2',           // 贴图快捷键（默认 F2）
   screenshotHideMain: true,      // 截图时是否收起主窗口
