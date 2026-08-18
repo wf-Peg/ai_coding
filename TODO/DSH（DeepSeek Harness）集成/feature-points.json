@@ -1,0 +1,137 @@
+{
+  "version": "2.0",
+  "requirement": {
+    "title": "DSH（DeepSeek Harness）集成",
+    "summary": "让 DeepSeek Harness（DSH）的 Agent 能检索与写入剪藏知识库（剪藏/待办/学习计划/Wiki索引/周报状态），并在完成工作后将会话成果自动落库，实现 AI 用知识库干活、干完自动沉淀。",
+    "tags": ["product-dev", "dsh", "mcp", "integration"],
+    "phase": "implementation",
+    "createdAt": "2026-08-18T22:30:00",
+    "completedAt": "2026-08-18T22:30:00"
+  },
+  "featurePoints": [
+    {
+      "id": "fp-001",
+      "name": "MCP Bridge（Phase 0）",
+      "description": "Node MCP stdio server，代理剪藏 8081 REST API，为 DSH Agent 暴露 11 个工具：clip_search/list/add/delete/categories、todo_list/add/set_status、learning_plan_list、wiki_index、weekly_report_status。支持环境变量配置后端地址和超时。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "dsh", "mcp"],
+      "designSections": [
+        {
+          "title": "MCP Server 架构",
+          "summary": "基于 @modelcontextprotocol/sdk 的 McpServer，通过 StdioServerTransport 与 DSH 通信。每个工具封装对剪藏后端 REST API 的调用，使用 AbortController 实现超时控制。"
+        },
+        {
+          "title": "工具清单设计",
+          "summary": "11 个工具覆盖剪藏 CRUD、分类树、待办管理、学习计划、Wiki 索引、周报状态。只读操作 7 个，写操作 4 个（clip_add/clip_delete/todo_add/todo_set_status），写操作需用户确认。"
+        }
+      ],
+      "tasks": [
+        { "title": "创建 mcp-server 目录结构（package.json + server.mjs + test.mjs）", "status": "done" },
+        { "title": "实现 11 个 MCP 工具，代理剪藏后端 REST API", "status": "done" },
+        { "title": "实现 standalone 测试脚本（initialize → tools/list → tools/call 端到端）", "status": "done" },
+        { "title": "支持 CUTSHELTER_BASE_URL / CUTSHELTER_TIMEOUT_MS 环境变量", "status": "done" },
+        { "title": "clip_add 默认 useAiTags=false 省 token，自动去重", "status": "done" },
+        { "title": "clip_delete 需用户确认（破坏性操作）", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "node test.mjs 端到端通过（只读探测 + 剪藏写入/删除往返）", "status": "done" },
+        { "title": "DSH 中 mcp__cut_shelter__clip_search 等 11 个工具出现", "status": "done" },
+        { "title": "后端未启动时桥启动不阻塞，只记日志", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-002",
+      "name": "会话成果自动落库（Phase 1）",
+      "description": "DSH 本地插件 clip-capture，注册 clip_session 工具。Agent 在完成一段有保留价值的工作后调用，将会话成果摘要保存到剪藏知识库（source=dsh）。支持 title/summary/tags/category 参数。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "dsh", "plugin"],
+      "designSections": [
+        {
+          "title": "插件架构",
+          "summary": "基于 @deepseek-ai/dsh-tools 的 defineTool，通过 cordis.yml 的 insert 行挂载。插件注册 clip_session 工具，调用剪藏后端 /api/clips 接口写入。"
+        },
+        {
+          "title": "参数设计",
+          "summary": "title（必填，简短标题）、summary（必填，Markdown 成果摘要）、tags（可选标签列表）、category（可选分类，可先查 clip_categories 获取可选值）"
+        }
+      ],
+      "tasks": [
+        { "title": "创建 plugins/clip-capture 目录结构（index.mjs + package.json + test-plugin.mjs）", "status": "done" },
+        { "title": "实现 clip_session 工具注册（title/summary/tags/category 参数）", "status": "done" },
+        { "title": "实现 standalone 测试脚本（插件装载 + execute 端到端）", "status": "done" },
+        { "title": "创建 cordis.example.yml 覆盖层示例（挂载 mcp-client + clip-capture）", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "node test-plugin.mjs 端到端通过（创建→分析落盘→删除）", "status": "done" },
+        { "title": "DSH web --patch 后 clip_session 工具可用", "status": "done" },
+        { "title": "调用后剪藏列表出现 source=dsh 的新条目", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-003",
+      "name": "DSH Skill 定义（cut-shelter）",
+      "description": "编写 cut-shelter SKILL.md，定义剪藏知识库的存储布局、读写约定、工具用法、边界限制和常见场景模板。DSH Agent 加载后能正确使用剪藏知识库。",
+      "layer": "documentation",
+      "tags": ["product-dev", "dsh", "skill"],
+      "designSections": [
+        {
+          "title": "Skill 内容设计",
+          "summary": "涵盖数据布局（目录结构）、读写约定（读用文件工具/写用 MCP 工具）、边界（禁止事项）、常见场景模板、TODO 目录约定。"
+        }
+      ],
+      "tasks": [
+        { "title": "创建 skills/cut-shelter/SKILL.md", "status": "done" },
+        { "title": "编写数据布局说明（clip-storage/obsidian-vault/weekly-report/TODO 等）", "status": "done" },
+        { "title": "编写读写约定（读用文件工具/写用 MCP 工具）", "status": "done" },
+        { "title": "编写边界限制（密码库不可访问、不直接修改数据文件等）", "status": "done" },
+        { "title": "编写常见场景模板", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "SKILL.md 格式正确，frontmatter 包含 name/description", "status": "done" },
+        { "title": "Agent 加载后能正确理解剪藏知识库使用规范", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-004",
+      "name": "探索文档与路线图",
+      "description": "编写 DSH 集成探索文档，涵盖方向分析、技术路线、Phase 0/1/2 路线图、架构决策、TODO 落库现状说明。",
+      "layer": "documentation",
+      "tags": ["product-dev", "dsh", "documentation"],
+      "designSections": [
+        {
+          "title": "探索文档结构",
+          "summary": "完整方向分析与路线图，包括 MCP 桥方案、DSH 插件架构、后续 Phase 2（Electron 内嵌 DSH 面板）的技术预研。"
+        }
+      ],
+      "tasks": [
+        { "title": "创建 docs/DSH集成探索.md", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "文档覆盖方向分析、技术路线、Phase 路线图", "status": "done" },
+        { "title": "文档中的链接和引用正确", "status": "done" }
+      ]
+    }
+  ],
+  "knowledgePoints": [
+    {
+      "title": "MCP 桥 vs 直接 API 调用",
+      "content": "选择 MCP stdio server 作为桥接方案，而非在剪藏后端直接实现 DSH 兼容 API。原因：① MCP 是 DSH 原生协议，Agent 自动发现工具及参数 schema；② 桥接层独立，不影响剪藏后端稳定性；③ 支持未来切换为 SSE 传输。",
+      "tags": ["product-dev", "architecture", "dsh"]
+    },
+    {
+      "title": "Dual-read 策略（文件工具+MCP 工具）",
+      "content": "DSH Agent 读取剪藏数据有两种路径：① 文件工具（read/grep/glob）直接读本地文件，零成本；② MCP 工具走后端 API，支持语义搜索等高级功能。写操作强制走 MCP 工具，避免破坏数据结构。",
+      "tags": ["product-dev", "architecture", "dsh"]
+    },
+    {
+      "title": "写操作安全设计",
+      "content": "所有写操作（clip_add/clip_delete/todo_add/todo_set_status）需要用户确认。clip_delete 为破坏性操作，必须显式确认。clip_add 默认 useAiTags=false 省 token，内部自动去重。",
+      "tags": ["product-dev", "security", "dsh"]
+    },
+    {
+      "title": "Phase 路线图规划",
+      "content": "Phase 0（MCP 桥）→ Phase 1（会话自动落库）→ Phase 2（Electron 内嵌 DSH 面板）。当前完成 Phase 0/1，Phase 2 为后续路线。clip-capture 插件基于 session/event 在 turn 结束时自动生成摘要并落库为可选演进方向。",
+      "tags": ["product-dev", "roadmap", "dsh"]
+    }
+  ]
+}
