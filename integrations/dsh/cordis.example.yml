@@ -1,0 +1,42 @@
+# 将剪藏（CutShelter）MCP 桥接入 DSH Web UI —— 配置示例
+#
+# 用法：
+#   1. 启动剪藏后端（Spring Boot，默认 http://127.0.0.1:8081）
+#   2. 安装依赖：cd integrations/dsh/mcp-server && npm install
+#               cd integrations/dsh/plugins/clip-capture && npm install
+#   3. 用本覆盖层启动 DSH（--patch 叠加到 web profile）：
+#        npx @deepseek-ai/dsh web --patch ./integrations/dsh/cordis.example.yml
+#      或（源码运行）：
+#        pnpm dsh web --patch ./integrations/dsh/cordis.example.yml
+#   4. 打开 http://127.0.0.1:3080，Agent 将看到 mcp__cut_shelter__* 工具
+#      以及 clip_session 工具（Phase 1：会话成果自动落库）
+#
+# 注意：
+#   - command 必须是 node 的绝对路径（Windows 下为 node.exe）；脚本路径用正斜杠。
+#   - 若 3080 被占用，可在此文件加一条 webserver patch 改端口（见下方注释示例）。
+#   - 本桥无鉴权，仅绑定本机 8081 后端，不要暴露到公网。
+
+- id: webserver
+  config:
+    host: 127.0.0.1
+    port: 3080
+# 端口冲突时改为 3081 并重启即可。
+
+- id: mcp-cut-shelter
+  name: '@deepseek-ai/dsh-mcp-client'
+  config:
+    serverName: cut_shelter
+    transport: stdio
+    command: 'C:/Program Files/nodejs/node.exe'
+    args:
+      - 'L:/归档/30_Projects (行动项目)/31_Work (主要工作)/code/ai_coding/integrations/dsh/mcp-server/server.mjs'
+    env:
+      CUTSHELTER_BASE_URL: http://127.0.0.1:8081
+      CUTSHELTER_TIMEOUT_MS: '60000'
+
+# Phase 1：clip_session 工具（会话成果自动落库）——本地插件，先 npm install
+- insert:
+    - id: clip-capture
+      name: 'L:/归档/30_Projects (行动项目)/31_Work (主要工作)/code/ai_coding/integrations/dsh/plugins/clip-capture/index.mjs'
+      config:
+        baseUrl: http://127.0.0.1:8081
