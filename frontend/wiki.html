@@ -1,12 +1,134 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="notion">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wiki 知识库</title>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles/theme-notion.css">
     <style>
+        :root {
+            --primary: #3f8cff;
+            --primary-light: #73b2ff;
+            --primary-dark: #2f72d8;
+            --primary-glow: rgba(63, 140, 255, 0.15);
+            --bg: #f9fafb;
+            --bg-elevated: #ffffff;
+            --card: #ffffff;
+            --card-hover: #fbfbfa;
+            --border: #e5e7eb;
+            --border-light: #dcdcd8;
+            --fg: #1f2937;
+            --fg-secondary: #6b7280;
+            --fg-muted: #9ca3af;
+            --accent: #f3f4f6;
+            --accent-light: #f9fafb;
+            --danger: #e03e3e;
+            --danger-light: #fdeeee;
+            --success: #1f9d66;
+            --success-light: #eaf8f2;
+            --radius: 10px;
+            --radius-sm: 8px;
+            --shadow: 0 2px 8px rgba(0,0,0,0.04);
+            --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Notion 主题 */
+        html[data-theme="notion"] {
+            --primary: #2383e2;
+            --primary-light: #e9f3ff;
+            --primary-dark: #1f76c9;
+            --primary-glow: rgba(35, 131, 226, 0.12);
+            --bg: #f7f7f5;
+            --bg-elevated: #ffffff;
+            --card: #ffffff;
+            --card-hover: #fbfbfa;
+            --border: #e8e8e6;
+            --border-light: #dcdcd8;
+            --fg: #2f3437;
+            --fg-secondary: #6b6f76;
+            --fg-muted: #8a8f98;
+            --accent: #f1f1ef;
+            --accent-light: #f6f6f4;
+            --danger: #e03e3e;
+            --danger-light: #fdeeee;
+            --success: #1f9d66;
+            --success-light: #eaf8f2;
+            --shadow: 0 1px 0 rgba(15,23,42,0.03), 0 8px 20px rgba(15,23,42,0.04);
+        }
+        html[data-theme="notion"] .header {
+            background: rgba(255,255,255,0.9);
+            border-bottom-color: #e8e8e6;
+        }
+        html[data-theme="notion"] .tab-btn.active {
+            background: #2f3437;
+            color: #ffffff;
+        }
+        html[data-theme="notion"] .btn-primary {
+            background: #2f3437;
+            color: #ffffff;
+        }
+        html[data-theme="notion"] .btn-primary:hover { background: #1f2328; }
+
+        /* 深色主题 */
+        html[data-theme="dark"] {
+            --primary: #569cff;
+            --primary-light: #73b2ff;
+            --primary-dark: #4a8ae8;
+            --primary-glow: rgba(86, 156, 255, 0.15);
+            --bg: #1e1e1e;
+            --bg-elevated: #2d2d2d;
+            --card: #2d2d2d;
+            --card-hover: #333333;
+            --border: #3e3e3e;
+            --border-light: #4a4a4a;
+            --fg: #d4d4d4;
+            --fg-secondary: #9a9a9a;
+            --fg-muted: #6a6a6a;
+            --accent: #3a3a3a;
+            --accent-light: #333333;
+            --danger: #ef4444;
+            --danger-light: rgba(239,68,68,0.15);
+            --success: #22c55e;
+            --success-light: rgba(34,197,94,0.15);
+            --shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+        html[data-theme="dark"] .header {
+            background: rgba(45,45,45,0.9);
+            border-bottom-color: var(--border);
+        }
+        html[data-theme="dark"] .tab-btn.active {
+            background: var(--primary);
+            color: #fff;
+        }
+        html[data-theme="dark"] .tab-btn:hover { background: var(--accent); }
+        html[data-theme="dark"] .btn-primary { background: var(--primary); color: #fff; }
+        html[data-theme="dark"] .btn-primary:hover { background: var(--primary-dark); }
+        html[data-theme="dark"] .btn-secondary {
+            background: var(--card);
+            color: var(--fg-secondary);
+            border-color: var(--border);
+        }
+        html[data-theme="dark"] .btn-secondary:hover { border-color: var(--primary); color: var(--primary); }
+        html[data-theme="dark"] .card:hover { box-shadow: var(--shadow); }
+        html[data-theme="dark"] .page-list-item .type-badge.entity { background: rgba(86,156,255,0.15); color: var(--primary); }
+        html[data-theme="dark"] .page-list-item .type-badge.concept { background: rgba(239,68,68,0.15); color: #ef4444; }
+        html[data-theme="dark"] .page-list-item .type-badge.synthesis { background: rgba(34,197,94,0.15); color: #22c55e; }
+        html[data-theme="dark"] .page-list-item .type-badge.source { background: rgba(234,179,8,0.15); color: #eab308; }
+        html[data-theme="dark"] .error-msg { background: rgba(239,68,68,0.15); color: #ef4444; }
+        html[data-theme="dark"] .success-msg { background: rgba(34,197,94,0.15); color: #22c55e; }
+
+        /* 常规主题（regular）直接使用 :root 默认值 */
+        html[data-theme="regular"] .header {
+            background: rgba(255,255,255,0.9);
+            border-bottom-color: var(--border);
+        }
+        html[data-theme="regular"] .tab-btn.active {
+            background: var(--primary);
+            color: #fff;
+        }
+        html[data-theme="regular"] .btn-primary { background: var(--primary); color: #fff; }
+        html[data-theme="regular"] .btn-primary:hover { background: var(--primary-dark); }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'IBM Plex Sans', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -18,12 +140,11 @@
 
         /* Header */
         .header {
-            background: var(--card);
+            background: rgba(255,255,255,0.9);
             border-bottom: 1px solid var(--border);
             padding: 12px 24px;
             position: relative;
             backdrop-filter: blur(10px);
-            background: rgba(255,255,255,0.9);
         }
         .header-inner {
             max-width: 1100px;
@@ -35,7 +156,7 @@
         .header h1 {
             font-size: 1.35rem;
             font-weight: 700;
-            color: #1f2328;
+            color: var(--fg);
             white-space: nowrap;
         }
         .header h1 span { color: var(--primary); }
@@ -59,7 +180,7 @@
         }
         .tab-btn:hover { background: var(--accent-light); color: var(--fg); }
         .tab-btn.active {
-            background: #2f3437;
+            background: var(--primary);
             color: #ffffff;
         }
 
@@ -89,7 +210,7 @@
             transition: box-shadow 0.2s ease, transform 0.15s ease;
         }
         .card:hover {
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            box-shadow: var(--shadow);
         }
         .card h2 {
             font-size: 1.05rem;
@@ -127,7 +248,7 @@
         }
         textarea:focus, input[type="text"]:focus {
             border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(63, 140, 255, 0.15);
+            box-shadow: 0 0 0 3px var(--primary-glow);
         }
         .btn {
             padding: 10px 18px;
@@ -144,11 +265,11 @@
             transform: scale(0.97);
         }
         .btn-primary {
-            background: #2f3437;
+            background: var(--primary);
             color: #ffffff;
             transition: all 0.2s ease;
         }
-        .btn-primary:hover { background: #1f2328; }
+        .btn-primary:hover { background: var(--primary-dark); }
         .btn-primary:disabled {
             background: var(--fg-muted);
             cursor: not-allowed;
@@ -320,10 +441,10 @@
             color: var(--fg-secondary);
             text-transform: uppercase;
         }
-        .page-list-item .type-badge.entity { background: #e9f3ff; color: #2383e2; }
-        .page-list-item .type-badge.concept { background: #fdeeee; color: #e03e3e; }
-        .page-list-item .type-badge.synthesis { background: #eaf8f2; color: #1f9d66; }
-        .page-list-item .type-badge.source { background: #fff7e6; color: #b8860b; }
+        .page-list-item .type-badge.entity { background: var(--primary-light); color: var(--primary); }
+        .page-list-item .type-badge.concept { background: var(--danger-light); color: var(--danger); }
+        .page-list-item .type-badge.synthesis { background: var(--success-light); color: var(--success); }
+        .page-list-item .type-badge.source { background: rgba(184,134,11,0.12); color: #b8860b; }
         .page-list-item .name { flex: 1; font-weight: 500; }
 
         /* Index content (pre) */
@@ -557,9 +678,43 @@
     <script src="libs/marked.min.js"></script>
     <script src="js/logger.js"></script>
     <script>
-        // 接收主框架消息：后端就绪后自动刷新数据
+        // ====== 主题初始化 ======
+        (function() {
+            const THEME_KEY = 'app_theme_v1';
+            const APPEARANCE_KEY = 'app_appearance_v1';
+            function getEffectiveTheme() {
+                const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+                if (appearance === 'system') {
+                    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'notion';
+                }
+                return appearance;
+            }
+            function applyTheme() {
+                const theme = getEffectiveTheme();
+                if (theme === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                } else if (theme === 'regular') {
+                    document.documentElement.setAttribute('data-theme', 'regular');
+                } else {
+                    document.documentElement.setAttribute('data-theme', 'notion');
+                }
+            }
+            applyTheme();
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+                const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+                if (appearance === 'system') applyTheme();
+            });
+            window.addEventListener('storage', function(event) {
+                if (event.key === THEME_KEY || event.key === APPEARANCE_KEY) applyTheme();
+            });
+        })();
+
+        // 接收主框架消息：主题切换 + 后端就绪刷新
         window.addEventListener('message', (e) => {
             if (e.data && e.data.action === 'refresh') location.reload();
+            if (e.data && e.data.action === 'themeChange') {
+                document.documentElement.setAttribute('data-theme', e.data.theme === 'dark' ? 'dark' : (e.data.theme === 'regular' ? 'regular' : 'notion'));
+            }
         });
     </script>
     <script>
