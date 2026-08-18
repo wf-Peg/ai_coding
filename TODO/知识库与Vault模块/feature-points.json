@@ -366,6 +366,46 @@
         "只配 API Key 不改模型名时默认行为正常",
         "activeProvider 移入高级设置后初级用户不需关心"
       ]
+    },
+    {
+      "id": "FP-010",
+      "name": "Wiki模块全局主题适配",
+      "description": "wiki.html 适配全局主题（notion/dark/regular 三套主题），移除硬编码的 data-theme='notion' 和外部 styles/theme-notion.css 引用，改为内联 CSS 变量 + 主题初始化脚本。修复所有硬编码颜色值（#1f2328、#2f3437、rgba(...) 等）改用 CSS 变量，type-badge 颜色改用 theme-aware 变量。添加 themeChange 消息监听，支持从父框架实时同步主题。",
+      "layer": "frontend",
+      "tags": ["wiki", "theme", "frontend"],
+      "designSections": [
+        {
+          "title": "CSS 变量体系",
+          "summary": "添加 :root（默认主题）、html[data-theme='notion']、html[data-theme='dark']、html[data-theme='regular'] 四套 CSS 变量定义，覆盖 header、tab-btn、btn-primary、type-badge 等关键元素"
+        },
+        {
+          "title": "主题初始化脚本",
+          "summary": "与 vault.html/knowledge.html 一致的 THEME_KEY/APPEARANCE_KEY + getEffectiveTheme/applyTheme + storage 事件监听 + themeChange 消息监听"
+        }
+      ],
+      "tasks": [
+        "移除 <html data-theme='notion'> 硬编码",
+        "移除 <link rel='stylesheet' href='styles/theme-notion.css'>",
+        "添加 :root CSS 变量 + notion/dark/regular 三套主题 CSS 变量块",
+        "修复 header h1 颜色 #1f2328→var(--fg)",
+        "修复 .card:hover box-shadow 硬编码→var(--shadow)",
+        "修复 .btn-primary background #2f3437→var(--primary)",
+        "修复 .tab-btn.active background #2f3437→var(--primary)",
+        "修复 textarea:focus box-shadow 硬编码→var(--primary-glow)",
+        "修复 type-badge 颜色改用 var(--primary-light)/var(--danger-light)/var(--success-light)",
+        "修复 header background rgba(255,255,255,0.9) 按主题区分",
+        "添加主题初始化 IIFE（getEffectiveTheme/applyTheme/storage 监听）",
+        "添加 message 事件监听 themeChange 实时同步",
+        "添加 dark 主题下 type-badge/error-msg/success-msg 颜色适配",
+        "添加 regular 主题下 header/tab-btn/btn-primary 样式覆盖"
+      ],
+      "verifications": [
+        "notion 主题下页面配色与全局一致（header 半透明白、tab-btn 黑底白字、btn-primary 黑底白字）",
+        "dark 主题下页面配色正确（header 深色半透明、tab-btn 蓝底白字、type-badge 适配暗色）",
+        "regular 主题下页面配色在 :root 基础上正确覆盖",
+        "切换全局主题后 wiki 页面即时跟随",
+        "系统深色偏好与主题设置不冲突"
+      ]
     }
   ],
   "knowledgePoints": [

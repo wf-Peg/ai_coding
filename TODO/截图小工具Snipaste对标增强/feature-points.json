@@ -86,6 +86,46 @@
         { "title": "贴图默认黑阴影，点击选中变蓝色描边阴影，失焦恢复", "status": "done" },
         { "title": "右键置顶/取消置顶即时生效", "status": "done" }
       ]
+    },
+    {
+      "id": "fp-005",
+      "name": "截图全局快捷键与配置增强",
+      "description": "修复截图快捷键修改不生效的 bug（unregister 读取的是已更新后的新配置，改用 registeredAccelerators 数组跟踪已注册的快捷键确保正确注销）。新增启用/禁用开关（screenshotEnabled 配置项，禁用时释放所有快捷键），前端配置面板增加工具状态显示行和一键启停按钮。新增 screenshot:set-enabled IPC 通道和 electronAPI.screenshotSetEnabled。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "screenshot", "shortcut", "config"],
+      "designSections": ["快捷键注册/注销机制修复", "启用/禁用开关设计"],
+      "tasks": [
+        { "title": "screenshot-service.js 添加 registeredAccelerators 数组跟踪已注册快捷键", "status": "done" },
+        { "title": "unregisterShortcuts 改用 tracked 列表而非读取配置，修复旧快捷键残留", "status": "done" },
+        { "title": "registerShortcuts 检查 screenshotEnabled 配置，禁用时跳过注册", "status": "done" },
+        { "title": "新增 screenshot:set-enabled IPC 通道", "status": "done" },
+        { "title": "preload.js 暴露 screenshotSetEnabled API", "status": "done" },
+        { "title": "tools-core.js 配置面板增加工具状态行和一键启停按钮", "status": "done" },
+        { "title": "main.js 默认配置增加 screenshotEnabled: true", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "修改快捷键后保存，旧快捷键被正确注销，新快捷键生效", "status": "done" },
+        { "title": "点击禁用后快捷键全部释放，截图工具不再响应快捷键", "status": "done" },
+        { "title": "点击启用后快捷键重新注册，截图工具恢复正常使用", "status": "done" },
+        { "title": "禁用状态重启后仍保持禁用", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-006",
+      "name": "截图工具栏窄屏适配与快捷键补充",
+      "description": "修复截图工具栏在窄屏场景下按钮溢出/重叠的问题：工具栏 flex-wrap 自动换行，先显示再测量避免 offsetWidth=0 导致定位偏移。新增 T 快捷键一键切换文本工具。",
+      "layer": "frontend",
+      "tags": ["product-dev", "screenshot", "toolbar", "ui"],
+      "designSections": ["工具栏窄屏 flex-wrap 适配", "T 快捷键补充"],
+      "tasks": [
+        { "title": "截图工具栏 flex-wrap + max-width + justify-content:center 窄屏自动换行", "status": "done" },
+        { "title": "工具栏先 display:flex 再测量 offsetWidth/offsetHeight，避免 display:none 时退化为 300px", "status": "done" },
+        { "title": "新增 T 键绑定 text 工具（keydown T→setTool('text')）", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "窄屏下工具栏按钮自动换行显示，不溢出/不重叠", "status": "done" },
+        { "title": "按 T 键切换文本工具，工具栏高亮正确", "status": "done" }
+      ]
     }
   ],
   "knowledgePoints": [

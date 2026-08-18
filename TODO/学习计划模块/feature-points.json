@@ -359,6 +359,34 @@
         "ContentRefMapper.fromLearningPlan()已存在，规则系统可直接命中type=learning-plan的内容",
         "Workspace.TYPES已预留learning类型但无创建逻辑"
       ]
+    },
+    {
+      "id": "fp-bugfix-builtin-dedup",
+      "name": "Bug修复：内置学习计划重复播种去重",
+      "description": "修复多次启动后内置学习计划（产品功能学习）出现重复副本的问题。BuiltinLearningPlanSeeder 启动时调用 saveBuiltinPlan，原逻辑只按 title + isBuiltin 检测存在性，已有时直接跳过。但历史数据中同 title 内置计划可能有多条，新增版本在检测到已存在时，按 updatedAt 排序保留最新一条并清除其余副本，实现自愈。",
+      "layer": "bugfix",
+      "tags": ["backend", "bugfix"],
+      "designSections": [
+        {
+          "title": "根因分析与修复方案",
+          "sourceDoc": "builtin-product-feature-learning-plan.md",
+          "sectionRef": "四、决策记录"
+        }
+      ],
+      "tasks": [
+        {
+          "id": "task-bugfix-dedup",
+          "name": "修改 LearningPlanService.saveBuiltinPlan()",
+          "description": "检测到同名内置计划时，按 updatedAt 排序保留最新一条，清除其余重复副本",
+          "status": "completed",
+          "priority": "high"
+        }
+      ],
+      "verifications": [
+        "多次重启后学习计划列表仅出现一条'产品功能学习'",
+        "保留的是 updatedAt 最新的一条",
+        "后端日志输出'清理重复内置计划'时表明发现并清除了副本"
+      ]
     }
   ],
   "knowledgePoints": [

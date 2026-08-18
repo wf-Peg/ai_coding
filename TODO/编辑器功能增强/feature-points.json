@@ -460,6 +460,26 @@
         { "title": "Ctrl+Shift+B 开关、[[ 补全（含同名消歧候选）回归正常", "status": "done" },
         { "title": "verify-wikilink 脚本断言全部通过（含模块发现/跨模块反链/非 md 链接/就近排序/消歧）", "status": "done" }
       ]
+    },
+    {
+      "id": "fp-020",
+      "name": "删除每行末尾换行符（joinLineEnds）",
+      "description": "编辑器右键菜单新增「删除每行末换行符」功能，将客户端截断的多行日志合并为整行，便于后续格式化（JSON/SQL等）。有选中处理选中行，无选中处理全文。兼容 \\r\\n / \\r / \\n 三种行尾，5MB 内容限制防止性能问题。",
+      "layer": "frontend",
+      "tags": ["product-dev", "editor", "transform"],
+      "designSections": ["joinLineEnds 实现：replace 移除全部换行符", "右键菜单按钮 + 上下文菜单集成"],
+      "tasks": [
+        { "title": "editor.js 新增 joinLineEnds() 函数（replace 移除换行符，兼容三种行尾）", "status": "done" },
+        { "title": "editor.js 新增 5MB 长度守卫", "status": "done" },
+        { "title": "editor.js 右键菜单 showContextMenu 中暴露 joinLineEndsContextBtn", "status": "done" },
+        { "title": "editor.js 右键菜单 action 分发入口新增 joinLineEnds 分支", "status": "done" },
+        { "title": "editor.html 新增「删除每行末换行符」右键菜单按钮", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "右键菜单出现「删除每行末换行符」按钮", "status": "done" },
+        { "title": "选中多行点击后换行符被删除，内容合并为一行", "status": "done" },
+        { "title": "无选中时处理全文，过长内容阻止并有 Toast 提示", "status": "done" }
+      ]
     }
   ],
   "knowledgePoints": [
