@@ -789,6 +789,19 @@ function registerIpc() {
     win.setBounds({ x: nx, y: ny, width: nw, height: nh });
     return true;
   });
+  // 层叠重排：把当前所有打开贴图按 30px 偏移级联铺开（保持各自当前尺寸）
+  ipcMain.handle('paste:rearrange', () => {
+    let n = 0;
+    for (const w of pasteWindows) {
+      if (w.isDestroyed()) continue;
+      const [cw, ch] = w.getSize();
+      try {
+        w.setBounds({ x: 100 + n * 30, y: 100 + n * 30, width: cw, height: ch });
+      } catch (e) {}
+      n++;
+    }
+    return true;
+  });
   ipcMain.handle('paste:save', async (e, payload) => {
     if (!payload) return { status: 'error' };
     let img = null;
