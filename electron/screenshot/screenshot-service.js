@@ -25,6 +25,7 @@ let lastSnip = null;           // 最近一次截图【选区】nativeImage（Sn
 let pendingAction = null;      // 截图确认后的动作（copy/save/ocr/paste）
 let ocrService = null;         // 延迟加载（依赖 onnxruntime-node）
 let inFlight = false;          // 捕获进行中（覆盖层已显示但图像未就绪，可中止）
+let pendingPaintTimer = null;  // 覆盖层渲染超时兜底定时器（防黑屏卡住）
 let lastCaptureDisplaySize = null; // 最近一次捕获的显示器 DIP 尺寸（裁剪换算基准）
 
 function log(...args) {
@@ -110,23 +111,57 @@ function refreshShortcuts() { unregisterShortcuts(); registerShortcuts(); }
 
 // ==================== 截图流程 ====================
 
-/** 捕获指定显示器为 nativeImage（默认光标所在显示器） */
+/** macOS 屏幕录制权限检测示例：已授权返回 true；无法检测返回 null（跳过引导） */
+function getScreenPermissionStatus() {
+  if (process.platform !== 'darwin') return 'granted';
+  try {
+    if (deps && deps.systemPreferences && typeof deps.systemPreferences.getMediaAccessStatus === 'function') {
+      return deps.systemPreferences.getMediaAccessStatus('screen');
+    }
+  } catch (e) {}
+  return null;
+}
+
+/** 简单延时 */
+function delay(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+
+/** 校验缩略图是否有效（非空、尺寸>0）。macOS 空/黑帧会返回 0×0 或空图。 */
+function isValidCaptureImage(img) {
+  if (!img || img.isEmpty()) return false;
+  const s = img.getSize();
+  return s && s.width > 0 && s.height > 0;
+}
+
+/** 捕获指定显示器为 nativeImage（默认光标所在显示器）。
+ *  macOS 上可能拿到空/黑帧，做非空校验与重试，避免黑屏与后续裁剪回退全屏。 */
 async function captureScreen(display) {
   const { desktopCapturer } = deps;
   const disp = display || getTargetDisplay();
   const sf = disp.scaleFactor || 1;
   const size = disp.size; // DIP {width, height}
   // 真实像素缩略图（HiDPI 不失真）：thumbnailSize 传 size×scaleFactor
-  const full = await desktopCapturer.getSources({
-    types: ['screen'],
-    thumbnailSize: { width: Math.round(size.width * sf), height: Math.round(size.height * sf) }
-  });
-  if (!full || full.length === 0) throw new Error('未找到可捕获的屏幕');
-  const img = full[0].thumbnail;
+  const MAX_TRIES = 3;
+  let img = null;
+  for (let i = 0; i < MAX_TRIES; i++) {
+    const full = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: Math.round(size.width * sf), height: Math.round(size.height * sf) }
+    });
+    if (!full || full.length === 0) throw new Error('未找到可捕获的屏幕');
+    img = full[0].thumbnail;
+    if (isValidCaptureImage(img)) break;
+    log('capture retry', i + 1, 'invalid/empty thumbnail:',
+      (img ? JSON.stringify(img.getSize()) : 'none'));
+    if (i < MAX_TRIES - 1) await delay(60);
+  }
+  if (!isValidCaptureImage(img)) {
+    throw new Error('屏幕捕获为空帧：请检查系统"屏幕录制"权限（macOS 设置→隐私与安全性→屏幕录制）');
+  }
   lastCapture = img;
   lastCaptureDisplaySize = size; // 记录本次捕获的显示器 DIP 尺寸（裁剪换算基准）
   const actual = img.getSize(); // 实际缩略图像素（双保险）
   lastCaptureSize = actual;
+  log('capture ok', actual.width + 'x' + actual.height, 'display', size.width + 'x' + size.height, 'sf', sf);
   return { image: img, display: size, actualSize: actual, scaleFactor: sf };
 }
 
@@ -145,18 +180,23 @@ function logPerf(stage, t0) {
 
 /** 生成覆盖层显示数据：优先 raw 位图（toBitmap 仅内存拷贝，主线程几乎零成本），
  *  超大分辨率降级 PNG 编码（raw 传渲染层过大反而慢）。
- *  注意：Windows 上 toBitmap 为 BGRA 且截图不透明（alpha=255，premultiply 无影响），
- *  渲染层负责交换 R/B 为 RGBA。最终裁剪/复制/保存仍用 lastCapture 原生图，画质不受影响。 */
+ *  注意：toBitmap 的像素序为平台相关——Windows 为 BGRA（渲染层需交换 R/B 为 RGBA），
+ *  macOS/Linux 为 RGBA（无需交换）。因此 raw 快速路径只在 Windows 使用；macOS 统一走
+ *  PNG（像素序确定正确），避免字节序假设导致的颜色错乱。
+ *  最终裁剪/复制/保存仍用 lastCapture 原生图，画质不受影响。 */
 function encodeForDisplay(image) {
-  try {
-    const size = image.getSize();
-    const raw = image.toBitmap();
-    const MAX_RAW = 24 * 1024 * 1024; // ≈600 万像素（4K@100% 8.3MP 会走 PNG）
-    if (raw && raw.length > 0 && raw.length <= MAX_RAW) {
-      return { mode: 'raw', bitmap: raw, width: size.width, height: size.height, mime: 'image/png' };
-    }
-  } catch (e) { log('toBitmap failed, fallback PNG:', e.message); }
-  return { mode: 'png', bg: image.toPNG(), mime: 'image/png' };
+  const bgra = process.platform === 'win32';
+  if (bgra) {
+    try {
+      const size = image.getSize();
+      const raw = image.toBitmap();
+      const MAX_RAW = 24 * 1024 * 1024; // ≈600 万像素（4K@100% 8.3MP 会走 PNG）
+      if (raw && raw.length > 0 && raw.length <= MAX_RAW) {
+        return { mode: 'raw', bitmap: raw, width: size.width, height: size.height, mime: 'image/png', bgra: true };
+      }
+    } catch (e) { log('toBitmap failed, fallback PNG:', e.message); }
+  }
+  return { mode: 'png', bg: image.toPNG(), mime: 'image/png', bgra: false };
 }
 
 /** 启动截图：立即显示预建覆盖层（即时反馈）→ 隐藏抓屏（避免入镜）→ 回填图像 */
@@ -166,6 +206,16 @@ async function startScreenshot(defaultAction) {
   if (screenshotWindow && !screenshotWindow.isDestroyed() && screenshotWindow.isVisible()) return; // 覆盖层已显示，防重入
   pendingAction = defaultAction || 'copy';
   const t0 = Date.now();
+
+  // macOS 屏幕录制权限：未授权直接引导，避免黑屏卡住
+  if (process.platform === 'darwin') {
+    const st = getScreenPermissionStatus();
+    if (st && st !== 'granted') {
+      failScreenshot('系统未授予"屏幕录制"权限', st === 'denied');
+      return;
+    }
+  }
+
   try {
     const cfg = loadScreenshotConfig();
     if (cfg.hideMain && getMainWindow() && !getMainWindow().isDestroyed()) {
@@ -179,6 +229,8 @@ async function startScreenshot(defaultAction) {
     win.webContents.send('screenshot:loading', {});
     // 2) 隐藏覆盖层抓屏（否则覆盖层会出现在截图里），抓完回填
     win.hide();
+    // macOS WindowServer 异步合成：hide 后稍等一拍再抓屏，避免抓到覆盖层深色/未刷新帧
+    if (process.platform === 'darwin') await delay(50);
     inFlight = true;
     const shot = await captureScreen(display);
     logPerf('capture', t0);
@@ -187,15 +239,30 @@ async function startScreenshot(defaultAction) {
     if (!inFlight) return; // 捕获期间被 Esc 取消
     win.show();
     try { win.focus(); } catch (e) {}
-    // 3) raw 位图直传（主线程零编码阻塞），渲染层快速转换显示
+    // 3) 位图/PGN 直传（raw 快速路径仅 Windows），渲染层快速转换显示
     win.webContents.send('screenshot:init', Object.assign({}, disp, { display: shot.display, t0 }));
     logPerf('send', t0);
+    // 4) 渲染超时兜底：若一段时间内未收到 painted 成功，主动关闭覆盖层，杜绝"卡住"
+    clearTimeout(pendingPaintTimer);
+    pendingPaintTimer = setTimeout(() => {
+      if (!inFlight) return;
+      log('screenshot: render timeout, aborting');
+      failScreenshot('截图图像渲染超时，已取消', false);
+    }, 2000);
   } catch (e) {
     log('startScreenshot failed:', e.message);
-    inFlight = false;
-    if (screenshotWindow && !screenshotWindow.isDestroyed()) { try { screenshotWindow.hide(); } catch (e2) {} }
-    if (deps.showMainWindow) deps.showMainWindow();
+    failScreenshot(e.message || '截图失败', false);
   }
+}
+
+/** 截图失败统一收尾：关闭覆盖层、重置 inFlight、可选打开系统设置、恢复主窗口并提示 */
+function failScreenshot(message, openSettings) {
+  notifyMainWindow('截图失败：' + message, 'warn', 6000);
+  closeScreenshotWindow();
+  if (openSettings && process.platform === 'darwin' && deps.shell) {
+    try { deps.shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'); } catch (e) {}
+  }
+  if (deps.showMainWindow) deps.showMainWindow();
 }
 
 /** 获取/预建全屏覆盖层窗口（复用，避免每次新建窗口+loadFile 的延迟） */
@@ -251,10 +318,14 @@ async function handleConfirm(payload) {
   const { clipboard, nativeImage } = deps;
   const rect = payload && payload.rect;
   const action = (payload && payload.action) || pendingAction || 'copy';
-  if (!rect || !lastCapture) {
+  const abort = (msg) => {
     closeScreenshotWindow();
     if (deps.showMainWindow) deps.showMainWindow();
-    return;
+    notifyMainWindow('截图失败：' + msg, 'warn', 4000);
+    return { status: 'error', message: msg };
+  };
+  if (!rect || !lastCapture || !isValidCaptureImage(lastCapture)) {
+    return abort('截图数据异常，请重新截图');
   }
   // crop 基于缩略图实际像素：CSS/DIP 坐标 × (实际像素 / DIP 尺寸)
   const actual = lastCaptureSize || lastCapture.getSize();
@@ -262,18 +333,29 @@ async function handleConfirm(payload) {
   const sx = actual.width / Math.max(1, displaySize.width);
   const sy = actual.height / Math.max(1, displaySize.height);
   const cropRect = {
-    x: Math.round(rect.x * sx),
-    y: Math.round(rect.y * sy),
+    x: Math.max(0, Math.round(rect.x * sx)),
+    y: Math.max(0, Math.round(rect.y * sy)),
     width: Math.max(1, Math.round(rect.width * sx)),
     height: Math.max(1, Math.round(rect.height * sy))
   };
+  // 裁剪矩形必须在实际画幅内，否则视为异常，绝不回退全屏（否则贴图/复制会变成全屏）
+  if (cropRect.height > actual.height || cropRect.width > actual.width) {
+    log('crop rect exceeds capture:', JSON.stringify(cropRect), 'vs', JSON.stringify(actual));
+    return abort('截图数据异常，请重新截图');
+  }
   let cropped;
   if (payload.imgData) {
     // 覆盖层已合成「背景选区 + 标注」，直接解码为图，避免重复裁剪
-    try { cropped = nativeImage.createFromDataURL(payload.imgData); }
-    catch (err) { try { cropped = lastCapture.crop(cropRect); } catch (e) { cropped = lastCapture; } }
+    try {
+      const fromDataUrl = nativeImage.createFromDataURL(payload.imgData);
+      cropped = isValidCaptureImage(fromDataUrl) ? fromDataUrl : lastCapture.crop(cropRect);
+    } catch (err) { try { cropped = lastCapture.crop(cropRect); } catch (e) { cropped = null; } }
   } else {
-    try { cropped = lastCapture.crop(cropRect); } catch (e) { cropped = lastCapture; }
+    try { cropped = lastCapture.crop(cropRect); } catch (e) { cropped = null; }
+  }
+  if (!isValidCaptureImage(cropped)) {
+    log('crop produced invalid image, aborting');
+    return abort('截图数据异常，请重新截图');
   }
   // 统一把选区写入贴图缓存（Snipaste 语义）：无论本次动作是复制/保存/OCR/贴图，
   // 之后 F3 / Ctrl+V 都贴【选区】而非全屏，直到下一次截图覆盖。
@@ -511,6 +593,7 @@ function getOcrStatus() {
 
 function closeScreenshotWindow() {
   inFlight = false;
+  clearTimeout(pendingPaintTimer); pendingPaintTimer = null;
   // 覆盖层复用：隐藏而非销毁；异常损坏时销毁由下次 F1 重建
   if (screenshotWindow && !screenshotWindow.isDestroyed()) {
     try { screenshotWindow.hide(); } catch (e) { try { screenshotWindow.destroy(); } catch (e2) {} }
@@ -628,7 +711,14 @@ function registerIpc() {
 
   // ── 渲染反馈（性能/错误可观测，贴图"失效"不再静默） ──
   ipcMain.on('screenshot:painted', (e, payload) => {
+    // 渲染成功/失败均视为已回执：清除超时兜底定时器
+    clearTimeout(pendingPaintTimer); pendingPaintTimer = null;
     if (payload && payload.delta != null) log('perf: painted', payload.delta + 'ms');
+  });
+  // 覆盖层渲染失败（解码失败/空图）时主动收尾，避免黑屏卡住
+  ipcMain.on('screenshot:init-error', (e, payload) => {
+    log('screenshot:init-error:', (payload && payload.message) || 'unknown');
+    failScreenshot((payload && payload.message) || '图像解析失败', false);
   });
   ipcMain.on('paste:rendered', (e, payload) => {
     log('paste:rendered ok', (payload && payload.delta != null) ? payload.delta + 'ms' : '');

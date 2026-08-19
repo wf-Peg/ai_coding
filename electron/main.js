@@ -815,18 +815,28 @@ function checkHttpPort(port, pathname = '/') {
   });
 }
 
-/** 探测可用的 Node.js 可执行文件（用于运行 MCP 桥；打包应用无独立 node 时回退 PATH） */
+/** 探测可用的 Node.js 可执行文件（用于运行 MCP 桥与 DSH；打包应用无独立 node 时回退 PATH） */
 function findNodeExe() {
   if (process.env.NODE_EXE && fs.existsSync(process.env.NODE_EXE)) return process.env.NODE_EXE;
   const known = [
     'C:/nvm4w/nodejs/node.exe',
     'C:/Program Files/nodejs/node.exe',
     path.join(os.homedir(), 'scoop', 'apps', 'nodejs', 'current', 'node.exe'),
+    // macOS homebrew（Apple Silicon 与 Intel）常见安装位置
+    '/opt/homebrew/bin/node',
+    '/usr/local/bin/node',
   ];
   for (const p of known) {
     if (fs.existsSync(p)) return p;
   }
   return 'node';   // PATH 兜底
+}
+
+/** 解析出系统 node 所在目录（用于补充 spawn 的 PATH），找不到则返回空字符串。 */
+function findNodeDir() {
+  const nodeExe = findNodeExe();
+  const dir = path.dirname(nodeExe);
+  return (nodeExe === 'node' || !fs.existsSync(nodeExe) || dir === '.') ? '' : dir;
 }
 
 /** 定位 integrations/dsh 资源目录（含 MCP 桥与插件）：env → 打包资源 → 开发目录 */
@@ -1052,6 +1062,10 @@ async function startDshAgent(config) {
     cwd: APP_DIR,
     env: {
       ...process.env,
+      // 将系统 node 所在目录补进 PATH，保证打包 GUI 应用（PATH 不含 /opt/homebrew/bin 等）
+      // 内部再 spawn 的 node / npx / MCP 桥可被找到。
+      PATH: [findNodeDir(), process.env.PATH, '/usr/local/bin', '/opt/homebrew/bin', '/usr/bin']
+        .filter(Boolean).join(path.delimiter),
       DSH_HOME: dshHome,
       CUTSHELTER_BASE_URL: `http://127.0.0.1:${(config && config.backendPort) || 8081}`,
     },

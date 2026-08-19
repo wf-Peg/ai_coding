@@ -211,13 +211,15 @@
     ipcRenderer.send('screenshot:painted', { delta: Date.now() - (t0 || Date.now()) });
   }
 
-  /** raw 模式：BGRA 位图就地交换为 RGBA → putImageData 到 bgCanvas（无主线程编码阻塞） */
+  /** raw 模式：仅 Windows 走此路径，数据为 BGRA，就地交换 B/R 为 RGBA → putImageData；macOS 走 PNG，无需交换 */
   function showRaw(payload) {
     const u8 = new Uint8Array(payload.bitmap);
-    for (let i = 0; i < u8.length; i += 4) {
-      const r = u8[i];
-      u8[i] = u8[i + 2];
-      u8[i + 2] = r;
+    if (payload.bgra) { // toBitmap 为 BGRA 时交换；非 BGRA（RGBA）直通
+      for (let i = 0; i < u8.length; i += 4) {
+        const r = u8[i];
+        u8[i] = u8[i + 2];
+        u8[i + 2] = r;
+      }
     }
     const clamped = new Uint8ClampedArray(u8.buffer, u8.byteOffset, u8.length);
     const imageData = new ImageData(clamped, payload.width, payload.height);
@@ -254,8 +256,15 @@
     bg.style.display = '';
     bgCanvas.style.display = 'none';
     bg.src = currentUrl;
-    bg.onload = () => onBackgroundReady(payload.t0);
-    bg.onerror = () => ipcRenderer.send('screenshot:painted', { delta: -1 });
+    bg.onload = () => {
+      // 空图（解码成功但尺寸为 0，常见于 macOS 空/黑帧）也视为失败，回传主进程主动收尾
+      if (bg.naturalWidth <= 0 || bg.naturalHeight <= 0) {
+        ipcRenderer.send('screenshot:init-error', { message: '图像尺寸为空' });
+        return;
+      }
+      onBackgroundReady(payload.t0);
+    };
+    bg.onerror = () => ipcRenderer.send('screenshot:init-error', { message: '图像解码失败' });
   });
 
   // ── 遮罩：离屏底图 + 选区亮区（性能优化，避免全屏重绘） ──
