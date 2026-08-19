@@ -56,6 +56,7 @@
     font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
   }
   #menu button:hover { background: rgba(255,255,255,0.12); }
+  #menu .menu-label { color: #9aa0a6; pointer-events: none; }
   #menu .sep { height: 1px; background: rgba(255,255,255,0.12); margin: 4px 6px; }
 </style>
 </head>
@@ -271,6 +272,13 @@
       '<button data-a="ocr">🔤 OCR 识别</button>' +
       '<button data-a="save">💾 保存为文件</button>' +
       '<div class="sep"></div>' +
+      '<button class="menu-label">缩放 ' + Math.round(scale * 100) + '%</button>' +
+      '<button data-a="reset">↺ 还原到初始尺寸</button>' +
+      '<button data-a="op-">◐ 透明度 −</button>' +
+      '<button data-a="op+">◑ 透明度 +</button>' +
+      '<button data-a="rearrange">▦ 重新排列</button>' +
+      '<button data-a="closeAll">✕ 关闭全部贴图</button>' +
+      '<div class="sep"></div>' +
       '<button data-a="close">✕ 关闭贴图</button>';
     menu.style.display = 'block';
     const mw = 130;
@@ -287,6 +295,11 @@
     else if (a === 'copy') ipcRenderer.invoke('screenshot:copy-last');
     else if (a === 'ocr') { ipcRenderer.invoke('screenshot:ocr', { buf: imgBuf || img.src }); }
     else if (a === 'save') ipcRenderer.invoke('paste:save', { buf: imgBuf || img.src });
+    else if (a === 'reset') { const prev = scale; scale = 1; zoomTo(prev, 1, window.innerWidth / 2, window.innerHeight / 2); }
+    else if (a === 'op-') { opacity = Math.max(0.2, opacity - 0.1); ipcRenderer.invoke('paste:set-opacity', opacity); }
+    else if (a === 'op+') { opacity = Math.min(1, opacity + 0.1); ipcRenderer.invoke('paste:set-opacity', opacity); }
+    else if (a === 'rearrange') ipcRenderer.invoke('paste:rearrange');
+    else if (a === 'closeAll') ipcRenderer.send('screenshot:close-paste-windows');
     else if (a === 'close') window.close();
   });
   window.addEventListener('click', (e) => { if (!e.target.closest('#menu')) menu.style.display = 'none'; });
