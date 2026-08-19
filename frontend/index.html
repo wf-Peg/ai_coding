@@ -256,6 +256,9 @@
             background: var(--primary-light, #eff6ff);
             border-bottom: 1px solid var(--panel-border, #e2e2dd);
         }
+        /* display:flex 会覆盖 UA 的 [hidden] 规则，导致 hideAgentProgress() 失效；
+           需显式声明 .agent-progress[hidden] 才能真正隐藏进度条 */
+        .agent-progress[hidden] { display: none; }
         .agent-progress-text {
             flex: 1;
             min-width: 0;
