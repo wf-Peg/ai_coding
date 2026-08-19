@@ -142,7 +142,10 @@ if "%OS%"=="" (
     exit /b 1
 )
 
-set "OUT_DIR=%JRE_DIR%\%PLATFORM%"
+REM 统一按打包目标归档：win -> jre\win, mac(含 mac-arm) -> jre\mac, linux -> jre\linux
+set "OUT_DIR=%JRE_DIR%\win"
+if /I "%OS%"=="mac" set "OUT_DIR=%JRE_DIR%\mac"
+if /I "%OS%"=="linux" set "OUT_DIR=%JRE_DIR%\linux"
 
 REM skip if already downloaded
 if exist "%OUT_DIR%\bin\java.exe" (
@@ -196,6 +199,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "      Remove-Item $sub.FullName -Recurse -Force -ErrorAction SilentlyContinue;" ^
     "    }" ^
     "  }" ^
+    "  # strip dev-only / redundant jmods + man (packaging filter already excludes them)" ^
+    "  Remove-Item (Join-Path $outDir 'jmods') -Recurse -Force -ErrorAction SilentlyContinue;" ^
+    "  Remove-Item (Join-Path $outDir 'man') -Recurse -Force -ErrorAction SilentlyContinue;" ^
     "  Remove-Item $tmpFile -Force -ErrorAction SilentlyContinue;" ^
     "  Write-Host \"[JRE] !PLATFORM! JRE ready: $outDir\";" ^
     "  $javaExe = Get-ChildItem $outDir -Recurse -Filter 'java.exe' -ErrorAction SilentlyContinue | Select-Object -First 1;" ^

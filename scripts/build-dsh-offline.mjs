@@ -8,15 +8,51 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const LOCK = path.join(ROOT, 'package-lock.json');
 const OUT = path.join(ROOT, 'dist-dsh-offline', 'node_modules');
+const OUT_ROOT = path.dirname(OUT);
+const HASH_FILE = path.join(OUT_ROOT, '.dsh-offline.hash');
+
+// 目标平台标识（用于原生二进制裁剪与缓存判断）
+const PLATFORM = process.platform; // win32 | darwin | linux
+const ARCH = process.arch === 'arm64' ? 'arm64' : 'x64';
+
+/** 需要保留的原生平台目录前缀（node-pty 等 prebuilds/ 或 node-gyp build/Release） */
+const KEEP_PLATFORM_PREFIX = getKeepPlatformPrefix();
+
+function getKeepPlatformPrefix() {
+  if (PLATFORM === 'darwin') return `darwin-${ARCH}`;
+  if (PLATFORM === 'win32') return 'win32-';
+  if (PLATFORM === 'linux') return `linux-${ARCH}`;
+  return 'clendar';
+}
+
+/** 计算离线包构建指纹：packages 闭包 + 平台/架构（用于缓存跳过） */
+function buildFingerprint(packages) {
+  const h = createHash('sha256');
+  h.update(JSON.stringify(packages));
+  h.update(`|${PLATFORM}|${ARCH}`);
+  return h.digest('hex');
+}
 
 // 1) 解析 lockfile
 const lock = JSON.parse(fs.readFileSync(LOCK, 'utf8'));
 const packages = lock.packages || {};
+
+// 1-b) 缓存判断：lockfile 闭包 + 平台未变且产物完整则跳过（除非强制重建）
+const force = process.env.DSH_OFFLINE_FORCE === '1';
+if (!force && fs.existsSync(HASH_FILE)) {
+  const prev = fs.readFileSync(HASH_FILE, 'utf8').trim();
+  const cur = buildFingerprint(packages);
+  if (prev === cur && fs.existsSync(OUT)) {
+    console.log('[dsh-offline] 依赖与平台未变化，跳过构建（如需强制重建：DSH_OFFLINE_FORCE=1）');
+    process.exit(0);
+  }
+}
 
 // 2) 从 @deepseek-ai/dsh 出发做 BFS（仅生产依赖：dependencies / optionalDependencies）
 const root = 'node_modules/@deepseek-ai/dsh';
@@ -45,13 +81,13 @@ while (queue.length) {
 }
 
 // 3) 复制闭包目录（清空旧输出；自研递归复制规避 cpSync 在 Windows junction 上的原生崩溃）
-const OUT_ROOT = path.dirname(OUT);
 fs.rmSync(OUT_ROOT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 const PROGRESS_LOG = path.join(OUT_ROOT, '.progress.log');
 const progress = (msg) => { fs.appendFileSync(PROGRESS_LOG, msg + '\n'); };
 
-/** 递归复制（逐文件，容忍单个失败；符号链接按目标 stat 复制为普通文件/目录） */
+/** 递归复制（逐文件，容忍单个失败；符号链接按目标 stat 复制为普通文件/目录）
+ *  原生二进制裁剪：删除非目标平台的预编译目录与调试文件 */
 function copyTree(src, dst) {
   const st = fs.lstatSync(src);
   if (st.isSymbolicLink()) {
@@ -66,13 +102,42 @@ function copyTree(src, dst) {
     return;
   }
   if (st.isDirectory()) {
+    // 跨平台原生预编译目录裁剪（node-pty prebuilds/、node-gyp build/Release 等）
+    const base = path.basename(src);
+    if ((base === 'prebuilds' || base === 'Release' || base === 'prebuild-release') &&
+        src.includes('node_modules')) {
+      const kept = fs.readdirSync(src)
+        .filter(e => keepNativeEntry(e));
+      fs.mkdirSync(dst, { recursive: true });
+      for (const e of kept) {
+        copyTree(path.join(src, e), path.join(dst, e));
+      }
+      return;
+    }
     fs.mkdirSync(dst, { recursive: true });
     for (const e of fs.readdirSync(src)) {
       copyTree(path.join(src, e), path.join(dst, e));
     }
   } else if (st.isFile()) {
+    // 剔除 Windows 调试符号与部分缓存
+    if (/\.pdb$/.test(src)) return;
     try { fs.copyFileSync(src, dst); } catch { /* ignore */ }
   }
+}
+
+/** 原生预编译目录下：是否保留该条目（只留目标平台前缀，剔除 .pdb） */
+function keepNativeEntry(name) {
+  if (/\.pdb$/.test(name)) return false;
+  if (name.includes(':') || name === 'config.gypi') return true; // config.gypi 等通用配置保留
+  if (name.includes('-')) {
+    // 形如 darwin-arm64 / win32-x64 / linux-arm64 / linux-x64
+    if (name.startsWith('darwin')) return name.startsWith(`darwin-${ARCH}`);
+    if (name.startsWith('win32')) return PLATFORM === 'win32';
+    if (name.startsWith('linux')) return PLATFORM === 'linux';
+    if (name.startsWith('freebsd')) return false;
+    return true; // 非平台名（如 generic）保留
+  }
+  return true;
 }
 
 let copied = 0;
@@ -98,6 +163,12 @@ console.log(`闭包包数: ${copied} / 需要 ${needed.size}（失败 ${failed}�
 console.log(`输出: ${OUT}`);
 console.log(`体积: ${(bytes / 1024 / 1024).toFixed(1)} MB`);
 console.log(`进度日志: ${PROGRESS_LOG}`);
+
+// 复制成功后写入指纹，供下次缓存跳过
+if (failed === 0) {
+  fs.writeFileSync(HASH_FILE, buildFingerprint(packages));
+  console.log(`缓存指纹: ${HASH_FILE}`);
+}
 
 function dirSize(dir) {
   const seen = new Set();

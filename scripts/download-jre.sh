@@ -36,16 +36,16 @@ download_jre() {
 
   case "$platform" in
     win|windows)
-      os="windows"; arch="x64"; out_name="jre-windows-x64.zip"
+      os="windows"; arch="x64"; out_name="jre-windows-x64.zip"; out_dir="$JRE_DIR/win"
       ;;
     mac|mac-x64)
-      os="mac"; arch="x64"; out_name="jre-mac-x64.tar.gz"
+      os="mac"; arch="x64"; out_name="jre-mac-x64.tar.gz"; out_dir="$JRE_DIR/mac"
       ;;
     mac-arm|mac-arm64)
-      os="mac"; arch="aarch64"; out_name="jre-mac-arm64.tar.gz"
+      os="mac"; arch="aarch64"; out_name="jre-mac-arm64.tar.gz"; out_dir="$JRE_DIR/mac"
       ;;
     linux)
-      os="linux"; arch="x64"; out_name="jre-linux-x64.tar.gz"
+      os="linux"; arch="x64"; out_name="jre-linux-x64.tar.gz"; out_dir="$JRE_DIR/linux"
       ;;
     *)
       log_error "未知平台: $platform"
@@ -54,7 +54,6 @@ download_jre() {
       ;;
   esac
 
-  out_dir="$JRE_DIR/$platform"
   mkdir -p "$out_dir"
 
   local url="${API_BASE}/${os}/${arch}/jre/hotspot/normal/eclipse?project=jdk"
@@ -86,6 +85,9 @@ download_jre() {
       mv "$JRE_CONTENT"/* "$out_dir/" 2>/dev/null || true
       rmdir "$JRE_CONTENT" 2>/dev/null || true
     fi
+
+    # 精简：删除仅开发用/冗余的 jmods 与 man（打包 filter 已排除，这步释放源码磁盘）
+    rm -rf "$out_dir/jmods" "$out_dir/man" 2>/dev/null || true
 
     rm -f "$tmp_file"
     log_info "${platform} JRE 准备完成: $out_dir"

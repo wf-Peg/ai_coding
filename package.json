@@ -21,10 +21,13 @@
     "build:jlink:unix": "bash scripts/build-jlink.sh",
     "build:jar": "cd backend && mvn clean package -DskipTests",
     "build:jlink:win": "npm run build:jar && npm run build:jlink && npm run prebuild && electron-builder --win --x64 && node scripts/build-update-zip.js",
-    "build:win": "npm run build:jar && npm run prebuild && electron-builder --win --x64 && node scripts/build-update-zip.js",
-    "build:mac": "npm run build:jar && npm run prebuild && electron-builder --mac --arm64 --x64",
-    "build:linux": "npm run build:jar && npm run prebuild && electron-builder --linux --x64",
-    "build:all": "npm run build:jar && npm run prebuild && electron-builder --win --mac --linux",
+    "build:win": "npm run build:jar && npm run prebuild && electron-builder --win --x64 && node scripts/build-update-zip.js && node scripts/clean-artifacts.js",
+    "build:mac": "npm run build:jar && npm run prebuild && electron-builder --mac --arm64 --x64 && node scripts/clean-artifacts.js",
+    "build:mac:arm": "npm run build:jar && npm run prebuild && electron-builder --mac --arm64 && node scripts/clean-artifacts.js",
+    "build:mac:dir": "npm run build:jar && npm run prebuild && electron-builder --mac --dir --arm64",
+    "build:win:dir": "npm run build:jar && npm run prebuild && electron-builder --win --dir --x64",
+    "build:linux": "npm run build:jar && npm run prebuild && electron-builder --linux --x64 && node scripts/clean-artifacts.js",
+    "build:all": "npm run build:jar && npm run prebuild && electron-builder --win --mac --linux && node scripts/clean-artifacts.js",
     "build:portable:win": "npm run prebuild && electron-builder --win portable --x64",
     "build:portable:mac-x64": "npm run prebuild && electron-builder --mac --x64 zip",
     "build:portable:mac-arm": "npm run prebuild && electron-builder --mac --arm64 zip",
@@ -70,10 +73,12 @@
         ]
       },
       {
-        "from": "jre",
+        "from": "jre/${os}",
         "to": "jre",
         "filter": [
-          "**/*"
+          "**/*",
+          "!**/jmods/**",
+          "!**/man/**"
         ]
       },
       {

@@ -17,6 +17,17 @@ const ASSETS_DIR = path.join(PROJECT_ROOT, 'frontend', 'assets');
 const EXT_ICONS_DIR = path.join(PROJECT_ROOT, 'browser-extension', 'icons');
 
 function svgToPng(svgPath, pngPath, width, height) {
+  // 缓存判断：目标 PNG 已存在且不早于源 SVG，则跳过（SVG 未变时无需重生成）
+  try {
+    if (fs.existsSync(pngPath)) {
+      const svgM = fs.statSync(svgPath).mtimeMs;
+      const pngM = fs.statSync(pngPath).mtimeMs;
+      if (pngM >= svgM) {
+        console.log(`[SKIP] ${path.basename(pngPath)} (未变化)`);
+        return;
+      }
+    }
+  } catch (e) { /* 任一 stat 失败则回退到重新生成 */ }
   const cmd = `cairosvg -f png -o "${pngPath}" --output-width ${width} --output-height ${height} "${svgPath}" 2>&1`;
   try {
     execSync(cmd, { stdio: 'pipe' });
