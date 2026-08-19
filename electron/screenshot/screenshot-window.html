@@ -72,6 +72,7 @@
     cursor: pointer; padding: 0; flex: none; box-shadow: 0 1px 4px rgba(0,0,0,0.4);
   }
   #toolbar .sep { width: 1px; height: 20px; background: rgba(255,255,255,0.22); }
+  #gui { position: fixed; left: 0; top: 0; z-index: 4; pointer-events: none; }
   #hint {
     position: fixed; left: 50%; top: 16px; transform: translateX(-50%);
     background: rgba(0,0,0,0.62); color: #fff; font-size: 12.5px;
@@ -93,6 +94,7 @@
 <img id="bg" alt="">
 <canvas id="bgCanvas"></canvas>
 <canvas id="mask" width="0" height="0"></canvas>
+<canvas id="gui"></canvas>
 <canvas id="anno"></canvas>
 <canvas id="annoFloat"></canvas>
 <div id="hint">拖拽选择区域 · R/O/A/P/T/M/E 切换标注 · 数字切粗细 · C 取色 · Ctrl+Z 撤销 · Esc 取消 · Enter 复制</div>
@@ -137,6 +139,11 @@
   const annoColorDot = document.getElementById('annoColor');
   const annoTextInput = document.getElementById('annoText');
   const MAG_SIZE = 120, MAG_SCALE = 6; // 放大镜 120px，6 倍
+  const gui = document.getElementById('gui');
+  const guiCtx = gui.getContext('2d');
+  let lastCursor = null;   // 最近一次鼠标位置（供选区改变时重绘辅助线/读数）
+  const SNAP_PX = 8;       // 选区吸附阈值（像素）
+  const RGB_CROSS = ['#ff4d4d', '#4caf50', '#4d8bff']; // 红/绿/蓝十字准星
   let offDark = null;      // 离屏全暗遮罩底图（性能优化：选区变化仅 drawImage+clearRect）
   let rafPending = null;   // RAF 节流：合并 mousemove
   let pendingMouse = null; // 待处理的最新鼠标坐标
@@ -183,6 +190,9 @@
     document.body.style.transition = '';
     const ctx = mask.getContext('2d');
     ctx.clearRect(0, 0, mask.width || 0, mask.height || 0);
+    guiCtx.clearRect(0, 0, gui.width || 0, gui.height || 0);
+    lastCursor = null;
+    document.body.style.cursor = 'crosshair';
     bg.removeAttribute('src');        // 清掉上一轮背景，加载态不显示陈旧画面
     bgCanvas.style.display = 'none';  // 隐藏 raw 位图
   }
@@ -191,6 +201,10 @@
   function onBackgroundReady(t0) {
     mask.width = display.width;
     mask.height = display.height;
+    gui.width = display.width;
+    gui.height = display.height;
+    gui.style.width = '100%';
+    gui.style.height = '100%';
     mask.style.width = '100%';
     mask.style.height = '100%';
     // 预渲染全暗遮罩底图（一次）
@@ -312,6 +326,7 @@
     if (tx + tbW > window.innerWidth) tx = window.innerWidth - tbW - 8;
     toolbar.style.left = tx + 'px';
     toolbar.style.top = ty + 'px';
+    if (lastCursor) renderGui(lastCursor.x, lastCursor.y); else renderGui(null, null);
     hint.style.display = 'none';
   }
 
@@ -366,6 +381,12 @@
     if (!e) return;
     // 放大镜（在选区边缘 8px 内或拖拽调整时显示）
     updateMagnifier(e.x, e.y);
+    lastCursor = { x: e.x, y: e.y };
+    renderGui(e.x, e.y);
+    // 光标反馈：悬停选区内移动、其余十字
+    document.body.style.cursor = (selRect && dragMode && dragMode !== 'move' && !dragMode.dir) ? 'default'
+      : (selRect && e.x >= selRect.x + 2 && e.x <= selRect.x + selRect.w - 2 &&
+         e.y >= selRect.y + 2 && e.y <= selRect.y + selRect.h - 2) ? 'move' : 'crosshair';
     // 标注绘制中：实时预览到 annoFloat
     if (annoStart) {
       if (annoTool === 'pen' || annoTool === 'eraser') {
@@ -516,6 +537,51 @@
     clampRect();
     drawMask(selRect); updateSel(selRect);
   }, { passive: false });
+
+  // ── 十字准星 + 辅助线 + 读数（DIP 空间，单 canvas 合绘） ──
+  function renderGui(cx, cy) {
+    const W = gui.width, H = gui.height;
+    guiCtx.clearRect(0, 0, W, H);
+    // 辅助线：选中后从选区四边延伸到屏幕边缘（浅蓝虚线）
+    if (selRect && selRect.w >= 4 && selRect.h >= 4) {
+      guiCtx.save();
+      guiCtx.strokeStyle = 'rgba(63,140,255,0.3)';
+      guiCtx.setLineDash([4, 4]);
+      guiCtx.lineWidth = 1;
+      guiCtx.beginPath();
+      guiCtx.moveTo(selRect.x, 0); guiCtx.lineTo(selRect.x, H);
+      guiCtx.moveTo(selRect.x + selRect.w, 0); guiCtx.lineTo(selRect.x + selRect.w, H);
+      guiCtx.moveTo(0, selRect.y); guiCtx.lineTo(W, selRect.y);
+      guiCtx.moveTo(0, selRect.y + selRect.h); guiCtx.lineTo(W, selRect.y + selRect.h);
+      guiCtx.stroke();
+      guiCtx.restore();
+    }
+    // 无光标则不画准星（仅辅助线场景）
+    if (cx == null || cy == null) return;
+    // 经典红绿蓝三色细十字
+    for (let k = 0; k < 3; k++) {
+      const off = k - 1;
+      guiCtx.strokeStyle = RGB_CROSS[k];
+      guiCtx.lineWidth = 1;
+      guiCtx.beginPath();
+      guiCtx.moveTo(cx + off, 0); guiCtx.lineTo(cx + off, H);
+      guiCtx.moveTo(0, cy + off); guiCtx.lineTo(W, cy + off);
+      guiCtx.stroke();
+    }
+    guiCtx.closePath();
+    // 读数：未选区显坐标，选区中/后显 w×h
+    const label = (selRect && selRect.w >= 4 && selRect.h >= 4)
+      ? Math.round(selRect.w) + ' × ' + Math.round(selRect.h)
+      : Math.round(cx) + ', ' + Math.round(cy);
+    guiCtx.font = '11px "IBM Plex Sans","Noto Sans SC",sans-serif';
+    const tw = guiCtx.measureText(label).width + 12;
+    const bx = Math.min(cx + 14, W - tw - 4);
+    const by = cy < H - 22 ? cy + 14 : cy - 22;
+    guiCtx.fillStyle = 'rgba(0,0,0,0.6)';
+    guiCtx.fillRect(bx, by, tw, 18);
+    guiCtx.fillStyle = '#fff';
+    guiCtx.fillText(label, bx + 6, by + 13);
+  }
 
   // ── 放大镜（光标周围 6 倍放大 + 坐标） ──
   function updateMagnifier(cx, cy) {
