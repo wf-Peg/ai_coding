@@ -66,6 +66,33 @@
   };
   const SYSTEM_TOOLS = [SYSTEM_SCREENSHOT];
 
+  // ── 顶层模块子工具（使用频率较低，移入工具模块作为子工具入口）──
+  // 点击后通过 postMessage 让主框架跳转到对应视图，避免嵌套 iframe 破坏页面与父窗口的通信
+  const MODULE_TOOLS = [
+    {
+      id: 'module-learning-plan',
+      name: '学习计划',
+      icon: '🎯',
+      module: true,
+      viewName: 'learning-plan',
+      system: true,
+      category: '首页模块',
+      description: '维护学习目标与计划',
+      keywords: ['学习', '学习计划', '目标', '计划', 'plan']
+    },
+    {
+      id: 'module-data-observability',
+      name: '数据观测台',
+      icon: '📊',
+      module: true,
+      viewName: 'data-observability',
+      system: true,
+      category: '首页模块',
+      description: '查看使用习惯与事件统计',
+      keywords: ['观测', '数据', '统计', '观测台', 'observability']
+    }
+  ];
+
   // ── 主题化提示/确认（替代原生 alert/confirm，贴合全局主题、无 clip-demo 标题栏） ──
   let toastTimer = null;
   function showToast(msg, ms) {
@@ -105,7 +132,8 @@
       const res = await fetch(API_BASE + '/api/tools');
       const data = await res.json();
       tools = (data.tools || []).slice();
-      // 前置系统工具卡片（截图等 Electron 能力）
+      // 前置顶层模块子工具（学习计划 / 数据观测台）与系统工具卡片（截图等 Electron 能力）
+      tools.unshift.apply(tools, MODULE_TOOLS);
       tools.unshift.apply(tools, SYSTEM_TOOLS);
       renderChips();
       renderGrid();
@@ -314,8 +342,9 @@
     renderGrid({ animate: false });
   }
 
-  // ── Open tool in overlay（系统工具走说明弹窗）──
+  // ── Open tool in overlay（系统工具走说明弹窗，顶层模块子工具跳主框架视图）──
   function openTool(t) {
+    if (t.module) { openModule(t); return; }
     if (t.system) { openSystemTool(t); return; }
     $('overlayTitle').textContent = (t.icon || '🧰') + ' ' + t.name;
     currentPromptId = t.id;
@@ -324,6 +353,16 @@
     frame.onload = () => forwardThemeToTool();
     frame.src = API_BASE + '/api/tools/' + t.id + '/page';
     $('overlay').classList.add('show');
+  }
+
+  // ── 打开顶层模块子工具：通知主框架(main)切换到对应视图 ──
+  function openModule(t) {
+    const parent = window.parent;
+    if (parent && parent.postMessage && t.viewName) {
+      parent.postMessage({ type: 'navigateModuleTool', view: t.viewName }, '*');
+    } else {
+      showToast('当前环境不支持跳转，请在主界面使用「' + t.name + '」', 4000);
+    }
   }
 
   // ── Close tool overlay（返回工具列表）──
@@ -513,11 +552,11 @@
     menuEl.style.right = (window.innerWidth - rect.right) + 'px';
 
     if (t.system) {
-      // 系统工具：仅说明
+      // 系统工具：顶层模块子工具「打开」，其余「查看说明」
       const item = document.createElement('button');
       item.className = 'th-menu-item';
-      item.textContent = '📖 查看说明';
-      item.addEventListener('click', () => { closeMenu(); openSystemTool(t); });
+      item.textContent = t.module ? '🚀 打开' : '📖 查看说明';
+      item.addEventListener('click', () => { closeMenu(); openTool(t); });
       menuEl.appendChild(item);
     } else {
       // 查看提示词
