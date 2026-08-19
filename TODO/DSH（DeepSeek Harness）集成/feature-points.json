@@ -2,14 +2,14 @@
   "version": "2.0",
   "requirement": {
     "title": "DSH（DeepSeek Harness）集成",
-    "summary": "让 DeepSeek Harness（DSH）的 Agent 能检索与写入剪藏知识库（剪藏/待办/学习计划/Wiki索引/周报状态），并在完成工作后将会话成果自动落库，实现 AI 用知识库干活、干完自动沉淀。",
+    "summary": "让 DeepSeek Harness（DSH）的 Agent 能检索与写入剪藏知识库（剪藏/待办/学习计划/Wiki索引/周报状态），并在完成工作后将会话成果自动落库。已实现 Phase 0（MCP 桥）、Phase 1（clip_session 落库）、Phase 2（Electron sidecar + AI 干活面板）、Phase 3（Tools Hub 互通）+ 离线打包 + 技能同步；待开发：TODO 目录扫描恢复、DSH Web 客户端插件、会话级自动摘要。",
     "tags": [
       "product-dev",
       "dsh",
       "mcp",
       "integration"
     ],
-    "phase": "completed",
+    "phase": "implementation",
     "createdAt": "2026-08-18T22:30:00",
     "completedAt": "2026-08-18T23:59:00"
   },
@@ -332,6 +332,270 @@
           "status": "done"
         }
       ]
+    },
+    {
+      "id": "fp-007",
+      "name": "Tools Hub 互通（Phase 3）",
+      "description": "MCP 桥新增 tools_hub_list（列出剪藏 Tools Hub 的 HTML 小工具注册表 id/名称/分类/描述/启用状态）与 tools_hub_page（读取小工具 HTML 页面源码前 3000 字符）。概念澄清：Tools Hub 是自包含 HTML 小工具（UI），Agent 工具是模型可调用函数，两者通过这两个只读工具互通——Agent 可了解/复用剪藏已有小工具，但不能直接执行 HTML。",
+      "layer": "frontend",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "mcp",
+        "tools-hub"
+      ],
+      "designSections": [
+        {
+          "title": "Tools Hub 与 Agent 工具概念区分",
+          "summary": "Tools Hub 是剪藏自包含 HTML 小工具注册表（~/.cut-shelter/tools/registry.json），与 DSH Agent 工具是两种概念；通过 tools_hub_list/tools_hub_page 只读工具互通"
+        },
+        {
+          "title": "桥工具实现",
+          "summary": "server.mjs 新增 tools_hub_list（GET /api/tools）与 tools_hub_page（GET /api/tools/{id}/page 截取前 3000 字符）"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "server.mjs 新增 tools_hub_list 工具（列出 Tools Hub 注册表）",
+          "status": "done"
+        },
+        {
+          "title": "server.mjs 新增 tools_hub_page 工具（读取小工具 HTML 前 3000 字符）",
+          "status": "done"
+        },
+        {
+          "title": "更新探索文档方向矩阵 E（Tools Hub ↔ DSH 生态）",
+          "status": "done"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "DSH 中可调用 tools_hub_list 列出剪藏小工具注册表",
+          "status": "done"
+        },
+        {
+          "title": "tools_hub_page 可读取指定小工具的 HTML 源码",
+          "status": "done"
+        },
+        {
+          "title": "概念澄清已文档化（Tools Hub 是 UI 小工具，Agent 工具是可调用函数）",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "fp-008",
+      "name": "技能包一键安装与状态查询",
+      "description": "Electron 主进程新增 dsh-agent:install-skill IPC（将 integrations/dsh/skills/cut-shelter 复制到 ~/.dsh/skills/cut-shelter）与 dsh-agent:skill-status IPC（查询技能包是否已安装）。设置页 DSH 区块提供「一键安装技能包」按钮。",
+      "layer": "fullstack",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "skill",
+        "electron"
+      ],
+      "designSections": [
+        {
+          "title": "技能包安装链路",
+          "summary": "源目录按打包形态解析（patchDir/skills → APP_DIR/integrations/dsh/skills），目标 ~/.dsh/skills/cut-shelter，安装前清空旧目录避免残留"
+        },
+        {
+          "title": "状态查询",
+          "summary": "skill-status 检查目标目录是否存在 SKILL.md，返回安装状态供前端展示"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "main.js 新增 dsh-agent:install-skill IPC（复制技能包到 ~/.dsh/skills）",
+          "status": "done"
+        },
+        {
+          "title": "main.js 新增 dsh-agent:skill-status IPC（查询安装状态）",
+          "status": "done"
+        },
+        {
+          "title": "settings.html DSH 区块添加「一键安装技能包」按钮",
+          "status": "done"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "点击一键安装后 ~/.dsh/skills/cut-shelter 出现 SKILL.md",
+          "status": "done"
+        },
+        {
+          "title": "skill-status 正确反映已安装/未安装状态",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "fp-009",
+      "name": "体验测试指南与 Trae 技能同步",
+      "description": "编写 docs/DSH体验测试指南.md（从零验证到端到端的完整体验步骤：启动后端→启动带集成的 DSH→打开 3081 体验界面→四个场景验证→排查表）。已执行 Trae 技能同步：~/.trae-cn/skills/*（18 个）→ ~/.dsh/skills/（用户级），仓库 .trae/skills/*（6 个）→ .dsh/skills/（项目级）。",
+      "layer": "documentation",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "documentation",
+        "skill-sync"
+      ],
+      "designSections": [
+        {
+          "title": "体验测试指南结构",
+          "summary": "步骤 0 启动后端 → 步骤 1 启动带集成 DSH（--patch 相对路径陷阱提示）→ 步骤 2 打开 3081 界面确认工具 → 四个体验场景（读/写/待办/落库）→ 排查表"
+        },
+        {
+          "title": "Trae 技能同步策略",
+          "summary": "用户级技能（~/.trae-cn/skills 18 个）复制到 ~/.dsh/skills，项目级技能（.trae/skills 6 个）复制到 .dsh/skills；格式兼容零转换；新增 Trae 技能后重跑复制即可"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "创建 docs/DSH体验测试指南.md",
+          "status": "done"
+        },
+        {
+          "title": "Trae 用户级技能 18 个同步到 ~/.dsh/skills",
+          "status": "done"
+        },
+        {
+          "title": "Trae 项目级技能 6 个同步到 .dsh/skills",
+          "status": "done"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "指南步骤与排查表完整、本机环境已核实",
+          "status": "done"
+        },
+        {
+          "title": "~/.dsh/skills 与 .dsh/skills 中技能文件格式兼容",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "fp-010",
+      "name": "待开发：恢复 TODO 目录扫描（TodoScannerService）",
+      "description": "后端 TodoScannerService.scanAndImport() 当前被硬禁用（方法体直接返回空结果）且无调用方。待开发：还原扫描器实现（读取 TODO/feature-points.json 批量导入剪藏与待办，按 .imported 标记幂等去重），并接回启动钩子，实现 DSH Agent 写入 TODO/feature-points.json 后自动落库。",
+      "layer": "backend",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "todo",
+        "todo-item"
+      ],
+      "designSections": [
+        {
+          "title": "现状",
+          "summary": "TodoScannerService.scanAndImport() 硬禁用（backend/src/main/java/com/example/clip/service/TodoScannerService.java:108），无调用方；现阶段待办落库走 MCP 桥 todo_add API 路径"
+        },
+        {
+          "title": "恢复方案",
+          "summary": "还原 scanAndImport() 实现（feature-points.json 批量导入剪藏与待办，按 .imported 标记幂等去重），接回启动钩子"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "还原 TodoScannerService.scanAndImport() 实现",
+          "status": "todo"
+        },
+        {
+          "title": "接回启动钩子（启动时扫描 TODO 目录落库）",
+          "status": "todo"
+        },
+        {
+          "title": "验证 .imported 标记幂等去重",
+          "status": "todo"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "TODO/feature-points.json 写入后重启后端自动导入剪藏与待办",
+          "status": "todo"
+        },
+        {
+          "title": "重复导入不产生重复数据（幂等）",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": "fp-011",
+      "name": "待开发：DSH Web 客户端插件（conversation node）",
+      "description": "在 DSH Web 内联渲染剪藏/待办数据（conversation node + keyed renderer）。技术上可行（ConversationNodeDefinition），但客户端插件需要打进 DSH Web 的构建产物（pnpm run dev:web / 完整 build），对 npx @deepseek-ai/dsh 安装方式不生效——需从源码跑 DSH 才可加载。已定位为可选、留待源码部署时再做。",
+      "layer": "frontend",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "plugin",
+        "todo-item"
+      ],
+      "designSections": [
+        {
+          "title": "技术可行性",
+          "summary": "ConversationNodeDefinition + keyed renderer 可内联渲染剪藏/待办；限制：客户端插件必须打进 DSH Web 构建产物，npx 安装方式不可用"
+        },
+        {
+          "title": "前置条件",
+          "summary": "需从源码构建 DSH（deepseek-ai/deepseek-harness 源码）或部署源码版 DSH"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "从源码部署 DSH（或等待官方发布可加载客户端插件的分发方式）",
+          "status": "todo"
+        },
+        {
+          "title": "实现 conversation node 内联渲染剪藏/待办数据",
+          "status": "todo"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "DSH Web 对话中剪藏/待办数据内联可见",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": "fp-012",
+      "name": "待开发：会话级自动摘要落库（session/event）",
+      "description": "基于 DSH 的 session/event 事件，在 turn 结束时自动生成会话摘要并调用 clip_session 落库（当前为 Agent 显式调用）。行为更自动化但 token 成本更高、摘要质量需把关。列为可选演进方向。",
+      "layer": "fullstack",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "plugin",
+        "todo-item"
+      ],
+      "designSections": [
+        {
+          "title": "演进方向",
+          "summary": "监听 agent/*、tools/*、session/event 事件，turn 结束时自动生成摘要并落库；当前为 Agent 显式调用 clip_session，行为可预期、更省 token"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "clip-capture 插件监听 session/event 事件",
+          "status": "todo"
+        },
+        {
+          "title": "turn 结束时自动生成摘要并调用落库",
+          "status": "todo"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "DSH 会话结束后自动生成剪藏（无需 Agent 显式调用）",
+          "status": "todo"
+        },
+        {
+          "title": "摘要质量与 token 成本可控",
+          "status": "todo"
+        }
+      ]
     }
   ],
   "knowledgePoints": [
@@ -364,7 +628,7 @@
     },
     {
       "title": "Phase 路线图规划",
-      "content": "Phase 0（MCP 桥）→ Phase 1（会话自动落库）→ Phase 2（Electron 内嵌 DSH 面板）。当前完成 Phase 0/1，Phase 2 为后续路线。clip-capture 插件基于 session/event 在 turn 结束时自动生成摘要并落库为可选演进方向。",
+      "content": "Phase 0（MCP 桥）✅ → Phase 1（会话自动落库 clip_session）✅ → Phase 2（Electron 内嵌 DSH「AI 干活」面板）✅ → Phase 3（Tools Hub 互通桥工具）✅。待开发：恢复 TODO 目录扫描（TodoScannerService）、DSH Web 客户端插件（需源码构建）、会话级自动摘要（session/event 可选演进）。",
       "tags": [
         "product-dev",
         "roadmap",
