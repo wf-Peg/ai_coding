@@ -142,6 +142,7 @@
   const gui = document.getElementById('gui');
   const guiCtx = gui.getContext('2d');
   let lastCursor = null;   // 最近一次鼠标位置（供选区改变时重绘辅助线/读数）
+  let hintedSel = false;   // 选区首次出现时是否已提示后续操作
   const SNAP_PX = 8;       // 选区吸附阈值（像素）
   const RGB_CROSS = ['#ff4d4d', '#4caf50', '#4d8bff']; // 红/绿/蓝十字准星
   let offDark = null;      // 离屏全暗遮罩底图（性能优化：选区变化仅 drawImage+clearRect）
@@ -176,7 +177,7 @@
   /** 每次开始截图前复位状态（窗口复用，必须清掉上一轮的选区/工具栏/遮罩/背景） */
   function resetOverlay() {
     selRect = null; dragMode = null; dragStart = null; lastRect = null;
-    wheelAccum = 0; canceling = false;
+    wheelAccum = 0; canceling = false; hintedSel = false;
     annoTool = null; annoStart = null; annoPath = null; annoCount = 0;
     undoStack = []; annoWidth = 3;
     [annoCtx, annoFloatCtx].forEach(c => c.clearRect(0, 0, anno.width || 0, anno.height || 0));
@@ -315,6 +316,11 @@
     h('sw').style.transform = 'translate(0px,' + (rect.h - hw) + 'px)';
     h('w').style.transform = 'translate(0px,' + (rect.h / 2 - hw / 2) + 'px)';
     sel.classList.add('resize');
+    // 选区首次有效时给出下一步操作引导（一次性提示，直至 resetOverlay 复位）
+    if (!hintedSel) {
+      hintedSel = true;
+      showHint('拖动内部移动 · 拖手柄调整 · 滚轮缩放 · 方向键微调 · R/O/A/P/T/M/E 标注 · Enter 复制', 2600);
+    }
     // 工具栏跟随：先显示再测量，避免 display:none 时 offsetWidth=0 退回 300px 导致定位偏移/按钮溢出重叠
     toolbar.style.display = 'flex';
     const tbW = toolbar.offsetWidth;
@@ -765,7 +771,7 @@
   }
   // ── 短暂提示 ──
   let hintTimer = null;
-  function showHint(msg) {
+  function showHint(msg, duration = 1000) {
     const h = document.getElementById('hint_tmp') || (() => {
       const el = document.createElement('div');
       el.id = 'hint_tmp';
@@ -776,7 +782,7 @@
     h.textContent = msg;
     h.style.opacity = '1';
     clearTimeout(hintTimer);
-    hintTimer = setTimeout(() => { h.style.opacity = '0'; }, 1000);
+    hintTimer = setTimeout(() => { h.style.opacity = '0'; }, duration);
   }
   /** 把背景选区 + 标注合成一张 PNG dataURL（物理像素），随确认回传主进程 */
   function composeAnno(rect) {
