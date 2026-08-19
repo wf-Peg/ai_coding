@@ -939,6 +939,24 @@ function sanitizeLogLine(raw) {
     .slice(0, 140);
 }
 
+/**
+ * 从子进程输出尾段提炼关键报错，并附加可操作的自愈指引。
+ * 问题 1 修复：把真实 ERR_MODULE_NOT_FOUND 等透传给面板，而不是让用户干等。
+ * @param {string[]} recentTail 最近几行子进程输出（已去 ANSI/空白）
+ * @returns {string} 面向面板的失败文案
+ */
+function buildDshFailMessage(recentTail) {
+  const keys = ['MODULE_NOT_FOUND', 'ERR_', 'Cannot find module', 'npm error', 'Error:'];
+  const hit = [];
+  for (const line of recentTail || []) {
+    if (keys.some((k) => line.includes(k))) { hit.push(line); if (hit.length >= 3) break; }
+  }
+  const tail = hit.length ? hit.join(' ｜ ') : ((recentTail || []).slice(-2).join(' ｜ ') || '未知错误');
+  return '安装/启动 DeepSeek Harness 失败：' + tail +
+    '。可尝试：① 在项目根目录执行 npm i --save-dev @deepseek-ai/dsh@0.1.0-rc.7 后重试；' +
+    '② 清除 npx 缓存 npm cache clean --force 后重试；③ 在设置页配置 DSH CLI 路径（DSH_BIN）后重试。';
+}
+
 /** 启动成功后若走的是 npx 路径，把已落盘的 dsh 缓存路径固化到配置（下次秒起、免 npx） */
 function persistDshBinIfNpx(bin, config) {
   if (bin.mode !== 'npx') return;
@@ -1004,6 +1022,7 @@ async function startDshAgent(config) {
 
   // 3) 解析 dsh CLI：没有本地安装时自动走 npx 安装
   const bin = resolveDshBin(config);
+  log.info(`[DSH Agent] resolved dsh bin: mode=${bin.mode}${bin.script ? ' script=' + bin.script : ''}`);
   const npxMode = bin.mode === 'npx';
   if (npxMode) {
     broadcastDshProgress('installing',
@@ -1032,9 +1051,14 @@ async function startDshAgent(config) {
 
   // 子进程输出 → 日志 + 节流转发给面板（安装/启动期展示真实进度）
   let lastFwdAt = 0;
+  let processExited = false;        // 子进程已退出/启动失败 → 用于立即中止就绪轮询（修复无限"正在安装"）
+  const recentTail = [];            // 最近输出尾段，供失败时按关键字提炼真实报错
+  const TAIL_LIMIT = 30;
   const forward = (kind) => (d) => {
     const line = sanitizeLogLine(d);
     if (!line) return;
+    recentTail.push(line);                       // 记录尾段（含下载进度等噪音，失败时再提炼）
+    if (recentTail.length > TAIL_LIMIT) recentTail.shift();
     if (kind === 'stdout') log.info(`[DSH Agent] ${line}`); else log.warn(`[DSH Agent] ${line}`);
     const now = Date.now();
     if (now - lastFwdAt > 2500) {
@@ -1047,15 +1071,17 @@ async function startDshAgent(config) {
   const startTime = Date.now();
   dshAgentProcess.stdout.on('data', forward('stdout'));
   dshAgentProcess.stderr.on('data', forward('stderr'));
+  // 子进程退出/启动失败仅标记，不在此 broadcast —— 下方就绪轮询会立刻感知并透传真实报错
   dshAgentProcess.on('close', (code) => {
     log.info(`[DSH Agent] exited with code ${code}`);
+    processExited = true;
     if (dshAgentProcess) { dshAgentProcess = null; dshAgentOwned = false; }
   });
   dshAgentProcess.on('error', (err) => {
     log.error(`[DSH Agent] start error: ${err.message}`);
-    broadcastDshProgress('failed', `启动失败：${err.message}`);
-    dshAgentProcess = null;
-    dshAgentOwned = false;
+    processExited = true;
+    recentTail.push('start error: ' + err.message);
+    if (dshAgentProcess) { dshAgentProcess = null; dshAgentOwned = false; }
   });
   dshAgentOwned = true;
 
@@ -1063,7 +1089,26 @@ async function startDshAgent(config) {
   const timeoutMs = npxMode ? 300000 : 90000;
   const deadline = Date.now() + timeoutMs;
   let lastTickAt = 0;
+  // 统一失败出口：日志 + 透传真实报错 + 回收进程（防重复广播）
+  let failOnce = false;
+  const failNow = (message) => {
+    if (failOnce) return;
+    failOnce = true;
+    log.error(`[DSH Agent] ${message}`);
+    broadcastDshProgress('failed', message);
+    if (dshAgentProcess && dshAgentOwned) {
+      try { dshAgentProcess.kill('SIGKILL'); } catch (e) { /* ignore */ }
+    }
+    dshAgentProcess = null;
+    dshAgentOwned = false;
+  };
   while (Date.now() < deadline) {
+    // 子进程已退出：端口未就绪 → 立即失败并透传真实报错（不再空转到超时）；
+    // 若已就绪（如父进程退出但守护子进程驻留）则回落就绪分支。
+    if (processExited && !(await checkHttpPort(port))) {
+      failNow(buildDshFailMessage(recentTail));
+      return { success: false, message: 'DSH process exited before ready' };
+    }
     if (await checkHttpPort(port)) {
       log.info(`[DSH Agent] ready at http://127.0.0.1:${port}`);
       broadcastDshProgress('ready', npxMode
@@ -1084,12 +1129,7 @@ async function startDshAgent(config) {
     }
     await new Promise((r) => setTimeout(r, 1500));
   }
-  broadcastDshProgress('failed', `DeepSeek Harness 启动超时（${Math.round(timeoutMs / 1000)} 秒）`);
-  if (dshAgentProcess && dshAgentOwned) {
-    try { dshAgentProcess.kill('SIGKILL'); } catch (e) { /* ignore */ }
-    dshAgentProcess = null;
-    dshAgentOwned = false;
-  }
+  failNow(buildDshFailMessage(recentTail) + `（启动超时 ${Math.round(timeoutMs / 1000)} 秒）`);
   return { success: false, message: `DSH Agent startup timeout on port ${port}` };
 }
 

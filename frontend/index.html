@@ -1087,6 +1087,8 @@
           case 'failed':
             setAgentStatus('off', '启动失败');
             showAgentProgress(p.message, { error: true });
+            // 失败时清空 iframe，避免半加载的 DSH SPA 残留渲染出重复菜单；端口就绪后再真正加载
+            if (agentFrame) agentFrame.src = 'about:blank';
             break;
         }
       }
@@ -1169,7 +1171,8 @@
           });
         }
         const reload = document.getElementById('agentReload');
-        if (reload) reload.addEventListener('click', () => { if (agentFrame) agentFrame.src = agentFrame.src; });
+        // 统一走单一路径重载，避免与其他重载入口叠加导致 DSH SPA 重复渲染菜单
+        if (reload) reload.addEventListener('click', () => { loadAgentFrame(AGENT_PORT, true); });
         const ext = document.getElementById('agentOpenExternal');
         if (ext) ext.addEventListener('click', () => {
           if (window.electronAPI && typeof window.electronAPI.openExternal === 'function') {
@@ -1249,6 +1252,8 @@
         }
       });
       document.getElementById('btnRefresh').addEventListener('click', () => {
+        // AI 干活视图：走单一路径重载 iframe，避免跨域 postMessage 无效且与 ⟳ 叠加重载
+        if (currentView === 'agent') { loadAgentFrame(AGENT_PORT, true); return; }
         if (activeIframe) {
           activeIframe.contentWindow.postMessage({action: 'refresh'}, '*');
         } else if (currentView === 'clip') {

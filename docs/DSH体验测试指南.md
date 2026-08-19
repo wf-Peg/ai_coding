@@ -125,6 +125,7 @@ MCP 桥已新增 `mcp__cut_shelter__tools_hub_list`（列出剪藏工具中心�
 | Agent 说看不到 `mcp__cut_shelter__*` 工具 | ① 剪藏后端没起（先过步骤 0）；② node 路径不对（`where node` 核对 `command`）；③ 看 DSH 终端日志里 mcp-client 的报错 |
 | 工具调用了但报 HTTP 错误 | 桥默认连 `http://127.0.0.1:8081`，确认后端在该端口（`/api/health`） |
 | 模型不可用/没反应 | DSH 设置→模型里确认有可用提供方（本机已配 wuan-ds 等）；与集成无关 |
+| 安装/启动报 `ERR_MODULE_NOT_FOUND` 且面板卡「正在安装」很久 | ① 项目根目录执行 `npm i --save-dev @deepseek-ai/dsh@0.1.0-rc.7` 用本地 node 直接启动，避开 npx 缓存缺依赖；② 或清除 npx 缓存 `npm cache clean --force` 后重试；③ 或在设置页配置 DSH CLI 路径（DSH_BIN）。新版应用会自动把真实报错带到面板，不再无限等待 |
 | 中文路径报错 | 确认命令行的引号完整；`cordis.example.yml` 内路径用正斜杠 |
 
 ---
