@@ -867,8 +867,11 @@ function initScreenshotService(d) {
   deps = d;
   registerIpc();
   registerShortcuts();
-  // 预建截图覆盖层（隐藏），F1 按下即时显示，省去每次新建窗口+加载页面的延迟
-  try { getOrCreateOverlayWindow(getTargetDisplay()); } catch (e) { log('overlay prewarm failed:', e.message); }
+  // 覆盖层改为首次截图时按需创建（不在此预建）。
+  // 原因：启动即创建 `fullscreen:true` 的覆盖层窗口，在 macOS 上即使 `show:false`
+  // 也会被系统强制进入原生全屏并显示出来，导致"一启动就出现全屏暗色覆盖层"的黑屏，
+  // 用户只能从托盘"显示主窗口"退出。按需创建仅在用户实际截图时才有窗口，彻底规避启动黑屏；
+  // 实际截图路径与既有逻辑一致（仍是全屏覆盖），不影响抓屏行为。
   // 首次启动引导：延迟检测 OCR 组件（模型/onnxruntime 缺失时通知主窗口一次）
   try {
     setTimeout(checkOcrSetupNotice, 6000);
