@@ -8,7 +8,7 @@
  * 4. 提供 IPC 通道供渲染进程调用
  */
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, Notification, globalShortcut, clipboard, session, screen, desktopCapturer } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, Notification, globalShortcut, clipboard, session, screen, desktopCapturer, systemPreferences } = require('electron');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -1039,11 +1039,20 @@ async function startDshAgent(config) {
   const spawnCmd = npxMode ? bin.file : bin.node;
   log.info(`[DSH Agent] Starting: ${spawnCmd} ${(npxMode ? '' : bin.script + ' ')}${args.join(' ')}`);
 
+  // 为 DSH 提供独立的可写工作目录（DSH_HOME），避免依赖 ~/.dsh（受限/权限/与其他工具冲突）。
+  // 目录位于用户 config.storagePath 下，跟随主数据目录即可写，也可在卸载后一并清理。
+  const dshHome = path.join(
+    (config && config.storagePath) || APP_DIR,
+    '.dsh'
+  );
+  try { fs.mkdirSync(dshHome, { recursive: true }); } catch (e) { /* 忽略，兜底让 DSH 走默认 ~/.dsh */ }
+
   dshAgentProcess = spawn(spawnCmd, npxMode ? args : [bin.script, ...args], {
     shell: npxMode,
     cwd: APP_DIR,
     env: {
       ...process.env,
+      DSH_HOME: dshHome,
       CUTSHELTER_BASE_URL: `http://127.0.0.1:${(config && config.backendPort) || 8081}`,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -3996,7 +4005,7 @@ app.whenReady().then(async () => {
   // 截图小工具初始化（F1 截图 / F2 贴图 / OCR），快捷键随 Alt+X 一并注册
   try {
     screenshotService.initScreenshotService({
-      app, BrowserWindow, globalShortcut, desktopCapturer, clipboard, nativeImage, ipcMain, screen, dialog, shell, log,
+      app, BrowserWindow, globalShortcut, desktopCapturer, clipboard, nativeImage, ipcMain, screen, dialog, shell, log, systemPreferences,
       loadConfig, saveConfig,
       getMainWindow: () => mainWindow,
       showMainWindow: () => showMainWindow()
