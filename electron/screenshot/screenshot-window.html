@@ -413,6 +413,7 @@
       selRect = resizeByHandle(lastRect, dragMode.dir, x - dragStart.x, y - dragStart.y);
       clampRect();
     }
+    snapRect();
     drawMask(selRect);
     updateSel(selRect);
   }
@@ -472,6 +473,24 @@
     selRect.y = Math.max(0, Math.min(selRect.y, display.height - 4));
     selRect.w = Math.min(selRect.w, display.width - selRect.x);
     selRect.h = Math.min(selRect.h, display.height - selRect.y);
+  }
+
+  // 选区吸附：移动时贴齐屏幕四边与垂直/水平中心线（阈值 SNAP_PX DIP 像素）
+  function snapRect() {
+    if (!selRect || dragMode !== 'move') return;
+    const r = selRect;
+    // 屏幕边缘
+    if (Math.abs(r.x) < SNAP_PX) r.x = 0;
+    else if (Math.abs((display.width - (r.x + r.w))) < SNAP_PX) r.x = display.width - r.w;
+    if (Math.abs(r.y) < SNAP_PX) r.y = 0;
+    else if (Math.abs((display.height - (r.y + r.h))) < SNAP_PX) r.y = display.height - r.h;
+    // 屏幕中心线
+    const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    if (Math.abs(cx - display.width / 2) < SNAP_PX) r.x = Math.round(display.width / 2 - r.w / 2);
+    if (Math.abs(cy - display.height / 2) < SNAP_PX) r.y = Math.round(display.height / 2 - r.h / 2);
+    // 边界收敛（与 clampRect 一致）
+    r.x = Math.max(0, Math.min(r.x, display.width - 4));
+    r.y = Math.max(0, Math.min(r.y, display.height - 4));
   }
 
   // ── 方向键微调选区（Shift 1px） ──
