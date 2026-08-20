@@ -111,6 +111,7 @@ public class WorkspaceController {
             if (workspaceId != null && !workspaceId.isBlank()) {
                 WorkspaceResolution resolution = workspaceIndexService().resolveWorkspace(workspaceId,
                         new ContentIndexService(indexDir.resolve("content-index.json")).readAll(), List.of());
+                recordAction("workspace_viewed", null, workspaceId, "open", Map.of("visible", String.valueOf(resolution.visibleCount())));
                 Map<String, Object> result = new LinkedHashMap<>();
                 result.put("contents", new WorkspaceResolutionView(resolution).body().get("contents"));
                 result.put("count", resolution.visibleCount());
@@ -278,6 +279,66 @@ public class WorkspaceController {
             indexService.moveMember(workspaceId, contentId, request.boardColumnId(), request.position());
             recordAction("board_column_changed", contentId, workspaceId, "drag", Map.of("boardColumnId", request.boardColumnId()));
             return ResponseEntity.ok().body(Map.of("status", "ok"));
+        } catch (RuntimeException error) {
+            return errorResponse(error);
+        }
+    }
+
+    // ── Member CRUD ──
+
+    @GetMapping("/{workspaceId}/members")
+    public ResponseEntity<?> members(@PathVariable String workspaceId) {
+        try {
+            WorkspaceIndexService indexService = workspaceIndexService();
+            requireWorkspace(indexService, workspaceId);
+            return ResponseEntity.ok(indexService.members(workspaceId));
+        } catch (RuntimeException error) {
+            return errorResponse(error);
+        }
+    }
+
+    @PostMapping("/{workspaceId}/members")
+    public ResponseEntity<?> addMember(@PathVariable String workspaceId, @RequestBody MemberRequest request) {
+        try {
+            WorkspaceIndexService indexService = workspaceIndexService();
+            requireWorkspace(indexService, workspaceId);
+            if (request == null || request.contentId() == null || request.contentId().isBlank()) {
+                throw new IllegalArgumentException("contentId 不能为空");
+            }
+            LocalDateTime now = LocalDateTime.now();
+            List<BoardColumn> cols = indexService.columns(workspaceId);
+            String requested = request.boardColumnId();
+            boolean belongs = false;
+            for (BoardColumn c : cols) {
+                if (c.id().equals(requested)) { belongs = true; break; }
+            }
+            String boardColumnId = requested;
+            if (boardColumnId == null || !belongs) {
+                boardColumnId = cols.stream().filter(BoardColumn::isDefault).map(BoardColumn::id)
+                        .findFirst().orElse(cols.isEmpty() ? "" : cols.get(0).id());
+            }
+            String targetColumnId = boardColumnId;
+            int maxPos = indexService.members(workspaceId).stream()
+                    .filter(m -> targetColumnId.equals(m.boardColumnId()))
+                    .mapToInt(WorkspaceMembership::position).max().orElse(-1);
+            WorkspaceMembership member = new WorkspaceMembership(workspaceId, request.contentId(),
+                    "manual", "手动加入", 1.0, boardColumnId, maxPos + 1, now, now);
+            indexService.addMember(member);
+            recordAction("workspace_member_added", request.contentId(), workspaceId, "manual", Map.of("boardColumnId", boardColumnId));
+            return ResponseEntity.status(HttpStatus.CREATED).body(member);
+        } catch (RuntimeException error) {
+            return errorResponse(error);
+        }
+    }
+
+    @DeleteMapping("/{workspaceId}/members/{contentId}")
+    public ResponseEntity<?> removeMember(@PathVariable String workspaceId, @PathVariable String contentId) {
+        try {
+            WorkspaceIndexService indexService = workspaceIndexService();
+            requireWorkspace(indexService, workspaceId);
+            indexService.removeMember(workspaceId, contentId);
+            recordAction("workspace_member_removed", contentId, workspaceId, "manual", Map.of());
+            return ResponseEntity.noContent().build();
         } catch (RuntimeException error) {
             return errorResponse(error);
         }
@@ -504,7 +565,21 @@ public class WorkspaceController {
             List<SuggestionCandidate> allSuggestions = new ArrayList<>();
             allSuggestions.addAll(ruleSuggestions);
             allSuggestions.addAll(pending);
+            for (SuggestionCandidate s : allSuggestions) {
+                recordAction("suggestion_shown", s.contentId(), workspaceId, "suggestion", Map.of("suggestionId", s.id()));
+            }
             return ResponseEntity.ok(allSuggestions);
+        } catch (RuntimeException error) {
+            return errorResponse(error);
+        }
+    }
+
+    @GetMapping("/suggestions/stats/{workspaceId}")
+    public ResponseEntity<?> suggestionStats(@PathVariable String workspaceId) {
+        try {
+            WorkspaceIndexService indexService = workspaceIndexService();
+            requireWorkspace(indexService, workspaceId);
+            return ResponseEntity.ok(new WorkspaceSuggestionService(indexDir()).suggestionStats(workspaceId));
         } catch (RuntimeException error) {
             return errorResponse(error);
         }
@@ -576,6 +651,33 @@ public class WorkspaceController {
                 return ResponseEntity.badRequest().body(Map.of("error", "建议不存在或已过期"));
             }
             recordAction("suggestion_rejected", candidate.contentId(), candidate.workspaceId(), "suggestion", Map.of());
+            return ResponseEntity.ok(Map.of("success", true, "suggestionId", suggestionId));
+        } catch (RuntimeException error) {
+            return errorResponse(error);
+        }
+    }
+
+    /** 冷却中的建议列表（被忽略且冷却期未到）。GET /api/workspace/suggestions/cooldown/{workspaceId} */
+    @GetMapping("/suggestions/cooldown/{workspaceId}")
+    public ResponseEntity<?> cooldownSuggestions(@PathVariable String workspaceId) {
+        try {
+            WorkspaceSuggestionService suggestionService = new WorkspaceSuggestionService(indexDir());
+            return ResponseEntity.ok(suggestionService.cooldownSuggestions(workspaceId));
+        } catch (RuntimeException error) {
+            return errorResponse(error);
+        }
+    }
+
+    /** 撤销忽略，把冷却中的建议恢复为可再次推荐。PUT /api/workspace/suggestions/{suggestionId}/restore */
+    @PutMapping("/suggestions/{suggestionId}/restore")
+    public ResponseEntity<?> restoreSuggestion(@PathVariable String suggestionId) {
+        try {
+            WorkspaceSuggestionService suggestionService = new WorkspaceSuggestionService(indexDir());
+            SuggestionCandidate restored = suggestionService.restore(suggestionId);
+            if (restored == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "建议不在冷却中，无法恢复"));
+            }
+            recordAction("suggestion_restored", restored.contentId(), restored.workspaceId(), "suggestion", Map.of());
             return ResponseEntity.ok(Map.of("success", true, "suggestionId", suggestionId));
         } catch (RuntimeException error) {
             return errorResponse(error);
@@ -662,15 +764,54 @@ public class WorkspaceController {
         try {
             WorkspaceIndexService indexService = workspaceIndexService();
             requireWorkspace(indexService, workspaceId);
+            if (request == null) throw new IllegalArgumentException("请求不能为空");
+            if (request.name() != null && request.name().isBlank()) {
+                throw new IllegalArgumentException("workspace.name 不能为空");
+            }
+            if (request.status() != null && !Set.of("active", "archived").contains(request.status())) {
+                throw new IllegalArgumentException("workspace.status 非法: " + request.status());
+            }
+            Workspace existing = indexService.readAll().stream()
+                    .filter(w -> w.id().equals(workspaceId))
+                    .findFirst()
+                    .orElseThrow(() -> new WorkspaceNotFoundException("工作台不存在"));
+            Workspace updated = new Workspace(workspaceId,
+                    request.name() != null ? request.name() : existing.name(),
+                    request.description() != null ? request.description() : existing.description(),
+                    request.color() != null ? request.color() : existing.color(),
+                    existing.type(),
+                    request.status() != null ? request.status() : existing.status(),
+                    request.matchAll() != null ? request.matchAll() : existing.matchAll(),
+                    existing.isDefault(), existing.sortOrder(),
+                    existing.createdAt(), LocalDateTime.now());
+            indexService.saveWorkspace(updated);
+            return ResponseEntity.ok(updated);
+        } catch (RuntimeException error) {
+            return errorResponse(error);
+        }
+    }
+
+    @PutMapping("/{workspaceId}/archive")
+    public ResponseEntity<?> archiveWorkspace(@PathVariable String workspaceId) {
+        return updateStatus(workspaceId, "archived");
+    }
+
+    @PutMapping("/{workspaceId}/restore")
+    public ResponseEntity<?> restoreWorkspace(@PathVariable String workspaceId) {
+        return updateStatus(workspaceId, "active");
+    }
+
+    private ResponseEntity<?> updateStatus(String workspaceId, String status) {
+        try {
+            WorkspaceIndexService indexService = workspaceIndexService();
+            requireWorkspace(indexService, workspaceId);
             Workspace existing = indexService.readAll().stream()
                     .filter(w -> w.id().equals(workspaceId))
                     .findFirst()
                     .orElseThrow(() -> new WorkspaceNotFoundException("工作台不存在"));
             Workspace updated = new Workspace(workspaceId, existing.name(), existing.description(),
-                    existing.color(), existing.type(), existing.status(),
-                    request.matchAll() != null ? request.matchAll() : existing.matchAll(),
-                    existing.isDefault(), existing.sortOrder(),
-                    existing.createdAt(), LocalDateTime.now());
+                    existing.color(), existing.type(), status, existing.matchAll(),
+                    existing.isDefault(), existing.sortOrder(), existing.createdAt(), LocalDateTime.now());
             indexService.saveWorkspace(updated);
             return ResponseEntity.ok(updated);
         } catch (RuntimeException error) {
@@ -844,7 +985,9 @@ public class WorkspaceController {
 
     public record MoveRequest(String boardColumnId, int position) {}
 
-    public record WorkspaceSettingsRequest(Boolean matchAll) {}
+    public record WorkspaceSettingsRequest(String name, String description, String color, String status, Boolean matchAll) {}
+
+    public record MemberRequest(String contentId, String boardColumnId, Integer position) {}
 
     public record ReorderRequest(List<String> workspaceIds) {}
 

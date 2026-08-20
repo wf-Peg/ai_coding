@@ -38,6 +38,8 @@
 
     <!-- ── 右键菜单 ── -->
     <div class="ws-context-menu" id="wsContextMenu">
+      <button class="ws-context-item" id="ctxEdit" type="button"><span class="icon">&#9998;</span> 编辑工作台</button>
+      <button class="ws-context-item" id="ctxArchive" type="button"><span class="icon">&#128190;</span> 归档工作台</button>
       <button class="ws-context-item" id="ctxSetDefault" type="button"><span class="icon">&#9733;</span> 设为默认工作台</button>
     </div>
 
@@ -184,6 +186,13 @@
             </div>
             <div class="error-message" id="suggestionsError" style="display:none"></div>
             <div id="suggestionsList"></div>
+            <div class="suggestions-cooldown-section" id="suggestionsCooldown">
+              <div class="cooldown-header" id="cooldownHeader" style="display:none">
+                <span>已忽略（冷却中，7 天内不再推荐）</span>
+                <span class="cooldown-count" id="cooldownCount"></span>
+              </div>
+              <div id="cooldownList"></div>
+            </div>
           </div>
         </div>
       </div>

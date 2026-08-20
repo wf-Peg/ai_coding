@@ -62,7 +62,31 @@ class WorkspaceIndexServiceTest {
                 () -> service.saveWorkspace(new Workspace("id", "名称", "", "", "invalid", "active", false, false, 0, now, now)));
         assertThrows(IllegalArgumentException.class,
                 () -> service.saveWorkspace(new Workspace("id", "名称", "", "", "general", "invalid", false, false, 0, now, now)));
+        // 名称超过 60 个字符被拒
+        assertThrows(IllegalArgumentException.class,
+                () -> service.saveWorkspace(new Workspace("id", "很".repeat(61), "", "", "general", "active", false, false, 0, now, now)));
+        // 描述超过 500 个字符被拒
+        assertThrows(IllegalArgumentException.class,
+                () -> service.saveWorkspace(new Workspace("id", "名称", "描".repeat(501), "", "general", "active", false, false, 0, now, now)));
         assertFalse(Files.exists(tempDir.resolve("workspace.json")));
+    }
+
+    @Test
+    void rejectsColumnWithNegativePositionOrUnknownWorkspace() throws Exception {
+        WorkspaceIndexService service = new WorkspaceIndexService(tempDir);
+        LocalDateTime now = LocalDateTime.now();
+        service.saveWorkspace(new Workspace("workspace-1", "名称", "", "#569cff", "general", "active", false, false, 0, now, now));
+
+        // 负 position 被拒
+        assertThrows(IllegalArgumentException.class, () -> service.saveColumn(
+                new BoardColumn("col-1", "workspace-1", "c0", "收集", -1, false, now, now)));
+        // 归属到不存在的工作台被拒
+        assertThrows(IllegalArgumentException.class, () -> service.saveColumn(
+                new BoardColumn("col-2", "missing-ws", "c1", "处理中", 0, false, now, now)));
+        // 合法列可保存（默认 3 列 + 自建 1 列 = 4 列）
+        service.saveColumn(new BoardColumn("col-3", "workspace-1", "c2", "已完成", 0, false, now, now));
+        assertEquals(4, service.columns("workspace-1").size());
+        assertTrue(service.columns("workspace-1").stream().anyMatch(c -> "col-3".equals(c.id())));
     }
 
     @Test

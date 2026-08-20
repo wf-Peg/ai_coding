@@ -71,6 +71,15 @@
     .panel-section { margin-top: 12px; }
     .section-title { color: var(--obs-muted); font-size: 12px; margin-bottom: 6px; }
 
+    /* ── 建议漏斗 ── */
+    .funnel-summary { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 10px; font-size: 12px; color: var(--obs-muted); }
+    .funnel-body { display: grid; gap: 8px; }
+    .funnel-row { display: grid; grid-template-columns: 52px minmax(50px, 1fr) 28px; align-items: center; gap: 9px; }
+    .funnel-label { color: var(--obs-muted); font-size: 12px; }
+    .funnel-track { height: 8px; overflow: hidden; border-radius: 99px; background: color-mix(in srgb, var(--obs-border) 70%, transparent); }
+    .funnel-fill { display: block; height: 100%; min-width: 3px; border-radius: inherit; transition: width .3s ease; }
+    .funnel-count { text-align: right; font-variant-numeric: tabular-nums; }
+
     /* ── 诊断摘要 ── */
     .diag-list { display: grid; gap: 6px; }
     .diag-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--obs-border); border-radius: 8px; }
@@ -177,7 +186,7 @@
         </section>
       </div>
       <div>
-        <section class="panel" id="workspacePanel"><h2>工作台数据流 <small>内容来源分布</small></h2><div class="empty">加载中…</div></section>
+        <section class="panel" id="workspacePanel"><h2>工作台数据流 <small>内容来源分布 + 建议漏斗</small></h2><div class="empty">加载中…</div></section>
         <section class="panel"><h2>事件趋势 <small>近 7 / 30 天</small></h2><div id="trendsSection"><div class="trends-stats"><div class="trend-stat"><span class="trend-stat-label">近 7 天</span><span class="trend-stat-value">-</span></div><div class="trend-stat"><span class="trend-stat-label">近 30 天</span><span class="trend-stat-value">-</span></div><div class="trend-stat"><span class="trend-stat-label">跳过行</span><span class="trend-stat-value">-</span></div></div></div><div id="trendChart7d"></div><div id="trendChart30d"></div><div class="panel-section"><div class="section-title">事件类型分布</div><div id="typeDistribution"></div></div><div class="panel-section"><div class="section-title">事件来源分布</div><div id="sourceDistribution"></div></div></section>
       </div>
     </div>

@@ -34,6 +34,8 @@
       const exclusionsList = $('exclusionsList');
       const exclusionsError = $('exclusionsError');
       const newWsModal = $('newWsModal');
+      // 编辑工作台时复用新建弹窗：null 表示新建，非 null 表示正在编辑的工作台 ID
+      let editingWsId = null;
       const ruleModal = $('ruleModal');
       const confirmModal = $('confirmModal');
       const columnInputModal = $('columnInputModal');
@@ -437,10 +439,17 @@
         }
         const isDefaultActive = !overviewView.classList.contains('hidden') || !activeWsId;
         const defaultHtml = '<button class="sidebar-item ' + (isDefaultActive ? 'active' : '') + '" data-wsid="" type="button"><i class="ws-dot" style="background:#888"></i><span class="ws-name">全部</span><span class="ws-type-tag">全部工作台</span></button>';
-        wsList.innerHTML = defaultHtml + workspaces.filter(function(ws) { return ws.id !== 'pd-builtin'; }).map(function(ws) {
+        const activeList = workspaces.filter(function(ws) { return ws.id !== 'pd-builtin' && ws.status !== 'archived'; });
+        const archivedList = workspaces.filter(function(ws) { return ws.id !== 'pd-builtin' && ws.status === 'archived'; });
+        const itemHtml = function(ws, isArchived) {
           const isActive = activeWsId === ws.id;
-          return '<button class="sidebar-item ' + (isActive ? 'active' : '') + '" data-wsid="' + escapeHtml(ws.id) + '" type="button" draggable="true"><i class="ws-dot" style="background:' + escapeHtml(ws.color || '#2383e2') + '"></i><span class="ws-name">' + escapeHtml(ws.name) + '</span>' + (ws.isDefault ? '<span style="margin-left:auto;font-size:10px;color:var(--app-success)">●</span>' : '') + '<span class="ws-type-tag">' + escapeHtml(TYPE_LABELS[ws.type || 'general'] || '通用') + '</span></button>';
-        }).join('');
+          return '<button class="sidebar-item ' + (isActive ? 'active' : '') + (isArchived ? ' archived' : '') + '" data-wsid="' + escapeHtml(ws.id) + '" type="button" draggable="true"><i class="ws-dot" style="background:' + escapeHtml(ws.color || '#2383e2') + '"></i><span class="ws-name">' + escapeHtml(ws.name) + '</span>' + (ws.isDefault ? '<span style="margin-left:auto;font-size:10px;color:var(--app-success)">●</span>' : '') + '<span class="ws-type-tag">' + escapeHtml(TYPE_LABELS[ws.type || 'general'] || '通用') + '</span></button>';
+        };
+        let html = defaultHtml + activeList.map(ws => itemHtml(ws, false)).join('');
+        if (archivedList.length) {
+          html += '<div class="sidebar-group-label">已归档</div>' + archivedList.map(ws => itemHtml(ws, true)).join('');
+        }
+        wsList.innerHTML = html;
         wsList.querySelectorAll('.sidebar-item').forEach(function(btn) { btn.addEventListener('click', function() { selectWorkspace(btn.dataset.wsid); }); });
       }
 
@@ -488,6 +497,12 @@
           ctxItem.textContent = '★ 设为默认工作台';
           ctxItem.disabled = false;
         }
+        var ctxArchiveItem = $('ctxArchive');
+        if (ws && ws.status === 'archived') {
+          ctxArchiveItem.textContent = '↺ 恢复工作台';
+        } else {
+          ctxArchiveItem.textContent = '🗄 归档工作台';
+        }
         ctxMenu.style.left = e.clientX + 'px';
         ctxMenu.style.top = e.clientY + 'px';
         ctxMenu.classList.add('show');
@@ -511,6 +526,32 @@
           btn.disabled = false;
           btn.textContent = '★ 设为默认工作台';
           ctxTargetWsId = null;
+        }
+      });
+      // 点击菜单项：编辑工作台
+      $('ctxEdit').addEventListener('click', function() {
+        const target = ctxTargetWsId || activeWsId;
+        ctxMenu.classList.remove('show');
+        this.disabled = true;
+        try { openEditWorkspace(target); } finally { this.disabled = false; }
+      });
+      // 点击菜单项：归档 / 恢复工作台
+      $('ctxArchive').addEventListener('click', async function() {
+        const target = ctxTargetWsId || activeWsId;
+        ctxMenu.classList.remove('show');
+        const ws = workspaces.find(function(w) { return w.id === target; });
+        const nextStatus = ws && ws.status === 'archived' ? 'active' : 'archived';
+        this.disabled = true;
+        try {
+          const r = await fetch('/api/workspace/' + encodeURIComponent(target) + (nextStatus === 'archived' ? '/archive' : '/restore'), { method: 'PUT' });
+          if (!r.ok) throw new Error('操作失败');
+          await loadWorkspaces();
+          if (activeWsId === target) loadDetail();
+          showDetailError(nextStatus === 'archived' ? '✓ 已归档工作台' : '✓ 已恢复工作台');
+        } catch (e) {
+          showDetailError('操作失败：' + (e.message || '后端服务不可用'));
+        } finally {
+          this.disabled = false;
         }
       });
       // 点击其他地方关闭菜单
@@ -565,7 +606,7 @@
           const ws = workspaces.find(w => w.id === activeWsId);
           if (ws) {
             detailHeader.innerHTML =
-              `<div class="detail-header-left"><i class="detail-color" style="background:${escapeHtml(ws.color || '#2383e2')}"></i><div class="detail-info"><h2>${escapeHtml(ws.name)}</h2><span class="detail-type">${escapeHtml(TYPE_LABELS[ws.type || 'general'] || '通用')}</span>${ws.description ? `<p class="detail-desc">${escapeHtml(ws.description)}</p>` : ''}</div></div><div class="detail-stats" id="detailStats"></div><div class="detail-header-actions"><button class="default-ws-btn${ws.isDefault ? ' is-default' : ''}" id="setDefaultWsBtn" type="button" title="${ws.isDefault ? '已是默认工作台' : '设为默认工作台，打开应用时自动进入此工作台'}">${ws.isDefault ? '&#9733; 默认工作台' : '&#9733; 设为默认'}</button><button class="delete-ws-btn" id="deleteWsBtn" type="button" title="删除工作台">&#128465; 删除</button></div>`;
+              `<div class="detail-header-left"><i class="detail-color" style="background:${escapeHtml(ws.color || '#2383e2')}"></i><div class="detail-info"><h2>${escapeHtml(ws.name)}</h2><span class="detail-type">${escapeHtml(TYPE_LABELS[ws.type || 'general'] || '通用')}</span>${ws.description ? `<p class="detail-desc">${escapeHtml(ws.description)}</p>` : ''}</div></div><div class="detail-stats" id="detailStats"></div><div class="detail-header-actions"><button class="edit-ws-btn" id="editWsBtn" type="button" title="编辑工作台名称、描述与颜色">&#9998; 编辑</button><button class="default-ws-btn${ws.isDefault ? ' is-default' : ''}" id="setDefaultWsBtn" type="button" title="${ws.isDefault ? '已是默认工作台' : '设为默认工作台，打开应用时自动进入此工作台'}">${ws.isDefault ? '&#9733; 默认工作台' : '&#9733; 设为默认'}</button><button class="archive-ws-btn" id="archiveWsBtn" type="button" title="${ws.status === 'archived' ? '恢复工作台到可用状态' : '归档工作台（保留数据，暂不出现在列表）'}">${ws.status === 'archived' ? '&#8634; 恢复' : '&#128190; 归档'}</button><button class="delete-ws-btn" id="deleteWsBtn" type="button" title="删除工作台">&#128465; 删除</button></div>`;
             // Update breadcrumb
             var bc = $('breadcrumbCurrent');
             if (bc) bc.textContent = ws.name;
@@ -620,6 +661,32 @@
                 showDetailError('设置默认工作台失败：' + (e.message || '后端服务不可用'));
                 setDefaultBtn.disabled = false;
                 setDefaultBtn.innerHTML = '&#9733; 设为默认';
+              }
+            });
+          }
+          // Bind edit workspace handler
+          const editBtn = $('editWsBtn');
+          if (editBtn) editBtn.addEventListener('click', () => openEditWorkspace(activeWsId));
+          // Bind archive / restore handler
+          const archiveBtn = $('archiveWsBtn');
+          if (archiveBtn) {
+            archiveBtn.addEventListener('click', async function() {
+              const nextStatus = ws.status === 'archived' ? 'active' : 'archived';
+              archiveBtn.disabled = true;
+              archiveBtn.textContent = '⏳ 处理中...';
+              try {
+                const url = nextStatus === 'archived'
+                  ? `/api/workspace/${encodeURIComponent(activeWsId)}/archive`
+                  : `/api/workspace/${encodeURIComponent(activeWsId)}/restore`;
+                const r = await fetch(url, { method: 'PUT' });
+                if (!r.ok) throw new Error('操作失败');
+                showDetailError(nextStatus === 'archived' ? '✓ 已归档工作台' : '✓ 已恢复工作台');
+                await loadWorkspaces();
+                loadDetail();
+              } catch (e) {
+                showDetailError('操作失败：' + (e.message || '后端服务不可用'));
+                archiveBtn.disabled = false;
+                archiveBtn.innerHTML = ws.status === 'archived' ? '&#8634; 恢复' : '&#128190; 归档';
               }
             });
           }
@@ -678,9 +745,15 @@
         detailContentList.innerHTML = detailState.filtered.map(item => {
           const meta = [item.category, ...(item.tags || []).map(t => '#' + t), item.sourcePath].filter(Boolean).map(v => `<span class="tag">${escapeHtml(v)}</span>`).join('');
           const sourceBadge = item.source ? `<span class="source-marker ${escapeHtml(item.source)}">${escapeHtml(SOURCE_LABELS[item.source] || item.source)}</span>` : '';
-          return `<article class="item"><div class="type-mark" data-type="${escapeHtml(item.type)}">${escapeHtml(INITIALS[item.type] || '内')}</div><div class="item-body"><h3 class="item-title" title="${escapeHtml(item.title || '无标题')}">${escapeHtml(item.title || '无标题')}</h3><div class="item-meta"><span>${escapeHtml(LABELS[item.type] || item.type || '内容')}</span>${sourceBadge}${meta}</div></div><div class="item-actions"><button class="exclude-btn" data-content-id="${escapeHtml(item.id)}" data-content-title="${escapeHtml(item.title || '')}" type="button" data-func-tag="功能:排除内容" title="将内容从当前工作台排除">排除</button></div></article>`;
+          const isManualMember = item.source === 'manual';
+          const memberAction = isManualMember
+            ? `<button class="member-remove-btn" data-content-id="${escapeHtml(item.id)}" data-content-title="${escapeHtml(item.title || '')}" type="button" title="从当前工作台移除成员（内容保留在原始位置）">移除</button>`
+            : `<button class="member-add-btn" data-content-id="${escapeHtml(item.id)}" data-content-title="${escapeHtml(item.title || '')}" type="button" title="手动加入当前工作台（放入默认列）">加入</button>`;
+          return `<article class="item"><div class="type-mark" data-type="${escapeHtml(item.type)}">${escapeHtml(INITIALS[item.type] || '内')}</div><div class="item-body"><h3 class="item-title" title="${escapeHtml(item.title || '无标题')}">${escapeHtml(item.title || '无标题')}</h3><div class="item-meta"><span>${escapeHtml(LABELS[item.type] || item.type || '内容')}</span>${sourceBadge}${meta}</div></div><div class="item-actions">${memberAction}<button class="exclude-btn" data-content-id="${escapeHtml(item.id)}" data-content-title="${escapeHtml(item.title || '')}" type="button" title="将内容从当前工作台排除">排除</button></div></article>`;
         }).join('');
         detailContentList.querySelectorAll('.exclude-btn').forEach(btn => btn.addEventListener('click', () => excludeContent(btn.dataset.contentId, btn.dataset.contentTitle)));
+        detailContentList.querySelectorAll('.member-add-btn').forEach(btn => btn.addEventListener('click', () => addManualMember(btn.dataset.contentId)));
+        detailContentList.querySelectorAll('.member-remove-btn').forEach(btn => btn.addEventListener('click', () => removeManualMember(btn.dataset.contentId)));
       }
 
       /* ── Exclude / Restore ── */
@@ -1315,6 +1388,9 @@
       const suggestionsList = $('suggestionsList');
       const suggestionsError = $('suggestionsError');
       const suggestionCount = $('suggestionCount');
+      const cooldownHeader = $('cooldownHeader');
+      const cooldownCount = $('cooldownCount');
+      const cooldownList = $('cooldownList');
 
       const REASON_LABELS = { 'category-match': '分类匹配', 'tag-match': '标签匹配', 'directory-match': '目录匹配', 'member-pattern': '成员模式', 'habit-category': '习惯分类' };
 
@@ -1329,6 +1405,39 @@
           suggestionsError.textContent = err.message;
           suggestionsError.style.display = '';
         }
+        try {
+          const rc = await fetch(`/api/workspace/suggestions/cooldown/${encodeURIComponent(wsId)}`);
+          if (rc.ok) renderCooldown(await rc.json());
+        } catch (_) { /* 冷却区加载失败不阻塞主列表 */ }
+      }
+
+      function renderCooldown(cooldowns) {
+        const has = Array.isArray(cooldowns) && cooldowns.length > 0;
+        cooldownHeader.style.display = has ? 'flex' : 'none';
+        if (!has) { cooldownList.innerHTML = ''; return; }
+        cooldownCount.textContent = cooldowns.length;
+        cooldownList.innerHTML = cooldowns.map(s => {
+          const isRule = s.type === 'rule-suggestion';
+          const title = s.title || s.contentId || '（无标题）';
+          return `<div class="cooldown-card">
+            <div class="cooldown-info">
+              <div class="cooldown-title">${escapeHtml(title)}</div>
+              <div class="cooldown-meta">${isRule ? '规则建议' : '内容建议'} · 忽略后已进入冷却</div>
+            </div>
+            <button class="restore-suggestion-btn" data-id="${escapeHtml(s.id)}" type="button" data-func-tag="功能:恢复建议" title="撤销忽略，立即重新推荐">恢复推荐</button>
+          </div>`;
+        }).join('');
+        cooldownList.querySelectorAll('.restore-suggestion-btn').forEach(btn =>
+          btn.addEventListener('click', () => restoreSuggestion(btn.dataset.id)));
+      }
+
+      async function restoreSuggestion(suggestionId) {
+        try {
+          const r = await fetch(`/api/workspace/suggestions/${encodeURIComponent(suggestionId)}/restore`, { method: 'PUT' });
+          if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.error || '恢复失败'); }
+          showSuccessToast('已恢复该建议，重新推荐');
+          if (activeWsId) loadSuggestions(activeWsId);
+        } catch (err) { showDetailError(err.message); }
       }
 
       function renderSuggestions(suggestions) {
@@ -1418,7 +1527,7 @@
         try {
           const r = await fetch(`/api/workspace/suggestions/${encodeURIComponent(suggestionId)}/ignore`, { method: 'PUT' });
           if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.error || '忽略失败'); }
-          showSuccessToast('已忽略建议');
+          showSuccessToast('已忽略，7 天内不再推荐该建议');
           if (activeWsId) loadSuggestions(activeWsId);
         } catch (err) { showDetailError(err.message); }
       }
@@ -1434,16 +1543,51 @@
 
       /* ── New Workspace ── */
       $('newWsBtn').addEventListener('click', () => {
+        editingWsId = null;
         $('wsName').value = '';
         $('wsDesc').value = '';
         $('wsType').value = 'general';
         $('wsColor').value = '#2383e2';
+        $('wsType').closest('.form-group').parentElement.style.display = ''; // 显示类型行
+        newWsModal.querySelector('.modal-header h3').textContent = '新建工作台';
+        $('confirmNewWs').textContent = '创建';
         showModal(newWsModal);
       });
+      // 打开编辑弹窗（复用新建弹窗字段）
+      function openEditWorkspace(wsId) {
+        const ws = workspaces.find(w => w.id === wsId);
+        if (!ws) return;
+        editingWsId = wsId;
+        $('wsName').value = ws.name || '';
+        $('wsDesc').value = ws.description || '';
+        $('wsType').value = ws.type || 'general';
+        $('wsColor').value = ws.color || '#2383e2';
+        // 编辑时不修改类型
+        $('wsType').closest('.form-group').parentElement.style.display = 'none';
+        newWsModal.querySelector('.modal-header h3').textContent = '编辑工作台';
+        $('confirmNewWs').textContent = '保存';
+        showModal(newWsModal);
+      }
       $('confirmNewWs').addEventListener('click', async () => {
         const name = $('wsName').value.trim();
         if (!name) { showDetailError('请输入工作台名称'); return; }
         try {
+          if (editingWsId) {
+            const r = await fetch('/api/workspace/' + encodeURIComponent(editingWsId) + '/settings', {
+              method: 'PUT', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name, description: $('wsDesc').value.trim(), color: $('wsColor').value })
+            });
+            if (!r.ok) {
+              const err = await r.json().catch(() => ({}));
+              throw new Error(err.message || '保存失败');
+            }
+            hideModal(newWsModal);
+            editingWsId = null;
+            await loadWorkspaces();
+            if (activeWsId) loadDetail();
+            showDetailError('✓ 已保存工作台');
+            return;
+          }
           const r = await fetch('/api/workspace', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, description: $('wsDesc').value.trim(), type: $('wsType').value, color: $('wsColor').value })

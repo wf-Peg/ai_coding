@@ -6,6 +6,7 @@ import com.example.clip.index.ContentIndexService;
 import com.example.clip.index.Workspace;
 import com.example.clip.index.WorkspaceIndexService;
 import com.example.clip.index.WorkspaceMembership;
+import com.example.clip.index.WorkspaceSuggestionService;
 import com.example.clip.service.AppConfigService;
 import com.example.clip.service.ExceptionLogService;
 import com.example.clip.service.FileStorageService;
@@ -192,6 +193,56 @@ public class DataObservabilityController {
         result.put("count", indexService.readAll().size());
         result.put("message", "内容索引已重建");
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * 跨所有工作台聚合的建议漏斗：展示/接受/忽略/拒绝/冷却中各台汇总。
+     * GET /api/data/workspace-suggestion-stats
+     */
+    @GetMapping("/workspace-suggestion-stats")
+    public ResponseEntity<Map<String, Object>> workspaceSuggestionStats() {
+        Path indexDir = indexDir();
+        Map<String, Object> result = new LinkedHashMap<>();
+        try {
+            WorkspaceIndexService wsService = new WorkspaceIndexService(indexDir);
+            List<Workspace> workspaces = wsService.readAll();
+            WorkspaceSuggestionService suggestionService = new WorkspaceSuggestionService(indexDir);
+
+            long shown = 0, accepted = 0, ignored = 0, rejected = 0, inCooldown = 0;
+            List<Map<String, Object>> perWorkspace = new ArrayList<>();
+            for (Workspace w : workspaces) {
+                Map<String, Object> stats = suggestionService.suggestionStats(w.id());
+                shown += toLong(stats.get("shown"));
+                accepted += toLong(stats.get("accepted"));
+                ignored += toLong(stats.get("ignored"));
+                rejected += toLong(stats.get("rejected"));
+                inCooldown += toLong(stats.get("inCooldown"));
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("workspaceId", w.id());
+                row.put("name", w.name());
+                row.put("stats", stats);
+                perWorkspace.add(row);
+            }
+            long decided = accepted + ignored + rejected;
+            double acceptanceRate = decided == 0 ? 0.0 : (double) accepted / decided;
+
+            result.put("shown", shown);
+            result.put("accepted", accepted);
+            result.put("ignored", ignored);
+            result.put("rejected", rejected);
+            result.put("inCooldown", inCooldown);
+            result.put("acceptanceRate", Math.round(acceptanceRate * 1000) / 10.0);
+            result.put("perWorkspace", perWorkspace);
+            result.put("observedAt", LocalDateTime.now());
+        } catch (Exception e) {
+            result.put("shown", 0);
+            result.put("error", e.getMessage());
+        }
+        return ResponseEntity.ok(result);
+    }
+
+    private static long toLong(Object value) {
+        return value instanceof Number ? ((Number) value).longValue() : 0L;
     }
 
     // ===== 异常日志 API =====

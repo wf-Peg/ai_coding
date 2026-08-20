@@ -202,6 +202,15 @@
     .suggestion-actions button { padding: 5px 10px; border: 1px solid var(--ws-border); border-radius: 6px; font-size: 11px; cursor: pointer; background: var(--ws-bg); color: var(--ws-fg); transition: all .15s; }
     .suggestion-actions .accept-btn { border-color: var(--ws-accent); color: var(--ws-accent); }
     .suggestion-actions .accept-btn:hover { background: var(--ws-accent); color: #fff; }
+    .suggestions-cooldown-section { margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--ws-border); }
+    .cooldown-header { display: none; align-items: center; justify-content: space-between; font-size: 12px; color: var(--ws-muted); margin-bottom: 8px; font-weight: 600; }
+    .cooldown-count { background: var(--ws-border); border-radius: 10px; padding: 1px 8px; font-size: 11px; }
+    .cooldown-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border: 1px solid var(--ws-border); border-radius: 8px; margin-bottom: 8px; background: color-mix(in srgb, var(--ws-surface) 60%, transparent); opacity: .82; }
+    .cooldown-info { flex: 1; min-width: 0; }
+    .cooldown-title { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cooldown-meta { font-size: 11px; color: var(--ws-faint); }
+    .restore-suggestion-btn { flex: none; padding: 5px 10px; border: 1px solid var(--ws-border); border-radius: 6px; font-size: 11px; cursor: pointer; background: transparent; color: var(--ws-primary); transition: all .15s; }
+    .restore-suggestion-btn:hover { border-color: var(--ws-primary); background: var(--ws-primary-soft); }
     .suggestion-actions .ignore-btn:hover { border-color: var(--ws-faint); color: var(--ws-faint); }
     .suggestion-actions .reject-btn:hover { border-color: #e74c3c; color: #e74c3c; }
 
@@ -703,4 +712,11 @@
     .default-ws-btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: transparent; color: var(--ws-muted); font-size: 13px; transition: all .16s ease; }
     .default-ws-btn:hover { border-color: var(--app-success); color: var(--app-success); background: color-mix(in srgb, var(--app-success) 8%, transparent); }
     .default-ws-btn.is-default { border-color: var(--app-success); background: color-mix(in srgb, var(--app-success) 10%, transparent); color: var(--app-success); cursor: default; }
+    .edit-ws-btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: transparent; color: var(--ws-muted); font-size: 13px; transition: all .16s ease; }
+    .edit-ws-btn:hover { border-color: var(--ws-primary); color: var(--ws-primary); background: var(--ws-primary-soft); }
+    .archive-ws-btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: transparent; color: var(--ws-muted); font-size: 13px; transition: all .16s ease; }
+    .archive-ws-btn:hover { border-color: var(--ws-warning); color: var(--ws-warning); background: var(--ws-warning-soft); }
+    .sidebar-group-label { padding: 12px 12px 4px; font-size: 11px; font-weight: 600; color: var(--ws-muted); letter-spacing: .4px; }
+    .sidebar-item.archived { opacity: .6; }
+    .sidebar-item.archived:hover { opacity: .9; }
   

@@ -24,6 +24,7 @@ public final class EventTypes {
     public static final String SUGGESTION_ACCEPTED = "suggestion_accepted";
     public static final String SUGGESTION_IGNORED = "suggestion_ignored";
     public static final String SUGGESTION_REJECTED = "suggestion_rejected";
+    public static final String SUGGESTION_RESTORED = "suggestion_restored";
 
     // ===== 桌面系统级集成事件 =====
     public static final String FILE_ASSOCIATION_OPEN = "file_association_open";

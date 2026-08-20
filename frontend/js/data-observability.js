@@ -80,11 +80,11 @@
     renderBars('sourceDistribution', trends.sourceDistribution);
   }
 
-  function renderWorkspaceStats(wsStats) {
+  function renderWorkspaceStats(wsStats, suggestionStats) {
     var panel = $('workspacePanel');
     if (!panel) return;
     panel.innerHTML = '';
-    panel.innerHTML = '<h2>工作台数据流 <small>内容来源分布</small></h2>' +
+    panel.innerHTML = '<h2>工作台数据流 <small>内容来源分布 + 建议漏斗</small></h2>' +
       '<div class="ws-summary">' +
       '<div class="ws-summary-item"><span class="ws-summary-label">工作台</span><span class="ws-summary-value">' + (wsStats.workspaceCount || 0) + '</span></div>' +
       '<div class="ws-summary-item"><span class="ws-summary-label">活跃</span><span class="ws-summary-value">' + (wsStats.activeCount || 0) + '</span></div>' +
@@ -92,8 +92,43 @@
       '<div class="ws-summary-item"><span class="ws-summary-label">规则数</span><span class="ws-summary-value">' + (wsStats.totalRules || 0) + '</span></div>' +
       '<div class="ws-summary-item"><span class="ws-summary-label">排除数</span><span class="ws-summary-value">' + (wsStats.totalExclusions || 0) + '</span></div>' +
       '</div>' +
-      '<div class="panel-section"><div class="section-title">成员来源</div><div id="membershipSourceDistribution"></div></div>';
+      '<div class="panel-section"><div class="section-title">成员来源</div><div id="membershipSourceDistribution"></div></div>' +
+      '<div class="panel-section"><div class="section-title">建议漏斗</div><div id="suggestionFunnel"></div></div>';
     renderBars('membershipSourceDistribution', wsStats.membershipSourceDistribution);
+    renderSuggestionFunnel(suggestionStats);
+  }
+
+  function renderSuggestionFunnel(stats) {
+    if (!stats) return;
+    var funnel = $('suggestionFunnel');
+    if (!funnel) return;
+    var accepted = stats.accepted || 0;
+    var ignored = stats.ignored || 0;
+    var rejected = stats.rejected || 0;
+    var inCooldown = stats.inCooldown || 0;
+    var rows = [
+      ['已接受', accepted, 'var(--obs-good)'],
+      ['已忽略', ignored, 'var(--obs-warn)'],
+      ['已拒绝', rejected, '#e056a0'],
+      ['冷却中', inCooldown, 'var(--obs-accent)']
+    ].filter(function (r) { return r[1] > 0; });
+    if (accepted === 0 && ignored === 0 && rejected === 0 && inCooldown === 0) {
+      funnel.innerHTML = '<div class="empty">暂无建议记录</div>';
+      return;
+    }
+    var total = accepted + ignored + rejected;
+    var html = '<div class="funnel-summary"><span>共展示 ' + (stats.shown || 0) + ' 条</span><span>采纳率 ' + (stats.acceptanceRate || 0) + '%</span></div>' +
+      '<div class="funnel-body">' +
+      rows.map(function (r) {
+        var pct = total > 0 ? Math.round(r[1] / total * 100) : 0;
+        return '<div class="funnel-row">' +
+          '<span class="funnel-label">' + r[0] + '</span>' +
+          '<span class="funnel-track"><span class="funnel-fill" style="width:' + pct + '%;background:' + r[2] + '"></span></span>' +
+          '<span class="funnel-count">' + r[1] + '</span>' +
+          '</div>';
+      }).join('') +
+      '</div>';
+    funnel.innerHTML = html;
   }
 
   function renderDiagnosis(diag) {
@@ -117,14 +152,15 @@
   async function load() {
     $('status').textContent = '读取中…';
     try {
-      var [overview, trends, wsStats, diag] = await Promise.all([
+      var [overview, trends, wsStats, diag, suggestionStats] = await Promise.all([
         request('/overview'), request('/trends'),
-        request('/workspace-stats'), request('/export-diagnosis')
+        request('/workspace-stats'), request('/export-diagnosis'),
+        request('/workspace-suggestion-stats')
       ]);
       renderStats(overview, trends);
       renderIndexes(overview);
       renderTrends(trends);
-      renderWorkspaceStats(wsStats);
+      renderWorkspaceStats(wsStats, suggestionStats);
       renderDiagnosis(diag);
       $('status').textContent = '更新于 ' + formatTime(overview.observedAt);
     } catch (error) {

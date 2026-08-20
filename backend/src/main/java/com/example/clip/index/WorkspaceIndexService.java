@@ -112,6 +112,11 @@ public class WorkspaceIndexService {
 
     public synchronized void saveColumn(BoardColumn column) {
         column.validate();
+        boolean workspaceExists = read(workspacePath, new TypeReference<List<Workspace>>() {}).stream()
+                .anyMatch(w -> w.id().equals(column.workspaceId()));
+        if (!workspaceExists) {
+            throw new IllegalArgumentException("column.workspaceId 对应的工作台不存在: " + column.workspaceId());
+        }
         List<BoardColumn> values = read(columnsPath, new TypeReference<List<BoardColumn>>() {});
         values.removeIf(item -> item.id().equals(column.id()));
         values.add(column);
@@ -120,8 +125,63 @@ public class WorkspaceIndexService {
 
     public synchronized void deleteColumn(String columnId) {
         requireText(columnId, "columnId");
-        writeAll(columnsPath, read(columnsPath, new TypeReference<List<BoardColumn>>() {}).stream()
-                .filter(item -> !item.id().equals(columnId)).toList());
+        List<BoardColumn> allColumns = read(columnsPath, new TypeReference<List<BoardColumn>>() {});
+        BoardColumn target = allColumns.stream()
+                .filter(item -> item.id().equals(columnId))
+                .findFirst().orElseThrow(() -> new IllegalArgumentException("看板列不存在: " + columnId));
+        String workspaceId = target.workspaceId();
+
+        // 确定迁移目标：优先本工作台的默认列；删除的正是默认列时，提升剩余最低 position 列为默认列
+        List<BoardColumn> workspaceCols = allColumns.stream()
+                .filter(item -> item.workspaceId().equals(workspaceId))
+                .filter(item -> !item.id().equals(columnId))
+                .sorted((a, b) -> Integer.compare(a.position(), b.position()))
+                .toList();
+        BoardColumn defaultCol = workspaceCols.stream().filter(BoardColumn::isDefault).findFirst().orElse(null);
+        boolean targetWasDefault = target.isDefault();
+        if (defaultCol == null && !workspaceCols.isEmpty()) {
+            defaultCol = workspaceCols.get(0);
+            targetWasDefault = true; // 无默认列，把剩余第一列提升为默认
+        }
+        if (defaultCol == null) {
+            // 工作台没有剩余列，直接删除，无成员会指向孤儿列（成员迁移目标不存在则忽略）
+            writeAll(columnsPath, allColumns.stream().filter(item -> !item.id().equals(columnId)).toList());
+            return;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        // 迁移本工作台内指向被删列的成员到默认列
+        List<WorkspaceMembership> members = read(membershipPath, new TypeReference<List<WorkspaceMembership>>() {});
+        boolean migrated = false;
+        for (int i = 0; i < members.size(); i++) {
+            WorkspaceMembership m = members.get(i);
+            if (workspaceId.equals(m.workspaceId()) && columnId.equals(m.boardColumnId())) {
+                members.set(i, new WorkspaceMembership(workspaceId, m.contentId(), m.source(), m.reason(),
+                        m.confidence(), defaultCol.id(), m.position(), m.createdAt(), now));
+                migrated = true;
+            }
+        }
+        if (migrated) {
+            writeAll(membershipPath, members);
+            log.info("event=deleteColumn.migrate_members workspaceId={} columnId={} targetColumnId={}",
+                    workspaceId, columnId, defaultCol.id());
+        }
+
+        // 若删除的是默认列，把目标列置为默认
+        List<BoardColumn> nextColumns = new ArrayList<>();
+        for (BoardColumn c : allColumns) {
+            boolean isDefault = targetWasDefault && c.id().equals(defaultCol.id());
+            if (c.id().equals(columnId)) {
+                continue; // 移除被删列
+            }
+            if (isDefault) {
+                nextColumns.add(new BoardColumn(c.id(), c.workspaceId(), c.key(), c.name(), c.position(),
+                        true, c.createdAt(), now));
+            } else {
+                nextColumns.add(c);
+            }
+        }
+        writeAll(columnsPath, nextColumns);
     }
 
     public synchronized void deleteWorkspaceColumns(String workspaceId) {
@@ -238,6 +298,12 @@ public class WorkspaceIndexService {
         if (workspace == null) throw new IllegalArgumentException("workspace 不能为空");
         requireText(workspace.id(), "workspace.id");
         requireText(workspace.name(), "workspace.name");
+        if (workspace.name().length() > 60) {
+            throw new IllegalArgumentException("workspace.name 长度不能超过 60 个字符");
+        }
+        if (workspace.description() != null && workspace.description().length() > 500) {
+            throw new IllegalArgumentException("workspace.description 长度不能超过 500 个字符");
+        }
         if (!WORKSPACE_TYPES.contains(workspace.type())) {
             throw new IllegalArgumentException("workspace.type 非法: " + workspace.type());
         }
