@@ -494,6 +494,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ensureDshAgent: () => ipcRenderer.invoke('dsh-agent:ensure'),
 
   /**
+   * 检查 dsh 是否已安装/运行（供「工具 → AI干活」卡片前置检测激活）
+   * @returns {Promise<{installed: boolean, port: number, command: string, hint: string}>}
+   */
+  checkDshInstall: (force) => ipcRenderer.invoke('dsh-agent:check-install', { force }),
+
+  /**
    * 停止本应用拉起的 DSH Agent sidecar
    * @returns {Promise<{success: boolean}>}
    */

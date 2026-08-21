@@ -8,7 +8,7 @@
 
 ## 步骤 0：启动剪藏后端
 
-> 前置说明：DSH CLI 的获取优先级 = 配置 `dshBinPath`/环境变量 `DSH_BIN` → 应用内置 → **本机 npx 缓存**（执行过 `npx @deepseek-ai/dsh web` 即命中）→ npx 联网兜底（版本固定 `@deepseek-ai/dsh@0.1.0-rc.7`，可用 `DSH_NPX_SPEC` 覆盖）。**本机已满足**（日常 3080 实例即来自 npx 缓存）。
+> 前置说明：DSH CLI 的获取优先级 = 配置 `dshBinPath`/环境变量 `DSH_BIN` → **本机 npx 缓存**（执行过 `npx @deepseek-ai/dsh web` 即命中）→ npx 联网获取（版本固定 `@deepseek-ai/dsh@0.1.0-rc.7`，可用 `DSH_NPX_SPEC` 覆盖）。应用自 v1.0.9 起**不再内置离线 dsh 闭包**，改为用户自助安装（见步骤 5）。**本机已满足**（日常 3080 实例即来自 npx 缓存）。
 
 ```bash
 cd L:\归档\30_Projects (行动项目)\31_Work (主要工作)\code\ai_coding
@@ -79,9 +79,9 @@ npx @deepseek-ai/dsh web --patch "L:\归档\30_Projects (行动项目)\31_Work (
 
 不用手动起 DSH——启动剪藏 Electron 桌面应用后：
 
-1. 顶部导航点击 **「AI 干活」**（工具右侧的新按钮）；
-2. 主进程自动探测并拉起/复用 `http://127.0.0.1:3081` 的 DSH sidecar（固定 3081，避免与手动启动的 3080 冲突；3081 已有实例则直接复用）；
-3. **首次使用自动安装**：若本机没有 DSH（无缓存/无内置），应用会**替用户执行 `npx @deepseek-ai/dsh@0.1.0-rc.7 web`**（联网下载，约 1–5 分钟），面板实时显示进度：`检测 → 正在安装（含已等待秒数与实时日志）→ 正在启动 → 就绪`；安装/启动期间可点「取消」，失败可点「重试」。安装成功后 dsh 缓存路径会自动固化到配置，下次秒起；
+1. 顶部导航点击 **「工具」→ AI干活**（除「编辑/工作台/剪藏/工具/设置」外，知识/Wiki/密码/AI干活/学习计划/数据观测均收纳进工具模块作为子工具卡片）；
+2. **前置检测 + 激活**：进入 AI干活 卡片时，应用先探测能否访问 `http://127.0.0.1:3081` 的 DSH sidecar（固定 3081，避免与手动启动的 3080 冲突）；3081 已有实例则直接复用并装载面板；
+3. **dsh 用户自助安装**：若本机没有 DSH（无 npx 缓存/无内置），应用**不再代为联网安装**，而是在工具内弹出安装说明浮层，展示安装命令并给出「复制命令」与「检测/重试」按钮。**展示的安装命令由应用主动在线同步**：优先查 npm registry 的 latest 版本、失败用 GitHub README 兜底、再退到缓存/默认（6h 缓存，「检测/重试」强制刷新），因此命令会随官方版本更新而更新。安装成功后 dsh 落在 npx 缓存，应用检测到即可解锁装载面板；
 4. iframe 内嵌 Agent 界面，顶部面板条显示连接状态（运行中/复用/失败）；
 5. **主题适配**：面板条/边框跟随剪藏主题（notion/regular/dark）；右上角「🌗 反色」可让 iframe 视觉适配暗色主题（默认 auto=跟随暗色，可在常开/关闭/自动间切换，记忆在 localStorage）；「↗」在系统浏览器打开。
 
@@ -103,7 +103,7 @@ Trae 技能已同步到 DSH 技能目录（格式兼容，无需转换）：
 > 重复技能名以用户级为准覆盖。新增 Trae 技能后重跑一次复制即可（或手动拷贝到 `~/.dsh/skills/`）。
 5. 退出应用时自动关闭本应用拉起的 DSH sidecar（复用的实例不杀）。
 
-> 说明：面板由主进程**运行时生成 patch**（`buildDshAgentPatch()` → `~/.cut-shelter/config/dsh-agent.patch.yml`），桥/插件路径按形态解析（开发=仓库 `integrations/dsh`，打包=`resources/integrations/dsh`，已内置进 `extraResources`）。dsh CLI 自动探测：`DSH_BIN` → 内置 node_modules → npx 缓存（LOCALAPPDATA）→ npx。⚠️ **旧版 win-unpacked 构建需重新打包（`npm run build:win`）才包含主进程修复**；临时应急已复制 `integrations/dsh` 到 `dist-electron/win-unpacked/integrations/dsh`（旧代码查找路径）。非 Electron 的纯浏览器前端会自动降级为直接探测 3081。
+> 说明：面板由主进程**运行时生成 patch**（`buildDshAgentPatch()` → `~/.cut-shelter/config/dsh-agent.patch.yml`），桥/插件路径按形态解析（开发=仓库 `integrations/dsh`，打包=`resources/integrations/dsh`，已内置进 `extraResources`）。dsh CLI 自动探测：`DSH_BIN` → npx 缓存（LOCALAPPDATA）→ npx 联网兜底。⚠️ **旧版 win-unpacked 构建需重新打包（`npm run build:win`）才包含主进程修复**；临时应急已复制 `integrations/dsh` 到 `dist-electron/win-unpacked/integrations/dsh`（旧代码查找路径）。非 Electron 的纯浏览器前端会自动降级为直接探测 3081。桌面端「AI干活」不再自动联网安装 dsh，未装时提示自助安装命令并检测解锁。
 
 ## 步骤 6：Phase 3（Tools Hub 互通）
 
@@ -125,7 +125,8 @@ MCP 桥已新增 `mcp__cut_shelter__tools_hub_list`（列出剪藏工具中心�
 | Agent 说看不到 `mcp__cut_shelter__*` 工具 | ① 剪藏后端没起（先过步骤 0）；② node 路径不对（`where node` 核对 `command`）；③ 看 DSH 终端日志里 mcp-client 的报错 |
 | 工具调用了但报 HTTP 错误 | 桥默认连 `http://127.0.0.1:8081`，确认后端在该端口（`/api/health`） |
 | 模型不可用/没反应 | DSH 设置→模型里确认有可用提供方（本机已配 wuan-ds 等）；与集成无关 |
-| 安装/启动报 `ERR_MODULE_NOT_FOUND` 且面板卡「正在安装」很久 | ① 项目根目录执行 `npm i --save-dev @deepseek-ai/dsh@0.1.0-rc.7` 用本地 node 直接启动，避开 npx 缓存缺依赖；② 或清除 npx 缓存 `npm cache clean --force` 后重试；③ 或在设置页配置 DSH CLI 路径（DSH_BIN）。新版应用会自动把真实报错带到面板，不再无限等待 |
+| 启动 AI干活 提示「未检测到 DSH」 | 桌面端不再自动安装 dsh。请在终端自助执行浮层展示的安装命令（版本由应用按 npm/GitHub 在线同步），首次联网下载依赖；随后在 AI干活 面板点「检测/重试」（会强制刷新命令版本），就绪后即可装载 |
+| 安装/启动报 `ERR_MODULE_NOT_FOUND` | ① 项目根目录执行 `npm i --save-dev @deepseek-ai/dsh@0.1.0-rc.7` 用本地 node 直接启动，避开 npx 缓存缺依赖；② 或清除 npx 缓存 `npm cache clean --force` 后重试；③ 或在设置页配置 DSH CLI 路径（DSH_BIN）。新版应用会把真实报错带到面板，不再无限等待 |
 | 中文路径报错 | 确认命令行的引号完整；`cordis.example.yml` 内路径用正斜杠 |
 
 ---

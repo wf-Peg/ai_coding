@@ -196,6 +196,7 @@ body {
 .th-menu-item:hover { background: var(--app-surface-hover, #ececea); }
 .th-menu-item-danger { color: var(--app-danger, #d14343); }
 .th-menu-item-danger:hover { background: var(--app-danger-soft, rgba(209,67,67,.08)); }
+.th-menu-divider { height: 1px; margin: 4px 6px; background: var(--app-border, #e4e3df); opacity: .6; }
 
 /* Empty / Loading */
 .th-empty { text-align: center; padding: 80px 20px; color: var(--app-text-secondary, #6b6f76); }

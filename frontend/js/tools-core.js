@@ -90,6 +90,51 @@
       category: '首页模块',
       description: '查看使用习惯与事件统计',
       keywords: ['观测', '数据', '统计', '观测台', 'observability']
+    },
+    {
+      id: 'module-knowledge',
+      name: '知识',
+      icon: '📚',
+      module: true,
+      viewName: 'knowledge',
+      system: true,
+      category: '首页模块',
+      description: '浏览与搜索知识库',
+      keywords: ['知识', '知识库', 'knowledge']
+    },
+    {
+      id: 'module-wiki',
+      name: 'Wiki',
+      icon: '📖',
+      module: true,
+      viewName: 'wiki',
+      system: true,
+      category: '首页模块',
+      description: 'Wiki 查询与知识整理',
+      keywords: ['wiki', '维基']
+    },
+    {
+      id: 'module-vault',
+      name: '密码库',
+      icon: '🔐',
+      module: true,
+      viewName: 'vault',
+      system: true,
+      category: '首页模块',
+      description: '安全访问与查看密码',
+      keywords: ['密码', 'vault', '安全']
+    },
+    {
+      id: 'module-agent',
+      name: 'AI干活',
+      icon: '🤖',
+      module: true,
+      viewName: 'agent',
+      system: true,
+      category: '首页模块',
+      requiresDsh: true,
+      description: 'DeepSeek Harness 智能干活（需先安装 DSH）',
+      keywords: ['AI', '干活', 'dsh', 'harness', 'agent']
     }
   ];
 
@@ -357,12 +402,103 @@
 
   // ── 打开顶层模块子工具：通知主框架(main)切换到对应视图 ──
   function openModule(t) {
+    if (t.viewName === 'agent') { openModuleAgent(t); return; }
     const parent = window.parent;
     if (parent && parent.postMessage && t.viewName) {
       parent.postMessage({ type: 'navigateModuleTool', view: t.viewName }, '*');
     } else {
       showToast('当前环境不支持跳转，请在主界面使用「' + t.name + '」', 4000);
     }
+  }
+
+  // ── AI干活：前置检测激活 ──
+  // 未装 dsh 时展示安装说明 + 命令，允许用户自助安装后「检测/重试」解锁，装好才跳转装载面板。
+  let agentChecking = false;
+  async function openModuleAgent(t) {
+    const api = (window.parent && window.parent.electronAPI) || window.electronAPI;
+    const cmdEl = $('agentInstallCmd');
+    const hintEl = $('agentInstallHint');
+    const mask = $('agentInstallMask');
+    // 无法调用主进程（纯浏览器/无 IPC）时：兜底直接跳转，主框架 view 自带手动启动提示
+    if (!api || !api.checkDshInstall) {
+      const parent = window.parent;
+      if (parent && parent.postMessage) parent.postMessage({ type: 'navigateModuleTool', view: 'agent' }, '*');
+      return;
+    }
+    if (agentChecking) return;
+    const setState = () => {
+      if (cmdEl) cmdEl.value = (t._agentCmd || '').trim();
+      if (hintEl) hintEl.textContent = '';
+    };
+    try {
+      agentChecking = true;
+      let info;
+      try { info = await api.checkDshInstall(); } catch (e) { info = null; }
+      if (info && info.installed) {
+        agentChecking = false;
+        const parent = window.parent;
+        if (parent && parent.postMessage) parent.postMessage({ type: 'navigateModuleTool', view: 'agent' }, '*');
+        else showToast('当前环境不支持跳转', 3000);
+        return;
+      }
+      t._agentCmd = (info && info.command) || 'npx @deepseek-ai/dsh web';
+      setState();
+      if (hintEl) hintEl.textContent = (info && info.hint) || '未检测到 DeepSeek Harness，请先自行安装后再激活。';
+      showAgentIndicator((info && info.installed) ? 'ready' : 'missing');
+      mask.style.display = 'flex';
+    } catch (e) {
+      agentChecking = false;
+      showToast('检测 dsh 安装状态失败: ' + e.message, 4000);
+    } finally {
+      agentChecking = false;
+    }
+  }
+
+  // 工具内「检测/重试」按钮：轮询 dsh 是否就绪，就绪后装载面板
+  function bindAgentInstallActions() {
+    const copyBtn = $('agentCopyCmd');
+    if (copyBtn) copyBtn.addEventListener('click', () => {
+      const el = $('agentInstallCmd');
+      const text = (el && el.value) || 'npx @deepseek-ai/dsh web';
+      try {
+        navigator.clipboard.writeText(text);
+        copyBtn.textContent = '已复制 ✓';
+        setTimeout(() => { copyBtn.textContent = '复制命令'; }, 1500);
+      } catch (e) { /* ignore */ }
+    });
+    const retryBtn = $('agentRetryBtn');
+    if (retryBtn) retryBtn.addEventListener('click', () => {
+      const t = MODULE_TOOLS.find(m => m.id === 'module-agent') || {};
+      retryBtn.textContent = '检测中…';
+      retryBtn.disabled = true;
+      const api = (window.parent && window.parent.electronAPI) || window.electronAPI;
+      // force=true：检测/重试 强制联网刷新 dsh 安装命令版本（npm latest），避免使用过期版本
+      (api && api.checkDshInstall ? api.checkDshInstall(true) : Promise.resolve({ installed: false, hint: '' }))
+        .then(info => {
+          if (info && info.installed) {
+            $('agentInstallMask').style.display = 'none';
+            const parent = window.parent;
+            if (parent && parent.postMessage) parent.postMessage({ type: 'navigateModuleTool', view: 'agent' }, '*');
+            else showToast('当前环境不支持跳转', 3000);
+          } else {
+            if (info && info.command) { t._agentCmd = info.command; const ce = $('agentInstallCmd'); if (ce) ce.value = info.command; }
+            $('agentInstallHint').textContent = (info && info.hint) || '仍未检测到 DSH，请确认已执行安装命令。';
+            showAgentIndicator('missing');
+          }
+        })
+        .catch(e => { $('agentInstallHint').textContent = '检测失败: ' + e.message; })
+        .finally(() => { retryBtn.textContent = '检测 / 重试'; retryBtn.disabled = false; });
+    });
+    const closeBtn = $('agentInstallClose');
+    if (closeBtn) closeBtn.addEventListener('click', () => { $('agentInstallMask').style.display = 'none'; });
+    const mask = $('agentInstallMask');
+    if (mask) mask.addEventListener('click', (e) => { if (e.target === mask) mask.style.display = 'none'; });
+  }
+  function showAgentIndicator(state) {
+    const dot = $('agentInstallDot');
+    if (!dot) return;
+    if (state === 'ready') { dot.className = 'th-status-dot ready'; dot.textContent = '已就绪'; }
+    else { dot.className = 'th-status-dot off'; dot.textContent = '未安装'; }
   }
 
   // ── Close tool overlay（返回工具列表）──
@@ -558,6 +694,10 @@
       item.textContent = t.module ? '🚀 打开' : '📖 查看说明';
       item.addEventListener('click', () => { closeMenu(); openTool(t); });
       menuEl.appendChild(item);
+      // 顶层模块子工具额外提供「显示到顶栏 & 排序」配置（写主进程 config.navHeaderTools）
+      if (t.module && t.viewName) {
+        appendHeaderConfigItems(t, menuEl);
+      }
     } else {
       // 查看提示词
       const viewP = document.createElement('button');
@@ -597,6 +737,81 @@
   function closeMenu() {
     if (menuEl) { menuEl.remove(); menuEl = null; }
     document.removeEventListener('mousedown', onMenuOutside, true);
+  }
+
+  // ── 顶层模块子工具「显示到顶栏 & 顺序」配置（写主进程 config.navHeaderTools） ──
+  // 默认模块收纳在工具中心，不进标题栏；用户在此勾选固定到标题栏并排序。
+  const api = (window.parent && window.parent.electronAPI) || window.electronAPI;
+  async function getHeaderToolsConfig() {
+    try {
+      if (api && typeof api.getConfig === 'function') {
+        const cfg = await api.getConfig();
+        return Array.isArray(cfg && cfg.navHeaderTools) ? cfg.navHeaderTools.slice() : [];
+      }
+    } catch (e) { /* ignore */ }
+    return [];
+  }
+  async function saveHeaderToolsConfig(list) {
+    try {
+      if (api && typeof api.saveConfig === 'function') {
+        await api.saveConfig({ navHeaderTools: list || [] });
+      }
+    } catch (e) { /* ignore */ }
+    // 通知主框架刷新菜单头
+    const parent = window.parent;
+    if (parent && parent.postMessage) {
+      parent.postMessage({ type: 'applyHeaderNav', tools: list || [] }, '*');
+    }
+  }
+  function appendHeaderConfigItems(t, menuEl) {
+    const div = document.createElement('div');
+    div.className = 'th-menu-divider';
+    menuEl.appendChild(div);
+    getHeaderToolsConfig().then(list => {
+      const idx = list.findIndex(it => it && it.view === t.viewName);
+      const pinned = idx >= 0;
+      // 显示到顶栏 / 隐藏
+      const pin = document.createElement('button');
+      pin.className = 'th-menu-item';
+      pin.textContent = pinned ? '🙈 从顶栏隐藏' : '⭐ 显示到顶栏';
+      pin.addEventListener('click', () => {
+        closeMenu();
+        let next = list.slice();
+        if (pinned) {
+          next = next.filter(it => !it || it.view !== t.viewName);
+        } else {
+          next.push({ view: t.viewName, order: next.length });
+        }
+        saveHeaderToolsConfig(next).then(() => {
+          showToast(pinned ? '已从顶栏隐藏「' + t.name + '」' : '已固定「' + t.name + '」到顶栏', 2500);
+        });
+      });
+      menuEl.appendChild(pin);
+      if (pinned) {
+        // 前移 / 后移（仅已固定时）
+        const move = (delta) => {
+          closeMenu();
+          let next = list.slice();
+          const cur = next[idx];
+          const target = idx + delta;
+          if (target < 0 || target >= next.length) { showToast('已到顶/底部', 2000); return; }
+          next[idx] = next[target];
+          next[target] = cur;
+          next = next.map((it, i) => ({ view: it.view, order: i }));
+          saveHeaderToolsConfig(next).then(() => showToast('已调整顺序', 2000));
+        };
+        const up = document.createElement('button');
+        up.className = 'th-menu-item';
+        up.textContent = '⬆ 前移';
+        up.addEventListener('click', () => move(-1));
+        menuEl.appendChild(up);
+        const down = document.createElement('button');
+        down.className = 'th-menu-item';
+        down.textContent = '⬇ 后移';
+        down.addEventListener('click', () => move(1));
+        menuEl.appendChild(down);
+      }
+    });
   }
 
   // ── Enable / Disable ──
@@ -735,5 +950,6 @@
   }
 
   initDragSort();
+  bindAgentInstallActions();
   loadTools();
 })();

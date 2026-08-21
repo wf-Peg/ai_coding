@@ -176,8 +176,17 @@ const DEFAULT_CONFIG = {
   // ===== DSH Agent 内嵌（Phase 2）=====
   dshAgentEnabled: true,        // 是否启用"AI 干活"面板（打开 Agent 视图时按需拉起 dsh web sidecar）
   dshPort: 3081,                // DSH sidecar 端口（固定 3081，避免与用户手动启动的 3080 冲突；若 3081 已有 DSH 则复用）
-  dshBinPath: ''                // DSH CLI 路径（空 = 自动探测：DSH_BIN env → 内置 node_modules → npx 缓存 → npx）
+  dshBinPath: '',               // DSH CLI 路径（空 = 自动探测：DSH_BIN env → 内置 node_modules → npx 缓存 → npx）
+  dshAgentNpxSpec: '@deepseek-ai/dsh@0.1.0-rc.7', // dsh 安装命令的固定兜底 spec（在线同步失败时的最后手段，可被配置/环境变量覆盖）
+  dshSync: { version: '', ts: 0 } // dsh 最新版本在线同步缓存（version + 时间戳，TTL=DSH_SYNC_TTL）
 };
+
+// ===== dsh 安装命令在线同步（npm 优先 + GitHub README 兜底）=====
+const DEFAULT_DSH_SPEC = '@deepseek-ai/dsh@0.1.0-rc.7'; // 最后的兜底固定版本（未配置 dshAgentNpxSpec 时）
+const DSH_SYNC_TTL = 6 * 3600 * 1000;                   // 在线同步缓存 TTL：6 小时
+const DSH_SYNC_TIMEOUT = 8000;                          // 单次在线探测超时（ms）
+let dshCmdPromise = null;                               // 并发去重：同一次解析只发一个网络请求，其余复用其结果
+let dshCmdPromiseForce = false;                         // 记录当前去重任务的 force 标志，避免 force/cache 结果互相串
 
 /**
  * 确保配置目录存在
@@ -887,9 +896,124 @@ function buildDshAgentPatch(patchDir) {
 }
 
 /**
+ * 带超时的 GET 请求（https 走全局 fetch，比 httpGet 支持 TLS；失败返回 null，不抛出）。
+ * @param {string} url
+ * @returns {Promise<string|null>}
+ */
+async function fetchTextSafe(url) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), DSH_SYNC_TIMEOUT);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch (e) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * 从 npm registry 获取 @deepseek-ai/dsh 的 latest 版本号（在线同步首选）。
+ * @returns {Promise<string|null>}
+ */
+async function fetchLatestDshVersionFromNpm() {
+  const body = await fetchTextSafe('https://registry.npmjs.org/@deepseek-ai/dsh/latest');
+  if (!body) return null;
+  try {
+    const data = JSON.parse(body);
+    const v = data && data.version;
+    return (typeof v === 'string' && v.trim()) ? v.trim() : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * 从 GitHub 官方 README 提取 dsh 启动命令/版本（npm 失败时兜底）。
+ * 命中形如 `dsh[@x.y.z] web` 的命令行，返回 { version? , command }；失败返回 null。
+ * @returns {Promise<{version?: string, command?: string}|null>}
+ */
+async function fetchDshHintFromReadme() {
+  const body = await fetchTextSafe(
+    'https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/main/README.md');
+  if (!body) return null;
+  const m = body.match(/@deepseek-ai\/dsh(?:@([\w.\-]+))?\s+web/);
+  if (!m) {
+    // 退而求其次：只要确认官方推荐 npx 免版本命令即可
+    if (/@deepseek-ai\/dsh/.test(body)) return { command: 'npx @deepseek-ai/dsh web' };
+    return null;
+  }
+  return {
+    version: m[1] || '',
+    command: m[1] ? `npx @deepseek-ai/dsh@${m[1]} web` : 'npx @deepseek-ai/dsh web'
+  };
+}
+
+/** 读取配置里的 dsh 在线同步缓存；TTL 内有效则返回 version，否则返回 null */
+function getCachedDshVersion(config) {
+  const sync = config && config.dshSync;
+  if (!sync || !sync.version) return null;
+  if ((Date.now() - (sync.ts || 0)) > DSH_SYNC_TTL) return null;
+  return sync.version;
+}
+
+/** 把在线解析结果写入配置缓存（成功才写） */
+function cacheDshVersion(config, version) {
+  if (!version) return;
+  try {
+    saveConfig({ ...config, dshSync: { version, ts: Date.now() } });
+  } catch (e) { /* 缓存失败不影响主流程 */ }
+}
+
+/**
+ * 装配展示给用户的 dsh 安装命令（在线同步 + 缓存降级）。
+ * 优先级：DSH_NPX_SPEC 环境变量 → 配置缓存（TTL 内且非 force）→ npm registry latest
+ *          → GitHub README 兜底 → dshAgentNpxSpec/默认固定版本兜底。
+ * 全程失败非致命，永不 throw。
+ * @param {boolean} [force] 强制联网刷新（「检测/重试」按钮传入 true）
+ * @returns {Promise<{command: string, source: string, version?: string}>}
+ */
+async function getDshInstallCommand(force = false) {
+  // 1) 环境变量覆盖（最高优先，研发/调试用）
+  const envSpec = process.env.DSH_NPX_SPEC;
+  if (envSpec) return { command: `npx -y ${envSpec} web`, source: 'env', version: '' };
+
+  const config = loadConfig();
+
+  // 2) TTL 内缓存命中（非 force 直接复用）
+  if (!force) {
+    const cached = getCachedDshVersion(config);
+    if (cached) return { command: `npx @deepseek-ai/dsh@${cached} web`, source: 'cache', version: cached };
+  }
+
+  // 3) 联网解析：并发去重（同参数复用同一个 Promise）
+  if (!force && dshCmdPromise) return dshCmdPromise;
+  dshCmdPromise = (async () => {
+    // npm registry latest 优先
+    const v = await fetchLatestDshVersionFromNpm();
+    if (v) {
+      cacheDshVersion(config, v);
+      return { command: `npx @deepseek-ai/dsh@${v} web`, source: 'npm', version: v };
+    }
+    // GitHub README 兜底
+    const r = await fetchDshHintFromReadme();
+    if (r && r.version) {
+      cacheDshVersion(config, r.version);
+      return { command: r.command, source: 'readme', version: r.version };
+    }
+    // 全部失败 → 配置/默认兜底
+    const spec = (config && config.dshAgentNpxSpec) || DEFAULT_DSH_SPEC;
+    return { command: `npx ${spec} web`, source: 'default', version: spec.split('@').pop() || '' };
+  })().finally(() => { dshCmdPromise = null; dshCmdPromiseForce = false; });
+  return dshCmdPromise;
+}
+
+/**
  * 解析 dsh CLI 入口。
- * 返回 { mode: 'node', node, script }（node 运行 dsh bin.js）或 { mode: 'npx', file }。
- * 优先级：配置 dshBinPath（目录或 bin.js）→ 环境变量 DSH_BIN → 内置 node_modules → npx 缓存 → npx。
+ * 返回 { mode: 'node', node, script }（node 运行 dsh bin.js）或 { mode: 'missing', file: 'npx' }。
+ * 优先级：配置 dshBinPath（目录或 bin.js）→ 环境变量 DSH_BIN → 内置 node_modules → npx 缓存。
  */
 function resolveDshBin(config) {
   const tryNodeScript = (p) => (p && fs.existsSync(p)) ? { mode: 'node', node: findNodeExe(), script: p } : null;
@@ -921,7 +1045,7 @@ function resolveDshBin(config) {
       if (hit) return hit;
     }
   }
-  return { mode: 'npx', file: 'npx' };
+  return { mode: 'missing', file: 'npx' };
 }
 
 /**
@@ -963,7 +1087,7 @@ function buildDshFailMessage(recentTail) {
   }
   const tail = hit.length ? hit.join(' ｜ ') : ((recentTail || []).slice(-2).join(' ｜ ') || '未知错误');
   return '安装/启动 DeepSeek Harness 失败：' + tail +
-    '。可尝试：① 在项目根目录执行 npm i --save-dev @deepseek-ai/dsh@0.1.0-rc.7 后重试；' +
+    '。可尝试：① 在项目根目录执行 npm i --save-dev @deepseek-ai/dsh 后重试；' +
     '② 清除 npx 缓存 npm cache clean --force 后重试；③ 在设置页配置 DSH CLI 路径（DSH_BIN）后重试。';
 }
 
@@ -1030,24 +1154,27 @@ async function startDshAgent(config) {
     return { success: false, message: `生成 DSH patch 失败: ${e.message}` };
   }
 
-  // 3) 解析 dsh CLI：没有本地安装时自动走 npx 安装
+  // 3) 解析 dsh CLI：未安装本地 dsh 时不再自动联网安装，改为提示用户自助安装并检测解锁
   const bin = resolveDshBin(config);
   log.info(`[DSH Agent] resolved dsh bin: mode=${bin.mode}${bin.script ? ' script=' + bin.script : ''}`);
-  const npxMode = bin.mode === 'npx';
-  if (npxMode) {
-    broadcastDshProgress('installing',
-      '未找到本地 DeepSeek Harness，正在自动安装（首次使用需联网下载，视网络约 1–5 分钟），期间可随时取消…',
-      { elapsed: 0 });
-  } else {
-    broadcastDshProgress('starting',
-      `正在启动 DeepSeek Harness（${path.basename(bin.script)}）…`, { elapsed: 0 });
+  // 未装本地 dsh（mode missing/npx）：CutShelter 不代联网安装，仅广播 need-install 供前端展示说明+重试
+  if (bin.mode === 'missing' || bin.mode === 'npx') {
+    const { command: DSH_INSTALL_CMD } = await getDshInstallCommand(false);
+    broadcastDshProgress('need-install',
+      '未检测到 DeepSeek Harness，请先自行安装后再重试。安装命令：' + DSH_INSTALL_CMD);
+    return {
+      success: false, needInstall: true, installed: false, port,
+      command: DSH_INSTALL_CMD,
+      message: '未检测到 DeepSeek Harness（DSH）。请按说明自助安装后重试。'
+    };
   }
+  broadcastDshProgress('starting',
+    `正在启动 DeepSeek Harness（${path.basename(bin.script)}）…`, { elapsed: 0 });
 
-  const args = npxMode
-    ? ['-y', process.env.DSH_NPX_SPEC || '@deepseek-ai/dsh@0.1.0-rc.7', 'web', '--patch', patchFile]
-    : ['web', '--patch', patchFile];
-  const spawnCmd = npxMode ? bin.file : bin.node;
-  log.info(`[DSH Agent] Starting: ${spawnCmd} ${(npxMode ? '' : bin.script + ' ')}${args.join(' ')}`);
+  const npxMode = false;
+  const args = ['web', '--patch', patchFile];
+  const spawnCmd = bin.node;
+  log.info(`[DSH Agent] Starting: ${spawnCmd} ${bin.script} ${args.join(' ')}`);
 
   // 为 DSH 提供独立的可写工作目录（DSH_HOME），避免依赖 ~/.dsh（受限/权限/与其他工具冲突）。
   // 目录位于用户 config.storagePath 下，跟随主数据目录即可写，也可在卸载后一并清理。
@@ -2093,6 +2220,27 @@ function setupIPC() {
     const port = config.dshPort || 3081;
     const running = await checkHttpPort(port);
     return { running, owned: dshAgentOwned, port };
+  });
+
+  /**
+   * 检查 dsh 是否已安装/运行（供「工具 → AI干活」卡片前置检测激活）。
+   * 返回安装状态与自助安装命令，未装则仅提示，不代联网安装。
+   */
+  ipcMain.handle('dsh-agent:check-install', async (ev, args) => {
+    const config = loadConfig();
+    const port = config.dshPort || 3081;
+    const installed = await checkHttpPort(port);
+    const { command, source, version } = await getDshInstallCommand(!!(args && args.force));
+    return {
+      installed,
+      port,
+      command,
+      source,
+      version,
+      hint: installed
+        ? `DeepSeek Harness 已就绪（端口 ${port}），可直接使用`
+        : `未检测到 DeepSeek Harness，请自行安装后再激活。命令：${command}`
+    };
   });
 
   /**
