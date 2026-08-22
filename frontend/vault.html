@@ -1907,9 +1907,9 @@ async function showAuditModal() {
 // ====== 工具函数 ======
 function openModal(id) { document.getElementById(id).classList.add('show'); }
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
-function showToast(msg) {
+function showToast(msg, isError = false) {
   if (window.UI && UI.toast) {
-    UI.toast(msg, { type: 'info', duration: 2000 });
+    UI.toast(msg, { type: isError ? 'error' : 'info', duration: isError ? 4000 : 2000 });
     return;
   }
   const t = document.getElementById('toast');

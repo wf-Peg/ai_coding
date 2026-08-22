@@ -832,21 +832,19 @@ function toggleVisibility(inputId) {
   input.type = input.type === 'password' ? 'text' : 'password';
 }
 
-function showToast(message) {
+function showToast(message, isError = false) {
   if (window.UI && UI.toast) {
-    UI.toast(message, { type: 'info', duration: 2000 });
+    UI.toast(message, { type: isError ? 'error' : 'info', duration: isError ? 4000 : 2000 });
     return;
   }
-  const existing = document.querySelector('.toast');
+  // 兜底（理论上不会触发：settings.html 已加载 ui-common.js）
+  const existing = document.querySelector('.ui-toast');
   if (existing) existing.remove();
   const toast = document.createElement('div');
-  toast.className = 'toast';
+  toast.className = 'ui-toast ui-toast--' + (isError ? 'error' : 'info');
   toast.textContent = message;
   document.body.appendChild(toast);
-  setTimeout(() => {
-    toast.style.animation = 'slideOut 0.3s ease-in forwards';
-    setTimeout(() => toast.remove(), 300);
-  }, 2000);
+  setTimeout(() => toast.remove(), 3000);
 }
 
 // 初始化

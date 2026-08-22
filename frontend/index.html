@@ -1600,7 +1600,7 @@
           if (!toast) {
             toast = document.createElement('div');
             toast.id = 'systemToast';
-            toast.style.cssText = 'position:fixed;left:50%;bottom:40px;transform:translateX(-50%);z-index:99999;padding:10px 20px;border-radius:8px;font-size:13px;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.2);opacity:0;transition:opacity .25s;pointer-events:none;max-width:80vw;word-break:break-all;';
+            toast.style.cssText = 'position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:99999;padding:10px 20px;border-radius:8px;font-size:13px;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.2);opacity:0;transition:opacity .25s;pointer-events:none;max-width:80vw;word-break:break-all;';
             document.body.appendChild(toast);
           }
           toast.style.background = isError ? '#dc2626' : '#16a34a';

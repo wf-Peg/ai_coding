@@ -528,18 +528,20 @@ async function doSaveKnowledge(published, title, content) {
 }
 
 // 显示提示
-function showToast(message) {
-  const existing = document.querySelector('.toast');
+function showToast(message, isError = false) {
+  if (window.UI && UI.toast) {
+    UI.toast(message, { type: isError ? 'error' : 'info', duration: isError ? 4000 : 2000 });
+    return;
+  }
+  // 兜底（理论上不会触发：knowledge-editor.html 已加载 ui-common.js）
+  const existing = document.querySelector('.ui-toast');
   if (existing) existing.remove();
 
   const toast = document.createElement('div');
-  toast.className = 'toast';
+  toast.className = 'ui-toast ui-toast--' + (isError ? 'error' : 'info');
   toast.textContent = message;
   document.body.appendChild(toast);
-  setTimeout(function() {
-    toast.style.animation = 'slideOut 0.3s ease-in forwards';
-    setTimeout(function() { toast.remove(); }, 300);
-  }, 2000);
+  setTimeout(function () { toast.remove(); }, 3000);
 }
 
 function escapeHtml(text) {

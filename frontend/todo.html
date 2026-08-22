@@ -1541,8 +1541,9 @@
 
   // ── Toast ──
   function showToast(message, icon = '✓') {
-    if (window.UI && UI.toast && icon === '✓') {
-      UI.toast(message, { type: 'success', duration: 2000 });
+    if (window.UI && UI.toast) {
+      const type = icon === '⚠️' ? 'warning' : (icon === '✓' || icon === '✨' || icon === '🎉' ? 'success' : 'info');
+      UI.toast(icon && icon !== '✓' ? message + ' ' + icon : message, { type: type, duration: 2000 });
       return;
     }
     const el = document.createElement('div');

@@ -26,7 +26,14 @@
 
   /* ---------- Toast ---------- */
   var TOAST_ICONS = { success: '✓', error: '✕', warning: '!', info: 'ℹ' };
-  var toastCount = 0;
+  var toastSeq = 0;
+
+  // 自顶部 16px 开始，按当前可见数量依次下排；收起后重排，保证每次位置一致
+  function repositionToasts(root) {
+    var list = root.querySelectorAll('.ui-toast');
+    var top = 16;
+    for (var i = 0; i < list.length; i++) { list[i].style.top = top + 'px'; top += 64; }
+  }
 
   function toast(message, opts) {
     opts = opts || {};
@@ -36,7 +43,7 @@
 
     var el = document.createElement('div');
     el.className = 'ui-toast ui-toast--' + type + ' ui-fade-in ui-slide-up';
-    el.id = 'ui-toast-' + (++toastCount);
+    el.id = 'ui-toast-' + (++toastSeq);
     var icon = document.createElement('span');
     icon.className = 'ui-toast__icon';
     icon.textContent = TOAST_ICONS[type] || 'ℹ';
@@ -54,9 +61,8 @@
     el.appendChild(close);
     r.appendChild(el);
 
-    // 多 toast 纵向堆叠：调整 top 位置
-    var offset = 16 + (toastCount % 6) * 64;
-    el.style.top = offset + 'px';
+    // 多 toast 纵向堆叠：依据当前可见数量自顶部 16px 依次下排；收起后重排回收槽位
+    repositionToasts(r);
 
     var timer = null;
     function dismiss() {
@@ -66,6 +72,7 @@
       function finish() {
         if (done) return; done = true;
         el.remove();
+        repositionToasts(r);
       }
       el.style.transition = 'opacity .2s ease, transform .2s ease';
       el.style.opacity = '0';
