@@ -808,6 +808,7 @@ function stopBackend() {
 
 let dshAgentProcess = null;
 let dshAgentOwned = false;   // true = 进程是本应用拉起的，退出需关闭；false = 复用了已有实例
+let dshManagedPort = null;   // 由本应用亲自拉起的 DSH 端口（跨 launcher 退出保留，用于按端口强杀守护进程）
 
 /** 探测本地端口是否返回 HTTP 200（判断 DSH Web 是否就绪） */
 function checkHttpPort(port, pathname = '/') {
@@ -1202,6 +1203,7 @@ async function startDshAgent(config) {
   // 子进程输出 → 日志 + 节流转发给面板（安装/启动期展示真实进度）
   let lastFwdAt = 0;
   let processExited = false;        // 子进程已退出/启动失败 → 用于立即中止就绪轮询（修复无限"正在安装"）
+  let exitCode = null;              // 子进程退出码，失败时纳入文案便于定位
   const recentTail = [];            // 最近输出尾段，供失败时按关键字提炼真实报错
   const TAIL_LIMIT = 30;
   const forward = (kind) => (d) => {
@@ -1225,6 +1227,7 @@ async function startDshAgent(config) {
   dshAgentProcess.on('close', (code) => {
     log.info(`[DSH Agent] exited with code ${code}`);
     processExited = true;
+    exitCode = code;
     if (dshAgentProcess) { dshAgentProcess = null; dshAgentOwned = false; }
   });
   dshAgentProcess.on('error', (err) => {
@@ -1234,6 +1237,7 @@ async function startDshAgent(config) {
     if (dshAgentProcess) { dshAgentProcess = null; dshAgentOwned = false; }
   });
   dshAgentOwned = true;
+  dshManagedPort = port;
 
   // 4) 轮询等待就绪（npx 安装路径给更宽裕的超时；每 5 秒刷新等待文案）
   const timeoutMs = npxMode ? 300000 : 90000;
@@ -1251,13 +1255,16 @@ async function startDshAgent(config) {
     }
     dshAgentProcess = null;
     dshAgentOwned = false;
+    dshManagedPort = null;
   };
   while (Date.now() < deadline) {
     // 子进程已退出：端口未就绪 → 立即失败并透传真实报错（不再空转到超时）；
     // 若已就绪（如父进程退出但守护子进程驻留）则回落就绪分支。
     if (processExited && !(await checkHttpPort(port))) {
-      failNow(buildDshFailMessage(recentTail));
-      return { success: false, message: 'DSH process exited before ready' };
+      const msg = buildDshFailMessage(recentTail) + (exitCode != null ? `（退出码 ${exitCode}）` : '');
+      log.warn(`[DSH Agent] tail: ${recentTail.slice(-15).join(' ｜ ')}`);
+      failNow(msg);
+      return { success: false, message: msg };
     }
     if (await checkHttpPort(port)) {
       log.info(`[DSH Agent] ready at http://127.0.0.1:${port}`);
@@ -1280,7 +1287,7 @@ async function startDshAgent(config) {
     await new Promise((r) => setTimeout(r, 1500));
   }
   failNow(buildDshFailMessage(recentTail) + `（启动超时 ${Math.round(timeoutMs / 1000)} 秒）`);
-  return { success: false, message: `DSH Agent startup timeout on port ${port}` };
+  return { success: false, message: `DSH 启动超时（${Math.round(timeoutMs / 1000)} 秒）：${buildDshFailMessage(recentTail)}` };
 }
 
 /**
@@ -1305,17 +1312,31 @@ function cancelDshAgent() {
 
 /** 停止本应用拉起的 DSH sidecar（复用实例不杀） */
 function stopDshAgent() {
-  if (dshAgentProcess && dshAgentOwned) {
-    log.info('[DSH Agent] stopping...');
+  const config = loadConfig();
+  const port = (config && config.dshPort) || 3081;
+
+  // 1) 若持有直接子进程句柄，先尝试终止（DSH 为单进程运行时的兜底）
+  if (dshAgentProcess) {
+    log.info('[DSH Agent] stopping child process...');
     try { dshAgentProcess.kill('SIGTERM'); } catch (e) { /* ignore */ }
-    setTimeout(() => {
-      if (dshAgentProcess) {
-        try { dshAgentProcess.kill('SIGKILL'); } catch (e) { /* ignore */ }
-        dshAgentProcess = null;
-        dshAgentOwned = false;
-      }
-    }, 3000);
+    try {
+      const p = dshAgentProcess;
+      setTimeout(() => { try { p && p.kill('SIGKILL'); } catch (e2) { /* ignore */ } }, 2000);
+    } catch (e) { /* ignore */ }
   }
+
+  // 2) 仅当端口是本应用亲自拉起的实例，才按端口强杀实际占用进程。
+  //    DSH web 常派生子进程/守护进程驻留（launcher 退出后仍在监听），仅杀父进程无法释放端口。
+  //    跨平台 killPortProcess 用 lsof/netstat 定位监听进程，可靠释放端口。
+  const isManaged = dshManagedPort != null && dshManagedPort === port;
+  if (isManaged) {
+    log.info(`[DSH Agent] stopping managed DSH on port ${port}`);
+    killPortProcess(port);
+    broadcastDshProgress('stopped', `已停止 DSH（端口 ${port}）`);
+  }
+
+  dshManagedPort = null;
+  dshAgentProcess = null;
   dshAgentOwned = false;
 }
 
