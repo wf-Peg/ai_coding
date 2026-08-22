@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>碎碎记</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M 7 20 C 3 17, 2 13, 2 10 C 2 7, 3 4, 7 2 L 9 5 C 6 6, 5 8, 5 10 C 5 13, 6 15, 9 17 Z' fill='%234A9E9E'/%3E%3Cpath d='M 7 2 C 10 0, 14 0, 17 2 L 16 5 C 13 3, 10 3, 9 5 Z' fill='%233A9B9B'/%3E%3Ccircle cx='10' cy='10' r='2.5' fill='%23FFD93D'/%3E%3Ccircle cx='13' cy='9' r='2' fill='%23FF9F45'/%3E%3Ccircle cx='12' cy='13' r='1.8' fill='%23FF6B6B'/%3E%3C/svg%3E" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles/design-tokens.css">
+    <link rel="stylesheet" href="styles/ui-common.css">
     <style>
         :root {
             --bg: #f7f7f5;
@@ -123,6 +125,10 @@
             height: 2px;
             background: var(--primary);
             border-radius: 1px 1px 0 0;
+        }
+        .titlebar-nav .nav-btn:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: -2px;
         }
         .titlebar-nav .nav-btn svg {
             width: 15px;
@@ -1586,6 +1592,10 @@
 
         // 简单 Toast 提示（成功/失败），让右键菜单动作结果可见
         function showToast(message, isError) {
+          if (window.UI && UI.toast) {
+            UI.toast(message, { type: isError ? 'error' : 'success', duration: 2500 });
+            return;
+          }
           var toast = document.getElementById('systemToast');
           if (!toast) {
             toast = document.createElement('div');
@@ -1601,6 +1611,7 @@
         }
         // 将常见网络错误替换为友好的中文提示
         function friendlyError(err) {
+          if (window.UI && UI.friendlyError) return UI.friendlyError(err);
           var msg = String((err && err.message) || err);
           if (/Failed to fetch|fetch failed|NetworkError|ECONNREFUSED/i.test(msg)) {
             return '无法连接本地服务，请确认后端已启动（在标题栏点击"启动后端"）';
@@ -1950,9 +1961,20 @@
         }
 
         // 用编辑器打开：读取文件内容并在新标签页打开（Ctrl+T 风格，不覆盖当前编辑区）
+        // 注：主进程已做 open-editor 分发去重，此处再加同文件短时间去重双保险，
+        //     避免同一文件被重复打开导致出现两个编辑器画布（Bug 修复）。
+        var lastOpenEditorPath = null;
+        var lastOpenEditorAt = 0;
         if (window.electronAPI.onOpenFileRequest) {
           window.electronAPI.onOpenFileRequest(async function(filePath) {
             console.log('[System] 收到编辑器打开请求:', filePath);
+            var now = Date.now();
+            if (filePath && filePath === lastOpenEditorPath && (now - lastOpenEditorAt) < 500) {
+              console.log('[System] 忽略重复的编辑器打开请求:', filePath);
+              return;
+            }
+            lastOpenEditorPath = filePath || null;
+            lastOpenEditorAt = now;
             try {
               var result = await window.electronAPI.openFileByPath(filePath);
               if (!result || result.canceled) return;
@@ -2018,6 +2040,7 @@
       }
   })();
 </script>
+<script src="js/ui-common.js"></script>
 </body>
 </html>
 

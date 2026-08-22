@@ -416,6 +416,10 @@ function escapeHtml(text) {
 }
 
 function showToast(message) {
+  if (window.UI && UI.toast) {
+    UI.toast(message, { type: 'info', duration: 2000 });
+    return;
+  }
   const existing = document.querySelector('.toast');
   if (existing) existing.remove();
   const toast = document.createElement('div');

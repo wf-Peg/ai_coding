@@ -833,6 +833,10 @@ function toggleVisibility(inputId) {
 }
 
 function showToast(message) {
+  if (window.UI && UI.toast) {
+    UI.toast(message, { type: 'info', duration: 2000 });
+    return;
+  }
   const existing = document.querySelector('.toast');
   if (existing) existing.remove();
   const toast = document.createElement('div');
@@ -1660,6 +1664,25 @@ function initDshAgentSection() {
     }).catch(() => {});
   };
   refreshRunStatus();
+
+  // 状态自动同步：DSH 可能由「工具→AI 干活」等其它入口启动/停止，须自动刷新。
+  // ① 事件驱动：订阅主进程 dsh-agent-progress 广播（install/start/ready/failed 时立即刷新）
+  if (api.onDshAgentProgress) api.onDshAgentProgress(() => { refreshRunStatus(); });
+  // ② 兜底轮询：每 2s 探测一次 3081；仅页面可见时轮询，隐藏时暂停以降低开销
+  let runPollTimer = null;
+  const startRunPolling = () => {
+    if (runPollTimer) return;
+    runPollTimer = setInterval(() => refreshRunStatus(), 2000);
+  };
+  const stopRunPolling = () => {
+    if (runPollTimer) { clearInterval(runPollTimer); runPollTimer = null; }
+  };
+  const onVisibility = () => {
+    if (document.visibilityState === 'visible') startRunPolling();
+    else stopRunPolling();
+  };
+  document.addEventListener('visibilitychange', onVisibility);
+  onVisibility();
 
   // 保存设置
   const btnSave = document.getElementById('btnSaveDshConfig');

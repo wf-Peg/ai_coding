@@ -82,7 +82,15 @@ function parseCommandLineArgs(argv, appDir) {
       actions.push({ action: 'open-editor', path: arg });
     }
   }
-  return actions;
+  // 去重：同一 open-editor 文件可能同时以 --open-editor 标志与裸路径两种形态
+  // 出现在 argv（Electron 会重组命令行），避免对同一文件分发两次导致前端开两个画布。
+  const seenOpenEditor = new Set();
+  return actions.filter(a => {
+    if (a.action !== 'open-editor' || !a.path) return true;
+    if (seenOpenEditor.has(a.path)) return false;
+    seenOpenEditor.add(a.path);
+    return true;
+  });
 }
 
 /**

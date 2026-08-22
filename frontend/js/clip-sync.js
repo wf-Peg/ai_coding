@@ -357,6 +357,10 @@ async function synthesizeKnowledge() {
 
 // ====== Toast ======
 function showToast(msg) {
+  if (window.UI && UI.toast) {
+    UI.toast(msg, { type: 'info', duration: 2000 });
+    return;
+  }
   const existing = document.querySelector('.clip-toast');
   if (existing) existing.remove();
   const t = document.createElement('div');

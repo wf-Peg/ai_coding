@@ -1481,6 +1481,10 @@
       }
 
       function showSuccessToast(msg) {
+        if (window.UI && UI.toast) {
+          UI.toast(msg, { type: 'success', duration: 3000 });
+          return;
+        }
         const toast = $('successToast');
         toast.textContent = msg;
         toast.classList.add('show');

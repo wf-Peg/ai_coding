@@ -134,6 +134,8 @@ public class WeeklyReportService {
 
             int reportCount = 0;
             List<String> generatedFiles = new ArrayList<>();
+            // 收集各分类的 AI 主报告与知识点，供周报邮件并入「主报告/知识点」章节
+            Map<String, Map<String, Object>> categoryReportData = new HashMap<>();
 
             for (Map.Entry<String, List<ClipContent>> entry : clipsByCategory.entrySet()) {
                 String category = entry.getKey();
@@ -156,6 +158,11 @@ public class WeeklyReportService {
                     @SuppressWarnings("unchecked")
                     List<Map<String, String>> knowledgePoints = (List<Map<String, String>>) extractionResult.get("knowledgePoints");
 
+                    // 收集 AI 产物供邮件使用
+                    Map<String, Object> reportData = new HashMap<>();
+                    reportData.put("mainReport", mainReport);
+                    reportData.put("knowledgePoints", knowledgePoints);
+                    categoryReportData.put(category, reportData);
                     // 按分类目录/周次组织存储
                     String categoryDir = getCategoryDir(category);
                     Path categoryPath = weeklyReportPath.resolve(categoryDir).resolve(weekSuffix);

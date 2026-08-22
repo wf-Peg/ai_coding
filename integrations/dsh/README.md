@@ -53,7 +53,7 @@ node test-plugin.mjs   # Phase 1：插件装载 + clip_session 端到端（创�
 npx @deepseek-ai/dsh web --patch ./integrations/dsh/cordis.example.yml
 ```
 
-打开 `http://127.0.0.1:3080`，Agent 将看到 `mcp__cut_shelter__clip_search` 等 11 个工具，以及 `clip_session`（Phase 1）。
+打开 `http://127.0.0.1:3080`，Agent 将看到 `mcp__cut_shelter__clip_search` 等 **13 个 MCP 工具**，以及 `clip_session` 插件（Phase 1，合计 14 个可选工具）。
 
 在 DSH 里试一句：
 
@@ -76,6 +76,8 @@ npx @deepseek-ai/dsh web --patch ./integrations/dsh/cordis.example.yml
 | learning_plan_list | 学习计划列表 | 只读 |
 | wiki_index | 知识库 Wiki 索引（Markdown） | 只读 |
 | weekly_report_status | 周报状态/路径 | 只读 |
+| tools_hub_list | Tools Hub 小工具注册表（id/名称/分类/描述/启用状态） | 只读 |
+| tools_hub_page | 读取 Tools Hub 小工具 HTML 源码（前 3000 字符，便于复用） | 只读；需先 `id` |
 
 > 说明：`clip_search` 走后端语义检索（可能涉及嵌入服务）；列表/新增/状态类操作是纯本地接口，不额外消耗 LLM token。
 

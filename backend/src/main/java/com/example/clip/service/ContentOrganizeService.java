@@ -157,6 +157,8 @@ public class ContentOrganizeService {
             Map<String, List<ClipContent>> clipsByCategory = groupClipsByCategory(todayClips);
 
             int organizedCount = 0;
+            // 收集各分类的 AI 整理产物，供日报邮件并入「AI 整理摘要」章节
+            Map<String, String> categoryDigests = new HashMap<>();
 
             // 处理每个分类的内容
             for (Map.Entry<String, List<ClipContent>> entry : clipsByCategory.entrySet()) {
@@ -166,6 +168,7 @@ public class ContentOrganizeService {
                 if (!categoryClips.isEmpty()) {
                     // 组织分类内容（AI 整理）
                     String organizedContent = organizeCategoryContent(category, categoryClips);
+                    categoryDigests.put(category, organizedContent);
                     // 文件名格式：{分类中文名}_{yyyy-MM-dd}.md（Obsidian 友好）
                     String fileName = obsidianExportFormatter.generateFileName(getTopCategoryName(category), today);
                     saveOrganizedContent(category, fileName, organizedContent);
@@ -183,7 +186,7 @@ public class ContentOrganizeService {
             result.put("storagePath", organizedStoragePath.toAbsolutePath().toString());
 
             // 发送邮件通知（如果邮件已配置）
-            sendOrganizeEmail(today, organizedCount, clipsByCategory);
+            sendOrganizeEmail(today, organizedCount, clipsByCategory, categoryDigests);
 
         } catch (Exception e) {
             lastOrganizeStatus = "error";
@@ -654,6 +657,7 @@ public class ContentOrganizeService {
      * <ol>
      *   <li><b>概览</b>：日期、总条数、分类数、来源数、标签数</li>
      *   <li><b>全局统计</b>：来源站点分布、内容类型分布、热门标签</li>
+     *   <li><b>AI 整理摘要</b>：每个分类由 AI 整理出的正文要点（去除 frontmatter）</li>
      *   <li><b>分类详情</b>：每个分类下的剪藏卡片（摘要、来源链接、标签、AI 分析摘要）</li>
      * </ol>
      * </p>
@@ -661,8 +665,9 @@ public class ContentOrganizeService {
      * @param date            整理日期
      * @param organizedCount  整理的分类数量
      * @param clipsByCategory 按分类分组的剪藏内容
+     * @param categoryDigests 按分类的 AI 整理产物（Markdown）
      */
-    private void sendOrganizeEmail(LocalDate date, int organizedCount, Map<String, List<ClipContent>> clipsByCategory) {
+    private void sendOrganizeEmail(LocalDate date, int organizedCount, Map<String, List<ClipContent>> clipsByCategory, Map<String, String> categoryDigests) {
         try {
             if (!emailService.isEmailConfigured()) {
                 return;
@@ -760,6 +765,25 @@ public class ContentOrganizeService {
             }
 
             html.append("</div>");
+
+            // ===== AI 整理摘要（每分类由 AI 整理出的正文要点）=====
+            if (categoryDigests != null && !categoryDigests.isEmpty()) {
+                html.append("<div style=\"padding: 4px 28px; background: #fff;\">");
+                html.append("<h2 style=\"font-size: 16px; color: #1e293b; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 2px solid #3b82f6;\">AI 整理摘要</h2>");
+                categoryDigests.entrySet().stream()
+                        .filter(e -> e.getValue() != null && !e.getValue().trim().isEmpty())
+                        .forEach(e -> {
+                            String digest = EmailMarkdownUtil.stripFrontmatter(e.getValue());
+                            if (digest.length() > 900) digest = digest.substring(0, 900) + "…";
+                            html.append("<div style=\"margin: 12px 0; padding: 14px 16px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #10b981;\">");
+                            html.append("<div style=\"font-weight: 700; color: #166534; font-size: 14px; margin-bottom: 6px;\">📌 ")
+                                    .append(escapeHtml(getCategoryName(e.getKey()))).append("</div>");
+                            html.append("<div style=\"font-size: 13px; color: #334155; line-height: 1.7;\">")
+                                    .append(EmailMarkdownUtil.mdToHtml(digest)).append("</div>");
+                            html.append("</div>");
+                        });
+                html.append("</div>");
+            }
 
             // ===== 分类详情 =====
             html.append("<div style=\"padding: 4px 28px 20px; background: #fff;\">");

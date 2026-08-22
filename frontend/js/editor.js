@@ -327,18 +327,30 @@
     return editor;
   }
 
-  function applyTheme() {
+  /**
+   * 应用主题到编辑器页面与 ACE 编辑器。
+   * @param {string|null} parentTheme 父窗口通过 message 传回的主题值（dark / notion / regular 等），
+   *        非空时优先采用，避免切页后本地缓存与父窗口不一致导致背景色错乱（Bug 修复）。
+   */
+  function applyTheme(parentTheme) {
     const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
     let theme = localStorage.getItem(THEME_STORAGE_KEY) || 'notion';
     if (appearance === 'dark') theme = 'dark';
-    if (appearance === 'regular') theme = 'regular';
-    if (appearance === 'system') {
+    else if (appearance === 'regular') theme = 'regular';
+    else if (appearance === 'system') {
       theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'notion';
+    }
+    // 父窗口显式传入主题时优先采用（规避 iframe 隐藏期间缓存未同步造成的错乱）
+    if (parentTheme === 'dark' || parentTheme === 'notion' || parentTheme === 'regular') {
+      theme = parentTheme;
     }
     document.documentElement.setAttribute('data-theme', theme);
     const aceTheme = theme === 'dark' ? 'ace/theme/tomorrow_night' : 'ace/theme/textmate';
     mainEditor.setTheme(aceTheme);
     compareEditor.setTheme(aceTheme);
+    // 重绘兜底：强制刷新排版，确保隐藏/重新显示后背景色、选区高亮等正确
+    mainEditor.renderer.updateFull && mainEditor.renderer.updateFull();
+    compareEditor.renderer.updateFull && compareEditor.renderer.updateFull();
   }
 
   /**
@@ -949,17 +961,43 @@
       return;
     }
     const language = elements.languageSelect.value;
+    // 返回 null 表示语言不支持格式化；否则返回 {error, value}
+    const runFormatter = (text) => {
+      if (language === 'json') return { value: EditorCore.formatJson(text, false) };
+      if (language === 'xml') return { value: EditorCore.formatXml(text, false) };
+      if (language === 'sql') return { value: EditorCore.formatSql(text, 'sql') };
+      return null;
+    };
     try {
-      let formatted;
-      if (language === 'json') formatted = EditorCore.formatJson(target.text, false);
-      else if (language === 'xml') formatted = EditorCore.formatXml(target.text, false);
-      else if (language === 'sql') formatted = EditorCore.formatSql(target.text, 'sql');
-      else throw new Error('请选择 JSON、XML 或 SQL 模式');
-      mainEditor.session.replace(target.range, formatted);
+      const fmt = runFormatter(target.text);
+      if (!fmt) throw new Error('请选择 JSON、XML 或 SQL 模式');
+      mainEditor.session.replace(target.range, fmt.value);
       showToast(`${target.selection ? '选区' : '全文'}格式化完成`);
     } catch (error) {
-      const detail = EditorCore.extractErrorLocation(error);
-      showToast(`格式化失败：${detail.message}`, true);
+      // 兜底：格式化失败时先「删除每行末尾换行符」合并被客户端截断的多行，再尝试格式化，
+      // 减少用户一次手动「删除每行末换行符」的交互动作
+      let fallbackError = null;
+      const joined = target.text.replace(/\r\n|\r|\n/g, '');
+      if (joined.length !== target.text.length) {
+        try {
+          const fmt = runFormatter(joined);
+          if (fmt) {
+            const removed = target.text.length - joined.length;
+            mainEditor.session.replace(target.range, fmt.value);
+            showToast(`${target.selection ? '选区' : '全文'}格式化完成（已自动删除 ${removed} 个行末换行符后重试）`, false, 'info');
+            FrontendLogger.info('[Editor] Format fallback success', { language, selection: target.selection, removed });
+            return;
+          }
+          fallbackError = new Error('请选择 JSON、XML 或 SQL 模式');
+        } catch (err2) {
+          fallbackError = err2;
+        }
+      }
+      const detail = EditorCore.extractErrorLocation(fallbackError || error);
+      const hint = (joined.length === target.text.length)
+        ? '（内容不含可合并的行末换行符，请手动「删除每行末换行符」后重试）'
+        : '（已自动删除行末换行符后仍失败）';
+      showToast(`格式化失败${hint}：${detail.message}`, true);
       FrontendLogger.warn('[Editor] Format failed', language, detail.message);
     }
   }
@@ -2779,6 +2817,10 @@
   function showToast(message, error, type) {
     // 类型：'success' | 'error' | 'info' | 'warning'
     var notificationType = type || (error ? 'error' : 'info');
+    if (window.UI && UI.toast) {
+      UI.toast(message, { type: notificationType, duration: notificationType === 'error' ? 4000 : notificationType === 'warning' ? 3500 : 2600 });
+      return;
+    }
     clearTimeout(showToast.timer);
     elements.toast.textContent = message;
     elements.toast.className = 'toast show ' + notificationType;
@@ -2910,8 +2952,12 @@
 
     // 2. 调用后端生成 .docx 并触发下载
     const filename = (getCurrentFileName() || '导出文档').replace(/\.[^.]+$/, '') + '.docx';
-    const exportUrl = (window.API_BASE_URL || 'http://127.0.0.1:8081/api/clip')
-      .replace(/\/?api\/clip$/, '/api/editor/export-word');
+    // 从 API 基地址提取 origin（协议+主机+端口），拼接后端导出接口，
+    // 不依赖 /api/clip 后缀，避免后缀变动导致 URL 拼接失败（Bug 修复）
+    let origin = '';
+    try { origin = new URL(window.API_BASE_URL || 'http://127.0.0.1:8081').origin; }
+    catch (e) { origin = 'http://127.0.0.1:8081'; }
+    const exportUrl = origin + '/api/editor/export-word';
     try {
       showToast('正在生成 Word…', false, 'info');
       const resp = await fetch(exportUrl, {
@@ -2934,7 +2980,15 @@
       setTimeout(() => { URL.revokeObjectURL(anchor.href); anchor.remove(); }, 1000);
       showToast('已导出 ' + filename, false, 'success');
     } catch (err) {
-      showToast('导出失败：' + (err && err.message ? err.message : err), true);
+      // 网络错误分类提示，便于定位是后端未启动还是接口地址问题
+      const detail = err && err.message ? err.message : String(err);
+      let hint;
+      if (/Failed to fetch|NetworkError|TYPE_ERROR|name resolution/i.test(detail)) {
+        hint = '网络请求失败，请确认后端服务（8081）已启动且 /api/editor/export-word 可访问（地址：' + exportUrl + '）';
+      } else {
+        hint = '导出失败：' + detail;
+      }
+      showToast(hint, true);
     }
   }
 
@@ -3332,7 +3386,8 @@
       window.__backendState = data.state || '';
       try { window.MediaKit.uploader.setBackendStatusProvider(function () { return window.__backendState || null; }); } catch (e) {}
     } else if (data.action === 'themeChange' || data.type === 'themeChanged' || data.type === 'appearanceChanged') {
-      applyTheme();
+      // 父窗口切换主题时，直接采用其传入的主题值，保证 ACE 背景色与主框架一致
+      applyTheme(data.theme);
     } else if (data.action === 'editorPing') {
       window.parent.postMessage({ type: 'editorReady' }, '*');
     } else if (data.action === 'openClipInEditor' || data.type === 'openClipInEditor') {
@@ -3356,6 +3411,10 @@
     if (event.key === THEME_STORAGE_KEY || event.key === APPEARANCE_KEY) applyTheme();
   });
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+  // 页面（iframe）切回可见时强制重绘主题，修复切换页面后 ACE 背景色/高亮错乱的问题（Bug 修复）
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') applyTheme();
+  });
 
   elements.runtimeStatus.textContent = getElectronAPI() ? '桌面模式' : '浏览器模式';
   elements.encodingNote.textContent = getElectronAPI()

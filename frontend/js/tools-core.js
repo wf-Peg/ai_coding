@@ -141,6 +141,10 @@
   // ── 主题化提示/确认（替代原生 alert/confirm，贴合全局主题、无 clip-demo 标题栏） ──
   let toastTimer = null;
   function showToast(msg, ms) {
+    if (typeof window.UI !== 'undefined' && window.UI && UI.toast) {
+      UI.toast(msg, { type: 'info', duration: ms || 3500 });
+      return;
+    }
     const el = document.getElementById('thToast');
     if (!el) { alert(msg); return; }
     el.textContent = msg;
