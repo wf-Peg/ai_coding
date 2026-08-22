@@ -2,24 +2,43 @@
 
 /**
  * afterPack hook for electron-builder
- * Validates the bundled JRE and fixes binary permissions inside the packaged macOS app.
- * 
- * 处理场景：
- * - macOS .app 包（dmg/zip）：修复 JRE 二进制权限，验证 macOS 可执行文件
- * - Windows 便携版：无需额外处理
- * - Linux AppImage：无需额外处理
+ * Deprecates the bundled JRE permissions and prunes multi-platform native binaries / locales
+ * to minimize the packaged app size.
+ *
+ * 处理场景（mac + win 均生效）：
+ * - 裁剪 Electron 多语言资源（只保留中文 + 英文）
+ * - 裁剪原生依赖多平台二进制（onnxruntime-node 等）
+ * - macOS .app 专属：修复 JRE 二进制权限、校验 macOS 可执行文件
  */
 const fs = require('fs');
 const path = require('path');
 
+// 保留的语言：中文（默认） + 英文（兜底）。其他约 50 种皆删除以减小体积。
+const KEEP_LOCALES = ['en', 'en_GB', 'en_US', 'zh_CN', 'zh_TW'];
+
 exports.default = async function(context) {
-  if (context.packager.platform.name !== 'mac') {
+  const platform = context.packager.platform.name; // 'mac' | 'win' | 'linux'
+
+  // macOS 应用根目录为 <appOutDir>/xxx.app，win/linux 则为 appOutDir
+  const appName = context.packager.appInfo.productFilename;
+  const appPath = platform === 'mac'
+    ? path.join(context.appOutDir, appName + '.app')
+    : context.appOutDir;
+
+  // 1) 裁剪 Electron 多语言资源（mac/win 均执行）
+  pruneElectronLocales(appPath, platform);
+
+  // 2) 裁剪原生依赖多平台二进制（mac/win 均执行）
+  const resourcesPath = platform === 'mac'
+    ? path.join(appPath, 'Contents', 'Resources')
+    : path.join(appPath, 'resources');
+  pruneNativeNodeModules(resourcesPath, platform);
+
+  // 3) macOS 专属：JRE 权限修复与可执行文件校验
+  if (platform !== 'mac') {
     return;
   }
 
-  const appName = context.packager.appInfo.productFilename;
-  const appPath = path.join(context.appOutDir, appName + '.app');
-  const resourcesPath = path.join(appPath, 'Contents', 'Resources');
   const jreBin = path.join(resourcesPath, 'jre', 'bin');
 
   if (!fs.existsSync(jreBin)) {
@@ -60,18 +79,56 @@ exports.default = async function(context) {
   console.log('[afterPack] JRE permissions fixed');
 
   // 裁剪原生依赖到当前平台（onnxruntime-node 等含多平台预编译二进制）
-  pruneNativeNodeModules(context, resourcesPath);
+  pruneNativeNodeModules(resourcesPath, platform);
 };
+
+/**
+ * 裁剪 Electron 框架内置的多语言资源，仅保留中文与英文，减小包体积。
+ * - macOS：删除 Electron Framework 内除保留语言外的 *.lproj 目录
+ * - win/linux：删除 resources/locales 下除保留语言外的 *.pak 文件
+ */
+function pruneElectronLocales(appPath, platform) {
+  const keep = new Set(KEEP_LOCALES.map(l => l.toLowerCase().replace('_', '-')));
+
+  if (platform === 'mac') {
+    const resourcesDir = path.join(
+      appPath, 'Contents', 'Frameworks',
+      'Electron Framework.framework', 'Versions', 'A', 'Resources'
+    );
+    if (!fs.existsSync(resourcesDir)) return;
+    let removed = 0;
+    for (const entry of fs.readdirSync(resourcesDir)) {
+      const m = entry.match(/^(.+)\.lproj$/);
+      if (!m) continue;
+      if (keep.has(m[1].toLowerCase().replace('_', '-'))) continue;
+      fs.rmSync(path.join(resourcesDir, entry), { recursive: true, force: true });
+      removed++;
+    }
+    console.log(`[afterPack] 已裁剪 Electron 语言包(mac): ${removed} 个`);
+  } else {
+    const localesDir = path.join(appPath, 'resources', 'locales');
+    if (!fs.existsSync(localesDir)) return;
+    let removed = 0;
+    for (const entry of fs.readdirSync(localesDir)) {
+      const m = entry.match(/^(.+)\.pak$/);
+      if (!m) continue;
+      const code = m[1].toLowerCase().replace('_', '-');
+      if (code === 'en' || code === 'en-us' || code === 'zh-cn' || code === 'zh-tw') continue;
+      fs.rmSync(path.join(localesDir, entry), { force: true });
+      removed++;
+    }
+    console.log(`[afterPack] 已裁剪 Electron 语言包(${platform}): ${removed} 个`);
+  }
+}
 
 /**
  * 裁剪 app.asar.unpacked 下原生 Node 依赖的多平台二进制，仅保留当前目标平台。
  * 主要收益：onnxruntime-node（darwin/linux/win32 合计约 250MB+，仅保留 ~76MB）。
  */
-function pruneNativeNodeModules(context, resourcesPath) {
-  const platform = context.packager.platform.name; // 'darwin' | 'win32' | 'linux'
-  if (!['darwin', 'win32', 'linux'].includes(platform)) return;
+function pruneNativeNodeModules(resourcesPath, platform) {
+  if (!['mac', 'win', 'linux'].includes(platform)) return;
 
-  const keep = platform === 'darwin' ? ['darwin'] : (platform === 'win32' ? ['win32', 'win32-arm64'] : ['linux']);
+  const keep = platform === 'mac' ? ['darwin'] : (platform === 'win' ? ['win32', 'win32-arm64'] : ['linux']);
   const unpacked = path.join(resourcesPath, 'app.asar.unpacked', 'node_modules');
 
   // onnxruntime-node：仅保留目标平台的 bin/napi-*/<platform> 目录
