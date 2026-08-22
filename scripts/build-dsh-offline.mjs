@@ -31,11 +31,16 @@ function getKeepPlatformPrefix() {
   return 'clendar';
 }
 
-/** 计算离线包构建指纹：packages 闭包 + 平台/架构（用于缓存跳过） */
+// BFS 收集逻辑的版本号：调整依赖遍历规则（如纳入 peerDeps）时递增，
+// 避免缓存指纹误判并跳过构建。
+const LOGIC_VERSION = 2;
+
+/** 计算离线包构建指纹：packages 闭包 + 平台/架构 + 逻辑版本（用于缓存跳过） */
 function buildFingerprint(packages) {
   const h = createHash('sha256');
   h.update(JSON.stringify(packages));
   h.update(`|${PLATFORM}|${ARCH}`);
+  h.update(`|logic${LOGIC_VERSION}`);
   return h.digest('hex');
 }
 
@@ -68,20 +73,41 @@ while (queue.length) {
   needed.add(spec);
   const pkg = packages[spec];
   if (!pkg) continue;
-  const deps = { ...(pkg.dependencies || {}), ...(pkg.optionalDependencies || {}) };
-  const optional = new Set(Object.keys(pkg.optionalDependencies || {}));
+  // 除 dependencies / optionalDependencies 外，还纳入 peerDependencies：
+  // DSH 运行时会 require 这些 peer 包（如 cordis-plugin-group），漏掉会触发
+  // "Cannot find module" 导致 DSH process exited before ready。
+  const deps = {
+    ...(pkg.dependencies || {}),
+    ...(pkg.peerDependencies || {}),
+    ...(pkg.optionalDependencies || {}),
+  };
+  const soft = new Set([
+    ...Object.keys(pkg.peerDependencies || {}),
+    ...Object.keys(pkg.peerDependenciesMeta || {}),
+    ...Object.keys(pkg.optionalDependencies || {}),
+  ]);
   for (const name of Object.keys(deps)) {
     // npm 的解析：先查精确路径，再查提升的根路径
     const exact = `${spec}/node_modules/${name}`;
     const hoisted = `node_modules/${name}`;
     if (packages[exact]) queue.push(exact);
     else if (packages[hoisted]) queue.push(hoisted);
-    else if (!optional.has(name)) console.warn(`  (dep not found in lock: ${name} <- ${spec})`);
+    else if (!soft.has(name)) console.warn(`  (dep not found in lock: ${name} <- ${spec})`);
   }
 }
 
 // 3) 复制闭包目录（清空旧输出；自研递归复制规避 cpSync 在 Windows junction 上的原生崩溃）
-fs.rmSync(OUT_ROOT, { recursive: true, force: true });
+function removeTree(p) {
+  let st;
+  try { st = fs.lstatSync(p); } catch { return; }
+  if (st.isSymbolicLink() || st.isFile()) { try { fs.unlinkSync(p); } catch { /* ignore */ } return; }
+  if (st.isDirectory()) {
+    for (const e of fs.readdirSync(p)) removeTree(path.join(p, e));
+    try { fs.rmdirSync(p); } catch { /* ignore */ }
+  }
+}
+// fs.rmSync 在含符号链接目录上偶发 ENOTEMPTY 崩溃，改用逐项删除
+if (fs.existsSync(OUT_ROOT)) removeTree(OUT_ROOT);
 fs.mkdirSync(OUT, { recursive: true });
 const PROGRESS_LOG = path.join(OUT_ROOT, '.progress.log');
 const progress = (msg) => { fs.appendFileSync(PROGRESS_LOG, msg + '\n'); };

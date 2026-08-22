@@ -86,25 +86,25 @@ fi
 echo -e "${GREEN}✓ 后端 JAR 包构建成功${NC}"
 cd ..
 
-# 步骤3: 生成最小化 JRE（jlink 裁剪）
+# 步骤3: 校验嵌入式 JRE（分平台 jre/mac、jre/win；需先 download-jre）
 echo ""
-echo -e "${YELLOW}[3/4] 生成最小化 JRE（jlink 裁剪）...${NC}"
-echo "  将 JRE 从 316MB 裁剪到约 50MB"
+echo -e "${YELLOW}[3/4] 校验嵌入式 JRE（分平台）...${NC}"
+echo "  当前方案使用分平台嵌入 JRE（2-c），无需 jlink 裁剪"
+jre_exists() {
+    [ -f "jre/mac/bin/java" ] || [ -f "jre/win/bin/java.exe" ] || [ -f "jre/linux/bin/java" ]
+}
+
 if command -v jlink &> /dev/null; then
-    if [ ! -f "jre/bin/java" ] && [ ! -f "jre/bin/java.exe" ]; then
-        bash scripts/build-jlink.sh
-        if [ $? -ne 0 ]; then
-            echo -e "${RED}jlink 失败，将使用系统 Java${NC}"
-        fi
+    if jre_exists; then
+        echo -e "${GREEN}✓ 嵌入式 JRE 已就绪（分平台 jre/mac、jre/win 等）${NC}"
     else
-        echo -e "${GREEN}✓ 最小化 JRE 已存在${NC}"
+        echo -e "${RED}错误: 未找到嵌入式 JRE（jre/ 下无 jre/mac 等分平台运行时）${NC}"
+        echo "  请先运行 'npm run download-jre:all'（macOS/Linux）或 'npm run download-jre:win:all'（Windows）下载对应平台 JRE"
+        exit 1
     fi
 else
-    echo -e "${YELLOW}! 未找到 jlink（需要 JDK 17+），将使用系统 Java${NC}"
-    echo "  提示: 安装 JDK 17+ 后运行 'npm run build:jlink:unix' 可进一步减小体积"
-fi
-if [ ! -f "jre/bin/java" ] && [ ! -f "jre/bin/java.exe" ]; then
-    echo -e "${YELLOW}! 无嵌入式 JRE，打包后的应用需要用户自行安装 JDK 17+${NC}"
+    echo -e "${YELLOW}! 未找到 jlink（需要 JDK 17+），但当前方案使用分平台嵌入式 JRE，不依赖 jlink${NC}"
+    jre_exists || { echo -e "${RED}错误: 请先下载嵌入式 JRE: npm run download-jre:all${NC}"; exit 1; }
 fi
 
 # 步骤4: 安装 Electron 依赖 + 打包

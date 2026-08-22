@@ -98,6 +98,22 @@ echo ""
 JLINK="$JDK_DIR/bin/jlink"
 JMODS="$JDK_DIR/jmods"
 
+# Homebrew 等嵌套布局兜底：opt/openjdk 指向 Cellar，真实 jmods 在 libexec/.../Contents/Home 下
+if [ ! -d "$JMODS" ]; then
+  for cand in \
+    "$JDK_DIR/libexec/openjdk.jdk/Contents/Home/jmods" \
+    "$JDK_DIR/Contents/Home/jmods" \
+    ; do
+    if [ -d "$cand" ]; then
+      JDK_DIR="$(dirname "$(dirname "$cand")")"   # .../Contents/Home/jmods -> 真实 JDK Home
+      JMODS="$cand"
+      JLINK="$JDK_DIR/bin/jlink"
+      log_info "定位到 Homebrew JDK Home: $JDK_DIR"
+      break
+    fi
+  done
+fi
+
 if [ ! -d "$JMODS" ]; then
   log_error "未找到 jmods 目录: $JMODS"
   echo "请确保使用的是完整 JDK（不是 JRE）。"

@@ -58,7 +58,40 @@ exports.default = async function(context) {
   console.log('[afterPack] Valid macOS JRE detected, fixing permissions in:', jreBin);
   fixPermissionsRecursive(jreBin);
   console.log('[afterPack] JRE permissions fixed');
+
+  // 裁剪原生依赖到当前平台（onnxruntime-node 等含多平台预编译二进制）
+  pruneNativeNodeModules(context, resourcesPath);
 };
+
+/**
+ * 裁剪 app.asar.unpacked 下原生 Node 依赖的多平台二进制，仅保留当前目标平台。
+ * 主要收益：onnxruntime-node（darwin/linux/win32 合计约 250MB+，仅保留 ~76MB）。
+ */
+function pruneNativeNodeModules(context, resourcesPath) {
+  const platform = context.packager.platform.name; // 'darwin' | 'win32' | 'linux'
+  if (!['darwin', 'win32', 'linux'].includes(platform)) return;
+
+  const keep = platform === 'darwin' ? ['darwin'] : (platform === 'win32' ? ['win32', 'win32-arm64'] : ['linux']);
+  const unpacked = path.join(resourcesPath, 'app.asar.unpacked', 'node_modules');
+
+  // onnxruntime-node：仅保留目标平台的 bin/napi-*/<platform> 目录
+  const ortDir = path.join(unpacked, 'onnxruntime-node', 'bin');
+  if (fs.existsSync(ortDir)) {
+    for (const napi of fs.readdirSync(ortDir)) {
+      const napiPath = path.join(ortDir, napi);
+      let st;
+      try { st = fs.statSync(napiPath); } catch { continue; }
+      if (!st.isDirectory()) continue;
+      for (const entry of fs.readdirSync(napiPath)) {
+        if (!keep.includes(entry)) {
+          const target = path.join(napiPath, entry);
+          fs.rmSync(target, { recursive: true, force: true });
+          console.log(`[afterPack] 已裁剪 onnxruntime 平台目录: ${napi}/${entry}`);
+        }
+      }
+    }
+  }
+}
 
 function isMacExecutable(filePath) {
   if (!fs.existsSync(filePath)) {
