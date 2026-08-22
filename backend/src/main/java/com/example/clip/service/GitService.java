@@ -11,8 +11,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.concurrent.CompletableFuture;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -38,14 +41,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class GitService {
 
     private static final Logger log = LoggerFactory.getLogger(GitService.class);
-    /** Push 操作状态（idle/processing/completed/error） */
-    private String pushStatus = "idle";
-    /** Push 操作消息 */
-    private String pushMessage = "";
-    /** Pull 操作状态 */
-    private String pullStatus = "idle";
-    /** Pull 操作消息 */
-    private String pullMessage = "";
+
     /** Git 配置对象 */
     private GitConfig gitConfig;
 
@@ -79,93 +75,192 @@ public class GitService {
      * 流程：配置远程仓库 → fetch → pull → add → commit → push。
      * 使用锁保证互斥执行。如果配置完整则执行完整的远程操作，
      * 否则仅执行本地操作（add/commit）。
-     * 所有 Git 命令失败只记录日志，不抛出异常，确保不影响主流程。
+     * <p>
+     * 返回结构化结果，包含每一步的 {@code name/ok/files/message}（供前端分步展示）：
+     * <ul>
+     *   <li>{@code ok}：整体是否成功（fetch 失败视为非致命警告，不导致整体失败）</li>
+     *   <li>{@code message}：整体结果摘要</li>
+     *   <li>{@code steps}：步骤明细列表</li>
+     * </ul>
+     * 单个 Git 命令失败不抛出异常，而是写入对应步骤的 {@code ok=false} 与错误消息。
      * </p>
      *
      * @param directory 要执行 Git 操作的目录
+     * @return 结构化的 Git 同步结果 Map
      */
-    public void executeGitOperations(Path directory) {
+    public Map<String, Object> executeGitOperations(Path directory) {
+        List<Map<String, Object>> steps = new ArrayList<>();
         gitLock.lock();
         try {
+            boolean ok = true;
             if (directory == null || !directory.toFile().exists()) {
                 log.error("Git operation failed: directory does not exist: {}", directory);
-                return;
+                Map<String, Object> fail = new LinkedHashMap<>();
+                fail.put("ok", false);
+                fail.put("message", "Git 目录不存在: " + directory);
+                fail.put("steps", steps);
+                return fail;
             }
 
             log.info("Executing git operations in directory: {}", directory);
+            boolean remoteComplete = gitConfig != null && gitConfig.isComplete();
 
-            // 检查并配置远程仓库（仅当配置完整时）
-            if (gitConfig != null && gitConfig.isComplete()) {
+            // ① 配置远程仓库（仅当配置完整时；失败不致命，后续步骤会暴露真实错误）
+            if (remoteComplete) {
                 configureRemoteRepository(directory);
             } else {
                 log.warn("Git config not complete, skipping remote configuration");
             }
 
-            // 先执行 git fetch 获取远程最新状态
-            executeGitCommandSafe(directory, "git", "fetch", "origin");
+            // ② fetch：获取远程最新状态（无远程时可能失败，作为非致命警告展示）
+            Map<String, Object> fetch = run(directory, "git", "fetch", "origin");
+            int fetchCode = ((Number) fetch.getOrDefault("code", -1)).intValue();
+            steps.add(stepResult("fetch", fetchCode == 0, 0, fetchCode == 0 ? "拉取远程最新状态" : NonFatalMsg(fetch)));
 
-            // 执行 git pull（指定 remote 和 branch）
-            if (gitConfig != null && gitConfig.isComplete()) {
-                executeGitCommandSafe(directory, "git", "pull", "origin", gitConfig.getBranch());
-            } else {
-                executeGitCommandSafe(directory, "git", "pull");
+            // ③ pull：合并远程分支（有配置时指定 remote/branch）
+            if (remoteComplete) {
+                Map<String, Object> pull = run(directory, "git", "pull", "origin", gitConfig.getBranch());
+                int pullCode = ((Number) pull.getOrDefault("code", -1)).intValue();
+                boolean pullOk = pullCode == 0;
+                steps.add(stepResult("pull", pullOk, 0, lastLine(pull)));
+                if (!pullOk) ok = false;
             }
 
-            // 暂存所有变更
-            executeGitCommandSafe(directory, "git", "add", ".");
+            // ④ add：暂存所有变更
+            Map<String, Object> add = run(directory, "git", "add", ".");
+            int addCode = ((Number) add.getOrDefault("code", -1)).intValue();
+            boolean addOk = addCode == 0;
+            if (addOk) {
+                steps.add(stepResult("add", true, 0, "暂存变更"));
+            } else {
+                steps.add(stepResult("add", false, 0, lastLine(add)));
+                ok = false;
+            }
 
-            // 检查是否有暂存的变更，有变更才 commit
-            boolean hasChanges = hasStagedChanges(directory);
-            if (hasChanges) {
-                // 提交变更
-                executeGitCommandSafe(directory, "git", "commit", "-m", "Auto commit: content organize or weekly report");
-
-                // 只有成功 commit 后才 push
-                if (gitConfig != null && gitConfig.isComplete()) {
-                    executeGitCommandSafe(directory, "git", "push", "--set-upstream", "origin", gitConfig.getBranch());
+            // ⑤ commit：仅当存在暂存变更时提交
+            int staged = addOk ? stagedFileCount(directory) : 0;
+            if (staged > 0) {
+                Map<String, Object> commit = run(directory, "git", "commit", "-m", "Auto commit: content organize or weekly report");
+                int commitCode = ((Number) commit.getOrDefault("code", -1)).intValue();
+                boolean commitOk = commitCode == 0;
+                if (commitOk) {
+                    steps.add(stepResult("commit", true, staged, "已提交 " + staged + " 个文件"));
                 } else {
-                    executeGitCommandSafe(directory, "git", "push");
+                    steps.add(stepResult("commit", false, staged, lastLine(commit)));
+                    ok = false;
+                }
+                // ⑥ push：仅 commit 成功后且配置完整时推送
+                if (commitOk && remoteComplete) {
+                    Map<String, Object> push = run(directory, "git", "push", "--set-upstream", "origin", gitConfig.getBranch());
+                    int pushCode = ((Number) push.getOrDefault("code", -1)).intValue();
+                    boolean pushOk = pushCode == 0;
+                    if (pushOk) {
+                        steps.add(stepResult("push", true, 0, "推送成功"));
+                    } else {
+                        steps.add(stepResult("push", false, 0, lastLine(push)));
+                        ok = false;
+                    }
                 }
             } else {
-                log.info("No staged changes, skipping commit and push");
+                steps.add(stepResult("commit", true, 0, "无待提交变更"));
             }
 
-            log.info("Git operations completed successfully");
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("ok", ok);
+            result.put("message", ok ? "同步完成" : "同步过程中出现问题，请查看分步结果");
+            result.put("steps", steps);
+            log.info("Git operations finished, ok={}", ok);
+            return result;
         } catch (Exception e) {
-            // 只打日志，不影响主流程
             log.error("Git operation failed: {}", e.getMessage());
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("ok", false);
+            result.put("message", "Git 同步出现异常: " + e.getMessage());
+            result.put("steps", steps);
+            return result;
         } finally {
             gitLock.unlock();
         }
     }
 
+    /** 非致命错误提示：fetch 无远程等场景给用户一个中性说明，而非生硬的命令报错。 */
+    private String NonFatalMsg(Map<String, Object> step) {
+        String msg = lastLine(step);
+        return (msg == null || msg.isEmpty()) ? "fetch 跳过（无远程或网络不可达）" : msg;
+    }
+
     /**
-     * 检查是否有暂存的变更
-     * <p>
-     * 使用 git diff --cached --quiet 命令检查：
-     * 退出码 0 表示无变更，非 0 表示有变更。
-     * 如果检查过程出错，默认返回 true（有变更），避免遗漏需要提交的内容。
-     * </p>
+     * 封装一步 Git 操作结果。
      *
-     * @param directory Git 仓库目录
-     * @return true 表示有暂存的变更，false 表示无变更
+     * @param name    步骤名（fetch/pull/add/commit/push）
+     * @param ok      是否成功
+     * @param files   涉及文件数（commit 步骤为提交数量，其余为 0）
+     * @param message 步骤描述或错误消息
+     * @return 步骤 Map
      */
-    private boolean hasStagedChanges(Path directory) {
+    private Map<String, Object> stepResult(String name, boolean ok, int files, String message) {
+        Map<String, Object> step = new LinkedHashMap<>();
+        step.put("name", name);
+        step.put("ok", ok);
+        step.put("files", files);
+        step.put("message", message == null ? "" : message);
+        return step;
+    }
+
+    /**
+     * 执行一条 Git 命令并收集退出码与输出（错误不抛异常）。
+     *
+     * @param directory 执行目录
+     * @param command   命令及参数
+     * @return Map：code（退出码，异常时为 -1）/ output（合并后的完整输出）
+     */
+    private Map<String, Object> run(Path directory, String... command) {
+        Map<String, Object> out = new HashMap<>();
+        out.put("code", -1);
+        out.put("output", "");
         try {
-            ProcessBuilder processBuilder = new ProcessBuilder("git", "diff", "--cached", "--quiet");
+            ProcessBuilder processBuilder = new ProcessBuilder(command);
             processBuilder.directory(directory.toFile());
             processBuilder.redirectErrorStream(true);
-
             Process process = processBuilder.start();
             int exitCode = process.waitFor();
-
-            // 退出码为 0 表示没有更改，非 0 表示有更改
-            return exitCode != 0;
+            StringBuilder sb = new StringBuilder();
+            try (InputStream inputStream = process.getInputStream();
+                 BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (sb.length() > 0) sb.append("\n");
+                    sb.append(line);
+                }
+            }
+            out.put("code", exitCode);
+            out.put("output", sb.toString());
         } catch (Exception e) {
-            log.warn("Error checking staged changes: {}", e.getMessage());
-            // 默认为有更改，避免跳过需要提交的内容（保守策略）
-            return true;
+            log.warn("Git command failed to run: {} - {}", String.join(" ", command), e.getMessage());
         }
+        return out;
+    }
+
+    /**
+     * 统计暂存区待提交的文件数量（git diff --cached --name-only）。
+     *
+     * @param directory Git 仓库目录
+     * @return 待提交文件数；命令失败或无变更时返回 0
+     */
+    private int stagedFileCount(Path directory) {
+        Map<String, Object> out = run(directory, "git", "diff", "--cached", "--name-only");
+        if (((Number) out.getOrDefault("code", -1)).intValue() != 0) return 0;
+        String output = (String) out.get("output");
+        if (output == null || output.trim().isEmpty()) return 0;
+        return output.split("\n").length;
+    }
+
+    /** 取命令输出的最后一行（用作简短消息/错误原因）。 */
+    private String lastLine(Map<String, Object> runResult) {
+        String output = (String) runResult.get("output");
+        if (output == null || output.trim().isEmpty()) return "";
+        String[] lines = output.trim().split("\n");
+        return lines[lines.length - 1].trim();
     }
 
     /**
@@ -355,126 +450,6 @@ public class GitService {
         } finally {
             gitLock.unlock();
         }
-    }
-
-    /**
-     * 异步执行 git push 操作
-     * <p>
-     * 使用 {@link CompletableFuture} 在独立线程中执行，不阻塞调用方。
-     * 执行过程中更新 pushStatus 和 pushMessage 状态。
-     * </p>
-     *
-     * @return CompletableFuture，完成时返回 "success" 或 "error"
-     */
-    public CompletableFuture<String> pushAsync() {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                pushStatus = "processing";
-                pushMessage = "正在执行git push操作...";
-
-                // 使用当前工作目录作为 Git 目录
-                Path directory = Paths.get(".").toAbsolutePath();
-                if (gitConfig != null && gitConfig.isComplete()) {
-                    executeGitCommand(directory, "git", "push", "--set-upstream", "origin", gitConfig.getBranch());
-                } else {
-                    executeGitCommand(directory, "git", "push");
-                }
-
-                pushStatus = "completed";
-                pushMessage = "Git push操作成功";
-                return "success";
-            } catch (Exception e) {
-                pushStatus = "error";
-                pushMessage = "Git push操作失败: " + e.getMessage();
-                log.error("Git push failed: {}", e.getMessage());
-                return "error";
-            }
-        });
-    }
-
-    /**
-     * 异步执行 git pull 操作
-     * <p>
-     * 使用 {@link CompletableFuture} 在独立线程中执行。
-     * </p>
-     *
-     * @return CompletableFuture，完成时返回 "success" 或 "error"
-     */
-    public CompletableFuture<String> pullAsync() {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                pullStatus = "processing";
-                pullMessage = "正在执行git pull操作...";
-
-                Path directory = Paths.get(".").toAbsolutePath();
-                if (gitConfig != null && gitConfig.isComplete()) {
-                    executeGitCommand(directory, "git", "pull", "origin", gitConfig.getBranch());
-                } else {
-                    executeGitCommand(directory, "git", "pull");
-                }
-
-                pullStatus = "completed";
-                pullMessage = "Git pull操作成功";
-                return "success";
-            } catch (Exception e) {
-                pullStatus = "error";
-                pullMessage = "Git pull操作失败: " + e.getMessage();
-                log.error("Git pull failed: {}", e.getMessage());
-                return "error";
-            }
-        });
-    }
-
-    /**
-     * 重置 Push 状态为 idle
-     */
-    public void resetPushStatus() {
-        pushStatus = "idle";
-        pushMessage = "";
-    }
-
-    /**
-     * 重置 Pull 状态为 idle
-     */
-    public void resetPullStatus() {
-        pullStatus = "idle";
-        pullMessage = "";
-    }
-
-    /**
-     * 获取 Push 状态
-     *
-     * @return 状态字符串
-     */
-    public String getPushStatus() {
-        return pushStatus;
-    }
-
-    /**
-     * 获取 Push 消息
-     *
-     * @return 消息描述
-     */
-    public String getPushMessage() {
-        return pushMessage;
-    }
-
-    /**
-     * 获取 Pull 状态
-     *
-     * @return 状态字符串
-     */
-    public String getPullStatus() {
-        return pullStatus;
-    }
-
-    /**
-     * 获取 Pull 消息
-     *
-     * @return 消息描述
-     */
-    public String getPullMessage() {
-        return pullMessage;
     }
 
     /**

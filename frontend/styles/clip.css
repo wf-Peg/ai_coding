@@ -194,6 +194,67 @@
             margin-left: auto;
         }
 
+        .git-sync-result {
+            max-width: 720px;
+            margin: 0 auto 16px;
+            padding: 0 4%;
+            display: none;
+        }
+        .git-sync-result.visible {
+            display: block;
+            animation: slideIn 0.3s ease-out;
+        }
+        .git-sync-result .sync-card {
+            border: 1px solid var(--border);
+            background: var(--surface);
+            border-radius: 14px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        .git-sync-result .sync-summary {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            border-bottom: 1px solid var(--border);
+        }
+        .git-sync-result .sync-summary .sum-icon { font-size: 1.1rem; }
+        .git-sync-result.sync-ok .sync-summary { color: #166534; background: rgba(16, 185, 129, 0.08); }
+        .git-sync-result.sync-err .sync-summary { color: #b91c1c; background: rgba(239, 68, 68, 0.08); }
+        .git-sync-result .sync-steps { padding: 8px 16px 12px; }
+        .git-sync-result .sync-step {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 7px 4px;
+            font-size: 0.88rem;
+            border-bottom: 1px dashed var(--border);
+        }
+        .git-sync-result .sync-step:last-child { border-bottom: none; }
+        .git-sync-result .step-icon {
+            width: 20px; height: 20px;
+            flex: 0 0 auto;
+            display: inline-flex; align-items: center; justify-content: center;
+            border-radius: 50%;
+            font-size: 0.75rem;
+            color: #fff;
+        }
+        .git-sync-result .step-icon.ok { background: #10b981; }
+        .git-sync-result .step-icon.err { background: #ef4444; }
+        .git-sync-result .step-name {
+            flex: 0 0 62px;
+            font-weight: 600;
+            color: var(--text);
+        }
+        .git-sync-result .step-detail {
+            flex: 1;
+            color: var(--text-secondary);
+            word-break: break-all;
+        }
+        .git-sync-result .step-detail.err { color: #b91c1c; }
+
         .clip-theme-toggle {
             position: absolute;
             top: 10px;

@@ -3,14 +3,12 @@
  *
  * 职责：
  * 1. Windows: 通过写入注册表添加右键菜单项（写入 HKCU\Software\Classes，无需管理员权限）
- * 2. 双策略注册（Windows 11 兼容）：
- *    a) 经典菜单（"显示更多选项"）：注册「剪藏」SubCommands 级联菜单
- *       右键文件 → 剪藏 → 二级菜单（添加到收件箱 / AI 解析并添加 / 用编辑器打开 / PDF OCR 识别 / 设置）
- *       父项带 Advanced 值，从新版菜单隐藏，避免出现无法展开的不可用项。
- *    b) 新版刷新式菜单：静态 SubCommands 级联不支持展开（系统限制，成熟产品均用 COM DLL），
- *       因此同时注册平铺顶层命令（"剪藏：XXX"），不带 Advanced 值，新版菜单直接显示可点击。
- *       PDF OCR 平铺项注册到 SystemFileAssociations\.pdf（PDF 类型专用），
- *       确保桌面/文件夹中右键 PDF 文件时均出现该功能。
+ * 2. 单策略注册（Windows 11 兼容）：
+ *    仅注册平铺顶层命令（"剪藏：XXX"），不带 Advanced 值，新版菜单直接显示可点击。
+ *    不再注册「剪藏」SubCommands 级联二级菜单（该级联在新版菜单无法展开，点击无效），
+ *    经典菜单（"显示更多选项"）同样只显示平铺命令。
+ *    PDF OCR 平铺项注册到 SystemFileAssociations\.pdf（PDF 类型专用），
+ *    确保桌面/文件夹中右键 PDF 文件时均出现该功能。
  * 3. macOS: 通过 Info.plist 的 NSServices 注册 Finder 服务
  * 4. 卸载时清理注册表项
  *
@@ -108,91 +106,9 @@ function unregisterOpenWith() {
 }
 
 /**
- * 注册级联菜单父项
- * 结构：
- *   {root}\shell\{menuId}
- *       (Default) = 显示名
- *       MUIVerb = 显示名（Win11/资源管理器优先读取）
- *       SubCommands = "verb1;verb2;..."
- *       Advanced = command（隐藏于 Win11 新版菜单，仅经典菜单显示级联）
- *       Icon = "exe,0"
- *       Position = Top
- *
- * 注意：静态 SubCommands 级联在新版刷新式菜单无法展开，若不加 Advanced 值，
- * 新版菜单会显示一个不可用的父项（有箭头但点不开），因此必须隐藏。
- *
- * @param {string} root - 注册表根（如 * 或 Directory\Background）
- * @param {string} exe - 命令前缀（用于 Icon）
- * @param {string} label - 父菜单显示名
- * @param {string[]} verbs - 子命令名列表（分号分隔写入 SubCommands）
- * @returns {boolean} 是否成功
- */
-function registerParentItem(root, exe, label, verbs) {
-  const itemPath = `${USER_CLASSES_ROOT}\\${root}\\shell\\${MENU_ID}`;
-
-  // 显示名（(Default) + MUIVerb 双保险）
-  if (!runReg(['add', itemPath, '/ve', '/t', 'REG_SZ', '/d', label, '/f'])) return false;
-  if (!runReg(['add', itemPath, '/v', 'MUIVerb', '/t', 'REG_SZ', '/d', label, '/f'])) return false;
-
-  // Advanced：标记为高级命令，从 Win11 新版菜单隐藏，仅经典菜单（"显示更多选项"）显示
-  if (!runReg(['add', itemPath, '/v', 'Advanced', '/t', 'REG_SZ', '/d', 'command', '/f'])) return false;
-
-  // SubCommands：分号分隔的子命令列表
-  if (!runReg(['add', itemPath, '/v', 'SubCommands', '/t', 'REG_SZ', '/d', verbs.join(';'), '/f'])) return false;
-
-  // 图标
-  const exeToken = exe.match(/^(".*?"|\S+)/);
-  const iconPath = exeToken ? exeToken[1] : exe;
-  if (!runReg(['add', itemPath, '/v', 'Icon', '/t', 'REG_SZ', '/d', `${iconPath},0`, '/f'])) return false;
-
-  // 置顶显示
-  runReg(['add', itemPath, '/v', 'Position', '/t', 'REG_SZ', '/d', 'Top', '/f']);
-  return true;
-}
-
-/**
- * 注册级联菜单的子命令（二级菜单项）
- * 结构（定义在父项键的 shell 子键下，与 SubCommands 中的动词名对应）：
- *   {root}\shell\{menuId}\shell\{verb}
- *       (Default) = 子项显示名
- *       Icon = "exe,0"
- *       AppliesTo = ...（可选过滤）
- *   {root}\shell\{menuId}\shell\{verb}\command
- *       (Default) = 命令
- *
- * @param {string} root - 注册表根（如 * 或 Directory\Background）
- * @param {string} exe - 命令前缀
- * @param {Object} item - 子命令配置 { verb, label, arg, appliesTo, hasPath }
- * @returns {boolean} 是否成功
- */
-function registerSubItem(root, exe, item) {
-  const itemPath = `${USER_CLASSES_ROOT}\\${root}\\shell\\${MENU_ID}\\shell\\${item.verb}`;
-
-  // 显示名
-  if (!runReg(['add', itemPath, '/ve', '/t', 'REG_SZ', '/d', item.label, '/f'])) return false;
-
-  // 图标
-  const exeToken = exe.match(/^(".*?"|\S+)/);
-  const iconPath = exeToken ? exeToken[1] : exe;
-  if (!runReg(['add', itemPath, '/v', 'Icon', '/t', 'REG_SZ', '/d', `${iconPath},0`, '/f'])) return false;
-
-  // 命令（hasPath 为 false 的项不追加 "%1"）
-  const cmdValue = item.hasPath ? `${exe} ${item.arg} "%1"` : `${exe} ${item.arg}`;
-  if (!runReg(['add', `${itemPath}\\command`, '/ve', '/t', 'REG_SZ', '/d', cmdValue, '/f'])) return false;
-
-  // AppliesTo 过滤（仅对 PDF 等）
-  if (item.appliesTo) {
-    if (!runReg(['add', itemPath, '/v', 'AppliesTo', '/t', 'REG_SZ', '/d', item.appliesTo, '/f'])) return false;
-  }
-
-  return true;
-}
-
-/**
  * 注册平铺菜单项（Windows 11 新版菜单顶层命令）
- * 新版刷新式菜单不支持静态 SubCommands 级联，但支持普通平铺命令。
- * 为每个功能注册独立的顶层 verb（不带 Advanced 值），使其在新版菜单直接显示可点击；
- * 经典菜单仍由「剪藏」级联父项提供二级菜单。
+ * 新版刷新式菜单不支持静态 SubCommands 级联，因此为每个功能注册独立的顶层 verb
+ * （不带 Advanced 值），新版与经典菜单均直接显示可点击。
  * 结构：
  *   {root}\shell\{verb}
  *       (Default) = 显示名
@@ -232,19 +148,18 @@ function registerFlatItem(root, exe, item) {
 }
 
 /**
- * Windows: 注册右键菜单到注册表（新版平铺 + 经典级联双策略）
- * 1. 文件右键:
- *    - 经典菜单级联: HKCU\Software\Classes\*\shell\CutShelter（Advanced 隐藏于新版）+ 5 个子命令
- *    - 新版菜单平铺: HKCU\Software\Classes\*\shell\CutShelterClip 等 5 个独立顶层命令
- * 2. 桌面/文件夹背景右键:
- *    - 经典菜单级联: HKCU\Software\Classes\Directory\Background\shell\CutShelter（仅设置子命令）
- *    - 新版菜单平铺: HKCU\Software\Classes\Directory\Background\shell\CutShelterSettings
+ * Windows: 注册右键菜单到注册表（单策略：平铺顶层命令）
+ * 1. 文件右键: HKCU\Software\Classes\*\shell\CutShelterClip 等平铺顶层命令（"剪藏：XXX"）
+ * 2. 桌面/文件夹背景右键: HKCU\Software\Classes\Directory\Background\shell\CutShelterSettings
+ *
+ * 说明：早期版本注册的「剪藏」SubCommands 级联二级菜单（经典菜单可用、新版菜单无法展开）
+ * 已移除，统一使用平铺命令，避免点击无效。
  *
  * @param {string} appDir - 应用根目录
  * @returns {boolean} 是否成功
  */
 function registerWindowsContextMenu(appDir) {
-  // 先清理旧版/残留菜单项（扁平项、旧级联结构），再注册新的双策略菜单
+  // 先清理旧版/残留菜单项（级联父项、扁平项、旧级联结构），再注册新的平铺菜单
   unregisterWindowsContextMenu();
 
   const exe = getExeCommand(appDir);
@@ -279,19 +194,7 @@ function registerWindowsContextMenu(appDir) {
 
   let allOk = true;
 
-  // 1. 文件右键经典级联菜单（Advanced 隐藏于新版菜单，仅经典菜单显示）
-  if (!registerParentItem('*', exe, '剪藏', fileVerbs.map(v => v.verb))) {
-    console.error('[ContextMenu] Failed to register parent item for files');
-    allOk = false;
-  }
-  for (const item of fileVerbs) {
-    if (!registerSubItem('*', exe, item)) {
-      console.error(`[ContextMenu] Failed to register sub item ${item.verb}`);
-      allOk = false;
-    }
-  }
-
-  // 2. 文件右键新版平铺项（新版菜单直接显示）
+  // 1. 文件右键平铺项（新版菜单直接显示）
   for (const item of flatFileVerbs) {
     if (!registerFlatItem('*', exe, item)) {
       console.error(`[ContextMenu] Failed to register flat item ${item.verb}`);
@@ -299,19 +202,7 @@ function registerWindowsContextMenu(appDir) {
     }
   }
 
-  // 3. 桌面/文件夹背景右键经典级联菜单
-  if (!registerParentItem('Directory\\Background', exe, '剪藏', bgVerbs.map(v => v.verb))) {
-    console.error('[ContextMenu] Failed to register parent item for desktop bg');
-    allOk = false;
-  }
-  for (const item of bgVerbs) {
-    if (!registerSubItem('Directory\\Background', exe, item)) {
-      console.error(`[ContextMenu] Failed to register desktop sub item ${item.verb}`);
-      allOk = false;
-    }
-  }
-
-  // 4. 桌面/文件夹背景右键新版平铺项
+  // 2. 桌面/文件夹背景右键平铺项
   for (const item of flatBgVerbs) {
     if (!registerFlatItem('Directory\\Background', exe, item)) {
       console.error(`[ContextMenu] Failed to register desktop flat item ${item.verb}`);
@@ -319,7 +210,7 @@ function registerWindowsContextMenu(appDir) {
     }
   }
 
-  // 5. PDF 类型专用右键项（新版菜单：桌面/文件夹中 PDF 文件右键均显示该功能）
+  // 3. PDF 类型专用右键项（新版菜单：桌面/文件夹中 PDF 文件右键均显示该功能）
   for (const item of pdfVerbs) {
     if (!registerFlatItem('SystemFileAssociations\\.pdf', exe, item)) {
       console.error(`[ContextMenu] Failed to register pdf flat item ${item.verb}`);
@@ -327,14 +218,14 @@ function registerWindowsContextMenu(appDir) {
     }
   }
 
-  // 6. "打开方式"支持（默认打开方式双击文本文件 → 用编辑器打开）
+  // 4. "打开方式"支持（默认打开方式双击文本文件 → 用编辑器打开）
   if (!registerOpenWith(exe)) {
     console.error('[ContextMenu] Failed to register open-with support');
     allOk = false;
   }
 
   if (allOk) {
-    console.log('[ContextMenu] 系统右键菜单注册成功（新版平铺 + 经典级联 + 打开方式）');
+    console.log('[ContextMenu] 系统右键菜单注册成功（平铺命令 + 打开方式）');
   }
   return allOk;
 }

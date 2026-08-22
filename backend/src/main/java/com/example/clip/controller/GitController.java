@@ -58,25 +58,24 @@ public class GitController {
      * <p>
      * 在文件存储的父目录中执行完整的 Git 同步流程：pull 拉取远程更新 →
      * 提交本地变更 → push 推送到远程仓库。整个流程由 GitService 封装。
+     * <p>
+     * 返回结构化的分步结果（steps），供前端分步展示。
      *
-     * @return 同步结果消息；若失败则返回 400 及错误信息
+     * @return 分步同步结果 Map；若目录异常则返回 400
      */
     @PostMapping("/sync")
     public ResponseEntity<?> sync() {
         log.info("[API] /sync called");
-        try {
-            // 获取存储路径的父级目录作为 Git 工作目录
-            Path parentPath = fileStorageService.getStorageParentPath();
-            log.info("Executing git sync in directory: {}", parentPath);
-
-            // 执行完整的 Git 同步流程（内部包含 pull、commit、push）
-            gitService.executeGitOperations(parentPath);
-
-            return ResponseEntity.ok("Git sync completed successfully");
-        } catch (Exception e) {
-            log.error("[API] Git sync failed: {}", e.getMessage());
-            return ResponseEntity.badRequest().body("Git sync failed: " + e.getMessage());
+        // 获取存储路径的父级目录作为 Git 工作目录
+        Path parentPath = fileStorageService.getStorageParentPath();
+        log.info("Executing git sync in directory: {}", parentPath);
+        if (parentPath == null || !parentPath.toFile().exists()) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("ok", false, "message", "Git 工作目录不存在", "steps", java.util.List.of()));
         }
+        // 执行完整的 Git 同步流程（内部包含 pull、commit、push）
+        java.util.Map<String, Object> result = gitService.executeGitOperations(parentPath);
+        boolean ok = Boolean.TRUE.equals(result.get("ok"));
+        return ok ? ResponseEntity.ok(result) : ResponseEntity.badRequest().body(result);
     }
 
     /**

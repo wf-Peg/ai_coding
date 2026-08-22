@@ -91,7 +91,7 @@
     'aiChatSendBtn', 'aiChatStopBtn', 'aiChatClearBtn', 'aiChatCloseBtn', 'aiChatStatus',
     'aiChatResizeHandle', 'aiPetBtn', 'editorContextMenu', 'aiSearchContextBtn', 'smartIngestContextBtn', 'aiImportPasswordContextBtn',
     'offlineTranslateContextBtn', 'onlineTranslateContextBtn', 'addCustomMappingContextBtn', 'addToDictLibContextBtn', 'aiContextAnalysisContextBtn',
-    'manageDictionaryContextBtn', 'aiChatContextBtn', 'joinLineEndsContextBtn',
+    'manageDictionaryContextBtn', 'aiChatContextBtn', 'joinLineEndsContextBtn', 'formatContextBtn',
     'dictModal', 'dictSourceInput', 'dictTargetInput', 'dictAddBtn', 'dictList', 'dictLibList', 'dictTabMapping', 'dictTabLibrary',
     'wikilinkPickerModal', 'wikilinkPickerHint', 'wikilinkPickerList',
     'aiChatSelectionHint', 'aiChatSelectionHintText', 'aiChatSelectionHintClear'
@@ -1000,6 +1000,63 @@
       showToast(`格式化失败${hint}：${detail.message}`, true);
       FrontendLogger.warn('[Editor] Format failed', language, detail.message);
     }
+  }
+
+  /**
+   * 自动识别并格式化（右键菜单入口）：无视右上角文本类型，主动检测 + 依次尝试 JSON/XML/SQL。
+   * 有选区只格式化选区，无选区格式化全文。全部解析失败时，合并行末换行后重试一次。
+   */
+  function formatCurrentContentAuto() {
+    const target = getTargetRangeAndText();
+    if (target.text.length > MAX_TRANSFORM_LENGTH) {
+      showToast('格式化内容超过 5 MB，已阻止本次操作', true);
+      return;
+    }
+    // 候选类型去重排序：优先按文件名+内容检测，随后按 JSON/XML/SQL 兜底尝试，忽略右上角下拉框
+    const candidates = ['json', 'xml', 'sql'];
+    const first = EditorCore.detectLanguage(state.fileName, target.text);
+    if (first && first !== 'text') candidates.unshift(first);
+    const order = Array.from(new Set(candidates));
+
+    // 依次尝试各类型格式化，返回 { type, value } 或 null
+    const tryAutoFormat = (text) => {
+      for (const type of order) {
+        try {
+          let value;
+          if (type === 'json') value = EditorCore.formatJson(text, false);
+          else if (type === 'xml') value = EditorCore.formatXml(text, false);
+          else if (type === 'sql') value = EditorCore.formatSql(text, 'sql');
+          else continue;
+          return { type, value };
+        } catch (e) { /* 该类型解析失败，继续尝试下一种 */ }
+      }
+      return null;
+    };
+
+    const scope = target.selection ? '选区' : '全文';
+    let result = tryAutoFormat(target.text);
+    if (!result) {
+      // 兜底：合并被客户端截断的行末换行后重试一次
+      const joined = target.text.replace(/\r\n|\r|\n/g, '');
+      if (joined.length !== target.text.length) {
+        const retry = tryAutoFormat(joined);
+        if (retry) {
+          const removed = target.text.length - joined.length;
+          mainEditor.session.replace(target.range, retry.value);
+          showToast(`${scope}已按 ${retry.type.toUpperCase()} 格式化（自动识别，已合并 ${removed} 个行末换行符）`, false, 'info');
+          FrontendLogger.info('[Editor] Auto-format(joined) success', { type: retry.type, selection: target.selection, removed });
+          return;
+        }
+      }
+    }
+    if (result) {
+      mainEditor.session.replace(target.range, result.value);
+      showToast(`${scope}已按 ${result.type.toUpperCase()} 格式化（自动识别）`, false, 'success');
+      FrontendLogger.info('[Editor] Auto-format success', { type: result.type, selection: target.selection });
+      return;
+    }
+    showToast('自动格式化失败：未能识别为 JSON、XML 或 SQL（可尝试「删除每行末换行符」后重试）', true);
+    FrontendLogger.warn('[Editor] Auto-format failed', { selection: target.selection });
   }
 
   /**
@@ -1923,6 +1980,11 @@
     // 删除每行末尾换行符：将客户端截断的多行日志合并为整行，便于后续格式化（JSON/SQL等）
     if (action === 'joinLineEnds') {
       joinLineEnds();
+      return;
+    }
+    // 自动识别并格式化：无视右上角类型，依次尝试 JSON/XML/SQL（选区或全文）
+    if (action === 'format') {
+      formatCurrentContentAuto();
       return;
     }
     mainEditor.focus();

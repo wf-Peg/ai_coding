@@ -78,19 +78,64 @@
 
         syncBtn.disabled = true;
         syncBtn.innerHTML = '<span class="toggle-text">🔄 同步中...</span>';
+        hideGitSyncResult();
 
         axios.post(`${GIT_API_BASE_URL}/sync`)
             .then(response => {
                 syncBtn.innerHTML = '<span class="toggle-text">🔄 同步仓库</span>';
                 syncBtn.disabled = false;
-                showNotification('同步成功');
+                renderGitSyncResult(response.data || { ok: true, steps: [] });
+                showNotification((response.data?.ok) ? '同步完成' : '同步过程中出现问题，详见同步详情');
             })
             .catch(error => {
                 syncBtn.innerHTML = '<span class="toggle-text">🔄 同步仓库</span>';
                 syncBtn.disabled = false;
+                // 后端在同步异常时以 400 返回结构化的分步结果
+                renderGitSyncResult(error.response?.data || { ok: false, message: error.response?.data?.message || error.message, steps: [] });
                 showNotification('同步失败: ' + (error.response?.data?.message || error.message));
                 console.error('Git sync failed:', error);
             });
+    }
+
+    // 渲染 Git 同步分步结果
+    function renderGitSyncResult(result) {
+        const container = document.getElementById('git-sync-result');
+        if (!container) return;
+
+        const steps = Array.isArray(result?.steps) ? result.steps : [];
+        const ok = !!result?.ok;
+        const message = result?.message || (ok ? '同步完成' : '同步失败');
+
+        const STEP_NAMES = {
+            fetch: '拉取', pull: '合并', add: '暂存', commit: '提交', push: '推送'
+        };
+
+        let html = `<div class="sync-card">`;
+        html += `<div class="sync-summary"><span class="sum-icon">${ok ? '✅' : '⚠️'}</span><span>${escapeHtml(message)}</span></div>`;
+        html += '<div class="sync-steps">';
+        steps.forEach(step => {
+            const stepOk = !!step.ok;
+            const name = STEP_NAMES[step.name] || step.name || '';
+            const files = (step.files && step.files > 0) ? `（${step.files} 个文件）` : '';
+            html += `<div class="sync-step">`;
+            html += `<span class="step-icon ${stepOk ? 'ok' : 'err'}">${stepOk ? '✓' : '✗'}</span>`;
+            html += `<span class="step-name">${escapeHtml(name)}</span>`;
+            html += `<span class="step-detail ${stepOk ? '' : 'err'}">${escapeHtml(step.message || '')}${files}</span>`;
+            html += '</div>';
+        });
+        html += '</div></div>';
+
+        container.innerHTML = html;
+        container.classList.remove('sync-ok', 'sync-err');
+        container.classList.add('visible', ok ? 'sync-ok' : 'sync-err');
+    }
+
+    function hideGitSyncResult() {
+        const container = document.getElementById('git-sync-result');
+        if (container) {
+            container.classList.remove('visible');
+            container.innerHTML = '';
+        }
     }
 
     // 触发 Web Clipper 同步：调用 POST /api/sync/trigger

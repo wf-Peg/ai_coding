@@ -2308,7 +2308,21 @@ function setupIPC() {
   ipcMain.handle('dsh-agent:skill-status', async () => {
     const dshHome = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
     const dest = path.join(dshHome, 'skills', 'cut-shelter', 'SKILL.md');
-    return { installed: fs.existsSync(dest), target: path.dirname(dest) };
+    const result = { installed: fs.existsSync(dest), target: path.dirname(dest) };
+    // 附带工具清单漂移校验：对比 server.mjs + plugins 实际注册的工具与 SKILL.md 登记条目
+    try {
+      const repoDir = path.join(APP_DIR, 'integrations', 'dsh', 'verify-skill-table.mjs');
+      if (fs.existsSync(repoDir)) {
+        const { verifySkillTable } = await import(pathToFileURL(repoDir).href);
+        if (typeof verifySkillTable === 'function') {
+          result.drift = verifySkillTable(path.join(APP_DIR, 'integrations', 'dsh'));
+        }
+      }
+    } catch (e) {
+      result.drift = null;
+      log.warn('[DSH Skill] verify-skill-table unavailable:', e.message);
+    }
+    return result;
   });
 
   /**
