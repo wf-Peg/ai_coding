@@ -1641,7 +1641,22 @@ function initDshAgentSection() {
     if (binPath) binPath.value = cfg.dshBinPath || '';
   }).catch(() => {});
 
-  // 技能包状态
+  // 技能包状态 + 工具清单漂移检测
+  const renderSkillDrift = (drift) => {
+    const el = document.getElementById('dshSkillDriftDesc');
+    if (!el) return;
+    if (!drift) { el.style.display = 'none'; el.textContent = ''; return; }
+    el.style.display = 'block';
+    el.style.color = drift.ok ? 'var(--success, #16a34a)' : 'var(--danger, #dc2626)';
+    if (drift.ok) {
+      el.textContent = `✅ 工具清单已同步（实际 ${drift.actualCount} = SKILL.md 登记 ${drift.documentedCount}）`;
+    } else {
+      const parts = [];
+      if (drift.missingInDoc && drift.missingInDoc.length) parts.push(`未登记 ${drift.missingInDoc.join(', ')}`);
+      if (drift.staleInDoc && drift.staleInDoc.length) parts.push(`残留 ${drift.staleInDoc.join(', ')}`);
+      el.textContent = `⚠️ 工具清单漂移：${parts.join('；')}（SKILL.md 需按维护约定同步）`;
+    }
+  };
   const refreshSkillStatus = () => {
     if (!api.dshSkillStatus) return;
     api.dshSkillStatus().then((s) => {
@@ -1649,9 +1664,14 @@ function initDshAgentSection() {
       if (desc && s) desc.textContent = s.installed
         ? '✅ 已安装：' + s.target
         : '未安装：cut-shelter 技能将复制到 ~/.dsh/skills/cut-shelter';
+      if (s) renderSkillDrift(s.drift);
     }).catch(() => {});
   };
   refreshSkillStatus();
+  const btnCheckSkill = document.getElementById('btnCheckSkill');
+  if (btnCheckSkill) {
+    btnCheckSkill.addEventListener('click', () => refreshSkillStatus());
+  }
 
   // 运行状态
   const refreshRunStatus = () => {
