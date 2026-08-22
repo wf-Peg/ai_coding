@@ -197,7 +197,7 @@ public class WeeklyReportService {
             result.put("storagePath", weeklyReportPath.toAbsolutePath().toString());
 
             // 发送邮件通知
-            sendWeeklyReportEmail(today, reportCount, clipsByCategory);
+            sendWeeklyReportEmail(today, reportCount, clipsByCategory, categoryReportData);
 
         } catch (Exception e) {
             lastReportStatus = "error";
@@ -447,16 +447,17 @@ public class WeeklyReportService {
      * <ol>
      *   <li><b>概览</b>：周次、日期范围、总条数、分类数、来源数</li>
      *   <li><b>全局统计</b>：7天趋势、来源分布、内容类型分布、热门标签</li>
+     *   <li><b>AI 主报告与知识点</b>：每个分类由 AI 提炼的主报告与知识点</li>
      *   <li><b>分类详情</b>：每个分类的剪藏列表（摘要、来源、标签、AI 分析）</li>
-     *   <li><b>知识点摘要</b>：AI 提取的关键知识点</li>
      * </ol>
      * </p>
      *
-     * @param date             周报日期
-     * @param reportCount      生成的报告数量
-     * @param clipsByCategory  按分类分组的剪藏内容
+     * @param date              周报日期
+     * @param reportCount       生成的报告数量
+     * @param clipsByCategory   按分类分组的剪藏内容
+     * @param categoryReportData 按分类的 AI 主报告 + 知识点（Map：mainReport / knowledgePoints）
      */
-    private void sendWeeklyReportEmail(LocalDate date, int reportCount, Map<String, List<ClipContent>> clipsByCategory) {
+    private void sendWeeklyReportEmail(LocalDate date, int reportCount, Map<String, List<ClipContent>> clipsByCategory, Map<String, Map<String, Object>> categoryReportData) {
         try {
             if (!emailService.isEmailConfigured()) {
                 return;
@@ -583,6 +584,48 @@ public class WeeklyReportService {
             }
 
             html.append("</div>");
+
+            // ===== AI 主报告与知识点（每分类由 AI 提炼）=====
+            if (categoryReportData != null && !categoryReportData.isEmpty()) {
+                html.append("<div style=\"padding: 4px 28px; background: #fff;\">");
+                html.append("<h2 style=\"font-size: 16px; color: #1e293b; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 2px solid #7c3aed;\">AI 主报告与知识点</h2>");
+                categoryReportData.forEach((category, data) -> {
+                    Object mainReportObj = data.get("mainReport");
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, String>> knowledgePoints = (List<Map<String, String>>) data.get("knowledgePoints");
+                    boolean hasMain = mainReportObj != null && !mainReportObj.toString().trim().isEmpty();
+                    boolean hasKp = knowledgePoints != null && !knowledgePoints.isEmpty();
+                    if (!hasMain && !hasKp) return;
+
+                    html.append("<div style=\"margin: 12px 0; padding: 14px 16px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #7c3aed;\">");
+                    html.append("<div style=\"font-weight: 700; color: #4c1d95; font-size: 14px; margin-bottom: 8px;\">📊 ")
+                            .append(escapeHtml(getCategoryName(category))).append("</div>");
+
+                    if (hasMain) {
+                        String mainReport = mainReportObj.toString();
+                        if (mainReport.length() > 1400) mainReport = mainReport.substring(0, 1400) + "…";
+                        html.append("<div style=\"font-weight: 600; color: #1e293b; font-size: 13px; margin: 6px 0 4px;\">📝 主报告</div>");
+                        html.append("<div style=\"font-size: 13px; color: #334155; line-height: 1.7;\">")
+                                .append(EmailMarkdownUtil.mdToHtml(EmailMarkdownUtil.stripFrontmatter(mainReport))).append("</div>");
+                    }
+
+                    if (hasKp) {
+                        html.append("<div style=\"font-weight: 600; color: #1e293b; font-size: 13px; margin: 10px 0 4px;\">🧩 知识点</div>");
+                        html.append("<ul style=\"margin: 0; padding-left: 20px;\">");
+                        for (Map<String, String> kp : knowledgePoints) {
+                            String title = kp.get("title");
+                            String content = kp.get("content");
+                            String text = (title != null && !title.isEmpty()) ? title : (content != null ? content : "");
+                            if (text.length() > 120) text = text.substring(0, 120) + "…";
+                            html.append("<li style=\"font-size: 13px; color: #334155; line-height: 1.6; margin: 4px 0;\">")
+                                    .append(escapeHtml(text)).append("</li>");
+                        }
+                        html.append("</ul>");
+                    }
+                    html.append("</div>");
+                });
+                html.append("</div>");
+            }
 
             // ===== 分类详情 =====
             html.append("<div style=\"padding: 4px 28px 20px; background: #fff;\">");
