@@ -2,6 +2,7 @@
 # 格式: 日期 时间 | 提交说明
 # 每次提交代码后自动追加到此文件
 
+2026-08-23 20:16 | SQLite索引实时watcher增量重扫 + 增量删除改基于clip id判定
 2026-08-23 19:55 | 前端apiClient契约层：搜索优先走本地索引IPC(local-index:search)，不可用回退后端REST；clip-list.performSearch迁移接入
 2026-08-23 18:44 | Electron窗口安全加固(contextIsolation)+端口探测异步化
 2026-08-23 19:40 | SQLite本地索引层一期：node:sqlite建库+clip索引+全文搜索(F5/LIKE中文兜底)，修复FTS external content WAL下SQLITE_CORRUPT(改rebuild批量重建)；实施计划文档标记Done

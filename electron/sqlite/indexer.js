@@ -86,8 +86,30 @@ function rebuildFts(db) {
 
 /** 删除一条 clip（content + FTS）。 */
 function deleteClip(db, id) {
-  db.prepare('DELETE FROM content_fts WHERE rowid = (SELECT rowid FROM content WHERE id = ?)').run(id);
+  // 注意：仅删 content，不手动删 content_fts（external content 表行级删除会触发
+  // SQLITE_CORRUPT）。调用方若需要 FTS 同步，应在批量操作后统一 rebuildFts。
   db.prepare('DELETE FROM content WHERE id = ?').run(id);
+}
+
+/**
+ * 删除本次扫描集合里已不存在的 clip（增量删除）。
+ * 以「clip id 集合」判定而非 file_path：一个 JSON 文件可能含多个 clip，
+ * 同文件内某条被移除时也应删除索引；反之同一 id 若在别处仍存在则保留（id 为实体）。
+ * 只删 content 主表行，FTS 交由调用方在末尾统一 rebuild 同步。
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {Set<string>} scannedIds 本次扫描留下的 clip 主键 id 集合
+ * @returns {number} 删除条数
+ */
+function pruneMissing(db, scannedIds) {
+  const rows = db.prepare("SELECT id FROM content WHERE type = 'clip'").all();
+  let removed = 0;
+  for (const r of rows) {
+    if (!scannedIds.has(r.id)) {
+      db.prepare('DELETE FROM content WHERE id = ?').run(r.id);
+      removed++;
+    }
+  }
+  return removed;
 }
 
 /**
@@ -107,4 +129,4 @@ function count(db) {
   return row ? row.c : 0;
 }
 
-module.exports = { upsertClip, deleteClip, clearAll, count, clipId };
+module.exports = { upsertClip, deleteClip, clearAll, count, clipId, rebuildFts, pruneMissing };

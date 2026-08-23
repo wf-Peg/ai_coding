@@ -22,6 +22,8 @@ const { EditorFileService } = require('./editor-file-service');
 // SQLite 本地索引层（主进程 Node 侧，仅节 clip；失败不影响主流程）
 const localIndexService = require('./sqlite/index-service');
 const localSearch = require('./sqlite/search');
+// clip-storage 实时监听句柄（will-quit 时释放）
+let localIndexWatcher = null;
 
 // 更新管理器（自动更新 + 手动检查）
 const updateManager = require('./update-manager');
@@ -4251,6 +4253,19 @@ app.whenReady().then(async () => {
     const _config = loadConfig();
     const _idxRes = localIndexService.initLocalIndex(_config.storagePath);
     log.info(`[local-index] initialized: count=${_idxRes.count}, generation=${_idxRes.generation}`);
+    // 启动 clip-storage 实时监听：新增/修改/删除时增量重扫更新索引
+    if (!localIndexWatcher) {
+      localIndexWatcher = localIndexService.startWatcher(_config.storagePath, (d) => {
+        log.info(
+          `[local-index watcher] rescan done: added=${d.added}, updated=${d.updated}, removed=${d.removed}, count=${d.count}`
+        );
+      });
+      if (localIndexWatcher && localIndexWatcher.started) {
+        log.info('[local-index watcher] started watching clip-storage');
+      } else if (localIndexWatcher) {
+        log.warn('[local-index watcher] not started:', localIndexWatcher.reason);
+      }
+    }
   } catch (e) {
     log.warn('[local-index] init skipped:', e.message);
   }
@@ -4558,6 +4573,10 @@ app.on('before-quit', () => {
 
 // 应用退出时：确保清理所有服务进程
 app.on('will-quit', () => {
+  if (localIndexWatcher && typeof localIndexWatcher.stop === 'function') {
+    try { localIndexWatcher.stop(); } catch (e) {}
+    localIndexWatcher = null;
+  }
   unregisterGlobalShortcut();
   stopBackend();
   stopFrontendServer();

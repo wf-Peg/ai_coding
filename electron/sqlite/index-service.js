@@ -13,6 +13,7 @@
 const db = require('./db');
 const indexer = require('./indexer');
 const scanner = require('./scanner');
+const watcher = require('./watcher');
 const { getMeta, upsertMeta } = require('./init');
 
 // 运行时状态
@@ -58,6 +59,63 @@ function rebuild(storagePath) {
   return initLocalIndex(storagePath);
 }
 
+/**
+ * 增量重扫：重扫 clip-storage，按 file_path+mtime 幂等 upsert 新增/修改，
+ * prune 删除本次扫描已消失的 clip，末尾统一 rebuild FTS。
+ * 供文件 watcher 与手动「增量刷新」调用。
+ *
+ * @param {string} storagePath
+ * @returns {{added:number, updated:number, removed:number, skipped:number, count:number}}
+ */
+function rescan(storagePath) {
+  const dbConn = db.openDatabase(storagePath);
+  const clipRoot = scanner.resolveClipStoragePath(storagePath);
+  const tx = (fn) => {
+    dbConn.exec('BEGIN');
+    try { const r = fn(); dbConn.exec('COMMIT'); return r; }
+    catch (e) { dbConn.exec('ROLLBACK'); throw e; }
+  };
+
+  let added = 0, updated = 0, removed = 0, skipped = 0;
+  tx(() => {
+    const records = scanner.scanClips(clipRoot);
+    const scannedIds = new Set();
+    for (const { filePath, mtime, clip } of records) {
+      const id = indexer.clipId(clip);
+      scannedIds.add(id);
+      const exists = !!dbConn.prepare('SELECT 1 FROM content WHERE id = ?').get(id);
+      if (indexer.upsertClip(dbConn, clip, filePath, mtime)) {
+        exists ? updated++ : added++;
+      } else {
+        skipped++;
+      }
+    }
+    removed = indexer.pruneMissing(dbConn, scannedIds);
+  });
+
+  // FTS 统一重建，规避 external content 表在 WAL 下行级删除/写入的 CORRUPT
+  indexer.rebuildFts(dbConn);
+  return { added, updated, removed, skipped, count: indexer.count(dbConn) };
+}
+
+/**
+ * 启动 clip-storage 实时监听：文件变化防抖后触发一次 rescan。
+ * @param {string} storagePath
+ * @param {(delta:{added:number,updated:number,removed:number,count:number})=>void} [onDelta] 每次重扫结果的回调
+ * @returns {{started:boolean, stop?:Function, reason?:string}} watcher 句柄
+ */
+function startWatcher(storagePath, onDelta) {
+  const handle = () => {
+    try {
+      const delta = rescan(storagePath);
+      if (onDelta) onDelta(delta);
+    } catch (e) {
+      console.error('[local-index watcher] rescan error:', e && e.message);
+    }
+  };
+  return watcher.startWatching(storagePath, handle);
+}
+
 /** 索引状态。 */
 function status() {
   const dbConn = db.getDatabase();
@@ -86,4 +144,4 @@ function listByType(type = 'clip', limit = 200) {
   }).filter((x) => x != null);
 }
 
-module.exports = { initLocalIndex, rebuild, status, listByType };
+module.exports = { initLocalIndex, rebuild, status, listByType, rescan, startWatcher };
