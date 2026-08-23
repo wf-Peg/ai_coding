@@ -1950,18 +1950,24 @@ async function showCloseDialog(win) {
 
 /**
  * 创建主窗口
- * 无边框窗口（frame: false），标题栏由前端渲染
+ * 系统原生标题栏（macOS hiddenInset / Windows hidden + titleBarOverlay），前端仅作为拖拽区
  * 注册 close 和 minimize 事件处理以实现托盘功能
  * 
  * @param {Object} config - 用户配置
  */
 function createMainWindow(config) {
   const appIconPath = path.join(__dirname, 'app-icon.png');
+  const isMac = process.platform === 'darwin';
+  const isWin = process.platform === 'win32';
   mainWindow = new BrowserWindow({
     width: 1200, height: 800,
     minWidth: 900, minHeight: 600,
-    frame: false,          // 无边框（自定义标题栏）
     title: 'Clip',
+    // macOS：系统原生标题栏，红黄绿交通灯以 hiddenInset 内嵌于左上，前端作为拖拽区。
+    // Windows：隐藏标题栏 + 系统 Overlay 按钮（最小化/最大化/关闭），前端作拖拽区（Aero Snap 由系统接管）。
+    titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
+    // Windows 原生 Overlay 按钮默认暗色；亮/蓝主题由 window-set-overlay IPC 实时同步（见下）
+    ...(isWin ? { titleBarOverlay: { color: '#2d2d2d', symbolColor: '#d4d4d4', height: 38 } } : {}),
     icon: appIconPath,
     webPreferences: {
       nodeIntegration: false,          // 安全：禁用 Node.js 集成
@@ -3055,16 +3061,25 @@ function setupIPC() {
       discoverAndSyncModules(config, parentDir);
       setupModulesWatcher(parentDir);
     }
-    // watch 不可用模块的 TTL 兜底刷新
+    // watch 不可用模块的 TTL 兜底刷新：改为异步（不阻塞本次唤醒返回），
+    // 避免唤醒时同步全量递归扫盘导致卡顿。返回前先用内存中的旧索引兜底。
+    scheduleStaleWikilinkRebuilds();
+    return { targets: aggregateTargets(), modules: getModuleList() };
+  }
+
+  /** 对无 watch 且已过 TTL 的模块做防抖异步重建；同一模块仅排队一次。 */
+  function scheduleStaleWikilinkRebuilds() {
     const now = Date.now();
     for (const id of Object.keys(wikilinkModules)) {
       const mod = wikilinkModules[id];
-      if (!mod.watcher && now - mod.builtAt > LINK_INDEX_TTL) {
-        buildModuleIndex(mod);
-        setupModuleWatcher(mod);
+      if (!mod.watcher && now - mod.builtAt > LINK_INDEX_TTL && !mod.rebuildTimer) {
+        mod.rebuildTimer = setTimeout(() => {
+          mod.rebuildTimer = null;
+          buildModuleIndex(mod);
+          setupModuleWatcher(mod);
+        }, 0);
       }
     }
-    return { targets: aggregateTargets(), modules: getModuleList() };
   }
 
   /** 聚合所有模块的 targets */
@@ -3475,104 +3490,18 @@ function setupIPC() {
     return { success: false, message: 'Main window not found' };
   });
 
-  // ===== 标题栏拖拽（JS 移动 + 贴边分屏） =====
-  // 方案：渲染进程上报鼠标屏幕坐标 → 主进程绝对坐标定位 setBounds。
-  // 关键设计：
-  //   1. 拖拽中只用 setBounds 显式传递宽高，绝不改变窗口尺寸
-  //   2. 分屏吸附仅在松手时判定：窗口位置贴边（<70px）才 setBounds 半屏/全屏
-  //   3. 位置钳制：防止窗口拖出可视区域无法找回
-  let windowDragState = null;
-
-  // 渲染进程在标题栏空白区按下时调用，记录拖拽起点（绝对坐标定位基准）
-  ipcMain.on('window-drag-start', (event, mouseX, mouseY) => {
-    if (mainWindow && Number.isFinite(mouseX) && Number.isFinite(mouseY)) {
-      // 如果窗口已最大化，先还原再记录尺寸，避免 setPosition 触发 unmaximize 导致尺寸变化
-      if (mainWindow.isMaximized()) {
-        mainWindow.unmaximize();
-      }
-      const [wx, wy] = mainWindow.getPosition();
-      const [ww, wh] = mainWindow.getSize();
-      windowDragState = { wx, wy, mouseX, mouseY, ww, wh };
-    }
-  });
-
-  // 拖拽移动：上报鼠标屏幕坐标，主进程换算绝对位置并 setBounds
-  ipcMain.on('window-drag-move', (event, mouseX, mouseY) => {
-    try {
-      if (!mainWindow || mainWindow.isDestroyed() || !windowDragState) return;
-      if (!Number.isFinite(mouseX) || !Number.isFinite(mouseY)) return;
-      const { wx, wy, mouseX: startX, mouseY: startY, ww, wh } = windowDragState;
-      const nx = wx + (mouseX - startX);
-      const ny = wy + (mouseY - startY);
-      if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
-
-      // 钳制：防止窗口拖出可视区域无法找回
-      // 关键设计：
-      //   1. 顶部：确保标题栏始终可见（窗口顶部最多移出屏幕 30px，标题栏~50px 高，至少 20px 可见）
-      //   2. 底部：确保窗口不被任务栏遮挡，窗口底部不超出 workArea 底部
-      //   3. 左/右：确保至少 60px 可见
-      let cx = nx, cy = ny;
+  // ===== 原生标题栏 Overlay 主题同步 =====
+  // 主窗口使用系统原生标题栏（macOS hiddenInset / Windows hidden + titleBarOverlay）。
+  // Windows 的 titleBarOverlay 按钮（最小化/最大化/关闭）底色与符号色需跟随前端当前主题，
+  // 由渲染进程在加载完成与每次主题切换时通过本 IPC 同步；macOS 无 Overlay，此处为 no-op。
+  ipcMain.on('window-set-overlay', (event, overlay) => {
+    if (process.platform === 'win32' && mainWindow && !mainWindow.isDestroyed()) {
       try {
-        const display = screen.getDisplayMatching({ x: Math.round(nx), y: Math.round(ny), width: Math.max(ww, 1), height: Math.max(wh, 1) });
-        if (display && display.workArea) {
-          const area = display.workArea;
-          const MIN_VISIBLE = 60;
-          const TITLEBAR_VISIBLE = 30; // 标题栏最多 30px 移出屏幕顶部
-          if (cx + ww < area.x + MIN_VISIBLE) cx = area.x + MIN_VISIBLE - ww;
-          if (cx > area.x + area.width - MIN_VISIBLE) cx = area.x + area.width - MIN_VISIBLE;
-          if (cy < area.y - TITLEBAR_VISIBLE) cy = area.y - TITLEBAR_VISIBLE;        // 顶部：标题栏可见
-          if (cy + wh > area.y + area.height) cy = area.y + area.height - wh;         // 底部：不被任务栏遮挡
-        }
-      } catch (err) {
-        // getDisplayMatching 失败时用主显示器兜底钳制
-        try {
-          const primary = screen.getPrimaryDisplay();
-          if (primary && primary.workArea) {
-            const area = primary.workArea;
-            const MIN_VISIBLE = 60;
-            const TITLEBAR_VISIBLE = 30;
-            if (cx + ww < area.x + MIN_VISIBLE) cx = area.x + MIN_VISIBLE - ww;
-            if (cx > area.x + area.width - MIN_VISIBLE) cx = area.x + area.width - MIN_VISIBLE;
-            if (cy < area.y - TITLEBAR_VISIBLE) cy = area.y - TITLEBAR_VISIBLE;
-            if (cy + wh > area.y + area.height) cy = area.y + area.height - wh;
-          }
-        } catch (e) { /* 完全钳制失败，保留原位置 */ }
-      }
-
-      // 用 setBounds 显式指定当前尺寸，保证拖拽中绝不改变窗口大小
-      mainWindow.setBounds({ x: Math.round(cx), y: Math.round(cy), width: ww, height: wh });
-    } catch (err) { /* 拖拽异常静默忽略 */ }
-  });
-
-  // 松手：根据窗口位置判定贴边分屏
-  ipcMain.on('window-drag-end', () => {
-    try {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        const bounds = mainWindow.getBounds();
-        const cx = Math.round(bounds.x + bounds.width / 2);
-        const cy = Math.round(bounds.y + bounds.height / 2);
-        if (Number.isFinite(cx) && Number.isFinite(cy)) {
-          const display = screen.getDisplayMatching({ x: cx, y: cy, width: 1, height: 1 });
-          if (display && display.workArea) {
-            const area = display.workArea;
-            // 钳制逻辑 MIN_VISIBLE=60，窗口贴边后窗口位置距边缘 ≤ 60
-            // 用 70 作为阈值：窗口被钳制到边缘附近时触发分屏
-            const threshold = 70;
-            if (bounds.y <= area.y + threshold) {
-              // 顶部：最大化
-              mainWindow.setBounds({ x: area.x, y: area.y, width: area.width, height: area.height });
-            } else if (bounds.x <= area.x + threshold) {
-              // 左侧：左半屏
-              mainWindow.setBounds({ x: area.x, y: area.y, width: Math.round(area.width / 2), height: area.height });
-            } else if (bounds.x + bounds.width >= area.x + area.width - threshold) {
-              // 右侧：右半屏
-              mainWindow.setBounds({ x: area.x + Math.round(area.width / 2), y: area.y, width: Math.round(area.width / 2), height: area.height });
-            }
-          }
-        }
-      }
-    } catch (err) { /* 分屏失败忽略 */ }
-    windowDragState = null;
+        mainWindow.setTitleBarOverlay({
+          color: overlay.color, symbolColor: overlay.symbolColor, height: 38
+        });
+      } catch (e) { /* Overlay 同步失败静默忽略 */ }
+    }
   });
 
   // 清除浏览器缓存（设置页「清除缓存」按钮调用）

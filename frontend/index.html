@@ -53,7 +53,11 @@
             color: var(--text);
         }
 
-        /* ====== 自定义标题栏 ====== */
+        /* ====== 原生标题栏（系统拖拽区） ======
+           整条标题栏为系统拖拽区（-webkit-app-region: drag）；内部交互区（品牌/导航/搜索/按钮）设为 no-drag。
+           平台留白：
+           - macOS（platform-darwin）：左侧让出系统红黄绿交通灯（hiddenInset 内嵌于左上）。
+           - Windows（platform-win32）：右侧让出右上角系统 Overlay 按钮（最小化/最大化/关闭）。 */
         .titlebar {
             height: var(--titlebar-height);
             background: var(--titlebar-bg);
@@ -62,7 +66,10 @@
             align-items: center;
             user-select: none;
             flex-shrink: 0;
+            -webkit-app-region: drag;
         }
+        body.platform-darwin .titlebar { padding-left: 76px; }
+        body.platform-win32 .titlebar { padding-right: 148px; }
         .titlebar-brand {
             display: flex;
             align-items: center;
@@ -135,11 +142,10 @@
             height: 15px;
         }
 
-        /* 窗口控制按钮 */
+        /* 标题栏空白占位（拖拽已交给系统 app-region，仅保留 flex 占位） */
         .titlebar-spacer {
             flex: 1;
             height: 100%;
-            cursor: grab;
             user-select: none;
         }
 
@@ -359,37 +365,6 @@
             border: 1px solid var(--panel-border, rgba(0,0,0,0.1));
             border-radius: 3px;
             padding: 0px 4px;
-        }
-        .window-controls {
-            display: flex;
-            height: 100%;
-            -webkit-app-region: no-drag;
-        }
-        .window-controls button {
-            width: 46px;
-            height: 100%;
-            border: none;
-            background: transparent;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.1s ease;
-            color: var(--text-secondary);
-        }
-        .window-controls button:hover {
-            background: var(--win-btn-hover);
-        }
-        .window-controls button svg {
-            width: 12px;
-            height: 12px;
-        }
-        .window-controls .btn-close:hover {
-            background: var(--win-btn-close-hover);
-            color: #fff;
-        }
-        .window-controls .btn-close:hover svg {
-            stroke: #fff;
         }
 
         /* ====== 布局 ====== */
@@ -858,17 +833,6 @@
         </div>
         <div class="gsearch-panel" id="globalSearchPanel"></div>
     </div>
-    <div class="window-controls" id="windowControls">
-        <button id="btnMinimize" title="最小化">
-            <svg viewBox="0 0 12 12"><line x1="1" y1="6" x2="11" y2="6" stroke="currentColor" stroke-width="1.2"/></svg>
-        </button>
-        <button id="btnMaximize" title="最大化">
-            <svg viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
-        </button>
-        <button id="btnClose" class="btn-close" title="关闭">
-            <svg viewBox="0 0 12 12"><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" stroke-width="1.2"/><line x1="11" y1="1" x2="1" y2="11" stroke="currentColor" stroke-width="1.2"/></svg>
-        </button>
-    </div>
 </div>
 
 <div class="app-layout">
@@ -984,6 +948,8 @@
         }
         // 广播主题变更到所有 iframe 子页面
         broadcastThemeChange();
+        // 同步 Windows 原生标题栏 Overlay 按钮颜色到当前主题
+        if (window.syncTitleBarOverlay) window.syncTitleBarOverlay();
       }
 
       function broadcastThemeChange() {
@@ -2005,98 +1971,32 @@
           });
         });
 
-        document.getElementById('btnMinimize').addEventListener('click', () => window.electronAPI.windowMinimize());
-        document.getElementById('btnMaximize').addEventListener('click', () => window.electronAPI.windowMaximize());
-        document.getElementById('btnClose').addEventListener('click', () => window.electronAPI.windowClose());
-
-        // 双击标题栏空白区域切换最大化/还原（排除品牌区、导航按钮、窗口控制按钮）
-        document.getElementById('titlebar').addEventListener('dblclick', (e) => {
-          if (e.target.closest('.titlebar-brand')) return;
-          if (e.target.closest('#titlebarNav')) return;
-          if (e.target.closest('#windowControls')) return;
-          if (e.target.closest('#backendGlobalIndicator')) return;
-          window.electronAPI.windowMaximize();
-        });
-
-        // ===== 标题栏空白区拖拽窗口（Pointer Events + 绝对坐标 + rAF 节流） =====
-        // 按下 → 上报起点 → 移动时 rAF 节流上报鼠标坐标 → 主进程 setBounds
-        // 松手：pointerup / pointercancel / e.buttons===0 三重兜底
-        const titlebarSpacer = document.querySelector('.titlebar-spacer');
-        if (titlebarSpacer) {
-          let dragging = false;
-          let rafId = null;
-          let pendingX = 0, pendingY = 0;
-
-          const stopDrag = () => {
-            dragging = false;
-            if (rafId) {
-              cancelAnimationFrame(rafId);
-              rafId = null;
-            }
-            if (window.electronAPI && window.electronAPI.windowDragEnd) {
-              window.electronAPI.windowDragEnd();
-            }
-          };
-
-          titlebarSpacer.addEventListener('pointerdown', (e) => {
-            if (e.button !== 0) return; // 仅左键
-            dragging = true;
-            pendingX = e.screenX;
-            pendingY = e.screenY;
-            e.preventDefault();
-            try { titlebarSpacer.setPointerCapture(e.pointerId); } catch (err) {}
-            if (window.electronAPI && window.electronAPI.windowDragStart) {
-              window.electronAPI.windowDragStart(e.screenX, e.screenY);
-            }
-          });
-
-          titlebarSpacer.addEventListener('pointermove', (e) => {
-            if (!dragging) return;
-            // 兜底：鼠标已松开但 pointerup 丢失，立即停止
-            if (e.buttons === 0) {
-              stopDrag();
-              return;
-            }
-            if (!Number.isFinite(e.screenX) || !Number.isFinite(e.screenY)) return;
-            pendingX = e.screenX;
-            pendingY = e.screenY;
-            if (!rafId) {
-              rafId = requestAnimationFrame(() => {
-                rafId = null;
-                if (dragging && window.electronAPI && window.electronAPI.windowDragMove) {
-                  window.electronAPI.windowDragMove(pendingX, pendingY);
-                }
-              });
-            }
-          });
-
-          titlebarSpacer.addEventListener('pointerup', stopDrag);
-          titlebarSpacer.addEventListener('pointercancel', stopDrag);
+        // ===== 平台类 + 原生标题栏 Overlay 主题同步 =====
+        // 标题栏已改为系统原生拖拽（app-region），自绘按钮/拖拽/最大化图标逻辑一并移除。
+        // 平台类供分平台 CSS（mac 交通灯让位 / win Overlay 让位）。
+        if (window.electronAPI && window.electronAPI.platform) {
+          document.body.classList.add('platform-' + window.electronAPI.platform);
         }
+
+        // 同步 Windows titleBarOverlay 按钮颜色到当前主题（macOS 为 no-op）。
+        // 在应用加载完成与每次主题切换后调用。
+        const titlebarEl = document.getElementById('titlebar');
+        function syncTitleBarOverlay() {
+          if (!window.electronAPI || !window.electronAPI.setTitleBarOverlay) return;
+          const cs = getComputedStyle(titlebarEl);
+          const color = cs.getPropertyValue('--titlebar-bg').trim() || '#2d2d2d';
+          const txt = getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#d4d4d4';
+          window.electronAPI.setTitleBarOverlay({ color, symbolColor: txt });
+        }
+        // 暴露到全局，供 applyTheme 主题切换时调用
+        window.syncTitleBarOverlay = syncTitleBarOverlay;
+        syncTitleBarOverlay();
 
         // ===== Ctrl/Cmd+Shift+R 强制刷新（忽略缓存） =====
         document.addEventListener('keydown', (e) => {
           if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'R' || e.key === 'r')) {
             e.preventDefault();
             window.electronAPI.forceReload();
-          }
-        });
-
-        // 同步最大化图标
-        window.electronAPI.onWindowMaximized((maximized) => {
-          const icon = document.querySelector('#btnMaximize svg');
-          if (maximized) {
-            icon.innerHTML = '<rect x="2.5" y="0.5" width="8" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="0.5" y="2.5" width="8" height="8" rx="1" fill="var(--titlebar-bg)" stroke="currentColor" stroke-width="1.2"/>';
-          } else {
-            icon.innerHTML = '<rect x="1.5" y="1.5" width="9" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/>';
-          }
-        });
-
-        // 初始检测最大化状态
-        window.electronAPI.windowIsMaximized().then(maximized => {
-          if (maximized) {
-            const icon = document.querySelector('#btnMaximize svg');
-            icon.innerHTML = '<rect x="2.5" y="0.5" width="8" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="0.5" y="2.5" width="8" height="8" rx="1" fill="var(--titlebar-bg)" stroke="currentColor" stroke-width="1.2"/>';
           }
         });
 
@@ -2260,10 +2160,9 @@
           });
         }
       } else {
-        // 浏览器环境：隐藏遮罩 + 窗口控制按钮 + 直接加载 iframe
+        // 浏览器环境：隐藏遮罩 + 直接加载 iframe
         lazyLoadIframes();
         document.getElementById('startupOverlay').style.display = 'none';
-        document.getElementById('windowControls').style.display = 'none';
       }
   })();
 </script>
@@ -2537,9 +2436,6 @@
       const base = el.getAttribute('title') || '应用设置：调整偏好与全局配置';
       el.title = base + '（' + (isMac ? '⌘,' : 'Ctrl ,') + '）';
     });
-    // 窗口控制：最小化 = 最小化到任务栏（Alt+X 可切换显示/隐藏）
-    const minBtn = document.getElementById('btnMinimize');
-    if (minBtn) minBtn.title = '最小化（' + (isMac ? 'Option X' : 'Alt X') + '）';
   })();
 </script>
 <script src="js/ui-common.js"></script>

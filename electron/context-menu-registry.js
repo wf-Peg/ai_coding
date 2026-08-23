@@ -279,7 +279,12 @@ function registerContextMenu(appDir) {
     return registerWindowsContextMenu(appDir);
   }
   // macOS: 通过 electron-builder 的 mac.extendInfo.NSServices 在构建时处理
-  // 无需运行时注册
+  // 无需运行时注册。
+  // 说明：纯 Electron 没有实现 performService 的原生桥，因此 Finder 的"服务"菜单虽能
+  // 显示 clipFile/aiClipFile/openEditor 等项，但 NSMessage 无法真正回调到渲染进程（点击无效）。
+  // macOS 上真正可用的系统入口是：双击文件打开（app.on('open-file') 事件）；
+  // Windows 右键菜单通过 CLI 参数（command-line-handler）生效。如需打通 NSServices
+  // 送达，须引入 Swift/ObjC 本地服务提供者，改动大、风险高，不在当前范围。
   console.log('[ContextMenu] macOS 右键菜单通过 Info.plist NSServices 构建时配置');
   return true;
 }

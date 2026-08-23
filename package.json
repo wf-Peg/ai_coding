@@ -137,7 +137,7 @@
         "NSServices": [
           {
             "NSMenuItem": {
-              "default": "娣诲姞鍒板壀钘忔敹浠剁"
+              "default": "添加到剪藏收件箱"
             },
             "NSMessage": "clipFile",
             "NSPortName": "CutShelter",

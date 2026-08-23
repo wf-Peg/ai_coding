@@ -21,6 +21,14 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
 
+  // ===================== 平台信息 =====================
+
+  /**
+   * 当前运行平台，如 'darwin' | 'win32' | 'linux'
+   * 渲染进程据此给 body 添加平台类（platform-darwin / platform-win32），做分平台标题栏布局
+   */
+  platform: process.platform,
+
   // ===================== 配置管理 =====================
 
   /**
@@ -224,23 +232,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized'),
 
   /**
-   * 开始窗口拖拽（主进程记录窗口起点与鼠标起点，用于绝对坐标定位）
-   * @param {number} mouseX - 按下时鼠标屏幕 X 坐标
-   * @param {number} mouseY - 按下时鼠标屏幕 Y 坐标
+   * 同步标题栏 Overlay 按钮颜色（仅 Windows 生效，macOS 为 no-op）
+   * 使系统最小化/最大化/关闭按钮的底色与符号色跟随前端当前主题
+   * @param {{color: string, symbolColor: string}} overlay - 底色与符号色
    */
-  windowDragStart: (mouseX, mouseY) => ipcRenderer.send('window-drag-start', mouseX, mouseY),
-
-  /**
-   * 窗口拖拽移动（上报当前鼠标屏幕坐标，主进程换算绝对位置）
-   * @param {number} mouseX - 鼠标屏幕 X 坐标
-   * @param {number} mouseY - 鼠标屏幕 Y 坐标
-   */
-  windowDragMove: (mouseX, mouseY) => ipcRenderer.send('window-drag-move', mouseX, mouseY),
-
-  /**
-   * 结束窗口拖拽（主进程根据窗口位置判定贴边分屏）
-   */
-  windowDragEnd: () => ipcRenderer.send('window-drag-end'),
+  setTitleBarOverlay: (overlay) => ipcRenderer.send('window-set-overlay', overlay),
 
   /**
    * 监听主进程发送的窗口最大化状态变化事件
