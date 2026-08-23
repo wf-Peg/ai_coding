@@ -2,6 +2,7 @@
 # 格式: 日期 时间 | 提交说明
 # 每次提交代码后自动追加到此文件
 
+2026-08-23 19:40 | SQLite本地索引层一期：node:sqlite建库+clip索引+全文搜索(F5/LIKE中文兜底)，修复FTS external content WAL下SQLITE_CORRUPT(改rebuild批量重建)；实施计划文档标记Done
 2026-08-23 11:40 | 升级Electron28→36及electron-builder26+镜像迁环境变量
 2026-08-23 09:00 | 修复mac托盘图标放大+node版本治理+sqlite设计
 2026-08-23 09:10 | 忽略构建产物与临时目录(dsh/tmp/jre-slim)

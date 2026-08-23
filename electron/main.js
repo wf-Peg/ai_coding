@@ -19,6 +19,10 @@ const http = require('http');
 const yaml = require('js-yaml');
 const { EditorFileService } = require('./editor-file-service');
 
+// SQLite 本地索引层（主进程 Node 侧，仅节 clip；失败不影响主流程）
+const localIndexService = require('./sqlite/index-service');
+const localSearch = require('./sqlite/search');
+
 // 更新管理器（自动更新 + 手动检查）
 const updateManager = require('./update-manager');
 
@@ -2349,6 +2353,39 @@ function setupIPC() {
     return result;
   });
 
+  // ===================== SQLite 本地索引层（仅 clip，主进程 Node 侧） =============
+  const localIndexGuard = (fn) => async (ev, args) => {
+    try { return await fn(ev, args); }
+    catch (e) { log.error('[local-index] error:', e); return { success: false, message: e.message }; }
+  };
+
+  /** 本地索引状态（就绪/世代号/条目数） */
+  ipcMain.handle('local-index:status', () => {
+    return { ...localIndexService.status(), success: true };
+  });
+
+  /** 初始化 + 全量重建本地索引 */
+  ipcMain.handle('local-index:rebuild', localIndexGuard(async () => {
+    const config = loadConfig();
+    const res = localIndexService.rebuild(config.storagePath);
+    return { ...res, success: true };
+  }));
+
+  /** 全文搜索（对齐 /api/clip/search） */
+  ipcMain.handle('local-index:search', localIndexGuard(async (ev, args) => {
+    const { query, topK, category } = args || {};
+    const list = category
+      ? localSearch.searchByCategory(query, category, topK)
+      : localSearch.search(query, topK);
+    return { success: true, results: list };
+  }));
+
+  /** 按类型快速列表 clip */
+  ipcMain.handle('local-index:list-by-type', localIndexGuard(async (ev, args) => {
+    const { type, limit } = args || {};
+    return { success: true, results: localIndexService.listByType(type, limit) };
+  }));
+
   /**
    * 获取当前启动模式
    */
@@ -4202,7 +4239,15 @@ app.whenReady().then(async () => {
 
   setupIPC();
 
-  // 截图小工具初始化（F1 截图 / F2 贴图 / OCR），快捷键随 Alt+X 一并注册
+  // SQLite 本地索引层初始化（懒加载全量建索引，异步、不阻塞窗口；
+  // 若 node:sqlite 在当前 Electron 不可用则降级跳过，不影响主流程）
+  try {
+    const _config = loadConfig();
+    const _idxRes = localIndexService.initLocalIndex(_config.storagePath);
+    log.info(`[local-index] initialized: count=${_idxRes.count}, generation=${_idxRes.generation}`);
+  } catch (e) {
+    log.warn('[local-index] init skipped:', e.message);
+  }
   try {
     screenshotService.initScreenshotService({
       app, BrowserWindow, globalShortcut, desktopCapturer, clipboard, nativeImage, ipcMain, screen, dialog, shell, log, systemPreferences,

@@ -650,4 +650,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   /** 复制文本到剪贴板（主进程，规避 iframe 剪贴板权限） */
   screenshotCopyText: (text) => ipcRenderer.invoke('screenshot:copy-text', { text }),
+
+  // ===================== SQLite 本地索引层（仅 clip，主进程 Node 侧） =============
+  localIndex: {
+    /** 本地索引状态 */
+    status: () => ipcRenderer.invoke('local-index:status'),
+    /** 初始化 + 全量重建 */
+    rebuild: () => ipcRenderer.invoke('local-index:rebuild'),
+    /** 全文搜索 */
+    search: (query, topK, category) => ipcRenderer.invoke('local-index:search', { query, topK, category }),
+    /** 按类型列表 clip */
+    listByType: (type, limit) => ipcRenderer.invoke('local-index:list-by-type', { type, limit })
+  }
 });
