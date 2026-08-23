@@ -2269,8 +2269,8 @@
 </script>
 <script>
   // ====== 全局统一搜索（右侧全局操作区） ======
-  // 复用主框架既有消息跳转机制：clip→openClipInEditor、knowledge→navigateKnowledge、
-  // learning-plan→navigateLearningPlan。数据优先走本地索引 IPC（localIndex.searchAll）。
+  // 复用主框架既有消息跳转机制：clip→openClipInNewTab（新标签打开，不覆盖当前画布）、
+  // knowledge→navigateKnowledge、learning-plan→navigateLearningPlan。数据优先走本地索引 IPC（localIndex.searchAll）。
   (function () {
     const input = document.getElementById('globalSearchInput');
     const panel = document.getElementById('globalSearchPanel');
@@ -2278,12 +2278,13 @@
     if (!input || !panel) return;
 
     const TYPE_META = {
-      clip:        { label: '剪藏',       color: '#3f8cff', action: function (h) { deliver({ type: 'openClipInEditor', clipId: numericId(h.id) }); } },
+      clip:        { label: '剪藏',       color: '#3f8cff', action: function (h) { deliver({ type: 'openClipInNewTab', clipId: numericId(h.id) }); } },
       knowledge:   { label: '知识',       color: '#8b5cf6', action: function (h) { window.postMessage({ type: 'navigateKnowledge', knowledgeId: numericId(h.id) }, '*'); } },
       'learning-plan': { label: '学习计划', color: '#10b981', action: function (h) { window.postMessage({ type: 'navigateLearningPlan', planId: numericId(h.id) }, '*'); } }
     };
     const ORDER = ['clip', 'knowledge', 'learning-plan'];
-    let allHits = [];
+    let allHits = [];   // 全部命中（用于分组与总计数）
+    let flatHits = [];  // 实际渲染的行（与 data-index 严格对齐，用于键盘/点击导航）
     let activeIndex = -1;
 
     // 命中 id 形如 'clip:1' / 'knowledge:39' / 'learning-plan:21'，抽离纯数字源 id。
@@ -2346,6 +2347,7 @@
     function render(hits, q) {
       panel.innerHTML = '';
       allHits = hits || [];
+      flatHits = [];
       activeIndex = -1;
       const groups = { clip: [], knowledge: [], 'learning-plan': [] };
       allHits.forEach(h => { if (groups[h.type]) groups[h.type].push(h); });
@@ -2367,7 +2369,6 @@
         panel.appendChild(head);
       }
 
-      let built = 0;
       let hasAny = false;
       ORDER.forEach(type => {
         const items = groups[type];
@@ -2391,8 +2392,8 @@
         title.appendChild(c);
         sec.appendChild(title);
         items.slice(0, 12).forEach(h => {
-          sec.appendChild(buildRow(h, built, q));
-          built++;
+          flatHits.push(h);
+          sec.appendChild(buildRow(h, flatHits.length - 1, q));
         });
         panel.appendChild(sec);
       });
@@ -2412,10 +2413,10 @@
       panel.classList.add('open');
     }
 
-    // 键盘导航：在 allHits 上维护高亮
+    // 键盘导航：在 flatHits（已渲染行）上维护高亮
     function setActive(i) {
-      if (!allHits.length) return;
-      if (i < 0 || i >= allHits.length) i = -1;
+      if (!flatHits.length) return;
+      if (i < 0 || i >= flatHits.length) i = -1;
       activeIndex = i;
       panel.querySelectorAll('.gsearch-item').forEach(el => {
         const idx = Number(el.getAttribute('data-index') || -1);
@@ -2424,19 +2425,19 @@
       });
     }
     function activateHits(i) {
-      const def = allHits[i];
+      const def = flatHits[i];
       if (!def) return;
       (TYPE_META[def.type] || {}).action && TYPE_META[def.type].action(def);
       closePanel();
     }
     function moveActive(delta) {
-      if (!allHits.length) return;
+      if (!flatHits.length) return;
       // 未选中态从列表首/尾开始；已选中态在区间内循环
       let next;
       if (activeIndex < 0) {
-        next = delta > 0 ? 0 : allHits.length - 1;
+        next = delta > 0 ? 0 : flatHits.length - 1;
       } else {
-        next = (activeIndex + delta + allHits.length) % allHits.length;
+        next = (activeIndex + delta + flatHits.length) % flatHits.length;
       }
       setActive(next);
     }
@@ -2478,12 +2479,14 @@
     input.addEventListener('focus', () => {
       if (input.value.trim()) doSearch(); else { setLoading(false); panel.classList.add('open'); }
     });
-    // 失焦即收起结果面板（覆盖点击 iframe 内容等父页面收不到 click 的场景；搜索框保留长驻）
-    input.addEventListener('blur', () => {
-      closePanel();
-    });
+    // 失焦：延迟收起结果面板，避免点击结果项被 mousedown 触发的失焦抢先关掉
+    let blurTimer = null;
+    function scheduleClose() { clearTimeout(blurTimer); blurTimer = setTimeout(closePanel, 150); }
+    input.addEventListener('blur', scheduleClose);
+    // 点击结果面板时阻止 input 失焦（guard close 不掉），保证 click 能触发 activateHits
+    panel.addEventListener('mousedown', (e) => { e.preventDefault(); clearTimeout(blurTimer); });
     input.addEventListener('click', (e) => e.stopPropagation());
-    panel.addEventListener('click', (e) => e.stopPropagation());
+    panel.addEventListener('click', (e) => { e.stopPropagation(); clearTimeout(blurTimer); });
     document.addEventListener('click', (e) => {
       // 点击非全局搜索区：仅收起结果面板，搜索框保持长驻
       if (!e.target.closest || !e.target.closest('.global-search')) {

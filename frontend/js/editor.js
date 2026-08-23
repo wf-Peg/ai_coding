@@ -6114,18 +6114,18 @@
   }
 
   // 注册核心命令
-  registerCommand('new', '新建文件', '📄', function() { createNewTab(); });
+  registerCommand('new', '新建文件', '📄', function() { createNewTab(); }, 'Ctrl+T');
   registerCommand('open', '打开文件…', '📁', function() { openMainFile(); });
   registerCommand('quick-open', '快速打开文件', '🔍', function() { openQuickSwitcher(); }, 'Ctrl+O');
-  registerCommand('save', '保存', '💾', function() { saveFile(false); });
-  registerCommand('save-as', '另存为…', '📋', function() { saveFile(true); });
-  registerCommand('outline', '切换大纲面板', '☰', function() { toggleOutline(); });
-  registerCommand('tags', '切换标签面板', '#', function() { toggleTags(); });
-  registerCommand('backlinks', '切换反链面板', '🔗', function() { toggleBacklinks(); });
+  registerCommand('save', '保存', '💾', function() { saveFile(false); }, 'Ctrl+S');
+  registerCommand('save-as', '另存为…', '📋', function() { saveFile(true); }, 'Ctrl+Shift+S');
+  registerCommand('outline', '切换大纲面板', '☰', function() { toggleOutline(); }, 'Ctrl+Shift+D');
+  registerCommand('tags', '切换标签面板', '#', function() { toggleTags(); }, 'Ctrl+Shift+T');
+  registerCommand('backlinks', '切换反链面板', '🔗', function() { toggleBacklinks(); }, 'Ctrl+Shift+B');
   registerCommand('compare', '对比模式', '⇄', function() { toggleCompare(); });
-  registerCommand('markdown', 'Markdown 预览', '👁', function() { toggleMarkdownPreview(); });
+  registerCommand('markdown', 'Markdown 预览', '👁', function() { toggleMarkdownPreview(); }, 'Ctrl+Shift+M');
   registerCommand('export-word', '导出 Word (.docx)', '📝', function() { exportToWord(); });
-  registerCommand('settings', '编辑器设置', '⚙', function() { openSettingsModal(); });
+  registerCommand('settings', '编辑器设置', '⚙', function() { openSettingsModal(); }, 'Ctrl+,');
 
   var paletteOpen = false;
   var paletteIndex = 0;
