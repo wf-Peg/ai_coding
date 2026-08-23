@@ -74,7 +74,7 @@
   <div id="menu"></div>
 </div>
 <script>
-  const { ipcRenderer } = require('electron');
+  const screenshotApi = window.screenshotApi;
   const img = document.getElementById('img');
   const wrap = document.getElementById('wrap');
   const menu = document.getElementById('menu');
@@ -89,7 +89,7 @@
   let lastDragEndAt = 0;   // 最近一次拖动结束时间（松手后短冷却，屏蔽惯性滚轮）
   let textPending = false; // 文本贴图待回传尺寸标志（img.onload 分发 paste:text-ready）
 
-  ipcRenderer.on('paste:init', (e, payload) => {
+  screenshotApi.on('paste:init', (payload) => {
     if (currentUrl) { URL.revokeObjectURL(currentUrl); currentUrl = null; }
     if (payload.text) {
       // 文本贴图：canvas 排版成白底黑字图片，塞入 img 走现有图片全链路（缩放/透明度/保存/OCR）
@@ -115,14 +115,14 @@
     if (textPending) {
       textPending = false;
       // 通知主进程按渲染出的 CSS 尺寸精确 resize（文本不固定宽高）
-      ipcRenderer.send('paste:text-ready', {
+      screenshotApi.send('paste:text-ready', {
         cssW: Math.ceil(img.naturalWidth / window.devicePixelRatio) || 200,
         cssH: Math.ceil(img.naturalHeight / window.devicePixelRatio) || 120
       });
     }
-    ipcRenderer.send('paste:rendered', { delta: Date.now() });
+    screenshotApi.send('paste:rendered', { delta: Date.now() });
   };
-  img.onerror = (ev) => ipcRenderer.send('paste:render-error', { message: (ev && ev.message) || 'image decode failed' });
+  img.onerror = (ev) => screenshotApi.send('paste:render-error', { message: (ev && ev.message) || 'image decode failed' });
 
   // ── 文本贴图：将多行文本排版成白底黑字 PNG（Snipaste 文字贴图） ──
   function renderTextToImage(text) {
@@ -188,7 +188,7 @@
       if (rafMove) return;
       rafMove = requestAnimationFrame(() => {
         rafMove = null;
-        if (targetPos) ipcRenderer.invoke('paste:move-to', targetPos);
+        if (targetPos) screenshotApi.invoke('paste:move-to', targetPos);
       });
     });
     function endDrag(e) {
@@ -198,7 +198,7 @@
       lastDragEndAt = Date.now(); // 松手冷却起点：屏蔽紧随其后的惯性/误触滚轮
       wheelAccum = 0;             // 清空累积，防松手瞬间步进
       // 冲刷最后一帧位置，保证停点精确
-      if (targetPos) { ipcRenderer.invoke('paste:move-to', targetPos); targetPos = null; }
+      if (targetPos) { screenshotApi.invoke('paste:move-to', targetPos); targetPos = null; }
       try { if (e && e.pointerId != null) wrap.releasePointerCapture(e.pointerId); } catch (err) {}
     }
     wrap.addEventListener('pointerup', endDrag);
@@ -232,7 +232,7 @@
       opacity = Math.max(0.2, Math.min(1, opacity + d * 0.05));
       // 窗口级真透明：之前用 wrap.style.opacity 只把内容变淡并透出黑底（像"变亮度"），
       // 现改为主进程 setOpacity，整个贴图窗口半透明，真正透出底下内容（Snipaste 手感）。
-      ipcRenderer.invoke('paste:set-opacity', opacity);
+      screenshotApi.invoke('paste:set-opacity', opacity);
       return;
     }
     let dy = e.deltaY;
@@ -254,7 +254,7 @@
   // 光标锚定缩放：主进程同时调整大小与位置，保持光标下的图像点不动
   function zoomTo(prev, next, cx, cy) {
     if (prev === next) return;
-    ipcRenderer.invoke('paste:zoom-at', { scale: next, prevScale: prev, anchorX: cx, anchorY: cy });
+    screenshotApi.invoke('paste:zoom-at', { scale: next, prevScale: prev, anchorX: cx, anchorY: cy });
   }
 
   // ── 双击关闭（Snipaste 默认：双击贴图即关闭） ──
@@ -291,23 +291,23 @@
     if (!btn) return;
     menu.style.display = 'none';
     const a = btn.dataset.a;
-    if (a === 'pin') isPinned = !isPinned, ipcRenderer.invoke('paste:set-top', isPinned);
-    else if (a === 'copy') ipcRenderer.invoke('screenshot:copy-last');
-    else if (a === 'ocr') { ipcRenderer.invoke('screenshot:ocr', { buf: imgBuf || img.src }); }
-    else if (a === 'save') ipcRenderer.invoke('paste:save', { buf: imgBuf || img.src });
+    if (a === 'pin') isPinned = !isPinned, screenshotApi.invoke('paste:set-top', isPinned);
+    else if (a === 'copy') screenshotApi.invoke('screenshot:copy-last');
+    else if (a === 'ocr') { screenshotApi.invoke('screenshot:ocr', { buf: imgBuf || img.src }); }
+    else if (a === 'save') screenshotApi.invoke('paste:save', { buf: imgBuf || img.src });
     else if (a === 'reset') { const prev = scale; scale = 1; zoomTo(prev, 1, window.innerWidth / 2, window.innerHeight / 2); }
-    else if (a === 'op-') { opacity = Math.max(0.2, opacity - 0.1); ipcRenderer.invoke('paste:set-opacity', opacity); }
-    else if (a === 'op+') { opacity = Math.min(1, opacity + 0.1); ipcRenderer.invoke('paste:set-opacity', opacity); }
-    else if (a === 'rearrange') ipcRenderer.invoke('paste:rearrange');
-    else if (a === 'closeAll') ipcRenderer.send('screenshot:close-paste-windows');
+    else if (a === 'op-') { opacity = Math.max(0.2, opacity - 0.1); screenshotApi.invoke('paste:set-opacity', opacity); }
+    else if (a === 'op+') { opacity = Math.min(1, opacity + 0.1); screenshotApi.invoke('paste:set-opacity', opacity); }
+    else if (a === 'rearrange') screenshotApi.invoke('paste:rearrange');
+    else if (a === 'closeAll') screenshotApi.send('screenshot:close-paste-windows');
     else if (a === 'close') window.close();
   });
   window.addEventListener('click', (e) => { if (!e.target.closest('#menu')) menu.style.display = 'none'; });
 
   // ── 顶栏按钮 ──
-  document.getElementById('btnCopy').addEventListener('click', () => ipcRenderer.invoke('screenshot:copy-last'));
-  document.getElementById('btnOcr').addEventListener('click', () => ipcRenderer.invoke('screenshot:ocr', { buf: imgBuf || img.src }));
-  document.getElementById('btnSave').addEventListener('click', () => ipcRenderer.invoke('paste:save', { buf: imgBuf || img.src }));
+  document.getElementById('btnCopy').addEventListener('click', () => screenshotApi.invoke('screenshot:copy-last'));
+  document.getElementById('btnOcr').addEventListener('click', () => screenshotApi.invoke('screenshot:ocr', { buf: imgBuf || img.src }));
+  document.getElementById('btnSave').addEventListener('click', () => screenshotApi.invoke('paste:save', { buf: imgBuf || img.src }));
   document.getElementById('btnClose').addEventListener('click', () => window.close());
 </script>
 </body>

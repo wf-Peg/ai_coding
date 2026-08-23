@@ -118,7 +118,7 @@
   <span id="status">就绪</span>
 </div>
 <script>
-  const { ipcRenderer } = require('electron');
+  const screenshotApi = window.screenshotApi;
   const text = document.getElementById('text');
   const meta = document.getElementById('meta');
   const status = document.getElementById('status');
@@ -127,7 +127,7 @@
   const btnEditor = document.getElementById('btnEditor');
   let lastText = '';
 
-  ipcRenderer.on('ocr-result:init', (e, payload) => {
+  screenshotApi.on('ocr-result:init', (payload) => {
     lastText = (payload && payload.text) || '';
     text.value = lastText;
     if (payload && payload.lines) {
@@ -161,7 +161,7 @@
     const val = text.value.trim();
     if (!val) return;
     // 通知主窗口 → 编辑器新标签打开文本
-    ipcRenderer.invoke('screenshot:open-in-editor', { text: val, title: 'OCR 识别结果' });
+    screenshotApi.invoke('screenshot:open-in-editor', { text: val, title: 'OCR 识别结果' });
     window.close();
   });
 

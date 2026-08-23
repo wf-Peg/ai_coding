@@ -13,7 +13,7 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
-const { spawn, execSync } = require('child_process');
+const { spawn, exec } = require('child_process');
 const crypto = require('crypto');
 const http = require('http');
 const yaml = require('js-yaml');
@@ -587,13 +587,22 @@ function generateApplicationYml(config) {
  * 
  * @param {number} port - 要清理的端口号
  */
-function killPortProcess(port) {
+/** 以 Promise 封装 child_process.exec；命令失败/无匹配也 resolve（调用方自行解析 stdout）。 */
+function execAsync(cmd, opts = {}) {
+  return new Promise((resolve) => {
+    exec(cmd, { encoding: 'utf-8', timeout: opts.timeout || 5000, windowsHide: true }, (err, stdout) => {
+      resolve({ err, stdout: stdout || '' });
+    });
+  });
+}
+
+async function killPortProcess(port) {
   const isWin = process.platform === 'win32';
   try {
     if (isWin) {
       // Windows: netstat -ano 输出最后列为 PID
-      const result = execSync(`netstat -ano | findstr :${port}`, { encoding: 'utf-8', timeout: 5000 });
-      const lines = result.trim().split('\n');
+      const { stdout } = await execAsync(`netstat -ano | findstr :${port}`);
+      const lines = stdout.trim().split('\n');
 
       // 使用 Set 去重（同一端口可能有多条记录，PID 相同）
       const pids = new Set();
@@ -608,33 +617,27 @@ function killPortProcess(port) {
 
       // 逐个终止进程
       for (const pid of pids) {
+        await execAsync(`taskkill /F /PID ${pid}`).then(({ err }) => {
+          if (err) log.info(`Failed to kill PID ${pid}: ${err.message}`);
+          else log.info(`Killed process ${pid} on port ${port}`);
+        });
+      }
+    } else {
+      // macOS/Linux: lsof -ti 列出占用端口的 PID（-t 仅输出 PID，-i 按端口过滤）
+      const { stdout } = await execAsync(`lsof -ti :${port}`);
+      const pids = stdout.trim().split('\n').filter(p => p);
+      for (const pid of pids) {
         try {
-          execSync(`taskkill /F /PID ${pid}`, { encoding: 'utf-8', timeout: 5000 });
+          // SIGKILL (9) 强制终止，进程无法捕获或忽略
+          process.kill(parseInt(pid), 'SIGKILL');
           log.info(`Killed process ${pid} on port ${port}`);
         } catch (e) {
           log.info(`Failed to kill PID ${pid}: ${e.message}`);
         }
       }
-    } else {
-      // macOS/Linux: lsof -ti 列出占用端口的 PID（-t 仅输出 PID，-i 按端口过滤）
-      try {
-        const result = execSync(`lsof -ti :${port}`, { encoding: 'utf-8', timeout: 5000 });
-        const pids = result.trim().split('\n').filter(p => p);
-        for (const pid of pids) {
-          try {
-            // SIGKILL (9) 强制终止，进程无法捕获或忽略
-            process.kill(parseInt(pid), 'SIGKILL');
-            log.info(`Killed process ${pid} on port ${port}`);
-          } catch (e) {
-            log.info(`Failed to kill PID ${pid}: ${e.message}`);
-          }
-        }
-      } catch (e) {
-        // lsof 在无进程占用端口时返回非零退出码，属于正常情况
-      }
     }
   } catch (e) {
-    // netstat/findstr 在无匹配时也会返回非零退出码，正常情况
+    // netstat/findstr/lsof 在无匹配时也会返回非零退出码，正常情况
     log.info(`No process found on port ${port}`);
   }
 }
@@ -1759,7 +1762,11 @@ async function showCloseDialog(win) {
     maximizable: false,
     show: false,
     transparent: true,
-    webPreferences: { nodeIntegration: true, contextIsolation: false }
+    webPreferences: {
+      nodeIntegration: false,   // 安全：禁用 Node.js 集成
+      contextIsolation: true,   // 安全：启用上下文隔离
+      preload: path.join(__dirname, 'close-dialog-preload.js')
+    }
   });
 
   const html = `<!DOCTYPE html>
@@ -1867,9 +1874,8 @@ async function showCloseDialog(win) {
   </div>
 </div>
 <script>
-  const { ipcRenderer } = require('electron');
   function choose(action) {
-    ipcRenderer.send('close-dialog-result', { action: action, remember: document.getElementById('remember').checked });
+    window.dialogApi.choose(action, document.getElementById('remember').checked);
     window.close();
   }
 </script>
@@ -4309,8 +4315,11 @@ app.whenReady().then(async () => {
   }
 
   // 启动前清理端口上残留的旧进程（如上次崩溃未清理的）
-  killPortProcess(config.backendPort);
-  killPortProcess(config.frontendPort);
+  // 等待清理完成后再启动后端，避免端口仍在占用导致绑定失败
+  await Promise.all([
+    killPortProcess(config.backendPort),
+    killPortProcess(config.frontendPort)
+  ]);
 
   if (!config.configured) {
     // ===== 首次运行：显示配置引导窗口 =====

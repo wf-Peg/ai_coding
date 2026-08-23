@@ -291,9 +291,9 @@ function getOrCreateOverlayWindow(display) {
     hasShadow: false,
     show: false, // 预建隐藏，F1 时即时显示
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      enableRemoteModule: false
+      nodeIntegration: false,   // 安全：禁用 Node.js 集成
+      contextIsolation: true,   // 安全：启用上下文隔离
+      preload: path.join(__dirname, 'screenshot-preload.js')
     }
   });
   screenshotWindow = win;
@@ -456,7 +456,11 @@ function showPasteWindow(image, text) {
     alwaysOnTop: true,
     skipTaskbar: true,
     hasShadow: false,          // 关 DWM 阴影：快速拖动时阴影重绘是 Windows 卡顿源；贴图自带 #frame 描边
-    webPreferences: { nodeIntegration: true, contextIsolation: false }
+    webPreferences: {
+      nodeIntegration: false,   // 安全：禁用 Node.js 集成
+      contextIsolation: true,   // 安全：启用上下文隔离
+      preload: path.join(__dirname, 'screenshot-preload.js')
+    }
   });
   win.__isText = !image;
   win.__pasteBaseSize = [w, h]; // 缩放基准（等比适配后的初始尺寸）
@@ -568,7 +572,11 @@ function showOcrResult(result) {
     maximizable: false,
     hasShadow: true,
     backgroundColor: '#17181c',
-    webPreferences: { nodeIntegration: true, contextIsolation: false }
+    webPreferences: {
+      nodeIntegration: false,   // 安全：禁用 Node.js 集成
+      contextIsolation: true,   // 安全：启用上下文隔离
+      preload: path.join(__dirname, 'screenshot-preload.js')
+    }
   });
   win.loadFile(path.join(__dirname, 'ocr-result-window.html'));
   win.webContents.on('did-finish-load', () => {

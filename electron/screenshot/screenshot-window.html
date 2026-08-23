@@ -120,7 +120,7 @@
   <button id="btnCancel">✕ 取消</button>
 </div>
 <script>
-  const { ipcRenderer, clipboard } = require('electron');
+  const screenshotApi = window.screenshotApi;
   const bg = document.getElementById('bg');
   const bgCanvas = document.getElementById('bgCanvas');
   const mask = document.getElementById('mask');
@@ -223,7 +223,7 @@
     drawMask(null);
     hint.textContent = '拖拽选择区域 · R/O/A/P/T/M/E 切换标注 · 数字切粗细 · C 取色 · Ctrl+Z 撤销 · Esc 取消 · Enter 复制';
     // 性能回传：主进程记录"发送→渲染完成"耗时
-    ipcRenderer.send('screenshot:painted', { delta: Date.now() - (t0 || Date.now()) });
+    screenshotApi.send('screenshot:painted', { delta: Date.now() - (t0 || Date.now()) });
   }
 
   /** raw 模式：仅 Windows 走此路径，数据为 BGRA，就地交换 B/R 为 RGBA → putImageData；macOS 走 PNG，无需交换 */
@@ -250,13 +250,13 @@
   }
 
   /** 加载态：主进程按下 F1 后立即广播（深色底 + 提示，感知即时响应） */
-  ipcRenderer.on('screenshot:loading', () => {
+  screenshotApi.on('screenshot:loading', () => {
     resetOverlay();
     hint.style.display = '';
     hint.textContent = '正在截取屏幕…';
   });
 
-  ipcRenderer.on('screenshot:init', (e, payload) => {
+  screenshotApi.on('screenshot:init', (payload) => {
     display = payload.display;
     sf = display.scaleFactor || 1;
     resetOverlay();
@@ -274,12 +274,12 @@
     bg.onload = () => {
       // 空图（解码成功但尺寸为 0，常见于 macOS 空/黑帧）也视为失败，回传主进程主动收尾
       if (bg.naturalWidth <= 0 || bg.naturalHeight <= 0) {
-        ipcRenderer.send('screenshot:init-error', { message: '图像尺寸为空' });
+        screenshotApi.send('screenshot:init-error', { message: '图像尺寸为空' });
         return;
       }
       onBackgroundReady(payload.t0);
     };
-    bg.onerror = () => ipcRenderer.send('screenshot:init-error', { message: '图像解码失败' });
+    bg.onerror = () => screenshotApi.send('screenshot:init-error', { message: '图像解码失败' });
   });
 
   // ── 遮罩：离屏底图 + 选区亮区（性能优化，避免全屏重绘） ──
@@ -766,7 +766,7 @@
     annoColor = hex;
     annoColorDot.style.background = annoColor; annoColorDot.style.borderColor = annoColor;
     if (textActive) annoTextInput.style.color = annoColor;
-    try { clipboard.writeText(hex); } catch (err) {}
+    try { screenshotApi.copyText(hex); } catch (err) {}
     showHint('取色 ' + hex + '（已复制）');
   }
   // ── 短暂提示 ──
@@ -911,7 +911,7 @@
     // 有标注时，把背景选区与标注合成一张图，随确认一起交给主进程（替代纯 crop）
     let imgData = null;
     if (annoCount > 0) imgData = composeAnno(selRect);
-    ipcRenderer.invoke('screenshot:confirm', {
+    screenshotApi.invoke('screenshot:confirm', {
       rect: { x: selRect.x, y: selRect.y, width: selRect.w, height: selRect.h },
       action: action,
       imgData: imgData
@@ -924,7 +924,7 @@
     canceling = true;
     document.body.style.transition = 'opacity 0.12s ease';
     document.body.style.opacity = '0';
-    setTimeout(() => ipcRenderer.invoke('screenshot:cancel'), 120);
+    setTimeout(() => screenshotApi.invoke('screenshot:cancel'), 120);
   }
 
   document.getElementById('btnCopy').addEventListener('click', () => confirm('copy'));
