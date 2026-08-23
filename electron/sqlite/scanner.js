@@ -170,33 +170,49 @@ function parseEntityFile(filePath) {
 }
 
 /**
+ * 候选数据根目录（去重）：兼容两种真实布局——
+ *  a) knowledge/learning-plan 与 clip-storage 同级（{base}/{dir}）
+ *  b) knowledge/learning-plan 位于 clip-storage 内部（{clipRoot}/{dir}）
+ * @param {string} storagePath config.storagePath（Clip_Bed 父目录或 clip-storage）
+ * @returns {string[]} 唯一的候选根目录列表
+ */
+function candidateRoots(storagePath) {
+  const roots = [resolveBasePath(storagePath), resolveClipStoragePath(storagePath)];
+  return [...new Set(roots.filter((p) => p != null && p !== ''))];
+}
+
+/**
  * 扫描 knowledge / learning-plan 实体目录，提取可索引实体记录。
- * 这些目录与 clip-storage 同级（{base}/{dir}/{yyMMdd}.json）。
+ * 实体目录可能在 clip-storage 同级，也可能内嵌于 clip-storage 之下，两种皆尝试。
  *
  * @param {string} storagePath config.storagePath（Clip_Bed 父目录或 clip-storage）
  * @returns {Array<{filePath:string, mtime:string, type:string, entity:Object}>}
  */
 function scanEntities(storagePath) {
   const results = [];
-  const base = resolveBasePath(storagePath);
-  for (const { dir, type } of ENTITY_DIRS) {
-    const dirPath = path.join(base, dir);
-    if (!fs.existsSync(dirPath)) continue;
-    let entries;
-    try { entries = fs.readdirSync(dirPath, { withFileTypes: true }); }
-    catch (e) { continue; }
-    for (const ent of entries) {
-      if (!ent.isFile() || !ent.name.endsWith('.json')) continue;
-      const full = path.join(dirPath, ent.name);
-      // 注意：不在此处走 isExcludedPath —— knowledge/learning-plan 本就在 clip 排除集内，
-      // 但这里显式以它们为扫描目标。
-      const entities = parseEntityFile(full);
-      if (!entities.length) continue;
-      let mtime = '';
-      try { mtime = fs.statSync(full).mtimeMs.toString(); } catch (e) { /* ignore */ }
-      for (const entity of entities) {
-        if (entity && entity.id !== null && entity.id !== undefined) {
-          results.push({ filePath: full, mtime, type, entity });
+  const seen = new Set();
+  for (const root of candidateRoots(storagePath)) {
+    for (const { dir, type } of ENTITY_DIRS) {
+      const dirPath = path.join(root, dir);
+      if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) continue;
+      let entries;
+      try { entries = fs.readdirSync(dirPath, { withFileTypes: true }); }
+      catch (e) { continue; }
+      for (const ent of entries) {
+        if (!ent.isFile() || !ent.name.endsWith('.json')) continue;
+        const full = path.join(dirPath, ent.name);
+        if (seen.has(full)) continue; // 两候选根指向同一实文件时去重
+        seen.add(full);
+        // 注意：不在此处走 isExcludedPath —— knowledge/learning-plan 本就在 clip 排除集内，
+        // 但这里显式以它们为扫描目标。
+        const entities = parseEntityFile(full);
+        if (!entities.length) continue;
+        let mtime = '';
+        try { mtime = fs.statSync(full).mtimeMs.toString(); } catch (e) { /* ignore */ }
+        for (const entity of entities) {
+          if (entity && entity.id !== null && entity.id !== undefined) {
+            results.push({ filePath: full, mtime, type, entity });
+          }
         }
       }
     }
@@ -232,6 +248,6 @@ function extractEntityBodyPlain(entity, type) {
 
 module.exports = {
   scanClips, parseClipFile, extractBodyPlain, isExcludedPath,
-  resolveClipStoragePath, resolveBasePath,
+  resolveClipStoragePath, resolveBasePath, candidateRoots,
   scanEntities, parseEntityFile, extractEntityBodyPlain, ENTITY_DIRS
 };

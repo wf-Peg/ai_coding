@@ -51,11 +51,14 @@ function importLegacy(db, legacyFilePath) {
   return imported;
 }
 
-/** 遗留关系文件路径（{base}/index/relation-index.json），不存在返回 null。 */
+/** 遗留关系文件路径（candidateRoots 下 index 目录中的 relation-index.json），不存在返回 null。 */
 function legacyIndexPath(storagePath) {
   try {
-    const p = path.join(scanner.resolveBasePath(storagePath), 'index', 'relation-index.json');
-    return p;
+    for (const root of scanner.candidateRoots(storagePath)) {
+      const p = path.join(root, 'index', 'relation-index.json');
+      if (fs.existsSync(p)) return p;
+    }
+    return null;
   } catch (e) { return null; }
 }
 
@@ -78,24 +81,34 @@ function buildRelations(db, records, storagePath) {
     written.push({ fromId, toId, relationType, source, confidence: 1.0, createdAt: now });
   };
 
+  /**
+   * 归一化引用 id 列表：兼容新模型 List 字段与旧模型标量 sourceClipId。
+   * @returns {Array<string|number>} 去重后的 id 列表（排除空值/重复）
+   */
+  const refIds = (obj, listKeys, scalarKeys) => {
+    const out = [];
+    const add = (v) => { if (v !== null && v !== undefined && v !== '') out.push(v); };
+    for (const k of listKeys || []) {
+      const v = obj && obj[k];
+      if (Array.isArray(v)) for (const x of v) add(x);
+      else add(v);
+    }
+    for (const k of scalarKeys || []) add(obj && obj[k]);
+    return [...new Set(out)];
+  };
+
   for (const { type, entity } of records) {
     if (!entity || entity.id === null || entity.id === undefined) continue;
     if (type === 'knowledge') {
       const kid = entityId(entity, 'knowledge');
-      // derived_from：知识 ← 来源剪藏
-      if (Array.isArray(entity.sourceClipIds)) {
-        for (const cid of entity.sourceClipIds) {
-          if (cid !== null && cid !== undefined) {
-            push('clip:' + cid, kid, 'derived_from', 'clip_to_knowledge');
-          }
-        }
+      // derived_from：知识 ← 来源剪藏（兼容 List sourceClipIds 与旧标量 sourceClipId）
+      for (const cid of refIds(entity, ['sourceClipIds'], ['sourceClipId'])) {
+        push('clip:' + cid, kid, 'derived_from', 'clip_to_knowledge');
       }
       // linked_to：知识 ↔ 知识（排除自环）
-      if (Array.isArray(entity.linkedKnowledgeIds)) {
-        for (const lid of entity.linkedKnowledgeIds) {
-          if ((lid !== null && lid !== undefined) && String(lid) !== String(entity.id)) {
-            push(kid, 'knowledge:' + lid, 'linked_to', 'wikilink');
-          }
+      for (const lid of refIds(entity, ['linkedKnowledgeIds'], [])) {
+        if (String(lid) !== String(entity.id)) {
+          push(kid, 'knowledge:' + lid, 'linked_to', 'wikilink');
         }
       }
     } else if (type === 'learning-plan') {
@@ -103,19 +116,11 @@ function buildRelations(db, records, storagePath) {
       // plan_links：学习计划 → 阶段关联的知识/剪藏
       if (Array.isArray(entity.phases)) {
         for (const phase of entity.phases) {
-          if (Array.isArray(phase.linkedKnowledgeIds)) {
-            for (const kid of phase.linkedKnowledgeIds) {
-              if (kid !== null && kid !== undefined) {
-                push(pid, 'knowledge:' + kid, 'plan_links', 'learning_plan_link');
-              }
-            }
+          for (const kid of refIds(phase, ['linkedKnowledgeIds'], [])) {
+            push(pid, 'knowledge:' + kid, 'plan_links', 'learning_plan_link');
           }
-          if (Array.isArray(phase.sourceClipIds)) {
-            for (const cid of phase.sourceClipIds) {
-              if (cid !== null && cid !== undefined) {
-                push(pid, 'clip:' + cid, 'plan_links', 'learning_plan_link');
-              }
-            }
+          for (const cid of refIds(phase, ['sourceClipIds'], ['sourceClipId'])) {
+            push(pid, 'clip:' + cid, 'plan_links', 'learning_plan_link');
           }
         }
       }

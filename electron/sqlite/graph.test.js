@@ -99,6 +99,26 @@ test('M3.4 图谱组装：节点分类 + 关系计数 + 悬空边剔除', () => 
   assert.ok(onlyKnowledge.nodes.every((n) => n.type === 'knowledge'));
 });
 
+test('M3.3 兼容旧模型标量 sourceClipId 派生 derived_from', () => {
+  seed(
+    [
+      // 旧模型：标量 sourceClipId（非 List），无 linkedKnowledgeIds
+      { id: 1, title: 'k1', sourceClipId: 9 },
+      // 新模型：List 形态
+      { id: 2, title: 'k2', sourceClipIds: [9, 10] }
+    ],
+    []
+  );
+  svc.initLocalIndex(base);
+  const db = require('./db').getDatabase();
+  const rels = relationBuilder.findFor(db, 'knowledge:1');
+  assert.ok(rels.some((x) => x.fromId === 'clip:9' && x.toId === 'knowledge:1' && x.relationType === 'derived_from'),
+    '标量 sourceClipId 应派生 derived_from');
+  const rels2 = relationBuilder.findFor(db, 'knowledge:2');
+  assert.equal(rels2.filter((x) => x.relationType === 'derived_from').length, 2,
+    'List sourceClipIds=[9,10] 派生 2 条');
+});
+
 test('M3.6 遗留文件迁移：持久化 + 幂等 + 派生优先', () => {
   const idxDir = path.join(base, 'index');
   fs.mkdirSync(idxDir, { recursive: true });
