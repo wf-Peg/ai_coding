@@ -3520,7 +3520,7 @@ a.wikilink.wikilink-missing:hover {
   text-align: center;
 }
 
-/* ═══════════ 全局文件快速搜索(Ctrl+O) ─────────────── */
+/* ═══════════ 全局文件快速搜索(Ctrl+Shift+O) ─────────────── */
 .quick-switcher {
   position: fixed;
   top: 50%;

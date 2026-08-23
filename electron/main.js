@@ -2872,8 +2872,14 @@ function setupIPC() {
   // 避免每次反链刷新/补全请求都全量读盘，显著降低反链同步延迟。
   // 可链接类型：md + 编辑器可打开的文本类型（txt/sql/json/xml/csv/log/yaml 等）。
   const LINKABLE_EXT_RE = /\.(md|mdown|markdown|txt|sql|json|xml|csv|log|yaml|yml|ini|conf)$/i;
-  // 排除模块：原始存档目录（如 clip-storage 的海量 json），避免补全被污染。
-  const EXCLUDED_MODULE_DIRS = ['clip-storage'];
+  // 排除模块：原始存档目录 + 运行时/构建/依赖等重目录，避免补全被海量非内容文件污染、拖慢唤醒扫描。
+  const EXCLUDED_MODULE_DIRS = [
+    'clip-storage',
+    '.dsh', 'node_modules', 'jre', 'jre-slim',
+    'dist-electron', 'dist-dsh-offline', 'dist', 'build', 'out',
+    'backend', 'frontend', 'electron', 'scripts', 'test', 'docs',
+    'tmp', 'integrations', 'browser-extension', 'TODO', 'jlink-target'
+  ];
   const LINK_INDEX_TTL = 3000;            // 模块 watch 不可用时的 TTL 兜底（毫秒）
   const LINK_INDEX_SCAN_MAX_BYTES = 10 * 1024 * 1024; // 反链扫描大小守卫（>10MB 只作目标）
 

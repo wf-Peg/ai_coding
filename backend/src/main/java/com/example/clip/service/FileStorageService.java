@@ -309,7 +309,10 @@ public class FileStorageService {
     private static final Set<String> EXCLUDED_DIR_NAMES = Set.of(
             "todoList", "knowledge", "knowledge-base", "topic", "vault", "learning-plan",
             "tmp", "editor", "weekly-report", "weeklyReport", "clip-organized",
-            ".tmp", ".trash", ".git", ".obsidian"
+            ".tmp", ".trash", ".git", ".obsidian", ".dsh", ".index",
+            "node_modules", "jre", "jre-slim", "dist-electron", "dist-dsh-offline",
+            "dist", "build", "out", "backend", "frontend", "electron",
+            "scripts", "test", "docs", "integrations", "browser-extension", "TODO"
     );
 
     /** 非剪藏配置文件（根级文件名匹配） */

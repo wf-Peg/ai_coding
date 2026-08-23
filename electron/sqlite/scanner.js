@@ -10,10 +10,14 @@ const fs = require('fs');
 const path = require('path');
 
 // 非剪藏数据目录名（段级匹配，对齐 Java EXCLUDED_DIR_NAMES）
+// 含运行时/构建/依赖等重目录（.dsh、node_modules、jre 等），避免被海量非内容文件拖累扫描。
 const EXCLUDED_DIR_NAMES = new Set([
   'todoList', 'knowledge', 'knowledge-base', 'topic', 'vault', 'learning-plan',
   'tmp', 'editor', 'weekly-report', 'weeklyReport', 'clip-organized',
-  '.tmp', '.trash', '.git', '.obsidian'
+  '.tmp', '.trash', '.git', '.obsidian', '.dsh', '.index',
+  'node_modules', 'jre', 'jre-slim', 'dist-electron', 'dist-dsh-offline',
+  'dist', 'build', 'out', 'backend', 'frontend', 'electron',
+  'scripts', 'test', 'docs', 'integrations', 'browser-extension', 'TODO'
 ]);
 
 // 非剪藏配置文件（根级文件名匹配，对齐 Java EXCLUDED_FILE_NAMES）

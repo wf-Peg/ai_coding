@@ -102,6 +102,9 @@ tmp/
 # SQLite 本地索引运行期数据库（本地生成，不提交）
 .index/
 
+# AI 代理（superpowers）工作目录（本地生成，不提交）
+.superpowers/
+
 # IPC 复现/调试临时目录（不提交）
 electron/repro-ipc/
 

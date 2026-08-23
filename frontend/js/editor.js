@@ -3346,9 +3346,10 @@
         ? (activeTabIndex - 1 + tabs.length) % tabs.length
         : (activeTabIndex + 1) % tabs.length;
       switchToTab(next);
-    } else if (modifier && event.key.toLowerCase() === 'o') {
-      // Ctrl/Cmd+O 已由全局快速搜索（openQuickSwitcher）接管，不再打开原生文件对话框
+    } else if (modifier && !event.shiftKey && event.key.toLowerCase() === 'o') {
+      // Ctrl/Cmd+O 打开文件对话框（文件搜索已让给 Ctrl/Cmd+Shift+O）
       event.preventDefault();
+      openMainFile();
     } else if (modifier && event.key.toLowerCase() === 's') {
       event.preventDefault();
       saveFile(event.shiftKey);
@@ -5973,9 +5974,9 @@
   outlineBtn.addEventListener('click', function() { toggleOutline(); });
   elements.runtimeStatus.parentNode.insertBefore(outlineBtn, elements.runtimeStatus);
 
-  // 全局文件搜索按钮（底部状态栏右侧，Ctrl+O）
-  // 注意：createStatusBtn 会自动拼接 "(shortcut)"，title 里不要再重复写快捷键，否则悬浮提示会出现两个 Ctrl+O
-  var quickSearchBtn = createStatusBtn('搜索', '🔍', '快速打开文件', 'Ctrl+O');
+  // 全局文件搜索按钮（底部状态栏右侧，Ctrl+Shift+O）
+  // 注意：createStatusBtn 会自动拼接 "(shortcut)"，title 里不要再重复写快捷键，否则悬浮提示会出现两个快捷键
+  var quickSearchBtn = createStatusBtn('搜索', '🔍', '快速打开文件', 'Ctrl+Shift+O');
   quickSearchBtn.addEventListener('click', function() { openQuickSwitcher(); });
   elements.runtimeStatus.parentNode.insertBefore(quickSearchBtn, elements.runtimeStatus);
 
@@ -6116,7 +6117,7 @@
   // 注册核心命令
   registerCommand('new', '新建文件', '📄', function() { createNewTab(); }, 'Ctrl+T');
   registerCommand('open', '打开文件…', '📁', function() { openMainFile(); });
-  registerCommand('quick-open', '快速打开文件', '🔍', function() { openQuickSwitcher(); }, 'Ctrl+O');
+  registerCommand('quick-open', '快速打开文件', '🔍', function() { openQuickSwitcher(); }, 'Ctrl+Shift+O');
   registerCommand('save', '保存', '💾', function() { saveFile(false); }, 'Ctrl+S');
   registerCommand('save-as', '另存为…', '📋', function() { saveFile(true); }, 'Ctrl+Shift+S');
   registerCommand('outline', '切换大纲面板', '☰', function() { toggleOutline(); }, 'Ctrl+Shift+D');
@@ -6213,7 +6214,7 @@
     }
   });
 
-  // ── 全局文件快速搜索（Ctrl+O，Obsidian Quick Switcher 风格）──
+  // ── 全局文件快速搜索（Ctrl+Shift+O，Obsidian Quick Switcher 风格）──
   var quickOpenVisible = false;
   var quickIndex = 0;
   var quickFiltered = [];
@@ -6384,9 +6385,9 @@
     if (quickOpenVisible && !elements.quickSwitcher.contains(e.target)) closeQuickSwitcher();
   });
 
-  // Ctrl/Cmd+O 唤起全局文件搜索（排除 Shift/Alt，避免与 Ctrl+Shift+O 大纲等冲突）
+  // Ctrl/Cmd+Shift+O 唤起全局文件搜索（已让出 Ctrl+O 给「打开」）
   document.addEventListener('keydown', function(e) {
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key === 'o') {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && e.key === 'o') {
       e.preventDefault();
       if (quickOpenVisible) closeQuickSwitcher(); else openQuickSwitcher();
     }
