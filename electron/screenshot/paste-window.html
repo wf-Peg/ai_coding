@@ -74,7 +74,7 @@
   <div id="menu"></div>
 </div>
 <script>
-  const screenshotApi = window.screenshotApi;
+  const screenshotApi = window.electronScreenshotApi;
   const img = document.getElementById('img');
   const wrap = document.getElementById('wrap');
   const menu = document.getElementById('menu');
@@ -122,7 +122,10 @@
     }
     screenshotApi.send('paste:rendered', { delta: Date.now() });
   };
-  img.onerror = (ev) => screenshotApi.send('paste:render-error', { message: (ev && ev.message) || 'image decode failed' });
+  img.onerror = (ev) => screenshotApi.send('paste:render-error', {
+    message: (ev && ev.message) || 'image decode failed',
+    width: img.naturalWidth || 0, height: img.naturalHeight || 0, src: currentUrl || (img.src || '').slice(0, 60)
+  });
 
   // ── 文本贴图：将多行文本排版成白底黑字 PNG（Snipaste 文字贴图） ──
   function renderTextToImage(text) {

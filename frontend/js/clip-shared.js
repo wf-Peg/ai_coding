@@ -173,6 +173,26 @@ var selectedClipIds = new Set();
         }
 
         /**
+         * 全库统一搜索（M4）：跨 clip / knowledge / learning-plan，返回统一类型化命中。
+         * 本地索引策略：local-index:search-all IPC；REST 兜底 /api/local-search。
+         * @param {string} query 关键词
+         * @param {{type?: string, topK?: number}} [opts] type 'all'/null → 不限
+         * @returns {Promise<Array<{type:string,id:string,title:string,snippet:string}>>}
+         */
+        async function searchAll(query, opts) {
+            const { type, topK = 50 } = opts || {};
+            const bridge = window.electronAPI && window.electronAPI.localIndex;
+            if (bridge && typeof bridge.searchAll === 'function') {
+                const res = await bridge.searchAll(query, { topK, type });
+                if (res && res.success) return res.results || [];
+                throw new Error((res && res.message) || '本地全库搜索失败');
+            }
+            const url = `${API_ROOT}/local-search`;
+            const response = await axios.get(url, { params: { query, type, topK } });
+            return response.data.results || response.data || [];
+        }
+
+        /**
          * 查询某节点关系（出链 + 反链）。本地索引不可用时回退 REST（dev 端点留空，仅读由本地索引承担）。
          * @param {string} id 实体 id，如 'knowledge:1'
          * @returns {Promise<Array<Object>>}
@@ -187,7 +207,7 @@ var selectedClipIds = new Set();
             return [];
         }
 
-        return { search, fetchGraph, relations };
+        return { search, searchAll, fetchGraph, relations };
     })();
 
     // ── 离线/断网模式处理 ──

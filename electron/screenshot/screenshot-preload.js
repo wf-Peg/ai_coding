@@ -37,7 +37,9 @@ const ALLOWED_INVOKE = new Set([
 // 允许监听主进程事件的通道
 const ALLOWED_ON = new Set([
   'screenshot:loading',
+  'screenshot:reset',
   'screenshot:init',
+  'screenshot:paste-selection',
   'paste:init',
   'ocr-result:init'
 ]);
@@ -52,7 +54,7 @@ function on(channel, cb) {
   return () => ipcRenderer.removeListener(channel, listener);
 }
 
-contextBridge.exposeInMainWorld('screenshotApi', {
+contextBridge.exposeInMainWorld('electronScreenshotApi', {
   /** 单向发送（白名单内）。 */
   send: (channel, ...args) => {
     if (!ALLOWED_SEND.has(channel)) throw new Error(`[screenshot-preload] 未授权的发送通道: ${channel}`);

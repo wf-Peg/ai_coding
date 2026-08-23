@@ -412,6 +412,80 @@ function downloadModelsInline(modelsDir) {
   return spawnAsync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded]);
 }
 
+// 模型清单（文件名 → 按顺序尝试的下载源）。Node 与 PowerShell 分支共用。
+function getModelJobs() {
+  return [
+    { n: 'ch_PP-OCRv4_det_infer.onnx', urls: ['https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/det.onnx', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv4_det_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv4_det_infer.onnx'] },
+    { n: 'ch_PP-OCRv4_rec_infer.onnx', urls: ['https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/rec.onnx', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv4_rec_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv4_rec_infer.onnx'] },
+    { n: 'ch_PP-OCRv4_cls_infer.onnx', urls: ['https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/cls.onnx', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_cls/ch_PP-OCRv4_cls_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_cls/ch_PP-OCRv4_cls_infer.onnx'] },
+    { n: 'ppocr_keys_v1.txt', urls: ['https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/ppocr_keys_v1.txt', 'https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/ppocr_keys_v1.txt', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/ppocr_keys_v1.txt'] }
+  ];
+}
+
+/** 单文件下载（Node http/https，跟随重定向，写临时文件后原子改名，失败清理） */
+function downloadFile(url, destPath) {
+  return new Promise((resolve, reject) => {
+    const tmpPath = destPath + '.tmp';
+    let mod;
+    try { mod = url.startsWith('https:') ? require('https') : require('http'); }
+    catch (e) { return reject(e); }
+    const attempt = (u, redirectsLeft) => {
+      const req = mod.get(u, (res) => {
+        const code = res.statusCode || 0;
+        // 3xx 重定向
+        if (code >= 300 && code < 400 && res.headers.location && redirectsLeft > 0) {
+          res.resume();
+          const next = new URL(res.headers.location, u).toString();
+          try { mod = next.startsWith('https:') ? require('https') : require('http'); }
+          catch (e) { return reject(e); }
+          return attempt(next, redirectsLeft - 1);
+        }
+        if (code !== 200) {
+          res.resume();
+          return reject(new Error(u + ' HTTP ' + code));
+        }
+        const out = fs.createWriteStream(tmpPath);
+        res.pipe(out);
+        out.on('finish', () => {
+          out.close(() => {
+            fs.renameSync(tmpPath, destPath);
+            resolve();
+          });
+        });
+        out.on('error', (err) => { fs.unlink(tmpPath, () => {}); reject(err); });
+        res.on('error', (err) => { fs.unlink(tmpPath, () => {}); reject(err); });
+      });
+      req.setTimeout(90000, () => { req.destroy(new Error('下载超时: ' + u)); });
+      req.on('error', (err) => { fs.unlink(tmpPath, () => {}); reject(err); });
+    };
+    attempt(url, 5);
+  });
+}
+
+/** macOS/Linux：直接用 Node 下载模型（PowerShell 在非 Windows 不存在，spawn 会 ENOENT） */
+async function downloadModelsNode(modelsDir) {
+  fs.mkdirSync(modelsDir, { recursive: true });
+  const results = [];
+  for (const job of getModelJobs()) {
+    const t = path.join(modelsDir, job.n);
+    if (fs.existsSync(t)) { results.push('[OK] 已存在 ' + job.n); continue; }
+    let ok = false;
+    for (const u of job.urls) {
+      try { await downloadFile(u, t); ok = true; results.push('[OK] ' + job.n); break; }
+      catch (e) { results.push('  [skip] ' + job.n + ' <- ' + e.message); }
+    }
+    if (!ok) results.push('[FAIL] ' + job.n + ' 所有下载源均失败');
+  }
+  results.push('DONE: ' + modelsDir);
+  return results.join('\n');
+}
+
+/** 按平台选择下载实现：Windows 用 PowerShell，其余平台用 Node（规避 spawn powershell ENOENT） */
+function downloadModels(modelsDir) {
+  if (process.platform === 'win32') return downloadModelsInline(modelsDir);
+  return downloadModelsNode(modelsDir);
+}
+
 function registerIpc() {
   const { ipcMain } = deps;
   ipcMain.handle('screenshot:cancel', () => { closeScreenshotWindow(); return true; });
@@ -492,10 +566,10 @@ function registerIpc() {
     const modelsDir = getModelsDir();
     const required = ['ch_PP-OCRv4_det_infer.onnx', 'ch_PP-OCRv4_rec_infer.onnx', 'ch_PP-OCRv4_cls_infer.onnx', 'ppocr_keys_v1.txt'];
     const needModel = !required.every(f => fs.existsSync(path.join(modelsDir, f)));
-    // 3) 下载模型：内联 PowerShell（EncodedCommand，避免打包后 asar 内脚本不可执行）
+    // 3) 下载模型：按平台选择（Windows 用内联 PowerShell，macOS/Linux 用 Node 直接下载）
     if (needModel) {
       try {
-        await downloadModelsInline(modelsDir);
+        await downloadModels(modelsDir);
       } catch (e) {
         return { status: 'error', message: '模型下载失败: ' + e.message };
       }

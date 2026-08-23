@@ -3506,6 +3506,12 @@ a.wikilink.wikilink-missing:hover {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.command-palette-item-shortcut {
+  flex-shrink: 0;
+  margin-left: 12px;
+  font-size: 11px;
+  opacity: .65;
+}
 .command-palette-hint {
   padding: 8px 14px;
   border-top: 1px solid var(--app-border);

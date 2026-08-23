@@ -111,7 +111,10 @@ function refreshShortcuts() { unregisterShortcuts(); registerShortcuts(); }
 
 // ==================== 截图流程 ====================
 
-/** macOS 屏幕录制权限检测示例：已授权返回 true；无法检测返回 null（跳过引导） */
+/** macOS 屏幕录制权限检测示例：已授权返回 'granted'；无法检测返回 null（跳过引导）。
+ *  注意：getMediaAccessStatus('screen') 在 macOS 上并不可靠——即使用户已在系统设置授权，
+ *  也可能长期返回 'not-determined'/'unknown'。因此它只用于捕获真的拿不到帧时的"归因"，
+ *  不作为截图前的硬拦截，避免"已授权仍报未授权"的误判。 */
 function getScreenPermissionStatus() {
   if (process.platform !== 'darwin') return 'granted';
   try {
@@ -120,6 +123,37 @@ function getScreenPermissionStatus() {
     }
   } catch (e) {}
   return null;
+}
+
+/** 屏幕为空帧时的错误构造：仅当权限为明确的 denied/restricted 才归因于"未授权"并携带
+ *  permissionDenied 标记（用于自动打开系统设置）；not-determined/unknown 一律用通用提示，
+ *  避免检测不准导致的误报。 */
+function createEmptyCaptureError() {
+  if (process.platform === 'darwin') {
+    const st = getScreenPermissionStatus();
+    if (st === 'denied' || st === 'restricted') {
+      const err = new Error('系统未授予"屏幕录制"权限。请在 系统设置→隐私与安全性→屏幕录制 中允许本应用后重试');
+      err.permissionDenied = true;
+      return err;
+    }
+  }
+  return new Error('屏幕捕获为空帧：请检查系统"屏幕录制"权限（macOS 设置→隐私与安全性→屏幕录制）');
+}
+
+/** getSources 直接拒绝（非空/黑帧）时的错误构造：macOS 上 "Failed to get sources." 通常是
+ *  屏幕录制权限被撤销/未授权（TCC）导致的持久失败，重试无法解决。这里打点权限状态用于诊断，
+ *  并转为明确可操作的权限引导（failScreenshot 会自动打开系统设置页）。 */
+function createGetSourcesError(cause) {
+  if (process.platform === 'darwin') {
+    const status = getScreenPermissionStatus();
+    log('getSources rejected persistently; screen access status =', status,
+      '| err =', (cause && cause.message) || cause);
+    const err = new Error('无法获取屏幕画面：请检查「系统设置 → 隐私与安全性 → 屏幕录制」是否允许本应用' +
+      '（如已勾选但仍失败，请先在列表中关闭再重新打开，并重启应用）。当前系统权限状态：' + (status || '未知'));
+    err.permissionDenied = true; // 对"枚举屏幕源被拒"一律引导打开设置排查（而非黑帧误报路径）
+    return err;
+  }
+  return cause || new Error('无法获取屏幕画面，请重试');
 }
 
 /** 简单延时 */
@@ -132,6 +166,41 @@ function isValidCaptureImage(img) {
   return s && s.width > 0 && s.height > 0;
 }
 
+/** 判定是否为"几乎全黑"帧：macOS 屏幕录制权限被系统拦截/失效时，desktopCapturer 常返回
+ *  尺寸有效但整帧纯黑的帧（其本身不报错），若不识别会被当作有效背景展示，造成"截图黑屏"。
+ *  采用网格采样（≤64 点）：纯黑权限帧几乎每一点 RGB 都≈0；真实深色界面（如 #1e1e1e=30,30,30、
+ *  带文字光标）总会有采样点 > 阈值，从而避免误判。 */
+function isBlackFrame(img) {
+  try {
+    const s = img.getSize();
+    if (!s || s.width === 0 || s.height === 0) return true;
+    const buf = img.toBitmap(); // 平台相关像素序；判黑只需看 RGB 是否全≈0，与顺序无关
+    if (!buf || buf.length < s.width * s.height * 4) return true;
+    const cols = Math.min(8, s.width), rows = Math.min(8, s.height);
+    const pxPerCol = Math.max(1, Math.floor(s.width / cols));
+    const pxPerRow = Math.max(1, Math.floor(s.height / rows));
+    let total = 0, black = 0;
+    for (let ry = 0; ry < rows; ry++) {
+      for (let rx = 0; rx < cols; rx++) {
+        const x = Math.min(s.width - 1, rx * pxPerCol);
+        const y = Math.min(s.height - 1, ry * pxPerRow);
+        const i = (y * s.width + x) * 4;
+        const r = buf[i], g = buf[i + 1], b = buf[i + 2];
+        total++;
+        if (r < 10 && g < 10 && b < 10) black++;
+      }
+    }
+    // 观测：命中黑帧时输出采样统计，便于从日志区分"权限黑帧"vs"捕获报错"
+    if (black === total) {
+      log('isBlackFrame: full-black frame hit', s.width + 'x' + s.height, 'sampled', total + '/' + total);
+    } else if (black > 0) {
+      log('isBlackFrame: partial-dark frame (not treated as black)',
+        s.width + 'x' + s.height, 'dark', black + '/' + total);
+    }
+    return total > 0 && black === total;
+  } catch (e) { return false; }
+}
+
 /** 捕获指定显示器为 nativeImage（默认光标所在显示器）。
  *  macOS 上可能拿到空/黑帧，做非空校验与重试，避免黑屏与后续裁剪回退全屏。 */
 async function captureScreen(display) {
@@ -140,22 +209,34 @@ async function captureScreen(display) {
   const sf = disp.scaleFactor || 1;
   const size = disp.size; // DIP {width, height}
   // 真实像素缩略图（HiDPI 不失真）：thumbnailSize 传 size×scaleFactor
-  const MAX_TRIES = 3;
+  const MAX_TRIES = 4;
   let img = null;
+  let lastGetSourcesErr = null; // 记录 getSources 抛出的最后一次异常（如瞬时的 "Failed to get sources."）
   for (let i = 0; i < MAX_TRIES; i++) {
-    const full = await desktopCapturer.getSources({
-      types: ['screen'],
-      thumbnailSize: { width: Math.round(size.width * sf), height: Math.round(size.height * sf) }
-    });
-    if (!full || full.length === 0) throw new Error('未找到可捕获的屏幕');
-    img = full[0].thumbnail;
-    if (isValidCaptureImage(img)) break;
-    log('capture retry', i + 1, 'invalid/empty thumbnail:',
-      (img ? JSON.stringify(img.getSize()) : 'none'));
-    if (i < MAX_TRIES - 1) await delay(60);
+    try {
+      const full = await desktopCapturer.getSources({
+        types: ['screen'],
+        thumbnailSize: { width: Math.round(size.width * sf), height: Math.round(size.height * sf) }
+      });
+      lastGetSourcesErr = null; // 本次调用未抛异常，清除上次记录
+      if (!full || full.length === 0) throw new Error('未找到可捕获的屏幕');
+      img = full[0].thumbnail;
+      if (isValidCaptureImage(img) && !isBlackFrame(img)) break;
+      log('capture retry', i + 1, 'invalid/empty/black thumbnail:',
+        (img ? JSON.stringify(img.getSize()) : 'none'));
+    } catch (e) {
+      // getSources 本身抛错（macOS 上"Failed to get sources."常见于瞬时抓屏失败/权限抖动），
+      // 属可恢复错误：记录后重试，避免一次抖动就让整个截图失败。
+      lastGetSourcesErr = e;
+      log('capture getSources failed (try', i + 1 + '/' + MAX_TRIES + '):', (e && e.message) || e);
+    }
+    if (i < MAX_TRIES - 1) await delay(80);
   }
-  if (!isValidCaptureImage(img)) {
-    throw new Error('屏幕捕获为空帧：请检查系统"屏幕录制"权限（macOS 设置→隐私与安全性→屏幕录制）');
+  // getSources 全程反复失败：这是持久性失败，非瞬时抖动。macOS 下最常见原因是"屏幕录制"权限
+  // 被撤销/未授权（TCC），重试无法解决——转为明确、可操作的权限引导并自动打开系统设置。
+  if (lastGetSourcesErr) throw createGetSourcesError(lastGetSourcesErr);
+  if (!isValidCaptureImage(img) || isBlackFrame(img)) {
+    throw createEmptyCaptureError();
   }
   lastCapture = img;
   lastCaptureDisplaySize = size; // 记录本次捕获的显示器 DIP 尺寸（裁剪换算基准）
@@ -203,18 +284,25 @@ function encodeForDisplay(image) {
 async function startScreenshot(defaultAction) {
   if (!deps) return;
   if (inFlight) return; // 捕获进行中，忽略连按
-  if (screenshotWindow && !screenshotWindow.isDestroyed() && screenshotWindow.isVisible()) return; // 覆盖层已显示，防重入
+  if (screenshotWindow && !screenshotWindow.isDestroyed() && screenshotWindow.isVisible()) {
+    // 覆盖层已显示：说明上轮未正常收尾（黑屏卡在覆盖层）。这里不静默 return，
+    // 而是强制复位重开，避免"再按 F1 仍黑屏"。
+    log('startScreenshot: overlay still visible, forcing reset & retry');
+    closeScreenshotWindow();
+  }
   pendingAction = defaultAction || 'copy';
   const t0 = Date.now();
 
-  // macOS 屏幕录制权限：未授权直接引导，避免黑屏卡住
-  if (process.platform === 'darwin') {
-    const st = getScreenPermissionStatus();
-    if (st && st !== 'granted') {
-      failScreenshot('系统未授予"屏幕录制"权限', st === 'denied');
-      return;
-    }
-  }
+  // 捕获/渲染全程兜底看门狗必须在进入任何可能挂起的路径前就武装：
+  // 从 win.show() 起，若 desktopCapturer.getSources 挂起、或渲染迟迟无回执，
+  // 8s 后主动收尾，杜绝"全屏黑窗永久卡死"。成功路径由 screenshot:painted /
+  // closeScreenshotWindow 清除；渲染层确认后再重新武装更短的渲染超时。
+  clearTimeout(pendingPaintTimer);
+  pendingPaintTimer = setTimeout(() => {
+    if (!inFlight) return;
+    log('screenshot: capture/render watchdog timeout, aborting');
+    failScreenshot('截图超时，已取消', false);
+  }, 8000);
 
   try {
     const cfg = loadScreenshotConfig();
@@ -224,6 +312,7 @@ async function startScreenshot(defaultAction) {
     const display = getTargetDisplay();
     const win = getOrCreateOverlayWindow(display);
     // 1) 立即显示：深色底 + “正在截取屏幕…”（按键即有感知反馈）
+    inFlight = true; // 打开覆盖层即武装（前置，见上方看门狗）
     win.show();
     try { win.focus(); } catch (e) {}
     win.webContents.send('screenshot:loading', {});
@@ -231,7 +320,6 @@ async function startScreenshot(defaultAction) {
     win.hide();
     // macOS WindowServer 异步合成：hide 后稍等一拍再抓屏，避免抓到覆盖层深色/未刷新帧
     if (process.platform === 'darwin') await delay(50);
-    inFlight = true;
     const shot = await captureScreen(display);
     logPerf('capture', t0);
     const disp = encodeForDisplay(shot.image);
@@ -250,8 +338,11 @@ async function startScreenshot(defaultAction) {
       failScreenshot('截图图像渲染超时，已取消', false);
     }, 2000);
   } catch (e) {
-    log('startScreenshot failed:', e.message);
-    failScreenshot(e.message || '截图失败', false);
+    const raw = typeof e === 'object' && e !== null
+      ? (e.stack || e.message || JSON.stringify(e))
+      : String(e);
+    log('startScreenshot failed:', raw);
+    failScreenshot((e && e.message) || raw || '截图失败', !!(e && e.permissionDenied));
   }
 }
 
@@ -298,8 +389,10 @@ function getOrCreateOverlayWindow(display) {
   });
   screenshotWindow = win;
   win.loadFile(path.join(__dirname, 'screenshot-window.html'));
-  // 覆盖层渲染层报错落日志（可观测性，与贴图窗口一致）
-  win.webContents.on('console-message', (e, level, message) => {
+  // 覆盖层渲染层报错落日志（可观测性，与贴图窗口一致）。Electron36 起为 (event) 对象签名
+  win.webContents.on('console-message', (event) => {
+    const level = Number(event && event.level);
+    const message = (event && event.message) || '';
     if (level >= 2) log('overlay console[' + level + ']:', String(message).slice(0, 200));
   });
   win.on('closed', () => { screenshotWindow = null; });
@@ -370,8 +463,9 @@ async function handleConfirm(payload) {
       if (deps.showMainWindow) deps.showMainWindow();
       return runOcr(cropped);
     case 'paste':
-      // 贴图：直接贴出，不恢复主窗口（与 Snipaste 一致，避免"弹出软件窗口"）
-      return showPasteWindow(cropped);
+      // 贴图：直接贴出，不恢复主窗口（与 Snipaste 一致，避免"弹出软件窗口"）；
+      // 定位在选区左上角，得到"与截图区域同等大小、落在选区位置"的贴图
+      return showPasteWindow(cropped, null, rect ? selectionScreenPosition(rect) : null);
     case 'copy':
     default:
       if (deps.showMainWindow) deps.showMainWindow();
@@ -401,8 +495,24 @@ async function saveImage(image) {
   return { status: 'saved', path: result.filePath };
 }
 
-/** 贴图（Snipaste 语义）：剪贴板内容优先（图片→文本）→ 最近截图选区 → 最近全屏（极端兜底） */
+/** 截图覆盖层是否处于激活态（F1 后尚未确认/取消） */
+function screenshotOverlayActive() {
+  return !!(screenshotWindow && !screenshotWindow.isDestroyed() && screenshotWindow.isVisible());
+}
+
+/** 贴图（Snipaste 语义）：优先"截图覆盖层中的当前选区"→ 剪贴板（图片→文本）→ 最近确认选区。
+ *  不再把整屏原图 lastCapture 直接当贴图静默贴出：未确认选区时贴全屏会被用户误解为"贴图变全屏"，
+ *  同时会让覆盖层停留在黑底状态造成"贴图后黑屏"错觉。 */
 function pasteFromClipboard() {
+  // 覆盖层正打开：优先把"当前已拖出的选区"直接确认成贴图，
+  // 得到"与截图区域同等大小"的贴图，而不是整屏原图。
+  if (screenshotOverlayActive()) {
+    try {
+      screenshotWindow.webContents.send('screenshot:paste-selection', {});
+      log('paste requested during active overlay → confirm current selection as paste');
+      return { status: 'from-selection' };
+    } catch (e) { log('paste-selection dispatch failed:', e.message); }
+  }
   const { clipboard } = deps;
   const fmts = clipboard.availableFormats();
   const hasImg = Array.isArray(fmts) && fmts.some(f => f.startsWith('image/'));
@@ -418,7 +528,7 @@ function pasteFromClipboard() {
     if (t && t.trim()) return showPasteWindow(null, t); // 文本贴图
   }
   if (lastSnip) return showPasteWindow(lastSnip);
-  if (lastCapture) return showPasteWindow(lastCapture);
+  notifyMainWindow('无内容可贴图：请先截图并确认选区', 'warn', 4000);
   log('no image to paste');
   return { status: 'empty' };
 }
@@ -427,8 +537,25 @@ function pasteFromClipboard() {
 
 let pasteWindows = [];
 
-/** 创建置顶贴图窗口（可拖动，双击/右键关闭）。image 与 text 二选一：image 为原生图，text 为文本贴图。 */
-function showPasteWindow(image, text) {
+/** 计算选区左上角在全局屏幕（DIP）中的坐标，用于把贴图定位在选区位置。
+ *  rect 为覆盖层窗口内 CSS/DIP 坐标；覆盖层是全屏、位于当前目标显示器，其 (0,0) 即显示器左上角。 */
+function selectionScreenPosition(rect) {
+  try {
+    if (screenshotWindow && !screenshotWindow.isDestroyed()) {
+      const [ox, oy] = screenshotWindow.getPosition();
+      return {
+        x: Math.round(ox + (rect && rect.x || 0)),
+        y: Math.round(oy + (rect && rect.y || 0))
+      };
+    }
+  } catch (e) {}
+  return null;
+}
+
+/** 创建置顶贴图窗口（可拖动，双击/右键关闭）。image 与 text 二选一：image 为原生图，text 为文本贴图。
+ *  可选 startPos：贴图弹出的初始屏幕坐标（通常传选区左上角，实现"在截图区域位置同等大小贴图"）；
+ *  缺省时按层叠偏移铺开。 */
+function showPasteWindow(image, text, startPos) {
   const { BrowserWindow } = deps;
   let iw, ih, w, h;
   if (image) {
@@ -444,11 +571,13 @@ function showPasteWindow(image, text) {
     // 文本贴图：初始占位尺寸，渲染层排版后经 paste:text-ready 精确 resize
     w = 480; h = 320;
   }
+  const startX = (startPos && typeof startPos.x === 'number') ? startPos.x : (100 + pasteWindows.length * 30);
+  const startY = (startPos && typeof startPos.y === 'number') ? startPos.y : (100 + pasteWindows.length * 30);
   const win = new BrowserWindow({
     width: w,
     height: h,
-    x: 100 + pasteWindows.length * 30,
-    y: 100 + pasteWindows.length * 30,
+    x: startX,
+    y: startY,
     frame: false,
     transparent: false,          // 默认不透明（规避 Windows 透明窗口渲染不可靠）；透明度经 setOpacity 独立控制
     backgroundColor: image ? '#000000' : '#ffffff',
@@ -509,8 +638,10 @@ function showPasteWindow(image, text) {
       log('paste:init sent', iw + 'x' + ih, '->', w + 'x' + h);
     }
   });
-  // 渲染层报错不再静默：console error / 图片解码失败都会落日志
-  win.webContents.on('console-message', (e, level, message) => {
+  // 渲染层报错不再静默：console error / 图片解码失败都会落日志。Electron36 起为 (event) 对象签名
+  win.webContents.on('console-message', (event) => {
+    const level = Number(event && event.level);
+    const message = (event && event.message) || '';
     if (level >= 2) log('paste-window console[' + level + ']:', String(message).slice(0, 200));
   });
   win.on('closed', () => {
@@ -604,7 +735,11 @@ function closeScreenshotWindow() {
   clearTimeout(pendingPaintTimer); pendingPaintTimer = null;
   // 覆盖层复用：隐藏而非销毁；异常损坏时销毁由下次 F1 重建
   if (screenshotWindow && !screenshotWindow.isDestroyed()) {
-    try { screenshotWindow.hide(); } catch (e) { try { screenshotWindow.destroy(); } catch (e2) {} }
+    // 复位覆盖层渲染状态，清掉上轮残留（遮罩/选区/背景），杜绝复用窗口显示陈旧黑屏
+    try { screenshotWindow.webContents.send('screenshot:reset', {}); } catch (e) {}
+    try { screenshotWindow.hide(); } catch (e) { try { const w = screenshotWindow; screenshotWindow = null; w.destroy(); } catch (e2) {} }
+  } else {
+    screenshotWindow = null; // 已销毁但引用未清（防竞态残留）
   }
 }
 
@@ -662,13 +797,95 @@ function downloadModelsInline(modelsDir) {
   return spawnAsync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded]);
 }
 
+/** 模型清单（文件名 → 按顺序尝试的下载源）。Node 与 PowerShell 分支共用。 */
+function getModelJobs() {
+  return [
+    { n: 'ch_PP-OCRv4_det_infer.onnx', urls: ['https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/det.onnx', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv4_det_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv4_det_infer.onnx'] },
+    { n: 'ch_PP-OCRv4_rec_infer.onnx', urls: ['https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/rec.onnx', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv4_rec_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv4_rec_infer.onnx'] },
+    { n: 'ch_PP-OCRv4_cls_infer.onnx', urls: ['https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/cls.onnx', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_cls/ch_PP-OCRv4_cls_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_cls/ch_PP-OCRv4_cls_infer.onnx'] },
+    { n: 'ppocr_keys_v1.txt', urls: ['https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/ppocr_keys_v1.txt', 'https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/ppocr_keys_v1.txt', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/ppocr_keys_v1.txt'] }
+  ];
+}
+
+/** 单文件下载（Node http/https，跟随重定向，写临时文件后原子改名，失败清理） */
+function downloadFile(url, destPath) {
+  return new Promise((resolve, reject) => {
+    const tmpPath = destPath + '.tmp';
+    let mod;
+    try { mod = url.startsWith('https:') ? require('https') : require('http'); }
+    catch (e) { return reject(e); }
+    const attempt = (u, redirectsLeft) => {
+      const req = mod.get(u, (res) => {
+        const code = res.statusCode || 0;
+        // 3xx 重定向
+        if (code >= 300 && code < 400 && res.headers.location && redirectsLeft > 0) {
+          res.resume();
+          const next = new URL(res.headers.location, u).toString();
+          try { mod = next.startsWith('https:') ? require('https') : require('http'); }
+          catch (e) { return reject(e); }
+          return attempt(next, redirectsLeft - 1);
+        }
+        if (code !== 200) {
+          res.resume();
+          return reject(new Error(u + ' HTTP ' + code));
+        }
+        const out = fs.createWriteStream(tmpPath);
+        res.pipe(out);
+        out.on('finish', () => {
+          out.close(() => {
+            fs.renameSync(tmpPath, destPath);
+            resolve();
+          });
+        });
+        out.on('error', (err) => { fs.unlink(tmpPath, () => {}); reject(err); });
+        res.on('error', (err) => { fs.unlink(tmpPath, () => {}); reject(err); });
+      });
+      req.setTimeout(90000, () => { req.destroy(new Error('下载超时: ' + u)); });
+      req.on('error', (err) => { fs.unlink(tmpPath, () => {}); reject(err); });
+    };
+    attempt(url, 5);
+  });
+}
+
+/** macOS/Linux：直接用 Node 下载模型（PowerShell 在非 Windows 不存在，spawn 会 ENOENT） */
+async function downloadModelsNode(modelsDir) {
+  fs.mkdirSync(modelsDir, { recursive: true });
+  const results = [];
+  for (const job of getModelJobs()) {
+    const t = path.join(modelsDir, job.n);
+    if (fs.existsSync(t)) { results.push('[OK] 已存在 ' + job.n); continue; }
+    let ok = false;
+    for (const u of job.urls) {
+      try { await downloadFile(u, t); ok = true; results.push('[OK] ' + job.n); break; }
+      catch (e) { results.push('  [skip] ' + job.n + ' <- ' + e.message); }
+    }
+    if (!ok) results.push('[FAIL] ' + job.n + ' 所有下载源均失败');
+  }
+  results.push('DONE: ' + modelsDir);
+  return results.join('\n');
+}
+
+/** 按平台选择下载实现：Windows 用 PowerShell，其余平台用 Node（规避 spawn powershell ENOENT） */
+function downloadModels(modelsDir) {
+  if (process.platform === 'win32') return downloadModelsInline(modelsDir);
+  return downloadModelsNode(modelsDir);
+}
+
 function registerIpc() {
   const { ipcMain } = deps;
-  ipcMain.handle('screenshot:cancel', () => { closeScreenshotWindow(); return true; });
+  ipcMain.handle('screenshot:cancel', () => {
+    closeScreenshotWindow();
+    // 截图时主窗口被 hideMain 最小化；取消后回到主窗口，避免"应用看起来没反应"
+    if (deps.showMainWindow) deps.showMainWindow();
+    return true;
+  });
   ipcMain.handle('screenshot:confirm', (e, payload) => handleConfirm(payload));
   ipcMain.handle('screenshot:copy-last', () => {
     const src = lastSnip || lastCapture; // 与贴图语义一致：复制最近选区（无选区才全屏）
-    if (!src) return { status: 'empty' };
+    if (!src) {
+      notifyMainWindow('无可复制的截图：请先截图', 'warn', 4000);
+      return { status: 'empty' };
+    }
     deps.clipboard.writeImage(src);
     return { status: 'copied' };
   });
@@ -733,6 +950,17 @@ function registerIpc() {
   });
   ipcMain.on('paste:render-error', (e, payload) => {
     log('paste:render-error:', (payload && payload.message) || 'unknown');
+    // 贴图渲染失败（坏/空图）时自动回收该贴图窗，避免深色坏窗挂在那里（表现为"贴图无效"）
+    try {
+      const win = deps.BrowserWindow.fromWebContents(e.sender);
+      if (win) {
+        const i = pasteWindows.indexOf(win);
+        if (i >= 0) pasteWindows.splice(i, 1);
+        if (!win.isDestroyed()) win.destroy();
+        notifyMainWindow('贴图渲染失败，已自动关闭', 'warn', 4000);
+        log('paste window destroyed on render-error, remaining', pasteWindows.length);
+      }
+    } catch (err) { log('paste render-error cleanup failed:', err.message); }
   });
 
   // ── 贴图窗口交互（移动/缩放/保存） ──
@@ -818,7 +1046,10 @@ function registerIpc() {
     } else if (payload.dataUrl) {
       img = deps.nativeImage.createFromDataURL(payload.dataUrl);
     }
-    if (!img || img.isEmpty()) return { status: 'error', message: '无图片数据' };
+    if (!img || img.isEmpty()) {
+      notifyMainWindow('保存失败：无图片数据', 'warn', 4000);
+      return { status: 'error', message: '无图片数据' };
+    }
     return saveImage(img);
   });
 
@@ -835,10 +1066,10 @@ function registerIpc() {
     const modelsDir = getModelsDir();
     const required = ['ch_PP-OCRv4_det_infer.onnx', 'ch_PP-OCRv4_rec_infer.onnx', 'ch_PP-OCRv4_cls_infer.onnx', 'ppocr_keys_v1.txt'];
     const needModel = !required.every(f => fs.existsSync(path.join(modelsDir, f)));
-    // 3) 下载模型：内联 PowerShell（EncodedCommand，避免打包后 asar 内脚本不可执行）
+    // 3) 下载模型：按平台选择（Windows 用内联 PowerShell，macOS/Linux 用 Node 直接下载）
     if (needModel) {
       try {
-        await downloadModelsInline(modelsDir);
+        await downloadModels(modelsDir);
       } catch (e) {
         return { status: 'error', message: '模型下载失败: ' + e.message };
       }
@@ -901,6 +1132,17 @@ function checkOcrSetupNotice() {
   } catch (e) { log('ocr setup check failed:', e.message); }
 }
 
+/** 应用退出前的兜底清理：强制销毁截图覆盖层与贴图窗口。这些窗口是 fullscreen /
+ *  alwaysOnTop / 极简临时窗口，正常并不可关；若其渲染进程繁忙卡住，window.close() 会阻塞
+ *  app.quit()（表现为"无法退出"）。这里用 destroy() 跳过关闭握手，确保退出不被阻塞。 */
+function cleanupOnQuit() {
+  inFlight = false;
+  clearTimeout(pendingPaintTimer); pendingPaintTimer = null;
+  try { if (screenshotWindow && !screenshotWindow.isDestroyed()) screenshotWindow.destroy(); } catch (e) {}
+  screenshotWindow = null;
+  try { closeAllPasteWindows(); } catch (e) {}
+}
+
 module.exports = {
   initScreenshotService,
   refreshShortcuts,
@@ -909,5 +1151,6 @@ module.exports = {
   pasteFromClipboard,
   getOcrStatus,
   closeAllPasteWindows,
+  cleanupOnQuit,
   _test: { setDeps: (d) => { deps = d; }, getDeps: () => deps }
 };

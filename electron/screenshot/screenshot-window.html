@@ -120,7 +120,7 @@
   <button id="btnCancel">✕ 取消</button>
 </div>
 <script>
-  const screenshotApi = window.screenshotApi;
+  const screenshotApi = window.electronScreenshotApi;
   const bg = document.getElementById('bg');
   const bgCanvas = document.getElementById('bgCanvas');
   const mask = document.getElementById('mask');
@@ -248,6 +248,23 @@
     bgCanvas.style.display = 'block';
     onBackgroundReady(payload.t0);
   }
+
+  screenshotApi.on('screenshot:reset', () => {
+    // 主进程关闭覆盖层前的复位：清掉本轮到下一轮的任何残留（遮罩/选区/工具栏/背景），
+    // 避免复用窗口在下次 F1 时显示陈旧黑屏或残影。
+    resetOverlay();
+    hint.style.display = 'none';
+  });
+
+  // 贴图快捷键（F2）在覆盖层打开时：把当前已拖出的选区直接确认成贴图，
+  // 得到"与截图区域同等大小"的贴图，而不是整屏原图（Snipaste 语义）。
+  screenshotApi.on('screenshot:paste-selection', () => {
+    if (!selRect || selRect.w < 4 || selRect.h < 4) {
+      showHint('请先拖拽选择区域再贴图');
+      return;
+    }
+    confirm('paste');
+  });
 
   /** 加载态：主进程按下 F1 后立即广播（深色底 + 提示，感知即时响应） */
   screenshotApi.on('screenshot:loading', () => {

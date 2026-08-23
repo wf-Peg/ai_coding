@@ -142,6 +142,224 @@
             cursor: grab;
             user-select: none;
         }
+
+        /* ====== 全局统一搜索（右侧全局操作区） ====== */
+        .global-search {
+            position: relative;
+            height: 100%;
+            padding: 0 8px 0 6px;
+            display: flex;
+            align-items: center;
+            -webkit-app-region: no-drag;
+        }
+        /* 搜索条（折叠态），聚焦展开 */
+        .gsearch-input-wrap {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            height: 27px;
+            width: 150px;
+            padding: 0 8px;
+            border: 1px solid var(--panel-border, #e2e2dd);
+            border-radius: 7px;
+            background: var(--search-bg, rgba(127,127,127,0.08));
+            color: var(--text);
+            transition: width 0.2s cubic-bezier(0.4,0,0.2,1), border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .gsearch-input-wrap:focus-within {
+            width: 210px;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--search-ring, color-mix(in srgb, var(--primary) 18%, transparent));
+            background: var(--search-focus-bg, rgba(127,127,127,0.06));
+        }
+        .gsearch-input-wrap svg {
+            width: 13px;
+            height: 13px;
+            flex-shrink: 0;
+            color: var(--text-muted, #999);
+        }
+        .gsearch-input-wrap input {
+            flex: 1;
+            min-width: 0;
+            border: none;
+            outline: none;
+            background: transparent;
+            color: var(--text);
+            font-size: 0.78rem;
+            font-family: inherit;
+        }
+        .gsearch-input-wrap input::placeholder {
+            color: var(--text-muted, #999);
+        }
+        /* 快捷键徽章（仅折叠态显示） */
+        .gsearch-kbd {
+            font-family: inherit;
+            font-size: 0.65rem;
+            color: var(--text-muted, #999);
+            border: 1px solid var(--panel-border, #e2e2dd);
+            border-radius: 4px;
+            padding: 1px 4px;
+            line-height: 1.2;
+            flex-shrink: 0;
+            transition: opacity 0.15s ease;
+        }
+        .gsearch-input-wrap:focus-within .gsearch-kbd { opacity: 0; }
+
+        /* 下拉面板 */
+        .gsearch-panel {
+            position: absolute;
+            top: calc(100% - 3px);
+            right: 8px;
+            width: 400px;
+            max-height: 68vh;
+            overflow-y: auto;
+            background: var(--panel-bg, var(--bg));
+            border: 1px solid var(--panel-border, #e2e2dd);
+            border-radius: 10px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+            padding: 6px;
+            display: none;
+            z-index: 1000;
+            transform-origin: top right;
+        }
+        html[data-theme="dark"] .gsearch-panel { box-shadow: 0 14px 44px rgba(0,0,0,0.5); }
+        .gsearch-panel.open {
+            display: block;
+            animation: gsearchPop 0.16s cubic-bezier(0.2,0,0,1);
+        }
+        @keyframes gsearchPop {
+            from { opacity: 0; transform: scale(0.96); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+
+        /* 面板头部：查询词 + 结果计数 */
+        .gsearch-panel-head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px 8px;
+            border-bottom: 1px solid var(--panel-border, rgba(0,0,0,0.06));
+            font-size: 0.72rem;
+            color: var(--text-muted, #999);
+        }
+        .gsearch-panel-head strong {
+            color: var(--primary);
+            font-weight: 600;
+            max-width: 150px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .gsearch-empty {
+            padding: 26px 16px;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.78rem;
+            line-height: 1.6;
+        }
+        .gsearch-empty .gsearch-empty-icon { font-size: 1.3rem; margin-bottom: 6px; opacity: 0.5; }
+
+        /* 分组标题：色点 + 标签 + 计数 */
+        .gsearch-group-title {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 10px 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-muted, #999);
+            letter-spacing: 0.02em;
+        }
+        .gsearch-group-title .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+        }
+        .gsearch-group-title .gsearch-group-type { text-transform: uppercase; }
+        .gsearch-group-title .gsearch-group-count {
+            margin-left: auto;
+            font-weight: 500;
+            font-size: 0.66rem;
+            color: var(--text-muted, #999);
+        }
+
+        /* 结果项：类型徽章 + 高亮 + hover */
+        .gsearch-item {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            padding: 7px 10px;
+            border-radius: 7px;
+            cursor: pointer;
+            border-left: 2px solid transparent;
+            transition: background 0.12s ease, border-color 0.12s ease;
+        }
+        .gsearch-item:hover,
+        .gsearch-item.active {
+            background: var(--search-item-hover, rgba(63,140,255,0.08));
+            border-left-color: var(--primary);
+        }
+        .gsearch-item-title {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text);
+        }
+        .gsearch-item-badge {
+            flex-shrink: 0;
+            font-size: 0.62rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            padding: 1px 6px;
+            border-radius: 4px;
+            margin-left: 2px;
+        }
+        .gsearch-item-badge.clip        { color: #3f8cff; background: rgba(63,140,255,0.12); }
+        .gsearch-item-badge.knowledge   { color: #8b5cf6; background: rgba(139,92,246,0.12); }
+        .gsearch-item-badge.learning-plan { color: #10b981; background: rgba(16,185,129,0.12); }
+        .gsearch-item-title-text {
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 0.8rem;
+        }
+        .gsearch-item-snippet {
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding-left: 1px;
+        }
+        /* 命中词高亮 */
+        .gsearch-item em {
+            font-style: normal;
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        /* 面板底部：快捷键提示 */
+        .gsearch-panel-foot {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 12px;
+            padding: 7px 10px 5px;
+            font-size: 0.66rem;
+            color: var(--text-muted, #999);
+            border-top: 1px solid var(--panel-border, rgba(0,0,0,0.06));
+        }
+        .gsearch-panel-foot kbd {
+            font-family: inherit;
+            font-size: 0.64rem;
+            border: 1px solid var(--panel-border, rgba(0,0,0,0.1));
+            border-radius: 3px;
+            padding: 0px 4px;
+        }
         .window-controls {
             display: flex;
             height: 100%;
@@ -631,6 +849,15 @@
         </button>
     </nav>
     <div class="titlebar-spacer"></div>
+    <!-- 全局统一搜索（对齐右侧的全局操作区） -->
+    <div class="global-search" id="globalSearch">
+        <div class="gsearch-input-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input type="text" id="globalSearchInput" placeholder="全局搜索" autocomplete="off" spellcheck="false" />
+            <kbd class="gsearch-kbd">⌘K</kbd>
+        </div>
+        <div class="gsearch-panel" id="globalSearchPanel"></div>
+    </div>
     <div class="window-controls" id="windowControls">
         <button id="btnMinimize" title="最小化">
             <svg viewBox="0 0 12 12"><line x1="1" y1="6" x2="11" y2="6" stroke="currentColor" stroke-width="1.2"/></svg>
@@ -2038,6 +2265,278 @@
         document.getElementById('startupOverlay').style.display = 'none';
         document.getElementById('windowControls').style.display = 'none';
       }
+  })();
+</script>
+<script>
+  // ====== 全局统一搜索（右侧全局操作区） ======
+  // 复用主框架既有消息跳转机制：clip→openClipInEditor、knowledge→navigateKnowledge、
+  // learning-plan→navigateLearningPlan。数据优先走本地索引 IPC（localIndex.searchAll）。
+  (function () {
+    const input = document.getElementById('globalSearchInput');
+    const panel = document.getElementById('globalSearchPanel');
+    const wrap = document.querySelector('.gsearch-input-wrap');
+    if (!input || !panel) return;
+
+    const TYPE_META = {
+      clip:        { label: '剪藏',       color: '#3f8cff', action: function (h) { deliver({ type: 'openClipInEditor', clipId: numericId(h.id) }); } },
+      knowledge:   { label: '知识',       color: '#8b5cf6', action: function (h) { window.postMessage({ type: 'navigateKnowledge', knowledgeId: numericId(h.id) }, '*'); } },
+      'learning-plan': { label: '学习计划', color: '#10b981', action: function (h) { window.postMessage({ type: 'navigateLearningPlan', planId: numericId(h.id) }, '*'); } }
+    };
+    const ORDER = ['clip', 'knowledge', 'learning-plan'];
+    let allHits = [];
+    let activeIndex = -1;
+
+    // 命中 id 形如 'clip:1' / 'knowledge:39' / 'learning-plan:21'，抽离纯数字源 id。
+    function numericId(id) {
+      const m = String(id || '').match(/(:|-)(\d+)$/);
+      return m ? m[2] : id;
+    }
+    // clip 在编辑器中打开需走主框架的待处理消息链路。
+    function deliver(msg) { window.postMessage(msg, '*'); }
+
+    function getBridge() { return (window.electronAPI && window.electronAPI.localIndex) || null; }
+
+    // 命中词高亮（大小写不敏感，HTML 安全转义）
+    function highlight(text, q) {
+      let safe = String(text || '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+      const rq = String(q || '').trim();
+      if (!rq) return safe;
+      try {
+        const re = new RegExp('(' + rq.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
+        safe = safe.replace(re, '<em>$1</em>');
+      } catch (e) {}
+      return safe;
+    }
+
+    function setLoading(on) {
+      panel.innerHTML = '';
+      if (!on) return;
+      const empty = document.createElement('div');
+      empty.className = 'gsearch-empty';
+      empty.innerHTML = '<div class="gsearch-empty-icon">…</div>搜索中';
+      panel.appendChild(empty);
+      panel.classList.add('open');
+    }
+
+    // 构建单个结果项（带 data-index 供键盘导航）
+    function buildRow(h, index, q) {
+      const row = document.createElement('div');
+      row.className = 'gsearch-item';
+      row.setAttribute('data-index', String(index));
+      const t = document.createElement('div');
+      t.className = 'gsearch-item-title';
+      const titleInner = document.createElement('span');
+      titleInner.className = 'gsearch-item-title-text';
+      titleInner.innerHTML = highlight(h.title || '未命名', q);
+      const badge = document.createElement('span');
+      badge.className = 'gsearch-item-badge ' + (h.type || 'clip');
+      badge.textContent = (TYPE_META[h.type] || {}).label || h.type;
+      t.appendChild(titleInner);
+      t.appendChild(badge);
+      const sn = document.createElement('div');
+      sn.className = 'gsearch-item-snippet';
+      sn.innerHTML = highlight(h.snippet || '', q);
+      row.appendChild(t);
+      row.appendChild(sn);
+      row.addEventListener('click', () => { activateHits(index); });
+      row.addEventListener('pointerenter', () => setActive(index));
+      return row;
+    }
+
+    function render(hits, q) {
+      panel.innerHTML = '';
+      allHits = hits || [];
+      activeIndex = -1;
+      const groups = { clip: [], knowledge: [], 'learning-plan': [] };
+      allHits.forEach(h => { if (groups[h.type]) groups[h.type].push(h); });
+
+      const count = allHits.length;
+      // 面板头部：查询 + 计数
+      if (count) {
+        const head = document.createElement('div');
+        head.className = 'gsearch-panel-head';
+        const verb = document.createElement('span');
+        verb.textContent = '搜「';
+        const qNode = document.createElement('strong');
+        qNode.textContent = q || '';
+        const tail = document.createElement('span');
+        tail.textContent = '」 · 共 ' + count + ' 条';
+        head.appendChild(verb);
+        head.appendChild(qNode);
+        head.appendChild(tail);
+        panel.appendChild(head);
+      }
+
+      let built = 0;
+      let hasAny = false;
+      ORDER.forEach(type => {
+        const items = groups[type];
+        if (!items.length) return;
+        hasAny = true;
+        const meta = TYPE_META[type];
+        const sec = document.createElement('div');
+        const title = document.createElement('div');
+        title.className = 'gsearch-group-title';
+        const dot = document.createElement('span');
+        dot.className = 'dot';
+        dot.style.background = meta.color;
+        const typeLabel = document.createElement('span');
+        typeLabel.className = 'gsearch-group-type';
+        typeLabel.textContent = meta.label;
+        const c = document.createElement('span');
+        c.className = 'gsearch-group-count';
+        c.textContent = items.length + ' 条';
+        title.appendChild(dot);
+        title.appendChild(typeLabel);
+        title.appendChild(c);
+        sec.appendChild(title);
+        items.slice(0, 12).forEach(h => {
+          sec.appendChild(buildRow(h, built, q));
+          built++;
+        });
+        panel.appendChild(sec);
+      });
+
+      if (!hasAny) {
+        const empty = document.createElement('div');
+        empty.className = 'gsearch-empty';
+        empty.innerHTML = '<div class="gsearch-empty-icon">∅</div>未找到「<strong>' + (q || '') + '</strong>」的相关内容';
+        panel.appendChild(empty);
+      } else {
+        // 底部：快捷键提示
+        const foot = document.createElement('div');
+        foot.className = 'gsearch-panel-foot';
+        foot.innerHTML = '<span><kbd>↑</kbd><kbd>↓</kbd> 选择</span><span><kbd>↵</kbd> 打开</span><span><kbd>Esc</kbd> 关闭</span>';
+        panel.appendChild(foot);
+      }
+      panel.classList.add('open');
+    }
+
+    // 键盘导航：在 allHits 上维护高亮
+    function setActive(i) {
+      if (!allHits.length) return;
+      if (i < 0 || i >= allHits.length) i = -1;
+      activeIndex = i;
+      panel.querySelectorAll('.gsearch-item').forEach(el => {
+        const idx = Number(el.getAttribute('data-index') || -1);
+        el.classList.toggle('active', idx === activeIndex);
+        if (idx === activeIndex) el.scrollIntoView({ block: 'nearest' });
+      });
+    }
+    function activateHits(i) {
+      const def = allHits[i];
+      if (!def) return;
+      (TYPE_META[def.type] || {}).action && TYPE_META[def.type].action(def);
+      closePanel();
+    }
+    function moveActive(delta) {
+      if (!allHits.length) return;
+      // 未选中态从列表首/尾开始；已选中态在区间内循环
+      let next;
+      if (activeIndex < 0) {
+        next = delta > 0 ? 0 : allHits.length - 1;
+      } else {
+        next = (activeIndex + delta + allHits.length) % allHits.length;
+      }
+      setActive(next);
+    }
+
+    function openPanel() { if (input.value.trim()) doSearch(); else { setLoading(false); panel.classList.add('open'); } }
+    function closePanel() { panel.classList.remove('open'); input.blur(); }
+    function clearActive() { panel.querySelectorAll('.gsearch-item.active').forEach(el => el.classList.remove('active')); activeIndex = -1; }
+
+    function doSearch() {
+      const q = input.value.trim();
+      const bridge = getBridge();
+      if (!q) { render([], ''); return; }
+      setLoading(true);
+      if (bridge && typeof bridge.searchAll === 'function') {
+        bridge.searchAll(q, { topK: 36 })
+          .then(res => {
+            if (String(input.value).trim() !== q) return; // 请求已过期
+            if (!(res && res.success)) { render([], q); return; }
+            render(res.results || [], q);
+          })
+          .catch(() => { if (String(input.value).trim() === q) render([], q); });
+      } else {
+        panel.innerHTML = '';
+        panel.classList.add('open');
+        const empty = document.createElement('div');
+        empty.className = 'gsearch-empty';
+        empty.innerHTML = '<div class="gsearch-empty-icon">⚠</div>本地索引不可用，无法全局搜索';
+        panel.appendChild(empty);
+      }
+    }
+
+    let debounceTimer = null;
+    input.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      if (!input.value.trim()) { render([], ''); return; }
+      setLoading(true);
+      debounceTimer = setTimeout(doSearch, 200);
+    });
+    input.addEventListener('focus', () => {
+      if (input.value.trim()) doSearch(); else { setLoading(false); panel.classList.add('open'); }
+    });
+    // 失焦即收起结果面板（覆盖点击 iframe 内容等父页面收不到 click 的场景；搜索框保留长驻）
+    input.addEventListener('blur', () => {
+      closePanel();
+    });
+    input.addEventListener('click', (e) => e.stopPropagation());
+    panel.addEventListener('click', (e) => e.stopPropagation());
+    document.addEventListener('click', (e) => {
+      // 点击非全局搜索区：仅收起结果面板，搜索框保持长驻
+      if (!e.target.closest || !e.target.closest('.global-search')) {
+        closePanel();
+      }
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); closePanel(); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); moveActive(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); moveActive(-1); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (activeIndex >= 0) activateHits(activeIndex); else doSearch(); }
+    });
+    // ⌘K / Ctrl+K：聚焦搜索框
+    // 注意：主界面主体为 iframe，焦点落在 iframe 内时父页面收不到 keydown，
+    // 因此主进程已通过菜单加速键（CmdOrCtrl+K）→ focus-global-search 事件兜底聚焦。
+    function focusSearch() {
+      input.focus();
+      input.select();
+      openPanel();
+    }
+    document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        focusSearch();
+      }
+    });
+    // 主进程菜单加速键触发（iframe 焦点场景）
+    if (window.electronAPI && window.electronAPI.onFocusGlobalSearch) {
+      window.electronAPI.onFocusGlobalSearch(focusSearch);
+    }
+
+    // 平台自适应快捷键提示（macOS ⌘K / Windows・Linux Ctrl K）
+    (function () {
+      const isMac = navigator.platform && /Mac/i.test(navigator.platform);
+      const kbd = document.querySelector('.gsearch-kbd');
+      const searchWrap = document.querySelector('.gsearch-input-wrap');
+      if (kbd) kbd.textContent = isMac ? '⌘K' : 'Ctrl K';
+      if (searchWrap) searchWrap.title = isMac ? '全局搜索（⌘K）' : '全局搜索（Ctrl K）';
+    })();
+  })();
+
+  // ===== 支持快捷键的功能：悬停提示快捷键（按平台区分） =====
+  // 覆盖标题栏中与快捷键对应的入口；系统级快捷键（F1 截图 / F2 贴图 / Alt+⬆X）由托盘提示承载。
+  (function () {
+    const isMac = navigator.platform && /Mac/i.test(navigator.platform);
+    // 设置：⌘, / Ctrl ,
+    document.querySelectorAll('.nav-btn[data-view="settings"]').forEach(el => {
+      const base = el.getAttribute('title') || '应用设置：调整偏好与全局配置';
+      el.title = base + '（' + (isMac ? '⌘,' : 'Ctrl ,') + '）';
+    });
+    // 窗口控制：最小化 = 最小化到任务栏（Alt+X 可切换显示/隐藏）
+    const minBtn = document.getElementById('btnMinimize');
+    if (minBtn) minBtn.title = '最小化（' + (isMac ? 'Option X' : 'Alt X') + '）';
   })();
 </script>
 <script src="js/ui-common.js"></script>

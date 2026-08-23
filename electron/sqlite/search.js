@@ -86,4 +86,90 @@ function ftsMatchExpr(q) {
   return escaped ? `"${escaped}"` : `${escaped}`;
 }
 
-module.exports = { search, searchByCategory };
+// ── 全库统一搜索（M4）：跨 clip / knowledge / learning-plan 全部实体 ──
+
+/** 允许参与全库检索的实体类型。 */
+const SEARCHABLE_TYPES = ['clip', 'knowledge', 'learning-plan'];
+
+/**
+ * 全库统一搜索：跨全部实体类型命中，返回统一类型化命中结构。
+ * @param {string} query 搜索关键词
+ * @param {{topK?:number, type?:string|null}} [opts]
+ *        type 为 'all'/'*'/null/undefined → 不限类型；否则按 content.type 等值过滤
+ * @returns {Array<{type:string, id:string, title:string, snippet:string}>}
+ */
+function searchAll(query, opts) {
+  const dbConn = db.getDatabase();
+  if (!dbConn || !query || !String(query).trim()) return [];
+  const q = String(query).trim();
+  const limit = Math.max(1, Math.min(500, Number((opts && opts.topK) || 50)));
+  const type = normalizeType(opts && opts.type);
+
+  let rows = searchAllFts(dbConn, q, limit, type);
+  if (rows.length === 0) rows = searchAllLike(dbConn, q, limit, type);
+
+  return rows
+    .map((r) => {
+      try {
+        const entity = JSON.parse(r.content_ref);
+        return toHit(r, entity);
+      } catch (e) { return null; }
+    })
+    .filter((x) => x != null);
+}
+
+/** 把 type 入参归一化为可用的 content.type 或 null（不限）。 */
+function normalizeType(type) {
+  if (!type || type === 'all' || type === '*') return null;
+  return String(type).trim();
+}
+
+function searchAllFts(dbConn, q, limit, type) {
+  try {
+    const sql = type
+      ? 'SELECT c.type, c.id, c.content_ref FROM content_fts f JOIN content c ON c.rowid = f.rowid WHERE c.type = ? AND content_fts MATCH ? LIMIT ?'
+      : 'SELECT c.type, c.id, c.content_ref FROM content_fts f JOIN content c ON c.rowid = f.rowid WHERE content_fts MATCH ? LIMIT ?';
+    return type
+      ? dbConn.prepare(sql).all(type, ftsMatchExpr(q), limit)
+      : dbConn.prepare(sql).all(ftsMatchExpr(q), limit);
+  } catch (e) {
+    return [];
+  }
+}
+
+function searchAllLike(dbConn, q, limit, type) {
+  const like = `%${q}%`;
+  const sql = type
+    ? 'SELECT type, id, content_ref FROM content WHERE type = ? AND (title LIKE ? OR body_plain LIKE ? OR tags LIKE ?) LIMIT ?'
+    : 'SELECT type, id, content_ref FROM content WHERE title LIKE ? OR body_plain LIKE ? OR tags LIKE ? LIMIT ?';
+  return type
+    ? dbConn.prepare(sql).all(type, like, like, like, limit)
+    : dbConn.prepare(sql).all(like, like, like, limit);
+}
+
+/** 把 content 行 + 反序列化实体归一为统一命中结构。 */
+function toHit(row, entity) {
+  const type = row.type || 'clip';
+  let title = entity.title;
+  let snippet = entity.bodyContent || entity.content || entity.summary || entity.analysis || '';
+  // knowledge：title；learning-plan：无 title，用 goal/阶段标题
+  if (!title && type === 'learning-plan') {
+    title = entity.goal;
+    if (!snippet && Array.isArray(entity.phases)) {
+      snippet = entity.phases.map((p) => p.title).filter(Boolean).join(', ');
+    }
+  }
+  return {
+    type,
+    id: row.id || (type + ':' + entity.id),
+    title: String(title || bodyFallback(entity) || '未命名').slice(0, 120),
+    snippet: String(snippet || '').slice(0, 200)
+  };
+}
+
+function bodyFallback(entity) {
+  if (entity.content) return String(entity.content).slice(0, 120);
+  return '';
+}
+
+module.exports = { search, searchByCategory, searchAll, SEARCHABLE_TYPES };

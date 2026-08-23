@@ -316,6 +316,11 @@ process.on('unhandledRejection', (reason) => {
  */
 let closeToTray = null;
 
+// 标记主窗口是否因"最小化到托盘"被主动隐藏。
+// macOS 上隐藏最后一个窗口会触发应用 activate 事件，从而走 showMainWindow() 把窗口又弹出来；
+// 用该标记在托盘隐藏期间屏蔽 activate 的自动唤起（托盘双击/菜单仍可恢复）。
+let trayHidden = false;
+
 /**
  * 查找可用的 Java 可执行文件路径
  * 优先级：嵌入式 JRE > 系统 Java
@@ -1598,6 +1603,7 @@ function showMainWindow() {
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
+  trayHidden = false; // 由托盘/快捷键等主动唤起后解除托盘隐藏态，恢复 activate 自动唤起
 }
 
 /**
@@ -1926,6 +1932,7 @@ async function showCloseDialog(win) {
         }
         if (dialogResult.action === 'tray') {
           // macOS 上模态弹窗关闭后 minimize() 不生效（窗口仍可见），改用 hide() 真正收入托盘
+          trayHidden = true;
           if (parent) parent.hide();
         } else {
           isQuitting = true;
@@ -2028,7 +2035,9 @@ function createMainWindow(config) {
     if (!isQuitting) {
       event.preventDefault();  // 阻止默认关闭行为
       if (closeToTray === true) {
-        mainWindow.minimize();
+        // 最小化到托盘：hide() 真正将窗口收入托盘（macOS 上 minimize() 仍会残留/被激活弹回）
+        trayHidden = true;
+        mainWindow.hide();
       } else if (closeToTray === false) {
         isQuitting = true;
         quitApp();
@@ -2050,6 +2059,8 @@ function createMainWindow(config) {
   const menuTemplate = [
     {
       label: 'Clip', submenu: [
+        { label: 'Global Search', accelerator: 'CmdOrCtrl+K', click: () => focusGlobalSearch() },
+        { type: 'separator' },
         { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => showConfigWindow(config) },
         { type: 'separator' },
         { role: 'quit' }
@@ -2099,6 +2110,15 @@ function createMainWindow(config) {
     }
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
+}
+
+// 聚焦全局搜索框（⌘/Ctrl+K 菜单加速键触发；若焦点在 iframe 内，页面 keydown 收不到，必须走主进程）
+function focusGlobalSearch() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  if (!mainWindow.isVisible()) mainWindow.show();
+  mainWindow.focus();
+  mainWindow.webContents.send('focus-global-search');
 }
 
 /**
@@ -2195,6 +2215,12 @@ function quitApp() {
   stopBackend();
   stopFrontendServer();
   stopDshAgent();
+
+  // 强制销毁临时工具窗口（截图覆盖层/贴图等 fullscreen alwaysOnTop 窗口），
+  // 防止其渲染进程繁忙时 close 阻塞 app.quit()（"无法退出"）。
+  try { screenshotService.cleanupOnQuit(); } catch (e) { log.warn('[Quit] screenshot cleanup:', e.message); }
+  try { destroyTransientToasts(); } catch (e) { log.warn('[Quit] toast cleanup:', e.message); }
+
   app.quit();
 }
 
@@ -2398,6 +2424,13 @@ function setupIPC() {
       ? localSearch.searchByCategory(query, category, topK)
       : localSearch.search(query, topK);
     return { success: true, results: list };
+  }));
+
+  /** 全库统一搜索（M4）：跨 clip / knowledge / learning-plan，返回统一类型化命中 */
+  ipcMain.handle('local-index:search-all', localIndexGuard(async (ev, args) => {
+    const { query, topK, type } = args || {};
+    const hits = localSearch.searchAll(query, { topK, type });
+    return { success: true, results: hits };
   }));
 
   /** 按类型快速列表 clip */
@@ -3952,6 +3985,18 @@ function httpPut(url) {
 /** 提醒调度器定时器引用 */
 let reminderTimer = null;
 
+/** 当前存活的待办提醒 toast 窗口（alwaysOnTop + skipTaskbar 极简临时窗口）。
+ *  退出时强制 destroy，防止其 renderer 繁忙时阻塞 app.quit()。 */
+let toastWindows = [];
+
+/** 强制销毁所有待办提醒 toast 窗口，@see toastWindows */
+function destroyTransientToasts() {
+  for (const w of toastWindows) {
+    try { if (w && !w.isDestroyed()) w.destroy(); } catch (e) {}
+  }
+  toastWindows = [];
+}
+
 /**
  * 弹出系统原生通知（Windows 使用 node-notifier，macOS 使用 Electron Notification）。
  * @param {string} title - 通知标题
@@ -4129,12 +4174,17 @@ function showNotification(title, body) {
 
     toastWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
 
+    // 登记到全局存活列表，退出时统一强制销毁
+    toastWindows.push(toastWin);
+
     toastWin.once('ready-to-show', () => {
       toastWin.show();
       log.info('[Reminder] Toast window shown');
     });
 
     toastWin.on('closed', () => {
+      const idx = toastWindows.indexOf(toastWin);
+      if (idx >= 0) toastWindows.splice(idx, 1);
       resolve();
     });
   });
@@ -4593,6 +4643,9 @@ app.on('window-all-closed', (e) => {
 // 应用即将退出前：标记退出状态并清理服务
 app.on('before-quit', () => {
   isQuitting = true;
+  // 任何退出入口（Cmd+Q / 扩展坞 / 菜单）都强制清理临时工具窗口，确保 quit 不被阻塞
+  try { screenshotService.cleanupOnQuit(); } catch (e) {}
+  try { destroyTransientToasts(); } catch (e) {}
   stopReminderScheduler();
   stopBackend();
   stopFrontendServer();
@@ -4613,6 +4666,9 @@ app.on('will-quit', () => {
 
 // macOS Dock 图标点击或应用激活时
 app.on('activate', () => {
+  // 处于"最小化到托盘"隐藏态时，不响应 macOS 因窗口隐藏而自动触发的 activate，
+  // 避免刚选托盘窗口又弹出来（恢复需通过托盘图标或全局快捷键）。
+  if (trayHidden && mainWindow && !mainWindow.isDestroyed()) return;
   // 优先恢复隐藏/最小化的窗口（托盘场景）
   if (mainWindow && !mainWindow.isDestroyed()) {
     showMainWindow();

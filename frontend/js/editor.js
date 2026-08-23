@@ -108,7 +108,7 @@
   function createStatusBtn(label, icon, title, shortcut) {
     var btn = document.createElement('button');
     btn.className = 'status-btn';
-    btn.title = (title || label) + (shortcut ? ' (' + shortcut + ')' : '');
+    btn.title = (title || label) + (shortcut ? ' (' + platformShortcut(shortcut) + ')' : '');
     if (icon) {
       var iconSpan = document.createElement('span');
       iconSpan.className = 'status-btn-icon';
@@ -120,6 +120,17 @@
     labelSpan.textContent = label;
     btn.appendChild(labelSpan);
     return btn;
+  }
+
+  // 悬浮提示快捷键平台自适应：macOS 显示 ⌘/⇧/⌥ 符号，Windows/Linux 保留 Ctrl/Shift/Alt 文本。
+  function platformShortcut(sc) {
+    if (!sc) return '';
+    if (!/Mac/i.test(navigator.platform || '')) return sc;
+    return sc
+      .replace(/Ctrl\+/gi, '⌘')
+      .replace(/Meta\+/gi, '⌘')
+      .replace(/Shift\+/gi, '⇧')
+      .replace(/Alt\+/gi, '⌥');
   }
 
   function applyMascotPreference() {
@@ -499,7 +510,7 @@
       const closeBtn = document.createElement('button');
       closeBtn.className = 'tab-close-btn';
       closeBtn.innerHTML = '&times;';
-      closeBtn.title = '关闭标签 (Ctrl+W)';
+      closeBtn.title = '关闭标签 (' + platformShortcut('Ctrl+W') + ')';
       closeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         closeTab(index);
@@ -3714,7 +3725,7 @@
       elements.autosaveStatus.title = '自动保存已开启：每 10 秒保存一次，点击关闭';
     } else {
       elements.autosaveStatus.textContent = '自动保存:关';
-      elements.autosaveStatus.title = '自动保存已关闭：需按 Ctrl+S 手动保存，点击开启';
+      elements.autosaveStatus.title = '自动保存已关闭：需按 ' + platformShortcut('Ctrl+S') + ' 手动保存，点击开启';
     }
   }
 
@@ -4902,7 +4913,7 @@
     // 添加快捷键和按钮
     var overviewBtn = document.createElement('button');
     overviewBtn.className = 'status-btn';
-    overviewBtn.title = '概览图 Ctrl+Shift+Y';
+    overviewBtn.title = '概览图 ' + platformShortcut('Ctrl+Shift+Y');
     overviewBtn.textContent = '概览';
     overviewBtn.addEventListener('click', function() {
       toggleOverviewRuler();
@@ -5963,7 +5974,8 @@
   elements.runtimeStatus.parentNode.insertBefore(outlineBtn, elements.runtimeStatus);
 
   // 全局文件搜索按钮（底部状态栏右侧，Ctrl+O）
-  var quickSearchBtn = createStatusBtn('搜索', '🔍', '快速打开文件 (Ctrl+O)', 'Ctrl+O');
+  // 注意：createStatusBtn 会自动拼接 "(shortcut)"，title 里不要再重复写快捷键，否则悬浮提示会出现两个 Ctrl+O
+  var quickSearchBtn = createStatusBtn('搜索', '🔍', '快速打开文件', 'Ctrl+O');
   quickSearchBtn.addEventListener('click', function() { openQuickSwitcher(); });
   elements.runtimeStatus.parentNode.insertBefore(quickSearchBtn, elements.runtimeStatus);
 
@@ -6087,8 +6099,8 @@
 
   // ── 命令面板(Ctrl+P) ──
   var commandRegistry = [];
-  function registerCommand(id, name, icon, handler) {
-    commandRegistry.push({ id: id, name: name, icon: icon, handler: handler });
+  function registerCommand(id, name, icon, handler, shortcut) {
+    commandRegistry.push({ id: id, name: name, icon: icon, handler: handler, shortcut: shortcut || '' });
   }
 
   // 设置弹窗统一入口（从设置按钮事件中提取）
@@ -6104,7 +6116,7 @@
   // 注册核心命令
   registerCommand('new', '新建文件', '📄', function() { createNewTab(); });
   registerCommand('open', '打开文件…', '📁', function() { openMainFile(); });
-  registerCommand('quick-open', '快速打开文件 (Ctrl+O)', '🔍', function() { openQuickSwitcher(); });
+  registerCommand('quick-open', '快速打开文件', '🔍', function() { openQuickSwitcher(); }, 'Ctrl+O');
   registerCommand('save', '保存', '💾', function() { saveFile(false); });
   registerCommand('save-as', '另存为…', '📋', function() { saveFile(true); });
   registerCommand('outline', '切换大纲面板', '☰', function() { toggleOutline(); });
@@ -6152,7 +6164,8 @@
       var item = document.createElement('div');
       item.className = 'command-palette-item' + (i === paletteIndex ? ' active' : '');
       item.innerHTML = '<span class="command-palette-item-icon">' + c.icon + '</span>'
-        + '<span class="command-palette-item-name">' + escapeHtml(c.name) + '</span>';
+        + '<span class="command-palette-item-name">' + escapeHtml(c.name) + '</span>'
+        + (c.shortcut ? '<span class="command-palette-item-shortcut">' + platformShortcut(c.shortcut) + '</span>' : '');
       item.addEventListener('mousedown', function(ev) { ev.preventDefault(); executeCommand(i); });
       item.addEventListener('mouseenter', function() { setPaletteIndex(i); });
       list.appendChild(item);

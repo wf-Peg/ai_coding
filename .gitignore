@@ -99,5 +99,11 @@ dist-dsh-offline/
 .tmp/
 tmp/
 
+# SQLite 本地索引运行期数据库（本地生成，不提交）
+.index/
+
+# IPC 复现/调试临时目录（不提交）
+electron/repro-ipc/
+
 # jlink 精简 JRE 构建产物（打包时由 build-jlink-slim.mjs 生成）
 jre-slim/

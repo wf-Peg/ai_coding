@@ -250,6 +250,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onWindowMaximized: (callback) => ipcRenderer.on('window-maximized', (event, maximized) => callback(maximized)),
 
   /**
+   * 监听主进程请求聚焦全局搜索框（⌘/Ctrl+K 菜单加速键触发）
+   * @param {Function} callback - 无参回调
+   */
+  onFocusGlobalSearch: (callback) => ipcRenderer.on('focus-global-search', () => callback()),
+
+  /**
    * 切换编辑器全屏模式（F11）
    * @param {boolean} enabled - true 进入全屏，false 退出全屏
    * @returns {Promise<{success: boolean}>}
@@ -659,6 +665,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     rebuild: () => ipcRenderer.invoke('local-index:rebuild'),
     /** 全文搜索 */
     search: (query, topK, category) => ipcRenderer.invoke('local-index:search', { query, topK, category }),
+    /** 全库统一搜索（M4）：opts = { topK?, type? } */
+    searchAll: (query, opts) => ipcRenderer.invoke('local-index:search-all', { query, topK: opts && opts.topK, type: opts && opts.type }),
     /** 按类型列表 clip */
     listByType: (type, limit) => ipcRenderer.invoke('local-index:list-by-type', { type, limit }),
     /** 图谱数据（对齐 /api/graph） */

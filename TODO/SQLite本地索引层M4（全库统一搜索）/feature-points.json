@@ -1,0 +1,49 @@
+{
+  "version": "2.0",
+  "requirement": {
+    "title": "SQLite本地索引层M4（全库统一搜索）",
+    "summary": "把本地全文检索从仅 clip 扩展为全库统一搜索——跨 clip / knowledge / learning-plan 全部实体命中，返回统一类型化命中结构，前端可一条逻辑渲染统一搜索结果，进一步摆脱 Java 后端。",
+    "tags": ["product-dev", "SQLite", "全库搜索", "FTS5"],
+    "phase": "implementation",
+    "createdAt": "2026-08-23T22:00:00",
+    "completedAt": "2026-08-24T05:00:00"
+  },
+  "featurePoints": [
+    {
+      "id": "fp-001",
+      "name": "全库统一搜索",
+      "description": "search.js 新增类型感知的 searchAll(query, { topK, type })：跨全部实体类型检索，FTS + LIKE type 过滤双路径，返回统一命中结构 {type, id, title, snippet}；main.js IPC local-index:search-all + preload 桥接 + apiClient.searchAll 本地优先；保留原 clip search/searchByCategory 兼容既有调用。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "SQLite", "FTS5", "全库搜索"],
+      "designSections": ["架构设计", "接口定义", "关键决策"],
+      "tasks": [
+        { "title": "M4.1 search.js 新增 searchAll（FTS+LIKE+type 过滤）+ toHit 统一结构", "status": "done" },
+        { "title": "M4.2 main.js IPC local-index:search-all + preload 桥接 localIndex.searchAll", "status": "done" },
+        { "title": "M4.3 apiClient.searchAll（本地优先，REST 兜底 /api/local-search）", "status": "done" },
+        { "title": "M4.4 search.test.js 单测 + 全量回归", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "search.test.js 4/4：跨实体命中 / type 过滤 / 中文 LIKE 兜底 / 统一结构+空守卫", "status": "done" },
+        { "title": "全量 SQLite 回归 19/19（含 M3 关系层）无回归", "status": "done" },
+        { "title": "语法检查通过：main.js / preload.js / clip-shared.js", "status": "done" }
+      ]
+    }
+  ],
+  "knowledgePoints": [
+    {
+      "title": "复用 content 表与 FTS5 达成全库搜索",
+      "content": "M3 已把 knowledge/learning-plan 作为实体写入 content 表并与 clip 共用 content_fts 倒排，因此全库搜索无需新建索引，只需新增类型感知查询：FTS5 MATCH 英文/标点命中，未命中回落 LIKE 子串（中文整句分词弱）；两者都按 content.type 等值过滤。统一命中结构 {type,id,title,snippet} 让前端一条渲染逻辑搞定多实体。",
+      "tags": ["product-dev", "SQLite", "FTS5"]
+    },
+    {
+      "title": "learning-plan 无 title 字段的命中归一化",
+      "content": "clip 用 title，knowledge 用 title，而 learning-plan 无 title、只有 goal 与 phases。toHit 对 learning-plan 用 goal 作 title，snippet 缺省时用 phases[].title 拼接，保证统一命中视图的 title/snippet 必为非空字符串。",
+      "tags": ["product-dev", "SQLite", "数据模型"]
+    },
+    {
+      "title": "命中 id 复用 content.id 拼接实体链接",
+      "content": "content.id 在 M3 已统一为 {type}:{source_id}，searchAll 直接以该列作命中 id，前端拿到即可路由到对应实体详情，无需二次解析类型和源 id。",
+      "tags": ["product-dev", "SQLite", "IPC"]
+    }
+  ]
+}

@@ -584,5 +584,21 @@
   <script src="js/dict-offline.js"></script>
   <script src="js/editor.js"></script>
   <script src="js/ui-common.js"></script>
+  <script>
+    // 平台自适应：macOS 上把静态工具栏等悬浮 title 里的 Ctrl/Shift/Alt 换成 ⌘/⇧/⌥ 符号。
+    // 动态按钮（createStatusBtn / 标签关闭）已在 editor.js 内由 platformShortcut 处理，这里只扫静态 title。
+    (function () {
+      if (!/Mac/i.test(navigator.platform || '')) return;
+      document.querySelectorAll('[title]').forEach(function (el) {
+        var t = el.getAttribute('title') || '';
+        if (!/Ctrl|Shift|Alt|Meta/i.test(t)) return;
+        el.setAttribute('title', t
+          .replace(/Ctrl\+/gi, '⌘')
+          .replace(/Meta\+/gi, '⌘')
+          .replace(/Shift\+/gi, '⇧')
+          .replace(/Alt\+/gi, '⌥'));
+      });
+    })();
+  </script>
 </body>
 </html>
