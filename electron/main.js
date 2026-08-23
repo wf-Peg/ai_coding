@@ -4344,6 +4344,8 @@ app.whenReady().then(async () => {
         log.warn('[local-index watcher] not started:', localIndexWatcher.reason);
       }
     }
+    // 启动索引库周期维护（6h optimize / 24h VACUUM），退出时跟随 close 停止
+    localIndexService.startMaintenance();
   } catch (e) {
     log.warn('[local-index] init skipped:', e.message);
   }
@@ -4658,6 +4660,8 @@ app.on('will-quit', () => {
     try { localIndexWatcher.stop(); } catch (e) {}
     localIndexWatcher = null;
   }
+  // 优雅关闭索引库：停维护 + closeDatabase（optimize + WAL checkpoint 落盘），避免 wal 残留
+  try { localIndexService.close(); } catch (e) {}
   unregisterGlobalShortcut();
   stopBackend();
   stopFrontendServer();

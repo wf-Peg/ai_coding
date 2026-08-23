@@ -19,6 +19,11 @@ const { getMeta, upsertMeta } = require('./init');
 
 // 运行时状态
 const state = { ready: false, generation: 0 };
+// 周期维护定时器（optimize 频繁、VACUUM 低峰），应用退出时 stopMaintenance 清理
+let maintenanceTimer = null;
+let vacuumTimer = null;
+const OPTIMIZE_INTERVAL = 6 * 3600 * 1000;   // 6 小时做一次轻量 optimize
+const VACUUM_INTERVAL = 24 * 3600 * 1000;    // 24 小时做一次真空回收
 
 /**
  * 扫描并索引 knowledge / learning-plan 实体，收集各类型 id 集合用于增量 prune，
@@ -145,6 +150,44 @@ function startWatcher(storagePath, onDelta) {
   return watcher.startWatching(storagePath, handle);
 }
 
+/**
+ * 启动索引库周期维护：6h 轻量 optimize，24h 一次 VACUUM（低峰回收空闲页）。
+ * 返回 stop 用于退出时清理。空闲连接时静默跳过。
+ * @returns {{started:boolean, stop:Function}}
+ */
+function startMaintenance() {
+  if (maintenanceTimer) return { started: true, stop: stopMaintenance };
+  const fire = () => {
+    try { if (db.optimize()) {} } catch (e) {}
+  };
+  const fireVacuum = () => {
+    try { db.vacuum(); } catch (e) {}
+  };
+  maintenanceTimer = setInterval(() => {
+    fire();
+    // 简单的整点对齐：仅在到达 VACUUM 间隔时才执行真空（由调用方控制首次即可先 optimize）
+  }, OPTIMIZE_INTERVAL);
+  // 单独低频定时器做真空，避免与 optimize 互相干扰
+  vacuumTimer = setInterval(fireVacuum, VACUUM_INTERVAL);
+  // 兜底：两个定时器都 unref，不阻止应用退出
+  if (maintenanceTimer.unref) maintenanceTimer.unref();
+  if (vacuumTimer.unref) vacuumTimer.unref();
+  return { started: true, stop: stopMaintenance };
+}
+
+/** 停止周期维护并清空定时器。 */
+function stopMaintenance() {
+  if (maintenanceTimer) { clearInterval(maintenanceTimer); maintenanceTimer = null; }
+  if (vacuumTimer) { clearInterval(vacuumTimer); vacuumTimer = null; }
+}
+
+/** 关闭索引库：停维护 → closeDatabase（内含 optimize + WAL checkpoint 落盘）。 */
+function close() {
+  stopMaintenance();
+  try { state.ready = false; } catch (e) {}
+  db.closeDatabase();
+}
+
 /** 索引状态。 */
 function status() {
   const dbConn = db.getDatabase();
@@ -174,4 +217,4 @@ function listByType(type = 'clip', limit = 200) {
   }).filter((x) => x != null);
 }
 
-module.exports = { initLocalIndex, rebuild, status, listByType, rescan, startWatcher };
+module.exports = { initLocalIndex, rebuild, status, listByType, rescan, startWatcher, startMaintenance, stopMaintenance, close };

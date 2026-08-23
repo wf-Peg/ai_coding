@@ -20,6 +20,8 @@ const DET_MODEL = 'ch_PP-OCRv4_det_infer.onnx';
 const REC_MODEL = 'ch_PP-OCRv4_rec_infer.onnx';
 const CLS_MODEL = 'ch_PP-OCRv4_cls_infer.onnx';
 const DICT_FILE = 'ppocr_keys_v1.txt';
+// rec 置信度下限：低于它的列按 blank 处理，抑制噪声边框/污点被误解码成字形（真实文字 PP-OCR 置信度通常 >0.8）
+const REC_MIN_SCORE = 0.5;
 
 /** 推理会话与字典缓存 */
 let sessions = null;
@@ -215,7 +217,7 @@ async function recognize(pngBuffer) {
     const rDims = recTensor.dims || [1, 1, 6625];
     const tSteps = rDims[1] || Math.max(1, Math.round(recProbs.length / 6625));
     const numClasses = rDims[2] || 6625;
-    const text = ctcDecode(recProbs, tSteps, dict, numClasses);
+    const text = ctcDecode(recProbs, tSteps, dict, numClasses, REC_MIN_SCORE);
     if (text) lines.push({ text, x, y, w, h });
   }
 
@@ -236,10 +238,12 @@ function firstFloatTensor(output) {
 
 /** CTC 贪心解码（去重 + 去 blank）。
  *  PP-OCR rec 输出 [T, numClasses]：index 0 = blank，index 1..dictLen = 字典字符，尾部为额外类。
- *  @param {number} numClasses 输出类别数（如 6625 = 字典 6623 + blank + extra） */
-function ctcDecode(probs, width, dictArr, numClasses) {
+ *  @param {number} numClasses 输出类别数（如 6625 = 字典 6623 + blank + extra）
+ *  @param {number} [minCharScore] 可选置信度下限；某列最佳概率低于它时按 blank 处理，抑制噪声误识别 */
+function ctcDecode(probs, width, dictArr, numClasses, minCharScore) {
   const blankIdx = 0; // PP-OCR blank 在索引 0
   const nc = numClasses || dictArr.length + 1;
+  const minScore = minCharScore || 0;
   let last = blankIdx;
   let text = '';
   for (let i = 0; i < width; i++) {
@@ -249,6 +253,8 @@ function ctcDecode(probs, width, dictArr, numClasses) {
       const p = probs[i * nc + c];
       if (p > bestP) { bestP = p; best = c; }
     }
+    // 置信度过滤：低于阈值的列视为噪声（blank），避免对纯随机像素解码出"字形"
+    if (minScore > 0 && bestP < minScore) best = blankIdx;
     if (best !== blankIdx && best !== last) {
       const charIdx = best - 1;
       if (charIdx >= 0 && charIdx < dictArr.length) text += dictArr[charIdx];
@@ -258,4 +264,4 @@ function ctcDecode(probs, width, dictArr, numClasses) {
   return text.trim();
 }
 
-module.exports = { recognize, status, setModelsDir, modelsDir: MODELS_DIR };
+module.exports = { recognize, status, setModelsDir, modelsDir: MODELS_DIR, ctcDecode };

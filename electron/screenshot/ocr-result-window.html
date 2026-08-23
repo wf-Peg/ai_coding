@@ -105,8 +105,9 @@
   <button class="win-btn close" id="btnClose" title="关闭 (Esc)">✕</button>
 </div>
 <div class="toolbar">
-  <button class="primary" id="btnCopy">📋 复制</button>
-  <button class="ghost" id="btnEditor">📝 在编辑器中打开</button>
+  <button class="primary" id="btnCopy" title="复制全部文本">📋 复制</button>
+  <button class="primary" id="btnCopyClose" title="复制并关闭 (⌘/Ctrl+Enter)">📋 复制并关闭</button>
+  <button class="ghost" id="btnEditor" title="在编辑器中打开">📝 在编辑器中打开</button>
   <div class="spacer"></div>
   <span class="meta" id="meta"></span>
 </div>
@@ -124,6 +125,7 @@
   const status = document.getElementById('status');
   const statusDot = document.getElementById('statusDot');
   const btnCopy = document.getElementById('btnCopy');
+  const btnCopyClose = document.getElementById('btnCopyClose');
   const btnEditor = document.getElementById('btnEditor');
   let lastText = '';
 
@@ -143,18 +145,32 @@
     statusDot.classList.toggle('ok', !!ok);
   }
 
-  btnCopy.addEventListener('click', async () => {
+  async function copyText() {
     const val = text.value.trim();
-    if (!val) return;
+    if (!val) return false;
     try {
       await navigator.clipboard.writeText(val);
+      return true;
+    } catch (err) {
+      setStatus('复制失败：' + err.message, false);
+      return false;
+    }
+  }
+
+  async function onCopy() {
+    if (await copyText()) {
       setStatus('已复制到剪贴板', true);
       btnCopy.classList.add('done');
       btnCopy.innerHTML = '✓ 已复制';
       setTimeout(() => { btnCopy.classList.remove('done'); btnCopy.innerHTML = '📋 复制'; }, 1600);
-    } catch (err) {
-      setStatus('复制失败：' + err.message, false);
     }
+  }
+
+  btnCopy.addEventListener('click', onCopy);
+
+  // 复制并关闭
+  btnCopyClose.addEventListener('click', async () => {
+    if (await copyText()) window.close();
   });
 
   btnEditor.addEventListener('click', () => {
@@ -171,10 +187,7 @@
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') window.close();
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      const val = text.value.trim();
-      if (!val) return;
-      navigator.clipboard.writeText(val);
-      window.close();
+      copyText().then((ok) => { if (ok) window.close(); });
     }
   });
 

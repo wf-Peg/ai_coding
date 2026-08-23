@@ -44,9 +44,31 @@ function openDatabase(storagePath) {
   return db;
 }
 
-/** 关闭连接（主要用于测试清理）。 */
+/** 对当前连接做轻量维护：analyze 缺失索引 + 重建内部统计，成本低可周期性执行。 */
+function optimize() {
+  if (!dbInstance) return false;
+  try { dbInstance.exec('PRAGMA optimize;'); return true; } catch (e) { return false; }
+}
+
+/**
+ * 真空回收空闲页（文件裁剪）。比 PRAGMA optimize 重，周期/低峰执行即可；
+ * 需无活动事务，失败静默（如文件忙/权限），不阻塞业务。
+ * @returns {boolean}
+ */
+function vacuum() {
+  if (!dbInstance) return false;
+  // WAL 下先 checkpoint 落盘，VACUUM 才真正裁剪主库文件
+  try { dbInstance.exec('PRAGMA wal_checkpoint(TRUNCATE);'); } catch (e) {}
+  try { dbInstance.exec('VACUUM;'); return true; } catch (e) { return false; }
+}
+
+/** 关闭连接（主要用于应用退出与测试清理）：先优化再落盘，最后关闭。 */
 function closeDatabase() {
   if (dbInstance) {
+    try {
+      optimize();
+      dbInstance.exec('PRAGMA wal_checkpoint(TRUNCATE);'); // WAL 收尾落盘，避免 shm/wal 残留
+    } catch (e) { /* ignore */ }
     try { dbInstance.close(); } catch (e) { /* ignore */ }
     dbInstance = null;
   }
@@ -57,4 +79,4 @@ function getDatabase() {
   return dbInstance;
 }
 
-module.exports = { openDatabase, closeDatabase, getDatabase };
+module.exports = { openDatabase, closeDatabase, getDatabase, optimize, vacuum };
