@@ -1,0 +1,97 @@
+{
+  "version": "2.0",
+  "requirement": {
+    "title": "SQLite索引库收尾与OCR增强",
+    "summary": "本地索引库生命周期收尾（关闭时 optimize + WAL 落盘、6h/24h 周期维护、退出优雅关闭连接）+ 截图 OCR 增强（CTC 置信度降噪、结果窗口体验）+ 修复 OCR 一键安装模型下载一直失败的根因。",
+    "tags": ["product-dev", "SQLite", "OCR", "截图工具"],
+    "phase": "completed",
+    "createdAt": "2026-08-23T22:40:00",
+    "completedAt": "2026-08-24T00:30:00"
+  },
+  "featurePoints": [
+    {
+      "id": "fp-001",
+      "name": "SQLite 索引库生命周期收尾",
+      "description": "closeDatabase() 关闭前执行 PRAGMA optimize + wal_checkpoint(TRUNCATE) 落盘避免 wal 残留；index-service 新增 startMaintenance（6h optimize / 24h VACUUM，定时器 unref 不阻塞退出）与 close()（停维护后关库）；main.js 启动时 startMaintenance、will-quit 优雅 close，确保退出时连接被关闭。",
+      "layer": "backend",
+      "tags": ["product-dev", "SQLite", "维护"],
+      "designSections": ["架构设计", "技术方案", "关键决策"],
+      "tasks": [
+        { "title": "db.js closeDatabase 内置 optimize + WAL checkpoint 落盘", "status": "done" },
+        { "title": "db.js 新增 optimize() / vacuum() 维护接口并导出", "status": "done" },
+        { "title": "index-service 新增 startMaintenance / stopMaintenance / close", "status": "done" },
+        { "title": "main.js 启动 startMaintenance、will-quit close 连接", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "db.test.js / index-service.test.js 全通过", "status": "done" },
+        { "title": "退出路径确认：watcher 停止后 close 连接", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-002",
+      "name": "OCR 置信度过滤降噪",
+      "description": "ctcDecode 增加可选 minCharScore（启用 REC_MIN_SCORE=0.5）：单列最佳概率低于阈值按 blank 处理，抑制噪声边框/污点被误解码成字形；导出 ctcDecode 供纯函数单测，新增 4 条断言（正常解码 / 无阈值兼容旧行为 / 阈值过滤 / 全低置信空结果）。",
+      "layer": "backend",
+      "tags": ["product-dev", "OCR", "CTC"],
+      "designSections": ["技术方案", "关键决策"],
+      "tasks": [
+        { "title": "ctcDecode 增加 minCharScore 低置信列 blank 化", "status": "done" },
+        { "title": "recognize 启用 REC_MIN_SCORE=0.5 并导出 ctcDecode", "status": "done" },
+        { "title": "新增 ocr-service.test.js 4 条单测", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "ocr-service.test.js 4/4 通过", "status": "done" },
+        { "title": "无阈值时行为与旧版一致（回归兼容）", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-003",
+      "name": "OCR 结果窗口体验优化",
+      "description": "结果窗口新增「复制并关闭」主按钮，抽取共享 copyText()，Ctrl/Cmd+Enter 复用同一复制后关闭逻辑，状态栏保留行列/字符统计。",
+      "layer": "frontend",
+      "tags": ["product-dev", "OCR", "UI"],
+      "designSections": ["前端体验"],
+      "tasks": [
+        { "title": "增加复制并关闭按钮 + 复制逻辑复用", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "复制 / 复制并关闭 / 快捷键行为一致", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-004",
+      "name": "修复 OCR 一键安装模型下载一直失败",
+      "description": "根因：跨平台重写把 cls（方向分类）放回 required，但 RapidOCR HF space 并无 cls 模型（任何源 404），致 needModel 恒真、下载必失败且被静默吞掉，永远提示「模型下载未完成」。修复：必需项改为 det/rec/字典（与 ocr-service 可选语义对齐）；下载源重排 hf-mirror 优先、字典改 PaddleOCR raw；downloadFile 补 User-Agent；失败时归因具体缺失文件与下载详情日志。",
+      "layer": "backend",
+      "tags": ["product-dev", "OCR", "bug", "下载"],
+      "designSections": ["技术方案", "关键决策"],
+      "tasks": [
+        { "title": "install-ocr 移除无源 cls、必需项改为 det/rec/字典", "status": "done" },
+        { "title": "getModelJobs 源重排 + 字典改 PaddleOCR raw", "status": "done" },
+        { "title": "downloadFile 补 User-Agent + 失败归因提示", "status": "done" },
+        { "title": "同步修改 legacy screenshot-service.js", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "实测 keys(26KB)/det(4.7MB) 经新逻辑端到端下载成功", "status": "done" },
+        { "title": "活动与 legacy 两文件 node --check 通过", "status": "done" }
+      ]
+    }
+  ],
+  "knowledgePoints": [
+    {
+      "title": "RapidOCR 模型源的实际分布",
+      "content": "RapidOCR 的 HF space（RapidAI/RapidOCR）models/ 目录仅有 text_det 与 text_rec，没有 text_cls——cls 方向分类模型不存在官方可下载源。OCR 若把 cls 纳入必需清单会永远下载失败。必需仅 det/rec/字典（ppocr_keys_v1.txt）。dict 用 PaddleOCR 官方 raw（raw.githubusercontent.com）最稳定；hf-mirror 国内可达，优先。",
+      "tags": ["product-dev", "OCR", "模型源"]
+    },
+    {
+      "title": "CTC 低置信度抑制噪声",
+      "content": "PP-OCR rec 输出每列用贪心取 argmax。对噪声边框/污点区域，最佳概率常偏低（<0.5），会被误解码成字形。给 ctcDecode 加 minCharScore：列最佳概率低于阈值按 blank 处理，能显著抑制错/多识别。真实文字置信度通常 >0.8，0.5 阈值安全。注意该参数需可选并默认关闭，保证无阈值时行为向后兼容。",
+      "tags": ["product-dev", "OCR", "CTC"]
+    },
+    {
+      "title": "SQLite 收尾策略",
+      "content": "node:sqlite DatabaseSync 常驻于主进程，若仅靠退出天然终止，WAL 文件可能残留。正确收尾：关闭前 PRAGMA optimize（重建统计）+ wal_checkpoint(TRUNCATE) 落盘；周期维护用 unref 定时器避免阻止退出。VACUUM（文件裁剪）较重建且需无活动事务，宜低频（24h）执行；optimize 轻量，6h 一次即可。",
+      "tags": ["product-dev", "SQLite", "WAL"]
+    }
+  ]
+}
