@@ -40,9 +40,8 @@ function indexEntities(dbConn, storagePath) {
   // 增量删除：清理本次扫描已消失的 knowledge/plan
   indexer.pruneMissing(dbConn, byType['knowledge'], 'knowledge');
   indexer.pruneMissing(dbConn, byType['learning-plan'], 'learning-plan');
-  // 关系表全量重建（依赖 knowledge/plan 权威字段）
-  relationBuilder.buildRelations(dbConn, records);
-  return { knowledgeIds: byType['knowledge'], planIds: byType['learning-plan'], addedCount: added };
+  // 关系表重建（含遗留 relation-index.json 合并，唯一迁移承载）
+  return relationBuilder.buildRelations(dbConn, records, storagePath);
 }
 
 /**
@@ -70,7 +69,7 @@ function initLocalIndex(storagePath) {
     for (const { filePath, mtime, clip } of records) {
       if (indexer.upsertClip(dbConn, clip, filePath, mtime)) count++;
     }
-    // 实体（knowledge/learning-plan）索引 + 关系表构建
+    // 实体（knowledge/learning-plan）索引 + 关系表重建（内含遗留 index 合并）
     indexEntities(dbConn, storagePath);
   });
 
@@ -119,9 +118,8 @@ function rescan(storagePath) {
       }
     }
     removed = indexer.pruneMissing(dbConn, scannedIds);
-    // 实体（knowledge/learning-plan）增量索引 + 关系表重建
-    const e = indexEntities(dbConn, storagePath);
-    added += e.addedCount;
+    // 实体（knowledge/learning-plan）增量索引 + 关系表重建（含遗留 index 合并）
+    indexEntities(dbConn, storagePath);
   });
 
   // FTS 统一重建，规避 external content 表在 WAL 下行级删除/写入的 CORRUPT

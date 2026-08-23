@@ -1925,7 +1925,8 @@ async function showCloseDialog(win) {
           closeToTray = dialogResult.action === 'tray';
         }
         if (dialogResult.action === 'tray') {
-          if (parent) parent.minimize();
+          // macOS 上模态弹窗关闭后 minimize() 不生效（窗口仍可见），改用 hide() 真正收入托盘
+          if (parent) parent.hide();
         } else {
           isQuitting = true;
           quitApp();
