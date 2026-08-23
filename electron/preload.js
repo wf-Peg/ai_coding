@@ -660,6 +660,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     /** 全文搜索 */
     search: (query, topK, category) => ipcRenderer.invoke('local-index:search', { query, topK, category }),
     /** 按类型列表 clip */
-    listByType: (type, limit) => ipcRenderer.invoke('local-index:list-by-type', { type, limit })
+    listByType: (type, limit) => ipcRenderer.invoke('local-index:list-by-type', { type, limit }),
+    /** 图谱数据（对齐 /api/graph） */
+    graph: (opts) => ipcRenderer.invoke('local-index:graph', { includeTypes: opts && opts.includeTypes }),
+    /** 节点关系（出链 + 反链） */
+    relations: (id) => ipcRenderer.invoke('local-index:relations', { id })
   }
 });

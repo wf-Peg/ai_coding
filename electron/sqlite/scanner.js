@@ -48,6 +48,21 @@ function resolveClipStoragePath(storagePath) {
 }
 
 /**
+ * 数据根目录归一化：knowledge / learning-plan 与 clip-storage 同级。
+ * storagePath 指向 Clip_Bed 父目录时即为 base；已指向 clip-storage 时取其父目录。
+ *
+ * @param {string} storagePath config.storagePath
+ * @returns {string} 数据根目录路径
+ */
+function resolveBasePath(storagePath) {
+  if (!storagePath) throw new Error('resolveBasePath: storagePath is required');
+  if (storagePath.endsWith('clip-storage') || storagePath.endsWith('clip-storage\\')) {
+    return path.dirname(storagePath);
+  }
+  return storagePath;
+}
+
+/**
  * 递归扫描 clip-storage 下所有 .json 文件（排除非 clip 目录），
  * 提取可索引 clip 记录数组。
  *
@@ -124,4 +139,99 @@ function extractBodyPlain(clip) {
   return parts.filter((p) => p != null && String(p).trim() !== '').join('\n');
 }
 
-module.exports = { scanClips, parseClipFile, extractBodyPlain, isExcludedPath, resolveClipStoragePath };
+// 实体目录 → content.type 映射（M3 图谱关系层端点）：knowledge / learning-plan
+const ENTITY_DIRS = [
+  { dir: 'knowledge',     type: 'knowledge' },
+  { dir: 'learning-plan', type: 'learning-plan' }
+];
+
+/**
+ * 解析实体 JSON 文件为实体对象数组。
+ * knowledge / learning-plan 文件均为 JSON 数组；兼容 { items: [...] } 形态。
+ * 解析失败返回空数组（文件为真，库为缓存，坏文件跳过不中断）。
+ *
+ * @param {string} filePath
+ * @returns {Array<Object>}
+ */
+function parseEntityFile(filePath) {
+  try {
+    const text = fs.readFileSync(filePath, 'utf-8');
+    if (!text || !text.trim()) return [];
+    const root = JSON.parse(text);
+    if (Array.isArray(root)) return root;
+    if (root && typeof root === 'object') {
+      const items = root.items || root.entities || root.list;
+      if (Array.isArray(items)) return items;
+    }
+    return [];
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * 扫描 knowledge / learning-plan 实体目录，提取可索引实体记录。
+ * 这些目录与 clip-storage 同级（{base}/{dir}/{yyMMdd}.json）。
+ *
+ * @param {string} storagePath config.storagePath（Clip_Bed 父目录或 clip-storage）
+ * @returns {Array<{filePath:string, mtime:string, type:string, entity:Object}>}
+ */
+function scanEntities(storagePath) {
+  const results = [];
+  const base = resolveBasePath(storagePath);
+  for (const { dir, type } of ENTITY_DIRS) {
+    const dirPath = path.join(base, dir);
+    if (!fs.existsSync(dirPath)) continue;
+    let entries;
+    try { entries = fs.readdirSync(dirPath, { withFileTypes: true }); }
+    catch (e) { continue; }
+    for (const ent of entries) {
+      if (!ent.isFile() || !ent.name.endsWith('.json')) continue;
+      const full = path.join(dirPath, ent.name);
+      // 注意：不在此处走 isExcludedPath —— knowledge/learning-plan 本就在 clip 排除集内，
+      // 但这里显式以它们为扫描目标。
+      const entities = parseEntityFile(full);
+      if (!entities.length) continue;
+      let mtime = '';
+      try { mtime = fs.statSync(full).mtimeMs.toString(); } catch (e) { /* ignore */ }
+      for (const entity of entities) {
+        if (entity && entity.id !== null && entity.id !== undefined) {
+          results.push({ filePath: full, mtime, type, entity });
+        }
+      }
+    }
+  }
+  return results;
+}
+
+/**
+ * 从实体对象抽取用于 FTS 的纯文本（knowledge / learning-plan）。
+ *
+ * @param {Object} entity
+ * @param {string} type content.type
+ * @returns {string}
+ */
+function extractEntityBodyPlain(entity, type) {
+  if (!entity || typeof entity !== 'object') return '';
+  const parts = [];
+  if (type === 'learning-plan') {
+    parts.push(entity.title, entity.goal, entity.level, entity.category,
+      entity.mermaidDiagram, entity.mastery);
+    if (Array.isArray(entity.phases)) {
+      for (const phase of entity.phases) {
+        parts.push(phase.title, phase.goal, phase.detailMarkdown, phase.estimatedWeeks);
+      }
+    }
+  } else {
+    parts.push(entity.title, entity.content, entity.summary, entity.myThoughts, entity.category);
+  }
+  if (Array.isArray(entity.tags)) parts.push(...entity.tags);
+  else if (entity.tags) parts.push(entity.tags);
+  return parts.filter((p) => p != null && String(p).trim() !== '').join('\n');
+}
+
+module.exports = {
+  scanClips, parseClipFile, extractBodyPlain, isExcludedPath,
+  resolveClipStoragePath, resolveBasePath,
+  scanEntities, parseEntityFile, extractEntityBodyPlain, ENTITY_DIRS
+};

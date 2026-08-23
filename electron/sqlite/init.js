@@ -1,11 +1,13 @@
 /**
  * init.js - SQLite 本地索引层：建库建表 + schema 版本迁移
  *
- * 表结构仅承载 clip（一期）。后续扩展 knowledge/todo/learning-plan 时
- * 新增版本迁移（schema_version+1），在 migrate() 里追加逻辑。
+ * v1：content / content_fts（仅 clip）。
+ * v2：新增 relation 表（M3 图谱关系层），content.type 扩展支持
+ *     knowledge / learning-plan 作为关系端点。
+ * 后续扩展时新增版本迁移（schema_version+1），在 migrate() 里追加逻辑。
  */
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 // 建表 SQL（仅在 meta.schema_version 为空时执行 v1 建库）
 const SQL_V1 = `
@@ -40,6 +42,23 @@ CREATE VIRTUAL TABLE IF NOT EXISTS content_fts USING fts5(
 );
 `;
 
+// v2 增量：关系表（M3 图谱关系层，替代 Java relation-index.json）
+const SQL_V2 = `
+CREATE TABLE IF NOT EXISTS relation (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  from_id       TEXT NOT NULL,
+  to_id         TEXT NOT NULL,
+  relation_type TEXT NOT NULL,          -- derived_from / linked_to / plan_links
+  source        TEXT,                   -- clip_to_knowledge / wikilink / learning_plan_link
+  confidence    REAL DEFAULT 1.0,
+  created_at    TEXT,
+  UNIQUE(from_id, to_id, relation_type)
+);
+CREATE INDEX IF NOT EXISTS idx_relation_from ON relation(from_id);
+CREATE INDEX IF NOT EXISTS idx_relation_to   ON relation(to_id);
+CREATE INDEX IF NOT EXISTS idx_relation_type ON relation(relation_type);
+`;
+
 /**
  * 执行建库/迁移。基于 meta.schema_version 判断。
  * v1：建 meta/content/content_fts。
@@ -54,11 +73,18 @@ function migrate(db) {
   const current = row ? parseInt(row.value, 10) : 0;
 
   if (current === 0) {
+    // 全新建库：跑全量 SQL（v1 基础表 + v2 relation 表）
     db.exec(SQL_V1);
+    db.exec(SQL_V2);
     upsertMeta(db, 'schema_version', String(SCHEMA_VERSION));
     return;
   }
-  // 未来版本升级：if (current < 2) { db.exec(SQL_V2); ... }
+  if (current < 2) {
+    // v1 → v2：新增 relation 表
+    db.exec(SQL_V2);
+    upsertMeta(db, 'schema_version', String(SCHEMA_VERSION));
+    return;
+  }
 }
 
 /** 读取/写入 meta 键值。 */

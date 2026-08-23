@@ -22,6 +22,8 @@ const { EditorFileService } = require('./editor-file-service');
 // SQLite 本地索引层（主进程 Node 侧，仅节 clip；失败不影响主流程）
 const localIndexService = require('./sqlite/index-service');
 const localSearch = require('./sqlite/search');
+const localGraph = require('./sqlite/graph');
+const localDb = require('./sqlite/db');
 // clip-storage 实时监听句柄（will-quit 时释放）
 let localIndexWatcher = null;
 
@@ -2007,6 +2009,15 @@ function createMainWindow(config) {
   // 窗口销毁时清理引用
   mainWindow.on('closed', () => { mainWindow = null; });
 
+  // 应用主动退出时，忽略渲染进程 beforeunload 的阻止（如编辑器未保存标签的取消卸载）
+  // 否则子 iframe 的 beforeunload 会阻断 app.quit()，导致 Cmd+Q / 扩展坞 / 右上角关闭均无效。
+  // 仅退出时绕过；正常刷新/导航仍保留 beforeunload 的未保存提示。
+  mainWindow.webContents.on('will-prevent-unload', (event) => {
+    if (isQuitting) {
+      event.preventDefault();
+    }
+  });
+
   // ===== 关闭窗口拦截 =====
   // 当用户点击关闭按钮时，行为取决于 closeToTray 状态：
   //   null  → 弹出对话框询问
@@ -2392,6 +2403,22 @@ function setupIPC() {
   ipcMain.handle('local-index:list-by-type', localIndexGuard(async (ev, args) => {
     const { type, limit } = args || {};
     return { success: true, results: localIndexService.listByType(type, limit) };
+  }));
+
+  /** 图谱数据（对齐 GET /api/graph）：includeTypes 逗号分隔，空=全部 */
+  ipcMain.handle('local-index:graph', localIndexGuard(async (_ev, args) => {
+    const includeTypes = (args && args.includeTypes)
+      ? new Set(String(args.includeTypes).split(',').map((s) => s.trim()).filter(Boolean))
+      : null;
+    const graph = localGraph.getGraph(localDb.getDatabase(), includeTypes);
+    return { success: true, nodes: graph.nodes, links: graph.links };
+  }));
+
+  /** 查询某节点的关系（出链 + 反链），供反链面板复用 */
+  ipcMain.handle('local-index:relations', localIndexGuard(async (_ev, args) => {
+    const { id } = args || {};
+    if (!id) return { success: false, message: 'id is required' };
+    return { success: true, relations: localGraph.relationsFor(localDb.getDatabase(), id) };
   }));
 
   /**

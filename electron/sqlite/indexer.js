@@ -5,11 +5,16 @@
  * 以 file_path + mtime 判定，mtime 未变则跳过写入（幂等）。
  */
 
-const { extractBodyPlain } = require('./scanner');
+const { extractBodyPlain, extractEntityBodyPlain } = require('./scanner');
 
 /** 全局唯一 id：'clip:' + source_id。 */
 function clipId(clip) {
   return 'clip:' + clip.id;
+}
+
+/** 实体全局唯一 id：'{type}:{entity.id}'（knowledge/learning-plan）。 */
+function entityId(entity, type) {
+  return type + ':' + entity.id;
 }
 
 /** 把 clip 对象 → content 表参数（不含事务控制）。 */
@@ -75,6 +80,56 @@ function upsertClip(db, clip, filePath, mtime) {
 }
 
 /**
+ * upsert 一条实体（knowledge / learning-plan）到 content，作为图谱/搜索节点。
+ * 与 upsertClip 同语义：同 id 且 mtime 一致则跳过。
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {Object} entity
+ * @param {string} type content.type（'knowledge' / 'learning-plan'）
+ * @param {string} filePath
+ * @param {string} mtime
+ * @returns {boolean} true=已写入，false=命中缓存跳过
+ */
+function upsertEntity(db, entity, type, filePath, mtime) {
+  if (!entity || entity.id === null || entity.id === undefined) return false;
+  const id = entityId(entity, type);
+
+  const existing = db.prepare('SELECT mtime FROM content WHERE id = ?').get(id);
+  if (existing && existing.mtime === mtime) return false;
+
+  const now = new Date().toISOString();
+  const tagsStr = Array.isArray(entity.tags)
+    ? JSON.stringify(entity.tags)
+    : (entity.tags ? String(entity.tags) : null);
+  const p = {
+    id,
+    type,
+    source_id: entity.id,
+    title: entity.title || (type === 'learning-plan' ? entity.goal : null),
+    summary: entity.summary || (type === 'learning-plan' ? entity.goal : null),
+    category: entity.category || null,
+    tags: tagsStr,
+    body_plain: extractEntityBodyPlain(entity, type),
+    content_ref: JSON.stringify(entity),
+    mtime,
+    file_path: filePath,
+    created_at: now,
+    updated_at: now
+  };
+  const stmt = db.prepare(`
+    INSERT INTO content (id, type, source_id, title, summary, category, tags, body_plain, content_ref, mtime, file_path, created_at, updated_at)
+    VALUES (@id, @type, @source_id, @title, @summary, @category, @tags, @body_plain, @content_ref, @mtime, @file_path, @created_at, @updated_at)
+    ON CONFLICT(id) DO UPDATE SET
+      type=excluded.type, source_id=excluded.source_id, title=excluded.title,
+      summary=excluded.summary, category=excluded.category, tags=excluded.tags,
+      body_plain=excluded.body_plain, content_ref=excluded.content_ref,
+      mtime=excluded.mtime, file_path=excluded.file_path, updated_at=excluded.updated_at
+  `);
+  stmt.run(p);
+  return true;
+}
+
+/**
  * 用 FTS5 'rebuild' 指令从 content 主表重建 content_fts。
  * 适用于全量重建/批量写入后。规避 external content 表逐行 DELETE 的 CORRUPT 问题。
  *
@@ -92,16 +147,18 @@ function deleteClip(db, id) {
 }
 
 /**
- * 删除本次扫描集合里已不存在的 clip（增量删除）。
- * 以「clip id 集合」判定而非 file_path：一个 JSON 文件可能含多个 clip，
+ * 删除本次扫描集合里已不存在的指定类型记录（增量删除）。
+ * 以「实体 id 集合」判定而非 file_path：一个 JSON 文件可能含多条记录，
  * 同文件内某条被移除时也应删除索引；反之同一 id 若在别处仍存在则保留（id 为实体）。
  * 只删 content 主表行，FTS 交由调用方在末尾统一 rebuild 同步。
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {Set<string>} scannedIds 本次扫描留下的 clip 主键 id 集合
+ * @param {Set<string>} scannedIds 本次扫描留下的主键 id 集合
+ * @param {string} type 目标 type（'clip' / 'knowledge' / 'learning-plan'），默认 'clip'
  * @returns {number} 删除条数
  */
-function pruneMissing(db, scannedIds) {
-  const rows = db.prepare("SELECT id FROM content WHERE type = 'clip'").all();
+function pruneMissing(db, scannedIds, type) {
+  const t = type || 'clip';
+  const rows = db.prepare('SELECT id FROM content WHERE type = ?').all(t);
   let removed = 0;
   for (const r of rows) {
     if (!scannedIds.has(r.id)) {
@@ -129,4 +186,4 @@ function count(db) {
   return row ? row.c : 0;
 }
 
-module.exports = { upsertClip, deleteClip, clearAll, count, clipId, rebuildFts, pruneMissing };
+module.exports = { upsertClip, upsertEntity, deleteClip, clearAll, count, clipId, entityId, rebuildFts, pruneMissing };

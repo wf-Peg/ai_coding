@@ -24,10 +24,18 @@ test('node:sqlite 可用（Electron 36 / Node 22 内置）', () => {
   assert.ok(row && row.v, `sqlite_version 应为非空，实际=${row && row.v}`);
 });
 
-test('建库后 meta.schema_version 应为 1', () => {
+test('建库后 meta.schema_version 应为 2', () => {
   const { db } = makeDb();
   const row = db.prepare("SELECT value FROM meta WHERE key='schema_version'").get();
-  assert.strictEqual(row.value, '1');
+  assert.strictEqual(row.value, '2');
+});
+
+test('relation 表已创建（M3 v2）', () => {
+  const { db } = makeDb();
+  const tbl = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='relation'"
+  ).all();
+  assert.strictEqual(tbl.length, 1);
 });
 
 test('content / content_fts 表已创建，可写入 FTS 关联', () => {

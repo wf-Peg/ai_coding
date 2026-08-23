@@ -13,11 +13,37 @@
 const db = require('./db');
 const indexer = require('./indexer');
 const scanner = require('./scanner');
+const relationBuilder = require('./relation-builder');
 const watcher = require('./watcher');
 const { getMeta, upsertMeta } = require('./init');
 
 // 运行时状态
 const state = { ready: false, generation: 0 };
+
+/**
+ * 扫描并索引 knowledge / learning-plan 实体，收集各类型 id 集合用于增量 prune，
+ * 并构建关系表。供 initLocalIndex / rescan 复用。
+ *
+ * @param {import('node:sqlite').DatabaseSync} dbConn
+ * @param {string} storagePath config.storagePath
+ * @returns {{knowledgeIds:Set<string>, planIds:Set<string>, addedCount:number}}
+ */
+function indexEntities(dbConn, storagePath) {
+  const records = scanner.scanEntities(storagePath);
+  const byType = { 'knowledge': new Set(), 'learning-plan': new Set() };
+  let added = 0;
+  for (const { filePath, mtime, type, entity } of records) {
+    const id = indexer.entityId(entity, type);
+    byType[type].add(id);
+    if (indexer.upsertEntity(dbConn, entity, type, filePath, mtime)) added++;
+  }
+  // 增量删除：清理本次扫描已消失的 knowledge/plan
+  indexer.pruneMissing(dbConn, byType['knowledge'], 'knowledge');
+  indexer.pruneMissing(dbConn, byType['learning-plan'], 'learning-plan');
+  // 关系表全量重建（依赖 knowledge/plan 权威字段）
+  relationBuilder.buildRelations(dbConn, records);
+  return { knowledgeIds: byType['knowledge'], planIds: byType['learning-plan'], addedCount: added };
+}
 
 /**
  * 初始化本地索引：建库建表 + 全量扫描 clip-storage 建索引。
@@ -44,6 +70,8 @@ function initLocalIndex(storagePath) {
     for (const { filePath, mtime, clip } of records) {
       if (indexer.upsertClip(dbConn, clip, filePath, mtime)) count++;
     }
+    // 实体（knowledge/learning-plan）索引 + 关系表构建
+    indexEntities(dbConn, storagePath);
   });
 
   const generation = (parseInt(getMeta(dbConn, 'data_generation') || '0', 10) || 0) + 1;
@@ -51,7 +79,7 @@ function initLocalIndex(storagePath) {
 
   state.ready = true;
   state.generation = generation;
-  return { ready: true, generation, count: indexer.count(dbConn) };
+  return { ready: true, generation, count: indexer.count(dbConn), relationCount: relationBuilder.count(dbConn) };
 }
 
 /** 全量重建（等价 /api/relations/sync 语义）。 */
@@ -91,11 +119,14 @@ function rescan(storagePath) {
       }
     }
     removed = indexer.pruneMissing(dbConn, scannedIds);
+    // 实体（knowledge/learning-plan）增量索引 + 关系表重建
+    const e = indexEntities(dbConn, storagePath);
+    added += e.addedCount;
   });
 
   // FTS 统一重建，规避 external content 表在 WAL 下行级删除/写入的 CORRUPT
   indexer.rebuildFts(dbConn);
-  return { added, updated, removed, skipped, count: indexer.count(dbConn) };
+  return { added, updated, removed, skipped, count: indexer.count(dbConn), relationCount: relationBuilder.count(dbConn) };
 }
 
 /**
@@ -123,7 +154,8 @@ function status() {
   const generation = state.ready && dbConn
     ? (parseInt(getMeta(dbConn, 'data_generation') || '0', 10) || 0)
     : 0;
-  return { ready: state.ready, generation, count };
+  const relationCount = dbConn ? relationBuilder.count(dbConn) : 0;
+  return { ready: state.ready, generation, count, relationCount };
 }
 
 /**

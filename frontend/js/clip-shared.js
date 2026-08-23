@@ -151,7 +151,43 @@ var selectedClipIds = new Set();
             return response.data;
         }
 
-        return { search };
+        /**
+         * 图谱数据（等价 GET /api/graph）。
+         * 本地索引策略：local-index:graph IPC；REST 策略：/api/graph。
+         * @param {{includeTypes?: string}} [opts] includeTypes 逗号分隔，如 'knowledge'
+         * @returns {Promise<{nodes:Array, links:Array}>}
+         */
+        async function fetchGraph(opts) {
+            const { includeTypes } = opts || {};
+            const bridge = window.electronAPI && window.electronAPI.localIndex;
+            if (bridge && typeof bridge.graph === 'function') {
+                const res = await bridge.graph({ includeTypes });
+                if (res && res.success) {
+                    return { nodes: res.nodes || [], links: res.links || [] };
+                }
+                throw new Error((res && res.message) || '本地索引图谱不可用');
+            }
+            const url = includeTypes ? `${API_ROOT}/graph?includeTypes=${encodeURIComponent(includeTypes)}` : `${API_ROOT}/graph`;
+            const response = await axios.get(url);
+            return { nodes: response.data.nodes || [], links: response.data.links || [] };
+        }
+
+        /**
+         * 查询某节点关系（出链 + 反链）。本地索引不可用时回退 REST（dev 端点留空，仅读由本地索引承担）。
+         * @param {string} id 实体 id，如 'knowledge:1'
+         * @returns {Promise<Array<Object>>}
+         */
+        async function relations(id) {
+            const bridge = window.electronAPI && window.electronAPI.localIndex;
+            if (bridge && typeof bridge.relations === 'function') {
+                const res = await bridge.relations({ id });
+                if (res && res.success) return res.relations || [];
+                throw new Error((res && res.message) || '本地索引关系查询失败');
+            }
+            return [];
+        }
+
+        return { search, fetchGraph, relations };
     })();
 
     // ── 离线/断网模式处理 ──

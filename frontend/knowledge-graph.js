@@ -32,22 +32,38 @@
 
   async function fetchData(view) {
     view = view || 'all';
-    try {
-      const url = view === 'knowledge'
-        ? API_GRAPH + '?includeTypes=knowledge'
-        : API_GRAPH;
-      const response = await fetch(url);
-      const data = await response.json();
+    const includeTypes = view === 'knowledge' ? 'knowledge' : undefined;
+    let nodes = null;
+    let links = [];
 
-      if (!data || !data.nodes || data.nodes.length === 0) {
-        showEmpty('暂无图谱数据', '请先创建剪藏或知识条目并建立关联');
+    // 优先走本地索引 IPC（无需 Java 后端），失败回退 REST /api/graph
+    const bridge = window.electronAPI && window.electronAPI.localIndex;
+    if (bridge && typeof bridge.graph === 'function') {
+      try {
+        const res = await bridge.graph({ includeTypes });
+        if (res && res.success) { nodes = res.nodes; links = res.links || []; }
+      } catch (e) {}
+    }
+    if (nodes === null) {
+      try {
+        const url = includeTypes
+          ? API_GRAPH + '?includeTypes=knowledge'
+          : API_GRAPH;
+        const response = await fetch(url);
+        const data = await response.json();
+        nodes = data.nodes; links = data.links || [];
+      } catch (error) {
+        console.error('获取图谱数据失败:', error);
+        showEmpty('加载失败', '请检查后端服务或本地索引是否正常');
         return;
       }
-      buildGraph(data.nodes, data.links || []);
-    } catch (error) {
-      console.error('获取图谱数据失败:', error);
-      showEmpty('加载失败', '请检查后端服务是否正常运行');
     }
+
+    if (!nodes || nodes.length === 0) {
+      showEmpty('暂无图谱数据', '请先创建剪藏或知识条目并建立关联');
+      return;
+    }
+    buildGraph(nodes, links);
   }
 
   function buildGraph(nodes, links) {
