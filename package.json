@@ -1,8 +1,11 @@
 {
   "name": "clip-demo",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "CutShelter - Information Retrieval & Clip System",
   "main": "electron/main.js",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "electron .",
     "test:editor": "node --test electron/editor-file-service.test.js",

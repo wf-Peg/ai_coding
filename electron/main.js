@@ -1602,11 +1602,14 @@ function createTray() {
   let trayIcon;
 
   if (fs.existsSync(iconPath)) {
-    // macOS: 使用原生尺寸不缩放，保持 Retina 清晰度
-    // macOS 托盘标准 22pt，@3x = 66px，64px 源图清晰度足够
+    // macOS: 缩放避免被放大。createFromPath 对无 @2x/@3x 后缀的图按 1x=pt 渲染，
+    // 64px 源图会被当作 64pt，约为菜单栏标准(22pt)的 3 倍，需缩放到安全尺寸。
     // Windows/Linux: 缩放到 16x16 适应托盘标准尺寸
     if (process.platform === 'darwin') {
-      trayIcon = nativeImage.createFromPath(iconPath);
+      const size = nativeImage.createFromPath(iconPath).getSize();
+      // 菜单栏标准高度 22pt，取 18 留出上下留白；Retina 会自动平滑
+      const target = size.width > 24 ? 18 : size.width;
+      trayIcon = nativeImage.createFromPath(iconPath).resize({ width: target, height: target });
       // Template 图标：macOS 自动转为单色适配菜单栏明暗模式
       trayIcon.setTemplateImage(true);
     } else {
