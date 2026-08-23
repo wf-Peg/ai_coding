@@ -2,6 +2,7 @@
 # 格式: 日期 时间 | 提交说明
 # 每次提交代码后自动追加到此文件
 
+2026-08-23 20:32 | M3图谱relation构建+前端图谱走本地索引+修复应用无法退出
 2026-08-23 20:16 | SQLite索引实时watcher增量重扫 + 增量删除改基于clip id判定
 2026-08-23 19:55 | 前端apiClient契约层：搜索优先走本地索引IPC(local-index:search)，不可用回退后端REST；clip-list.performSearch迁移接入
 2026-08-23 18:44 | Electron窗口安全加固(contextIsolation)+端口探测异步化
