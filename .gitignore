@@ -91,3 +91,13 @@ nul
 
 # DSH 离线依赖闭包（由 scripts/build-dsh-offline.mjs 生成）
 dist-dsh-offline/
+
+# DSH 运行期配置 / 存储 / 档案（本地生成，不提交）
+.dsh/
+
+# 临时目录 / 构建临时产物
+.tmp/
+tmp/
+
+# jlink 精简 JRE 构建产物（打包时由 build-jlink-slim.mjs 生成）
+jre-slim/
