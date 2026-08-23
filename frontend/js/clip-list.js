@@ -52,25 +52,8 @@
         }
 
         try {
-            let response;
-            if (category) {
-                response = await axios.get(`${API_BASE_URL}/search/category`, {
-                    params: {
-                        query,
-                        category,
-                        topK: 10
-                    }
-                });
-            } else {
-                response = await axios.get(`${API_BASE_URL}/search`, {
-                    params: {
-                        query,
-                        topK: 10
-                    }
-                });
-            }
-
-            const results = response.data;
+            // 走统一 API 契约层：优先本地索引 IPC，回退后端 REST
+            const results = await window.apiClient.search(query, { category, topK: 10 });
             displaySearchResults(results);
         } catch (error) {
             console.error('搜索失败:', error);

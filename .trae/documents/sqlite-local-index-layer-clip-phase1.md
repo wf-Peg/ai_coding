@@ -278,8 +278,8 @@ electron/sqlite/
 
 ## 十一、遗留 / 二期事项
 
+- M4 契约接入（搜索部分✅已完成）：新建 `window.apiClient.search()`（[clip-shared.js](file:///Users/pengwenfeng/Documents/gitRep/trae_demo/codex-project/frontend/js/clip-shared.js)），优先走 `local-index:search` IPC、回退后端 REST；[clip-list.js](file:///Users/pengwenfeng/Documents/gitRep/trae_demo/codex-project/frontend/js/clip-list.js) 的 `performSearch()` 已迁移接入。列表 `fetchClips` 仍走 REST（依赖 workspaceId/流程筛选/轮询，本地索引一期不覆盖）。其余待办：
 - M3 图谱：`relation` 表替代 `relation-index.json`（需跨 clip/knowledge/learning-plan）。
-- M4 契约接入：新建前端 `apiClient` 抽象，把 `/api/clip/list` 等当内部契约经 IPC 分发。
 - 实时增量 watcher（chokidar 或 `fs.watch`）替代「启动全量 + 手动 rebuild」。
 - AI 同义词搜索迁移到 Node（对齐 SearchService 两级策略的完整语义）。
 - 扩展到 knowledge/todo/learning-plan 的 content 索引。

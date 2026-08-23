@@ -126,6 +126,34 @@ var selectedClipIds = new Set();
     window.API_BASE_URL = API_BASE_URL;
     window.API_ROOT = API_ROOT;
 
+    // ── API 契约层（M4）──
+    // 统一封装数据访问：优先走 SQLite 本地索引 IPC（window.electronAPI.localIndex），
+    // 不可用/失败时回退后端 REST（axios）。前端消费方只需调用 window.apiClient.xxx，无感知数据源切换。
+    window.apiClient = (function () {
+        /**
+         * 全文搜索（等价 GET /api/clip/search 与 /search/category）。
+         * 本地索引策略：FTS5 精确匹配 + LIKE 中文兜底；REST 策略：Java contains + AI 同义词兜底。
+         * @param {string} query 关键词
+         * @param {{category?: string, topK?: number}} [opts]
+         * @returns {Promise<Array<Object>>} ClipContent 数组
+         */
+        async function search(query, opts) {
+            const { category, topK = 10 } = opts || {};
+            const bridge = window.electronAPI && window.electronAPI.localIndex;
+            if (bridge && typeof bridge.search === 'function') {
+                const res = await bridge.search(query, topK, category);
+                if (res && res.success) return res.results || [];
+                throw new Error((res && res.message) || '本地索引搜索失败');
+            }
+            const url = category ? `${API_BASE_URL}/search/category` : `${API_BASE_URL}/search`;
+            const params = category ? { query, category, topK } : { query, topK };
+            const response = await axios.get(url, { params });
+            return response.data;
+        }
+
+        return { search };
+    })();
+
     // ── 离线/断网模式处理 ──
     // 全局 axios 响应拦截器：统一拦截网络错误，避免控制台大量报错
     axios.interceptors.response.use(
