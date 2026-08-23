@@ -1,0 +1,68 @@
+{
+  "version": "2.0",
+  "requirement": {
+    "title": "SQLite本地索引层M3（图谱关系层）",
+    "summary": "在 Electron 主进程 SQLite 本地索引层中新增 relation 表，替代 Java 侧 relation-index.json，让前端知识图谱脱离后端、经本地 IPC 渲染。",
+    "tags": ["product-dev", "SQLite", "知识图谱", "关系索引"],
+    "phase": "completed",
+    "createdAt": "2026-08-23T20:00:00",
+    "completedAt": "2026-08-23T21:40:00"
+  },
+  "featurePoints": [
+    {
+      "id": "fp-001",
+      "name": "relation 表与关系构建",
+      "description": "schema v2 新增 relation 表（from_id/to_id/relation_type/source/confidence/created_at，三列 UNIQUE 防重）；从知识/学习计划权威字段构建 derived_from / linked_to / plan_links 三类关系，幂等写入。",
+      "layer": "backend",
+      "tags": ["product-dev", "SQLite", "关系索引"],
+      "designSections": ["架构设计", "接口定义", "关键决策"],
+      "tasks": [
+        { "title": "M3.1 init.js schema v2：relation 表 + 3 索引 + 主从库迁移路径（新建/v1→v2）", "status": "done" },
+        { "title": "M3.2 scanner.js 扫描器扩展：candidateRoots 双处探测（同级/内嵌 clip-storage），纳入 knowledge/learning-plan 实体", "status": "done" },
+        { "title": "M3.3 relation-builder.js 三类关系构建：refIds 归一化兼容旧标量 sourceClipId + List", "status": "done" },
+        { "title": "M3.6 遗留 relation-index.json 迁移：每次重建幂等合并，持久化不丢失", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "关系 UNIQUE 防重生效，自环排除", "status": "done" },
+        { "title": "真实 Clip_Bed 数据：34 节点 / 3 derived_from 关系入库", "status": "done" },
+        { "title": "旧标量 sourceClipId 能派生 derived_from（真实旧数据不丢关系）", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-002",
+      "name": "图谱查询 IPC 与前端接线",
+      "description": "graph.js 提供 getGraph 图谱组装（节点分类/关系计数/includeTypes 过滤/悬空边剔除）与 relationsFor 反链；main.js 注册 local-index:graph / local-index:relations IPC；preload 桥接；前端 knowledge-graph.js 优先走本地索引渲染，失败回退后端 REST。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "知识图谱", "IPC"],
+      "designSections": ["接口定义", "关键决策"],
+      "tasks": [
+        { "title": "M3.4 graph.js 图谱组装 + main.js IPC 注册", "status": "done" },
+        { "title": "M3.5 preload 桥接 graph/relations + knowledge-graph.js 本地优先渲染", "status": "done" },
+        { "title": "M3.7 单测 + 回归 + 真实 GUI 冒烟与图谱页完整渲染验证", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "单测 15/15、editor 测试 23/23 无回归", "status": "done" },
+        { "title": "真实 GUI 冒烟：local-index:graph / relations 经 preload 桥往返成功", "status": "done" },
+        { "title": "图谱页完整渲染：真实 App 加载 HTML，D3 渲染 34 节点/3 边，无 JS 报错", "status": "done" },
+        { "title": "知识图谱页已脱离 Java 后端、本地索引渲染", "status": "done" }
+      ]
+    }
+  ],
+  "knowledgePoints": [
+    {
+      "title": "真实数据 vs 单测布局的路径错位",
+      "content": "单测假定 knowledge/learning-plan 与 clip-storage 同级（{base}/{dir}），真实数据却内嵌在 clip-storage 之下（{clip-storage}/{dir}）。导致实体扫描为 0。解法是在 scanner 中引入 candidateRoots 双候选根探测 + Set 去重，兼容新/旧两种布局。真实数据冒烟是发现此问题的关键。",
+      "tags": ["product-dev", "SQLite", "工程实践"]
+    },
+    {
+      "title": "旧模型字段命名偏移",
+      "content": "旧知识模型用标量 sourceClipId，新模型用 List sourceClipIds。只读 List 会让真实旧数据的关系派生为 0。relation-builder 用 refIds 归一化（List 字段 + 标量字段取并集）兼容两代数据，符合「文件为真」原则。",
+      "tags": ["product-dev", "SQLite", "数据兼容"]
+    },
+    {
+      "title": "遗留关系迁移的持久化陷阱",
+      "content": "关系表采用「全量重建」（每次 buildRelations 先 DELETE 再写），若首次迁移的遗留关系也走一次事务，后续 init/rescan 重建会被清空。正确做法是把遗留文件合并进每次 rebuild（ON CONFLICT DO NOTHING 幂等），而非「一次性迁移 + meta 防重」，保证文件为真、库为缓存、持久一致。",
+      "tags": ["product-dev", "SQLite", "数据迁移"]
+    }
+  ]
+}
