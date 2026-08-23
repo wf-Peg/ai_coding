@@ -775,10 +775,9 @@ function downloadModelsInline(modelsDir) {
     "$dir = '" + modelsDir + "'",
     "New-Item -ItemType Directory -Force -Path $dir | Out-Null",
     "$jobs = @(",
-    "  @{ n = 'ch_PP-OCRv4_det_infer.onnx'; urls = @('https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/det.onnx', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv4_det_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv4_det_infer.onnx') },",
-    "  @{ n = 'ch_PP-OCRv4_rec_infer.onnx'; urls = @('https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/rec.onnx', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv4_rec_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv4_rec_infer.onnx') },",
-    "  @{ n = 'ch_PP-OCRv4_cls_infer.onnx'; urls = @('https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/cls.onnx', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_cls/ch_PP-OCRv4_cls_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_cls/ch_PP-OCRv4_cls_infer.onnx') },",
-    "  @{ n = 'ppocr_keys_v1.txt'; urls = @('https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/ppocr_keys_v1.txt', 'https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/ppocr_keys_v1.txt', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/ppocr_keys_v1.txt') }",
+    "  @{ n = 'ch_PP-OCRv4_det_infer.onnx'; urls = @('https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv4_det_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv4_det_infer.onnx', 'https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/det.onnx') },",
+    "  @{ n = 'ch_PP-OCRv4_rec_infer.onnx'; urls = @('https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv4_rec_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv4_rec_infer.onnx', 'https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/rec.onnx') },",
+    "  @{ n = 'ppocr_keys_v1.txt'; urls = @('https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/ppocr_keys_v1.txt', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/ppocr_keys_v1.txt') }",
     ")",
     "foreach ($job in $jobs) {",
     "  $t = Join-Path $dir $job.n",
@@ -800,10 +799,11 @@ function downloadModelsInline(modelsDir) {
 /** 模型清单（文件名 → 按顺序尝试的下载源）。Node 与 PowerShell 分支共用。 */
 function getModelJobs() {
   return [
-    { n: 'ch_PP-OCRv4_det_infer.onnx', urls: ['https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/det.onnx', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv4_det_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv4_det_infer.onnx'] },
-    { n: 'ch_PP-OCRv4_rec_infer.onnx', urls: ['https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/rec.onnx', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv4_rec_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv4_rec_infer.onnx'] },
-    { n: 'ch_PP-OCRv4_cls_infer.onnx', urls: ['https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/cls.onnx', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_cls/ch_PP-OCRv4_cls_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_cls/ch_PP-OCRv4_cls_infer.onnx'] },
-    { n: 'ppocr_keys_v1.txt', urls: ['https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/ppocr_keys_v1.txt', 'https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/ppocr_keys_v1.txt', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/ppocr_keys_v1.txt'] }
+    // 注：RapidOCR HF space 的 models/ 仅含 text_det、text_rec；无 cls（可选，缺失时 OCR 正立文本不受影响），故不下载 cls。
+    // 源顺序：hf-mirror（国内可用）优先，其次 huggingface，最后 PaddleOCR raw（仅字典）。
+    { n: 'ch_PP-OCRv4_det_infer.onnx', urls: ['https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv4_det_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv4_det_infer.onnx', 'https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/det.onnx'] },
+    { n: 'ch_PP-OCRv4_rec_infer.onnx', urls: ['https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv4_rec_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv4_rec_infer.onnx', 'https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/rec.onnx'] },
+    { n: 'ppocr_keys_v1.txt', urls: ['https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/ppocr_keys_v1.txt', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/ppocr_keys_v1.txt'] }
   ];
 }
 
@@ -815,7 +815,7 @@ function downloadFile(url, destPath) {
     try { mod = url.startsWith('https:') ? require('https') : require('http'); }
     catch (e) { return reject(e); }
     const attempt = (u, redirectsLeft) => {
-      const req = mod.get(u, (res) => {
+      const req = mod.get(u, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
         const code = res.statusCode || 0;
         // 3xx 重定向
         if (code >= 300 && code < 400 && res.headers.location && redirectsLeft > 0) {
@@ -1063,15 +1063,26 @@ function registerIpc() {
     let ortInstalled = false;
     try { require.resolve('onnxruntime-node'); ortInstalled = true; } catch (e) {}
     // 2) 模型文件检测（userData/ocr-models，打包兼容）
+    //    注：必需仅 det/rec/字典；cls（方向分类）本就可选（缺失时正立文本不受影响），
+    //       且 RapidOCR 源不含 cls 模型，故不纳入必需，避免永远"下载未完成"。
     const modelsDir = getModelsDir();
-    const required = ['ch_PP-OCRv4_det_infer.onnx', 'ch_PP-OCRv4_rec_infer.onnx', 'ch_PP-OCRv4_cls_infer.onnx', 'ppocr_keys_v1.txt'];
-    const needModel = !required.every(f => fs.existsSync(path.join(modelsDir, f)));
+    const required = ['ch_PP-OCRv4_det_infer.onnx', 'ch_PP-OCRv4_rec_infer.onnx', 'ppocr_keys_v1.txt'];
+    const missing = required.filter(f => !fs.existsSync(path.join(modelsDir, f)));
     // 3) 下载模型：按平台选择（Windows 用内联 PowerShell，macOS/Linux 用 Node 直接下载）
-    if (needModel) {
+    if (missing.length) {
+      let detail = '';
       try {
-        await downloadModels(modelsDir);
+        detail = await downloadModels(modelsDir);
       } catch (e) {
         return { status: 'error', message: '模型下载失败: ' + e.message };
+      }
+      // 下载后仍缺则明确列出是哪些文件（含源错误），而非笼统"请检查网络"
+      const stillMissing = required.filter(f => !fs.existsSync(path.join(modelsDir, f)));
+      if (stillMissing.length) {
+        return {
+          status: 'error',
+          message: '模型下载未完成：缺少 ' + stillMissing.join(', ') + '。建议检查网络后重试。\n下载详情:\n' + (detail || '')
+        };
       }
     }
     const modelOk = required.every(f => fs.existsSync(path.join(modelsDir, f)));
