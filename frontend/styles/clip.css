@@ -1,32 +1,32 @@
 
         :root {
             /* 现代简洁风格色彩 */
-            --primary: #3f8cff;
-            --primary-light: #73b2ff;
-            --primary-dark: #2f72d8;
-            --secondary: #f59e0b;
-            --accent: #10b981;
-            --background: #f9fafb;
-            --background-dark: #f3f4f6;
-            --surface: #ffffff;
-            --surface-hover: #f3f4f6;
-            --text: #1f2937;
-            --text-secondary: #6b7280;
-            --border: #e5e7eb;
-            --border-light: #f3f4f6;
-            --success: #10b981;
-            --warning: #f59e0b;
-            --error: #ef4444;
-            --priority-high: #ef4444;
-            --priority-medium: #f59e0b;
-            --priority-low: #3f8cff;
-            --priority-high-light: #fef2f2;
-            --priority-medium-light: #fffbeb;
-            --priority-low-light: #eff6ff;
-            --radius: 8px;
-            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            --shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            --transition: all 0.3s ease;
+            --primary: var(--app-primary);;
+            --primary-light: var(--app-primary-soft);;
+            --primary-dark: var(--app-primary-hover);;
+            --secondary: var(--app-warning);;
+            --accent: var(--app-success);;
+            --background: var(--app-bg);;
+            --background-dark: var(--app-surface-subtle);;
+            --surface: var(--app-surface);;
+            --surface-hover: var(--app-surface-hover);;
+            --text: var(--app-text);;
+            --text-secondary: var(--app-text-secondary);;
+            --border: var(--app-border);;
+            --border-light: var(--app-border-strong);;
+            --success: var(--app-success);;
+            --warning: var(--app-warning);;
+            --error: var(--app-danger);;
+            --priority-high: var(--app-danger);;
+            --priority-medium: var(--app-warning);;
+            --priority-low: var(--app-primary);;
+            --priority-high-light: var(--app-danger-soft);;
+            --priority-medium-light: var(--app-warning-soft);;
+            --priority-low-light: var(--app-primary-soft);;
+            --radius: var(--app-radius-sm);;
+            --shadow: var(--app-shadow-sm);;
+            --shadow-hover: var(--app-shadow-md);;
+            --transition: var(--app-duration-normal) var(--app-ease-smooth);;
         }
 
         * {
@@ -488,7 +488,7 @@
 
         html[data-theme="regular"] .action-split-group .icon-btn {
             background: rgba(255, 255, 255, 0.82);
-            color: #4b5563;
+            color: var(--text-secondary);
             border: 1px solid rgba(255, 255, 255, 0.92);
             border-radius: 12px;
             box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
@@ -498,53 +498,53 @@
 
         html[data-theme="regular"] .action-split-group .icon-btn:hover {
             background: rgba(255, 255, 255, 0.94);
-            color: #1f2937;
+            color: var(--text);
             border-color: rgba(255, 255, 255, 1);
         }
 
         html[data-theme="regular"] .action-split-group .main-btn {
             background: linear-gradient(135deg, var(--primary-dark), var(--primary));
             color: #ffffff;
-            border: 1px solid rgba(63, 140, 255, 0.42);
+            border: 1px solid rgba(var(--app-primary-rgb), 0.42);
             border-radius: 12px;
             font-weight: 600;
-            box-shadow: 0 6px 16px rgba(63, 140, 255, 0.24);
+            box-shadow: 0 6px 16px rgba(var(--app-primary-rgb), 0.24);
         }
 
         html[data-theme="regular"] .action-split-group .main-btn:hover {
-            background: linear-gradient(135deg, #275fc0, var(--primary-dark));
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
             color: #ffffff;
-            border-color: rgba(47, 114, 216, 0.5);
+            border-color: rgba(var(--app-primary-rgb), 0.5);
         }
 
         /* regular 主题下：呼应主题渐变语言，保持 tint 风格以区分主次 */
         html[data-theme="regular"] .smart-ingest-btn {
-            background: linear-gradient(135deg, rgba(63, 140, 255, 0.1), rgba(115, 178, 255, 0.14));
-            border: 1px solid rgba(63, 140, 255, 0.32);
+            background: linear-gradient(135deg, rgba(var(--app-primary-rgb), 0.1), rgba(var(--app-primary-rgb), 0.14));
+            border: 1px solid rgba(var(--app-primary-rgb), 0.32);
             color: var(--primary-dark);
-            box-shadow: 0 2px 8px rgba(63, 140, 255, 0.1);
+            box-shadow: 0 2px 8px rgba(var(--app-primary-rgb), 0.1);
         }
 
         html[data-theme="regular"] .smart-ingest-btn:hover {
-            background: linear-gradient(135deg, rgba(63, 140, 255, 0.16), rgba(115, 178, 255, 0.22));
-            border-color: rgba(63, 140, 255, 0.5);
+            background: linear-gradient(135deg, rgba(var(--app-primary-rgb), 0.16), rgba(var(--app-primary-rgb), 0.22));
+            border-color: rgba(var(--app-primary-rgb), 0.5);
             color: var(--primary-dark);
-            box-shadow: 0 8px 20px rgba(63, 140, 255, 0.22);
+            box-shadow: 0 8px 20px rgba(var(--app-primary-rgb), 0.22);
         }
 
         /* 深色主题：智能入库按钮采用中性灰阶，贴合深色主题底色，不引入蓝色。
            选择器带上 .btn-primary 提升优先级，覆盖 clip-theme-notion.css 中深色主题的蓝色 .btn-primary */
         html[data-theme="dark"] .smart-ingest-btn.btn-primary {
-            background: #343434;
-            color: #cfcfcf;
-            border: 1px solid #4d4d4d;
+            background: var(--surface-hover);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-light);
             box-shadow: none;
         }
 
         html[data-theme="dark"] .smart-ingest-btn.btn-primary:hover {
-            background: #414141;
+            background: var(--surface-hover);
             color: #ffffff;
-            border-color: #6f6f6f;
+            border-color: var(--border-light);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
         }
 
@@ -567,16 +567,16 @@
         }
 
         html[data-theme="regular"] #toggle-btn {
-            border: 1px solid rgba(63, 140, 255, 0.42);
-            background: rgba(63, 140, 255, 0.14);
-            color: #1f2937;
-            box-shadow: 0 4px 12px rgba(63, 140, 255, 0.18);
+            border: 1px solid rgba(var(--app-primary-rgb), 0.42);
+            background: rgba(var(--app-primary-rgb), 0.14);
+            color: var(--text);
+            box-shadow: 0 4px 12px rgba(var(--app-primary-rgb), 0.18);
         }
 
         html[data-theme="regular"] #toggle-btn:hover {
-            background: rgba(63, 140, 255, 0.22);
-            border-color: rgba(63, 140, 255, 0.54);
-            color: #1f2937;
+            background: rgba(var(--app-primary-rgb), 0.22);
+            border-color: rgba(var(--app-primary-rgb), 0.54);
+            color: var(--text);
         }
 
         html[data-theme="regular"] .upload-btn {
@@ -739,7 +739,7 @@
         select:focus {
             outline: none;
             border-color: var(--primary);
-            box-shadow: 0 0 0 2px rgba(63, 140, 255, 0.2);
+            box-shadow: 0 0 0 2px rgba(var(--app-primary-rgb), 0.2);
             background: var(--surface-hover);
         }
 
@@ -828,9 +828,9 @@
         /* 智能入库按钮：采用主题 primary 同色系的 tint 方案，
            通过 ghost/tint/filled 三阶视觉层级体现差异，避免引入新色破坏主题 */
         .smart-ingest-btn {
-            background: rgba(63, 140, 255, 0.08);
+            background: rgba(var(--app-primary-rgb), 0.08);
             color: var(--primary);
-            border: 1px solid rgba(63, 140, 255, 0.28);
+            border: 1px solid rgba(var(--app-primary-rgb), 0.28);
             position: relative;
             overflow: hidden;
         }
@@ -845,11 +845,11 @@
         }
 
         .smart-ingest-btn:hover {
-            background: rgba(63, 140, 255, 0.14);
-            border-color: rgba(63, 140, 255, 0.45);
+            background: rgba(var(--app-primary-rgb), 0.14);
+            border-color: rgba(var(--app-primary-rgb), 0.45);
             color: var(--primary-dark);
             transform: translateY(-2px);
-            box-shadow: 0 6px 18px rgba(63, 140, 255, 0.2);
+            box-shadow: 0 6px 18px rgba(var(--app-primary-rgb), 0.2);
         }
 
         .smart-ingest-btn:active {
@@ -1258,9 +1258,9 @@
         }
 
         .meta-item.meta-type {
-            background: #f1f1ef;
-            border-color: #e1e1de;
-            color: #555b61;
+            background: var(--app-surface-subtle);
+            border-color: var(--app-border);
+            color: var(--app-text-secondary);
             font-weight: 500;
         }
 
@@ -1273,11 +1273,11 @@
             display: inline-flex;
             align-items: center;
             gap: 4px;
-            background: linear-gradient(135deg, rgba(63, 140, 255, 0.15), rgba(115, 178, 255, 0.12));
+            background: linear-gradient(135deg, rgba(var(--app-primary-rgb), 0.15), rgba(var(--app-primary-rgb), 0.12));
             color: var(--primary);
             padding: 4px 12px;
             border-radius: 16px;
-            border: 1px solid rgba(63, 140, 255, 0.3);
+            border: 1px solid rgba(var(--app-primary-rgb), 0.3);
             font-size: 0.82rem;
             font-weight: 600;
             letter-spacing: 0.02em;
@@ -1297,13 +1297,13 @@
         }
         .source-badge.web-clipper { background: #e3f2fd; color: #1976d2; border-color: rgba(25, 118, 210, 0.2); }
         .source-badge.browser { background: #e8f5e9; color: #388e3c; border-color: rgba(56, 142, 60, 0.2); }
-        .source-badge.manual { background: #f5f5f5; color: #616161; border-color: rgba(97, 97, 97, 0.2); }
-        .source-badge.system { background: #f5f5f5; color: #9e9e9e; border-color: rgba(158, 158, 158, 0.2); }
+        .source-badge.manual { background: var(--app-surface-subtle); color: var(--app-text-secondary); border-color: rgba(97, 97, 97, 0.2); }
+        .source-badge.system { background: var(--app-surface-subtle); color: var(--text-muted); border-color: rgba(158, 158, 158, 0.2); }
 
-        html[data-theme="dark"] .source-badge.web-clipper { background: rgba(25, 118, 210, 0.18); color: #90caf9; border-color: rgba(144, 202, 249, 0.3); }
+        html[data-theme="dark"] .source-badge.web-clipper { background: rgba(25, 118, 210, 0.18); color: var(--primary-light); border-color: rgba(144, 202, 249, 0.3); }
         html[data-theme="dark"] .source-badge.browser { background: rgba(56, 142, 60, 0.18); color: #a5d6a7; border-color: rgba(165, 214, 167, 0.3); }
-        html[data-theme="dark"] .source-badge.manual { background: #3a3a3a; color: #bdbdbd; border-color: #4a4a4a; }
-        html[data-theme="dark"] .source-badge.system { background: #3a3a3a; color: #9e9e9e; border-color: #4a4a4a; }
+        html[data-theme="dark"] .source-badge.manual { background: var(--surface-hover); color: var(--text-muted); border-color: var(--border-light); }
+        html[data-theme="dark"] .source-badge.system { background: var(--surface-hover); color: var(--text-muted); border-color: var(--border-light); }
 
         /* Wiki-link 渲染 */
         .wiki-link {
@@ -1315,8 +1315,8 @@
         .wiki-link:hover {
             color: #1565c0;
         }
-        html[data-theme="dark"] .wiki-link { color: #90caf9; }
-        html[data-theme="dark"] .wiki-link:hover { color: #bbdefb; }
+        html[data-theme="dark"] .wiki-link { color: var(--primary-light); }
+        html[data-theme="dark"] .wiki-link:hover { color: var(--primary-light); }
 
         /* Web Clipper 同步状态 */
         .sync-status {
@@ -1380,21 +1380,21 @@
         html[data-theme="regular"] .web-clipper-sync-btn {
             background: linear-gradient(135deg, var(--primary-dark), var(--primary));
             color: #ffffff;
-            border: 1px solid rgba(63, 140, 255, 0.42);
+            border: 1px solid rgba(var(--app-primary-rgb), 0.42);
             border-radius: 12px;
-            box-shadow: 0 6px 16px rgba(63, 140, 255, 0.24);
+            box-shadow: 0 6px 16px rgba(var(--app-primary-rgb), 0.24);
         }
         html[data-theme="regular"] .web-clipper-sync-btn:hover {
-            background: linear-gradient(135deg, #275fc0, var(--primary-dark));
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
             color: #ffffff;
-            border-color: rgba(47, 114, 216, 0.5);
+            border-color: rgba(var(--app-primary-rgb), 0.5);
         }
 
         /* 深色主题：hover 采用中性灰阶亮化，避免出现蓝色块 */
         html[data-theme="dark"] .web-clipper-sync-btn:hover {
             background: var(--surface-hover);
             color: #ffffff;
-            border-color: #6f6f6f;
+            border-color: var(--border-light);
         }
 
         .expand-btn {
@@ -1477,7 +1477,7 @@
 
         .clip-header .expand-btn:hover {
             color: var(--text);
-            border-color: #d8d8d4;
+            border-color: var(--app-border);
             background: var(--surface-hover);
             transform: none;
             box-shadow: none;
@@ -1494,13 +1494,13 @@
 
         .clip-header .more-actions-wrapper .expand-btn.expanded {
             color: var(--primary);
-            border-color: rgba(63, 140, 255, 0.4);
-            background: rgba(63, 140, 255, 0.06);
+            border-color: rgba(var(--app-primary-rgb), 0.4);
+            background: rgba(var(--app-primary-rgb), 0.06);
         }
 
         html[data-theme="dark"] .clip-header-left .thoughts-badge {
             background: rgba(168, 85, 247, 0.16);
-            color: #c084fc;
+            color: var(--primary-light);
             border-color: rgba(168, 85, 247, 0.38);
         }
 
@@ -1584,7 +1584,7 @@
         }
 
         .fan-action-btn:hover .fan-icon {
-            filter: drop-shadow(0 0 4px rgba(63, 140, 255, 0.3));
+            filter: drop-shadow(0 0 4px rgba(var(--app-primary-rgb), 0.3));
         }
 
         .clip-detail {
@@ -2337,25 +2337,25 @@
             color: var(--text); /* 跟随全局主题，避免继承异常 */
             min-height: 80px;
         }
-        html[data-theme="dark"] .content-preview { background: #2d2d2d; color: #d4d4d4; }
+        html[data-theme="dark"] .content-preview { background: var(--surface); color: var(--text); }
 
         /* 深色主题 markdown 渲染适配：中性底色 + 高对比文字，避免"深蓝底浅蓝字" */
-        html[data-theme="dark"] .markdown-content { color: #d4d4d4; }
-        html[data-theme="dark"] .markdown-content strong { color: #e5e7eb; }
-        html[data-theme="dark"] .markdown-content a { color: #7db4ff; border-bottom-color: rgba(125,180,255,0.4); }
+        html[data-theme="dark"] .markdown-content { color: var(--text); }
+        html[data-theme="dark"] .markdown-content strong { color: var(--text); }
+        html[data-theme="dark"] .markdown-content a { color: var(--primary-light); border-bottom-color: rgba(125,180,255,0.4); }
         html[data-theme="dark"] .markdown-content code {
-            background-color: #3a3a3a !important;
-            color: #e5e7eb !important;
+            background-color: var(--surface-hover) !important;
+            color: var(--text) !important;
         }
         html[data-theme="dark"] .markdown-content pre {
             background-color: #1f1f1f !important;
-            border-color: #3e3e3e !important;
+            border-color: var(--border) !important;
         }
-        html[data-theme="dark"] .markdown-content pre code { color: #d4d4d4 !important; }
+        html[data-theme="dark"] .markdown-content pre code { color: var(--text) !important; }
         html[data-theme="dark"] .markdown-content blockquote {
             background-color: rgba(255,255,255,0.04) !important;
             color: #b0b0b0 !important;
-            border-left-color: #569cff !important;
+            border-left-color: var(--primary) !important;
         }
         html[data-theme="dark"] .markdown-content img { opacity: 0.92; }
         .content-preview img, .markdown-content img {
@@ -2916,72 +2916,46 @@
             }
         }
 
-        /* 深色主题 */
-        html[data-theme="dark"] {
-            --primary: #569cff;
-            --primary-light: #2a4a7a;
-            --primary-dark: #4a8ae8;
-            --secondary: #f0a030;
-            --accent: #4ecb71;
-            --background: #1e1e1e;
-            --background-dark: #252525;
-            --surface: #2d2d2d;
-            --surface-hover: #3a3a3a;
-            --text: #d4d4d4;
-            --text-secondary: #9a9a9a;
-            --border: #3e3e3e;
-            --border-light: #333333;
-            --success: #4ecb71;
-            --warning: #f0a030;
-            --error: #e06060;
-            --priority-high: #e06060;
-            --priority-medium: #f0a030;
-            --priority-low: #569cff;
-            --priority-high-light: #3a1a1a;
-            --priority-medium-light: #3a2a1a;
-            --priority-low-light: #1a2a3a;
-            --shadow: 0 4px 6px -1px rgba(0,0,0,0.4);
-            --shadow-hover: 0 10px 15px -3px rgba(0,0,0,0.5);
-        }
+
         html[data-theme="dark"] body { background: var(--background); color: var(--text); }
         html[data-theme="dark"] .clip-item { background: var(--surface); border-color: var(--border); }
         html[data-theme="dark"] .clip-item:hover { background: var(--surface-hover); }
         html[data-theme="dark"] input, html[data-theme="dark"] textarea, html[data-theme="dark"] select {
-            background: #3a3a3a; border-color: #4a4a4a; color: #d4d4d4;
+            background: var(--surface-hover); border-color: var(--border-light); color: var(--text);
         }
         html[data-theme="dark"] input:focus, html[data-theme="dark"] textarea:focus, html[data-theme="dark"] select:focus {
-            border-color: #569cff;
+            border-color: var(--primary);
         }
-        html[data-theme="dark"] .modal-content { background: #2d2d2d; border-color: #3e3e3e; }
-        html[data-theme="dark"] .modal-header { border-color: #3e3e3e; }
-        html[data-theme="dark"] .modal-footer { border-color: #3e3e3e; }
-        html[data-theme="dark"] .btn-secondary { background: #3a3a3a; border-color: #4a4a4a; color: #d4d4d4; }
-        html[data-theme="dark"] .btn-secondary:hover { background: #4a4a4a; }
-        html[data-theme="dark"] .tag { background: #3a3a3a; color: #d4d4d4; }
-        html[data-theme="dark"] .notification { background: #2d2d2d; color: #d4d4d4; }
+        html[data-theme="dark"] .modal-content { background: var(--surface); border-color: var(--border); }
+        html[data-theme="dark"] .modal-header { border-color: var(--border); }
+        html[data-theme="dark"] .modal-footer { border-color: var(--border); }
+        html[data-theme="dark"] .btn-secondary { background: var(--surface-hover); border-color: var(--border-light); color: var(--text); }
+        html[data-theme="dark"] .btn-secondary:hover { background: var(--border-light); }
+        html[data-theme="dark"] .tag { background: var(--surface-hover); color: var(--text); }
+        html[data-theme="dark"] .notification { background: var(--surface); color: var(--text); }
 
         /* 已关联知识 深色主题 */
-        html[data-theme="dark"] .linked-knowledge-section { background: #2d2d2d; border-color: #3e3e3e; }
-        html[data-theme="dark"] .linked-knowledge-section h4 { color: #569cff; border-bottom-color: #3e3e3e; }
-        html[data-theme="dark"] .linked-knowledge-item { border-bottom-color: #3e3e3e; }
-        html[data-theme="dark"] .linked-knowledge-item .knowledge-title a { color: #569cff; }
-        html[data-theme="dark"] .linked-knowledge-item .knowledge-title a:hover { color: #4a8ae8; }
-        html[data-theme="dark"] .linked-knowledge-section .empty-state button { background: #569cff; }
-        html[data-theme="dark"] .linked-knowledge-section .empty-state button:hover { background: #4a8ae8; }
+        html[data-theme="dark"] .linked-knowledge-section { background: var(--surface); border-color: var(--border); }
+        html[data-theme="dark"] .linked-knowledge-section h4 { color: var(--primary); border-bottom-color: var(--border); }
+        html[data-theme="dark"] .linked-knowledge-item { border-bottom-color: var(--border); }
+        html[data-theme="dark"] .linked-knowledge-item .knowledge-title a { color: var(--primary); }
+        html[data-theme="dark"] .linked-knowledge-item .knowledge-title a:hover { color: var(--primary-dark); }
+        html[data-theme="dark"] .linked-knowledge-section .empty-state button { background: var(--primary); }
+        html[data-theme="dark"] .linked-knowledge-section .empty-state button:hover { background: var(--primary-dark); }
 
         /* action-split-group 深色覆盖 */
-        html[data-theme="dark"] .action-split-group { border-color: #4a4a4a; background: #3a3a3a !important; }
-        html[data-theme="dark"] .action-split-group > * { background: #3a3a3a !important; }
-        html[data-theme="dark"] .action-split-group .icon-btn { color: #9a9a9a !important; }
-        html[data-theme="dark"] .action-split-group .icon-btn:hover { background: #4a4a4a !important; color: #d4d4d4 !important; }
-        html[data-theme="dark"] .action-split-group .main-btn { color: #d4d4d4 !important; }
-        html[data-theme="dark"] .action-split-group .main-btn:hover { background: #4a4a4a !important; }
+        html[data-theme="dark"] .action-split-group { border-color: var(--border-light); background: var(--surface-hover) !important; }
+        html[data-theme="dark"] .action-split-group > * { background: var(--surface-hover) !important; }
+        html[data-theme="dark"] .action-split-group .icon-btn { color: var(--text-secondary) !important; }
+        html[data-theme="dark"] .action-split-group .icon-btn:hover { background: var(--border-light) !important; color: var(--text) !important; }
+        html[data-theme="dark"] .action-split-group .main-btn { color: var(--text) !important; }
+        html[data-theme="dark"] .action-split-group .main-btn:hover { background: var(--border-light) !important; }
 
         /* category-badge 深色覆盖 */
-        html[data-theme="dark"] .category-badge { background: #3a3a3a !important; color: #9a9a9a !important; border-color: #4a4a4a !important; }
+        html[data-theme="dark"] .category-badge { background: var(--surface-hover) !important; color: var(--text-secondary) !important; border-color: var(--border-light) !important; }
 
         /* meta-type 深色覆盖 */
-        html[data-theme="dark"] .meta-item.meta-type { background: #3a3a3a !important; color: #9a9a9a !important; border-color: #4a4a4a !important; }
+        html[data-theme="dark"] .meta-item.meta-type { background: var(--surface-hover) !important; color: var(--text-secondary) !important; border-color: var(--border-light) !important; }
 
         /* 编辑弹窗紧凑 textarea */
         .modal-textarea.compact-textarea {

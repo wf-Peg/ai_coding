@@ -9,6 +9,7 @@
   --app-text-secondary: #6b6f76;
   --app-text-muted: #92969d;
   --app-primary: #2383e2;
+  --app-primary-rgb: 35, 131, 226;
   --app-primary-hover: #1f76c9;
   --app-primary-soft: rgba(35, 131, 226, 0.1);
   --app-success: #238b63;
@@ -60,6 +61,7 @@ html[data-theme="notion"] {
   --app-text-secondary: #6b6f76;
   --app-text-muted: #92969d;
   --app-primary: #2383e2;
+  --app-primary-rgb: 35, 131, 226;
   --app-primary-hover: #1f76c9;
   --app-primary-soft: rgba(35, 131, 226, 0.1);
   --app-success: #238b63;
@@ -88,6 +90,7 @@ html[data-theme="dark"] {
   --app-text-secondary: #aaaaaa;
   --app-text-muted: #777777;
   --app-primary: #61a6ff;
+  --app-primary-rgb: 97, 166, 255;
   --app-primary-hover: #7bb5ff;
   --app-primary-soft: rgba(97, 166, 255, 0.14);
   --app-success: #56c997;
