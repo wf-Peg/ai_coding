@@ -79,6 +79,44 @@ check(
   '缺少应用级减少动效覆盖'
 );
 
+// ---- 可访问性与焦点样式 ----
+const settingsHtml = read('frontend/settings.html');
+check(
+  'ui-common.css exposes visible focus styles',
+  has(uiCommonCss, ':focus-visible') && has(uiCommonCss, ':focus'),
+  '缺少可见焦点样式'
+);
+check(
+  'settings.html theme cards use a radiogroup',
+  has(settingsHtml, 'role="radiogroup"'),
+  '主题卡片组缺少 role="radiogroup"'
+);
+check(
+  'settings.html theme cards expose radio role',
+  has(settingsHtml, 'role="radio"'),
+  '主题卡片缺少 role="radio"'
+);
+check(
+  'settings.html theme cards expose aria-checked state',
+  has(settingsHtml, 'aria-checked'),
+  '主题卡片缺少 aria-checked'
+);
+check(
+  'settings.html theme cards are keyboard-focusable buttons',
+  has(settingsHtml, '<button type="button" class="theme-card'),
+  '主题卡片应为可聚焦的 button'
+);
+check(
+  'settings.html theme group has an accessible label',
+  has(settingsHtml, 'aria-label="界面主题"'),
+  '主题卡片组缺少 aria-label'
+);
+check(
+  'settings.html offers a reduced-motion switch',
+  has(settingsHtml, 'id="reduceMotionToggle"'),
+  '缺少减少动效开关'
+);
+
 // ---- 主题桥接引用 ----
 const SHELL_PAGES = ['frontend/index.html', 'frontend/settings.html'];
 const CORE_PAGES = ['frontend/editor.html', 'frontend/workspace.html', 'frontend/clip.html'];

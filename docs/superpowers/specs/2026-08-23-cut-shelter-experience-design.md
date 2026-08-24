@@ -200,3 +200,31 @@ AI 看板娘、快捷搜索、右侧详情抽屉、内容预览、操作历史�
 6. 清理旧主题分支、页面内联硬编码和重复组件样式。
 
 后续开发计划必须遵循 TDD：先为主题桥接、令牌映射、消息同步和关键状态写测试，再迁移页面；每批页面完成后进行定向验证和全量回归。
+
+## 12. 实现与验收证据（2026-08-23 落地记录）
+
+### 已落地
+
+- 主题纯逻辑核心 `frontend/js/theme-core.js`：六套主题规范化、动效偏好、`system` 外观解析、`themeChange` 消息契约与持久化读取，Node/浏览器双端导出。
+- 主题桥接 `frontend/js/theme-bridge.js`：`init` / `apply` / `listen`，主页面广播 `{ action: "themeChange", theme, motion }`，子页面回执 `{ type: "themeReady", theme }`。
+- 令牌入口 `frontend/styles/design-tokens.css`：`regular` / `notion` / `dark` / `focus` / `calm` / `studio` 六套主题、组件语义令牌与旧版别名（`--background`/`--surface`/`--text`/`--border` → `--app-*`）。
+- 共享动效 `frontend/styles/ui-common.css`：`--app-duration-*` 消费与 `[data-motion="reduced"]` + `prefers-reduced-motion` 双重减少动效。
+- 设置页六主题卡片选择器、跟随系统开关与减少动效开关（`frontend/settings.html` / `frontend/js/settings.js`）。
+- 全部模块入口页接入 `theme-core.js` + `theme-bridge.js` + `design-tokens.css` + `ui-common.css`，并在 `<head>` 内同步应用主题以避免白屏闪烁。
+- 静态冒烟 `scripts/smoke-theme.js`：121 项断言（六主题选择器、语义令牌、旧版别名、减少动效、可访问性、全页面桥接引用）。
+- 手动验收清单 `docs/superpowers/self-test/global-theme-ux-checklist.md`（六主题 × 桌面/浏览器矩阵 + 减少动效 + 可访问性 + 回归门禁）。
+
+### 自动化验证结果
+
+- `node scripts/smoke-theme.js`：121/121 通过。
+- `npm run test:theme`：9 通过 / 0 失败。
+- `npm run test:editor-all`：23 通过 / 0 失败。
+- `npm run test:editor`：4 通过 / 0 失败。
+- `git diff --check`：通过。
+- 后端 `mvn -q test`：通过（exit 0，BUILD SUCCESS）。
+
+### 待人工验证
+
+- 六主题 × 桌面/浏览器矩阵与视觉回归（见验收清单），需人工在 Electron 与浏览器模式逐项勾选。
+- 深色/浅色对比度与窄屏布局检查。
+- 既有页面内联 `:root` 硬编码与 `html[data-theme="dark"]` 分支的清理，属分期建议第 6 步的持续收敛工作。
