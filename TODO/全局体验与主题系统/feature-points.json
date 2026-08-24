@@ -1,0 +1,95 @@
+{
+  "version": "2.0",
+  "requirement": {
+    "title": "全局体验与主题系统",
+    "summary": "为 CutShelter 建立统一的全局主题与体验层：主题核心契约、桥接同步、语义令牌与共享动效，并完成全模块页面迁移；实现阶段决定收敛为 regular/notion/dark 三主题，另对设置模块做了排版与交互重设计",
+    "tags": ["product-dev", "theme", "ui", "frontend"],
+    "phase": "completed",
+    "createdAt": "2026-08-23T20:00:00",
+    "completedAt": "2026-08-25T00:40:00"
+  },
+  "featurePoints": [
+    {
+      "id": "fp-001",
+      "name": "主题核心契约与桥接",
+      "description": "新增 theme-core.js 纯逻辑核心（主题/动效规范化、system 外观解析、themeChange 消息契约、持久化读取，Node/浏览器双端导出）与 theme-bridge.js（init/apply/listen，主页面广播、子页面回执 themeReady），全部页面在 <head> 同步应用主题避免白屏闪烁。",
+      "layer": "frontend",
+      "tags": ["product-dev", "theme", "bridge"],
+      "designSections": ["7. 主题同步架构", "4. 设计令牌"],
+      "tasks": [
+        { "title": "theme-core.js：三主题规范化 + 动效偏好 + system 解析 + 消息契约", "status": "done" },
+        { "title": "theme-bridge.js：init/apply/listen + themeReady 回执", "status": "done" },
+        { "title": "electron/theme-core.test.js 纯逻辑测试（9 用例）", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "npm run test:theme 通过（9/0）", "status": "done" },
+        { "title": "全部模块入口页接入 theme-core/theme-bridge 并同步应用主题", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-002",
+      "name": "语义令牌与共享动效语言",
+      "description": "design-tokens.css 提供 regular/notion/dark 三主题令牌、组件语义令牌与旧版别名映射；ui-common.css 提供共享控件（Toast/Modal/按钮/表单/空态/加载）并消费 --app-duration-*/--app-ease-* 动效令牌，支持 [data-motion='reduced'] 与 prefers-reduced-motion 双重减少动效。",
+      "layer": "frontend",
+      "tags": ["product-dev", "theme", "tokens", "motion"],
+      "designSections": ["4. 设计令牌", "6. 交互与动效语言"],
+      "tasks": [
+        { "title": "design-tokens.css：三主题 + 组件语义令牌 + 旧版别名", "status": "done" },
+        { "title": "ui-common.css：共享状态 + 动效令牌消费 + 双重减少动效", "status": "done" },
+        { "title": "scripts/smoke-theme.js 静态冒烟（121 项断言）", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "node scripts/smoke-theme.js 通过（121/121）", "status": "done" },
+        { "title": "git diff --check 通过", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-003",
+      "name": "全模块页面迁移与三主题收敛",
+      "description": "编辑器、工作台、剪藏、设置及知识/学习/工具/观测等全部模块入口页接入共享样式与主题桥接，页面内主题逻辑升级为消费 theme-core；实现阶段确认放弃 focus/calm/studio 三套实验主题，删除其配色、设置卡片、令牌与残留引用，回归 regular/notion/dark 三主题。",
+      "layer": "frontend",
+      "tags": ["product-dev", "theme", "migration"],
+      "designSections": ["8. 页面迁移策略", "3. 全局工作风格"],
+      "tasks": [
+        { "title": "核心工作流页（index/editor/workspace/clip/settings）迁移", "status": "done" },
+        { "title": "知识/学习/工具/观测等模块页迁移", "status": "done" },
+        { "title": "删除 focus/calm/studio 三套实验主题及残留引用", "status": "done" },
+        { "title": "遗留主题样式文件（theme-regular/notion/clip/vault）对齐语义令牌", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "全局搜索确认无 focus/calm/studio 主题分支残留", "status": "done" },
+        { "title": "npm run test:editor-all 通过（23/0）", "status": "done" },
+        { "title": "后端 mvn -q test 通过（BUILD SUCCESS）", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-004",
+      "name": "设置模块排版与交互重新设计",
+      "description": "设置页由单列长页改为双栏布局：左侧固定分组导航（个性化/通用/快捷操作/AI与集成/系统）带滚动高亮与点击跳转，右侧按分组组织区块；区块标题加图标、卡片加轻量投影，窄屏自动降级为横向导航。",
+      "layer": "frontend",
+      "tags": ["product-dev", "settings", "ux", "frontend"],
+      "designSections": ["9. 设置页交互"],
+      "tasks": [
+        { "title": "双栏布局：sticky 侧栏导航 + 分组主内容区", "status": "done" },
+        { "title": "分组滚动高亮（scrollspy）与点击平滑跳转", "status": "done" },
+        { "title": "区块图标、卡片阴影、窄屏降级", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "分组/主区/aside 标签配对校验通过", "status": "done" },
+        { "title": "设置页原功能（主题卡片/跟随系统/减少动效等）保持不变", "status": "done" }
+      ]
+    }
+  ],
+  "knowledgePoints": [
+    {
+      "title": "三主题收敛决策：工作风格以动效为差异而非独立配色",
+      "content": "设计初期规划 focus/calm/studio 三套工作风格（独立配色），落地后发现新增配色的肉眼差异微弱且维护成本高；实现阶段确认删除，回归 regular/notion/dark 三主题，动效/UX/高级感统一作用于三主题。历史遗留的 focus/calm/studio 偏好值由 normalizeTheme 安全回退到 notion。",
+      "tags": ["product-dev", "theme", "decision"]
+    },
+    {
+      "title": "主框架→iframe 主题同步协议",
+      "content": "主页面作为唯一事实来源：读取偏好（app_theme_v1/app_motion_v1/app_appearance_v1）→ 应用 data-theme/data-motion → 广播 {action:'themeChange', theme, motion}；子页面 head 内同步应用存储主题避免白屏，listen 接收广播并回执 {type:'themeReady'}。",
+      "tags": ["product-dev", "theme", "architecture"]
+    }
+  ]
+}
