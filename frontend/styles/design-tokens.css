@@ -104,82 +104,87 @@ html[data-theme="dark"] {
   --app-shadow-xl: 0 20px 30px rgba(0, 0, 0, 0.4);
 }
 
-/* focus：专注工作台（Obsidian 启发，深色、低噪声、低装饰） */
+/* focus：专注工作台（基于 dark 深色增强：更深、更低噪、克制的靛蓝强调） */
 html[data-theme="focus"] {
   color-scheme: dark;
-  --app-bg: #121417;
-  --app-surface: #1c1f24;
-  --app-surface-subtle: #22262c;
-  --app-surface-hover: #2a2f36;
-  --app-border: #2c3036;
-  --app-border-strong: #3a3f47;
-  --app-text: #d8dce2;
-  --app-text-secondary: #9aa2ac;
-  --app-text-muted: #6b7280;
-  --app-primary: #61a6ff;
-  --app-primary-hover: #7bb5ff;
-  --app-primary-soft: rgba(97, 166, 255, 0.14);
-  --app-success: #4ecb71;
-  --app-success-soft: rgba(78, 203, 113, 0.14);
-  --app-warning: #e0a94d;
-  --app-warning-soft: rgba(224, 169, 77, 0.14);
-  --app-danger: #ef7777;
-  --app-danger-soft: rgba(239, 119, 119, 0.12);
-  --app-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  --app-shadow-md: 0 4px 8px rgba(0, 0, 0, 0.32);
-  --app-shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.42);
-  --app-shadow-xl: 0 20px 36px rgba(0, 0, 0, 0.5);
-  --app-shadow-panel: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.32), 0 16px 32px rgba(0, 0, 0, 0.44);
+  --app-bg: #16171c;
+  --app-surface: #1f2026;
+  --app-surface-subtle: #26272e;
+  --app-surface-hover: #2c2d35;
+  --app-border: #2a2b33;
+  --app-border-strong: #36373f;
+  --app-text: #d3d4da;
+  --app-text-secondary: #9a9ba3;
+  --app-text-muted: #6c6d75;
+  --app-primary: #6f8fd8;
+  --app-primary-hover: #819ddf;
+  --app-primary-soft: rgba(111, 143, 216, 0.14);
+  --app-success: #56b988;
+  --app-success-soft: rgba(86, 185, 136, 0.14);
+  --app-warning: #d4a04a;
+  --app-warning-soft: rgba(212, 160, 74, 0.14);
+  --app-danger: #e07878;
+  --app-danger-soft: rgba(224, 120, 120, 0.12);
+  --app-shadow: 0 6px 20px rgba(0, 0, 0, 0.34);
+  --app-shadow-md: 0 4px 8px rgba(0, 0, 0, 0.28);
+  --app-shadow-lg: 0 10px 22px rgba(0, 0, 0, 0.36);
+  --app-shadow-xl: 0 18px 32px rgba(0, 0, 0, 0.44);
+  --app-shadow-panel: 0 0 0 1px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.28), 0 14px 28px rgba(0, 0, 0, 0.38);
 }
 
-/* calm：安静秩序（Notion 启发，纸感、明亮、留白、内容层级） */
+/* calm：安静秩序（基于 notion 浅色增强：暖纸感、柔和蓝、更大留白与更软圆角） */
 html[data-theme="calm"] {
-  --app-bg: #fbfaf7;
+  --app-bg: #faf9f6;
   --app-surface: #ffffff;
-  --app-surface-subtle: #f4f2ee;
-  --app-surface-hover: #ece9e3;
-  --app-border: #e8e5de;
-  --app-border-strong: #d6d2c8;
-  --app-text: #3a3a36;
-  --app-text-secondary: #6f6d66;
-  --app-text-muted: #97948a;
-  --app-primary: #2383e2;
-  --app-primary-hover: #1f76c9;
-  --app-primary-soft: rgba(35, 131, 226, 0.12);
-  --app-success: #2f9e6e;
-  --app-warning: #b98a1f;
-  --app-danger: #d95c50;
-  --app-danger-soft: rgba(217, 92, 80, 0.1);
+  --app-surface-subtle: #f3f1ec;
+  --app-surface-hover: #edeae4;
+  --app-border: #e8e5dc;
+  --app-border-strong: #d5d1c5;
+  --app-text: #393733;
+  --app-text-secondary: #6e6b63;
+  --app-text-muted: #98948a;
+  --app-primary: #4a84c4;
+  --app-primary-hover: #3f71ab;
+  --app-primary-soft: rgba(74, 132, 196, 0.12);
+  --app-success: #3c9266;
+  --app-success-soft: rgba(60, 146, 102, 0.1);
+  --app-warning: #b58a2a;
+  --app-warning-soft: rgba(181, 138, 42, 0.12);
+  --app-danger: #cc5a4e;
+  --app-danger-soft: rgba(204, 90, 78, 0.1);
+  --app-radius-sm: 7px;
+  --app-radius: 10px;
+  --app-radius-lg: 14px;
 }
 
-/* studio：AI 创作工作室（YouMind 启发，深蓝渐层、焦点状态、适度表现力） */
+/* studio：AI 创作工作室（基于 dark 深色增强：深蓝渐层 + AI 青色点缀） */
 html[data-theme="studio"] {
   color-scheme: dark;
-  --app-bg: #0f1b2d;
-  --app-surface: #16233a;
-  --app-surface-subtle: #1b2a44;
-  --app-surface-hover: #223352;
-  --app-border: #24405f;
-  --app-border-strong: #2f5276;
-  --app-text: #e6edf7;
-  --app-text-secondary: #a8b8cc;
-  --app-text-muted: #6f829c;
-  --app-primary: #7aa5ff;
-  --app-primary-hover: #92b5ff;
-  --app-primary-soft: rgba(122, 165, 255, 0.16);
-  --app-success: #5fd3a0;
-  --app-success-soft: rgba(95, 211, 160, 0.16);
-  --app-warning: #f0c060;
-  --app-warning-soft: rgba(240, 192, 96, 0.16);
-  --app-danger: #ff8b8b;
-  --app-danger-soft: rgba(255, 139, 139, 0.14);
-  --app-shadow: 0 10px 30px rgba(5, 12, 24, 0.5);
-  --app-shadow-md: 0 4px 10px rgba(5, 12, 24, 0.4);
-  --app-shadow-lg: 0 12px 28px rgba(5, 12, 24, 0.5);
-  --app-shadow-xl: 0 20px 40px rgba(5, 12, 24, 0.55);
-  --app-shadow-panel: 0 0 0 1px rgba(15, 30, 55, 0.6), 0 2px 8px rgba(5, 12, 24, 0.4), 0 16px 36px rgba(5, 12, 24, 0.5);
-  --app-modal-backdrop: rgba(5, 12, 24, 0.66);
-  --app-ai-accent: #8fb3ff;
+  --app-bg: #0e1725;
+  --app-surface: #141f31;
+  --app-surface-subtle: #19263c;
+  --app-surface-hover: #1e2d45;
+  --app-border: #22324a;
+  --app-border-strong: #2c415e;
+  --app-text: #e3ebf6;
+  --app-text-secondary: #a4b5ca;
+  --app-text-muted: #6d8099;
+  --app-primary: #7aa7ff;
+  --app-primary-hover: #8eb6ff;
+  --app-primary-soft: rgba(122, 167, 255, 0.16);
+  --app-success: #5fd0a0;
+  --app-success-soft: rgba(95, 208, 160, 0.16);
+  --app-warning: #ecc468;
+  --app-warning-soft: rgba(236, 196, 104, 0.16);
+  --app-danger: #ff8f8f;
+  --app-danger-soft: rgba(255, 143, 143, 0.14);
+  --app-shadow: 0 10px 30px rgba(4, 10, 20, 0.5);
+  --app-shadow-md: 0 4px 10px rgba(4, 10, 20, 0.4);
+  --app-shadow-lg: 0 12px 28px rgba(4, 10, 20, 0.5);
+  --app-shadow-xl: 0 20px 40px rgba(4, 10, 20, 0.55);
+  --app-shadow-panel: 0 0 0 1px rgba(14, 28, 50, 0.6), 0 2px 8px rgba(4, 10, 20, 0.4), 0 16px 36px rgba(4, 10, 20, 0.5);
+  --app-modal-backdrop: rgba(4, 10, 20, 0.66);
+  --app-ai-accent: #5fd0d0;
 }
 
 /* ============================================================================
@@ -218,7 +223,7 @@ html[data-theme="dark"] {
 
 html[data-theme="focus"] {
   --app-modal-backdrop: rgba(0, 0, 0, 0.62);
-  --app-ai-accent: #7bb5ff;
+  --app-ai-accent: #819ddf;
 }
 
 /* ============================================================================
