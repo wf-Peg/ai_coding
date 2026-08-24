@@ -485,9 +485,9 @@
         }
         @keyframes agentSpin { to { transform: rotate(360deg); } }
         .agent-progress.error .agent-progress-text::before { content: '⚠ '; color: var(--danger, #d14343); }
-        /* 暗色适配：iframe 反色（与 DSH Web 自身主题无关，纯视觉适配；可在面板右上角开关） */
+        /* 浅色适配：iframe 反色（DSH Web 原生深色界面，仅在浅色主题时反色成浅色；可在面板右上角开关） */
         #agentFrame.invert { filter: invert(0.9) hue-rotate(180deg); }
-        html[data-theme="dark"] #agentFrame.auto-invert { filter: invert(0.9) hue-rotate(180deg); }
+        #agentFrame.auto-invert { filter: invert(0.9) hue-rotate(180deg); }
 
         .container {
             display: grid;
@@ -1245,12 +1245,12 @@
         const btn = document.getElementById('agentThemeToggle');
         if (agentFrame) {
           agentFrame.classList.toggle('invert', mode === 'on');
-          agentFrame.classList.toggle('auto-invert', mode === 'auto' && theme === 'dark');
+          agentFrame.classList.toggle('auto-invert', mode === 'auto' && theme !== 'dark');
         }
         if (btn) {
-          btn.classList.toggle('active', mode === 'on' || (mode === 'auto' && theme === 'dark'));
+          btn.classList.toggle('active', mode === 'on' || (mode === 'auto' && theme !== 'dark'));
           btn.title = mode === 'auto'
-            ? '反色适配（跟随暗色主题）· 点击切换为常开/关闭'
+            ? '反色适配（跟随浅色主题）· 点击切换为常开/关闭'
             : (mode === 'on' ? '反色：常开 · 点击关闭' : '反色：关闭 · 点击恢复自动');
         }
       }
