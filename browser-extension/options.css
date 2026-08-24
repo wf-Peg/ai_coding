@@ -1,0 +1,307 @@
+/* 选项页面样式（页面专属） */
+
+body {
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.container {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+/* 头部 */
+.header {
+  padding: 30px 20px;
+}
+
+.header h1 {
+  font-size: 24px;
+  margin-bottom: 6px;
+}
+
+.subtitle {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+/* 主内容区 */
+.main {
+  padding: 30px;
+}
+
+.section {
+  margin-bottom: 30px;
+  padding: 22px 22px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.section:last-of-type {
+  margin-bottom: 0;
+}
+
+.section h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 表单 */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group input[type="password"],
+.form-group select {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 14px;
+}
+
+.help-text {
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+/* 复选框组 */
+.checkbox-group {
+  display: flex;
+  width: 100%;
+  padding: 12px 16px;
+  cursor: pointer;
+}
+
+/* 测试连接按钮 */
+#testBtn {
+  flex: none;
+  width: auto;
+  min-width: 120px;
+}
+
+.test-status {
+  margin-left: 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.test-status.success {
+  color: var(--success);
+}
+
+.test-status.error {
+  color: var(--error);
+}
+
+.test-status.loading {
+  color: var(--primary);
+}
+
+/* 快捷键列表 */
+.shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.shortcut-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  background: var(--surface-hover);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.shortcut-item kbd {
+  display: inline-block;
+  padding: 6px 10px;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-bottom-width: 4px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 140px;
+  text-align: center;
+}
+
+.shortcut-item span {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* 按钮组 */
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+button {
+  flex: 1;
+  padding: 14px 24px;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary:hover {
+  transform: translateY(-2px);
+}
+
+html[data-theme="notion"] .rule-btn {
+  background: #f3f3f1;
+}
+
+html[data-theme="notion"] .section {
+  background: #fbfbfa;
+}
+
+/* 底部 */
+.footer {
+  padding: 20px 30px;
+  text-align: center;
+  font-size: 14px;
+}
+
+/* 保存成功提示 */
+.save-success {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: var(--success);
+  color: white;
+  padding: 16px 24px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-hover);
+  font-weight: 500;
+  z-index: 1000;
+  animation: slideIn 0.3s ease-out;
+  display: none;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* 规则列表样式 */
+.rules-list {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 10px;
+}
+
+.rule-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.2s;
+}
+
+.rule-item:hover {
+  background: var(--surface-hover);
+}
+
+.rule-item:last-child {
+  border-bottom: none;
+}
+
+.rule-selector {
+  flex: 1;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.rule-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.rule-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex: none;
+}
+
+.rule-btn:hover {
+  background: var(--primary);
+  color: white;
+  transform: none;
+}
+
+.rule-btn.move-up:hover {
+  background: var(--accent);
+}
+
+.rule-btn.move-down:hover {
+  background: var(--accent);
+}
+
+.rule-btn.delete:hover {
+  background: var(--error);
+}
+
+/* 滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}

@@ -3,20 +3,42 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>剪藏 - 设置</title>
+  <title>CutShelter - 设置</title>
   <style>
+    /* ===== 全局重置与基础样式 ===== */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
       background: #f5f7fa; color: #333; overflow: hidden;
     }
-    .header {
+
+    /* ===== 自定义标题栏（无边框窗口） ===== */
+    .titlebar {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 40px; padding: 0 12px;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white; padding: 24px 32px;
+      user-select: none;
     }
-    .header h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
-    .header p { font-size: 13px; opacity: 0.85; }
-    .container { padding: 24px 32px; max-height: calc(100vh - 100px); overflow-y: auto; }
+    .titlebar-drag {
+      -webkit-app-region: drag;
+      display: flex; align-items: center; gap: 8px; flex: 1;
+      height: 100%;
+    }
+    .titlebar-icon { font-size: 16px; }
+    .titlebar-title { font-size: 13px; color: white; font-weight: 500; }
+    .titlebar-close {
+      -webkit-app-region: no-drag;
+      width: 32px; height: 32px; border: none; background: transparent;
+      border-radius: 6px; color: rgba(255,255,255,0.8); font-size: 16px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s;
+    }
+    .titlebar-close:hover { background: rgba(255,255,255,0.2); color: white; }
+
+    /* ===== 主内容区域（可滚动） ===== */
+    .container { padding: 24px 32px; max-height: calc(100vh - 40px); overflow-y: auto; }
+
+    /* ===== 配置区块 ===== */
     .section { margin-bottom: 24px; }
     .section-title {
       font-size: 14px; font-weight: 600; color: #555;
@@ -24,6 +46,8 @@
       border-bottom: 1px solid #e8ecf1;
       display: flex; align-items: center; gap: 8px;
     }
+
+    /* ===== 表单元素 ===== */
     .form-group { margin-bottom: 16px; }
     .form-group label {
       display: block; font-size: 13px; color: #666;
@@ -42,6 +66,8 @@
       border-color: #667eea;
       box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
     }
+
+    /* ===== 路径选择器（输入框 + 浏览按钮） ===== */
     .path-group { display: flex; gap: 8px; }
     .path-group input { flex: 1; }
     .btn-browse {
@@ -51,14 +77,13 @@
       white-space: nowrap; transition: background 0.2s;
     }
     .btn-browse:hover { background: #e4e7ec; }
-    .api-key-wrapper { position: relative; }
-    .api-key-wrapper input { padding-right: 42px; }
-    .toggle-visibility {
-      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-      background: none; border: none; cursor: pointer;
-      font-size: 16px; color: #999; padding: 4px;
-    }
-    .toggle-visibility:hover { color: #666; }
+    .path-desc { font-size: 12px; color: #999; margin-top: 4px; }
+
+    /* ===== 端口行（两个端口输入框并排） ===== */
+    .port-row { display: flex; gap: 16px; }
+    .port-row .form-group { flex: 1; }
+
+    /* ===== 底部操作按钮区域 ===== */
     .actions {
       display: flex; gap: 12px; justify-content: space-between;
       padding-top: 16px; border-top: 1px solid #e8ecf1;
@@ -79,6 +104,8 @@
     }
     .btn-danger:hover { background: #fef2f2; }
     .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ===== 状态栏（成功/错误/加载中） ===== */
     .status-bar {
       margin-top: 12px; padding: 10px 14px; border-radius: 8px;
       font-size: 13px; display: none;
@@ -86,19 +113,21 @@
     .status-bar.success { display: block; background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
     .status-bar.error { display: block; background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
     .status-bar.loading { display: block; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+
+    /* ===== 首次运行提示横幅 ===== */
     .first-run-notice {
       background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
       padding: 14px 16px; margin-bottom: 20px;
       font-size: 13px; color: #92400e; line-height: 1.6;
     }
     .first-run-notice strong { display: block; margin-bottom: 4px; font-size: 14px; }
-    .port-row { display: flex; gap: 16px; }
-    .port-row .form-group { flex: 1; }
+
+    /* ===== 自定义滚动条 ===== */
     .container::-webkit-scrollbar { width: 6px; }
     .container::-webkit-scrollbar-track { background: transparent; }
-    .container::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+    .container::-webkit-scrollbar-thumb { background: var(--border-color, #d1d5db); border-radius: 999px; }
 
-    /* Startup overlay */
+    /* ===== 启动遮罩层（覆盖整个页面，显示加载动画和进度） ===== */
     .startup-overlay {
       display: none;
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -130,81 +159,54 @@
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1 id="headerTitle">⚙️ 剪藏 - 设置</h1>
-    <p id="headerDesc">配置应用参数</p>
+
+  <!-- ==================== 自定义标题栏 ==================== -->
+  <div class="titlebar">
+    <div class="titlebar-drag">
+      <span class="titlebar-icon">⚙️</span>
+      <span class="titlebar-title" id="headerTitle">CutShelter - 设置</span>
+    </div>
+    <button class="titlebar-close" id="titlebarClose" title="关闭">✕</button>
   </div>
+
+  <!-- ==================== 主内容区域 ==================== -->
   <div class="container">
+
+    <!-- 首次运行提示横幅：仅在首次启动时显示 -->
     <div id="firstRunNotice" class="first-run-notice" style="display:none;">
-      <strong>欢迎使用剪藏！</strong>
-      首次使用需要完成以下配置。请确保已准备好阿里云 DashScope API Key。
-      <a href="https://dashscope.console.aliyun.com/apiKey" target="_blank" style="color: #667eea;">点击获取 API Key</a>
+      <strong>🎉 欢迎使用剪藏！</strong>
+      首次使用只需配置存储目录和端口即可开始。AI 等高级功能可在设置中按需配置。
     </div>
-    <div class="section">
-      <div class="section-title"><span class="icon">🔑</span> API 配置</div>
-      <div class="form-group">
-        <label>DashScope API Key <span class="hint">（必填）</span></label>
-        <div class="api-key-wrapper">
-          <input type="password" id="apiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" />
-          <button class="toggle-visibility" id="toggleApiKey" type="button">👁</button>
-        </div>
-      </div>
-    </div>
+
+    <!-- ===== 端口配置区块 ===== -->
     <div class="section">
       <div class="section-title"><span class="icon">🔌</span> 端口配置</div>
       <div class="port-row">
         <div class="form-group">
-          <label>后端端口</label>
-          <input type="number" id="backendPort" value="8080" min="1024" max="65535" />
+          <label>后端端口 <span class="hint">（必填）</span></label>
+          <input type="number" id="backendPort" value="8081" min="1024" max="65535" />
         </div>
         <div class="form-group">
-          <label>前端端口</label>
-          <input type="number" id="frontendPort" value="3000" min="1024" max="65535" />
+          <label>前端端口 <span class="hint">（必填）</span></label>
+          <input type="number" id="frontendPort" value="3001" min="1024" max="65535" />
         </div>
       </div>
     </div>
+
+    <!-- ===== 存储目录区块 ===== -->
     <div class="section">
       <div class="section-title"><span class="icon">📁</span> 存储目录</div>
       <div class="form-group">
-        <label>剪藏文件存储目录</label>
+        <label>存储根目录 <span class="hint">（必填）</span></label>
         <div class="path-group">
-          <input type="text" id="storagePath" placeholder="选择剪藏文件存放目录" />
+          <input type="text" id="storagePath" placeholder="选择数据存储根目录" />
           <button class="btn-browse" id="browseStorage" type="button">浏览...</button>
         </div>
-      </div>
-      <div class="form-group">
-        <label>总结文件存储目录</label>
-        <div class="path-group">
-          <input type="text" id="organizedPath" placeholder="选择总结文件存放目录" />
-          <button class="btn-browse" id="browseOrganized" type="button">浏览...</button>
-        </div>
+        <div class="path-desc">所有剪藏、整理、周报数据均存储在此目录下</div>
       </div>
     </div>
-    <div class="section">
-      <div class="section-title"><span class="icon">📧</span> 邮件通知 <span class="hint">（可选）</span></div>
-      <div class="form-group" style="display:flex;align-items:center;gap:8px;">
-        <input type="checkbox" id="mailEnabled" style="width:auto;" />
-        <label for="mailEnabled" style="margin:0;cursor:pointer;">启用整理完成后发送邮件</label>
-      </div>
-      <div id="mailFields" style="display:none;">
-        <div class="form-group">
-          <label>SMTP 服务器</label>
-          <input type="text" id="mailHost" placeholder="smtp.qq.com" />
-        </div>
-        <div class="form-group">
-          <label>SMTP 端口</label>
-          <input type="number" id="mailPort" value="465" min="1" max="65535" />
-        </div>
-        <div class="form-group">
-          <label>发件邮箱</label>
-          <input type="text" id="mailUsername" placeholder="your@qq.com" />
-        </div>
-        <div class="form-group">
-          <label>授权码 <span class="hint">（非邮箱密码，需在邮箱设置中获取）</span></label>
-          <input type="password" id="mailPassword" placeholder="SMTP授权码" />
-        </div>
-      </div>
-    </div>
+
+    <!-- ===== 底部操作按钮 ===== -->
     <div class="actions">
       <div class="actions-left">
         <button class="btn btn-danger" id="btnQuit" type="button">退出应用</button>
@@ -213,28 +215,41 @@
         <button class="btn btn-primary" id="btnSave" type="button">保存并启动</button>
       </div>
     </div>
+
+    <!-- 状态栏：用于显示保存/启动结果（成功/失败/加载中） -->
     <div class="status-bar" id="statusBar"></div>
   </div>
 
-  <!-- Startup overlay -->
+  <!-- ==================== 启动遮罩层 ==================== -->
   <div class="startup-overlay" id="startupOverlay">
     <div class="spinner"></div>
     <div class="startup-text">正在启动服务...</div>
     <div class="startup-step" id="startupStep">准备中</div>
   </div>
 
+  <!-- ==================== 页面逻辑脚本 ==================== -->
   <script>
+    /**
+     * 等待 electronAPI 就绪后再执行业务逻辑
+     *
+     * 由于 preload.js 通过 contextBridge 暴露 API，在页面脚本执行时
+     * window.electronAPI 可能尚未挂载完成。此函数以轮询方式检测 API 是否就绪，
+     * 最多等待 5 秒（100 次 × 50ms），超时后显示错误。
+     *
+     * @param {Function} callback - API 就绪后的回调函数，接收 electronAPI 对象
+     */
     function waitForAPI(callback) {
       if (window.electronAPI) {
         callback(window.electronAPI);
       } else {
-        let attempts = 0;
-        const timer = setInterval(() => {
+        var attempts = 0;
+        var timer = setInterval(function() {
           attempts++;
           if (window.electronAPI) {
             clearInterval(timer);
             callback(window.electronAPI);
           } else if (attempts > 100) {
+            // 超过 5 秒仍未就绪，视为失败
             clearInterval(timer);
             showStatus('electronAPI not available', 'error');
           }
@@ -242,143 +257,126 @@
       }
     }
 
-    let isFirstRun = false;
+    /** 是否为首次运行（首次运行时行为不同：不显示退出按钮，走 configDone 流程） */
+    var isFirstRun = false;
 
+    /** 保存主进程推送的已有配置，避免保存时覆盖非当前页面的配置项 */
+    var loadedConfig = null;
+
+    /**
+     * 在页面底部状态栏显示消息
+     * @param {string} message - 要显示的消息文本
+     * @param {string} type - 消息类型：'success' | 'error' | 'loading'，决定颜色样式
+     */
     function showStatus(message, type) {
-      const bar = document.getElementById('statusBar');
+      var bar = document.getElementById('statusBar');
       bar.textContent = message;
       bar.style.display = 'block';
       bar.className = 'status-bar ' + type;
     }
 
+    /**
+     * 显示启动遮罩层（覆盖整个页面，显示加载动画）
+     * @param {string} step - 当前步骤描述文本，如 "正在保存配置..."
+     */
     function showStartupOverlay(step) {
       document.getElementById('startupOverlay').classList.add('active');
       document.getElementById('startupStep').textContent = step || '准备中';
     }
 
+    /** 隐藏启动遮罩层 */
     function hideStartupOverlay() {
       document.getElementById('startupOverlay').classList.remove('active');
     }
 
+    // 等待 electronAPI 就绪后，开始绑定所有事件和初始化逻辑
     waitForAPI(function(api) {
-      // Listen for config load
+
+      // ===== 监听主进程事件：加载已有配置 =====
       api.onLoadConfig(function(config) {
-        document.getElementById('apiKey').value = config.apiKey || '';
-        document.getElementById('backendPort').value = config.backendPort || 8080;
-        document.getElementById('frontendPort').value = config.frontendPort || 3000;
+        loadedConfig = config;
+        document.getElementById('backendPort').value = config.backendPort || 8081;
+        document.getElementById('frontendPort').value = config.frontendPort || 3001;
         document.getElementById('storagePath').value = config.storagePath || '';
-        document.getElementById('organizedPath').value = config.organizedPath || '';
-        // Mail config
-        document.getElementById('mailEnabled').checked = config.mailEnabled || false;
-        document.getElementById('mailHost').value = config.mailHost || '';
-        document.getElementById('mailPort').value = config.mailPort || 465;
-        document.getElementById('mailUsername').value = config.mailUsername || '';
-        document.getElementById('mailPassword').value = config.mailPassword || '';
-        document.getElementById('mailFields').style.display = config.mailEnabled ? 'block' : 'none';
       });
 
-      // Listen for first run
+      // ===== 监听主进程事件：首次运行 =====
       api.onFirstRun(function() {
         isFirstRun = true;
         document.getElementById('firstRunNotice').style.display = 'block';
-        document.getElementById('headerTitle').textContent = '剪藏 - 初始设置';
-        document.getElementById('headerDesc').textContent = '首次使用，请完成配置后启动';
-        // Hide quit button on first run
+        document.getElementById('headerTitle').textContent = 'CutShelter - 初始设置';
+        // 首次运行时没有已运行的服务，因此不需要退出按钮
         document.getElementById('btnQuit').style.display = 'none';
       });
 
-      // Listen for startup progress (from main process)
+      // ===== 监听主进程事件：启动进度 =====
       api.onStartupProgress(function(msg) {
         showStartupOverlay(msg);
       });
 
-      // Listen for startup error
+      // ===== 监听主进程事件：启动失败 =====
       api.onStartupError(function(msg) {
         hideStartupOverlay();
         showStatus('启动失败: ' + msg, 'error');
         document.getElementById('btnSave').disabled = false;
       });
 
-      // Toggle API key visibility
-      document.getElementById('toggleApiKey').addEventListener('click', function() {
-        var input = document.getElementById('apiKey');
-        var btn = document.getElementById('toggleApiKey');
-        if (input.type === 'password') {
-          input.type = 'text';
-          btn.textContent = '🙈';
-        } else {
-          input.type = 'password';
-          btn.textContent = '👁';
-        }
+      // ===== 自定义标题栏关闭按钮 =====
+      document.getElementById('titlebarClose').addEventListener('click', function() {
+        window.close();
       });
 
-      // Toggle mail fields visibility
-      document.getElementById('mailEnabled').addEventListener('change', function() {
-        document.getElementById('mailFields').style.display = this.checked ? 'block' : 'none';
-      });
-
-      // Browse storage directory
+      // ===== 浏览按钮：存储根目录 =====
       document.getElementById('browseStorage').addEventListener('click', async function() {
         try {
           var dir = await api.selectDirectory();
-          if (dir) document.getElementById('storagePath').value = dir;
+          if (dir) {
+            document.getElementById('storagePath').value = dir;
+          }
         } catch (e) {
           showStatus('选择目录失败: ' + e.message, 'error');
         }
       });
 
-      // Browse organized directory
-      document.getElementById('browseOrganized').addEventListener('click', async function() {
-        try {
-          var dir = await api.selectDirectory();
-          if (dir) document.getElementById('organizedPath').value = dir;
-        } catch (e) {
-          showStatus('选择目录失败: ' + e.message, 'error');
-        }
-      });
-
-      // Quit app button
+      // ===== 退出应用按钮 =====
       document.getElementById('btnQuit').addEventListener('click', async function() {
         await api.quitApp();
       });
 
-      // Save and start
+      // ===== 保存并启动按钮 =====
       document.getElementById('btnSave').addEventListener('click', async function() {
-        var apiKey = document.getElementById('apiKey').value.trim();
-        var backendPort = parseInt(document.getElementById('backendPort').value) || 8080;
-        var frontendPort = parseInt(document.getElementById('frontendPort').value) || 3000;
+        // 收集表单数据
+        var backendPort = parseInt(document.getElementById('backendPort').value) || 8081;
+        var frontendPort = parseInt(document.getElementById('frontendPort').value) || 3001;
         var storagePath = document.getElementById('storagePath').value.trim();
-        var organizedPath = document.getElementById('organizedPath').value.trim();
 
-        if (!apiKey) { showStatus('请填写 DashScope API Key', 'error'); return; }
-        if (!storagePath) { showStatus('请选择剪藏文件存储目录', 'error'); return; }
-        if (!organizedPath) { showStatus('请选择总结文件存储目录', 'error'); return; }
+        // 表单验证：仅校验必填项（端口 + 存储目录）
+        if (!storagePath) { showStatus('请选择数据存储根目录', 'error'); return; }
         if (backendPort === frontendPort) { showStatus('前端和后端端口不能相同', 'error'); return; }
 
-        var newConfig = {
-          apiKey: apiKey, backendPort: backendPort, frontendPort: frontendPort,
-          storagePath: storagePath, organizedPath: organizedPath, configured: true,
-          mailEnabled: document.getElementById('mailEnabled').checked,
-          mailHost: document.getElementById('mailHost').value.trim(),
-          mailPort: parseInt(document.getElementById('mailPort').value) || 465,
-          mailUsername: document.getElementById('mailUsername').value.trim(),
-          mailPassword: document.getElementById('mailPassword').value.trim()
-        };
+        // 合并已有配置，保留未在当前页面展示的配置项（如 AI、邮件等）
+        var newConfig = Object.assign({}, loadedConfig || {}, {
+          backendPort: backendPort,
+          frontendPort: frontendPort,
+          storagePath: storagePath,
+          configured: true
+        });
 
         var btn = document.getElementById('btnSave');
-        btn.disabled = true;
+        btn.disabled = true; // 禁用按钮防止重复提交
 
         if (isFirstRun) {
-          // Show startup overlay for first run
+          // 首次运行：通过 configDone 单向发送配置给主进程
           showStartupOverlay('正在保存配置...');
           api.configDone(newConfig);
-          // Main process will send startup-progress events
         } else {
+          // 非首次运行：通过 restartBackend 双向通信
           showStartupOverlay('正在保存配置并重启服务...');
           try {
             var result = await api.restartBackend(newConfig);
             if (result.success) {
               showStartupOverlay('启动成功！');
+              // 1 秒后自动关闭配置窗口
               setTimeout(function() {
                 hideStartupOverlay();
                 window.close();

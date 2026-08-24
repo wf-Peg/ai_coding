@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>轻编辑</title>
+  <link rel="stylesheet" href="styles/design-tokens.css">
+  <link rel="stylesheet" href="styles/ui-common.css">
+  <link rel="stylesheet" href="styles/editor.css">
+</head>
+<body>
+  <main class="editor-app">
+    <header class="editor-toolbar">
+      <div class="toolbar-group toolbar-file-actions">
+        <button class="tool-btn" id="newFileBtn" title="新建 Ctrl+N">新建</button>
+        <button class="tool-btn" id="openFileBtn" title="打开 Ctrl+O">打开</button>
+        <button class="tool-btn primary" id="saveFileBtn" title="保存 Ctrl+S">保存</button>
+        <button class="tool-btn" id="saveAsBtn" title="另存为 Ctrl+Shift+S">另存</button>
+      </div>
+
+      <div class="document-identity">
+        <div class="document-title-line">
+          <span class="modified-dot" id="modifiedDot" aria-hidden="true"></span>
+          <strong id="documentName">未命名.txt</strong>
+          <span class="source-badge" id="clipSourceBadge" hidden>剪藏</span>
+        </div>
+        <span class="document-path" id="documentPath">尚未保存</span>
+      </div>
+
+      <div class="toolbar-group toolbar-main-actions">
+        <select class="tool-select" id="languageSelect" title="语言模式">
+          <option value="markdown" selected>Markdown</option>
+          <option value="text">纯文本</option>
+          <option value="json">JSON</option>
+          <option value="xml">XML</option>
+          <option value="sql">SQL</option>
+        </select>
+        <button class="tool-btn" id="formatBtn" title="格式化 Ctrl+L">格式化</button>
+        <button class="tool-btn" id="transformBtn">转换</button>
+        <button class="tool-btn" id="compareBtn">对比</button>
+        <button class="tool-btn icon-text-btn" id="imageInsertBtn" title="插入图片（支持粘贴/拖拽，Ctrl+Shift+I）">
+          <svg class="btn-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+            <polyline points="21 15 16 10 5 21"></polyline>
+          </svg>
+          图片
+        </button>
+        <button class="tool-btn" id="markdownBtn" title="Markdown 预览 Ctrl+Shift+M">Markdown</button>
+        <button class="tool-btn" id="exportWordBtn" title="导出 Markdown 为 Word (.docx)">导出 Word</button>
+        <button class="tool-btn" id="settingsBtn" title="编辑器设置 Ctrl+,">设置</button>
+        <button class="tool-btn" id="fullscreenBtn" title="全屏模式 F11">全屏</button>
+        <button class="tool-btn accent" id="clipBtn">存入剪藏</button>
+      </div>
+    </header>
+
+    <nav class="tab-bar" id="tabBar" aria-label="编辑标签">
+      <button class="tab-new-btn" id="tabNewBtn" title="新建标签 (Ctrl+T)">+</button>
+    </nav>
+
+    <section class="compare-toolbar" id="compareToolbar" aria-hidden="true">
+      <div class="compare-label">左侧：当前文档</div>
+      <div class="compare-actions">
+        <button class="inline-btn" id="compareClipboardBtn">从剪贴板载入右侧</button>
+        <button class="inline-btn" id="compareFileBtn">从文件载入右侧</button>
+        <button class="inline-btn" id="previousDiffBtn">上一处</button>
+        <button class="inline-btn" id="nextDiffBtn">下一处</button>
+        <span id="diffCounter">无差异</span>
+        <button class="inline-btn danger-text" id="closeCompareBtn">退出对比</button>
+      </div>
+    </section>
+
+    <section class="editor-workspace" id="editorWorkspace">
+      <div class="editor-pane filetree-pane" id="fileTreePane" aria-hidden="true">
+        <div class="filetree-header">
+          <span id="fileTreeTitle">文件浏览器</span>
+          <div class="filetree-header-actions">
+            <button class="inline-btn" id="selectDirBtn" title="选择目录浏览">选择目录</button>
+            <button class="inline-btn" id="closeFileTreeBtn">关闭</button>
+          </div>
+        </div>
+        <div class="filetree-body" id="fileTreeBody"></div>
+      </div>
+      <div class="editor-pane history-pane" id="historyPane" aria-hidden="true">
+        <div class="filetree-header">
+          <span><strong>编辑历史</strong>（<span id="historyCount">0</span> 步）</span>
+          <div class="filetree-header-actions">
+            <button class="inline-btn" id="undoHistoryBtn" title="撤销 Ctrl+Z">撤销</button>
+            <button class="inline-btn" id="redoHistoryBtn" title="重做 Ctrl+Shift+Z">重做</button>
+            <button class="inline-btn" id="clearHistoryBtn" title="清空所有历史记录">清空</button>
+            <button class="inline-btn" id="closeHistoryBtn" title="关闭历史面板">关闭</button>
+          </div>
+        </div>
+        <div class="history-list" id="historyList"></div>
+      </div>
+      <div class="editor-pane recent-pane" id="recentPane" aria-hidden="true">
+        <div class="filetree-header">
+          <span>最近打开（保留 20 个）</span>
+          <div class="filetree-header-actions">
+            <button class="inline-btn" id="clearRecentBtn">清空记录</button>
+            <button class="inline-btn" id="closeRecentBtn">关闭</button>
+          </div>
+        </div>
+        <div class="history-list" id="recentList"></div>
+      </div>
+      <div class="editor-pane fav-pane" id="favPane" aria-hidden="true">
+        <div class="filetree-header">
+          <span>常用文件</span>
+          <div class="filetree-header-actions">
+            <button class="inline-btn" id="clearFavBtn">清空</button>
+            <button class="inline-btn" id="closeFavBtn">关闭</button>
+          </div>
+        </div>
+        <div class="fav-list" id="favList"></div>
+      </div>
+      <div class="editor-pane backlinks-pane" id="backlinksPane" aria-hidden="true">
+        <div class="filetree-header backlinks-header">
+          <div class="backlinks-tabs" role="tablist" aria-label="双向链接">
+            <button class="backlinks-tab active" id="tabBacklinks" role="tab" aria-selected="true" data-tab="backlinks">反链<span class="backlinks-tab-count" id="tabBacklinksCount" hidden></span></button>
+            <button class="backlinks-tab" id="tabOutgoing" role="tab" aria-selected="false" data-tab="outgoing">出链<span class="backlinks-tab-count" id="tabOutgoingCount" hidden></span></button>
+          </div>
+          <span class="backlinks-title" id="backlinksPaneTitle" title="">双向链接</span>
+          <div class="filetree-header-actions">
+            <button class="inline-btn" id="saveToVaultBtn" title="保存当前文档到知识库 notes/">存入知识库</button>
+            <button class="inline-btn" id="closeBacklinksBtn">关闭</button>
+          </div>
+        </div>
+        <div class="backlinks-list" id="backlinksList"></div>
+        <div class="outgoing-list" id="outgoingList"></div>
+      </div>
+      <div class="editor-pane outline-pane" id="outlinePane" aria-hidden="true">
+        <div class="filetree-header">
+          <span><strong>大纲</strong></span>
+          <div class="filetree-header-actions">
+            <button class="inline-btn" id="closeOutlineBtn">关闭</button>
+          </div>
+        </div>
+        <div class="outline-list" id="outlineList"></div>
+      </div>
+      <div class="editor-pane tags-pane" id="tagsPane" aria-hidden="true">
+        <div class="filetree-header">
+          <span><strong>标签</strong></span>
+          <div class="filetree-header-actions">
+            <button class="inline-btn" id="closeTagsBtn">关闭</button>
+          </div>
+        </div>
+        <div class="tags-list" id="tagsList"></div>
+      </div>
+      <div class="editor-pane main-pane" id="mainPane">
+        <div id="mainEditor" class="ace-host" aria-label="文本编辑器"></div>
+        <div id="overviewRuler" class="overview-ruler" aria-hidden="true"></div>
+        <button class="ai-pet-button canvas-float" id="aiPetBtn" type="button" title="打开Pet" aria-label="打开Pet">
+          <svg class="ai-pet-svg" viewBox="0 0 64 64" aria-hidden="true">
+            <ellipse class="ai-pet-glow" cx="32" cy="50" rx="14" ry="4" fill="var(--mascot-color,var(--app-primary))" opacity=".2"></ellipse>
+            <g class="ai-pet-figure">
+              <circle cx="32" cy="28" r="18" fill="var(--mascot-color,var(--app-primary))" fill-opacity=".85" stroke="var(--mascot-color,var(--app-primary))" stroke-width="2.5"></circle>
+            </g>
+            <g class="ai-pet-face">
+              <circle cx="23" cy="25" r="5" fill="#fff" stroke="none"></circle>
+              <circle cx="41" cy="25" r="5" fill="#fff" stroke="none"></circle>
+              <circle class="ai-pet-eye" cx="23" cy="25" r="3" fill="#2d3748" stroke="none"></circle>
+              <circle class="ai-pet-eye" cx="41" cy="25" r="3" fill="#2d3748" stroke="none"></circle>
+              <circle class="ai-pet-eye-highlight" cx="22" cy="23.5" r="1.5" fill="#fff" stroke="none"></circle>
+              <circle class="ai-pet-eye-highlight" cx="40" cy="23.5" r="1.5" fill="#fff" stroke="none"></circle>
+              <ellipse class="ai-pet-blush" cx="18" cy="31" rx="4" ry="2.5" fill="#ff8a9e" opacity=".5" stroke="none"></ellipse>
+              <ellipse class="ai-pet-blush" cx="46" cy="31" rx="4" ry="2.5" fill="#ff8a9e" opacity=".5" stroke="none"></ellipse>
+              <path d="M27 34c2 2 6 2 8 0" fill="none" stroke="#2d3748" stroke-width="2" stroke-linecap="round"></path>
+            </g>
+          </svg>
+        </button>
+      </div>
+      <div class="editor-pane markdown-pane" id="markdownPane" hidden>
+        <div class="markdown-header">
+          <span>Markdown 预览</span>
+          <div class="markdown-header-actions">
+            <button class="inline-btn" id="mdFullscreenBtn" title="预览全屏">⛶ 全屏</button>
+            <button class="inline-btn" id="closeMarkdownBtn">关闭预览</button>
+          </div>
+        </div>
+        <div class="markdown-body" id="markdownBody"></div>
+      </div>
+      <div class="editor-pane compare-pane" id="comparePane" hidden>
+        <div class="compare-file-name" id="compareFileName">对比内容</div>
+        <div id="compareEditor" class="ace-host" aria-label="对比编辑器"></div>
+      </div>
+      <aside class="editor-pane ai-chat-pane" id="aiChatPane" aria-hidden="true" aria-label="Pet对话">
+        <div class="ai-chat-resize-handle" id="aiChatResizeHandle" role="separator" aria-orientation="vertical" aria-label="调整 AI 面板宽度"></div>
+        <header class="ai-chat-header">
+          <div class="ai-chat-heading">
+            <span class="ai-chat-model-badge">AI</span>
+            <span class="ai-chat-title">Pet 助手</span>
+            <span class="ai-chat-status" id="aiChatStatus">就绪</span>
+          </div>
+          <div class="ai-chat-actions">
+            <button class="ai-chat-context-btn" id="aiChatContextBtn" title="读取编辑器上下文发送给AI">
+              <span class="context-dot"></span>
+              上下文
+            </button>
+            <button class="ai-chat-action-btn" id="aiChatClearBtn" title="清空会话">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+              </svg>
+            </button>
+            <button class="ai-chat-close-btn" id="aiChatCloseBtn" title="关闭面板">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+        </header>
+        <!-- 选中上下文提示条（Phase 2） -->
+        <div class="ai-chat-selection-hint" id="aiChatSelectionHint">
+          <span class="hint-text" id="aiChatSelectionHintText">已选中文本</span>
+          <button class="hint-clear" id="aiChatSelectionHintClear" title="清除选中状态">×</button>
+        </div>
+        <div class="ai-chat-messages" id="aiChatMessages" aria-live="polite"></div>
+        <div class="ai-chat-composer">
+          <textarea id="aiChatInput" rows="3" placeholder="输入问题，Enter 发送，Shift+Enter 换行"></textarea>
+          <div class="ai-chat-composer-footer">
+            <span class="ai-chat-hint">上下文仅保存在当前标签</span>
+            <button class="tool-btn primary" id="aiChatSendBtn">发送</button>
+            <button class="tool-btn danger-action" id="aiChatStopBtn" hidden>停止</button>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <footer class="editor-statusbar">
+      <button class="status-btn" id="encodingBtn" title="重新按指定编码读取或转换保存编码">
+        <span id="encodingLabel">UTF-8</span>
+        <span id="encodingConfidence"></span>
+      </button>
+      <select class="status-select" id="lineEndingSelect" title="保存换行符">
+        <option value="LF">LF</option>
+        <option value="CRLF">CRLF</option>
+        <option value="CR">CR</option>
+      </select>
+      <span id="statusLang">纯文本</span>
+      <span id="statusTabSize">Tab: 2</span>
+      <span id="cursorStatus">行 1，列 1</span>
+      <span id="selectionStatus">0 字符</span>
+      <span id="matchStatus">未选择词语</span>
+      <button class="status-btn" id="autosaveStatus" title="自动保存已开启：每 10 秒保存一次，点击关闭">自动保存</button>
+      <span class="status-spacer"></span>
+      <button class="status-btn" id="terminalBtn" title="在当前目录打开系统终端（Alt+T）">
+        <svg class="status-btn-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="4 17 10 11 4 5"></polyline>
+          <line x1="12" y1="19" x2="20" y2="19"></line>
+        </svg>
+        <span class="status-btn-label">终端</span>
+      </button>
+      <span id="runtimeStatus">浏览器模式</span>
+    </footer>
+  </main>
+
+  <aside class="side-panel" id="transformPanel" aria-hidden="true">
+    <div class="panel-header">
+      <div>
+        <h2>文本转换</h2>
+        <p>有选区时处理选区，否则处理全文。</p>
+      </div>
+      <button class="icon-close" id="closeTransformBtn" aria-label="关闭">×</button>
+    </div>
+    <label class="field-label" for="transformOperation">操作</label>
+    <select class="field-control" id="transformOperation">
+      <option value="base64-encode">Base64 编码</option>
+      <option value="base64-decode">Base64 解码</option>
+      <option value="url-encode">URL 编码</option>
+      <option value="url-decode">URL 解码</option>
+      <option value="html-encode">HTML 实体编码</option>
+      <option value="html-decode">HTML 实体解码</option>
+      <option value="unicode-encode">Unicode 转义</option>
+      <option value="unicode-decode">Unicode 反转义</option>
+      <option value="hex-encode">Hex 编码</option>
+      <option value="hex-decode">Hex 解码</option>
+      <option value="md5-encode">MD5 编码</option>
+      <option value="md5-file">MD5 文件校验</option>
+    </select>
+    <label class="field-label" for="transformPreview">结果预览</label>
+    <textarea class="preview-area" id="transformPreview" readonly></textarea>
+    <div class="panel-actions">
+      <button class="tool-btn" id="copyTransformBtn">复制结果</button>
+      <button class="tool-btn primary" id="applyTransformBtn">替换原文</button>
+    </div>
+  </aside>
+
+  <div class="modal-backdrop" id="encodingModal">
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="encodingTitle">
+      <div class="panel-header">
+        <div>
+          <h2 id="encodingTitle">字符编码</h2>
+          <p>重新读取只改变显示；转换编码在下次保存时生效。</p>
+        </div>
+        <button class="icon-close" data-close-modal="encodingModal" aria-label="关闭">×</button>
+      </div>
+      <label class="field-label" for="encodingSelect">目标编码</label>
+      <select class="field-control" id="encodingSelect">
+        <option value="UTF-8">UTF-8</option>
+        <option value="UTF-8-BOM">UTF-8 BOM</option>
+        <option value="GB18030">GB18030 / GBK</option>
+        <option value="UTF-16LE">UTF-16 LE</option>
+        <option value="UTF-16BE">UTF-16 BE</option>
+        <option value="BIG5">Big5</option>
+        <option value="SHIFT_JIS">Shift_JIS</option>
+        <option value="WINDOWS-1252">Windows-1252</option>
+      </select>
+      <div class="modal-note" id="encodingNote">浏览器模式只能可靠读取 UTF-8；桌面模式支持完整转换。</div>
+      <div class="panel-actions">
+        <button class="tool-btn" id="reopenEncodingBtn">按此编码重新读取</button>
+        <button class="tool-btn primary" id="setSaveEncodingBtn">设为保存编码</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="clipModal">
+    <section class="modal-card clip-modal-card" role="dialog" aria-modal="true" aria-labelledby="clipModalTitle">
+      <div class="panel-header">
+        <div>
+          <h2 id="clipModalTitle">存入剪藏</h2>
+          <p id="clipScopeDescription">保存当前文档。</p>
+        </div>
+        <button class="icon-close" data-close-modal="clipModal" aria-label="关闭">×</button>
+      </div>
+      <div class="form-grid">
+        <label class="field-group wide">
+          <span class="field-label">标题</span>
+          <input class="field-control" id="clipTitleInput" maxlength="160">
+        </label>
+        <label class="field-group">
+          <span class="field-label">保存方式</span>
+          <select class="field-control" id="clipModeSelect">
+            <option value="store-only">存入收件箱</option>
+            <option value="ai-text">AI 整理后存储</option>
+          </select>
+        </label>
+        <label class="field-group">
+          <span class="field-label">分类</span>
+          <select class="field-control" id="clipCategorySelect">
+            <option value="">收件箱 / 自动分类</option>
+          </select>
+        </label>
+        <label class="field-group wide">
+          <span class="field-label">标签（逗号分隔）</span>
+          <input class="field-control" id="clipTagsInput" placeholder="代码, 数据处理">
+        </label>
+        <label class="field-group wide">
+          <span class="field-label">我的思考</span>
+          <textarea class="field-control thoughts-input" id="clipThoughtsInput" placeholder="可选"></textarea>
+        </label>
+        <label class="check-row wide">
+          <input type="checkbox" id="includeFileNameCheck" checked>
+          <span>记录来源文件名（不会记录完整本地路径）</span>
+        </label>
+      </div>
+      <div class="panel-actions">
+        <button class="tool-btn" data-close-modal="clipModal">取消</button>
+        <button class="tool-btn primary" id="submitClipBtn">保存到剪藏</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="discardModal">
+    <section class="modal-card discard-modal-card" role="dialog" aria-modal="true" aria-labelledby="discardModalTitle">
+      <div class="panel-header">
+        <div>
+          <h2 id="discardModalTitle">放弃未保存修改</h2>
+          <p>当前内容尚未保存，确定放弃修改吗？</p>
+        </div>
+        <button class="icon-close" id="cancelDiscardBtn" aria-label="取消">×</button>
+      </div>
+      <div class="modal-note">放弃后，当前编辑内容将不会写入文件或剪藏。</div>
+      <div class="panel-actions">
+        <button class="tool-btn" id="cancelDiscardActionBtn">继续编辑</button>
+        <button class="tool-btn danger-action" id="confirmDiscardBtn">放弃修改</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="settingsModal">
+    <section class="modal-card settings-modal-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="panel-header">
+        <div>
+          <h2 id="settingsTitle">编辑器设置</h2>
+          <p id="settingsDesc">调整编辑器偏好设置。</p>
+        </div>
+        <button class="icon-close" data-close-modal="settingsModal" aria-label="关闭">×</button>
+      </div>
+      <!-- 设置标签页 -->
+      <div class="settings-tabs">
+        <button class="settings-tab active" data-tab="basic">基本</button>
+        <button class="settings-tab" data-tab="advanced">高级</button>
+      </div>
+      <!-- 基本设置 -->
+      <div class="settings-tab-content" id="settingsBasic">
+        <label class="field-label" for="fontSizeSlider">字体大小</label>
+        <div class="settings-row">
+          <input type="range" id="fontSizeSlider" min="8" max="40" value="13" step="1">
+          <span id="fontSizeLabel">13px</span>
+        </div>
+        <label class="field-label" for="tabSizeSelect">缩进大小</label>
+        <select class="field-control" id="tabSizeSelect">
+          <option value="2">2 空格</option>
+          <option value="4">4 空格</option>
+          <option value="8">8 空格</option>
+        </select>
+        <div class="modal-note" style="margin-top:8px;">按 Ctrl/Cmd+= / Ctrl/Cmd+- 或 Ctrl/Cmd+滚轮 快速调整字体大小</div>
+      </div>
+      <!-- 高级设置（ACE 图形化设置面板） -->
+      <div class="settings-tab-content" id="settingsAdvanced" hidden>
+        <div id="aceSettingsContainer"></div>
+      </div>
+      <div class="panel-actions">
+        <button class="tool-btn primary" data-close-modal="settingsModal">关闭</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- AI 差异对比审批弹窗（Phase 3） -->
+  <div class="modal-backdrop" id="aiDiffModal">
+    <section class="modal-card ai-diff-modal-card" role="dialog" aria-modal="true" aria-labelledby="aiDiffTitle">
+      <div class="panel-header">
+        <div>
+          <h2 id="aiDiffTitle">AI 修改预览</h2>
+          <p>对比当前内容与 AI 建议，确认后应用到编辑器</p>
+        </div>
+        <button class="icon-close" data-close-modal="aiDiffModal" aria-label="关闭">×</button>
+      </div>
+      <div class="diff-preview-container">
+        <div class="diff-panel original-panel">
+          <div class="diff-panel-header">当前内容</div>
+          <div id="originalContent" class="diff-content"></div>
+        </div>
+        <div class="diff-panel ai-panel">
+          <div class="diff-panel-header">AI 建议</div>
+          <div id="aiContent" class="diff-content"></div>
+        </div>
+      </div>
+      <div class="panel-actions">
+        <button class="tool-btn" data-close-modal="aiDiffModal">取消</button>
+        <button class="tool-btn primary" id="acceptAiDiffBtn">接受修改</button>
+      </div>
+    </section>
+  </div>
+
+  <input id="browserFileInput" type="file" hidden accept=".txt,.md,.json,.xml,.sql,.csv,.log,.yaml,.yml,.ini,.conf">
+
+  <!-- 命令面板（Ctrl+P） -->
+  <div class="command-palette" id="commandPalette" hidden aria-hidden="true">
+    <div class="command-palette-input-wrap">
+      <span class="command-palette-prompt">›</span>
+      <input class="command-palette-input" id="commandPaletteInput" placeholder="输入命令关键词…" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="command-palette-list" id="commandPaletteList"></div>
+    <div class="command-palette-hint">↑↓ 导航 · Enter 执行 · Esc 关闭</div>
+  </div>
+
+  <!-- 全局文件快速搜索（Ctrl+Shift+O，Obsidian Quick Switcher 风格） -->
+  <div class="quick-switcher" id="quickSwitcher" hidden aria-hidden="true">
+    <div class="quick-switcher-input-wrap">
+      <span class="quick-switcher-prompt">🔍</span>
+      <input class="quick-switcher-input" id="quickSwitcherInput" placeholder="输入文件名/路径搜索…" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="command-palette-list" id="quickSwitcherList"></div>
+    <div class="command-palette-hint">↑↓ 导航 · Enter 打开 · Esc 关闭</div>
+  </div>
+
+  <div class="editor-context-menu" id="editorContextMenu" hidden role="menu">
+    <!-- ─── 编辑操作 ─── -->
+    <button type="button" data-context-action="copy" role="menuitem">📋 复制</button>
+    <button type="button" data-context-action="cut" role="menuitem">✂️ 剪切</button>
+    <button type="button" data-context-action="paste" role="menuitem">📄 粘贴</button>
+    <button type="button" data-context-action="selectAll" role="menuitem">🔍 全选</button>
+    <button type="button" data-context-action="joinLineEnds" role="menuitem" id="joinLineEndsContextBtn" title="删除每行末尾换行符，将被截断的行合并为整行">⛓ 删除每行末换行符</button>
+    <button type="button" data-context-action="format" role="menuitem" id="formatContextBtn" title="自动识别 JSON/XML/SQL 并格式化，忽略右上角文本类型">🧹 格式化（自动识别）</button>
+    <div class="editor-context-divider"></div>
+
+    <!-- ─── AI 功能 ─── -->
+    <button type="button" data-context-action="aiSearch" role="menuitem" id="aiSearchContextBtn">🔎 AI 搜索选中内容</button>
+    <button type="button" data-context-action="smartIngest" role="menuitem" id="smartIngestContextBtn">📥 智能入库</button>
+    <button type="button" data-context-action="aiImportPassword" role="menuitem" id="aiImportPasswordContextBtn">🔑 AI 识别导入密码</button>
+    <button type="button" data-context-action="aiContextAnalysis" role="menuitem" id="aiContextAnalysisContextBtn">🧠 AI 分析上下文</button>
+    <div class="editor-context-divider"></div>
+
+    <!-- ─── 翻译功能 ─── -->
+    <button type="button" data-context-action="offlineTranslate" role="menuitem" id="offlineTranslateContextBtn">📖 离线翻译</button>
+    <button type="button" data-context-action="onlineTranslate" role="menuitem" id="onlineTranslateContextBtn">🌐 在线翻译</button>
+    <button type="button" data-context-action="addCustomMapping" role="menuitem" id="addCustomMappingContextBtn">📝 添加自定义词典</button>
+    <button type="button" data-context-action="addToDictLib" role="menuitem" id="addToDictLibContextBtn">📚 添加词典库</button>
+    <div class="editor-context-divider"></div>
+
+    <!-- ─── 词典管理 ─── -->
+    <button type="button" data-context-action="manageDictionary" role="menuitem" id="manageDictionaryContextBtn">📚 管理词典</button>
+  </div>
+  <div class="editor-context-menu" id="tabContextMenu" hidden role="menu"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <div class="modal-backdrop" id="dictModal">
+    <section class="modal-card dict-modal-card" role="dialog" aria-modal="true" aria-labelledby="dictModalTitle">
+      <div class="panel-header">
+        <div>
+          <h2 id="dictModalTitle">管理词典</h2>
+          <p>管理自定义映射和词典库条目</p>
+        </div>
+        <button class="icon-close" data-close-modal="dictModal" aria-label="关闭">×</button>
+      </div>
+      <!-- 标签切换 -->
+      <div class="dict-tabs">
+        <button class="dict-tab active" data-dict-tab="mapping">自定义映射</button>
+        <button class="dict-tab" data-dict-tab="library">词典库</button>
+      </div>
+      <!-- 自定义映射面板 -->
+      <div class="dict-tab-content" id="dictTabMapping" style="display:block">
+        <div class="form-grid">
+          <label class="field-group wide">
+            <span class="field-label">源词（中文或英文）</span>
+            <input class="field-control" id="dictSourceInput" placeholder="例如：hello 或 你好">
+          </label>
+          <label class="field-group wide">
+            <span class="field-label">目标释义</span>
+            <input class="field-control" id="dictTargetInput" placeholder="例如：你好 或 hello">
+          </label>
+        </div>
+        <button class="tool-btn primary" id="dictAddBtn">添加条目</button>
+        <div class="dict-list" id="dictList"></div>
+      </div>
+      <!-- 词典库面板 -->
+      <div class="dict-tab-content" id="dictTabLibrary" style="display:none">
+        <div class="dict-tab-header">
+          <span class="dict-tab-hint">词典库用于存储常用翻译条目，支持快速添加</span>
+        </div>
+        <div class="dict-list" id="dictLibList"></div>
+      </div>
+      <div class="panel-actions">
+        <button class="tool-btn" data-close-modal="dictModal">关闭</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- 双链同名目标选择弹窗 -->
+  <div class="modal-backdrop" id="wikilinkPickerModal">
+    <section class="modal-card wikilink-picker-card" role="dialog" aria-modal="true" aria-labelledby="wikilinkPickerTitle">
+      <div class="panel-header">
+        <div>
+          <h2 id="wikilinkPickerTitle">选择链接目标</h2>
+          <p id="wikilinkPickerHint">存在多个同名目标，请选择要打开的文件</p>
+        </div>
+        <button class="icon-close" data-close-modal="wikilinkPickerModal" aria-label="关闭">×</button>
+      </div>
+      <div class="wikilink-picker-list" id="wikilinkPickerList"></div>
+      <div class="panel-actions">
+        <button class="tool-btn" data-close-modal="wikilinkPickerModal">取消</button>
+      </div>
+    </section>
+  </div>
+
+  <input type="file" id="editorImageInput" accept="image/*" multiple style="display:none;">
+
+  <script src="js/logger.js"></script>
+  <script src="libs/marked.min.js"></script>
+  <script src="libs/mermaid.min.js"></script>
+  <script src="js/media-render.js"></script>
+  <script src="js/media-uploader.js"></script>
+  <script src="libs/ace/ace.js"></script>
+  <script>
+    // 桥接全局 define/require：ace.js 为 noconflict 构建（define/require 挂在 ace 命名空间），
+    // 而 ext-language_tools.js / ext-searchbox.js 为标准构建（使用全局裸 define/require）。
+    // 不桥接则扩展模块无法注册，Ctrl+F/Ctrl+H 搜索替换与代码自动补全均失效。
+    (function bridgeAceGlobals() {
+      if (!window.define && window.ace && window.ace.define) {
+        window.define = window.ace.define;
+      }
+      if (!window.require && window.ace && window.ace.require) {
+        window.require = window.ace.require;
+      }
+    })();
+  </script>
+  <script src="libs/ace/ext-language_tools.js"></script>
+  <script src="libs/ace/ext-searchbox.js"></script>
+  <script src="libs/ace/ext-settings_menu.js"></script>
+  <script src="libs/diff.min.js"></script>
+  <script src="libs/sql-formatter.min.js"></script>
+  <script src="js/editor-core.js"></script>
+  <script src="js/editor-ai-chat-core.js"></script>
+  <script src="js/dict-offline.js"></script>
+  <script src="js/editor.js"></script>
+  <script src="js/ui-common.js"></script>
+  <script>
+    // 平台自适应：macOS 上把静态工具栏等悬浮 title 里的 Ctrl/Shift/Alt 换成 ⌘/⇧/⌥ 符号。
+    // 动态按钮（createStatusBtn / 标签关闭）已在 editor.js 内由 platformShortcut 处理，这里只扫静态 title。
+    (function () {
+      if (!/Mac/i.test(navigator.platform || '')) return;
+      document.querySelectorAll('[title]').forEach(function (el) {
+        var t = el.getAttribute('title') || '';
+        if (!/Ctrl|Shift|Alt|Meta/i.test(t)) return;
+        el.setAttribute('title', t
+          .replace(/Ctrl\+/gi, '⌘')
+          .replace(/Meta\+/gi, '⌘')
+          .replace(/Shift\+/gi, '⇧')
+          .replace(/Alt\+/gi, '⌥'));
+      });
+    })();
+  </script>
+</body>
+</html>

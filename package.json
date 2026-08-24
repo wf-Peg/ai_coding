@@ -1,22 +1,55 @@
 {
   "name": "clip-demo",
-  "version": "1.0.0",
-  "description": "剪藏 - 信息检索与剪藏系统",
+  "version": "1.0.11",
+  "description": "CutShelter - Information Retrieval & Clip System",
   "main": "electron/main.js",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "electron .",
-    "pack": "electron-builder --dir",
-    "build:win": "electron-builder --win",
-    "build:mac": "electron-builder --mac",
-    "build:linux": "electron-builder --linux",
-    "build:all": "electron-builder --win --mac --linux",
+    "test:editor": "node --test electron/editor-file-service.test.js",
+    "test:editor-ai": "node --test electron/editor-ai-chat-core.test.js",
+    "test:editor-ai-integration": "node --test electron/editor-ai-integration.test.js",
+    "test:editor-all": "node --test electron/editor-ai-chat-core.test.js electron/editor-ai-integration.test.js",
+    "postinstall": "electron-builder install-app-deps",
+    "generate-icons": "node scripts/generate-icons.js",
+    "build:dsh-offline": "node scripts/build-dsh-offline.mjs",
+    "prebuild": "node scripts/generate-icons.js && node scripts/prebuild-clean.js",
+    "download-jre": "bash scripts/download-jre.sh",
+    "download-jre:all": "bash scripts/download-jre.sh all",
+    "download-jre:win": "scripts\\download-jre.bat",
+    "download-jre:win:all": "scripts\\download-jre.bat all",
+    "build:jlink": "scripts\\build-jlink.bat",
+    "build:jlink:unix": "bash scripts/build-jlink.sh",
+    "build:jlink:slim": "node scripts/build-jlink-slim.mjs",
     "build:jar": "cd backend && mvn clean package -DskipTests",
-    "postinstall": "electron-builder install-app-deps"
+    "build:jlink:win": "npm run build:jar && npm run build:jlink && npm run prebuild && electron-builder --win --x64 && node scripts/build-update-zip.js",
+    "build:win": "npm run build:jar && npm run prebuild && electron-builder --win --x64 && node scripts/build-update-zip.js && node scripts/clean-artifacts.js",
+    "build:mac": "npm run build:jar && npm run build:jlink:slim && npm run prebuild && electron-builder --mac --arm64 --x64 && node scripts/clean-artifacts.js",
+    "build:mac:arm": "npm run build:jar && npm run build:jlink:slim && npm run prebuild && electron-builder --mac --arm64 && node scripts/clean-artifacts.js",
+    "build:mac:dir": "npm run build:jar && npm run build:jlink:slim && npm run prebuild && electron-builder --mac --dir --arm64",
+    "build:win:dir": "npm run build:jar && npm run build:jlink:slim && npm run prebuild && electron-builder --win --dir --x64",
+    "build:linux": "npm run build:jar && npm run prebuild && electron-builder --linux --x64 && node scripts/clean-artifacts.js",
+    "build:all": "npm run build:jar && npm run prebuild && electron-builder --win --mac --linux && node scripts/clean-artifacts.js",
+    "build:portable:win": "npm run prebuild && electron-builder --win portable --x64",
+    "build:portable:mac-x64": "npm run prebuild && electron-builder --mac --x64 zip",
+    "build:portable:mac-arm": "npm run prebuild && electron-builder --mac --arm64 zip",
+    "build:portable:all": "npm run prebuild && electron-builder --win portable --x64 --mac --arm64 --x64 zip",
+    "test:clip": "node scripts/smoke-clip.js",
+    "test:workspace": "node scripts/smoke-workspace.js",
+    "test:frontend-split": "node scripts/smoke-clip.js && node scripts/smoke-workspace.js",
+    "test:build": "node scripts/test-build.js",
+    "release": "bash scripts/release.sh",
+    "release:win": "scripts\\release.bat"
   },
   "build": {
     "appId": "com.example.clip-demo",
-    "productName": "剪藏",
-    "copyright": "Copyright © 2024",
+    "productName": "CutShelter",
+    "asarUnpack": [
+      "./node_modules/node-notifier/**/*"
+    ],
+    "copyright": "Copyright 漏 2024",
     "directories": {
       "output": "dist-electron"
     },
@@ -31,23 +64,62 @@
       {
         "from": "frontend",
         "to": "frontend",
-        "filter": ["index.html", "public/**/*"]
+        "filter": [
+          "**/*",
+          "!**/clip-backend.jar"
+        ]
       },
       {
-        "from": "jre",
+        "from": "TODO",
+        "to": "TODO",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "jre-slim/${os}",
         "to": "jre",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "electron/screenshot/ocr-models",
+        "to": "ocr-models",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "integrations/dsh",
+        "to": "integrations/dsh",
+        "filter": [
+          "**/*",
+          "!**/node_modules/.cache/**"
+        ]
       }
     ],
     "win": {
+      "icon": "electron/app-icon.png",
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
         }
       ],
-      "signingHashAlgorithms": ["sha256"],
-      "sign": null
+      "signtoolOptions": null
+    },
+    "portable": {
+      "artifactName": "${productName}-portable-${version}-win-x64.${ext}",
+      "requestExecutionLevel": "user"
     },
     "nsis": {
       "oneClick": false,
@@ -61,15 +133,150 @@
       "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "mac": {
+      "extendInfo": {
+        "NSServices": [
+          {
+            "NSMenuItem": {
+              "default": "添加到剪藏收件箱"
+            },
+            "NSMessage": "clipFile",
+            "NSPortName": "CutShelter",
+            "NSRequiredContext": {
+              "NSEnd": "NSMenuItem"
+            },
+            "NSSendTypes": [
+              "NSFilenamesPboardType"
+            ]
+          },
+          {
+            "NSMenuItem": {
+              "default": "AI 解析文件并添加剪藏"
+            },
+            "NSMessage": "aiClipFile",
+            "NSPortName": "CutShelter",
+            "NSRequiredContext": {
+              "NSEnd": "NSMenuItem"
+            },
+            "NSSendTypes": [
+              "NSFilenamesPboardType"
+            ]
+          },
+          {
+            "NSMenuItem": {
+              "default": "用编辑器打开文件"
+            },
+            "NSMessage": "openEditor",
+            "NSPortName": "CutShelter",
+            "NSRequiredContext": {
+              "NSEnd": "NSMenuItem"
+            },
+            "NSSendTypes": [
+              "NSFilenamesPboardType"
+            ]
+          }
+        ]
+      },
+      "fileAssociations": [
+        {
+          "ext": "txt",
+          "name": "CutShelter 文本编辑器",
+          "description": "用 CutShelter 编辑器打开文本文件",
+          "role": "Editor"
+        },
+        {
+          "ext": "md",
+          "name": "CutShelter Markdown 编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "json",
+          "name": "CutShelter JSON 编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "xml",
+          "name": "CutShelter XML 编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "sql",
+          "name": "CutShelter SQL 编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "yml",
+          "name": "CutShelter YAML 编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "yaml",
+          "name": "CutShelter YAML 编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "ini",
+          "name": "CutShelter 配置文件编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "conf",
+          "name": "CutShelter 配置文件编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "log",
+          "name": "CutShelter 日志查看器",
+          "role": "Editor"
+        },
+        {
+          "ext": "csv",
+          "name": "CutShelter CSV 查看器",
+          "role": "Editor"
+        },
+        {
+          "ext": "js",
+          "name": "CutShelter JavaScript 编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "py",
+          "name": "CutShelter Python 编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "html",
+          "name": "CutShelter HTML 编辑器",
+          "role": "Editor"
+        },
+        {
+          "ext": "css",
+          "name": "CutShelter CSS 编辑器",
+          "role": "Editor"
+        }
+      ],
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
         }
       ],
-      "icon": "electron/icon.png",
-      "category": "public.app-category.productivity"
+      "icon": "electron/app-icon.png",
+      "category": "public.app-category.productivity",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
+    "afterPack": "./electron/afterPack.js",
     "dmg": {
       "contents": [
         {
@@ -88,20 +295,28 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
-      "icon": "electron/icon.png",
+      "icon": "electron/app-icon.png",
       "category": "Utility"
     }
   },
   "dependencies": {
+    "chardet": "^2.1.0",
     "finalhandler": "^1.2.0",
+    "iconv-lite": "^0.6.3",
     "js-yaml": "^4.1.0",
-    "serve-static": "^1.15.0"
+    "node-notifier": "^10.0.1",
+    "onnxruntime-node": "^1.27.0",
+    "serve-static": "^1.15.0",
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
-    "electron": "^28.0.0",
-    "electron-builder": "^24.9.1"
+    "@deepseek-ai/dsh": "^0.1.0-rc.7",
+    "electron": "^36.9.5",
+    "electron-builder": "^26.15.7"
   }
 }

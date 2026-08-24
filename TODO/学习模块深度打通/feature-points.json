@@ -1,0 +1,111 @@
+{
+  "version": "2.0",
+  "requirement": {
+    "title": "学习模块深度打通",
+    "summary": "借鉴 Obsidian/Notion，通过学习计划与剪藏、知识、编辑器的深度串联打通各模块数据流转：阶段级关联、反链、学习计划入图谱、编辑器打开阶段说明",
+    "tags": ["product-dev", "学习计划", "知识图谱", "打通串联"],
+    "phase": "completed",
+    "createdAt": "2026-08-15T09:00:00",
+    "completedAt": "2026-08-15T22:55:00"
+  },
+  "featurePoints": [
+    {
+      "id": "fp-001",
+      "name": "学习计划阶段级关联数据模型",
+      "description": "LearningPlan.Phase 新增 linkedKnowledgeIds / sourceClipIds 作为阶段级关联唯一真源，支持阶段关联知识条目与剪藏",
+      "layer": "backend",
+      "tags": ["product-dev", "数据模型"],
+      "designSections": ["三、数据模型变更"],
+      "tasks": [
+        { "title": "Phase 新增两字段及 getter/setter", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "字段随 LearningPlan JSON 持久化", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-002",
+      "name": "学习计划关联接口与反链查询",
+      "description": "LearningPlanService/Controller 新增更新阶段关联端点与 by-knowledge/by-clip 反查端点，供知识/剪藏展示反链",
+      "layer": "backend",
+      "tags": ["product-dev", "接口", "反链"],
+      "designSections": ["四、后端变更"],
+      "tasks": [
+        { "title": "updatePhaseLinks 写关联并同步图谱", "status": "done" },
+        { "title": "PUT /{id}/phase/{phaseNum}/links", "status": "done" },
+        { "title": "GET /by-knowledge/{id}", "status": "done" },
+        { "title": "GET /by-clip/{id}", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "mvn test 全量通过", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-003",
+      "name": "学习计划节点与plan_links边纳入图谱",
+      "description": "GraphService 新增 recordPlanRelations/removePlanRelations，syncRelations 纳入学习计划，getGraph 填充学习计划节点字段并输出 plan_links 边",
+      "layer": "backend",
+      "tags": ["product-dev", "知识图谱"],
+      "designSections": ["四、后端变更", "五、前端变更"],
+      "tasks": [
+        { "title": "recordPlanRelations 写入 plan_links", "status": "done" },
+        { "title": "syncRelations/getGraph 扩展", "status": "done" },
+        { "title": "前端图谱学习计划节点绿色三角渲染", "status": "done" },
+        { "title": "前端图谱 plan_links 边与图例", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "GET /api/graph 返回 learning-plan 节点与 plan_links 边", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-004",
+      "name": "学习计划前端关联区块与编辑器联动",
+      "description": "learning-plan.html 阶段卡片关联知识/剪藏区块、Notion 式多选 picker、编辑器打开阶段说明、URL 直达",
+      "layer": "frontend",
+      "tags": ["product-dev", "UX", "编辑器"],
+      "designSections": ["五、前端变更"],
+      "tasks": [
+        { "title": "阶段卡片关联知识/剪藏 chips", "status": "done" },
+        { "title": "多选 picker 弹窗", "status": "done" },
+        { "title": "编辑器打开阶段说明(openTextData)", "status": "done" },
+        { "title": "?planId= URL 直达", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "关联 chips 点击跳转正确", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-005",
+      "name": "知识/剪藏反链与导航路由",
+      "description": "knowledge-detail/clip 详情新增被学习计划引用区块，index.html 新增 navigateLearningPlan 与 openTextData 转发路由",
+      "layer": "frontend",
+      "tags": ["product-dev", "反链", "导航"],
+      "designSections": ["五、前端变更"],
+      "tasks": [
+        { "title": "knowledge-detail 反链区块", "status": "done" },
+        { "title": "clip 反链区块", "status": "done" },
+        { "title": "index.html navigateLearningPlan/openTextData", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "反链点击跳转学习计划详情", "status": "done" }
+      ]
+    }
+  ],
+  "knowledgePoints": [
+    {
+      "title": "阶段级关联为唯一真源",
+      "content": "学习计划关联知识/剪藏存储在 Phase.linkedKnowledgeIds/sourceClipIds，图谱 plan_links 边是可查询投影，与既有 derived_from/linked_to 同模式，避免多头维护",
+      "tags": ["product-dev", "技术", "架构"]
+    },
+    {
+      "title": "反链用遍历实现",
+      "content": "学习计划数据量小，反链查询直接遍历 getAllLearningPlans 过滤，不引入新索引，保持轻量",
+      "tags": ["product-dev", "技术"]
+    },
+    {
+      "title": "两套知识模型断层已修复",
+      "content": "图谱节点来自 content-index.json(旧 KnowledgeEntry)，边来自 relation-index.json(主模型 Knowledge)，两套 ID 体系不一致导致图谱 links 恒为 0。修复：ContentRefMapper 新增 fromKnowledgeBase(Knowledge)，ContentIndexService.rebuildFromStorage 改用 getAllKnowledge() 统一数据源，重建索引后 derived_from/plan_links 边正常渲染",
+      "tags": ["product-dev", "技术", "Bug修复"]
+    }
+  ]
+}

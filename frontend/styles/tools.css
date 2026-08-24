@@ -1,0 +1,305 @@
+/* ===== Tools Hub 样式 =====
+   参考 Arc / Raycast / Notion 工具聚合页：卡片网格 + 高位搜索 + 分类 chips + 悬停抬升动效。
+   复用 design-tokens.css 变量，兼容主题切换。 */
+
+/* Layout */
+html, body {
+  margin: 0;
+  min-height: 100vh;
+}
+body {
+  background: var(--app-bg, #f7f7f5);
+  color: var(--app-text, #2f3437);
+  font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+#app {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 32px 28px 64px;
+}
+
+/* Header */
+.th-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 26px;
+  animation: thFadeUp .4s var(--app-ease-out-expo, cubic-bezier(.16,1,.3,1));
+}
+.th-header h1 {
+  margin: 0 0 6px;
+  font-size: 26px;
+  letter-spacing: -.02em;
+}
+.th-subtitle { margin: 0; color: var(--app-text-secondary, #6b6f76); }
+
+/* Buttons */
+.th-btn {
+  border: 1px solid var(--app-border-strong, #d2d2cd);
+  border-radius: var(--app-radius, 9px);
+  padding: 9px 16px;
+  color: var(--app-text, #2f3437);
+  background: var(--app-surface, #fff);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 500;
+  transition: all .2s var(--app-ease-out-expo, cubic-bezier(.16,1,.3,1));
+}
+.th-btn:hover { transform: translateY(-1px); border-color: var(--app-primary, #2383e2); color: var(--app-primary, #2383e2); }
+.th-btn-primary { background: var(--app-primary, #2383e2); border-color: var(--app-primary, #2383e2); color: #fff; }
+.th-btn-primary:hover { background: var(--app-primary-hover, #1f76c9); color: #fff; }
+.th-btn-ghost { background: var(--app-surface, #fff); }
+.th-btn-ghost-sm {
+  border: 1px solid transparent; background: transparent; color: var(--app-text-secondary, #6b6f76);
+  padding: 6px 10px; border-radius: var(--app-radius-sm, 6px); font-size: 13px; cursor: pointer; transition: all .15s ease;
+}
+.th-btn-ghost-sm:hover { background: var(--app-surface-hover, #ececea); color: var(--app-text, #2f3437); }
+
+/* Toolbar: search + chips */
+.th-toolbar {
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  animation: thFadeUp .4s var(--app-ease-out-expo, cubic-bezier(.16,1,.3,1)) .05s both;
+}
+.th-search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+  max-width: 360px;
+}
+.th-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 32px 10px 34px;
+  border: 1px solid var(--app-border, #e3e3df);
+  border-radius: var(--app-radius, 9px);
+  background: var(--app-surface, #fff);
+  color: var(--app-text, #2f3437);
+  font: inherit;
+  outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.th-search::placeholder { color: var(--app-text-muted, #92969d); }
+.th-search:focus { border-color: var(--app-primary, #2383e2); box-shadow: 0 0 0 3px var(--app-primary-soft, rgba(35,131,226,.1)); }
+.th-search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--app-text-muted, #92969d); }
+.th-search-clear { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--app-text-muted, #92969d); cursor: pointer; display: none; font-size: 13px; }
+.th-search-clear:hover { color: var(--app-danger, #d14343); }
+
+.th-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.th-chip {
+  border: 1px solid var(--app-border, #e3e3df);
+  background: var(--app-surface, #fff);
+  color: var(--app-text-secondary, #6b6f76);
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .18s var(--app-ease-out-expo, cubic-bezier(.16,1,.3,1));
+}
+.th-chip:hover { border-color: var(--app-primary, #2383e2); color: var(--app-primary, #2383e2); }
+.th-chip.active { background: var(--app-primary, #2383e2); border-color: var(--app-primary, #2383e2); color: #fff; }
+
+/* Grid */
+.th-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+.th-card {
+  position: relative;
+  background: var(--app-surface, #fff);
+  border: 1px solid var(--app-border, #e3e3df);
+  border-radius: var(--app-radius-lg, 12px);
+  padding: 20px;
+  cursor: pointer;
+  transition: transform .25s var(--app-ease-out-expo, cubic-bezier(.16,1,.3,1)), box-shadow .25s var(--app-ease-out-expo, cubic-bezier(.16,1,.3,1)), border-color .2s ease;
+  animation: thFadeUp .4s var(--app-ease-out-expo, cubic-bezier(.16,1,.3,1)) both;
+}
+.th-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--app-border-strong, #d2d2cd);
+  box-shadow: var(--app-shadow-lg, 0 10px 15px rgba(15,23,42,.08), 0 4px 6px rgba(15,23,42,.04));
+}
+.th-card-icon {
+  width: 46px; height: 46px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 23px;
+  border-radius: var(--app-radius, 9px);
+  background: var(--app-surface-subtle, #f1f1ef);
+  margin-bottom: 14px;
+}
+.th-card-name { font-size: 15px; font-weight: 600; margin-bottom: 5px; }
+.th-card-desc { font-size: 13px; color: var(--app-text-secondary, #6b6f76); line-height: 1.5; min-height: 38px; }
+.th-card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
+.th-card-badge {
+  font-size: 11px; color: var(--app-text-muted, #92969d);
+  background: var(--app-surface-subtle, #f1f1ef);
+  padding: 3px 9px; border-radius: 999px;
+}
+.th-card-menu {
+  background: none; border: none; cursor: pointer; color: var(--app-text-muted, #92969d);
+  font-size: 15px; padding: 2px 6px; border-radius: var(--app-radius-sm, 6px); opacity: 0; transition: all .15s ease;
+}
+.th-card:hover .th-card-menu { opacity: 1; }
+.th-card-menu:hover { background: var(--app-surface-hover, #ececea); color: var(--app-text, #2f3437); }
+
+/* 卡片操作区（拖拽手柄 + 更多） */
+.th-card-actions { display: flex; align-items: center; gap: 0; }
+.th-drag-handle {
+  color: var(--app-text-muted, #92969d);
+  font-size: 13px; line-height: 1; padding: 2px 6px; border-radius: var(--app-radius-sm, 6px);
+  opacity: 0; transition: all .15s ease; cursor: grab; user-select: none;
+}
+.th-card:hover .th-drag-handle { opacity: 1; }
+.th-drag-handle:hover { color: var(--app-text, #2f3437); background: var(--app-surface-hover, #ececea); }
+
+/* 拖拽排序状态 */
+.th-card.th-drg { cursor: grab; }
+.th-card.th-drg:active { cursor: grabbing; }
+.th-grid-dragging .th-card { cursor: grabbing; }
+.th-grid-dragging .th-card:hover { transform: none; box-shadow: none; }
+.th-card.th-dragging {
+  opacity: .35;
+  border-color: var(--app-primary, #2383e2);
+  border-style: dashed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* Disabled card */
+.th-card.disabled { opacity: .55; filter: grayscale(.4); }
+.th-card.disabled:hover { transform: none; border-color: var(--app-border, #e3e3df); box-shadow: none; }
+.th-card.disabled .th-card-name { color: var(--app-text-muted, #92969d); }
+.th-card.disabled .th-card-badge { background: var(--app-border, #e3e3df); color: var(--app-text-muted, #92969d); }
+
+/* Card dropdown menu */
+.th-menu {
+  position: fixed; z-index: 300; min-width: 150px;
+  background: var(--app-surface, #fff);
+  border: 1px solid var(--app-border-strong, #d2d2cd);
+  border-radius: var(--app-radius, 9px);
+  box-shadow: var(--app-shadow-lg, 0 10px 15px rgba(15,23,42,.08), 0 4px 6px rgba(15,23,42,.04));
+  padding: 5px;
+  animation: thFade .15s ease;
+}
+.th-menu-item {
+  display: block; width: 100%; text-align: left;
+  border: none; background: transparent; color: var(--app-text, #2f3437);
+  font: inherit; font-size: 13px; padding: 8px 10px; border-radius: 6px; cursor: pointer;
+  transition: background .12s ease;
+}
+.th-menu-item:hover { background: var(--app-surface-hover, #ececea); }
+.th-menu-item-danger { color: var(--app-danger, #d14343); }
+.th-menu-item-danger:hover { background: var(--app-danger-soft, rgba(209,67,67,.08)); }
+.th-menu-divider { height: 1px; margin: 4px 6px; background: var(--app-border, #e4e3df); opacity: .6; }
+
+/* Empty / Loading */
+.th-empty { text-align: center; padding: 80px 20px; color: var(--app-text-secondary, #6b6f76); }
+.th-empty-icon { font-size: 44px; margin-bottom: 14px; }
+.th-empty h3 { margin: 0 0 8px; color: var(--app-text, #2f3437); }
+.th-empty p { margin: 0; font-size: 13px; }
+.th-loading { display: flex; justify-content: center; padding: 60px; }
+.th-spinner { width: 26px; height: 26px; border: 3px solid var(--app-border, #e3e3df); border-top-color: var(--app-primary, #2383e2); border-radius: 50%; animation: thSpin .7s linear infinite; }
+
+/* Overlay (tool runtime) */
+.th-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: var(--app-bg, #f7f7f5);
+  display: none;
+  flex-direction: column;
+  animation: thFade .25s ease;
+}
+.th-overlay.show { display: flex; }
+.th-overlay-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 18px;
+  background: var(--app-surface, #fff);
+  border-bottom: 1px solid var(--app-border, #e3e3df);
+}
+.th-overlay-title { font-weight: 600; font-size: 15px; }
+.th-overlay-leading { display: flex; align-items: center; gap: 8px; }
+.th-overlay-back { font-size: 18px; line-height: 1; padding: 4px 10px; }
+.th-overlay-actions { display: flex; gap: 6px; }
+.th-overlay-frame { flex: 1; border: none; width: 100%; }
+
+/* Modals */
+.th-modal-mask {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(15, 23, 42, .4);
+  backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+  animation: thFade .2s ease;
+}
+.th-modal {
+  width: 520px; max-width: calc(100vw - 40px);
+  max-height: 80vh;
+  background: var(--app-surface, #fff);
+  border-radius: var(--app-radius-lg, 12px);
+  box-shadow: var(--app-shadow-xl, 0 20px 25px rgba(15,23,42,.1), 0 8px 10px rgba(15,23,42,.06));
+  display: flex; flex-direction: column;
+  animation: thModalIn .25s var(--app-ease-out-expo, cubic-bezier(.16,1,.3,1));
+}
+.th-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--app-border, #e3e3df); font-weight: 600;
+}
+.th-modal-body { padding: 18px 20px; overflow-y: auto; }
+.th-modal-footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--app-border, #e3e3df); }
+.th-modal-body pre {
+  margin: 0; white-space: pre-wrap; word-break: break-word;
+  font: 12.5px/1.6 ui-monospace, "SF Mono", "Consolas", monospace;
+  background: var(--app-surface-subtle, #f1f1ef);
+  padding: 14px; border-radius: var(--app-radius, 9px);
+  color: var(--app-text, #2f3437); max-height: 46vh; overflow: auto;
+}
+
+/* Import form */
+.th-form { display: flex; flex-direction: column; gap: 8px; }
+.th-form label { font-size: 12px; color: var(--app-text-secondary, #6b6f76); margin-top: 6px; }
+.th-input, .th-textarea {
+  padding: 9px 12px; border: 1px solid var(--app-border-strong, #d2d2cd); border-radius: var(--app-radius-sm, 6px);
+  background: var(--app-surface, #fff); color: var(--app-text, #2f3437); font: inherit; outline: none; transition: border-color .15s ease, box-shadow .15s ease;
+}
+.th-input:focus, .th-textarea:focus { border-color: var(--app-primary, #2383e2); box-shadow: 0 0 0 3px var(--app-primary-soft, rgba(35,131,226,.1)); }
+.th-textarea { min-height: 90px; resize: vertical; }
+.th-file-zone {
+  border: 1.5px dashed var(--app-border-strong, #d2d2cd); border-radius: var(--app-radius, 9px);
+  padding: 18px; text-align: center; color: var(--app-text-muted, #92969d); cursor: pointer; font-size: 13px; transition: all .2s ease;
+}
+.th-file-zone:hover, .th-file-zone.drag { border-color: var(--app-primary, #2383e2); background: var(--app-primary-soft, rgba(35,131,226,.1)); }
+.th-file-zone .th-file-name { display: block; color: var(--app-primary, #2383e2); margin-top: 6px; font-weight: 500; }
+.th-form-msg { font-size: 12px; color: var(--app-danger, #d14343); margin-right: auto; }
+
+/* Animations */
+@keyframes thFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes thFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes thModalIn { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes thSpin { to { transform: rotate(360deg); } }
+
+/* Scrollbars — 跟随全局主题（design-tokens 变量自动适配 notion/regular/dark） */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--app-border-strong, #d2d2cd);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background .2s ease;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--app-text-muted, #92969d); border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+* { scrollbar-width: thin; scrollbar-color: var(--app-border-strong, #d2d2cd) transparent; }
+
+html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: var(--app-border-strong, #525252); border: 2px solid transparent; background-clip: padding-box; }
+html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: var(--app-text-muted, #777777); border: 2px solid transparent; background-clip: padding-box; }
+html[data-theme="dark"] * { scrollbar-color: var(--app-border-strong, #525252) transparent; }
+
+/* Dark theme refinements */
+html[data-theme="dark"] .th-card, html[data-theme="dark"] .th-modal { border-color: var(--app-border, #3a3f42); }
+html[data-theme="dark"] .th-card:hover { box-shadow: 0 10px 15px rgba(0,0,0,.3); }
+html[data-theme="dark"] .th-modal-mask { background: rgba(0, 0, 0, .55); }

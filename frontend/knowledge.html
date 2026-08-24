@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3f8cff;
+            --primary-light: #73b2ff;
+            --primary-dark: #2f72d8;
+            --background: #f9fafb;
+            --surface: #ffffff;
+            --text: #1f2937;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            --border: #e5e7eb;
+            --radius: 12px;
+            --radius-sm: 8px;
+            --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+            --shadow-hover: 0 8px 25px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
+            --transition: all 0.25s ease;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'IBM Plex Sans', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--background);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 32px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            background: rgba(255,255,255,0.85);
+        }
+        .header-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .header h1 span { color: var(--primary); }
+        .search-box {
+            flex: 1;
+            max-width: 480px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .search-box input {
+            width: 100%;
+            padding: 10px 16px 10px 40px;
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            font-size: 0.95rem;
+            outline: none;
+            transition: var(--transition);
+            background: var(--background);
+        }
+        .search-box input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(63,140,255,0.1);
+            background: var(--surface);
+        }
+        .search-box svg {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 18px;
+            height: 18px;
+            color: var(--text-muted);
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 24px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(63,140,255,0.3);
+        }
+        .btn-secondary {
+            background: var(--surface);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+            padding: 10px 20px;
+            border-radius: 24px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+        .btn-secondary:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            transform: translateY(-1px);
+        }
+
+        /* Filter Bar */
+        .filter-bar {
+            max-width: 1200px;
+            margin: 24px auto 0;
+            padding: 0 32px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .filter-tag {
+            padding: 6px 16px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: var(--transition);
+            color: var(--text-secondary);
+        }
+        .filter-tag:hover { border-color: var(--primary); color: var(--primary); }
+        .filter-tag.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        /* Topic List — 纯文字列表 */
+        .container {
+            max-width: 840px;
+            margin: 0 auto;
+            padding: 24px 32px 48px;
+        }
+        .topic-list {
+            display: flex;
+            flex-direction: column;
+        }
+        .topic-item {
+            display: flex;
+            flex-direction: column;
+            padding: 20px 0;
+            cursor: pointer;
+            transition: var(--transition);
+            border-bottom: 1px solid var(--border);
+            position: relative;
+        }
+        .topic-item:last-child { border-bottom: none; }
+        .topic-item::before {
+            content: '';
+            position: absolute;
+            left: -16px;
+            top: 20px;
+            bottom: 20px;
+            width: 3px;
+            border-radius: 2px;
+            background: transparent;
+            transition: background 0.2s ease;
+        }
+        .topic-item:hover { padding-left: 8px; }
+        .topic-item:hover::before { background: var(--primary); }
+        .topic-item .item-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 16px;
+        }
+        .topic-item .title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            line-height: 1.4;
+            color: var(--text);
+            flex: 1;
+        }
+        .topic-item .date {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+        .topic-item .summary {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-top: 6px;
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .topic-item .tags {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .topic-item .tag {
+            padding: 2px 8px;
+            border-radius: 12px;
+            background: #eff6ff;
+            color: var(--primary);
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: var(--text-muted);
+        }
+        .empty-state h3 {
+            font-size: 1.3rem;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+        .loading .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Notion 主题 */
+        html[data-theme="notion"] {
+            --primary: #2383e2;
+            --primary-dark: #1f76c9;
+            --background: #f7f7f5;
+            --surface: #ffffff;
+            --text: #2f3437;
+            --text-secondary: #6b6f76;
+            --text-muted: #8a8f98;
+            --border: #e8e8e6;
+            --shadow: 0 1px 0 rgba(15,23,42,0.03), 0 8px 20px rgba(15,23,42,0.04);
+            --shadow-hover: 0 1px 0 rgba(15,23,42,0.04), 0 12px 24px rgba(15,23,42,0.08);
+        }
+        html[data-theme="notion"] .header {
+            background: rgba(255,255,255,0.9);
+            border-bottom-color: #e8e8e6;
+        }
+        html[data-theme="notion"] .search-box input {
+            background: #f1f1ef;
+            border-color: #dcdcd8;
+        }
+        html[data-theme="notion"] .search-box input:focus {
+            background: #ffffff;
+            border-color: #2383e2;
+        }
+        html[data-theme="notion"] .filter-tag {
+            border-color: #dcdcd8;
+            background: #ffffff;
+            color: #6b6f76;
+        }
+        html[data-theme="notion"] .filter-tag:hover { border-color: #2383e2; color: #2383e2; }
+        html[data-theme="notion"] .filter-tag.active {
+            background: #2f3437;
+            color: #ffffff;
+            border-color: #2f3437;
+        }
+        html[data-theme="notion"] .topic-item {
+            border-bottom-color: #e8e8e6;
+        }
+        html[data-theme="notion"] .topic-item:hover { background: transparent; }
+        html[data-theme="notion"] .topic-item .tag {
+            background: #f1f1ef;
+            color: #5f646c;
+        }
+        html[data-theme="notion"] .btn-primary {
+            background: #2f3437;
+            color: #ffffff;
+        }
+        html[data-theme="notion"] .btn-primary:hover {
+            background: #1f2328;
+            box-shadow: 0 4px 12px rgba(31,35,40,0.3);
+        }
+        html[data-theme="notion"] .btn-secondary {
+            background: #ffffff;
+            color: #6b6f76;
+            border-color: #dcdcd8;
+        }
+        html[data-theme="notion"] .btn-secondary:hover {
+            border-color: #2383e2;
+            color: #2383e2;
+        }
+        html[data-theme="notion"] .loading .spinner {
+            border-color: #e8e8e6;
+            border-top-color: #2383e2;
+        }
+
+        @media (max-width: 768px) {
+            .header-inner { flex-wrap: wrap; }
+            .search-box { order: 3; max-width: 100%; flex-basis: 100%; }
+            .container { padding: 16px; }
+            .filter-bar { padding: 0 16px; }
+        }
+
+        /* 深色主题 */
+        html[data-theme="dark"] {
+            --primary: #569cff;
+            --primary-light: #73b2ff;
+            --primary-dark: #4a8ae8;
+            --background: #1e1e1e;
+            --surface: #2d2d2d;
+            --text: #d4d4d4;
+            --text-secondary: #9a9a9a;
+            --text-muted: #6a6a6a;
+            --border: #3e3e3e;
+            --shadow: 0 2px 8px rgba(0,0,0,0.4);
+            --shadow-hover: 0 8px 25px rgba(0,0,0,0.5);
+        }
+        html[data-theme="dark"] body { background: var(--background); color: var(--text); }
+        html[data-theme="dark"] .header {
+            background: rgba(45,45,45,0.9);
+            border-bottom-color: var(--border);
+        }
+        html[data-theme="dark"] .search-box input {
+            background: #3a3a3a;
+            border-color: #4a4a4a;
+            color: #d4d4d4;
+        }
+        html[data-theme="dark"] .search-box input:focus { background: #3a3a3a; border-color: var(--primary); }
+        html[data-theme="dark"] .search-box svg { color: var(--text-muted); }
+        html[data-theme="dark"] .btn-primary { background: var(--primary); color: #fff; }
+        html[data-theme="dark"] .btn-primary:hover { background: var(--primary-dark); }
+        html[data-theme="dark"] .btn-secondary {
+            background: var(--surface);
+            color: var(--text-secondary);
+            border-color: var(--border);
+        }
+        html[data-theme="dark"] .btn-secondary:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+        html[data-theme="dark"] .filter-tag {
+            background: var(--surface);
+            border-color: var(--border);
+            color: var(--text-secondary);
+        }
+        html[data-theme="dark"] .filter-tag:hover { border-color: var(--primary); color: var(--primary); }
+        html[data-theme="dark"] .filter-tag.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+        html[data-theme="dark"] .topic-item {
+            border-bottom-color: var(--border);
+        }
+        html[data-theme="dark"] .topic-item:hover { background: rgba(255,255,255,0.02); }
+        html[data-theme="dark"] .topic-item .tag { background: #3a3a3a; color: #9a9a9a; }
+        html[data-theme="dark"] .empty-state { color: var(--text-muted); }
+        html[data-theme="dark"] .loading { color: var(--text-muted); }
+        html[data-theme="dark"] .loading .spinner { border-color: var(--border); border-top-color: var(--primary); }
+
+        /* ===== Obsidian 风格全局滚动条 ===== */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; transition: background 0.2s ease; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
+        * { scrollbar-width: thin; scrollbar-color: var(--border-light) transparent; }
+        html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: var(--border); }
+        html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
+        html[data-theme="dark"] * { scrollbar-color: var(--border) transparent; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-inner">
+            <h1>知识库<span>.</span></h1>
+            <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input type="text" id="searchInput" placeholder="搜索知识..." />
+            </div>
+            <button class="btn-secondary" id="graphBtn">知识图谱</button>
+            <button class="btn-primary" id="newTopicBtn">+ 新建知识</button>
+        </div>
+    </header>
+
+    <div class="filter-bar" id="filterBar">
+        <span class="filter-tag active" data-category="">全部</span>
+        <span class="filter-tag" data-category="work">工作</span>
+        <span class="filter-tag" data-category="study">学习</span>
+        <span class="filter-tag" data-category="life">生活</span>
+        <span class="filter-tag" data-category="tech">技术</span>
+        <span class="filter-tag" data-category="other">其他</span>
+    </div>
+
+    <div class="container" id="topicList">
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>加载中...</p>
+        </div>
+    </div>
+
+    <script src="js/logger.js"></script>
+    <script src="knowledge.js"></script>
+    <script>
+      // 接收主框架消息：后端就绪后自动刷新数据
+      window.addEventListener('message', (e) => {
+        if (e.data && e.data.action === 'refresh') location.reload();
+      });
+    </script>
+    <script>
+      (function() {
+        const THEME_KEY = 'app_theme_v1';
+        const APPEARANCE_KEY = 'app_appearance_v1';
+        function getEffective() {
+          const app = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+          if (app === 'system') return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'notion';
+          return app;
+        }
+        function apply() {
+          const t = getEffective();
+          document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : (t === 'regular' ? 'regular' : 'notion'));
+        }
+        window.applyTheme = apply;
+        apply();
+        window.addEventListener('storage', function(e) {
+          if (e.key === THEME_KEY || e.key === APPEARANCE_KEY) apply();
+        });
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+          if ((localStorage.getItem(APPEARANCE_KEY) || 'notion') === 'system') apply();
+        });
+      })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,668 @@
+{
+  "version": "2.0",
+  "requirement": {
+    "title": "DSH（DeepSeek Harness）集成",
+    "summary": "让 DeepSeek Harness（DSH）的 Agent 能检索与写入剪藏知识库（剪藏/待办/学习计划/Wiki索引/周报状态），并在完成工作后将会话成果自动落库。已实现 Phase 0（MCP 桥）、Phase 1（clip_session 落库）、Phase 2（Electron sidecar + AI 干活面板）、Phase 3（Tools Hub 互通）+ 离线打包 + 技能同步；待开发：TODO 目录扫描恢复、DSH Web 客户端插件、会话级自动摘要。",
+    "tags": [
+      "product-dev",
+      "dsh",
+      "mcp",
+      "integration"
+    ],
+    "phase": "implementation",
+    "createdAt": "2026-08-18T22:30:00",
+    "completedAt": "2026-08-18T23:59:00"
+  },
+  "featurePoints": [
+    {
+      "id": "fp-001",
+      "name": "MCP Bridge（Phase 0）",
+      "description": "Node MCP stdio server，代理剪藏 8081 REST API，为 DSH Agent 暴露 11 个工具：clip_search/list/add/delete/categories、todo_list/add/set_status、learning_plan_list、wiki_index、weekly_report_status。支持环境变量配置后端地址和超时。",
+      "layer": "fullstack",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "mcp"
+      ],
+      "designSections": [
+        {
+          "title": "MCP Server 架构",
+          "summary": "基于 @modelcontextprotocol/sdk 的 McpServer，通过 StdioServerTransport 与 DSH 通信。每个工具封装对剪藏后端 REST API 的调用，使用 AbortController 实现超时控制。"
+        },
+        {
+          "title": "工具清单设计",
+          "summary": "11 个工具覆盖剪藏 CRUD、分类树、待办管理、学习计划、Wiki 索引、周报状态。只读操作 7 个，写操作 4 个（clip_add/clip_delete/todo_add/todo_set_status），写操作需用户确认。"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "创建 mcp-server 目录结构（package.json + server.mjs + test.mjs）",
+          "status": "done"
+        },
+        {
+          "title": "实现 11 个 MCP 工具，代理剪藏后端 REST API",
+          "status": "done"
+        },
+        {
+          "title": "实现 standalone 测试脚本（initialize → tools/list → tools/call 端到端）",
+          "status": "done"
+        },
+        {
+          "title": "支持 CUTSHELTER_BASE_URL / CUTSHELTER_TIMEOUT_MS 环境变量",
+          "status": "done"
+        },
+        {
+          "title": "clip_add 默认 useAiTags=false 省 token，自动去重",
+          "status": "done"
+        },
+        {
+          "title": "clip_delete 需用户确认（破坏性操作）",
+          "status": "done"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "node test.mjs 端到端通过（只读探测 + 剪藏写入/删除往返）",
+          "status": "done"
+        },
+        {
+          "title": "DSH 中 mcp__cut_shelter__clip_search 等 11 个工具出现",
+          "status": "done"
+        },
+        {
+          "title": "后端未启动时桥启动不阻塞，只记日志",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "fp-002",
+      "name": "会话成果自动落库（Phase 1）",
+      "description": "DSH 本地插件 clip-capture，注册 clip_session 工具。Agent 在完成一段有保留价值的工作后调用，将会话成果摘要保存到剪藏知识库（source=dsh）。支持 title/summary/tags/category 参数。",
+      "layer": "fullstack",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "plugin"
+      ],
+      "designSections": [
+        {
+          "title": "插件架构",
+          "summary": "基于 @deepseek-ai/dsh-tools 的 defineTool，通过 cordis.yml 的 insert 行挂载。插件注册 clip_session 工具，调用剪藏后端 /api/clips 接口写入。"
+        },
+        {
+          "title": "参数设计",
+          "summary": "title（必填，简短标题）、summary（必填，Markdown 成果摘要）、tags（可选标签列表）、category（可选分类，可先查 clip_categories 获取可选值）"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "创建 plugins/clip-capture 目录结构（index.mjs + package.json + test-plugin.mjs）",
+          "status": "done"
+        },
+        {
+          "title": "实现 clip_session 工具注册（title/summary/tags/category 参数）",
+          "status": "done"
+        },
+        {
+          "title": "实现 standalone 测试脚本（插件装载 + execute 端到端）",
+          "status": "done"
+        },
+        {
+          "title": "创建 cordis.example.yml 覆盖层示例（挂载 mcp-client + clip-capture）",
+          "status": "done"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "node test-plugin.mjs 端到端通过（创建→分析落盘→删除）",
+          "status": "done"
+        },
+        {
+          "title": "DSH web --patch 后 clip_session 工具可用",
+          "status": "done"
+        },
+        {
+          "title": "调用后剪藏列表出现 source=dsh 的新条目",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "fp-003",
+      "name": "DSH Skill 定义（cut-shelter）",
+      "description": "编写 cut-shelter SKILL.md，定义剪藏知识库的存储布局、读写约定、工具用法、边界限制和常见场景模板。DSH Agent 加载后能正确使用剪藏知识库。",
+      "layer": "documentation",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "skill"
+      ],
+      "designSections": [
+        {
+          "title": "Skill 内容设计",
+          "summary": "涵盖数据布局（目录结构）、读写约定（读用文件工具/写用 MCP 工具）、边界（禁止事项）、常见场景模板、TODO 目录约定。"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "创建 skills/cut-shelter/SKILL.md",
+          "status": "done"
+        },
+        {
+          "title": "编写数据布局说明（clip-storage/obsidian-vault/weekly-report/TODO 等）",
+          "status": "done"
+        },
+        {
+          "title": "编写读写约定（读用文件工具/写用 MCP 工具）",
+          "status": "done"
+        },
+        {
+          "title": "编写边界限制（密码库不可访问、不直接修改数据文件等）",
+          "status": "done"
+        },
+        {
+          "title": "编写常见场景模板",
+          "status": "done"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "SKILL.md 格式正确，frontmatter 包含 name/description",
+          "status": "done"
+        },
+        {
+          "title": "Agent 加载后能正确理解剪藏知识库使用规范",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "fp-004",
+      "name": "探索文档与路线图",
+      "description": "编写 DSH 集成探索文档，涵盖方向分析、技术路线、Phase 0/1/2 路线图、架构决策、TODO 落库现状说明。",
+      "layer": "documentation",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "documentation"
+      ],
+      "designSections": [
+        {
+          "title": "探索文档结构",
+          "summary": "完整方向分析与路线图，包括 MCP 桥方案、DSH 插件架构、后续 Phase 2（Electron 内嵌 DSH 面板）的技术预研。"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "创建 docs/DSH集成探索.md",
+          "status": "done"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "文档覆盖方向分析、技术路线、Phase 路线图",
+          "status": "done"
+        },
+        {
+          "title": "文档中的链接和引用正确",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "fp-005",
+      "name": "AI 干活面板（Phase 2：Electron 内嵌 DSH sidecar）",
+      "description": "Electron 主进程按需拉起/复用 DSH Web sidecar（固定端口 3081），前端\"AI 干活\"视图 iframe 内嵌 DeepSeek Harness；运行时生成 --patch 覆盖层（webserver 端口覆盖 + MCP 桥 + clip-capture 插件），支持 npx 自动安装、五态进度广播、取消/重试、设置页管理；修复含空格/括号安装路径导致 --patch 参数被 shell 拆分的问题，面板就绪后按需加载/重载 iframe 并做状态兜底收敛。",
+      "layer": "fullstack",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "electron",
+        "agent"
+      ],
+      "designSections": [
+        {
+          "title": "sidecar 启动与复用",
+          "summary": "固定 3081 端口避开手动启动的 3080；3081 已有实例直接复用（不重复拉起、退出不杀用户进程）；无实例时按需 spawn，npx 自动安装路径给更宽裕超时（90s/300s）。"
+        },
+        {
+          "title": "运行时 patch 生成",
+          "summary": "主进程按当前机器/打包形态生成 dsh-agent.patch.yml（webserver 端口覆盖 + insert mcp-client/clip-capture），写入无空格配置目录，避免 shell 参数拆分问题。"
+        },
+        {
+          "title": "进度交互与状态收敛",
+          "summary": "detecting/installing/starting/ready/failed 五态广播；前端状态灯 + 进度条 + 取消/重试/刷新/反色；iframe 就绪后加载，2s 端口探测 watchdog 兜底收敛。"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "主进程 DSH sidecar 按需启动/复用/停止/取消（dsh-agent:ensure/stop/cancel）",
+          "status": "done"
+        },
+        {
+          "title": "运行时生成 patch 覆盖层（webserver 端口 + MCP 桥 + clip-capture 插件）",
+          "status": "done"
+        },
+        {
+          "title": "dsh CLI 解析：配置/DSH_BIN/内置/npx 缓存扫描/npx 自动安装",
+          "status": "done"
+        },
+        {
+          "title": "进度广播与前端面板（状态灯 + 进度条 + 取消/重试/刷新/反色适配）",
+          "status": "done"
+        },
+        {
+          "title": "设置页 DSH 区块（启用/端口/CLI 路径/技能包一键安装/启动停止）",
+          "status": "done"
+        },
+        {
+          "title": "修复含空格路径下 --patch 参数被 shell 拆分（node 直跑缓存 bin + 无空格 patch 路径）",
+          "status": "done"
+        },
+        {
+          "title": "agentFrame 跳过预加载，就绪后按需加载/重载 + 状态兜底探测",
+          "status": "done"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "3081 sidecar 启动 HTTP 200，页面为 DeepSeek Harness",
+          "status": "done"
+        },
+        {
+          "title": "安装路径含空格/括号（30_Projects (行动项目)）可正常启动（回归通过）",
+          "status": "done"
+        },
+        {
+          "title": "AI 干活视图面板渲染正常，状态最终收敛为运行中",
+          "status": "done"
+        },
+        {
+          "title": "已有 3081 实例自动复用，退出不杀用户进程",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "fp-006",
+      "name": "DSH 离线依赖闭包（build-dsh-offline）",
+      "description": "scripts/build-dsh-offline.mjs 依据 package-lock.json 从 @deepseek-ai/dsh 出发 BFS 收集生产依赖到 dist-dsh-offline/node_modules；接入 prebuild 钩子，由 electron-builder extraResources 内置为 resources/dsh-offline，实现打包应用 DSH 离线可用（resolveDshBin 优先探测内置 bin.js）。",
+      "layer": "fullstack",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "build"
+      ],
+      "designSections": [
+        {
+          "title": "依赖闭包收集",
+          "summary": "从 @deepseek-ai/dsh 出发按 dependencies/optionalDependencies BFS 收集，仅生产依赖，输出 dist-dsh-offline/node_modules。"
+        },
+        {
+          "title": "打包集成",
+          "summary": "package.json 增加 build:dsh-offline 并接入 prebuild；extraResources 将 dist-dsh-offline 内置为 resources/dsh-offline；.gitignore 排除生成目录。"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "BFS 收集 @deepseek-ai/dsh 生产依赖闭包",
+          "status": "done"
+        },
+        {
+          "title": "package.json 增加 build:dsh-offline 脚本并接入 prebuild",
+          "status": "done"
+        },
+        {
+          "title": "extraResources 内置 dist-dsh-offline → resources/dsh-offline",
+          "status": "done"
+        },
+        {
+          "title": ".gitignore 排除 dist-dsh-offline/",
+          "status": "done"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "脚本可离线生成 node_modules 依赖闭包",
+          "status": "done"
+        },
+        {
+          "title": "resolveDshBin 可探测到内置 dsh bin.js",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "fp-007",
+      "name": "Tools Hub 互通（Phase 3）",
+      "description": "MCP 桥新增 tools_hub_list（列出剪藏 Tools Hub 的 HTML 小工具注册表 id/名称/分类/描述/启用状态）与 tools_hub_page（读取小工具 HTML 页面源码前 3000 字符）。概念澄清：Tools Hub 是自包含 HTML 小工具（UI），Agent 工具是模型可调用函数，两者通过这两个只读工具互通——Agent 可了解/复用剪藏已有小工具，但不能直接执行 HTML。",
+      "layer": "frontend",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "mcp",
+        "tools-hub"
+      ],
+      "designSections": [
+        {
+          "title": "Tools Hub 与 Agent 工具概念区分",
+          "summary": "Tools Hub 是剪藏自包含 HTML 小工具注册表（~/.cut-shelter/tools/registry.json），与 DSH Agent 工具是两种概念；通过 tools_hub_list/tools_hub_page 只读工具互通"
+        },
+        {
+          "title": "桥工具实现",
+          "summary": "server.mjs 新增 tools_hub_list（GET /api/tools）与 tools_hub_page（GET /api/tools/{id}/page 截取前 3000 字符）"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "server.mjs 新增 tools_hub_list 工具（列出 Tools Hub 注册表）",
+          "status": "done"
+        },
+        {
+          "title": "server.mjs 新增 tools_hub_page 工具（读取小工具 HTML 前 3000 字符）",
+          "status": "done"
+        },
+        {
+          "title": "更新探索文档方向矩阵 E（Tools Hub ↔ DSH 生态）",
+          "status": "done"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "DSH 中可调用 tools_hub_list 列出剪藏小工具注册表",
+          "status": "done"
+        },
+        {
+          "title": "tools_hub_page 可读取指定小工具的 HTML 源码",
+          "status": "done"
+        },
+        {
+          "title": "概念澄清已文档化（Tools Hub 是 UI 小工具，Agent 工具是可调用函数）",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "fp-008",
+      "name": "技能包一键安装与状态查询",
+      "description": "Electron 主进程新增 dsh-agent:install-skill IPC（将 integrations/dsh/skills/cut-shelter 复制到 ~/.dsh/skills/cut-shelter）与 dsh-agent:skill-status IPC（查询技能包是否已安装）。设置页 DSH 区块提供「一键安装技能包」按钮。",
+      "layer": "fullstack",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "skill",
+        "electron"
+      ],
+      "designSections": [
+        {
+          "title": "技能包安装链路",
+          "summary": "源目录按打包形态解析（patchDir/skills → APP_DIR/integrations/dsh/skills），目标 ~/.dsh/skills/cut-shelter，安装前清空旧目录避免残留"
+        },
+        {
+          "title": "状态查询",
+          "summary": "skill-status 检查目标目录是否存在 SKILL.md，返回安装状态供前端展示"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "main.js 新增 dsh-agent:install-skill IPC（复制技能包到 ~/.dsh/skills）",
+          "status": "done"
+        },
+        {
+          "title": "main.js 新增 dsh-agent:skill-status IPC（查询安装状态）",
+          "status": "done"
+        },
+        {
+          "title": "settings.html DSH 区块添加「一键安装技能包」按钮",
+          "status": "done"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "点击一键安装后 ~/.dsh/skills/cut-shelter 出现 SKILL.md",
+          "status": "done"
+        },
+        {
+          "title": "skill-status 正确反映已安装/未安装状态",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "fp-009",
+      "name": "体验测试指南与 Trae 技能同步",
+      "description": "编写 docs/DSH体验测试指南.md（从零验证到端到端的完整体验步骤：启动后端→启动带集成的 DSH→打开 3081 体验界面→四个场景验证→排查表）。已执行 Trae 技能同步：~/.trae-cn/skills/*（18 个）→ ~/.dsh/skills/（用户级），仓库 .trae/skills/*（6 个）→ .dsh/skills/（项目级）。",
+      "layer": "documentation",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "documentation",
+        "skill-sync"
+      ],
+      "designSections": [
+        {
+          "title": "体验测试指南结构",
+          "summary": "步骤 0 启动后端 → 步骤 1 启动带集成 DSH（--patch 相对路径陷阱提示）→ 步骤 2 打开 3081 界面确认工具 → 四个体验场景（读/写/待办/落库）→ 排查表"
+        },
+        {
+          "title": "Trae 技能同步策略",
+          "summary": "用户级技能（~/.trae-cn/skills 18 个）复制到 ~/.dsh/skills，项目级技能（.trae/skills 6 个）复制到 .dsh/skills；格式兼容零转换；新增 Trae 技能后重跑复制即可"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "创建 docs/DSH体验测试指南.md",
+          "status": "done"
+        },
+        {
+          "title": "Trae 用户级技能 18 个同步到 ~/.dsh/skills",
+          "status": "done"
+        },
+        {
+          "title": "Trae 项目级技能 6 个同步到 .dsh/skills",
+          "status": "done"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "指南步骤与排查表完整、本机环境已核实",
+          "status": "done"
+        },
+        {
+          "title": "~/.dsh/skills 与 .dsh/skills 中技能文件格式兼容",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "fp-010",
+      "name": "待开发：恢复 TODO 目录扫描（TodoScannerService）",
+      "description": "后端 TodoScannerService.scanAndImport() 当前被硬禁用（方法体直接返回空结果）且无调用方。待开发：还原扫描器实现（读取 TODO/feature-points.json 批量导入剪藏与待办，按 .imported 标记幂等去重），并接回启动钩子，实现 DSH Agent 写入 TODO/feature-points.json 后自动落库。",
+      "layer": "backend",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "todo",
+        "todo-item"
+      ],
+      "designSections": [
+        {
+          "title": "现状",
+          "summary": "TodoScannerService.scanAndImport() 硬禁用（backend/src/main/java/com/example/clip/service/TodoScannerService.java:108），无调用方；现阶段待办落库走 MCP 桥 todo_add API 路径"
+        },
+        {
+          "title": "恢复方案",
+          "summary": "还原 scanAndImport() 实现（feature-points.json 批量导入剪藏与待办，按 .imported 标记幂等去重），接回启动钩子"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "还原 TodoScannerService.scanAndImport() 实现",
+          "status": "todo"
+        },
+        {
+          "title": "接回启动钩子（启动时扫描 TODO 目录落库）",
+          "status": "todo"
+        },
+        {
+          "title": "验证 .imported 标记幂等去重",
+          "status": "todo"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "TODO/feature-points.json 写入后重启后端自动导入剪藏与待办",
+          "status": "todo"
+        },
+        {
+          "title": "重复导入不产生重复数据（幂等）",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": "fp-011",
+      "name": "待开发：DSH Web 客户端插件（conversation node）",
+      "description": "在 DSH Web 内联渲染剪藏/待办数据（conversation node + keyed renderer）。技术上可行（ConversationNodeDefinition），但客户端插件需要打进 DSH Web 的构建产物（pnpm run dev:web / 完整 build），对 npx @deepseek-ai/dsh 安装方式不生效——需从源码跑 DSH 才可加载。已定位为可选、留待源码部署时再做。",
+      "layer": "frontend",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "plugin",
+        "todo-item"
+      ],
+      "designSections": [
+        {
+          "title": "技术可行性",
+          "summary": "ConversationNodeDefinition + keyed renderer 可内联渲染剪藏/待办；限制：客户端插件必须打进 DSH Web 构建产物，npx 安装方式不可用"
+        },
+        {
+          "title": "前置条件",
+          "summary": "需从源码构建 DSH（deepseek-ai/deepseek-harness 源码）或部署源码版 DSH"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "从源码部署 DSH（或等待官方发布可加载客户端插件的分发方式）",
+          "status": "todo"
+        },
+        {
+          "title": "实现 conversation node 内联渲染剪藏/待办数据",
+          "status": "todo"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "DSH Web 对话中剪藏/待办数据内联可见",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": "fp-012",
+      "name": "待开发：会话级自动摘要落库（session/event）",
+      "description": "基于 DSH 的 session/event 事件，在 turn 结束时自动生成会话摘要并调用 clip_session 落库（当前为 Agent 显式调用）。行为更自动化但 token 成本更高、摘要质量需把关。列为可选演进方向。",
+      "layer": "fullstack",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "plugin",
+        "todo-item"
+      ],
+      "designSections": [
+        {
+          "title": "演进方向",
+          "summary": "监听 agent/*、tools/*、session/event 事件，turn 结束时自动生成摘要并落库；当前为 Agent 显式调用 clip_session，行为可预期、更省 token"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "clip-capture 插件监听 session/event 事件",
+          "status": "todo"
+        },
+        {
+          "title": "turn 结束时自动生成摘要并调用落库",
+          "status": "todo"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "DSH 会话结束后自动生成剪藏（无需 Agent 显式调用）",
+          "status": "todo"
+        },
+        {
+          "title": "摘要质量与 token 成本可控",
+          "status": "todo"
+        }
+      ]
+    }
+  ],
+  "knowledgePoints": [
+    {
+      "title": "MCP 桥 vs 直接 API 调用",
+      "content": "选择 MCP stdio server 作为桥接方案，而非在剪藏后端直接实现 DSH 兼容 API。原因：① MCP 是 DSH 原生协议，Agent 自动发现工具及参数 schema；② 桥接层独立，不影响剪藏后端稳定性；③ 支持未来切换为 SSE 传输。",
+      "tags": [
+        "product-dev",
+        "architecture",
+        "dsh"
+      ]
+    },
+    {
+      "title": "Dual-read 策略（文件工具+MCP 工具）",
+      "content": "DSH Agent 读取剪藏数据有两种路径：① 文件工具（read/grep/glob）直接读本地文件，零成本；② MCP 工具走后端 API，支持语义搜索等高级功能。写操作强制走 MCP 工具，避免破坏数据结构。",
+      "tags": [
+        "product-dev",
+        "architecture",
+        "dsh"
+      ]
+    },
+    {
+      "title": "写操作安全设计",
+      "content": "所有写操作（clip_add/clip_delete/todo_add/todo_set_status）需要用户确认。clip_delete 为破坏性操作，必须显式确认。clip_add 默认 useAiTags=false 省 token，内部自动去重。",
+      "tags": [
+        "product-dev",
+        "security",
+        "dsh"
+      ]
+    },
+    {
+      "title": "Phase 路线图规划",
+      "content": "Phase 0（MCP 桥）✅ → Phase 1（会话自动落库 clip_session）✅ → Phase 2（Electron 内嵌 DSH「AI 干活」面板）✅ → Phase 3（Tools Hub 互通桥工具）✅。待开发：恢复 TODO 目录扫描（TodoScannerService）、DSH Web 客户端插件（需源码构建）、会话级自动摘要（session/event 可选演进）。",
+      "tags": [
+        "product-dev",
+        "roadmap",
+        "dsh"
+      ]
+    },
+    {
+      "title": "Windows 含空格路径与 shell 参数拆分",
+      "content": "spawn(..., {shell:true}) 时，含空格/括号的 --patch 路径会被 cmd 按空格拆成多个参数，dsh 只收到 \"L:\\归档\\30_Projects\" 导致 ENOENT 启动即崩。修复：优先解析出 npx 缓存里的 dsh bin.js 用 node 直跑（无 shell），且运行时 patch 写入无空格配置目录；npx 兜底路径也改为 pin 版本并走无空格 patch 路径。",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "windows",
+        "bugfix"
+      ]
+    },
+    {
+      "title": "iframe 预加载与就绪时序",
+      "content": "页面启动即把所有 iframe 的 data-src 设为 src，DSH 面板在 sidecar 未就绪时加载会留下空白页；就绪回调若只在 src 为空时设置则永远无法修复空白。方案：agentFrame 跳过预加载，就绪后统一 loadAgentFrame（src 为空则设置、已设置则强制重载），并以 2s 端口探测 watchdog 兜底收敛状态。",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "frontend",
+        "bugfix"
+      ]
+    },
+    {
+      "title": "DSH 端口复用策略",
+      "content": "sidecar 固定 3081 避开用户手动启动的 3080；启动前先探测端口，已有实例直接复用（owned=false，退出不杀）；本应用拉起的实例退出时 SIGTERM→SIGKILL 回收。",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "architecture"
+      ]
+    }
+  ]
+}

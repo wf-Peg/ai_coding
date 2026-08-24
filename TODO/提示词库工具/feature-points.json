@@ -1,0 +1,105 @@
+{
+  "version": "2.0",
+  "requirement": {
+    "title": "提示词库工具",
+    "summary": "在已有 PromptConfigService 基础上新增提示词库，支持模板收藏/分类/复用/复制/应用到系统槽位，并提供 LangGPT 结构化提示词导入与分段编辑",
+    "tags": ["product-dev", "prompt", "ai", "tools"],
+    "phase": "completed",
+    "createdAt": "2026-08-15T22:00:00",
+    "completedAt": "2026-08-15T22:50:00"
+  },
+  "featurePoints": [
+    {
+      "id": "fp-001",
+      "name": "提示词模板数据模型与存储层",
+      "description": "新增 PromptTemplate POJO（id/name/category/description/content/tags/favorite/slot/langgpt/sections/builtin/时间戳），PromptLibraryService 负责持久化到 ~/.cut-shelter/prompts/library.json，启动时用 PromptConfigService 当前值预置 18 个内置模板（builtin=true 不可删），含 CRUD/收藏/应用到系统槽位/LangGPT 解析。",
+      "layer": "backend",
+      "tags": ["product-dev", "prompt", "data-model"],
+      "designSections": ["三、方案设计", "3.1 数据模型 PromptTemplate", "3.2 系统槽位映射 SLOT_META", "3.3 LangGPT 解析规则"],
+      "tasks": [
+        { "title": "新增 PromptTemplate.java POJO", "status": "done" },
+        { "title": "PromptLibraryService 存储与初始化（PostConstruct 预置内置模板）", "status": "done" },
+        { "title": "实现 listPrompts / createPrompt / updatePrompt / deletePrompt / toggleFavorite / applyToSlot / parseLangGpt / listSlots", "status": "done" },
+        { "title": "内联 Role 名（# Role: 名称）无 body 时回填到 Role 段，保证分段编辑非空", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "启动后 ~/.cut-shelter/prompts/library.json 生成且含 18 个内置模板", "status": "done" },
+        { "title": "内置模板不可删除", "status": "done" },
+        { "title": "LangGPT 导入 # Role: 名称 时 Role 段正确解析", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-002",
+      "name": "提示词库 REST API",
+      "description": "PromptLibraryController 提供 /api/prompt-library 系列接口：GET 列表、GET /slots 槽位元数据、POST 新建、PUT 更新、DELETE 删除、PATCH favorite 收藏、POST /{id}/apply 应用到系统槽位、POST /import-langgpt 导入 LangGPT。",
+      "layer": "backend",
+      "tags": ["product-dev", "prompt", "api"],
+      "designSections": ["3.1 数据模型", "四、落地改动 4.1 后端"],
+      "tasks": [
+        { "title": "新增 PromptLibraryController.java 全部 REST 端点", "status": "done" },
+        { "title": "applyToSlot 转发到 PromptConfigService.savePromptConfig 与剪藏共用配置", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "GET /api/prompt-library 返回 18 条", "status": "done" },
+        { "title": "GET /api/prompt-library/slots 返回 18 个槽位", "status": "done" },
+        { "title": "POST /import-langgpt 返回正确解析的模板", "status": "done" },
+        { "title": "POST /{id}/apply 后 /api/clip/prompt-config 对应字段更新", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-003",
+      "name": "提示词库内置工具注册",
+      "description": "在 ToolRegistryService 的 BUILTIN_TOOLS 追加 prompt-library 内置工具卡片（🧠 提示词库，AI 工具分类），使其在工具模块中自动显示并可点击在遮罩层打开。",
+      "layer": "backend",
+      "tags": ["product-dev", "prompt", "tools"],
+      "designSections": ["四、落地改动 4.1 修改 4"],
+      "tasks": [
+        { "title": "ToolRegistryService 注册 prompt-library 内置工具", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "工具模块出现提示词库卡片", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-004",
+      "name": "提示词库工具前端页面",
+      "description": "新增 resources/tools/prompt-library.html 完全自包含工具页（Notion 风格、自带设计令牌 + prefers-color-scheme 暗色适配、API_BASE 同现有工具页），实现卡片网格/搜索/分类 chips/收藏置顶/新建编辑删除/复制/应用到系统槽位弹窗/LangGPT 导入预览与分段编辑。",
+      "layer": "frontend",
+      "tags": ["product-dev", "prompt", "tools", "ui"],
+      "designSections": ["四、落地改动 4.1 新增 5", "4.2 前端"],
+      "tasks": [
+        { "title": "prompt-library.html 卡片网格 + 搜索 + 分类 chips + 收藏", "status": "done" },
+        { "title": "新建/编辑/删除模板弹窗（普通 + LangGPT 分段模式）", "status": "done" },
+        { "title": "复制到剪贴板 + 应用到系统槽位弹窗", "status": "done" },
+        { "title": "LangGPT 导入弹窗（粘贴文本/选择 .md 文件/预览）", "status": "done" },
+        { "title": "暗色主题适配", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "卡片网格/搜索/分类正常", "status": "done" },
+        { "title": "新建/编辑/删除生效，内置不可删", "status": "done" },
+        { "title": "收藏切换并置顶", "status": "done" },
+        { "title": "复制到剪贴板", "status": "done" },
+        { "title": "应用到系统槽位后剪藏 Prompt 配置可见新值", "status": "done" },
+        { "title": "LangGPT 导入与分段编辑正常", "status": "done" },
+        { "title": "暗色主题样式正常", "status": "done" }
+      ]
+    }
+  ],
+  "knowledgePoints": [
+    {
+      "title": "LangGPT 结构化提示词解析规则",
+      "content": "LangGPT 解析识别一级/二级标题（# Role 或 # Role: 名称，## Profile/Skills/Rules/Workflow/Initialization/Commands/Reminder）分段写入 sections。内联 Role 名（# Role: 逻辑学家）提取名称；当只有内联名无 body 时，需把名称回填到 Role 段，保证分段编辑时 Role 非空。content 由 sections 按标准格式重建。若文本不含这些标题则视为普通提示词（langgpt=false）。",
+      "tags": ["product-dev", "技术", "prompt", "langgpt"]
+    },
+    {
+      "title": "内置模板快照机制避免循环覆盖",
+      "content": "提示词库内置模板由 PromptConfigService 当前值预置（快照），预置后系统 Prompt 再修改不回写库，避免系统 Prompt 与库之间循环覆盖。用户若需同步可手动编辑模板或重新应用到系统槽位。",
+      "tags": ["product-dev", "技术", "prompt"]
+    },
+    {
+      "title": "应用到系统槽位复用 PromptConfigService",
+      "content": "提示词库「应用到系统槽位」通过 PromptLibraryController 转发到 PromptConfigService.savePromptConfig，直接写入 ~/.cut-shelter/config/prompt-config.json，与剪藏模块共用同一份 Prompt 配置，保证一致性。",
+      "tags": ["product-dev", "技术", "prompt"]
+    }
+  ]
+}

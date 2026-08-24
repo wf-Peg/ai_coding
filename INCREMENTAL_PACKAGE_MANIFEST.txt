@@ -1,0 +1,48 @@
+Clip Text Editor MVP - Incremental Package
+Target repository: wf-Peg/ai_coding
+Target branch: feature-simple-codex
+Base commit at development start: 6b25d95
+Generated: 2026-07-30 UTC
+
+Usage: extract this archive at the repository root and allow relative paths to overwrite existing files.
+
+Included source files:
+- backend/pom.xml
+- backend/src/main/java/com/example/clip/controller/ClipController.java
+- backend/src/main/java/com/example/clip/dto/ClipEditRequest.java
+- backend/src/main/java/com/example/clip/dto/ClipRequest.java
+- backend/src/main/java/com/example/clip/model/ClipContent.java
+- backend/src/main/java/com/example/clip/service/ClipService.java
+- backend/src/test/java/com/example/clip/ClipControllerTest.java
+- backend/src/test/resources/mockito-extensions/org.mockito.plugins.MockMaker
+- electron/editor-file-service.js
+- electron/editor-file-service.test.js
+- electron/main.js
+- electron/preload.js
+- frontend/clip.html
+- frontend/editor.html
+- frontend/index.html
+- frontend/js/editor-core.js
+- frontend/js/editor.js
+- frontend/libs/EDITOR_THIRD_PARTY_NOTICES.md
+- frontend/libs/LICENSE.diff
+- frontend/libs/LICENSE.sql-formatter
+- frontend/libs/ace/LICENSE
+- frontend/libs/ace/ace.js
+- frontend/libs/ace/mode-json.js
+- frontend/libs/ace/mode-sql.js
+- frontend/libs/ace/mode-text.js
+- frontend/libs/ace/mode-xml.js
+- frontend/libs/ace/theme-textmate.js
+- frontend/libs/ace/theme-tomorrow_night.js
+- frontend/libs/ace/worker-json.js
+- frontend/libs/ace/worker-xml.js
+- frontend/libs/diff.min.js
+- frontend/libs/sql-formatter.min.js
+- frontend/styles/design-tokens.css
+- frontend/styles/editor.css
+- package-lock.json
+- package.json
+- scripts/test-build.js
+
+Excluded: .git, node_modules, backend/target, vendor-tmp, runtime data, and local configuration.

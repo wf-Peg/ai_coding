@@ -1,0 +1,59 @@
+{
+  "version": "2.0",
+  "requirement": {
+    "title": "学习观测移入工具模块内置子工具入口",
+    "summary": "将使用频率较低的学习计划与数据观测台从侧边导航移入工具模块，作为不可删除的内置子工具入口",
+    "tags": ["product-dev", "前端", "导航", "工具模块"],
+    "phase": "completed",
+    "createdAt": "2026-08-19T22:00:00",
+    "completedAt": "2026-08-19T23:10:00"
+  },
+  "featurePoints": [
+    {
+      "id": "fp-001",
+      "name": "侧边导航精简",
+      "description": "移除侧边栏中学习计划（学习）与数据观测台（观测）两个低频导航按钮，保留其余入口",
+      "layer": "frontend",
+      "tags": ["product-dev", "前端", "导航"],
+      "designSections": ["架构设计", "关键决策"],
+      "tasks": [
+        { "title": "删除 side 栏学习按钮", "status": "done" },
+        { "title": "删除 side 栏观测按钮", "status": "done" },
+        { "title": "保留视图面板与 /learning-plan /data-observability 路由", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "侧边栏不再显示学习/观测项", "status": "done" },
+        { "title": "智能入库等深链跳转学习计划仍可用", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-002",
+      "name": "工具模块内置子工具入口",
+      "description": "在 Tools Hub 新增学习计划、数据观测台两张内置于工具卡片，点击跳转对应顶层视图，不可删除与禁用",
+      "layer": "frontend",
+      "tags": ["product-dev", "前端", "工具模块"],
+      "designSections": ["架构设计", "关键决策"],
+      "tasks": [
+        { "title": "定义 module 类型内置工具卡片", "status": "done" },
+        { "title": "卡片归入首页模块分类并支持搜索", "status": "done" },
+        { "title": "卡片菜单仅显示打开入口", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "工具模块内点击卡片可进入学习计划/数据观测台", "status": "done" },
+        { "title": "卡片无删除/禁用入口", "status": "done" }
+      ]
+    }
+  ],
+  "knowledgePoints": [
+    {
+      "title": "子页面父窗口通信保护",
+      "content": "学习计划等子页面依赖 window.parent.postMessage 向主框架发消息（打开知识、新建分屏等）。若用嵌套 iframe 将其装入工具模块会拦截这些消息导致功能失效。故子工具入口采用 postMessage 通知主框架切换到对应顶层视图，保持父子通信链完整。",
+      "tags": ["product-dev", "前端", "架构", "iframe"]
+    },
+    {
+      "title": "内置工具固化为进程内常量",
+      "content": "低频模块移入工具模块时作为前端硬编码常量（system:true）而非后端注册工具，不参与 /api/tools 增删改，天然不可删除、不可禁用，也不参与拖拽排序持久化。",
+      "tags": ["product-dev", "前端", "工具模块"]
+    }
+  ]
+}

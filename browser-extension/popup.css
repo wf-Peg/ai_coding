@@ -1,0 +1,346 @@
+/* 弹出窗口样式（页面专属） */
+
+body {
+  width: 420px;
+  min-height: 500px;
+  max-height: 600px;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* 头部 */
+.header {
+  display: flex;
+  align-items: center;
+  padding: 16px 20px;
+  position: relative;
+}
+
+.header h1 {
+  font-size: 18px;
+  flex: 1;
+  text-align: center;
+}
+
+.settings-btn {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.settings-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* 主内容区 */
+.main {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+/* 表单 */
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 14px;
+}
+
+.form-group textarea {
+  min-height: 120px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.input-tips {
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+/* AI标签复选框 */
+.ai-tags-checkbox {
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+
+/* 标签容器 */
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+  min-height: 40px;
+}
+
+.tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  color: white;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.tag-remove {
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 16px;
+  line-height: 1;
+  transition: transform 0.2s;
+}
+
+.tag-remove:hover {
+  transform: rotate(90deg);
+}
+
+#tagInput {
+  min-width: 150px;
+  flex: 1;
+}
+
+#tagInput:disabled {
+  background: var(--background-dark);
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 按钮组 */
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+button {
+  flex: 1;
+  padding: 12px 20px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary:hover {
+  transform: translateY(-2px);
+}
+
+.btn-loading {
+  display: none;
+}
+
+/* 状态消息 */
+.status-message {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  display: none;
+}
+
+.status-message.success {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
+  border: 1px solid var(--success);
+}
+
+.status-message.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--error);
+  border: 1px solid var(--error);
+}
+
+.status-message.info {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--primary);
+  border: 1px solid var(--primary);
+}
+
+/* 底部 */
+.footer {
+  padding: 16px 20px;
+}
+
+.footer-links {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.footer-links a {
+  color: var(--primary);
+  text-decoration: none;
+  font-size: 13px;
+  transition: color 0.2s;
+}
+
+.footer-links a:hover {
+  color: var(--primary-light);
+  text-decoration: underline;
+}
+
+.separator {
+  color: var(--text-secondary);
+}
+
+.shortcut-tip {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  background: var(--background-dark);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* 滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+html[data-theme="notion"] .header h1 {
+  text-align: left;
+}
+
+html[data-theme="notion"] .settings-btn:hover {
+  background: #f3f3f1;
+}
+
+html[data-theme="notion"] .tag {
+  background: #f1f1ef;
+  border: 1px solid #e1e1de;
+  color: #545862;
+}
+
+/* 智能入库按钮：采用主题 primary 同色系的 tint 方案，通过 ghost/tint/filled 三阶视觉层级体现差异 */
+.smart-ingest-btn {
+  background: rgba(59, 130, 246, 0.08);
+  color: var(--primary);
+  border: 1px solid rgba(59, 130, 246, 0.28);
+  box-shadow: 0 2px 8px var(--focus-ring);
+  position: relative;
+  overflow: hidden;
+}
+
+/* ✨ 前缀图标暗示 AI 智能识别 */
+.smart-ingest-btn::before {
+  content: '✨';
+  margin-right: 6px;
+  font-size: 0.92em;
+  display: inline-block;
+  transform: translateY(-1px);
+}
+
+.smart-ingest-btn:hover {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.45);
+  color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(59, 130, 246, 0.2);
+}
+
+.smart-ingest-btn:active {
+  transform: translateY(0);
+}
+
+/* hover 时的微光扫过，暗示 AI 智能处理 */
+.smart-ingest-btn::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -120%;
+  width: 60%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  transition: left 0.7s ease;
+  pointer-events: none;
+}
+
+.smart-ingest-btn:hover::after {
+  left: 120%;
+}
+
+/* regular 主题下：呼应主题渐变语言，保持 tint 风格 */
+html[data-theme="regular"] .smart-ingest-btn {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(96, 165, 250, 0.14));
+  border: 1px solid rgba(59, 130, 246, 0.32);
+  color: var(--primary);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+}
+
+html[data-theme="regular"] .smart-ingest-btn:hover {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.16), rgba(96, 165, 250, 0.22));
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.22);
+}
+
+/* notion 主题下：保持 notion 克制美学，用 primary 淡 tint */
+html[data-theme="notion"] .smart-ingest-btn {
+  background: rgba(35, 131, 226, 0.08);
+  color: var(--primary);
+  border: 1px solid rgba(35, 131, 226, 0.22);
+  box-shadow: none;
+}
+
+html[data-theme="notion"] .smart-ingest-btn:hover {
+  background: rgba(35, 131, 226, 0.14);
+  border-color: rgba(35, 131, 226, 0.36);
+  color: var(--primary);
+  box-shadow: none;
+}

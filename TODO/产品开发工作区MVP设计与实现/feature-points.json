@@ -1,0 +1,93 @@
+{
+  "version": "2.0",
+  "requirement": {
+    "title": "产品开发工作区MVP设计与实现",
+    "summary": "打通 Agent 产出自动归档到剪藏/待办的链路，通过工作台规则系统展示，实现产品开发工作区 MVP",
+    "tags": ["product-dev", "MVP", "工作台"],
+    "phase": "completed",
+    "createdAt": "2026-08-10T09:00:00",
+    "completedAt": "2026-08-11T18:00:00"
+  },
+  "featurePoints": [
+    {
+      "id": "fp-001",
+      "name": "TODO 目录规范与 feature-points.json 契约",
+      "description": "定义 TODO 目录结构、feature-points.json 格式、.imported 标记文件规范，作为前后端共享解析规则",
+      "layer": "fullstack",
+      "tags": ["product-dev", "规范"],
+      "designSections": ["一、TODO 目录规范设计"],
+      "tasks": [
+        { "title": "编写 TODO 目录规范文档", "status": "done" },
+        { "title": "定义 feature-points.json 完整结构", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-002",
+      "name": "TodoScannerService 扫描落库",
+      "description": "后端扫描 TODO 目录，解析 feature-points.json，调用 ClipService/TodoService 自动创建剪藏和待办，支持增量导入",
+      "layer": "backend",
+      "tags": ["product-dev", "扫描"],
+      "designSections": ["二、TodoScannerService 扫描落库"],
+      "tasks": [
+        { "title": "实现 TodoScannerService 扫描解析", "status": "done" },
+        { "title": "实现 .imported 增量导入机制", "status": "done" },
+        { "title": "实现 ImportMarker JSON 格式兼容", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-003",
+      "name": "产品开发工作台内置规则",
+      "description": "系统内置 pd-builtin 工作台，自动创建 3 条规则（tag=product-dev, type in clip/todo, category contains product-dev），通过 ProductDevWorkspaceInitializer 初始化",
+      "layer": "backend",
+      "tags": ["product-dev", "工作台"],
+      "designSections": ["三、产品开发工作台内置规则"],
+      "tasks": [
+        { "title": "实现 ProductDevWorkspaceInitializer", "status": "done" },
+        { "title": "创建 3 条内置规则（tag/type/category）", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-004",
+      "name": "前端产品开发工作台视图",
+      "description": "在 workspace.html 中实现产品开发工作台专属视图，包含看板分组（按 type clip/todo）、扫描按钮、标签筛选",
+      "layer": "frontend",
+      "tags": ["product-dev", "前端"],
+      "designSections": ["四、前端产品开发工作台视图"],
+      "tasks": [
+        { "title": "实现产品开发工作台看板视图", "status": "done" },
+        { "title": "实现标签筛选功能", "status": "done" },
+        { "title": "实现扫描按钮触发后端扫描", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-005",
+      "name": "规则 AND 匹配模式支持",
+      "description": "为工作台规则引擎增加 AND 匹配模式（matchAll），支持内容必须匹配所有启用的规则才能被规则命中",
+      "layer": "backend",
+      "tags": ["product-dev", "规则引擎"],
+      "designSections": ["五、规则 AND 匹配模式"],
+      "tasks": [
+        { "title": "Workspace 新增 matchAll 字段", "status": "done" },
+        { "title": "WorkspaceRuleService 增加 AND 逻辑分支", "status": "done" },
+        { "title": "前端 AND/OR 切换 UI", "status": "done" }
+      ]
+    }
+  ],
+  "knowledgePoints": [
+    {
+      "title": "TODO 目录规范设计",
+      "content": "定义了 TODO 目录结构、feature-points.json 格式契约以及 .imported 标记文件规范，确保前后端共享一致的解析规则。",
+      "tags": ["product-dev", "规范"]
+    },
+    {
+      "title": "产品开发工作台内置规则",
+      "content": "通过 ProductDevWorkspaceInitializer 在启动时自动创建 pd-builtin 工作台及三条内置规则（tag equals product-dev, type in clip/todo, category contains product-dev），通过两级分组（AND+OR）实现灵活的筛选逻辑。",
+      "tags": ["product-dev", "工作台"]
+    },
+    {
+      "title": "规则 AND 匹配模式",
+      "content": "为工作台规则引擎增加 AND 匹配模式（matchAll），支持内容必须匹配所有启用的规则才能被规则命中，与 OR 模式共存，通过前端 UI 切换。",
+      "tags": ["product-dev", "规则引擎"]
+    }
+  ]
+}

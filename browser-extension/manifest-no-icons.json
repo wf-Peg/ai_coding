@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "智能剪藏助手",
+  "version": "1.0.0",
+  "description": "一键剪藏网页内容，智能分析整理",
+  "permissions": [
+    "contextMenus",
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>",
+    "http://localhost:8081/*",
+    "http://127.0.0.1:8081/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "智能剪藏助手"
+  },
+  "options_page": "options.html",
+  "commands": {
+    "clip-page": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "剪藏当前页面"
+    },
+    "clip-selection": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+D",
+        "mac": "Command+Shift+D"
+      },
+      "description": "剪藏选中内容"
+    }
+  }
+}

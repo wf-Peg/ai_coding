@@ -1,0 +1,1963 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>密码管理</title>
+<link rel="stylesheet" href="styles/design-tokens.css">
+  <link rel="stylesheet" href="styles/ui-common.css">
+  <link rel="stylesheet" href="styles/theme-notion.css">
+<link rel="stylesheet" href="styles/theme-vault-notion.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font-body); background: var(--bg); color: var(--fg); overflow: hidden; height: 100vh; }
+
+/* ====== 锁屏页 ====== */
+.lock-screen {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100vh; background: var(--bg);
+}
+.lock-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 40px 48px; width: 380px;
+  box-shadow: var(--shadow-md); text-align: center;
+}
+.lock-icon {
+  width: 56px; height: 56px;
+  background: linear-gradient(135deg, var(--vault-accent), var(--vault-accent));
+  border-radius: 16px; margin: 0 auto 20px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
+}
+.lock-icon svg { width: 28px; height: 28px; color: white; }
+.lock-title { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+.lock-subtitle { font-size: 13px; color: var(--fg-secondary); margin-bottom: 24px; }
+.lock-input {
+  width: 100%; padding: 10px 14px; border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm); font-size: 14px; font-family: 'SF Mono', 'Consolas', monospace;
+  background: var(--bg-elevated); color: var(--fg); outline: none; transition: var(--transition);
+  margin-bottom: 12px;
+}
+.lock-input:focus { border-color: var(--vault-accent); box-shadow: 0 0 0 3px var(--vault-glow); }
+.lock-btn {
+  width: 100%; padding: 10px; border: none; border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--vault-accent), var(--vault-accent)); color: white;
+  font-size: 14px; font-weight: 500; cursor: pointer; transition: var(--transition);
+}
+.lock-btn:hover { opacity: 0.9; }
+.lock-link { margin-top: 16px; font-size: 12px; color: var(--fg-muted); }
+.lock-link a { color: var(--vault-accent); cursor: pointer; text-decoration: none; }
+.lock-error { color: var(--vault-red); font-size: 12px; margin-top: 8px; display: none; }
+
+/* ====== 主界面 ====== */
+.vault-app { display: flex; height: 100vh; }
+
+/* 侧边栏 */
+.vault-sidebar {
+  width: 200px; flex-shrink: 0; background: var(--bg-elevated);
+  border-right: 1px solid var(--border); padding: 12px 8px;
+  display: flex; flex-direction: column; gap: 2px; overflow-y: auto;
+}
+.sidebar-header {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--fg-muted); padding: 8px 12px 4px;
+}
+.sidebar-item {
+  padding: 7px 12px; border-radius: 6px; cursor: pointer; font-size: 13px;
+  color: var(--fg-secondary); transition: var(--transition);
+  display: flex; align-items: center; gap: 8px;
+}
+.sidebar-item:hover { background: var(--accent-light); }
+.sidebar-item.active { background: var(--vault-accent-light); color: var(--vault-accent); font-weight: 500; }
+.sidebar-item .count { margin-left: auto; font-size: 11px; color: var(--fg-muted); }
+.sidebar-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+.sidebar-divider { height: 1px; background: var(--border); margin: 8px 12px; }
+.sidebar-search {
+  padding: 6px 12px; display: flex; align-items: center; gap: 6px;
+  background: var(--accent-light); border-radius: 6px; margin: 4px 8px 8px;
+  overflow: hidden;
+}
+.sidebar-search input {
+  border: none; background: none; outline: none; font-size: 12px;
+  color: var(--fg); flex: 1; font-family: inherit; min-width: 0;
+}
+
+/* 列表 */
+.vault-list {
+  width: 320px; flex-shrink: 0; border-right: 1px solid var(--border);
+  overflow-y: auto; background: var(--bg);
+}
+.list-header {
+  padding: 16px 20px 8px; display: flex; justify-content: space-between; align-items: center;
+}
+.list-header h2 { font-size: 16px; font-weight: 600; }
+.add-btn {
+  width: 28px; height: 28px; border: 1px solid var(--border-light); border-radius: 6px;
+  background: var(--card); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: var(--transition); color: var(--fg-secondary);
+}
+.add-btn:hover { border-color: var(--vault-accent); color: var(--vault-accent); background: var(--vault-accent-light); }
+.vault-card {
+  margin: 0 12px 4px; padding: 12px 14px; border: 1px solid transparent; border-radius: var(--radius-sm);
+  cursor: pointer; transition: var(--transition); display: flex; align-items: center; gap: 12px;
+}
+.vault-card:hover { background: var(--card-hover); }
+.vault-card.selected { background: var(--vault-accent-light); border-color: var(--vault-accent); }
+.card-icon {
+  width: 32px; height: 32px; border-radius: 7px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 600; color: white;
+}
+.card-info { flex: 1; min-width: 0; }
+.card-title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-subtitle { font-size: 11px; color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-fav { color: var(--vault-amber); flex-shrink: 0; }
+.empty-list { text-align: center; padding: 60px 20px; color: var(--fg-muted); font-size: 13px; }
+
+/* 详情面板 */
+.vault-detail {
+  flex: 1; overflow-y: auto; padding: 28px 32px; background: var(--bg-elevated);
+}
+.detail-header { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; }
+.detail-icon {
+  width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 600; color: white;
+}
+.detail-title { font-size: 22px; font-weight: 600; flex: 1; }
+.detail-actions { display: flex; gap: 8px; }
+.detail-btn {
+  padding: 6px 14px; border: 1px solid var(--border-light); border-radius: 6px;
+  background: var(--card); cursor: pointer; font-size: 12px; font-family: inherit;
+  color: var(--fg-secondary); transition: var(--transition);
+}
+.detail-btn:hover { border-color: var(--vault-accent); color: var(--vault-accent); }
+.detail-btn.danger:hover { border-color: var(--vault-red); color: var(--vault-red); }
+
+.detail-field {
+  display: flex; align-items: center; gap: 8px; padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.field-label { width: 80px; font-size: 12px; color: var(--fg-muted); flex-shrink: 0; }
+.field-value {
+  flex: 1; font-size: 14px; font-family: 'SF Mono', 'Consolas', monospace;
+  color: var(--fg); word-break: break-all;
+}
+.field-value.masked { letter-spacing: 2px; }
+.copy-btn {
+  padding: 3px 10px; border: 1px solid var(--border-light); border-radius: 4px;
+  background: var(--card); cursor: pointer; font-size: 11px; font-family: inherit;
+  color: var(--fg-muted); transition: var(--transition);
+}
+.copy-btn:hover { border-color: var(--vault-accent); color: var(--vault-accent); }
+.tags-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.tag-chip {
+  padding: 2px 10px; border-radius: 4px; font-size: 11px;
+  background: var(--accent-light); color: var(--fg-secondary);
+}
+
+/* ====== 模态框 ====== */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.4); z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.2s;
+}
+.modal-overlay.show { opacity: 1; pointer-events: all; }
+.modal-card {
+  background: var(--card); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg); width: 440px; max-height: 80vh; overflow-y: auto;
+  transform: scale(0.95); transition: transform 0.2s;
+}
+.modal-overlay.show .modal-card { transform: scale(1); }
+.modal-header { padding: 20px 24px 12px; font-size: 16px; font-weight: 600; }
+.modal-body { padding: 0 24px 16px; }
+.modal-footer { padding: 12px 24px 20px; display: flex; justify-content: flex-end; gap: 8px; }
+.form-group { margin-bottom: 14px; }
+.form-label { display: block; font-size: 12px; color: var(--fg-muted); margin-bottom: 4px; }
+.form-input {
+  width: 100%; padding: 8px 12px; border: 1px solid var(--border-light);
+  border-radius: 6px; font-size: 13px; font-family: inherit;
+  background: var(--bg-elevated); color: var(--fg); outline: none; transition: var(--transition);
+}
+.form-input:focus { border-color: var(--vault-accent); box-shadow: 0 0 0 3px var(--vault-glow); }
+.form-select {
+  width: 100%; padding: 8px 12px; border: 1px solid var(--border-light);
+  border-radius: 6px; font-size: 13px; font-family: inherit;
+  background: var(--bg-elevated); color: var(--fg); outline: none; cursor: pointer;
+}
+.form-row { display: flex; gap: 8px; }
+.form-row .form-group { flex: 1; }
+.btn-primary {
+  padding: 8px 20px; border: none; border-radius: 6px;
+  background: linear-gradient(135deg, var(--vault-accent), var(--vault-accent)); color: white;
+  font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; transition: var(--transition);
+}
+.btn-primary:hover { opacity: 0.9; }
+.btn-secondary {
+  padding: 8px 20px; border: 1px solid var(--border-light); border-radius: 6px;
+  background: var(--card); color: var(--fg-secondary); font-size: 13px;
+  cursor: pointer; font-family: inherit; transition: var(--transition);
+}
+.btn-secondary:hover { background: var(--accent-light); }
+.modal-submit {
+  padding: 8px 20px; border: none; border-radius: 8px;
+  background: var(--vault-accent); color: #fff;
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  font-family: inherit; transition: all 0.15s;
+}
+.modal-submit:hover { opacity: 0.9; }
+
+/* 密码生成器 */
+.gen-password-display {
+  font-family: 'SF Mono', 'Consolas', monospace; font-size: 16px;
+  padding: 14px 16px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); text-align: center; margin-bottom: 16px;
+  letter-spacing: 1px; word-break: break-all;
+}
+.gen-strength { height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; margin-bottom: 16px; }
+.gen-strength-fill { height: 100%; transition: width 0.3s, background 0.3s; }
+.checkbox-row {
+  display: flex; align-items: center; gap: 8px; padding: 6px 0;
+  font-size: 13px; color: var(--fg-secondary); cursor: pointer;
+}
+.checkbox-row input { accent-color: var(--vault-accent); }
+
+/* 审计面板 */
+.audit-section { margin-bottom: 20px; }
+.audit-section-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.audit-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 6px; }
+.audit-bar-segment { transition: width 0.3s; }
+.audit-item { padding: 8px 12px; background: var(--accent-light); border-radius: 6px; margin-bottom: 4px; font-size: 12px; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+  background: var(--fg); color: var(--bg-elevated); padding: 10px 24px;
+  border-radius: var(--radius-sm); font-size: 13px; box-shadow: var(--shadow-md);
+  transition: transform 0.3s; z-index: 2000; pointer-events: none;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ====== 密码库管理卡片 ====== */
+.vault-mgr-card {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; margin-bottom: 10px;
+  background: var(--card); border-radius: 10px;
+  border: 1px solid var(--border-light);
+  transition: all 0.15s;
+}
+.vault-mgr-card:hover { border-color: var(--vault-accent); background: var(--card-hover); }
+.vault-mgr-main { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+.vault-mgr-icon {
+  width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 600; color: white;
+}
+.vault-mgr-info { flex: 1; min-width: 0; }
+.vault-mgr-name { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.vault-mgr-badge {
+  font-size: 10px; font-weight: 500; padding: 1px 8px; border-radius: 10px;
+  background: var(--vault-accent-light); color: var(--vault-accent);
+}
+.vault-mgr-meta { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
+.vault-mgr-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+/* 滚动条 */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
+* { scrollbar-width: thin; scrollbar-color: var(--border-light) transparent; }
+</style>
+</head>
+<body>
+
+<!-- ====== 锁屏页 ====== -->
+<div class="lock-screen" id="lockScreen">
+  <div class="lock-card">
+    <div class="lock-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+    </div>
+    <div class="lock-title" id="lockTitle">密码库</div>
+    <div class="lock-subtitle" id="lockSubtitle">输入 DES Key 解锁密码库</div>
+
+    <!-- 密码库选择器（多 vault 时显示） -->
+    <div class="lock-vault-selector" id="lockVaultSelector" style="display:none; margin-bottom:12px;">
+      <select class="lock-input" id="lockVaultSelect" onchange="onLockVaultChange()" style="margin-bottom:0;"></select>
+    </div>
+
+    <input type="password" class="lock-input" id="keyInput" placeholder="粘贴或输入 DES Key..." onkeydown="if(event.key==='Enter')doUnlock()">
+    <button class="lock-btn" onclick="doUnlock()">解锁</button>
+    <div class="lock-error" id="lockError"></div>
+    <div class="lock-link">
+      <span id="firstTimeHint" style="display:none;">还没有密码库？</span>
+      <a id="initLink" onclick="showInitModal()" style="display:none;">初始化新密码库</a>
+      <span id="noKeyHint">我忘记了 Key？</span>
+      <a onclick="showForgotKeyGuide()">创建新密码库</a>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 主界面 ====== -->
+<div class="vault-app" id="vaultApp" style="display:none;">
+  <!-- 侧边栏 -->
+  <div class="vault-sidebar">
+    <div class="sidebar-search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--fg-muted);">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" id="searchInput" placeholder="搜索密码..." oninput="onSearch()">
+    </div>
+    <div class="sidebar-item active" data-cat="all" onclick="filterCategory('all')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      全部 <span class="count" id="count-all">0</span>
+    </div>
+    <div class="sidebar-item" data-cat="login" onclick="filterCategory('login')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+      登录 <span class="count" id="count-login">0</span>
+    </div>
+    <div class="sidebar-item" data-cat="card" onclick="filterCategory('card')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+      卡片 <span class="count" id="count-card">0</span>
+    </div>
+    <div class="sidebar-item" data-cat="note" onclick="filterCategory('note')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      备注 <span class="count" id="count-note">0</span>
+    </div>
+    <div class="sidebar-item" data-cat="identity" onclick="filterCategory('identity')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      身份 <span class="count" id="count-identity">0</span>
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-item" data-cat="favorite" onclick="filterCategory('favorite')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      收藏
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-item" onclick="showVaultManager()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      密码库管理
+    </div>
+    <div class="sidebar-item" onclick="showKeyModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3"/></svg>
+      DES Key 管理
+    </div>
+    <div class="sidebar-item" onclick="showImportModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      导入密码
+    </div>
+    <div class="sidebar-item" onclick="showAiImportModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M16 14H8a4 4 0 0 0-4 4v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2a4 4 0 0 0-4-4z"/><circle cx="12" cy="19" r="1" fill="currentColor"/></svg>
+      AI 识别导入
+    </div>
+    <div class="sidebar-item" onclick="showAuditModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11H1v12h8V11zM23 1h-8v22h8V1zM16 8h2M16 16h2M5 16h2M5 19h2"/></svg>
+      安全审计
+    </div>
+    <div class="sidebar-item" onclick="lockVault()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      锁定密码库
+    </div>
+  </div>
+
+  <!-- 列表 -->
+  <div class="vault-list">
+    <div class="list-header">
+      <h2 id="listTitle">全部</h2>
+      <div class="add-btn" onclick="showAddModal()" title="新增">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </div>
+    </div>
+    <div id="cardList"></div>
+  </div>
+
+  <!-- 详情 -->
+  <div class="vault-detail" id="detailPanel">
+    <div style="text-align:center; padding: 80px 20px; color: var(--fg-muted);">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.4; margin-bottom:12px;">
+        <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+      <div style="font-size:14px;">选择左侧的密码条目查看详情</div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 新增/编辑模态框 ====== -->
+<div class="modal-overlay" id="entryModal">
+  <div class="modal-card">
+    <div class="modal-header" id="entryModalTitle">新增密码</div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">名称 *</label>
+        <input type="text" class="form-input" id="entryTitle" placeholder="如 GitHub 账号">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">分类</label>
+          <select class="form-select" id="entryCategory">
+            <option value="login">登录</option>
+            <option value="card">卡片</option>
+            <option value="note">备注</option>
+            <option value="identity">身份</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">图标颜色</label>
+          <input type="color" class="form-input" id="entryColor" value="#6366f1" style="height:36px; cursor:pointer;">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">用户名</label>
+        <input type="text" class="form-input" id="entryUsername" placeholder="用户名或邮箱">
+      </div>
+      <div class="form-group">
+        <label class="form-label">密码</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" class="form-input" id="entryPassword" placeholder="密码" style="flex:1;">
+          <button class="btn-secondary" onclick="generateAndFill()" style="white-space:nowrap; padding:8px 12px;">生成</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">网址</label>
+        <input type="text" class="form-input" id="entryUrl" placeholder="https://...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">别名邮箱</label>
+        <input type="text" class="form-input" id="entryAlias" placeholder="别名邮箱（可选）">
+      </div>
+      <div class="form-group">
+        <label class="form-label">标签（逗号分隔）</label>
+        <input type="text" class="form-input" id="entryTags" placeholder="开发, 重要">
+      </div>
+      <div class="form-group">
+        <label class="form-label">备注</label>
+        <textarea class="form-input" id="entryNotes" rows="2" placeholder="备注..." style="resize:vertical; font-family:inherit;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('entryModal')">取消</button>
+      <button class="btn-primary" onclick="saveEntry()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 密码生成器模态框 ====== -->
+<div class="modal-overlay" id="genModal">
+  <div class="modal-card">
+    <div class="modal-header">密码生成器</div>
+    <div class="modal-body">
+      <div class="gen-password-display" id="genPassword">-</div>
+      <div class="gen-strength"><div class="gen-strength-fill" id="genStrengthBar" style="width:0%; background:var(--border);"></div></div>
+      <div class="form-group">
+        <label class="form-label">长度: <span id="genLengthVal">16</span></label>
+        <input type="range" id="genLength" min="6" max="48" value="16" oninput="document.getElementById('genLengthVal').textContent=this.value" style="width:100%;">
+      </div>
+      <label class="checkbox-row"><input type="checkbox" id="genUpper" checked> 大写字母 (A-Z)</label>
+      <label class="checkbox-row"><input type="checkbox" id="genLower" checked> 小写字母 (a-z)</label>
+      <label class="checkbox-row"><input type="checkbox" id="genDigits" checked> 数字 (0-9)</label>
+      <label class="checkbox-row"><input type="checkbox" id="genSpecial" checked> 特殊符号 (!@#$%)</label>
+      <label class="checkbox-row"><input type="checkbox" id="genExclude"> 排除易混淆字符 (0O1lI)</label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="copyGenerated()">复制</button>
+      <button class="btn-secondary" onclick="doGenerate()">重新生成</button>
+      <button class="btn-primary" onclick="useGenerated()">使用此密码</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== DES Key 管理模态框 ====== -->
+<div class="modal-overlay" id="keyModal">
+  <div class="modal-card">
+    <div class="modal-header">DES Key 管理</div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">当前 Key</label>
+        <div style="display:flex; gap:8px;">
+          <input type="password" class="form-input" id="keyDisplay" readonly style="flex:1;">
+          <button class="btn-secondary" onclick="toggleKeyVisibility()" style="white-space:nowrap; padding:8px 12px;" id="keyToggleBtn">显示</button>
+          <button class="btn-secondary" onclick="copyKey()" style="white-space:nowrap; padding:8px 12px;">复制</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <button class="btn-primary" onclick="generateNewKey()" style="width:100%;">生成新 Key</button>
+      </div>
+      <div style="padding:14px; background:#fef3c7; border:1px solid #fcd34d; border-radius:8px; font-size:12px; color:#92400e; line-height:1.6;">
+        <strong>重要提示：</strong><br>
+        Key 是唯一解密凭证，丢失无法恢复。<br>
+        请将 Key 安全保存到离线位置。<br>
+        生成新 Key 后需要重新初始化密码库。
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('keyModal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 导入密码模态框 ====== -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal-card" style="width:600px;max-height:80vh;display:flex;flex-direction:column;">
+    <div class="modal-header">
+      <span>导入密码</span>
+      <span id="importStepIndicator" style="font-size:12px;color:var(--fg-muted);font-weight:400;">步骤 1 / 2</span>
+    </div>
+    <div class="modal-body" id="importBody" style="overflow-y:auto;flex:1;">
+
+      <!-- 步骤 1：选择来源 -->
+      <div id="importStep1">
+        <div style="padding:10px 12px;background:var(--vault-warning-bg,#fef3c7);border-radius:8px;margin-bottom:16px;font-size:12px;color:#92400e;border:1px solid #fde68a;">
+          ⚠️ CSV 文件包含明文密码，导入完成后请立即删除原始文件并清空回收站。
+        </div>
+        <div style="margin-bottom:16px;">
+          <div style="font-size:13px;font-weight:500;margin-bottom:8px;">选择 CSV 来源</div>
+          <select id="importSource" class="modal-input" style="width:100%;padding:8px;">
+            <option value="chrome">Chrome 浏览器</option>
+            <option value="bitwarden">Bitwarden</option>
+            <option value="1password">1Password</option>
+            <option value="lastpass">LastPass</option>
+          </select>
+        </div>
+        <div id="csvDropZone" style="border:2px dashed var(--border);border-radius:10px;padding:32px;text-align:center;cursor:pointer;transition:all 0.2s;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--fg-muted)" stroke-width="1.5" style="width:32px;height:32px;margin-bottom:8px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <div style="font-size:13px;color:var(--fg-secondary);">点击选择 CSV 文件，或拖拽到此处</div>
+          <div style="font-size:11px;color:var(--fg-muted);margin-top:4px;">支持 .csv 格式</div>
+          <input type="file" id="csvFileInput" accept=".csv" style="display:none;">
+        </div>
+        <div style="margin-top:12px;font-size:12px;color:var(--fg-muted);">
+          <span style="cursor:pointer;color:var(--vault-accent);text-decoration:underline;" onclick="showChromeExportHelp()">如何从 Chrome 导出密码？</span>
+        </div>
+        <div id="chromeExportHelp" style="display:none;margin-top:8px;padding:12px;background:var(--bg);border-radius:8px;font-size:12px;color:var(--fg-secondary);line-height:1.6;">
+          1. 打开 Chrome → 右上角 ⋮ → 设置<br>
+          2. 自动填充 → 密码管理器<br>
+          3. 在「已保存的密码」右侧点击 ⋮ → 导出密码<br>
+          4. 输入系统密码确认 → 保存为 CSV 文件
+        </div>
+      </div>
+
+      <!-- 步骤 2：预览与去重 -->
+      <div id="importStep2" style="display:none;">
+        <div id="importStats" style="padding:8px 12px;background:var(--bg);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--fg-secondary);"></div>
+        <div style="max-height:320px;overflow:auto;border:1px solid var(--border);border-radius:8px;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead style="position:sticky;top:0;background:var(--bg-elevated);z-index:1;">
+              <tr>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);width:32px;"><input type="checkbox" id="importSelectAll" checked></th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">名称</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">网址</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">用户名</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">密码</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">状态</th>
+              </tr>
+            </thead>
+            <tbody id="importPreviewBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 导入结果（内联显示在步骤 2 下方） -->
+      <div id="importResult" style="display:none; text-align:center; padding:16px 0 0; border-top:1px solid var(--border); margin-top:16px;">
+        <div id="importResultSummary" style="font-size:16px; font-weight:600; margin-bottom:8px;"></div>
+        <div id="importResultDetails" style="font-size:13px; color:var(--fg-secondary); margin-bottom:12px;"></div>
+        <div id="importSkippedList" style="max-height:160px; overflow:auto; text-align:left; border:1px solid var(--border); border-radius:8px; padding:8px; display:none; font-size:12px;"></div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeImportModal()">关闭</button>
+      <button id="importPrevBtn" class="btn-secondary" style="display:none;" onclick="importPrev()">上一步</button>
+      <button id="importDoBtn" class="modal-submit" style="display:none;" onclick="doImport()">确认导入</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== AI 识别导入模态框 ====== -->
+<div class="modal-overlay" id="aiImportModal">
+  <div class="modal-card" style="width:620px;max-height:85vh;display:flex;flex-direction:column;">
+    <div class="modal-header">
+      <span>AI 识别导入密码</span>
+    </div>
+    <div class="modal-body" style="overflow-y:auto;flex:1;">
+
+      <!-- 步骤 1：输入/粘贴 -->
+      <div id="aiImportStep1">
+        <div class="form-group">
+          <label class="form-label">粘贴账号密码信息</label>
+          <div style="font-size:12px;color:var(--fg-muted);margin-bottom:6px;">
+            支持多条账号密码，不限格式。AI 会自动识别提取字段并去除噪声。
+          </div>
+          <textarea id="aiImportText" class="form-input" rows="8"
+            placeholder="在此粘贴复制的账号密码信息，或等待自动读取剪贴板..."
+            style="width:100%;resize:vertical;font-size:13px;line-height:1.5;"></textarea>
+        </div>
+      </div>
+
+      <!-- 步骤 2：解析结果预览 -->
+      <div id="aiImportStep2" style="display:none;">
+        <div id="aiParseStats" style="padding:8px 12px;background:var(--accent-light);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--fg);"></div>
+        <div style="max-height:320px;overflow:auto;border:1px solid var(--border);border-radius:8px;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead style="position:sticky;top:0;background:var(--bg-elevated, var(--card));z-index:1;">
+              <tr>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);width:32px;"><input type="checkbox" id="aiImportSelectAll" checked onchange="toggleAiImportAll()"></th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">名称</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">网址</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">用户名</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">密码</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">备注</th>
+              </tr>
+            </thead>
+            <tbody id="aiImportPreviewBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 错误提示（始终可见，不依赖步骤切换） -->
+      <div id="aiImportError" style="display:none;padding:12px;margin-top:12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:13px;color:#b91c1c;"></div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeAiImportModal()">关闭</button>
+      <button id="aiParseBtn" class="btn-primary" onclick="aiParseAndPreview()">AI 解析</button>
+      <button id="aiImportBtn" class="modal-submit" style="display:none;" onclick="doAiImport()">确认导入</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 安全审计模态框 ====== -->
+<div class="modal-overlay" id="auditModal">
+  <div class="modal-card" style="width:480px;">
+    <div class="modal-header">安全审计</div>
+    <div class="modal-body" id="auditBody">
+      <div style="text-align:center; padding:20px; color:var(--fg-muted);">加载中...</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('auditModal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 初始化密码库模态框 ====== -->
+<div class="modal-overlay" id="initModal">
+  <div class="modal-card" style="width:440px;">
+    <div class="modal-header">初始化密码库</div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">密码库名称</label>
+        <input type="text" class="form-input" id="initVaultName" placeholder="如：主密码库、工作密码库" value="主密码库">
+      </div>
+
+      <div style="padding:12px 14px; background:#fef3c7; border:1px solid #fcd34d; border-radius:10px; font-size:12px; color:#92400e; line-height:1.7; margin-bottom:16px;" class="init-warning">
+        <strong>重要提示</strong><br>
+        DES Key 是密码库的唯一解密凭证，<strong>丢失后无法恢复</strong>。<br>
+        请务必在生成后立即保存到安全位置。
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">DES Key</label>
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+          <input type="text" class="form-input" id="initKeyInput" placeholder="自定义 Key 或点击自动生成" style="flex:1;">
+          <button class="btn-secondary" onclick="generateInitKey()" style="white-space:nowrap;">自动生成</button>
+        </div>
+        <div style="font-size:11px; color:var(--fg-muted);">支持自定义 Base64 字符串或自动生成</div>
+      </div>
+
+      <div id="initKeySaveHint" style="display:none; padding:12px; background:#dcfce7; border:1px solid #86efac; border-radius:10px; margin-top:8px;" class="init-save-hint">
+        <div style="font-size:12px; color:#166534; font-weight:500; margin-bottom:6px;">Key 已生成</div>
+        <div style="font-size:11px; color:#15803d; line-height:1.5; margin-bottom:8px;">
+          请立即复制并保存此 Key。丢失后密码库数据将无法恢复。
+        </div>
+        <button class="btn-secondary" onclick="copyInitKey()" style="font-size:11px; padding:5px 12px;">复制 Key</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('initModal')">取消</button>
+      <button class="btn-primary" onclick="doInit()">创建密码库</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 忘记 Key 引导模态框 ====== -->
+<div class="modal-overlay" id="forgotKeyModal">
+  <div class="modal-card" style="width:400px;">
+    <div class="modal-header">忘记 DES Key</div>
+    <div class="modal-body">
+      <div style="padding:12px; background:#fef3c7; border:1px solid #fcd34d; border-radius:10px; font-size:12px; color:#92400e; line-height:1.7; margin-bottom:16px;" class="init-warning">
+        DES Key 丢失后<strong>无法恢复</strong>旧密码库数据。<br>
+        但你可以创建新密码库继续使用，旧密码库数据将保留。<br>
+        如果日后记起旧 Key，可以切换回来读取。
+      </div>
+      <div style="font-size:13px; color:var(--fg-secondary); line-height:1.6;">
+        当前密码库：<strong id="forgotKeyVaultName">-</strong><br>
+        创建新密码库后，旧密码库文件不会删除。
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('forgotKeyModal')">取消</button>
+      <button class="btn-primary" onclick="closeModal('forgotKeyModal'); showInitModal()">创建新密码库</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 密码库管理模态框 ====== -->
+<div class="modal-overlay" id="vaultManagerModal">
+  <div class="modal-card" style="width:520px; max-height:85vh; display:flex; flex-direction:column;">
+    <div class="modal-header" style="display:flex; align-items:center; justify-content:space-between;">
+      <span style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size:20px;">🔐</span>
+        <span>密码库管理</span>
+      </span>
+      <span style="font-size:12px; color:var(--fg-muted);" id="vaultCount"></span>
+    </div>
+    <div class="modal-body" style="overflow-y:auto; flex:1; padding:4px 24px 16px;">
+      <div id="vaultManagerList"></div>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between;">
+      <button class="btn-secondary" onclick="closeModal('vaultManagerModal'); showInitModal()" style="font-size:13px; display:flex; align-items:center; gap:6px;">
+        <span style="font-size:16px; line-height:1;">+</span> 新建密码库
+      </button>
+      <button class="btn-secondary" onclick="closeModal('vaultManagerModal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- ====== 自定义确认弹窗 ====== -->
+<div class="modal-overlay" id="confirmDialog" style="z-index:10001;">
+  <div class="modal-card" style="width:400px;">
+    <div class="modal-header" style="display:flex; align-items:center; gap:10px;">
+      <span style="font-size:20px;">⚠️</span>
+      <span id="confirmTitle">确认操作</span>
+    </div>
+    <div class="modal-body" style="padding: 8px 24px 12px; font-size:13px; color:var(--fg-muted); line-height:1.6;">
+      <p id="confirmMessage">确定要执行此操作吗？</p>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end; gap:10px;">
+      <button class="btn-secondary" onclick="closeConfirmDialog(false)">取消</button>
+      <button class="btn-primary" id="confirmDangerBtn" onclick="closeConfirmDialog(true)" style="background:var(--vault-red); border-color:var(--vault-red);">确认</button>
+    </div>
+  </div>
+</div>
+
+<script src="libs/marked.min.js"></script>
+<script src="js/logger.js"></script>
+<script>
+// ====== 主题初始化 ======
+const THEME_KEY = 'app_theme_v1';
+const APPEARANCE_KEY = 'app_appearance_v1';
+
+function getEffectiveTheme() {
+  const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+  if (appearance === 'system') {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'notion';
+  }
+  return appearance;
+}
+
+function applyTheme() {
+  const theme = getEffectiveTheme();
+  if (theme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  } else if (theme === 'regular') {
+    document.documentElement.setAttribute('data-theme', 'regular');
+  } else {
+    document.documentElement.setAttribute('data-theme', 'notion');
+  }
+}
+
+// 监听系统主题变化
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+  if (appearance === 'system') applyTheme();
+});
+
+// 监听其他页面的主题切换
+window.addEventListener('storage', event => {
+  if (event.key === THEME_KEY || event.key === APPEARANCE_KEY) applyTheme();
+});
+
+applyTheme();
+
+const API = 'http://127.0.0.1:8081/api/vault';
+let allEntries = [];
+let filteredEntries = [];
+let currentCategory = 'all';
+let selectedEntry = null;
+let editingId = null;
+let sessionKey = '';
+let currentVaultName = 'default';
+let generatedPassword = '';
+
+// ====== 初始化 ======
+async function init() {
+  try {
+    const res = await fetch(API + '/status');
+    const data = await res.json();
+    const vaults = data.vaults || [];
+    const hasVault = data.exists && vaults.length > 0;
+
+    if (hasVault) {
+      currentVaultName = data.active || 'default';
+      document.getElementById('lockSubtitle').textContent = '输入 DES Key 解锁密码库';
+      document.getElementById('firstTimeHint').style.display = 'none';
+      document.getElementById('initLink').style.display = 'none';
+      document.getElementById('noKeyHint').style.display = 'inline';
+
+      // 渲染密码库选择器
+      if (vaults.length > 1) {
+        renderVaultSelector(vaults);
+      }
+    } else {
+      document.getElementById('lockSubtitle').textContent = '首次使用，请初始化密码库';
+      document.getElementById('firstTimeHint').style.display = 'inline';
+      document.getElementById('initLink').style.display = 'inline';
+      document.getElementById('noKeyHint').style.display = 'none';
+    }
+  } catch (e) {
+    // 静默处理：init 阶段失败由 UI 状态自然展示
+  }
+}
+
+function renderVaultSelector(vaults) {
+  const sel = document.getElementById('lockVaultSelect');
+  const container = document.getElementById('lockVaultSelector');
+  sel.innerHTML = vaults.map(v => {
+    const selected = v.isActive ? ' selected' : '';
+    return `<option value="${v.name}"${selected}>${escapeHtml(v.label)} (${v.entryCount}条)</option>`;
+  }).join('');
+  container.style.display = 'block';
+  currentVaultName = vaults.find(v => v.isActive)?.name || vaults[0].name;
+}
+
+function onLockVaultChange() {
+  currentVaultName = document.getElementById('lockVaultSelect').value;
+  const sel = document.getElementById('lockVaultSelect');
+  const label = sel.options[sel.selectedIndex].text;
+  document.getElementById('lockSubtitle').textContent = '输入「' + label + '」的 DES Key';
+}
+
+// ====== 解锁 ======
+async function doUnlock() {
+  const key = document.getElementById('keyInput').value.trim();
+  if (!key) return;
+  const vaultName = document.getElementById('lockVaultSelect')?.value || currentVaultName || 'default';
+  const errEl = document.getElementById('lockError');
+  errEl.style.display = 'none';
+  try {
+    const res = await fetch(API + '/unlock', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({desKey: key, vaultName: vaultName})
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      errEl.textContent = data.error || '无法连接后端服务，请确认应用已启动';
+      errEl.style.display = 'block';
+      return;
+    }
+    sessionKey = key;
+    currentVaultName = data.vaultName || vaultName;
+    allEntries = data.entries || [];
+    filteredEntries = allEntries;
+    document.getElementById('lockScreen').style.display = 'none';
+    document.getElementById('vaultApp').style.display = 'flex';
+    renderList();
+    updateCounts();
+  } catch (e) {
+    errEl.textContent = '无法连接后端服务，请确认应用已启动';
+    errEl.style.display = 'block';
+  }
+}
+
+// ====== 锁定 ======
+async function lockVault() {
+  await fetch(API + '/lock', {method: 'POST'});
+  sessionKey = '';
+  allEntries = [];
+  document.getElementById('vaultApp').style.display = 'none';
+  document.getElementById('lockScreen').style.display = 'flex';
+  document.getElementById('keyInput').value = '';
+  init();
+}
+
+// ====== 初始化密码库 ======
+function showInitModal() {
+  document.getElementById('initKeyInput').value = '';
+  document.getElementById('initVaultName').value = '主密码库';
+  document.getElementById('initKeySaveHint').style.display = 'none';
+  openModal('initModal');
+}
+function generateInitKey() {
+  document.getElementById('initKeyInput').value = generateKeyLocal();
+  document.getElementById('initKeySaveHint').style.display = 'block';
+}
+function copyInitKey() {
+  const key = document.getElementById('initKeyInput').value;
+  copyToClipboard(key);
+  showToast('Key 已复制，请保存到安全位置');
+}
+async function doInit() {
+  const key = document.getElementById('initKeyInput').value.trim();
+  if (!key) { showToast('请输入或生成 DES Key'); return; }
+  const vaultName = document.getElementById('initVaultName').value.trim() || '主密码库';
+  const label = vaultName;
+  try {
+    const res = await fetch(API + '/init', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({desKey: key, vaultName: vaultName, label: label})
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      showToast(data.error || '初始化失败');
+      return;
+    }
+    sessionKey = key;
+    currentVaultName = data.vaultName || vaultName;
+    allEntries = data.entries || [];
+    filteredEntries = allEntries;
+    closeModal('initModal');
+    document.getElementById('lockScreen').style.display = 'none';
+    document.getElementById('vaultApp').style.display = 'flex';
+    renderList();
+    updateCounts();
+    showToast('密码库创建成功，请妥善保存 DES Key');
+  } catch (e) {
+    showToast('初始化失败，请检查后端服务是否运行');
+  }
+}
+
+// ====== 生成 Key ======
+function showGenerateKeyModal() {
+  const key = generateKeyLocal();
+  showToast('已生成 Key: ' + key + '（已复制到剪贴板）');
+  copyToClipboard(key);
+}
+function generateKeyLocal() {
+  // 前端生成临时 Key（后端也有接口，这里直接用 crypto）
+  const arr = new Uint8Array(8);
+  crypto.getRandomValues(arr);
+  return btoa(String.fromCharCode.apply(null, arr));
+}
+async function generateNewKey() {
+  const res = await fetch(API + '/generate-key', {method: 'POST'});
+  const data = await res.json();
+  document.getElementById('keyDisplay').value = data.key;
+  copyToClipboard(data.key);
+  showToast('新 Key 已生成并复制');
+}
+
+// ====== 列表渲染 ======
+function renderList() {
+  const container = document.getElementById('cardList');
+  if (filteredEntries.length === 0) {
+    container.innerHTML = '<div class="empty-list">暂无密码条目<br>点击右上角 + 添加</div>';
+    return;
+  }
+  container.innerHTML = filteredEntries.map(e => `
+    <div class="vault-card ${selectedEntry && selectedEntry.id === e.id ? 'selected' : ''}" onclick="selectEntry(${e.id})">
+      <div class="card-icon" style="background:${e.iconColor || '#6366f1'};">${(e.title || '?')[0].toUpperCase()}</div>
+      <div class="card-info">
+        <div class="card-title">${escapeHtml(e.title || '未命名')}</div>
+        <div class="card-subtitle">${escapeHtml(e.username || e.url || e.notes || '')}</div>
+      </div>
+      ${e.favorite ? '<span class="card-fav">★</span>' : ''}
+    </div>
+  `).join('');
+}
+
+function selectEntry(id) {
+  selectedEntry = allEntries.find(e => e.id === id);
+  renderDetail();
+  renderList();
+}
+
+// ====== 详情渲染 ======
+function renderDetail() {
+  const panel = document.getElementById('detailPanel');
+  if (!selectedEntry) {
+    panel.innerHTML = '<div style="text-align:center; padding:80px 20px; color:var(--fg-muted); font-size:14px;">选择左侧的密码条目查看详情</div>';
+    return;
+  }
+  const e = selectedEntry;
+  panel.innerHTML = `
+    <div class="detail-header">
+      <div class="detail-icon" style="background:${e.iconColor || '#6366f1'};">${(e.title || '?')[0].toUpperCase()}</div>
+      <div class="detail-title">${escapeHtml(e.title)}</div>
+      <div class="detail-actions">
+        <button class="detail-btn" id="detailFavBtn" onclick="toggleFavorite(${e.id})" style="font-size:18px; line-height:1; padding:4px 8px;" title="收藏">${e.favorite ? '★' : '☆'}</button>
+        <button class="detail-btn" onclick="showEditModal(${e.id})">编辑</button>
+        <button class="detail-btn danger" onclick="deleteEntry(${e.id})">删除</button>
+      </div>
+    </div>
+    ${e.username ? renderField('用户名', e.username, false) : ''}
+    ${e.password ? renderField('密码', e.password, true) : ''}
+    ${e.url ? renderField('网址', e.url, false) : ''}
+    ${e.alias ? renderField('别名', e.alias, false) : ''}
+    ${e.tags && e.tags.length ? `<div class="detail-field"><div class="field-label">标签</div><div class="tags-row">${e.tags.map(t => `<span class="tag-chip">${escapeHtml(t)}</span>`).join('')}</div></div>` : ''}
+    ${e.notes ? renderField('备注', e.notes, false) : ''}
+    <div style="margin-top:16px; font-size:11px; color:var(--fg-muted);">
+      创建: ${e.createdAt ? new Date(e.createdAt).toLocaleString('zh-CN') : '-'} ·
+      更新: ${e.updatedAt ? new Date(e.updatedAt).toLocaleString('zh-CN') : '-'}
+    </div>
+  `;
+}
+
+function renderField(label, value, isPassword) {
+  const id = 'field-' + label;
+  return `
+    <div class="detail-field">
+      <div class="field-label">${label}</div>
+      <div class="field-value masked" id="${id}">${isPassword ? '••••••••' : escapeHtml(value)}</div>
+      ${isPassword ? `<button class="copy-btn" onclick="togglePass('${id}','${escapeHtml(value)}')">显示</button>` : ''}
+      <button class="copy-btn" onclick="copyToClipboard('${escapeHtml(value).replace(/'/g,"\\'")}'); showToast('已复制')">复制</button>
+    </div>
+  `;
+}
+
+function togglePass(id, value) {
+  const el = document.getElementById(id);
+  const btn = el.nextElementSibling;
+  if (el.classList.contains('masked')) {
+    el.textContent = value;
+    el.classList.remove('masked');
+    btn.textContent = '隐藏';
+  } else {
+    el.textContent = '••••••••';
+    el.classList.add('masked');
+    btn.textContent = '显示';
+  }
+}
+
+// ====== 分类筛选 ======
+function filterCategory(cat) {
+  currentCategory = cat;
+  document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+  document.querySelector(`[data-cat="${cat}"]`).classList.add('active');
+  document.getElementById('listTitle').textContent = cat === 'all' ? '全部' : cat === 'favorite' ? '收藏' : ({login:'登录',card:'卡片',note:'备注',identity:'身份'})[cat];
+  applyFilter();
+}
+
+function onSearch() {
+  applyFilter();
+}
+
+function applyFilter() {
+  const keyword = document.getElementById('searchInput').value.toLowerCase();
+  filteredEntries = allEntries.filter(e => {
+    if (currentCategory === 'favorite') {
+      if (!e.favorite) return false;
+    } else if (currentCategory !== 'all') {
+      if (e.category !== currentCategory) return false;
+    }
+    if (keyword) {
+      const text = (e.title + ' ' + e.username + ' ' + e.url + ' ' + (e.tags||[]).join(' ') + ' ' + (e.notes||'')).toLowerCase();
+      if (!text.includes(keyword)) return false;
+    }
+    return true;
+  });
+  renderList();
+}
+
+function updateCounts() {
+  document.getElementById('count-all').textContent = allEntries.length;
+  ['login','card','note','identity'].forEach(cat => {
+    document.getElementById('count-' + cat).textContent = allEntries.filter(e => e.category === cat).length;
+  });
+}
+
+// ====== 新增/编辑 ======
+function showAddModal() {
+  editingId = null;
+  document.getElementById('entryModalTitle').textContent = '新增密码';
+  ['entryTitle','entryUsername','entryPassword','entryUrl','entryAlias','entryTags','entryNotes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('entryCategory').value = 'login';
+  document.getElementById('entryColor').value = '#6366f1';
+  openModal('entryModal');
+}
+
+function showEditModal(id) {
+  const e = allEntries.find(x => x.id === id);
+  if (!e) return;
+  editingId = id;
+  document.getElementById('entryModalTitle').textContent = '编辑密码';
+  document.getElementById('entryTitle').value = e.title || '';
+  document.getElementById('entryCategory').value = e.category || 'login';
+  document.getElementById('entryColor').value = e.iconColor || '#6366f1';
+  document.getElementById('entryUsername').value = e.username || '';
+  document.getElementById('entryPassword').value = e.password || '';
+  document.getElementById('entryUrl').value = e.url || '';
+  document.getElementById('entryAlias').value = e.alias || '';
+  document.getElementById('entryTags').value = (e.tags || []).join(', ');
+  document.getElementById('entryNotes').value = e.notes || '';
+  openModal('entryModal');
+}
+
+// ==================== AI 识别导入 ====================
+
+let aiParsedEntries = [];
+
+async function showAiImportModal() {
+  document.getElementById('aiImportStep1').style.display = '';
+  document.getElementById('aiImportStep2').style.display = 'none';
+  document.getElementById('aiParseBtn').style.display = '';
+  document.getElementById('aiImportBtn').style.display = 'none';
+  document.getElementById('aiImportError').style.display = 'none';
+  const textarea = document.getElementById('aiImportText');
+  textarea.value = '';
+  textarea.placeholder = '正在读取剪贴板...';
+  try {
+    let clipboardText = '';
+    if (window.electronAPI && window.electronAPI.readClipboard) {
+      console.log('尝试使用 Electron API 读取剪贴板...');
+      clipboardText = await window.electronAPI.readClipboard();
+      console.log('Electron API 读取结果:', clipboardText);
+    } else if (navigator.clipboard && navigator.clipboard.readText) {
+      console.log('尝试使用 navigator.clipboard.readText 读取剪贴板...');
+      clipboardText = await navigator.clipboard.readText();
+      console.log('navigator.clipboard.readText 读取结果:', clipboardText);
+    } else {
+      console.log('无法使用剪贴板读取功能');
+      // 降级方案：使用传统的 clipboardData 方式
+      try {
+        const text = await new Promise((resolve) => {
+          document.addEventListener('paste', function handler(e) {
+            const text = (e.clipboardData || window.clipboardData).getData('text');
+            resolve(text);
+            document.removeEventListener('paste', handler);
+          });
+          // 为了防止无限等待，设置超时
+          setTimeout(() => resolve(''), 3000);
+        });
+        clipboardText = text;
+        console.log('传统 paste 事件读取结果:', clipboardText);
+      } catch (fallbackError) {
+        console.warn('传统粘贴事件方式也失败:', fallbackError);
+      }
+    }
+    if (clipboardText && clipboardText.trim()) {
+      textarea.value = clipboardText;
+      textarea.placeholder = '已读取剪贴板内容，点击"AI 解析"开始识别';
+    } else {
+      textarea.placeholder = '剪贴板为空，请手动复制账号密码信息后粘贴到此';
+    }
+  } catch (e) {
+    console.error('剪贴板读取失败:', e);
+    textarea.placeholder = '无法读取剪贴板，请手动复制后粘贴到此';
+  }
+  openModal('aiImportModal');
+}
+
+async function aiParseAndPreview() {
+  const text = document.getElementById('aiImportText').value.trim();
+  if (!text) { showToast('请先输入或粘贴要解析的内容'); return; }
+  const btn = document.getElementById('aiParseBtn');
+  btn.disabled = true;
+  btn.textContent = 'AI 解析中...';
+  // 每次点击解析时先清除上次的错误提示
+  document.getElementById('aiImportError').style.display = 'none';
+  try {
+    console.log('开始调用 AI 解析接口，输入文本长度:', text.length);
+    const res = await fetch(`${API}/auto-fill`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+    console.log('API 响应状态:', res.status);
+    const data = await res.json();
+    console.log('API 返回数据:', data);
+    if (data.error) {
+      showToast('解析失败：' + data.error);
+      document.getElementById('aiImportError').textContent = '解析失败：' + data.error;
+      document.getElementById('aiImportError').style.display = '';
+      return;
+    }
+    let entries = [];
+    if (Array.isArray(data.entries)) {
+      entries = data.entries;
+    } else if (data.fields) {
+      entries = [data.fields];
+    }
+    if (entries.length === 0) {
+      showToast('未能识别出任何密码条目，请确认粘贴内容包含账号密码信息');
+      document.getElementById('aiImportError').textContent = '未能识别出任何密码条目，请确认粘贴内容包含账号密码信息';
+      document.getElementById('aiImportError').style.display = '';
+      return;
+    }
+    // 清洗字段：去除反引号包裹、多余空格、去除前后引号等
+    entries = entries.map(e => ({
+      name: (e.name || '').trim(),
+      url: (e.url || '').trim().replace(/^[`'""'\s]+|[`'""'\s]+$/g, ''),
+      username: (e.username || '').trim(),
+      password: (e.password || '').trim(),
+      notes: (e.notes || '').trim()
+    }));
+    aiParsedEntries = entries;
+    renderAiImportPreview(entries);
+    document.getElementById('aiImportStep1').style.display = 'none';
+    document.getElementById('aiImportStep2').style.display = '';
+    document.getElementById('aiParseBtn').style.display = 'none';
+    document.getElementById('aiImportBtn').style.display = '';
+    document.getElementById('aiParseStats').textContent = 'AI 识别到 ' + entries.length + ' 条密码条目，请勾选后确认导入';
+  } catch (e) {
+    console.error('AI 解析过程发生错误:', e);
+    showToast('解析失败，请检查网络连接后重试');
+    document.getElementById('aiImportError').textContent = '解析失败：' + e.message;
+    document.getElementById('aiImportError').style.display = '';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'AI 解析';
+  }
+}
+
+function renderAiImportPreview(entries) {
+  const tbody = document.getElementById('aiImportPreviewBody');
+  tbody.innerHTML = '';
+  entries.forEach((entry, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td style="padding:6px 8px;border-bottom:1px solid var(--border);"><input type="checkbox" class="ai-import-check" data-idx="' + i + '" checked></td>'
+      + '<td style="padding:6px 8px;border-bottom:1px solid var(--border);">' + escapeHtml(entry.name || '') + '</td>'
+      + '<td style="padding:6px 8px;border-bottom:1px solid var(--border);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(entry.url || '') + '</td>'
+      + '<td style="padding:6px 8px;border-bottom:1px solid var(--border);">' + escapeHtml(entry.username || '') + '</td>'
+      + '<td style="padding:6px 8px;border-bottom:1px solid var(--border);font-family:monospace;">' + escapeHtml(entry.password || '') + '</td>'
+      + '<td style="padding:6px 8px;border-bottom:1px solid var(--border);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(entry.notes || '') + '</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function toggleAiImportAll() {
+  const checked = document.getElementById('aiImportSelectAll').checked;
+  document.querySelectorAll('.ai-import-check').forEach(cb => cb.checked = checked);
+}
+
+async function doAiImport() {
+  const checkboxes = document.querySelectorAll('.ai-import-check:checked');
+  if (checkboxes.length === 0) { showToast('请至少选择一条要导入的密码'); return; }
+  const btn = document.getElementById('aiImportBtn');
+  btn.disabled = true;
+  btn.textContent = '导入中...';
+  let imported = 0, failed = 0;
+  for (const cb of checkboxes) {
+    const entry = aiParsedEntries[parseInt(cb.dataset.idx)];
+    console.log('开始导入条目:', entry);
+    try {
+      const res = await fetch(API + '/entry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: entry.name || entry.url || 'AI 导入',
+          url: entry.url || '',
+          username: entry.username || '',
+          password: entry.password || '',
+          notes: entry.notes || '',
+          category: 'login',
+          tags: [],
+          iconColor: '#6366f1'
+        })
+      });
+      console.log('导入请求响应:', res.status);
+      if (res.ok) imported++; else failed++;
+    } catch (e) {
+      console.error('导入过程出错:', e);
+      failed++;
+    }
+  }
+  showToast('导入完成：成功 ' + imported + ' 条' + (failed ? '，失败 ' + failed + ' 条' : ''));
+  closeAiImportModal();
+  refreshEntries();
+}
+
+function closeAiImportModal() {
+  closeModal('aiImportModal');
+  aiParsedEntries = [];
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  var d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+async function saveEntry() {
+  const title = document.getElementById('entryTitle').value.trim();
+  if (!title) { showToast('请输入名称'); return; }
+  const entry = {
+    title,
+    category: document.getElementById('entryCategory').value,
+    iconColor: document.getElementById('entryColor').value,
+    username: document.getElementById('entryUsername').value.trim(),
+    password: document.getElementById('entryPassword').value,
+    url: document.getElementById('entryUrl').value.trim(),
+    alias: document.getElementById('entryAlias').value.trim(),
+    tags: document.getElementById('entryTags').value.split(',').map(t => t.trim()).filter(t => t),
+    notes: document.getElementById('entryNotes').value.trim(),
+    favorite: selectedEntry && editingId === selectedEntry.id ? selectedEntry.favorite : false
+  };
+  try {
+    const url = editingId ? API + '/entry/' + editingId : API + '/entry';
+    const method = editingId ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method, headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(entry)
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) { showToast(data.error || '保存失败'); return; }
+    if (editingId) {
+      const idx = allEntries.findIndex(e => e.id === editingId);
+      if (idx >= 0) allEntries[idx] = data;
+      if (selectedEntry && selectedEntry.id === editingId) selectedEntry = data;
+    } else {
+      allEntries.push(data);
+    }
+    applyFilter();
+    updateCounts();
+    renderDetail();
+    closeModal('entryModal');
+    showToast(editingId ? '已更新' : '已添加');
+  } catch (e) {
+    showToast('保存失败');
+  }
+}
+
+async function deleteEntry(entryId) {
+  const ok = await showConfirmDialog('删除密码条目', '确认删除此密码条目？此操作不可恢复。', true);
+  if (!ok) return;
+  try {
+    const res = await fetch(API + '/entry/' + entryId, {method: 'DELETE'});
+    const data = await res.json();
+    if (!res.ok || data.error) { showToast(data.error || '删除失败'); return; }
+    allEntries = allEntries.filter(e => e.id !== entryId);
+    if (selectedEntry && selectedEntry.id === entryId) selectedEntry = null;
+    applyFilter();
+    updateCounts();
+    renderDetail();
+    showToast('已删除');
+  } catch (e) {
+    showToast('删除失败');
+  }
+}
+
+// ====== 密码生成器 ======
+function showGenModal() { openModal('genModal'); doGenerate(); }
+async function doGenerate() {
+  const params = {
+    length: parseInt(document.getElementById('genLength').value),
+    useUpper: document.getElementById('genUpper').checked,
+    useLower: document.getElementById('genLower').checked,
+    useDigits: document.getElementById('genDigits').checked,
+    useSpecial: document.getElementById('genSpecial').checked,
+    excludeAmbiguous: document.getElementById('genExclude').checked
+  };
+  try {
+    const res = await fetch(API + '/generate-password', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(params)
+    });
+    const data = await res.json();
+    generatedPassword = data.password;
+    document.getElementById('genPassword').textContent = data.password;
+    updateGenStrength(data.password);
+  } catch (e) {
+    showToast('生成失败');
+  }
+}
+function updateGenStrength(password) {
+  let score = 0;
+  if (password.length >= 8) score++;
+  if (password.length >= 12) score++;
+  if (password.length >= 16) score++;
+  if (/[a-z]/.test(password)) score++;
+  if (/[A-Z]/.test(password)) score++;
+  if (/[0-9]/.test(password)) score++;
+  if (/[^a-zA-Z0-9]/.test(password)) score++;
+  score = Math.min(score, 5);
+  const bar = document.getElementById('genStrengthBar');
+  bar.style.width = (score / 5 * 100) + '%';
+  const colors = ['#ef4444', '#f59e0b', '#f59e0b', '#10b981', '#10b981', '#10b981'];
+  bar.style.background = colors[score];
+}
+function copyGenerated() { copyToClipboard(generatedPassword); showToast('已复制'); }
+function useGenerated() {
+  document.getElementById('entryPassword').value = generatedPassword;
+  closeModal('genModal');
+  if (document.getElementById('entryModal').classList.contains('show') === false) {
+    showAddModal();
+    document.getElementById('entryPassword').value = generatedPassword;
+  }
+}
+function generateAndFill() {
+  showGenModal();
+}
+
+// ====== Key 管理 ======
+function showKeyModal() {
+  document.getElementById('keyDisplay').value = sessionKey;
+  document.getElementById('keyDisplay').type = 'password';
+  document.getElementById('keyToggleBtn').textContent = '显示';
+  openModal('keyModal');
+}
+function toggleKeyVisibility() {
+  const el = document.getElementById('keyDisplay');
+  const btn = document.getElementById('keyToggleBtn');
+  if (el.type === 'password') { el.type = 'text'; btn.textContent = '隐藏'; }
+  else { el.type = 'password'; btn.textContent = '显示'; }
+}
+function copyKey() { copyToClipboard(sessionKey); showToast('Key 已复制'); }
+
+// ====== 忘记 Key 引导 ======
+function showForgotKeyGuide() {
+  document.getElementById('forgotKeyVaultName').textContent = currentVaultName;
+  openModal('forgotKeyModal');
+}
+
+// ====== 密码库管理 ======
+async function showVaultManager() {
+  openModal('vaultManagerModal');
+  document.getElementById('vaultManagerList').innerHTML = '<div style="text-align:center; padding:20px; color:var(--fg-muted);">加载中...</div>';
+  try {
+    const res = await fetch(API + '/vaults');
+    const vaults = await res.json();
+    if (!Array.isArray(vaults) || vaults.length === 0) {
+      document.getElementById('vaultManagerList').innerHTML = '<div style="text-align:center; padding:20px; color:var(--fg-muted);">暂无密码库</div>';
+      return;
+    }
+    renderVaultManagerList(vaults);
+  } catch (e) {
+    document.getElementById('vaultManagerList').innerHTML = '<div style="color:var(--vault-red);">加载失败</div>';
+  }
+}
+
+function renderVaultManagerList(vaults) {
+  const container = document.getElementById('vaultManagerList');
+  document.getElementById('vaultCount').textContent = vaults.length + ' 个密码库';
+  container.innerHTML = vaults.map((v, i) => {
+    const date = v.createdAt ? new Date(v.createdAt).toLocaleDateString('zh-CN') : '-';
+    const isActive = v.isActive;
+    const isCurrent = isActive && v.name === currentVaultName;
+    const colors = ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6'];
+    const bg = colors[i % colors.length];
+    return `
+      <div class="vault-mgr-card" style="border-left:3px solid ${isActive ? bg : 'var(--border)'};">
+        <div class="vault-mgr-main">
+          <div class="vault-mgr-icon" style="background:${bg};">
+            ${(v.label || 'V')[0].toUpperCase()}
+          </div>
+          <div class="vault-mgr-info">
+            <div class="vault-mgr-name">
+              ${escapeHtml(v.label)}
+              ${isActive ? '<span class="vault-mgr-badge">当前</span>' : ''}
+            </div>
+            <div class="vault-mgr-meta">
+              ${v.entryCount} 条密码 · ${v.unlocked ? '已解锁' : '已锁定'} · ${date}
+            </div>
+          </div>
+        </div>
+        <div class="vault-mgr-actions">
+          ${!isActive ? `<button class="btn-secondary" onclick="switchToVault('${v.name}')" style="font-size:12px; padding:5px 14px;">切换</button>` : ''}
+          ${!isCurrent ? `<button class="btn-secondary" onclick="deleteVaultAction('${v.name}', '${escapeHtml(v.label)}')" style="font-size:12px; padding:5px 14px; color:var(--vault-red); border-color:rgba(239,68,68,0.3);">删除</button>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function switchToVault(vaultName) {
+  const ok = await showConfirmDialog('切换密码库', '切换后将锁定当前密码库，确认切换？');
+  if (!ok) return;
+  try {
+    const res = await fetch(API + '/vaults/active', {
+      method: 'PUT', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({vaultName: vaultName})
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) { showToast(data.error || '切换失败'); return; }
+    closeModal('vaultManagerModal');
+    sessionKey = '';
+    allEntries = [];
+    selectedEntry = null;
+    renderDetail();
+    currentVaultName = vaultName;
+    document.getElementById('vaultApp').style.display = 'none';
+    document.getElementById('lockScreen').style.display = 'flex';
+    document.getElementById('keyInput').value = '';
+    await init();
+    // 修复焦点：先等一帧确保 DOM 渲染完成，再聚焦输入框
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const input = document.getElementById('keyInput');
+        if (input) {
+          input.focus();
+          input.click();
+        }
+      });
+    });
+    showToast('已切换到「' + (data.label || vaultName) + '」，请输入 DES Key 解锁');
+  } catch (e) {
+    showToast('切换失败');
+  }
+}
+
+async function deleteVaultAction(vaultName, label) {
+  const ok = await showConfirmDialog('删除密码库', '确认删除密码库「' + label + '」？\n\n此操作将删除该密码库的所有文件，且不可恢复。', true);
+  if (!ok) return;
+  try {
+    const res = await fetch(API + '/vaults/' + encodeURIComponent(vaultName), {method: 'DELETE'});
+    const data = await res.json();
+    if (!res.ok || data.error) { showToast(data.error || '删除失败'); return; }
+    showToast('已删除密码库「' + (data.deletedLabel || vaultName) + '」');
+    // 重新加载列表
+    showVaultManager();
+  } catch (e) {
+    showToast('删除失败');
+  }
+}
+
+// ====== 收藏切换 ======
+async function toggleFavorite(entryId) {
+  try {
+    const res = await fetch(API + '/entry/' + entryId + '/favorite', {method: 'PUT'});
+    const data = await res.json();
+    if (data.error) { showToast(data.error); return; }
+    // 更新本地数据
+    const idx = allEntries.findIndex(e => e.id === entryId);
+    if (idx >= 0) allEntries[idx].favorite = data.favorite;
+    if (selectedEntry && selectedEntry.id === entryId) {
+      selectedEntry.favorite = data.favorite;
+    }
+    applyFilter();
+    updateCounts();
+    renderDetail();
+    showToast(data.favorite ? '已收藏' : '已取消收藏');
+  } catch (e) {
+    showToast('操作失败');
+  }
+}
+
+// ====== 导入密码 ======
+let importState = { step: 1, source: 'chrome', parsed: [], existing: [], result: null };
+
+function showImportModal() {
+  if (!sessionKey) {
+    showToast('请先解锁密码库', 'error');
+    return;
+  }
+  importState = { step: 1, source: 'chrome', parsed: [], existing: [], result: null };
+  document.getElementById('csvFileInput').value = '';
+  document.getElementById('chromeExportHelp').style.display = 'none';
+  showImportStep(1);
+  openModal('importModal');
+}
+
+function showChromeExportHelp() {
+  const el = document.getElementById('chromeExportHelp');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function closeImportModal() {
+  closeModal('importModal');
+  importState = { step: 1, source: 'chrome', parsed: [], existing: [], result: null };
+}
+
+function showImportStep(step) {
+  importState.step = step;
+  document.getElementById('importStepIndicator').textContent = `步骤 ${step} / 2`;
+  document.getElementById('importStep1').style.display = step === 1 ? 'block' : 'none';
+  document.getElementById('importStep2').style.display = step === 2 ? 'block' : 'none';
+
+  document.getElementById('importPrevBtn').style.display = step === 2 ? 'inline-block' : 'none';
+  document.getElementById('importDoBtn').style.display = step === 2 ? 'inline-block' : 'none';
+
+  if (step === 2) {
+    // 重置结果区和按钮状态
+    document.getElementById('importResult').style.display = 'none';
+    const btn = document.getElementById('importDoBtn');
+    btn.textContent = '确认导入';
+    btn.onclick = doImport;
+  }
+}
+
+// 文件选择与拖拽
+document.addEventListener('DOMContentLoaded', () => {
+  const dropZone = document.getElementById('csvDropZone');
+  const fileInput = document.getElementById('csvFileInput');
+  if (!dropZone || !fileInput) return;
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files[0]) handleCsvFile(e.target.files[0]);
+  });
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.style.borderColor = 'var(--vault-accent)';
+    dropZone.style.background = 'var(--vault-glow)';
+  });
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.style.borderColor = 'var(--border)';
+    dropZone.style.background = '';
+  });
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.style.borderColor = 'var(--border)';
+    dropZone.style.background = '';
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith('.csv')) handleCsvFile(file);
+    else showToast('请选择 .csv 文件', 'error');
+  });
+
+  const selectAll = document.getElementById('importSelectAll');
+  if (selectAll) {
+    selectAll.addEventListener('change', (e) => {
+      document.querySelectorAll('.import-row-cb').forEach(cb => {
+        if (!cb.disabled) cb.checked = e.target.checked;
+      });
+    });
+  }
+});
+
+async function handleCsvFile(file) {
+  try {
+    const text = await file.text();
+    importState.source = document.getElementById('importSource').value;
+    importState.parsed = parseCsv(text, importState.source);
+
+    if (importState.parsed.length === 0) {
+      showToast('CSV 文件为空或格式不正确', 'error');
+      return;
+    }
+
+    // 获取现有条目用于去重
+    const res = await fetch(`${API}/search`);
+    if (res.ok) {
+      importState.existing = await res.json();
+    }
+    markDuplicates();
+    renderImportPreview();
+    showImportStep(2);
+  } catch (err) {
+    showToast('解析 CSV 失败: ' + err.message, 'error');
+  }
+}
+
+// CSV 解析（支持引号转义、字段内逗号、字段内换行）
+function parseCsv(text, source) {
+  const rows = csvToRows(text);
+  if (rows.length < 2) return [];
+
+  const headers = rows[0].map(h => h.trim().toLowerCase());
+  const colMap = buildColumnMap(headers, source);
+  const entries = [];
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (row.length === 0) continue;
+    const name = colMap.nameIdx >= 0 ? (row[colMap.nameIdx] || '').trim() : '';
+    const url = colMap.urlIdx >= 0 ? (row[colMap.urlIdx] || '').trim() : '';
+    const username = colMap.usernameIdx >= 0 ? (row[colMap.usernameIdx] || '').trim() : '';
+    const password = colMap.passwordIdx >= 0 ? (row[colMap.passwordIdx] || '').trim() : '';
+
+    // 跳过 username 和 password 均为空的行
+    if (!username && !password) continue;
+
+    entries.push({
+      title: name || extractDomain(url) || '未命名',
+      url: url,
+      username: username,
+      password: password,
+      category: 'login',
+      tags: ['imported', source],
+      iconColor: hashColor(url || name)
+    });
+  }
+  return entries;
+}
+
+// 标准 CSV 行解析（处理引号转义）
+function csvToRows(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else { field += c; }
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else field += c;
+    }
+  }
+  if (field || row.length > 0) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+function buildColumnMap(headers, source) {
+  const find = (...names) => {
+    for (const n of names) {
+      const idx = headers.indexOf(n.toLowerCase());
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  };
+  if (source === 'bitwarden') {
+    return { nameIdx: find('folder', 'name'), urlIdx: find('login_uri'), usernameIdx: find('login_username'), passwordIdx: find('login_password') };
+  }
+  if (source === '1password') {
+    return { nameIdx: find('title'), urlIdx: find('urls', 'url'), usernameIdx: find('username'), passwordIdx: find('password') };
+  }
+  // chrome / lastpass 默认
+  return { nameIdx: find('name'), urlIdx: find('url'), usernameIdx: find('username'), passwordIdx: find('password') };
+}
+
+function extractDomain(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); }
+  catch { return ''; }
+}
+
+function hashColor(str) {
+  const colors = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6'];
+  let hash = 0;
+  for (let i = 0; i < (str || '').length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
+}
+
+function normalizeKey(entry) {
+  let url = (entry.url || '').trim();
+  const q = url.indexOf('?'); if (q >= 0) url = url.substring(0, q);
+  const h = url.indexOf('#'); if (h >= 0) url = url.substring(0, h);
+  while (url.endsWith('/')) url = url.slice(0, -1);
+  return url + '|' + (entry.username || '').trim().toLowerCase();
+}
+
+function markDuplicates() {
+  const existingKeys = new Set(importState.existing.map(normalizeKey));
+  const batchKeys = new Set();
+  importState.parsed.forEach(e => {
+    const key = normalizeKey(e);
+    if (existingKeys.has(key)) {
+      e._status = 'skipped';
+    } else if (!batchKeys.add(key)) {
+      e._status = 'duplicate';
+    } else if (!e.password) {
+      e._status = 'error';
+    } else {
+      e._status = 'new';
+    }
+  });
+}
+
+function statusLabel(status) {
+  return { new: '新增', skipped: '重复', duplicate: '同批重复', error: '数据不全' }[status] || status;
+}
+
+function statusColor(status) {
+  return { new: 'var(--success,#16a34a)', skipped: 'var(--fg-muted)', duplicate: 'var(--priority-medium,#b8860b)', error: 'var(--danger,#e03e3e)' }[status];
+}
+
+function renderImportPreview() {
+  const tbody = document.getElementById('importPreviewBody');
+  const stats = document.getElementById('importStats');
+  const counts = { new: 0, skipped: 0, duplicate: 0, error: 0 };
+  importState.parsed.forEach(e => counts[e._status] = (counts[e._status] || 0) + 1);
+
+  stats.innerHTML = `共 <b>${importState.parsed.length}</b> 条，新增 <b style="color:var(--success,#16a34a)">${counts.new}</b>，重复 <b>${counts.skipped}</b>，同批重复 <b>${counts.duplicate}</b>，数据不全 <b>${counts.error}</b>`;
+
+  tbody.innerHTML = importState.parsed.map((e, i) => {
+    const mask = e.password ? '••••••' : '-';
+    const checked = e._status === 'new' ? 'checked' : '';
+    const disabled = e._status !== 'new' ? 'disabled' : '';
+    return `<tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:6px 8px;"><input type="checkbox" class="import-row-cb" data-idx="${i}" ${checked} ${disabled}></td>
+      <td style="padding:6px 8px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(e.title)}">${escapeHtml(e.title)}</td>
+      <td style="padding:6px 8px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(e.url)}">${escapeHtml(e.url)}</td>
+      <td style="padding:6px 8px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(e.username)}</td>
+      <td style="padding:6px 8px;color:var(--fg-muted);">${mask}</td>
+      <td style="padding:6px 8px;color:${statusColor(e._status)};font-size:11px;">${statusLabel(e._status)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function importPrev() {
+  document.getElementById('csvFileInput').value = '';
+  document.getElementById('importResult').style.display = 'none';
+  showImportStep(1);
+}
+
+// 导入完成后刷新列表
+async function refreshEntries() {
+  try {
+    const res = await fetch(API + '/search');
+    if (res.ok) {
+      allEntries = await res.json();
+      filteredEntries = allEntries;
+      renderList();
+      updateCounts();
+    }
+  } catch (e) { /* 静默处理 */ }
+}
+
+async function doImport() {
+  const selected = [];
+  document.querySelectorAll('.import-row-cb:checked').forEach(cb => {
+    selected.push(importState.parsed[parseInt(cb.dataset.idx)]);
+  });
+  if (selected.length === 0) {
+    showToast('请至少选择一条要导入的条目', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('importDoBtn');
+  btn.disabled = true;
+  btn.textContent = '导入中...';
+
+  try {
+    const res = await fetch(`${API}/import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries: selected })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '导入失败');
+
+    importState.result = data;
+    showImportResult(data);
+    // 切换到结果视图：隐藏预览表，显示结果，按钮变为"完成"
+    document.getElementById('importResult').style.display = 'block';
+    btn.textContent = '完成';
+    btn.onclick = () => { closeImportModal(); refreshEntries(); };
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function showImportResult(data) {
+  document.getElementById('importResultSummary').textContent = `成功导入 ${data.imported} 条密码`;
+  document.getElementById('importResultDetails').innerHTML =
+    `新增 <b style="color:var(--success,#16a34a)">${data.imported}</b>，跳过(重复) <b>${data.skipped}</b>，同批重复 <b>${data.duplicates}</b>，错误 <b>${data.errors}</b>`;
+
+  const skippedList = document.getElementById('importSkippedList');
+  const skipped = (data.details || []).filter(d => d.status === 'skipped' || d.status === 'duplicate');
+  if (skipped.length > 0) {
+    skippedList.style.display = 'block';
+    skippedList.innerHTML = '<div style="font-weight:500;margin-bottom:4px;">跳过的条目：</div>' +
+      skipped.map(d => `<div style="padding:2px 0;color:var(--fg-secondary);">• ${escapeHtml(d.title || '未命名')} — ${escapeHtml(d.username || '')} <span style="color:var(--fg-muted);">(${d.reason})</span></div>`).join('');
+  } else {
+    skippedList.style.display = 'none';
+  }
+}
+
+// ====== 安全审计 ======
+async function showAuditModal() {
+  openModal('auditModal');
+  document.getElementById('auditBody').innerHTML = '<div style="text-align:center; padding:20px; color:var(--fg-muted);">加载中...</div>';
+  try {
+    const res = await fetch(API + '/audit');
+    const data = await res.json();
+    if (data.error) { document.getElementById('auditBody').innerHTML = '<div style="color:var(--vault-red);">'+data.error+'</div>'; return; }
+    const total = data.total || 0;
+    const strong = data.strong || 0;
+    const medium = data.medium || 0;
+    const weak = data.weak || 0;
+    const dups = data.duplicates || [];
+    const old = data.oldPasswords || [];
+    let html = '<div class="audit-section">';
+    html += '<div class="audit-section-title">密码强度</div>';
+    if (total > 0) {
+      html += '<div class="audit-bar">';
+      html += `<div class="audit-bar-segment" style="width:${strong/total*100}%; background:var(--vault-green);"></div>`;
+      html += `<div class="audit-bar-segment" style="width:${medium/total*100}%; background:var(--vault-amber);"></div>`;
+      html += `<div class="audit-bar-segment" style="width:${weak/total*100}%; background:var(--vault-red);"></div>`;
+      html += '</div>';
+      html += `<div style="font-size:12px; color:var(--fg-secondary);">强: ${strong} · 中等: ${medium} · 弱: ${weak}</div>`;
+    } else {
+      html += '<div class="audit-item">暂无密码数据</div>';
+    }
+    html += '</div>';
+    if (dups.length > 0) {
+      html += '<div class="audit-section"><div class="audit-section-title" style="color:var(--vault-red);">重复密码 ('+dups.length+'组)</div>';
+      dups.forEach(d => { html += '<div class="audit-item">'+d.passwords.join(' = ')+'</div>'; });
+      html += '</div>';
+    }
+    if (old.length > 0) {
+      html += '<div class="audit-section"><div class="audit-section-title" style="color:var(--vault-amber);">过期密码 ('+old.length+'条)</div>';
+      old.forEach(o => { html += '<div class="audit-item">'+o.title+' ('+o.daysOld+'天未更新)</div>'; });
+      html += '</div>';
+    }
+    if (dups.length === 0 && old.length === 0 && weak === 0) {
+      html += '<div style="text-align:center; padding:20px; color:var(--vault-green); font-size:14px;">所有密码安全性良好</div>';
+    }
+    document.getElementById('auditBody').innerHTML = html;
+  } catch (e) {
+    document.getElementById('auditBody').innerHTML = '<div style="color:var(--vault-red);">审计失败</div>';
+  }
+}
+
+// ====== 工具函数 ======
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function showToast(msg, isError = false) {
+  if (window.UI && UI.toast) {
+    UI.toast(msg, { type: isError ? 'error' : 'info', duration: isError ? 4000 : 2000 });
+    return;
+  }
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2000);
+}
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+  });
+}
+
+// ====== 自定义确认弹窗 ======
+let confirmResolve = null;
+function showConfirmDialog(title, message, isDanger = false) {
+  return new Promise((resolve) => {
+    confirmResolve = resolve;
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmMessage').textContent = message;
+    const btn = document.getElementById('confirmDangerBtn');
+    btn.style.background = isDanger ? 'var(--vault-red)' : 'var(--vault-accent)';
+    btn.style.borderColor = isDanger ? 'var(--vault-red)' : 'var(--vault-accent)';
+    document.getElementById('confirmDialog').classList.add('show');
+  });
+}
+function closeConfirmDialog(result) {
+  if (document.activeElement) document.activeElement.blur();
+  document.getElementById('confirmDialog').classList.remove('show');
+  if (confirmResolve) { confirmResolve(result); confirmResolve = null; }
+}
+
+// 启动
+init();
+// ====== 接收主框架消息：滚动到顶部 / 刷新 ======
+window.addEventListener('message', (e) => {
+  if (e.data.action === 'scrollToTop') {
+    document.querySelectorAll('.vault-sidebar, .vault-list, .vault-detail').forEach(el => el.scrollTo({ top: 0, behavior: 'smooth' }));
+  } else if (e.data.action === 'refresh') {
+    location.reload();
+  } else if (e.data.action === 'themeChange') {
+    applyTheme();
+  }
+});
+</script>
+<script src="js/ui-common.js"></script>
+</body>
+</html>

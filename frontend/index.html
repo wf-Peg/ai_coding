@@ -4,59 +4,2442 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>碎碎记</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'%3E%3C/circle%3E%3Cline x1='12' y1='8' x2='12' y2='12'%3E%3C/line%3E%3Cline x1='12' y1='16' x2='12.01' y2='16'%3E%3C/line%3E%3C/svg%3E" type="image/svg+xml" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M 7 20 C 3 17, 2 13, 2 10 C 2 7, 3 4, 7 2 L 9 5 C 6 6, 5 8, 5 10 C 5 13, 6 15, 9 17 Z' fill='%234A9E9E'/%3E%3Cpath d='M 7 2 C 10 0, 14 0, 17 2 L 16 5 C 13 3, 10 3, 9 5 Z' fill='%233A9B9B'/%3E%3Ccircle cx='10' cy='10' r='2.5' fill='%23FFD93D'/%3E%3Ccircle cx='13' cy='9' r='2' fill='%23FF9F45'/%3E%3Ccircle cx='12' cy='13' r='1.8' fill='%23FF6B6B'/%3E%3C/svg%3E" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles/design-tokens.css">
+    <link rel="stylesheet" href="styles/ui-common.css">
     <style>
-        /* 布局样式 */
+        :root {
+            --bg: #f7f7f5;
+            --titlebar-bg: #f0f0ec;
+            --titlebar-border: #e0e0da;
+            --panel-border: #e2e2dd;
+            --primary: #3f8cff;
+            --primary-light: #eff6ff;
+            --text: #1f2937;
+            --text-secondary: #6b7280;
+            --nav-width: 64px;
+            --titlebar-height: 38px;
+            --win-btn-hover: #e0e0dc;
+            --win-btn-close-hover: #e81123;
+            --win-btn-close-active: #bf0f1d;
+        }
+
+        html[data-theme="regular"] {
+            --bg: #ecf5ff;
+            --panel-border: #c5daf8;
+            --titlebar-bg: #e0edff;
+            --titlebar-border: #c5daf8;
+        }
+
+        html[data-theme="dark"] {
+            --bg: #1e1e1e;
+            --titlebar-bg: #2d2d2d;
+            --titlebar-border: #3e3e3e;
+            --panel-border: #3e3e3e;
+            --primary: #569cff;
+            --primary-light: #1a2d4a;
+            --text: #d4d4d4;
+            --text-secondary: #9a9a9a;
+            --win-btn-hover: #3e3e3e;
+        }
+
         body {
             margin: 0;
             padding: 0;
             height: 100vh;
             overflow: hidden;
-            font-family: Arial, sans-serif;
+            font-family: "IBM Plex Sans", "Noto Sans SC", Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
         }
 
-        .container {
-            display: grid;
-            grid-template-columns: 1fr 2fr;
-            height: 100vh;
+        /* ====== 原生标题栏（系统拖拽区） ======
+           整条标题栏为系统拖拽区（-webkit-app-region: drag）；内部交互区（品牌/导航/搜索/按钮）设为 no-drag。
+           平台留白：
+           - macOS（platform-darwin）：左侧让出系统红黄绿交通灯（hiddenInset 内嵌于左上）。
+           - Windows（platform-win32）：右侧让出右上角系统 Overlay 按钮（最小化/最大化/关闭）。 */
+        .titlebar {
+            height: var(--titlebar-height);
+            background: var(--titlebar-bg);
+            border-bottom: 1px solid var(--titlebar-border);
+            display: flex;
+            align-items: center;
+            user-select: none;
+            flex-shrink: 0;
+            -webkit-app-region: drag;
+        }
+        body.platform-darwin .titlebar { padding-left: 76px; }
+        body.platform-win32 .titlebar { padding-right: 148px; }
+        .titlebar-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 14px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text);
+            -webkit-app-region: no-drag;
+        }
+        .titlebar-brand svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+        .brand-subtitle {
+            font-size: 0.65em;
+            font-weight: 400;
+            color: var(--text-muted, #999);
+            letter-spacing: 0.04em;
+            vertical-align: middle;
+            margin-left: 4px;
+        }
+        .titlebar-nav {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            height: 100%;
+            -webkit-app-region: no-drag;
+        }
+        .titlebar-nav .nav-btn {
+            height: 100%;
+            padding: 0 14px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            font-family: inherit;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            position: relative;
+        }
+        .titlebar-nav .nav-btn:hover {
+            color: var(--text);
+            background: rgba(0,0,0,0.04);
+        }
+        .titlebar-nav .nav-btn.active {
+            color: var(--primary);
+        }
+        .titlebar-nav .nav-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 14px;
+            right: 14px;
+            height: 2px;
+            background: var(--primary);
+            border-radius: 1px 1px 0 0;
+        }
+        .titlebar-nav .nav-btn:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: -2px;
+        }
+        .titlebar-nav .nav-btn svg {
+            width: 15px;
+            height: 15px;
         }
 
-        .todo-section {
-            border-right: 1px solid #e0e0e0;
+        /* 标题栏空白占位（拖拽已交给系统 app-region，仅保留 flex 占位） */
+        .titlebar-spacer {
+            flex: 1;
+            height: 100%;
+            user-select: none;
         }
 
-        .clip-section {
-            /* 右侧区域 */
+        /* ====== 全局统一搜索（右侧全局操作区） ====== */
+        .global-search {
+            position: relative;
+            height: 100%;
+            padding: 0 8px 0 6px;
+            display: flex;
+            align-items: center;
+            -webkit-app-region: no-drag;
+        }
+        /* 搜索条（折叠态），聚焦展开 */
+        .gsearch-input-wrap {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            height: 27px;
+            width: 150px;
+            padding: 0 8px;
+            border: 1px solid var(--panel-border, #e2e2dd);
+            border-radius: 7px;
+            background: var(--search-bg, rgba(127,127,127,0.08));
+            color: var(--text);
+            transition: width 0.2s cubic-bezier(0.4,0,0.2,1), border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .gsearch-input-wrap:focus-within {
+            width: 210px;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--search-ring, color-mix(in srgb, var(--primary) 18%, transparent));
+            background: var(--search-focus-bg, rgba(127,127,127,0.06));
+        }
+        .gsearch-input-wrap svg {
+            width: 13px;
+            height: 13px;
+            flex-shrink: 0;
+            color: var(--text-muted, #999);
+        }
+        .gsearch-input-wrap input {
+            flex: 1;
+            min-width: 0;
+            border: none;
+            outline: none;
+            background: transparent;
+            color: var(--text);
+            font-size: 0.78rem;
+            font-family: inherit;
+        }
+        .gsearch-input-wrap input::placeholder {
+            color: var(--text-muted, #999);
+        }
+        /* 快捷键徽章（仅折叠态显示） */
+        .gsearch-kbd {
+            font-family: inherit;
+            font-size: 0.65rem;
+            color: var(--text-muted, #999);
+            border: 1px solid var(--panel-border, #e2e2dd);
+            border-radius: 4px;
+            padding: 1px 4px;
+            line-height: 1.2;
+            flex-shrink: 0;
+            transition: opacity 0.15s ease;
+        }
+        .gsearch-input-wrap:focus-within .gsearch-kbd { opacity: 0; }
+
+        /* 下拉面板 */
+        .gsearch-panel {
+            position: absolute;
+            top: calc(100% - 3px);
+            right: 8px;
+            width: 400px;
+            max-height: 68vh;
+            overflow-y: auto;
+            background: var(--panel-bg, var(--bg));
+            border: 1px solid var(--panel-border, #e2e2dd);
+            border-radius: 10px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+            padding: 6px;
+            display: none;
+            z-index: 1000;
+            transform-origin: top right;
+        }
+        html[data-theme="dark"] .gsearch-panel { box-shadow: 0 14px 44px rgba(0,0,0,0.5); }
+        .gsearch-panel.open {
+            display: block;
+            animation: gsearchPop 0.16s cubic-bezier(0.2,0,0,1);
+        }
+        @keyframes gsearchPop {
+            from { opacity: 0; transform: scale(0.96); }
+            to   { opacity: 1; transform: scale(1); }
         }
 
-        iframe {
+        /* 面板头部：查询词 + 结果计数 */
+        .gsearch-panel-head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px 8px;
+            border-bottom: 1px solid var(--panel-border, rgba(0,0,0,0.06));
+            font-size: 0.72rem;
+            color: var(--text-muted, #999);
+        }
+        .gsearch-panel-head strong {
+            color: var(--primary);
+            font-weight: 600;
+            max-width: 150px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .gsearch-empty {
+            padding: 26px 16px;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.78rem;
+            line-height: 1.6;
+        }
+        .gsearch-empty .gsearch-empty-icon { font-size: 1.3rem; margin-bottom: 6px; opacity: 0.5; }
+
+        /* 分组标题：色点 + 标签 + 计数 */
+        .gsearch-group-title {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 10px 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-muted, #999);
+            letter-spacing: 0.02em;
+        }
+        .gsearch-group-title .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+        }
+        .gsearch-group-title .gsearch-group-type { text-transform: uppercase; }
+        .gsearch-group-title .gsearch-group-count {
+            margin-left: auto;
+            font-weight: 500;
+            font-size: 0.66rem;
+            color: var(--text-muted, #999);
+        }
+
+        /* 结果项：类型徽章 + 高亮 + hover */
+        .gsearch-item {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            padding: 7px 10px;
+            border-radius: 7px;
+            cursor: pointer;
+            border-left: 2px solid transparent;
+            transition: background 0.12s ease, border-color 0.12s ease;
+        }
+        .gsearch-item:hover,
+        .gsearch-item.active {
+            background: var(--search-item-hover, rgba(63,140,255,0.08));
+            border-left-color: var(--primary);
+        }
+        .gsearch-item-title {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text);
+        }
+        .gsearch-item-badge {
+            flex-shrink: 0;
+            font-size: 0.62rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            padding: 1px 6px;
+            border-radius: 4px;
+            margin-left: 2px;
+        }
+        .gsearch-item-badge.clip        { color: #3f8cff; background: rgba(63,140,255,0.12); }
+        .gsearch-item-badge.knowledge   { color: #8b5cf6; background: rgba(139,92,246,0.12); }
+        .gsearch-item-badge.learning-plan { color: #10b981; background: rgba(16,185,129,0.12); }
+        .gsearch-item-title-text {
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 0.8rem;
+        }
+        .gsearch-item-snippet {
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding-left: 1px;
+        }
+        /* 命中词高亮 */
+        .gsearch-item em {
+            font-style: normal;
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        /* 面板底部：快捷键提示 */
+        .gsearch-panel-foot {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 12px;
+            padding: 7px 10px 5px;
+            font-size: 0.66rem;
+            color: var(--text-muted, #999);
+            border-top: 1px solid var(--panel-border, rgba(0,0,0,0.06));
+        }
+        .gsearch-panel-foot kbd {
+            font-family: inherit;
+            font-size: 0.64rem;
+            border: 1px solid var(--panel-border, rgba(0,0,0,0.1));
+            border-radius: 3px;
+            padding: 0px 4px;
+        }
+
+        /* ====== 布局 ====== */
+        .app-layout {
+            display: flex;
+            height: calc(100vh - var(--titlebar-height));
+        }
+
+        .main-content {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+        .view-panel {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 1;
+            transform: scale(1);
+            transition: opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1), transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .view-panel-hidden {
+            opacity: 0;
+            transform: scale(0.985);
+            visibility: hidden;
+            pointer-events: none;
+        }
+        .view-panel > iframe {
             width: 100%;
             height: 100%;
             border: none;
         }
 
+        /* ===== AI 干活（Agent）面板：主题自适应 ===== */
+        #agentView {
+            display: flex;
+            flex-direction: column;
+            background: var(--bg);
+        }
+        .agent-panel-header {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            height: 34px;
+            padding: 0 12px;
+            font-size: 0.78rem;
+            color: var(--text-secondary, #6b7280);
+            background: var(--titlebar-bg, var(--bg));
+            border-bottom: 1px solid var(--panel-border, #e2e2dd);
+        }
+        .agent-status { display: flex; align-items: center; gap: 6px; font-weight: 500; }
+        .agent-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--text-muted, #999);
+            flex-shrink: 0;
+        }
+        .agent-status.on .agent-dot { background: #2ecc71; }
+        .agent-status.off .agent-dot { background: #e74c3c; }
+        .agent-status.starting .agent-dot { background: #f1c40f; animation: agentPulse 1s infinite; }
+        @keyframes agentPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+        .agent-title { flex: 1; text-align: center; opacity: 0.75; }
+        .agent-actions { display: flex; gap: 4px; }
+        .agent-btn {
+            border: 1px solid var(--panel-border, #e2e2dd);
+            background: transparent;
+            color: var(--text-secondary, #6b7280);
+            font-size: 0.78rem;
+            border-radius: 4px;
+            padding: 2px 8px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .agent-btn:hover { color: var(--text, #1f2937); background: var(--titlebar-bg, var(--bg)); }
+        .agent-btn.active { color: var(--primary, #3f8cff); border-color: var(--primary, #3f8cff); }
+        .agent-frame-wrap { flex: 1; min-height: 0; position: relative; }
+        .agent-frame-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; }
+        /* 安装/启动进度条（首次使用自动安装 DSH 时的友好等待交互） */
+        .agent-progress {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 12px;
+            font-size: 0.75rem;
+            color: var(--text-secondary, #6b7280);
+            background: var(--primary-light, #eff6ff);
+            border-bottom: 1px solid var(--panel-border, #e2e2dd);
+        }
+        /* display:flex 会覆盖 UA 的 [hidden] 规则，导致 hideAgentProgress() 失效；
+           需显式声明 .agent-progress[hidden] 才能真正隐藏进度条 */
+        .agent-progress[hidden] { display: none; }
+        .agent-progress-text {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .agent-progress-actions { display: flex; gap: 4px; flex-shrink: 0; }
+        .agent-progress.loading .agent-progress-text::before {
+            content: '';
+            display: inline-block;
+            width: 10px; height: 10px;
+            margin-right: 6px;
+            border: 2px solid var(--primary, #3f8cff);
+            border-top-color: transparent;
+            border-radius: 50%;
+            vertical-align: -1px;
+            animation: agentSpin 0.8s linear infinite;
+        }
+        @keyframes agentSpin { to { transform: rotate(360deg); } }
+        .agent-progress.error .agent-progress-text::before { content: '⚠ '; color: var(--danger, #d14343); }
+        /* 暗色适配：iframe 反色（与 DSH Web 自身主题无关，纯视觉适配；可在面板右上角开关） */
+        #agentFrame.invert { filter: invert(0.9) hue-rotate(180deg); }
+        html[data-theme="dark"] #agentFrame.auto-invert { filter: invert(0.9) hue-rotate(180deg); }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            width: 100%;
+            height: 100%;
+        }
+
+        .todo-section {
+            border-right: 1px solid var(--panel-border);
+        }
+
         /* 响应式设计 */
         @media (max-width: 768px) {
+            .titlebar-nav .nav-btn { padding: 0 10px; font-size: 0.75rem; }
+            .titlebar-brand { padding: 0 8px; font-size: 0.78rem; }
             .container {
                 grid-template-columns: 1fr;
                 grid-template-rows: 1fr 1fr;
             }
-
             .todo-section {
-                border-right: none;
-                border-bottom: 1px solid #e0e0e0;
-            }
+            border-right: none;
+            border-bottom: 1px solid var(--panel-border);
         }
-    </style>
+    }
+
+    /* ====== 启动加载遮罩 ====== */
+    .startup-overlay {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: var(--bg);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.5s ease;
+    }
+    .startup-overlay.hidden {
+        opacity: 0; pointer-events: none;
+    }
+    .startup-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 40px 48px;
+    }
+    .startup-icon {
+        width: 56px; height: 56px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 16px;
+        display: flex; align-items: center; justify-content: center;
+        margin-bottom: 24px;
+        box-shadow: 0 8px 24px rgba(102, 126, 234, 0.25);
+    }
+    .startup-icon svg { width: 28px; height: 28px; color: white; }
+    .startup-title {
+        font-size: 18px; font-weight: 600; color: var(--text);
+        margin-bottom: 8px; letter-spacing: -0.3px;
+    }
+    .startup-status {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 13px; color: var(--text-secondary);
+        margin-bottom: 24px;
+    }
+    .startup-dots { display: flex; gap: 4px; }
+    .startup-dots span {
+        width: 5px; height: 5px; border-radius: 50%;
+        background: var(--primary);
+        animation: dot-pulse 1.4s ease-in-out infinite;
+    }
+    .startup-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .startup-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes dot-pulse {
+        0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+        40% { opacity: 1; transform: scale(1); }
+    }
+    .startup-bar {
+        width: 180px; height: 3px; background: #e5e7eb;
+        border-radius: 2px; overflow: hidden;
+    }
+    .startup-bar-fill {
+        height: 100%; width: 30%;
+        background: linear-gradient(90deg, #667eea, #764ba2);
+        border-radius: 2px;
+        animation: bar-shift 1.6s ease-in-out infinite;
+    }
+    @keyframes bar-shift {
+        0% { transform: translateX(-30%); }
+        100% { transform: translateX(330%); }
+    }
+    .startup-error {
+        text-align: center;
+        font-size: 13px; color: #dc2626;
+        max-width: 280px; line-height: 1.5;
+    }
+    .startup-error .retry-btn {
+        display: inline-block; margin-top: 14px;
+        padding: 7px 22px; border: none;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white; border-radius: 8px; cursor: pointer;
+        font-size: 13px; font-family: inherit; font-weight: 500;
+        transition: opacity 0.2s;
+    }
+    .startup-error .retry-btn:hover { opacity: 0.85; }
+
+    /* ====== 全局后端状态指示器（标题栏） ====== */
+        .backend-global-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 0 10px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            -webkit-app-region: no-drag;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            height: 100%;
+        }
+        .backend-global-indicator:hover {
+            background: rgba(0,0,0,0.04);
+        }
+        .backend-global-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            transition: background 0.3s ease, box-shadow 0.3s ease;
+            flex-shrink: 0;
+        }
+        .backend-global-dot.stopped { background: #9ca3af; }
+        .backend-global-dot.starting { background: #f59e0b; animation: global-dot-pulse 1.2s infinite; }
+        .backend-global-dot.ready { background: #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.5); }
+        .backend-global-dot.error { background: #ef4444; }
+        @keyframes global-dot-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .backend-global-label {
+            white-space: nowrap;
+            font-size: 10px;
+        }
+        .backend-global-start-btn {
+            display: none;
+            padding: 2px 8px;
+            border: 1px solid var(--primary);
+            border-radius: 4px;
+            background: transparent;
+            color: var(--primary);
+            font-size: 10px;
+            cursor: pointer;
+            font-family: inherit;
+            white-space: nowrap;
+            transition: all 0.15s;
+        }
+        .backend-global-start-btn:hover {
+            background: var(--primary);
+            color: #fff;
+        }
+        .backend-global-indicator.show-start .backend-global-start-btn {
+            display: inline-block;
+        }
+
+        /* ====== 全局通知栏 ====== */
+        .global-notification-bar {
+            position: fixed;
+            top: var(--titlebar-height);
+            left: 0;
+            right: 0;
+            z-index: 9998;
+            display: none;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            text-align: center;
+            animation: notif-slide-down 0.25s ease;
+            cursor: pointer;
+        }
+        .global-notification-bar.info {
+            background: #eff6ff;
+            color: #1e40af;
+            border-bottom: 1px solid #bfdbfe;
+        }
+        .global-notification-bar.success {
+            background: #f0fdf4;
+            color: #166534;
+            border-bottom: 1px solid #bbf7d0;
+        }
+        .global-notification-bar.warning {
+            background: #fef3c7;
+            color: #92400e;
+            border-bottom: 1px solid #fde68a;
+        }
+        .global-notification-bar.error {
+            background: #fef2f2;
+            color: #991b1b;
+            border-bottom: 1px solid #fecaca;
+        }
+        html[data-theme="dark"] .global-notification-bar.info {
+            background: #1e293b; color: #93c5fd; border-color: #334155;
+        }
+        html[data-theme="dark"] .global-notification-bar.success {
+            background: #052e16; color: #6ee7b7; border-color: #166534;
+        }
+        html[data-theme="dark"] .global-notification-bar.warning {
+            background: #451a03; color: #fcd34d; border-color: #78350f;
+        }
+        html[data-theme="dark"] .global-notification-bar.error {
+            background: #450a0a; color: #fca5a5; border-color: #7f1d1d;
+        }
+        .global-notification-bar .notif-close {
+            float: right;
+            background: none;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            opacity: 0.6;
+            padding: 0 4px;
+            color: inherit;
+        }
+        .global-notification-bar .notif-close:hover { opacity: 1; }
+        @keyframes notif-slide-down {
+            from { transform: translateY(-100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        /* ====== 浮动滚动工具 ====== */
+    .scroll-tools {
+        position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+        display: flex; flex-direction: column; gap: 8px;
+    }
+    .scroll-tool-btn {
+        width: 40px; height: 40px; border-radius: 10px;
+        border: 1px solid var(--panel-border); background: var(--bg);
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        transition: all 0.15s; opacity: 0.55; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        color: var(--text-secondary);
+    }
+    .scroll-tool-btn:hover { opacity: 1; border-color: var(--primary); color: var(--primary); }
+
+        /* ====== 模块子工具返回按钮（置顶左上方，返回工具模块） ====== */
+    .module-back-btn {
+        position: fixed;
+        top: calc(var(--titlebar-height, 40px) + 12px);
+        left: 14px;
+        z-index: 8000;
+        display: none;
+        align-items: center;
+        gap: 5px;
+        padding: 6px 13px;
+        border: 1px solid var(--panel-border);
+        border-radius: 8px;
+        background: var(--bg);
+        color: var(--text-secondary);
+        font-size: 0.78rem;
+        font-weight: 500;
+        font-family: inherit;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        opacity: 0.9;
+        transition: all 0.15s ease;
+    }
+    .module-back-btn svg { width: 14px; height: 14px; }
+    .module-back-btn:hover { color: var(--primary); border-color: var(--primary); opacity: 1; }
+    /* AI干活 视图顶部有面板条（34px），返回按钮下移避开 */
+    .module-back-btn.agent { top: calc(var(--titlebar-height, 40px) + 40px); }
+</style>
 </head>
 <body>
-<div class="container">
-    <div class="todo-section">
-        <iframe src="todo.html"></iframe>
+<!-- ====== 启动加载遮罩（仅 Electron 显示） ====== -->
+<div class="startup-overlay" id="startupOverlay">
+  <div class="startup-card">
+    <div class="startup-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
     </div>
-    <div class="clip-section">
-        <iframe src="clip.html"></iframe>
+    <div class="startup-title">碎碎记</div>
+    <div class="startup-status" id="startupStatus">
+      <span id="startupMsg">正在启动</span>
+      <div class="startup-dots" id="startupDots">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+    <div class="startup-bar" id="startupBar">
+      <div class="startup-bar-fill"></div>
+    </div>
+  </div>
+</div>
+<!-- ====== 全局通知栏 ====== -->
+<div class="global-notification-bar" id="globalNotificationBar">
+  <button class="notif-close" id="notifCloseBtn">&times;</button>
+  <span id="notifMessage"></span>
+</div>
+<!-- ====== 自定义标题栏（Obsidian 风格） ====== -->
+<div class="titlebar" id="titlebar">
+    <div class="titlebar-brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span>碎碎记 <small class="brand-subtitle">CutShelter</small></span>
+    </div>
+    <div class="backend-global-indicator" id="backendGlobalIndicator" title="后端服务状态，点击启动">
+        <span class="backend-global-dot stopped" id="backendGlobalDot"></span>
+        <span class="backend-global-label" id="backendGlobalLabel">未启动</span>
+        <button class="backend-global-start-btn" id="backendGlobalStartBtn" title="启动本地后端服务，建立数据读写通道">启动后端</button>
+    </div>
+    <nav class="titlebar-nav" id="titlebarNav">
+        <button class="nav-btn active" data-view="editor" title="编辑器主页：查看与编辑剪藏内容">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/>
+            </svg>
+            编辑
+        </button>
+        <button class="nav-btn" data-view="workspace" title="工作台：工作区概览、规则筛选与产品概览">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M8 4v16"/>
+            </svg>
+            工作台
+        </button>
+        <button class="nav-btn" data-view="clip" title="剪藏与待办：管理收集的内容与待办事项">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+            </svg>
+            剪藏
+        </button>
+        <button class="nav-btn" data-view="tools" title="工具模块：PDF 等各类小工具聚合">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"/>
+            </svg>
+            工具
+        </button>
+        <button class="nav-btn" data-view="settings" title="应用设置：调整偏好与全局配置">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+            设置
+        </button>
+    </nav>
+    <div class="titlebar-spacer"></div>
+    <!-- 全局统一搜索（对齐右侧的全局操作区） -->
+    <div class="global-search" id="globalSearch">
+        <div class="gsearch-input-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input type="text" id="globalSearchInput" placeholder="全局搜索" autocomplete="off" spellcheck="false" />
+            <kbd class="gsearch-kbd">⌘K</kbd>
+        </div>
+        <div class="gsearch-panel" id="globalSearchPanel"></div>
     </div>
 </div>
+
+<div class="app-layout">
+    <div class="main-content" id="mainContent">
+        <!-- 编辑器首页 -->
+        <div class="view-panel" id="editorView">
+            <iframe id="editorFrame" data-src="editor.html" style="width:100%;height:100%;border:none;"></iframe>
+        </div>
+        <div class="view-panel view-panel-hidden" id="workspaceView">
+            <iframe id="workspaceFrame" data-src="workspace.html" style="width:100%;height:100%;border:none;"></iframe>
+        </div>
+        <!-- 剪藏工作台（原首页） -->
+        <div class="container view-panel view-panel-hidden" id="clipView">
+            <div class="todo-section">
+                <iframe id="todoFrame" data-src="todo.html" style="width:100%;height:100%;border:none;"></iframe>
+            </div>
+            <div class="clip-section">
+                <iframe id="clipFrame" data-src="clip.html" style="width:100%;height:100%;border:none;"></iframe>
+            </div>
+        </div>
+        <!-- 知识 -->
+        <div class="view-panel view-panel-hidden" id="knowledgeView">
+            <iframe id="knowledgeFrame" data-src="knowledge.html" style="width:100%;height:100%;border:none;"></iframe>
+        </div>
+        <!-- Wiki 知识库 -->
+        <div class="view-panel view-panel-hidden" id="wikiView">
+            <iframe id="wikiFrame" data-src="wiki.html" style="width:100%;height:100%;border:none;"></iframe>
+        </div>
+        <!-- 密码 -->
+        <div class="view-panel view-panel-hidden" id="vaultView">
+            <iframe id="vaultFrame" data-src="vault.html" style="width:100%;height:100%;border:none;"></iframe>
+        </div>
+        <!-- 学习计划 -->
+        <div class="view-panel view-panel-hidden" id="learningPlanView">
+            <iframe id="learningPlanFrame" data-src="learning-plan.html" style="width:100%;height:100%;border:none;"></iframe>
+        </div>
+        <!-- 工具模块 -->
+        <div class="view-panel view-panel-hidden" id="toolsView">
+            <iframe id="toolsFrame" data-src="tools.html" style="width:100%;height:100%;border:none;"></iframe>
+        </div>
+        <!-- AI 干活（内嵌 DeepSeek Harness Agent，本地 3081；主题适配：面板走主题变量，iframe 支持反色） -->
+        <div class="view-panel view-panel-hidden" id="agentView">
+            <div class="agent-panel-header" id="agentPanelHeader">
+                <span class="agent-status" id="agentStatus"><span class="agent-dot"></span>连接中…</span>
+                <span class="agent-title">DeepSeek Harness Agent（127.0.0.1:3081）</span>
+                <span class="agent-actions">
+                    <button class="agent-btn" id="agentThemeToggle" title="反色适配暗色主题">🌗 反色</button>
+                    <button class="agent-btn" id="agentReload" title="重新加载">⟳</button>
+                    <button class="agent-btn" id="agentOpenExternal" title="在新窗口打开">↗</button>
+                </span>
+            </div>
+            <div class="agent-progress" id="agentProgress" hidden>
+                <span class="agent-progress-text" id="agentProgressText"></span>
+                <span class="agent-progress-actions">
+                    <button class="agent-btn" id="agentCancel" hidden>取消</button>
+                    <button class="agent-btn" id="agentRetry" hidden>重试</button>
+                </span>
+            </div>
+            <div class="agent-frame-wrap">
+                <iframe id="agentFrame" data-src="http://127.0.0.1:3081" style="width:100%;height:100%;border:none;"></iframe>
+            </div>
+        </div>
+        <!-- 数据观测 -->
+        <div class="view-panel view-panel-hidden" id="dataObservabilityView">
+            <iframe id="dataObservabilityFrame" data-src="data-observability.html" style="width:100%;height:100%;border:none;"></iframe>
+        </div>
+        <!-- 设置 -->
+        <div class="view-panel view-panel-hidden" id="settingsView">
+            <iframe id="settingsFrame" data-src="settings.html" style="width:100%;height:100%;border:none;"></iframe>
+        </div>
+    </div>
+</div>
+
+<!-- 浮动滚动工具 -->
+<div class="scroll-tools" id="scrollTools">
+    <button class="scroll-tool-btn" id="btnScrollTop" title="回到顶部">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="18 15 12 9 6 15"/>
+        </svg>
+    </button>
+    <button class="scroll-tool-btn" id="btnRefresh" title="刷新页面">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10"/>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+    </button>
+</div>
+<!-- 模块子工具返回按钮（知识/Wiki/密码/AI干活/学习计划/数据观测），回到工具模块 -->
+<button class="module-back-btn" id="moduleBackBtn" title="返回工具模块">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+    <span>工具</span>
+</button>
+<script>
+  (function() {
+      const THEME_KEY = 'app_theme_v1';
+      const APPEARANCE_KEY = 'app_appearance_v1'; // regular | dark | notion | system
+
+      // ====== 主题管理 ======
+      function getEffectiveTheme() {
+        const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+        if (appearance === 'system') {
+          return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'notion';
+        }
+        return appearance;
+      }
+
+      function applyTheme(themeOverride, persist = true) {
+        const theme = themeOverride || getEffectiveTheme();
+        const dataTheme = theme === 'dark' ? 'dark' : (theme === 'regular' ? 'regular' : 'notion');
+        document.documentElement.setAttribute('data-theme', dataTheme);
+        if (persist) {
+          localStorage.setItem(THEME_KEY, dataTheme);
+        }
+        // 广播主题变更到所有 iframe 子页面
+        broadcastThemeChange();
+        // 同步 Windows 原生标题栏 Overlay 按钮颜色到当前主题
+        if (window.syncTitleBarOverlay) window.syncTitleBarOverlay();
+      }
+
+      function broadcastThemeChange() {
+        [editorFrame, workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, settingsFrame, learningPlanFrame, toolsFrame, agentFrame, dataObservabilityFrame].forEach(frame => {
+          try { if (frame && frame.contentWindow) frame.contentWindow.postMessage({ action: 'themeChange', theme: document.documentElement.getAttribute('data-theme') }, '*'); } catch(e) {}
+        });
+      }
+
+      function notifyAllFrames(message) {
+        [editorFrame, workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, settingsFrame, learningPlanFrame, toolsFrame, agentFrame, dataObservabilityFrame].forEach(frame => {
+          try { if (frame && frame.contentWindow) frame.contentWindow.postMessage(message, '*'); } catch(e) {}
+        });
+      }
+
+      // 监听系统主题变化
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        const appearance = localStorage.getItem(APPEARANCE_KEY) || 'light';
+        if (appearance === 'system') {
+          applyTheme(null, false);
+        }
+      });
+
+      window.addEventListener('storage', event => {
+        if (event.key === THEME_KEY || event.key === APPEARANCE_KEY) {
+          applyTheme(null, false);
+        }
+        if (event.key === 'active_workspace_id') {
+          activeWorkspaceId = event.newValue || '';
+          // 工作台选择由工作台模块管理，无需更新全局选择器
+          notifyAllFrames({ action: 'workspaceChange', workspaceId: activeWorkspaceId });
+        }
+      });
+
+      // 监听 iframe 子页面的主题变更消息
+      window.addEventListener('message', event => {
+        if (event.data && event.data.type === 'themeChanged') {
+          applyTheme(event.data.theme, false);
+        }
+        if (event.data && event.data.type === 'appearanceChanged') {
+          applyTheme(null, false);
+        }
+        if (event.data && event.data.type === 'openClipInEditor' && event.data.clipId) {
+          pendingClipId = event.data.clipId;
+          pendingClipAction = 'openClipInEditor';
+          renderView('editor');
+          window.history.pushState({ view: 'editor' }, '', '/');
+          sendPendingClipToEditor();
+        }
+        if (event.data && event.data.type === 'openClipInNewTab' && event.data.clipId) {
+          if (event.data.sourceFilePath) {
+            // 有源文件路径：构造完整路径，通过 Electron API 读取文件
+            var sourceFilePath = event.data.sourceFilePath;
+            var clipId = event.data.clipId;
+            window.electronAPI.getConfig().then(function(config) {
+              var storagePath = config.storagePath || '';
+              var fullPath = storagePath + '/obsidian-vault/' + sourceFilePath;
+              window.electronAPI.openFileByPath(fullPath).then(function(result) {
+                if (result && !result.canceled) {
+                  renderView('editor');
+                  window.history.pushState({ view: 'editor' }, '', '/');
+                  sendToEditor({ type: 'openFileData', fileData: result });
+                }
+              }).catch(function(err) {
+                console.error('[openClipInNewTab] 打开文件失败:', err);
+                // fallback: 使用 clipId 从 API 获取
+                pendingClipId = clipId;
+                pendingClipAction = 'openClipInNewTab';
+                renderView('editor');
+                window.history.pushState({ view: 'editor' }, '', '/');
+                sendPendingClipToEditor();
+              });
+            });
+          } else {
+            // 无源文件路径：回退到原逻辑（通过 clipId 从 API 获取）
+            pendingClipId = event.data.clipId;
+            pendingClipAction = 'openClipInNewTab';
+            renderView('editor');
+            window.history.pushState({ view: 'editor' }, '', '/');
+            sendPendingClipToEditor();
+          }
+        }
+        if (event.data && event.data.type === 'navigateKnowledge' && event.data.knowledgeId) {
+          renderView('knowledge');
+          window.history.pushState({ view: 'knowledge' }, '', '/knowledge');
+          const kf = document.getElementById('knowledgeFrame');
+          if (kf) kf.src = `knowledge-detail.html?id=${event.data.knowledgeId}`;
+        }
+        if (event.data && event.data.type === 'navigateKnowledgeGraph') {
+          renderView('knowledge');
+          window.history.pushState({ view: 'knowledge' }, '', '/knowledge');
+          const kf = document.getElementById('knowledgeFrame');
+          if (kf) kf.src = 'knowledge-graph.html';
+        }
+        if (event.data && event.data.type === 'navigateKnowledgeCreate') {
+          renderView('knowledge');
+          window.history.pushState({ view: 'knowledge' }, '', '/knowledge');
+          const kf = document.getElementById('knowledgeFrame');
+          if (kf) kf.src = 'knowledge-editor.html';
+        }
+        if (event.data && event.data.type === 'navigateLearningPlan' && event.data.planId) {
+          renderView('learning-plan');
+          window.history.pushState({ view: 'learning-plan' }, '', '/learning-plan');
+          const lpf = document.getElementById('learningPlanFrame');
+          if (lpf) lpf.src = `learning-plan.html?planId=${event.data.planId}`;
+        }
+        if (event.data && event.data.type === 'navigateModuleTool' && event.data.view) {
+          // 工具模块子工具入口 → 跳回顶层视图（学习计划/数据观测/知识/Wiki/密码/AI干活）
+          const mv = event.data.view;
+          const MV_ALLOWLIST = ['learning-plan', 'data-observability', 'knowledge', 'wiki', 'vault', 'agent'];
+          if (MV_ALLOWLIST.includes(mv)) {
+            renderView(mv);
+            window.history.pushState({ view: mv }, '', '/' + mv);
+          }
+        }
+        if (event.data && event.data.type === 'applyHeaderNav') {
+          // 工具模块内配置「显示到顶栏/顺序」后刷新菜单头
+          if (typeof applyHeaderNav === 'function') applyHeaderNav(event.data.tools);
+        }
+        if (event.data && event.data.type === 'openTextData') {
+          renderView('editor');
+          window.history.pushState({ view: 'editor' }, '', '/');
+          sendToEditor({ type: 'openTextData', text: event.data.text || '', title: event.data.title || '' });
+        }
+        if (event.data && event.data.type === 'navigateClip') {
+          renderView('clip');
+          window.history.pushState({ view: 'clip' }, '', '/clip');
+        }
+        if (event.data && event.data.type === 'editorReady') {
+          editorReady = true;
+          sendPendingClipToEditor();
+        }
+        if (event.data && event.data.type === 'workspaceChanged' && event.data.workspaceId !== undefined) {
+          activeWorkspaceId = event.data.workspaceId || '';
+          localStorage.setItem('active_workspace_id', activeWorkspaceId);
+          // 工作台选择由工作台模块管理，无需更新全局选择器
+          // 通知所有子页面（除了workspace.html自身）
+          [todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, learningPlanFrame].forEach(frame => {
+            try { if (frame && frame.contentWindow) frame.contentWindow.postMessage({ action: 'workspaceChange', workspaceId: activeWorkspaceId }, '*'); } catch(e) {}
+          });
+        }
+        if (event.data && event.data.type === 'editorClipSaved') {
+          try { clipFrame.contentWindow.postMessage({ action: 'refresh' }, '*'); } catch (e) {}
+        }
+        if (event.data && event.data.type === 'mascotChanged') {
+          try { editorFrame.contentWindow.postMessage(event.data, '*'); } catch (e) {}
+        }
+        if (event.data && event.data.type === 'saveMarkdownFile' && event.data.text) {
+          if (window.electronAPI && window.electronAPI.saveMarkdownFile) {
+            window.electronAPI.saveMarkdownFile({
+              text: event.data.text,
+              suggestedName: event.data.suggestedName || '学习计划'
+            });
+          }
+        }
+      });
+
+      // ====== 导航切换（SPA 路由 + 页面缓存） ======
+      const navBtns = document.querySelectorAll('.titlebar-nav .nav-btn');
+      const editorView = document.getElementById('editorView');
+      const workspaceView = document.getElementById('workspaceView');
+      const clipView = document.getElementById('clipView');
+      const knowledgeView = document.getElementById('knowledgeView');
+      const wikiView = document.getElementById('wikiView');
+      const wikiFrame = document.getElementById('wikiFrame');
+      const vaultView = document.getElementById('vaultView');
+      const settingsView = document.getElementById('settingsView');
+      const learningPlanView = document.getElementById('learningPlanView');
+      const toolsView = document.getElementById('toolsView');
+      const dataObservabilityView = document.getElementById('dataObservabilityView');
+      const editorFrame = document.getElementById('editorFrame');
+      const workspaceFrame = document.getElementById('workspaceFrame');
+      const knowledgeFrame = document.getElementById('knowledgeFrame');
+      const vaultFrame = document.getElementById('vaultFrame');
+      const settingsFrame = document.getElementById('settingsFrame');
+      const learningPlanFrame = document.getElementById('learningPlanFrame');
+      const toolsFrame = document.getElementById('toolsFrame');
+      const dataObservabilityFrame = document.getElementById('dataObservabilityFrame');
+      const scrollTools = document.getElementById('scrollTools');
+
+      // 收纳进工具中心的模块子工具视图：进入后显示「返回工具」按钮
+      const MODULE_BACK_VIEWS = ['knowledge', 'wiki', 'vault', 'agent', 'learning-plan', 'data-observability'];
+
+      let activeIframe = null;
+      let currentView = 'editor';
+      let pendingClipId = null;
+      let pendingClipAction = null;
+      let editorReady = false;
+      let activeWorkspaceId = localStorage.getItem('active_workspace_id') || '';
+      const todoFrame = document.getElementById('todoFrame');
+      const clipFrame = document.getElementById('clipFrame');
+
+      applyTheme(null, false);
+
+      const viewMap = {
+        editor: editorView,
+        workspace: workspaceView,
+        clip: clipView,
+        knowledge: knowledgeView,
+        wiki: wikiView,
+        vault: vaultView,
+        settings: settingsView,
+        'learning-plan': learningPlanView,
+        tools: toolsView,
+        agent: agentView
+        , 'data-observability': dataObservabilityView
+      };
+      const VIEW_IFRAME = {
+        editor: [editorFrame],
+        workspace: [workspaceFrame],
+        clip: [todoFrame, clipFrame],
+        knowledge: [knowledgeFrame],
+        wiki: [wikiFrame],
+        vault: [vaultFrame],
+        settings: [settingsFrame],
+        'learning-plan': [learningPlanFrame],
+        tools: [toolsFrame],
+        agent: [agentFrame]
+        , 'data-observability': [dataObservabilityFrame]
+      };
+      const allPanels = Object.values(viewMap);
+
+      function ensureFramesLoaded(view) {
+        (VIEW_IFRAME[view] || []).forEach(frame => {
+          if (!frame || frame === agentFrame) return;   // agentFrame 由 DSH sidecar 就绪后按需加载
+          if (frame.dataset.src) {
+            frame.src = frame.dataset.src;
+            delete frame.dataset.src;
+          }
+        });
+      }
+
+      function renderView(view) {
+        const normalizedView = viewMap[view] ? view : 'editor';
+        currentView = normalizedView;
+        document.querySelectorAll('.titlebar-nav .nav-btn').forEach(n => n.classList.remove('active'));
+        const targetBtn = document.querySelector(`.nav-btn[data-view="${normalizedView}"]`);
+        if (targetBtn) targetBtn.classList.add('active');
+
+        // 隐藏所有 view panel（用 visibility 而非 display，避免 iframe 重新加载）
+        allPanels.forEach(p => p.classList.add('view-panel-hidden'));
+
+        scrollTools.style.display = normalizedView === 'editor' ? 'none' : 'flex';
+        // 模块子工具视图（收纳进工具中心的模块）显示「返回工具」按钮
+        const moduleBackBtn = document.getElementById('moduleBackBtn');
+        if (moduleBackBtn) {
+          // 已「显示到顶栏」的子模块从顶栏入口进入，无需再显示返回工具按钮
+          const isModuleSub = MODULE_BACK_VIEWS.indexOf(normalizedView) !== -1 && pinnedHeaderViews.indexOf(normalizedView) === -1;
+          moduleBackBtn.style.display = isModuleSub ? 'flex' : 'none';
+          moduleBackBtn.classList.toggle('agent', normalizedView === 'agent');
+        }
+        ensureFramesLoaded(normalizedView);
+        viewMap[normalizedView].classList.remove('view-panel-hidden');
+        activeIframe = normalizedView === 'clip' ? null : (VIEW_IFRAME[normalizedView]?.[0] || null);
+
+        // 切回剪藏视图时通知剪藏页刷新关联知识（解决创建知识后卡在"加载中…"的问题）
+        if (normalizedView === 'clip' && clipFrame && clipFrame.contentWindow) {
+          clipFrame.contentWindow.postMessage({ action: 'refreshKnowledge' }, '*');
+        }
+        // 切换到知识视图时补发 workspaceChange，确保知识模块首次加载时数据与工作台选择一致
+        if (normalizedView === 'knowledge' && knowledgeFrame && knowledgeFrame.contentWindow) {
+          knowledgeFrame.contentWindow.postMessage({ action: 'workspaceChange', workspaceId: activeWorkspaceId }, '*');
+        }
+        // 切换到 AI 干活视图：按需启动/复用 DSH sidecar，并同步状态
+        if (normalizedView === 'agent') {
+          ensureDshAgentRuntime();
+        }
+      }
+
+      // ===== AI 干活（Agent）面板逻辑：DSH sidecar 状态 + 主题适配 =====
+      const AGENT_PORT = 3081;
+      const AGENT_INVERT_KEY = 'agent_frame_invert_v1';
+
+      function applyAgentInvert() {
+        const mode = localStorage.getItem(AGENT_INVERT_KEY) || 'auto';
+        const theme = document.documentElement.getAttribute('data-theme');
+        const btn = document.getElementById('agentThemeToggle');
+        if (agentFrame) {
+          agentFrame.classList.toggle('invert', mode === 'on');
+          agentFrame.classList.toggle('auto-invert', mode === 'auto' && theme === 'dark');
+        }
+        if (btn) {
+          btn.classList.toggle('active', mode === 'on' || (mode === 'auto' && theme === 'dark'));
+          btn.title = mode === 'auto'
+            ? '反色适配（跟随暗色主题）· 点击切换为常开/关闭'
+            : (mode === 'on' ? '反色：常开 · 点击关闭' : '反色：关闭 · 点击恢复自动');
+        }
+      }
+
+      // ===== AI 干活（Agent）面板：进度交互（自动安装/启动 DSH） =====
+      const AGENT_PROGRESS_EL = document.getElementById('agentProgress');
+      const AGENT_PROGRESS_TEXT = document.getElementById('agentProgressText');
+      const AGENT_CANCEL_BTN = document.getElementById('agentCancel');
+      const AGENT_RETRY_BTN = document.getElementById('agentRetry');
+      let agentEnsurePromise = null;   // 防止重复触发启动
+
+      /**
+       * 加载/重载 DSH iframe。
+       * - src 为空或地址不同 → 直接设置 src（首次加载）；
+       * - 已指向目标地址且 force=true → 强制重载（sidecar 可能重启过，或早期加载失败留下空白页）。
+       */
+      function loadAgentFrame(port, force) {
+        if (!agentFrame) return;
+        const url = 'http://127.0.0.1:' + (port || AGENT_PORT);
+        if (!agentFrame.src || agentFrame.src.indexOf(url) === -1) {
+          agentFrame.src = url;
+        } else if (force) {
+          agentFrame.src = agentFrame.src;
+        }
+      }
+
+      function setAgentStatus(state, text) {
+        const el = document.getElementById('agentStatus');
+        if (!el) return;
+        el.className = 'agent-status ' + state;   // on / off / starting
+        el.innerHTML = '<span class="agent-dot"></span>' + text;
+      }
+
+      function showAgentProgress(text, { loading = false, error = false } = {}) {
+        if (!AGENT_PROGRESS_EL) return;
+        AGENT_PROGRESS_EL.hidden = false;
+        AGENT_PROGRESS_EL.classList.toggle('loading', loading);
+        AGENT_PROGRESS_EL.classList.toggle('error', error);
+        if (AGENT_PROGRESS_TEXT) AGENT_PROGRESS_TEXT.textContent = text || '';
+        if (AGENT_CANCEL_BTN) AGENT_CANCEL_BTN.hidden = !loading;
+        if (AGENT_RETRY_BTN) AGENT_RETRY_BTN.hidden = !error;
+      }
+      function hideAgentProgress() {
+        if (AGENT_PROGRESS_EL) AGENT_PROGRESS_EL.hidden = true;
+      }
+
+      /** 主进程进度广播 → 面板（detecting/installing/starting/ready/failed/need-install） */
+      function handleAgentProgress(p) {
+        if (!p || !p.state) return;
+        const elapsed = p.elapsed ? `（已等待 ${p.elapsed} 秒）` : '';
+        switch (p.state) {
+          case 'detecting':
+            setAgentStatus('starting', '检查 DSH 环境…');
+            showAgentProgress(p.message + elapsed, { loading: true });
+            break;
+          case 'installing':
+            setAgentStatus('starting', '正在安装 DSH…');
+            showAgentProgress(p.message + elapsed, { loading: true });
+            break;
+          case 'starting':
+            setAgentStatus('starting', '正在启动 DSH…');
+            showAgentProgress(p.message + elapsed, { loading: true });
+            break;
+          case 'ready':
+            setAgentStatus('on', p.message || '运行中');
+            hideAgentProgress();
+            loadAgentFrame(AGENT_PORT, true);   // 就绪后确保面板加载/重载
+            break;
+          case 'need-install':
+            // 未装 dsh：CutShelter 不再代装，提示用户自助安装后重试
+            setAgentStatus('off', '未检测到 DSH');
+            showAgentProgress(p.message, { error: true });
+            if (agentFrame) agentFrame.src = 'about:blank';
+            break;
+          case 'failed':
+            setAgentStatus('off', '启动失败');
+            showAgentProgress(p.message, { error: true });
+            // 失败时清空 iframe，避免半加载的 DSH SPA 残留渲染出重复菜单；端口就绪后再真正加载
+            if (agentFrame) agentFrame.src = 'about:blank';
+            break;
+        }
+      }
+
+      async function ensureDshAgentRuntime() {
+        applyAgentInvert();
+        // 缓存复用：状态已 on（DSH 运行中）时直接复用现有会话，不再重新探测并强制刷新
+        // iframe，避免每次进入 AI 干活视图都重复加载，接近原生体验。
+        const stEl = document.getElementById('agentStatus');
+        if (stEl && stEl.classList.contains('on')) {
+          loadAgentFrame(AGENT_PORT, false);
+          return Promise.resolve({ success: true, reused: true });
+        }
+        if (!(window.electronAPI && typeof window.electronAPI.ensureDshAgent === 'function')) {
+          // 纯浏览器模式：直接探测 3081（iframe 本身会显示连接状态）
+          setAgentStatus('starting', '检测 127.0.0.1:' + AGENT_PORT + '…');
+          showAgentProgress('检测 ' + AGENT_PORT + '…', { loading: true });
+          try {
+            await fetch('http://127.0.0.1:' + AGENT_PORT + '/', { mode: 'no-cors' });
+            setAgentStatus('on', '运行中（端口 ' + AGENT_PORT + '）');
+            hideAgentProgress();
+            loadAgentFrame(AGENT_PORT, false);
+          } catch (e) {
+            setAgentStatus('off', '未检测到 DSH（' + AGENT_PORT + '），请先手动启动 dsh web');
+            showAgentProgress('未检测到 DSH（' + AGENT_PORT + '）。请先手动执行 npx @deepseek-ai/dsh web，或确认网络后重试。', { error: true });
+          }
+          return;
+        }
+        // Electron 内：让主进程按需启动/复用 sidecar（端口 3081，首次自动安装）
+        if (agentEnsurePromise) return agentEnsurePromise;
+        agentEnsurePromise = (async () => {
+          setAgentStatus('starting', '启动 DSH Agent…');
+          showAgentProgress('正在准备…', { loading: true });
+          // 兜底探测：即使进度广播或 IPC 结果异常丢失，面板也应收敛到正确状态。
+          // 每 2 秒探测一次 3081；一旦可访问且状态未就绪 → 置为运行中并加载面板。
+          let probing = false;
+          let probeCount = 0;
+          const probeTimer = setInterval(async () => {
+            if (probing) return;
+            probing = true;
+            probeCount++;
+            try {
+              if (stEl && stEl.classList.contains('on')) { clearInterval(probeTimer); return; }
+              if (probeCount > 25) { clearInterval(probeTimer); return; }   // ~50s 上限
+              await fetch('http://127.0.0.1:' + AGENT_PORT + '/', { mode: 'no-cors' });
+              setAgentStatus('on', '运行中（端口 ' + AGENT_PORT + '）');
+              hideAgentProgress();
+              // 非强制加载：src 已指向目标地址时不重复刷新，仅首次（空/about:blank）才真正加载
+              loadAgentFrame(AGENT_PORT, false);
+              clearInterval(probeTimer);
+            } catch (e) {
+              // sidecar 尚未就绪，继续探测
+            } finally {
+              probing = false;
+            }
+          }, 2000);
+          try {
+            const r = await window.electronAPI.ensureDshAgent();
+            clearInterval(probeTimer);
+            if (r && r.success) {
+              setAgentStatus('on', r.reused ? '已复用现有实例（端口 ' + r.port + '）' : '运行中（端口 ' + r.port + '）');
+              hideAgentProgress();
+              loadAgentFrame(r.port || AGENT_PORT, false);
+            } else if (r && r.needInstall) {
+              // 未装 dsh：提示自助安装后重试（与 need-install 广播一致的文案）
+              setAgentStatus('off', '未检测到 DSH');
+              showAgentProgress(r.message || '未检测到 DSH，请按说明自助安装后重试', { error: true });
+              if (agentFrame) agentFrame.src = 'about:blank';
+            } else {
+              setAgentStatus('off', '启动失败');
+              showAgentProgress('启动失败：' + ((r && r.message) || '未知错误'), { error: true });
+            }
+          } catch (e) {
+            clearInterval(probeTimer);
+            setAgentStatus('off', '启动失败');
+            showAgentProgress('启动失败：' + e.message, { error: true });
+          } finally {
+            agentEnsurePromise = null;
+          }
+        })();
+        return agentEnsurePromise;
+      }
+
+      function wireAgentPanel() {
+        const toggle = document.getElementById('agentThemeToggle');
+        if (toggle) {
+          toggle.addEventListener('click', () => {
+            const mode = localStorage.getItem(AGENT_INVERT_KEY) || 'auto';
+            const next = mode === 'auto' ? 'on' : (mode === 'on' ? 'off' : 'auto');
+            localStorage.setItem(AGENT_INVERT_KEY, next);
+            applyAgentInvert();
+          });
+        }
+        const reload = document.getElementById('agentReload');
+        // 统一走单一路径重载，避免与其他重载入口叠加导致 DSH SPA 重复渲染菜单
+        if (reload) reload.addEventListener('click', () => { loadAgentFrame(AGENT_PORT, true); });
+        const ext = document.getElementById('agentOpenExternal');
+        if (ext) ext.addEventListener('click', () => {
+          if (window.electronAPI && typeof window.electronAPI.openExternal === 'function') {
+            window.electronAPI.openExternal('http://127.0.0.1:' + AGENT_PORT);
+          } else {
+            window.open('http://127.0.0.1:' + AGENT_PORT, '_blank');
+          }
+        });
+        // 取消安装/启动
+        if (AGENT_CANCEL_BTN) {
+          AGENT_CANCEL_BTN.addEventListener('click', async () => {
+            if (window.electronAPI && typeof window.electronAPI.cancelDshAgent === 'function') {
+              await window.electronAPI.cancelDshAgent();
+            }
+            hideAgentProgress();
+            setAgentStatus('off', '已取消');
+          });
+        }
+        // 失败后重试
+        if (AGENT_RETRY_BTN) {
+          AGENT_RETRY_BTN.addEventListener('click', () => {
+            hideAgentProgress();
+            ensureDshAgentRuntime();
+          });
+        }
+        // 订阅主进程进度广播
+        if (window.electronAPI && typeof window.electronAPI.onDshAgentProgress === 'function') {
+          window.electronAPI.onDshAgentProgress(handleAgentProgress);
+        }
+      }
+      wireAgentPanel();
+      // 主题切换时同步 iframe 反色状态（CSS 变量已自适应，反色需 JS 刷新）
+      const origApplyTheme = applyTheme;
+      applyTheme = function (themeOverride, persist) {
+        origApplyTheme(themeOverride, persist);
+        applyAgentInvert();
+      };
+
+      function pathToView(path) {
+        const clean = path.replace(/\/$/, '');
+        if (clean === '' || clean === '/editor') return 'editor';
+        if (clean === '/workspace') return 'workspace';
+        if (clean === '/clip') return 'clip';
+        if (clean === '/knowledge') return 'knowledge';
+        if (clean === '/wiki') return 'wiki';
+        if (clean === '/settings') return 'settings';
+        if (clean === '/vault') return 'vault';
+        if (clean === '/learning-plan') return 'learning-plan';
+        if (clean === '/tools') return 'tools';
+        if (clean === '/agent') return 'agent';
+        if (clean === '/data-observability') return 'data-observability';
+        return 'editor';
+      }
+
+      navBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const view = btn.dataset.view;
+          renderView(view);
+          if (window.history.pushState) {
+            window.history.pushState({ view }, '', view === 'editor' ? '/' : `/${view}`);
+          }
+        });
+      });
+
+      // 动态固定到菜单头的子模块按钮（知识/Wiki/密码/AI干活/学习计划/数据观测）→ 由 tools 模块 via config 配置
+      // 每个待固定模块的图标/文案定义；渲染到「工具」之后、也即 settings 之前
+      const PINNABLE_NAV = {
+        knowledge: { label: '知识', title: '知识库管理：维护知识笔记与标签', svg: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>' },
+        wiki: { label: 'Wiki', title: 'Wiki 知识库：结构化文档协作空间', svg: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 7h8M8 11h6M8 15h4"/>' },
+        vault: { label: '密码', title: '密码保险库：查看与搜索凭据记录', svg: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>' },
+        agent: { label: 'AI 干活', title: 'AI 干活：内嵌 DeepSeek Harness Agent（本地 3081）', svg: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/>' },
+        'learning-plan': { label: '学习计划', title: '学习计划：维护学习目标与计划', svg: '<path d="M20 6H9a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h11V6z"/><path d="M7 4h13V2H6a2 2 0 0 0-2 2v16" transform="translate(0 1)"/>' },
+        'data-observability': { label: '数据观测台', title: '数据观测台：查看使用习惯与事件统计', svg: '<path d="M18 20V10M12 20V4M6 20v-6"/>' }
+      };
+      // 依据 tools 模块写入的 navHeaderTools 配置动态渲染固定到菜单头的子模块按钮
+      function applyHeaderNav(list) {
+        const navEl = document.getElementById('titlebarNav');
+        if (!navEl) return;
+        // 先移除旧的动态固定按钮（data-view 在 PINNABLE_NAV 定义的）
+        navEl.querySelectorAll('.nav-btn.th-pinned').forEach(n => n.remove());
+        const arr = Array.isArray(list) ? list : [];
+        const settingsBtn = navEl.querySelector('.nav-btn[data-view="settings"]');
+        // 按 order 排序后插入到 settings 之前
+        const sorted = arr
+          .filter(function (it) { return it && PINNABLE_NAV[it.view] && it.show !== false && !FIXED_HEADER_VIEWS.includes(it.view); })
+          .sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+        // 记录被固定到顶栏的子模块视图，供返回按钮判断是否需要隐藏
+        pinnedHeaderViews = sorted.map(function (it) { return it.view; });
+        sorted.forEach(function (it) {
+          const def = PINNABLE_NAV[it.view];
+          const btn = document.createElement('button');
+          btn.className = 'nav-btn th-pinned';
+          btn.dataset.view = it.view;
+          btn.title = (it.label || def.label);
+          btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + def.svg + '</svg>' + (it.label || def.label);
+          btn.addEventListener('click', () => {
+            renderView(it.view);
+            if (window.history.pushState) window.history.pushState({ view: it.view }, '', '/' + it.view);
+          });
+          if (settingsBtn && settingsBtn.parentNode) settingsBtn.before(btn);
+          else navEl.appendChild(btn);
+        });
+        // 让当前视图的高亮保持正确
+        renderView(currentView);
+      }
+      // 固定的菜单头主入口（不参与固定模块，避免重复）
+      const FIXED_HEADER_VIEWS = ['editor', 'workspace', 'clip', 'tools', 'settings'];
+      // 被「显示到顶栏」固定的子模块视图集合；处于该集合的视图从顶栏进入，无需再显示返回工具按钮
+      let pinnedHeaderViews = [];
+      // 初次加载时从主进程配置读取 navHeaderTools 并渲染
+      if (window.electronAPI && typeof window.electronAPI.getConfig === 'function') {
+        window.electronAPI.getConfig().then(function (cfg) {
+          applyHeaderNav((cfg && cfg.navHeaderTools) || []);
+        }).catch(function () { });
+      }
+
+      window.addEventListener('popstate', () => {
+        renderView(pathToView(window.location.pathname));
+      });
+
+      // 滚动工具按钮事件
+      document.getElementById('btnScrollTop').addEventListener('click', () => {
+        if (activeIframe) {
+          activeIframe.contentWindow.postMessage({action: 'scrollToTop'}, '*');
+        } else if (currentView === 'clip') {
+          // 剪藏工作台同时控制待办和剪藏两个 iframe
+          if (todoFrame && todoFrame.contentWindow) todoFrame.contentWindow.postMessage({action: 'scrollToTop'}, '*');
+          if (clipFrame && clipFrame.contentWindow) clipFrame.contentWindow.postMessage({action: 'scrollToTop'}, '*');
+        }
+      });
+      document.getElementById('btnRefresh').addEventListener('click', () => {
+        // AI 干活视图：走单一路径重载 iframe，避免跨域 postMessage 无效且与 ⟳ 叠加重载
+        if (currentView === 'agent') { loadAgentFrame(AGENT_PORT, true); return; }
+        if (activeIframe) {
+          activeIframe.contentWindow.postMessage({action: 'refresh'}, '*');
+        } else if (currentView === 'clip') {
+          if (todoFrame && todoFrame.contentWindow) todoFrame.contentWindow.postMessage({action: 'refresh'}, '*');
+          if (clipFrame && clipFrame.contentWindow) clipFrame.contentWindow.postMessage({action: 'refresh'}, '*');
+        }
+      });
+      // 模块子工具「返回工具」按钮：回到工具模块
+      document.getElementById('moduleBackBtn').addEventListener('click', () => {
+        renderView('tools');
+        if (window.history.pushState) window.history.pushState({ view: 'tools' }, '', '/tools');
+      });
+
+      // 初始路由
+      (function () {
+        const view = pathToView(window.location.pathname);
+        renderView(view);
+        window.history.replaceState({ view }, '', view === 'editor' ? '/' : `/${view}`);
+      })();
+
+      function sendPendingClipToEditor() {
+        if (!pendingClipId || !editorReady || !editorFrame || !editorFrame.contentWindow) return;
+        editorFrame.contentWindow.postMessage({ action: pendingClipAction || 'openClipInEditor', clipId: pendingClipId }, '*');
+        pendingClipId = null;
+        pendingClipAction = null;
+      }
+
+      // 发送消息到编辑器 iframe；编辑器未就绪时等待其加载完成再发送
+      function sendToEditor(payload) {
+        if (!editorFrame) return;
+        const send = () => {
+          try { editorFrame.contentWindow.postMessage(payload, '*'); } catch (e) {}
+        };
+        if (editorReady && editorFrame.contentWindow && editorFrame.contentWindow.document.readyState === 'complete') {
+          send();
+          return;
+        }
+        // 编辑器尚未就绪：轮询等待 editorReady 标志置位
+        let attempts = 0;
+        const timer = setInterval(() => {
+          attempts++;
+          if (editorReady || attempts > 50) {
+            clearInterval(timer);
+            send();
+          }
+        }, 100);
+      }
+
+      editorFrame.addEventListener('load', () => {
+        editorReady = false;
+        // 子页脚本可能在 iframe load 事件前已发送 ready；主动握手可消除该时序窗口。
+        editorFrame.contentWindow.postMessage({ action: 'editorPing' }, '*');
+      });
+
+      // 截图工具：OCR 结果 → 编辑器新标签打开（主进程 IPC 事件）
+      if (window.electronAPI && window.electronAPI.onScreenshotOpenInEditor) {
+        window.electronAPI.onScreenshotOpenInEditor((data) => {
+          renderView('editor');
+          window.history.pushState({ view: 'editor' }, '', '/editor');
+          sendToEditor({
+            type: 'openTextData',
+            text: (data && data.text) || '',
+            title: (data && data.title) || 'OCR 识别结果'
+          });
+        });
+      }
+
+      // 截图模块后台动作提示（OCR 失败/未就绪等，用户可见反馈）
+      if (window.electronAPI && window.electronAPI.onScreenshotNotify) {
+        window.electronAPI.onScreenshotNotify(function (data) {
+          try {
+            const msg = (data && data.message) || '';
+            if (!msg) return;
+            if (data.type === 'error') { showGlobalNotification(msg, 'error'); return; }
+            if (data.type === 'warn') { showGlobalNotification(msg, 'warning'); return; }
+            showGlobalNotification(msg, 'info');
+          } catch (e) {}
+        });
+      }
+
+      // 截图工具：OCR 组件未就绪 → 首次启动引导条（点击前往工具模块配置）
+      if (window.electronAPI && window.electronAPI.onScreenshotOcrNeedsSetup) {
+        window.electronAPI.onScreenshotOcrNeedsSetup(function (data) {
+          try {
+            if (sessionStorage.getItem('ocr-setup-notified')) return;
+            sessionStorage.setItem('ocr-setup-notified', '1');
+            showOcrSetupBar(data && data.reason);
+          } catch (e) {}
+        });
+      }
+      function showOcrSetupBar(reason) {
+        if (!notifBar || !notifMsg) return;
+        notifMsg.textContent = '🔤 ' + (reason || 'OCR 组件未就绪') + '（点击前往配置）';
+        notifBar.className = 'global-notification-bar info';
+        notifBar.style.display = 'block';
+        notifBar.style.cursor = 'pointer';
+        notifBar.onclick = function () {
+          hideGlobalNotification();
+          renderView('tools');
+          window.history.pushState({ view: 'tools' }, '', '/tools');
+        };
+      }
+
+      // ====== 窗口控制（仅 Electron 环境） ======
+      // 懒加载 iframe：从 data-src 读取真实 URL 并设置 src
+      // 注意：agentFrame（DSH 面板）跳过预加载——sidecar 可能尚未就绪，过早设置 src 会留下空白页；
+      //       该面板统一由 loadAgentFrame() 在 DSH 就绪后按需设置/重载。
+      function lazyLoadIframes() {
+        document.querySelectorAll('iframe[data-src]').forEach(iframe => {
+          if (iframe.id === 'agentFrame') return;
+          iframe.src = iframe.dataset.src;
+          iframe.removeAttribute('data-src');
+        });
+      }
+
+      if (window.electronAPI) {
+        // ====== 全局后端状态管理 ======
+        var BACKEND_STATE = { STOPPED: 'stopped', STARTING: 'starting', READY: 'ready', ERROR: 'error' };
+        var globalBackendState = BACKEND_STATE.STOPPED;
+
+        // 全局后端状态 DOM
+        var globalDot = document.getElementById('backendGlobalDot');
+        var globalLabel = document.getElementById('backendGlobalLabel');
+        var globalIndicator = document.getElementById('backendGlobalIndicator');
+        var globalStartBtn = document.getElementById('backendGlobalStartBtn');
+
+        // 全局通知栏
+        var notifBar = document.getElementById('globalNotificationBar');
+        var notifMsg = document.getElementById('notifMessage');
+
+        /**
+         * 更新全局后端状态指示器
+         */
+        function setGlobalBackendState(state, label) {
+          globalBackendState = state;
+          if (globalDot) {
+            globalDot.className = 'backend-global-dot ' + state;
+          }
+          if (globalLabel) {
+            globalLabel.textContent = label || state;
+          }
+          if (globalIndicator) {
+            if (state === BACKEND_STATE.STOPPED) {
+              globalIndicator.classList.add('show-start');
+              globalIndicator.title = '后端服务未启动，点击启动';
+            } else {
+              globalIndicator.classList.remove('show-start');
+              globalIndicator.title = '后端服务状态: ' + (label || state);
+            }
+          }
+          // 广播后端状态到所有 iframe 子页面（剪藏/编辑器等图片上传按此状态分级提示）
+          try {
+            notifyAllFrames({ action: 'backendState', state: state, label: label || '' });
+          } catch (e) {}
+        }
+
+        /**
+         * 显示全局通知栏
+         */
+        function showGlobalNotification(message, type) {
+          if (!notifBar || !notifMsg) return;
+          notifMsg.textContent = message;
+          notifBar.className = 'global-notification-bar ' + (type || 'info');
+          notifBar.style.display = 'block';
+          clearTimeout(notifBar._timer);
+          // 自动隐藏
+          notifBar._timer = setTimeout(function() {
+            notifBar.style.display = 'none';
+          }, 6000);
+        }
+
+        /**
+         * 隐藏全局通知栏
+         */
+        function hideGlobalNotification() {
+          if (notifBar) {
+            notifBar.style.display = 'none';
+            clearTimeout(notifBar._timer);
+          }
+        }
+
+        // 关闭通知栏按钮
+        document.getElementById('notifCloseBtn')?.addEventListener('click', hideGlobalNotification);
+
+        // 点击通知栏关闭
+        notifBar?.addEventListener('click', function(e) {
+          if (e.target === notifBar || e.target === notifMsg) {
+            hideGlobalNotification();
+          }
+        });
+
+        /**
+         * 手动启动后端（全局指示器）
+         */
+        function handleGlobalStartBackend() {
+          if (globalBackendState === BACKEND_STATE.STARTING || globalBackendState === BACKEND_STATE.READY) return;
+          setGlobalBackendState(BACKEND_STATE.STARTING, '后端启动中...');
+          showGlobalNotification('正在启动后端服务，请稍候...', 'info');
+          if (typeof window.electronAPI.startBackend === 'function') {
+            window.electronAPI.startBackend().then(function(result) {
+              if (result && result.success) {
+                setGlobalBackendState(BACKEND_STATE.READY, '后端已就绪');
+                showGlobalNotification('后端服务已就绪，所有功能可用', 'success');
+              } else {
+                setGlobalBackendState(BACKEND_STATE.ERROR, '后端启动失败');
+                showGlobalNotification('后端启动失败: ' + (result ? result.message : '未知错误') + '，请检查配置后重试', 'error');
+              }
+            }).catch(function(err) {
+              setGlobalBackendState(BACKEND_STATE.ERROR, '后端启动失败');
+              showGlobalNotification('后端启动失败: ' + (err.message || '未知错误') + '，请检查配置后重试', 'error');
+            });
+          }
+        }
+
+        // 全局启动按钮点击
+        globalStartBtn?.addEventListener('click', function(e) {
+          e.stopPropagation();
+          handleGlobalStartBackend();
+        });
+        // 指示器区域点击（点击标签也触发启动）
+        globalIndicator?.addEventListener('click', function() {
+          if (globalBackendState === BACKEND_STATE.STOPPED) {
+            handleGlobalStartBackend();
+          }
+        });
+
+        // 后端就绪标志：右键菜单动作需要调用后端 API
+        var backendReadyFlag = false;
+        function waitForBackend(timeoutMs) {
+          return new Promise(function(resolve) {
+            if (backendReadyFlag) return resolve(true);
+            var start = Date.now();
+            var timer = setInterval(function() {
+              if (backendReadyFlag || Date.now() - start > timeoutMs) {
+                clearInterval(timer);
+                resolve(backendReadyFlag);
+              }
+            }, 200);
+          });
+        }
+
+        // 简单 Toast 提示（成功/失败），让右键菜单动作结果可见
+        function showToast(message, isError) {
+          if (window.UI && UI.toast) {
+            UI.toast(message, { type: isError ? 'error' : 'success', duration: 2500 });
+            return;
+          }
+          var toast = document.getElementById('systemToast');
+          if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'systemToast';
+            toast.style.cssText = 'position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:99999;padding:10px 20px;border-radius:8px;font-size:13px;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.2);opacity:0;transition:opacity .25s;pointer-events:none;max-width:80vw;word-break:break-all;';
+            document.body.appendChild(toast);
+          }
+          toast.style.background = isError ? '#dc2626' : '#16a34a';
+          toast.textContent = message;
+          toast.style.opacity = '1';
+          clearTimeout(toast._t);
+          toast._t = setTimeout(function() { toast.style.opacity = '0'; }, 2500);
+        }
+        // 将常见网络错误替换为友好的中文提示
+        function friendlyError(err) {
+          if (window.UI && UI.friendlyError) return UI.friendlyError(err);
+          var msg = String((err && err.message) || err);
+          if (/Failed to fetch|fetch failed|NetworkError|ECONNREFUSED/i.test(msg)) {
+            return '无法连接本地服务，请确认后端已启动（在标题栏点击"启动后端"）';
+          }
+          return msg;
+        }
+
+        // ====== 后端就绪 → 自动刷新子页面 ======
+        // 最近一次后端就绪刷新的时间戳（去重：多个 onBackendReady 回调只触发一次刷新）
+        var lastBackendRefreshAt = 0;
+        // 已广播过 refresh 的 frame 集合，用于切断「refresh → 子页 reload → load → refresh」的无限循环
+        var refreshedFrameSet = new Set();
+        function frameLoaded(frame) {
+          try { return frame && frame.contentDocument && frame.contentDocument.readyState === 'complete'; } catch (e) { return false; }
+        }
+        function handleBackendReady() {
+          backendReadyFlag = true;
+          setGlobalBackendState(BACKEND_STATE.READY, '后端已就绪');
+          showGlobalNotification('后端服务已就绪，所有功能可用', 'success');
+          // 去重保护：5 秒内只广播一次
+          var now = Date.now();
+          if (now - lastBackendRefreshAt < 5000) return;
+          lastBackendRefreshAt = now;
+          refreshAllSubPages();
+        }
+        function refreshAllSubPages() {
+          // 注意：不刷新 editorFrame（避免打断用户正在编辑的内容）
+          [workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, learningPlanFrame, toolsFrame, dataObservabilityFrame, settingsFrame].forEach(function(frame) {
+            try {
+              if (frame && frame.contentWindow) {
+                frame.contentWindow.postMessage({ action: 'refresh' }, '*');
+                // 仅当 frame 已加载完成才标记为已广播；未加载完的交给下方 load 兜底补发
+                if (frameLoaded(frame)) refreshedFrameSet.add(frame);
+              }
+            } catch (e) {}
+          });
+        }
+
+        // ====== 启动流程 ======
+        function dismissStartupOverlay() {
+          var overlay = document.getElementById('startupOverlay');
+          if (overlay) {
+            overlay.classList.add('hidden');
+            setTimeout(function() { overlay.style.display = 'none'; }, 500);
+          }
+        }
+
+        // 加载子页面 iframe
+        function lazyLoadIframes() {
+          document.querySelectorAll('iframe[data-src]').forEach(function(iframe) {
+            if (iframe.id === 'agentFrame') return;   // DSH 面板：就绪后按需加载
+            iframe.src = iframe.dataset.src;
+            iframe.removeAttribute('data-src');
+          });
+        }
+
+        var overlay = document.getElementById('startupOverlay');
+        var startupMsg = document.getElementById('startupMsg');
+        var startupDots = document.getElementById('startupDots');
+        var startupBar = document.getElementById('startupBar');
+
+        // 始终先加载 iframe（前端页面不需要后端就绪）
+        lazyLoadIframes();
+
+        // 获取启动模式，决定后端行为
+        if (typeof window.electronAPI.getStartupMode === 'function') {
+          window.electronAPI.getStartupMode().then(function(mode) {
+            if (mode === 'full') {
+              // 完全启动模式：等待后端就绪再关闭遮罩
+              startupMsg.textContent = '正在启动后端服务...';
+              // 后端进度监听
+              window.electronAPI.onBackendProgress(function(data) {
+                startupMsg.textContent = data.message;
+              });
+              window.electronAPI.onBackendReady(function() {
+                dismissStartupOverlay();
+                handleBackendReady();
+              });
+              window.electronAPI.onBackendError(function(msg) {
+                startupDots.style.display = 'none';
+                startupBar.style.display = 'none';
+                startupMsg.style.display = 'none';
+                var status = document.getElementById('startupStatus');
+                status.innerHTML = '<div class="startup-error">启动失败: ' + msg + '<br><button class="retry-btn" onclick="location.reload()">重试</button></div>';
+                setGlobalBackendState(BACKEND_STATE.ERROR, '后端启动失败');
+                showGlobalNotification('后端启动失败: ' + msg + '，请检查配置后重试', 'error');
+              });
+            } else if (mode === 'frontend-async-backend') {
+              // 前端异步启动后端：快速关闭遮罩，后端后台启动
+              startupMsg.textContent = '启动完成';
+              startupDots.style.display = 'none';
+              startupBar.style.display = 'none';
+              setGlobalBackendState(BACKEND_STATE.STARTING, '后端启动中...');
+              dismissStartupOverlay();
+              showGlobalNotification('应用已启动，后端服务正在后台启动...', 'info');
+              // 监听后端就绪
+              window.electronAPI.onBackendReady(function() {
+                handleBackendReady();
+              });
+              window.electronAPI.onBackendError(function(msg) {
+                setGlobalBackendState(BACKEND_STATE.ERROR, '后端启动失败');
+                showGlobalNotification('后端启动失败: ' + msg + '，请在标题栏点击"启动后端"重试', 'error');
+              });
+            } else {
+              // frontend-only 模式：只启动前端，不启动后端
+              startupMsg.textContent = '启动完成';
+              startupDots.style.display = 'none';
+              startupBar.style.display = 'none';
+              dismissStartupOverlay();
+              setGlobalBackendState(BACKEND_STATE.STOPPED, '未启动');
+              // 检查后端是否意外已运行
+              if (typeof window.electronAPI.isBackendRunning === 'function') {
+                window.electronAPI.isBackendRunning().then(function(running) {
+                  if (running) {
+                    handleBackendReady();
+                  } else {
+                    showGlobalNotification('后端服务未启动，部分功能（AI、剪藏、知识库等）不可用，可在标题栏点击启动', 'warning');
+                  }
+                });
+              }
+            }
+          }).catch(function() {
+            // 获取模式失败，降级为 frontend-only
+            dismissStartupOverlay();
+            setGlobalBackendState(BACKEND_STATE.STOPPED, '未启动');
+          });
+        } else {
+          // 非 Electron 环境，直接关闭遮罩
+          dismissStartupOverlay();
+        }
+
+        // 统一监听后端就绪/错误事件（无论哪种模式，后端启动后都会触发）
+        if (typeof window.electronAPI.onBackendReady === 'function') {
+          window.electronAPI.onBackendReady(function() {
+            handleBackendReady();
+          });
+        }
+        if (typeof window.electronAPI.onBackendError === 'function') {
+          window.electronAPI.onBackendError(function(msg) {
+            setGlobalBackendState(BACKEND_STATE.ERROR, '后端启动失败');
+            showGlobalNotification('后端启动失败: ' + msg + '，请在标题栏点击"启动后端"重试', 'error');
+          });
+        }
+        // 监听系统通知（来自主进程的 show-notification 事件）
+        if (typeof window.electronAPI.onShowNotification === 'function') {
+          window.electronAPI.onShowNotification(function(data) {
+            if (data && data.title && data.body) {
+              showGlobalNotification(data.title + '：' + data.body, data.type || 'info');
+            }
+          });
+        }
+
+        // 时序竞态兜底：子页面 iframe 在 backend-ready 事件之后才加载完成时，补发一次刷新。
+        // 仅对「未被 refreshAllSubPages 广播过」的 frame 补发，避免 refresh → reload → load → refresh 无限循环
+        [workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, learningPlanFrame, toolsFrame, dataObservabilityFrame, settingsFrame].forEach(function(frame) {
+          if (!frame) return;
+          frame.addEventListener('load', function() {
+            try {
+              if (backendReadyFlag && frame.contentWindow && !refreshedFrameSet.has(frame)) {
+                refreshedFrameSet.add(frame);
+                frame.contentWindow.postMessage({ action: 'refresh' }, '*');
+              }
+            } catch (e) {}
+          });
+        });
+
+        // ===== 平台类 + 原生标题栏 Overlay 主题同步 =====
+        // 标题栏已改为系统原生拖拽（app-region），自绘按钮/拖拽/最大化图标逻辑一并移除。
+        // 平台类供分平台 CSS（mac 交通灯让位 / win Overlay 让位）。
+        if (window.electronAPI && window.electronAPI.platform) {
+          document.body.classList.add('platform-' + window.electronAPI.platform);
+        }
+
+        // 同步 Windows titleBarOverlay 按钮颜色到当前主题（macOS 为 no-op）。
+        // 在应用加载完成与每次主题切换后调用。
+        const titlebarEl = document.getElementById('titlebar');
+        function syncTitleBarOverlay() {
+          if (!window.electronAPI || !window.electronAPI.setTitleBarOverlay) return;
+          const cs = getComputedStyle(titlebarEl);
+          const color = cs.getPropertyValue('--titlebar-bg').trim() || '#2d2d2d';
+          const txt = getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#d4d4d4';
+          window.electronAPI.setTitleBarOverlay({ color, symbolColor: txt });
+        }
+        // 暴露到全局，供 applyTheme 主题切换时调用
+        window.syncTitleBarOverlay = syncTitleBarOverlay;
+        syncTitleBarOverlay();
+
+        // ===== Ctrl/Cmd+Shift+R 强制刷新（忽略缓存） =====
+        document.addEventListener('keydown', (e) => {
+          if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'R' || e.key === 'r')) {
+            e.preventDefault();
+            window.electronAPI.forceReload();
+          }
+        });
+
+        // ── 系统右键菜单事件处理 ──
+        // 主页是唯一 IPC 监听者（编辑器 iframe 可能尚未加载，编辑器内不再重复监听），
+        // 统一读取文件内容 → 请求后端 → 通过 postMessage 转发到对应视图执行业务功能。
+
+        // 添加到剪藏收件箱：读取文件内容 → 后端入库 → 映射到编辑区
+        if (window.electronAPI.onClipFile) {
+          window.electronAPI.onClipFile(async function(filePath) {
+            console.log('[System] 收到剪藏文件请求:', filePath);
+            try {
+              var result = await window.electronAPI.openFileByPath(filePath);
+              if (!result || result.canceled) return;
+              // 首启场景后端可能尚未就绪，等待就绪后再请求
+              if (!backendReadyFlag) {
+                showToast('后端服务未就绪，请稍后重试', true);
+                showGlobalNotification('后端服务未就绪，请在标题栏启动后端后再试', 'warning');
+                return;
+              }
+              var response = await fetch('http://127.0.0.1:8081/api/clip/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  content: result.text,
+                  source: filePath,
+                  title: result.fileName,
+                  type: 'store-only',
+                  captureMethod: 'context-menu'
+                })
+              });
+              var data = await response.json();
+              if (data.status === 'success') {
+                console.log('[System] 文件已添加到剪藏收件箱:', result.fileName);
+                showToast('已添加到收件箱：' + result.fileName);
+              } else {
+                showToast('添加到收件箱失败：' + (data.error || '未知错误'), true);
+              }
+              // 映射到编辑区：新标签页打开文件内容
+              renderView('editor');
+              window.history.pushState({ view: 'editor' }, '', '/');
+              sendToEditor({ type: 'openFileData', fileData: result });
+            } catch (err) {
+              console.error('[System] 剪藏文件失败:', err);
+              showToast('添加到收件箱失败：' + friendlyError(err), true);
+            }
+          });
+        }
+
+        // AI 解析并添加：读取文件内容 → 后端 AI 解析入库 → 映射到编辑区
+        if (window.electronAPI.onAiClipFile) {
+          window.electronAPI.onAiClipFile(async function(filePath) {
+            console.log('[System] 收到 AI 解析文件请求:', filePath);
+            try {
+              var result = await window.electronAPI.openFileByPath(filePath);
+              if (!result || result.canceled) return;
+              // 首启场景后端可能尚未就绪，等待就绪后再请求
+              if (!backendReadyFlag) {
+                showToast('后端服务未就绪，请稍后重试', true);
+                showGlobalNotification('后端服务未就绪，请在标题栏启动后端后再试', 'warning');
+                return;
+              }
+              // /api/ingest 需要 text 字段（AI 自动识别意图后路由入库）
+              var response = await fetch('http://127.0.0.1:8081/api/ingest', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  text: result.text,
+                  source: filePath,
+                  title: result.fileName
+                })
+              });
+              var data = await response.json();
+              if (data.success) {
+                console.log('[System] AI 解析完成，已添加到剪藏:', result.fileName);
+                showToast('AI 解析完成，已入库：' + result.fileName);
+              } else {
+                showToast('AI 解析失败：' + (data.error || '未知错误'), true);
+              }
+              // 映射到编辑区：新标签页打开文件内容
+              renderView('editor');
+              window.history.pushState({ view: 'editor' }, '', '/');
+              sendToEditor({ type: 'openFileData', fileData: result });
+            } catch (err) {
+              console.error('[System] AI 解析文件失败:', err);
+              showToast('AI 解析失败：' + friendlyError(err), true);
+            }
+          });
+        }
+
+        // 用编辑器打开：读取文件内容并在新标签页打开（Ctrl+T 风格，不覆盖当前编辑区）
+        // 注：主进程已做 open-editor 分发去重，此处再加同文件短时间去重双保险，
+        //     避免同一文件被重复打开导致出现两个编辑器画布（Bug 修复）。
+        var lastOpenEditorPath = null;
+        var lastOpenEditorAt = 0;
+        if (window.electronAPI.onOpenFileRequest) {
+          window.electronAPI.onOpenFileRequest(async function(filePath) {
+            console.log('[System] 收到编辑器打开请求:', filePath);
+            var now = Date.now();
+            if (filePath && filePath === lastOpenEditorPath && (now - lastOpenEditorAt) < 500) {
+              console.log('[System] 忽略重复的编辑器打开请求:', filePath);
+              return;
+            }
+            lastOpenEditorPath = filePath || null;
+            lastOpenEditorAt = now;
+            try {
+              var result = await window.electronAPI.openFileByPath(filePath);
+              if (!result || result.canceled) return;
+              renderView('editor');
+              window.history.pushState({ view: 'editor' }, '', '/');
+              sendToEditor({ type: 'openFileData', fileData: result });
+            } catch (err) {
+              console.error('[System] 打开文件失败:', err);
+            }
+          });
+        }
+
+        // PDF OCR 识别：请求后端 → 在新标签页打开识别结果
+        if (window.electronAPI.onPdfOcr) {
+          window.electronAPI.onPdfOcr(async function(filePath) {
+            console.log('[System] 收到 PDF OCR 请求:', filePath);
+            try {
+              if (!backendReadyFlag) {
+                showToast('后端服务未就绪，请稍后重试', true);
+                showGlobalNotification('后端服务未就绪，请在标题栏启动后端后再试', 'warning');
+                return;
+              }
+              var response = await fetch('http://127.0.0.1:8081/api/pdf/ocr', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filePath: filePath })
+              });
+              var data = await response.json();
+              if (data.success) {
+                console.log('[System] PDF OCR 完成');
+                var title = 'OCR 识别结果 - ' + filePath.split(/[/\\]/).pop();
+                if (!data.text || data.text.trim().length === 0) {
+                  showToast('OCR 未识别到文字（可能为空白页或加密 PDF）', true);
+                } else {
+                  showToast('PDF OCR 完成：' + filePath.split(/[/\\]/).pop());
+                }
+                renderView('editor');
+                window.history.pushState({ view: 'editor' }, '', '/');
+                sendToEditor({ type: 'openTextData', text: data.text || '', title: title });
+              } else {
+                showToast('PDF OCR 失败：' + (data.error || '未知错误'), true);
+              }
+            } catch (err) {
+              console.error('[System] PDF OCR 失败:', err);
+              showToast('PDF OCR 失败：' + friendlyError(err), true);
+            }
+          });
+        }
+
+        // 打开设置页面
+        if (window.electronAPI.onOpenSettings) {
+          window.electronAPI.onOpenSettings(function() {
+            console.log('[System] 收到打开设置请求');
+            renderView('settings');
+            window.history.pushState({ view: 'settings' }, '', '/settings');
+          });
+        }
+      } else {
+        // 浏览器环境：隐藏遮罩 + 直接加载 iframe
+        lazyLoadIframes();
+        document.getElementById('startupOverlay').style.display = 'none';
+      }
+  })();
+</script>
+<script>
+  // ====== 全局统一搜索（右侧全局操作区） ======
+  // 复用主框架既有消息跳转机制：clip→openClipInNewTab（新标签打开，不覆盖当前画布）、
+  // knowledge→navigateKnowledge、learning-plan→navigateLearningPlan。数据优先走本地索引 IPC（localIndex.searchAll）。
+  (function () {
+    const input = document.getElementById('globalSearchInput');
+    const panel = document.getElementById('globalSearchPanel');
+    const wrap = document.querySelector('.gsearch-input-wrap');
+    if (!input || !panel) return;
+
+    const TYPE_META = {
+      clip:        { label: '剪藏',       color: '#3f8cff', action: function (h) { deliver({ type: 'openClipInNewTab', clipId: numericId(h.id) }); } },
+      knowledge:   { label: '知识',       color: '#8b5cf6', action: function (h) { window.postMessage({ type: 'navigateKnowledge', knowledgeId: numericId(h.id) }, '*'); } },
+      'learning-plan': { label: '学习计划', color: '#10b981', action: function (h) { window.postMessage({ type: 'navigateLearningPlan', planId: numericId(h.id) }, '*'); } }
+    };
+    const ORDER = ['clip', 'knowledge', 'learning-plan'];
+    let allHits = [];   // 全部命中（用于分组与总计数）
+    let flatHits = [];  // 实际渲染的行（与 data-index 严格对齐，用于键盘/点击导航）
+    let activeIndex = -1;
+
+    // 命中 id 形如 'clip:1' / 'knowledge:39' / 'learning-plan:21'，抽离纯数字源 id。
+    function numericId(id) {
+      const m = String(id || '').match(/(:|-)(\d+)$/);
+      return m ? m[2] : id;
+    }
+    // clip 在编辑器中打开需走主框架的待处理消息链路。
+    function deliver(msg) { window.postMessage(msg, '*'); }
+
+    function getBridge() { return (window.electronAPI && window.electronAPI.localIndex) || null; }
+
+    // 命中词高亮（大小写不敏感，HTML 安全转义）
+    function highlight(text, q) {
+      let safe = String(text || '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+      const rq = String(q || '').trim();
+      if (!rq) return safe;
+      try {
+        const re = new RegExp('(' + rq.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
+        safe = safe.replace(re, '<em>$1</em>');
+      } catch (e) {}
+      return safe;
+    }
+
+    function setLoading(on) {
+      panel.innerHTML = '';
+      if (!on) return;
+      const empty = document.createElement('div');
+      empty.className = 'gsearch-empty';
+      empty.innerHTML = '<div class="gsearch-empty-icon">…</div>搜索中';
+      panel.appendChild(empty);
+      panel.classList.add('open');
+    }
+
+    // 构建单个结果项（带 data-index 供键盘导航）
+    function buildRow(h, index, q) {
+      const row = document.createElement('div');
+      row.className = 'gsearch-item';
+      row.setAttribute('data-index', String(index));
+      const t = document.createElement('div');
+      t.className = 'gsearch-item-title';
+      const titleInner = document.createElement('span');
+      titleInner.className = 'gsearch-item-title-text';
+      titleInner.innerHTML = highlight(h.title || '未命名', q);
+      const badge = document.createElement('span');
+      badge.className = 'gsearch-item-badge ' + (h.type || 'clip');
+      badge.textContent = (TYPE_META[h.type] || {}).label || h.type;
+      t.appendChild(titleInner);
+      t.appendChild(badge);
+      const sn = document.createElement('div');
+      sn.className = 'gsearch-item-snippet';
+      sn.innerHTML = highlight(h.snippet || '', q);
+      row.appendChild(t);
+      row.appendChild(sn);
+      row.addEventListener('click', () => { activateHits(index); });
+      row.addEventListener('pointerenter', () => setActive(index));
+      return row;
+    }
+
+    function render(hits, q) {
+      panel.innerHTML = '';
+      allHits = hits || [];
+      flatHits = [];
+      activeIndex = -1;
+      const groups = { clip: [], knowledge: [], 'learning-plan': [] };
+      allHits.forEach(h => { if (groups[h.type]) groups[h.type].push(h); });
+
+      const count = allHits.length;
+      // 面板头部：查询 + 计数
+      if (count) {
+        const head = document.createElement('div');
+        head.className = 'gsearch-panel-head';
+        const verb = document.createElement('span');
+        verb.textContent = '搜「';
+        const qNode = document.createElement('strong');
+        qNode.textContent = q || '';
+        const tail = document.createElement('span');
+        tail.textContent = '」 · 共 ' + count + ' 条';
+        head.appendChild(verb);
+        head.appendChild(qNode);
+        head.appendChild(tail);
+        panel.appendChild(head);
+      }
+
+      let hasAny = false;
+      ORDER.forEach(type => {
+        const items = groups[type];
+        if (!items.length) return;
+        hasAny = true;
+        const meta = TYPE_META[type];
+        const sec = document.createElement('div');
+        const title = document.createElement('div');
+        title.className = 'gsearch-group-title';
+        const dot = document.createElement('span');
+        dot.className = 'dot';
+        dot.style.background = meta.color;
+        const typeLabel = document.createElement('span');
+        typeLabel.className = 'gsearch-group-type';
+        typeLabel.textContent = meta.label;
+        const c = document.createElement('span');
+        c.className = 'gsearch-group-count';
+        c.textContent = items.length + ' 条';
+        title.appendChild(dot);
+        title.appendChild(typeLabel);
+        title.appendChild(c);
+        sec.appendChild(title);
+        items.slice(0, 12).forEach(h => {
+          flatHits.push(h);
+          sec.appendChild(buildRow(h, flatHits.length - 1, q));
+        });
+        panel.appendChild(sec);
+      });
+
+      if (!hasAny) {
+        const empty = document.createElement('div');
+        empty.className = 'gsearch-empty';
+        empty.innerHTML = '<div class="gsearch-empty-icon">∅</div>未找到「<strong>' + (q || '') + '</strong>」的相关内容';
+        panel.appendChild(empty);
+      } else {
+        // 底部：快捷键提示
+        const foot = document.createElement('div');
+        foot.className = 'gsearch-panel-foot';
+        foot.innerHTML = '<span><kbd>↑</kbd><kbd>↓</kbd> 选择</span><span><kbd>↵</kbd> 打开</span><span><kbd>Esc</kbd> 关闭</span>';
+        panel.appendChild(foot);
+      }
+      panel.classList.add('open');
+    }
+
+    // 键盘导航：在 flatHits（已渲染行）上维护高亮
+    function setActive(i) {
+      if (!flatHits.length) return;
+      if (i < 0 || i >= flatHits.length) i = -1;
+      activeIndex = i;
+      panel.querySelectorAll('.gsearch-item').forEach(el => {
+        const idx = Number(el.getAttribute('data-index') || -1);
+        el.classList.toggle('active', idx === activeIndex);
+        if (idx === activeIndex) el.scrollIntoView({ block: 'nearest' });
+      });
+    }
+    function activateHits(i) {
+      const def = flatHits[i];
+      if (!def) return;
+      (TYPE_META[def.type] || {}).action && TYPE_META[def.type].action(def);
+      closePanel();
+    }
+    function moveActive(delta) {
+      if (!flatHits.length) return;
+      // 未选中态从列表首/尾开始；已选中态在区间内循环
+      let next;
+      if (activeIndex < 0) {
+        next = delta > 0 ? 0 : flatHits.length - 1;
+      } else {
+        next = (activeIndex + delta + flatHits.length) % flatHits.length;
+      }
+      setActive(next);
+    }
+
+    function openPanel() { if (input.value.trim()) doSearch(); else { setLoading(false); panel.classList.add('open'); } }
+    function closePanel() { panel.classList.remove('open'); input.blur(); }
+    function clearActive() { panel.querySelectorAll('.gsearch-item.active').forEach(el => el.classList.remove('active')); activeIndex = -1; }
+
+    function doSearch() {
+      const q = input.value.trim();
+      const bridge = getBridge();
+      if (!q) { render([], ''); return; }
+      setLoading(true);
+      if (bridge && typeof bridge.searchAll === 'function') {
+        bridge.searchAll(q, { topK: 36 })
+          .then(res => {
+            if (String(input.value).trim() !== q) return; // 请求已过期
+            if (!(res && res.success)) { render([], q); return; }
+            render(res.results || [], q);
+          })
+          .catch(() => { if (String(input.value).trim() === q) render([], q); });
+      } else {
+        panel.innerHTML = '';
+        panel.classList.add('open');
+        const empty = document.createElement('div');
+        empty.className = 'gsearch-empty';
+        empty.innerHTML = '<div class="gsearch-empty-icon">⚠</div>本地索引不可用，无法全局搜索';
+        panel.appendChild(empty);
+      }
+    }
+
+    let debounceTimer = null;
+    input.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      if (!input.value.trim()) { render([], ''); return; }
+      setLoading(true);
+      debounceTimer = setTimeout(doSearch, 200);
+    });
+    input.addEventListener('focus', () => {
+      if (input.value.trim()) doSearch(); else { setLoading(false); panel.classList.add('open'); }
+    });
+    // 失焦：延迟收起结果面板，避免点击结果项被 mousedown 触发的失焦抢先关掉
+    let blurTimer = null;
+    function scheduleClose() { clearTimeout(blurTimer); blurTimer = setTimeout(closePanel, 150); }
+    input.addEventListener('blur', scheduleClose);
+    // 点击结果面板时阻止 input 失焦（guard close 不掉），保证 click 能触发 activateHits
+    panel.addEventListener('mousedown', (e) => { e.preventDefault(); clearTimeout(blurTimer); });
+    input.addEventListener('click', (e) => e.stopPropagation());
+    panel.addEventListener('click', (e) => { e.stopPropagation(); clearTimeout(blurTimer); });
+    document.addEventListener('click', (e) => {
+      // 点击非全局搜索区：仅收起结果面板，搜索框保持长驻
+      if (!e.target.closest || !e.target.closest('.global-search')) {
+        closePanel();
+      }
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); closePanel(); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); moveActive(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); moveActive(-1); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (activeIndex >= 0) activateHits(activeIndex); else doSearch(); }
+    });
+    // ⌘K / Ctrl+K：聚焦搜索框
+    // 注意：主界面主体为 iframe，焦点落在 iframe 内时父页面收不到 keydown，
+    // 因此主进程已通过菜单加速键（CmdOrCtrl+K）→ focus-global-search 事件兜底聚焦。
+    function focusSearch() {
+      input.focus();
+      input.select();
+      openPanel();
+    }
+    document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        focusSearch();
+      }
+    });
+    // 主进程菜单加速键触发（iframe 焦点场景）
+    if (window.electronAPI && window.electronAPI.onFocusGlobalSearch) {
+      window.electronAPI.onFocusGlobalSearch(focusSearch);
+    }
+
+    // 平台自适应快捷键提示（macOS ⌘K / Windows・Linux Ctrl K）
+    (function () {
+      const isMac = navigator.platform && /Mac/i.test(navigator.platform);
+      const kbd = document.querySelector('.gsearch-kbd');
+      const searchWrap = document.querySelector('.gsearch-input-wrap');
+      if (kbd) kbd.textContent = isMac ? '⌘K' : 'Ctrl K';
+      if (searchWrap) searchWrap.title = isMac ? '全局搜索（⌘K）' : '全局搜索（Ctrl K）';
+    })();
+  })();
+
+  // ===== 支持快捷键的功能：悬停提示快捷键（按平台区分） =====
+  // 覆盖标题栏中与快捷键对应的入口；系统级快捷键（F1 截图 / F2 贴图 / Alt+⬆X）由托盘提示承载。
+  (function () {
+    const isMac = navigator.platform && /Mac/i.test(navigator.platform);
+    // 设置：⌘, / Ctrl ,
+    document.querySelectorAll('.nav-btn[data-view="settings"]').forEach(el => {
+      const base = el.getAttribute('title') || '应用设置：调整偏好与全局配置';
+      el.title = base + '（' + (isMac ? '⌘,' : 'Ctrl ,') + '）';
+    });
+  })();
+</script>
+<script src="js/ui-common.js"></script>
 </body>
 </html>
+
+

@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>工作台 - CutShelter</title>
+  <link rel="stylesheet" href="styles/design-tokens.css">
+  <link rel="stylesheet" href="styles/ui-common.css">
+  <script src="libs/chart.umd.min.js" defer></script>
+  <script src="libs/d3.min.js" defer></script>
+  <link rel="stylesheet" href="styles/workspace.css">
+</head>
+<body>
+  <div class="shell">
+    <!-- ── Backdrop (mobile) ── -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+    <!-- ── Sidebar ── -->
+    <aside class="sidebar" id="sidebar" aria-label="工作台列表">
+      <div class="sidebar-header">
+        <h1>工作台</h1>
+        <button class="sidebar-collapse" id="sidebarCollapse" type="button" aria-label="关闭侧边栏" title="收起侧边栏" data-func-tag="功能:收起侧边栏">&times;</button>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="sidebar-nav-item active" data-view="overview" type="button" data-func-tag="功能:全部概览" title="查看剪藏、知识、待办、学习计划等所有类型内容的统一概览">
+          <span class="icon">&#9776;</span> 全部概览
+        </button>
+        <button class="sidebar-nav-item" data-view="product-dev" type="button" data-func-tag="功能:产品概览" title="产品概览：产品开发数据的仪表盘、需求看板、知识图谱、时间线与归档">
+          <span class="icon">&#9881;</span> 产品概览
+        </button>
+      </nav>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section">工作台</div>
+      <div class="sidebar-list" id="wsList" aria-live="polite"></div>
+      <div class="sidebar-footer">
+        <button class="new-btn" id="newWsBtn" type="button" data-func-tag="功能:新建工作台" title="新建工作台"><span class="icon">+</span> 新建工作台</button>
+      </div>
+    </aside>
+
+    <!-- ── 右键菜单 ── -->
+    <div class="ws-context-menu" id="wsContextMenu">
+      <button class="ws-context-item" id="ctxEdit" type="button"><span class="icon">&#9998;</span> 编辑工作台</button>
+      <button class="ws-context-item" id="ctxArchive" type="button"><span class="icon">&#128190;</span> 归档工作台</button>
+      <button class="ws-context-item" id="ctxSetDefault" type="button"><span class="icon">&#9733;</span> 设为默认工作台</button>
+    </div>
+
+    <!-- ── Main Area ── -->
+    <main class="main-area">
+
+      <!-- ── Overview View ── -->
+      <div class="overview-view" id="overviewView">
+        <div class="shell-inner">
+          <header class="hero">
+            <div style="display:flex;align-items:center;gap:0">
+              <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="打开侧边栏" title="展开侧边栏">&#9776;</button>
+              <div>
+                <p class="eyebrow">Workspace overview</p>
+                <h1>全部概览</h1>
+                <p class="subtitle">从一个只读视图浏览已索引的剪藏、知识、待办和学习计划；这里不会修改你的任何内容或项目数据。</p>
+              </div>
+            </div>
+            <button class="refresh" id="refreshButton" type="button" title="重新从存储扫描并构建内容索引，反映最新数据变化" data-func-tag="功能:刷新索引"><span aria-hidden="true">↻</span> 刷新索引<span class="refresh-info" id="refreshInfo"></span></button>
+          </header>
+
+          <!-- ── 仪表盘统计卡片 ── -->
+          <div class="ov-dashboard" id="ovDashboardCards"></div>
+
+          <!-- ── 图表行 ── -->
+          <div class="ov-chart-row" id="ovChartRow">
+            <div class="ov-chart-card">
+              <div class="ov-chart-card-header">内容类型分布</div>
+              <div class="ov-chart-container"><canvas id="ovTypeChart"></canvas></div>
+            </div>
+            <div class="ov-chart-card">
+              <div class="ov-chart-card-header">近期活跃趋势</div>
+              <div class="ov-chart-container"><canvas id="ovTrendChart"></canvas></div>
+            </div>
+            <div class="ov-chart-card">
+              <div class="ov-chart-card-header">工作台内容覆盖</div>
+              <div class="ov-chart-container"><canvas id="ovCoverageChart"></canvas></div>
+            </div>
+          </div>
+
+          <!-- ── 最近活动 ── -->
+          <div class="ov-section">
+            <div class="ov-section-header">
+              <h2 class="ov-section-title">最近活动</h2>
+            </div>
+            <div class="list" id="contentList" aria-live="polite"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Detail View ── -->
+      <div class="detail-view" id="detailView">
+        <div class="shell-inner">
+          <div class="ov-breadcrumb" id="detailBreadcrumb">
+            <a id="breadcrumbBack">全部概览</a>
+            <span class="ov-breadcrumb-sep">/</span>
+            <span class="ov-breadcrumb-current" id="breadcrumbCurrent">工作台详情</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:0;margin-bottom:20px">
+            <button class="sidebar-toggle" id="sidebarToggle2" type="button" aria-label="打开侧边栏" title="展开侧边栏">&#9776;</button>
+          </div>
+          <div class="detail-header" id="detailHeader"></div>
+          <div class="error-message" id="detailError" style="display:none;margin-bottom:12px"></div>
+          <div class="detail-tabs" id="detailTabs">
+            <button class="detail-tab active" data-tab="overview" type="button" data-func-tag="功能:工作台详情-概览" title="工作台概览统计">概览</button>
+            <button class="detail-tab" data-tab="content" type="button" data-func-tag="功能:工作台详情-内容" title="查看该工作台可见内容与排除入口">内容</button>
+            <button class="detail-tab" data-tab="rules" type="button" data-func-tag="功能:工作台详情-规则" title="管理自动筛选规则">规则</button>
+            <button class="detail-tab" data-tab="exclusions" type="button" data-func-tag="功能:工作台详情-排除" title="查看已排除内容并支持恢复">排除</button>
+            <button class="detail-tab" data-tab="suggestions" type="button" data-func-tag="功能:工作台详情-建议" title="基于使用习惯的候选推荐">建议 <span class="suggestion-badge" id="suggestionBadge" style="display:none"></span></button>
+          </div>
+          <!-- Overview tab -->
+          <div class="detail-tab-content visible" data-tab="overview" id="detailOverview">
+            <div class="layout" style="grid-template-columns:minmax(0,1fr) 290px">
+              <section class="content-panel" style="min-height:auto">
+                <div class="toolbar" style="padding:18px 22px 14px;border-bottom:0">
+                  <h2 class="toolbar-title">概览统计 <span class="result-count" id="overviewResultCount"></span></h2>
+                </div>
+                <div id="overviewSummaryCards" class="ws-summary-cards" style="padding:8px 14px 14px"></div>
+                <div class="toolbar" style="padding:6px 22px 12px;border-bottom:0">
+                  <h2 class="toolbar-title" style="font-size:14px">类型分布</h2>
+                </div>
+                <div class="filters" id="overviewTypeFilters" style="border-bottom:0;padding:2px 22px 14px"></div>
+                <div class="toolbar" style="padding:6px 22px 12px;border-bottom:0">
+                  <h2 class="toolbar-title" style="font-size:14px">内容来源分布</h2>
+                </div>
+                <div style="padding:4px 22px 16px">
+                  <div style="height:180px;position:relative"><canvas id="overviewSourceChart"></canvas></div>
+                  <div id="overviewSourceEmpty" class="empty-state" style="display:none;height:140px;padding:0;align-items:center;justify-content:center">暂无来源分布数据</div>
+                  <div id="overviewSourceLegend" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:11px;color:var(--ws-muted)"></div>
+                </div>
+                <div class="toolbar" style="padding:6px 22px 12px;border-bottom:1px solid var(--ws-border)">
+                  <h2 class="toolbar-title" style="font-size:14px">快捷操作</h2>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;padding:8px 22px 18px">
+                  <button class="refresh" id="detailRefreshButton" type="button" style="padding:8px 16px" title="重新从存储扫描并构建内容索引，反映最新数据变化" data-func-tag="功能:刷新索引"><span aria-hidden="true">↻</span> 刷新索引</button>
+                </div>
+              </section>
+              <aside class="project-panel" aria-labelledby="overviewProjectHeading">
+                <div class="panel-heading"><h2 id="overviewProjectHeading">项目摘要</h2><p>工作台关联项目状态概览</p></div>
+                <div id="overviewProjectList" class="projects"></div>
+              </aside>
+            </div>
+          </div>
+          <!-- Content tab -->
+          <div class="detail-tab-content" data-tab="content" id="detailContent">
+            <div class="toolbar" style="padding:0 0 16px;border-bottom:1px solid var(--ws-border);margin-bottom:0">
+              <h2 class="toolbar-title">可见内容 <span class="result-count" id="detailResultCount"></span></h2>
+              <div style="display:flex;align-items:center;gap:10px">
+                <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg><input id="detailSearchInput" type="search" placeholder="搜索标题、标签" autocomplete="off"></label>
+                <div class="view-toggle" id="viewToggle">
+                  <button class="active" data-view="list" type="button" title="列表视图" data-func-tag="功能:列表视图">&#9776; 列表</button>
+                  <button data-view="kanban" type="button" title="看板视图" data-func-tag="功能:看板视图">&#9638; 看板</button>
+                </div>
+              </div>
+            </div>
+            <div class="list" id="detailContentList" style="margin-top:0" aria-live="polite"></div>
+            <div class="kanban-board" id="kanbanBoard" aria-live="polite"></div>
+          </div>
+          <!-- Rules tab -->
+          <div class="detail-tab-content" data-tab="rules" id="detailRules">
+            <div class="rules-header">
+              <h3>筛选规则</h3>
+              <div class="rules-header-actions">
+                <button class="add-rule-btn secondary" id="addGroupBtn" type="button" data-func-tag="功能:添加分组" title="新建一个规则分组，用于表达更复杂的组合逻辑">+ 添加分组</button>
+                <button class="add-rule-btn" id="addRuleBtn" type="button" data-func-tag="功能:添加规则" title="为当前工作台添加自动筛选规则">+ 添加规则</button>
+              </div>
+            </div>
+            <div id="rulesRootRelation" class="rules-root-relation"></div>
+            <div class="error-message" id="rulesError" style="display:none"></div>
+            <div id="rulesList"></div>
+          </div>
+          <!-- Exclusions tab -->
+          <div class="detail-tab-content" data-tab="exclusions" id="detailExclusions">
+            <div class="exclusions-header">
+              <h3>已排除内容</h3>
+            </div>
+            <div class="error-message" id="exclusionsError" style="display:none"></div>
+            <div id="exclusionsList"></div>
+          </div>
+          <!-- Suggestions tab -->
+          <div class="detail-tab-content" data-tab="suggestions" id="detailSuggestions">
+            <div class="suggestions-header">
+              <h3>候选推荐 <span class="result-count" id="suggestionCount"></span></h3>
+            </div>
+            <div class="error-message" id="suggestionsError" style="display:none"></div>
+            <div id="suggestionsList"></div>
+            <div class="suggestions-cooldown-section" id="suggestionsCooldown">
+              <div class="cooldown-header" id="cooldownHeader" style="display:none">
+                <span>已忽略（冷却中，7 天内不再推荐）</span>
+                <span class="cooldown-count" id="cooldownCount"></span>
+              </div>
+              <div id="cooldownList"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 建议详情弹窗 -->
+      <div class="suggestion-detail-overlay" id="suggestionDetailOverlay" style="display:none">
+        <div class="suggestion-detail-modal">
+          <div class="suggestion-detail-header">
+            <h3>建议详情</h3>
+            <button class="suggestion-detail-close" onclick="closeSuggestionDetail()">×</button>
+          </div>
+          <div class="suggestion-detail-body">
+            <div class="sd-section">
+              <div class="sd-label">内容标题</div>
+              <div class="sd-value" id="sdTitle"></div>
+            </div>
+            <div class="sd-section">
+              <div class="sd-label">分类</div>
+              <div class="sd-value" id="sdCategory"></div>
+            </div>
+            <div class="sd-section">
+              <div class="sd-label">标签</div>
+              <div class="sd-value" id="sdTags"></div>
+            </div>
+            <div class="sd-section">
+              <div class="sd-label">内容摘要</div>
+              <div class="sd-value" id="sdSummary"></div>
+            </div>
+            <div class="sd-section">
+              <div class="sd-label">匹配度</div>
+              <div class="sd-value" id="sdScore"></div>
+            </div>
+            <div class="sd-section">
+              <div class="sd-label">匹配原因</div>
+              <div class="sd-value" id="sdReasons"></div>
+            </div>
+          </div>
+          <div class="suggestion-detail-footer">
+            <button class="accept-btn" id="sdAcceptBtn">接受</button>
+            <button class="ignore-btn" id="sdIgnoreBtn">忽略</button>
+            <button class="reject-btn" id="sdRejectBtn">拒绝</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 成功 Toast -->
+      <div class="success-toast" id="successToast"></div>
+
+      <!-- ── 产品概览视图 ── -->
+      <div class="product-dev-view" id="productDevView">
+        <div class="pd-shell">
+          <div class="pd-header">
+            <button class="sidebar-toggle" id="pdSidebarToggle" type="button" aria-label="打开侧边栏" title="展开侧边栏">&#9776;</button>
+            <div class="pd-header-left">
+              <p class="eyebrow">Product Overview</p>
+              <h1>产品概览</h1>
+            </div>
+            <div class="pd-header-actions">
+              <span class="pd-header-info" style="font-size:12px;color:var(--ws-muted);">数据来源：TODO/ {需求名称}/feature-points.json</span>
+            </div>
+          </div>
+
+          <div class="pd-tabs">
+            <button class="pd-tab active" data-pd-tab="dashboard" type="button" data-func-tag="功能:产品开发-总览" title="总览：数据仪表盘与最近活动">&#128202; 总览</button>
+            <button class="pd-tab" data-pd-tab="kanban" type="button" data-func-tag="功能:产品开发-需求看板" title="需求看板：按阶段拖拽管理需求">&#9776; 需求看板</button>
+            <button class="pd-tab" data-pd-tab="graph" type="button" data-func-tag="功能:产品开发-知识图谱" title="知识图谱：需求-知识关联网络（二期）" style="display:none">&#9671; 知识图谱</button>
+            <button class="pd-tab" data-pd-tab="timeline" type="button" data-func-tag="功能:产品开发-时间线" title="时间线：甘特图展示开发周期（二期）" style="display:none">&#128197; 时间线</button>
+            <button class="pd-tab" data-pd-tab="archive" type="button" data-func-tag="功能:产品开发-归档" title="归档：历史需求归档记录">&#128451; 归档</button>
+          </div>
+
+          <div class="pd-tag-filter" id="pdTagFilter" aria-label="标签筛选"></div>
+
+          <!-- ── 总览 Dashboard ── -->
+          <div class="pd-tab-content visible" data-pd-content="dashboard">
+            <div class="pd-dashboard" id="pdDashboardCards"></div>
+            <div class="pd-chart-row">
+              <div class="pd-chart-card">
+                <div class="pd-chart-card-header">各阶段需求分布</div>
+                <div class="pd-chart-container"><canvas id="pdPhaseChart"></canvas></div>
+              </div>
+              <div class="pd-chart-card">
+                <div class="pd-chart-card-header">任务完成率</div>
+                <div class="pd-chart-container"><canvas id="pdTodoChart"></canvas><div class="pd-chart-center-label" id="pdTodoChartCenter"></div></div>
+              </div>
+              <div class="pd-chart-card">
+                <div class="pd-chart-card-header">知识积累趋势</div>
+                <div class="pd-chart-container"><canvas id="pdKnowledgeChart"></canvas></div>
+              </div>
+              <div class="pd-chart-card">
+                <div class="pd-chart-card-header">模块分布</div>
+                <div class="pd-chart-container"><canvas id="pdLayerChart"></canvas></div>
+              </div>
+              <div class="pd-chart-card">
+                <div class="pd-chart-card-header">热门标签</div>
+                <div class="pd-chart-container"><canvas id="pdTagsChart"></canvas></div>
+              </div>
+            </div>
+            <div class="pd-section">
+              <div class="pd-section-header">最近活动</div>
+              <div class="pd-activity-list" id="pdActivityList"><div class="empty-state">暂无活动记录</div></div>
+            </div>
+
+            <!-- ── 任务状态列表 ── -->
+            <div class="pd-task-list-section">
+              <div class="pd-task-list-header">
+                <span style="font-size:14px;font-weight:650;color:var(--ws-text)">任务状态</span>
+                <div class="pd-task-list-filters" id="pdTaskFilters">
+                  <button class="pd-task-list-filter active" data-task-filter="all" type="button">全部</button>
+                  <button class="pd-task-list-filter" data-task-filter="done" type="button">已完成</button>
+                  <button class="pd-task-list-filter" data-task-filter="todo" type="button">待完成</button>
+                </div>
+              </div>
+              <div class="pd-task-list" id="pdTaskList"><div class="empty-state">暂无任务数据</div></div>
+            </div>
+          </div>
+
+          <!-- ── 需求看板 Kanban ── -->
+          <div class="pd-tab-content" data-pd-content="kanban">
+            <div class="pd-kanban-toolbar">
+              <div class="pd-kanban-filter">
+                <input class="pd-search-input" id="pdKanbanSearch" type="search" placeholder="搜索需求..." autocomplete="off">
+              </div>
+              <div class="pd-kanban-group" id="pdKanbanGroup">
+                <span class="pd-kanban-group-label">分组：</span>
+                <button class="pd-kanban-group-btn active" data-group="project" type="button" data-func-tag="功能:产品开发-看板按项目分组" title="按需求项目分组展示功能点">按项目</button>
+                <button class="pd-kanban-group-btn" data-group="phase" type="button" data-func-tag="功能:产品开发-看板按阶段分组" title="按开发阶段分组展示功能点（需求分析/设计/实现/测试/已完成）">按阶段</button>
+              </div>
+            </div>
+            <div class="pd-kanban" id="pdKanbanBoard"></div>
+          </div>
+
+          <!-- ── 知识图谱 Graph ── -->
+          <div class="pd-tab-content" data-pd-content="graph">
+            <div class="pd-graph-toolbar">
+              <span class="pd-graph-hint">展示需求与知识的关联网络，节点颜色：<span class="pd-legend-req">需求</span> <span class="pd-legend-kn">知识</span> <span class="pd-legend-todo">待办</span></span>
+            </div>
+            <div class="pd-graph-container" id="pdGraphContainer">
+              <svg id="pdGraphSvg" width="100%" height="100%"></svg>
+            </div>
+          </div>
+
+          <!-- ── 时间线 Timeline ── -->
+          <div class="pd-tab-content" data-pd-content="timeline">
+            <div class="pd-gantt-toolbar">
+              <div class="pd-gantt-zoom">
+                <button class="pd-gantt-zoom-btn active" data-zoom="day" type="button" data-func-tag="功能:甘特图-日视图" title="日视图：按天展示时间线">日视图</button>
+                <button class="pd-gantt-zoom-btn" data-zoom="week" type="button" data-func-tag="功能:甘特图-周视图" title="周视图：按周展示时间线">周视图</button>
+                <button class="pd-gantt-zoom-btn" data-zoom="month" type="button" data-func-tag="功能:甘特图-月视图" title="月视图：按月展示时间线">月视图</button>
+              </div>
+              <div class="pd-gantt-legend">
+                <span class="pd-gantt-legend-item"><span class="pd-gantt-legend-dot" style="background:#2383e2"></span>需求分析</span>
+                <span class="pd-gantt-legend-item"><span class="pd-gantt-legend-dot" style="background:#876de2"></span>设计</span>
+                <span class="pd-gantt-legend-item"><span class="pd-gantt-legend-dot" style="background:#f59e0b"></span>实现</span>
+                <span class="pd-gantt-legend-item"><span class="pd-gantt-legend-dot" style="background:#e74c3c"></span>测试</span>
+                <span class="pd-gantt-legend-item"><span class="pd-gantt-legend-dot" style="background:#10b981"></span>已完成</span>
+              </div>
+            </div>
+            <div class="pd-gantt-container" id="pdGanttContainer">
+              <div class="empty-state">暂无时间线数据，完成需求归档后将自动生成。</div>
+            </div>
+          </div>
+
+          <!-- ── 归档 Archive ── -->
+          <div class="pd-tab-content" data-pd-content="archive">
+            <div class="pd-archive-toolbar">
+              <span class="pd-section-title">历史归档记录</span>
+            </div>
+            <div class="pd-archive-list" id="pdArchiveList"><div class="empty-state">暂无归档记录</div></div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+
+  <!-- ── New Workspace Modal ── -->
+  <div class="modal-overlay" id="newWsModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>新建工作台</h3>
+        <button class="modal-close" data-close="newWsModal" type="button">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="wsName">名称 <span style="color:var(--ws-danger)">*</span></label>
+          <input class="form-input" id="wsName" type="text" placeholder="输入工作台名称" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="wsDesc">描述</label>
+          <textarea class="form-textarea" id="wsDesc" rows="2" placeholder="可选描述"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="wsType">类型</label>
+            <select class="form-select" id="wsType">
+              <option value="general">通用</option>
+              <option value="project">项目</option>
+              <option value="learning">学习</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="wsColor">颜色</label>
+            <input class="form-input" id="wsColor" type="color" value="#2383e2" style="height:40px;padding:4px">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="newWsModal" type="button">取消</button>
+        <button class="btn btn-primary" id="confirmNewWs" type="button">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Rule Modal ── -->
+  <div class="modal-overlay" id="ruleModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="ruleModalTitle">添加规则</h3>
+        <button class="modal-close" data-close="ruleModal" type="button">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="ruleModalGroup">目标分组</label>
+            <select class="form-select" id="ruleModalGroup"></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ruleField">字段</label>
+            <select class="form-select" id="ruleField">
+              <option value="type">类型 (type)</option>
+              <option value="category">分类 (category)</option>
+              <option value="tag">标签 (tag)</option>
+              <option value="sourcePath">来源路径 (sourcePath)</option>
+              <option value="workflowStatus">工作流状态 (workflowStatus)</option>
+              <option value="updatedAt">更新时间 (updatedAt)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">操作符</label>
+            <div class="operator-pills" id="ruleOperatorPills"></div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ruleValue">值 <span style="color:var(--ws-danger)">*</span></label>
+          <!-- 下拉选择框 (type/category/workflowStatus) -->
+          <select class="form-select" id="ruleValueSelect" style="display:none" autocomplete="off"></select>
+          <!-- 文本框 (sourcePath) -->
+          <input class="form-input" id="ruleValueInput" type="text" placeholder="输入来源路径" autocomplete="off" style="display:none">
+          <!-- 标签多选输入 (tag) -->
+          <div class="tag-multi-input" id="ruleValueTags" style="display:none">
+            <div class="tag-list" id="tagList"></div>
+            <input class="tag-input" id="tagInput" type="text" placeholder="输入标签搜索..." autocomplete="off">
+            <div class="tag-suggestions" id="tagSuggestions" style="display:none"></div>
+          </div>
+          <!-- 时间选择器 (updatedAt) - Notion 风格 -->
+          <div class="date-time-picker" id="ruleValueDate" style="display:none">
+            <div class="date-picker-field">
+              <input class="form-input date-input" id="dateInput" type="text" placeholder="选择日期..." readonly>
+              <div class="date-calendar" id="dateCalendar" style="display:none"></div>
+            </div>
+            <input class="form-input time-input" id="timeInput" type="text" placeholder="HH:mm" maxlength="5" autocomplete="off">
+          </div>
+          <p class="form-hint" id="ruleValueHint"></p>
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+            <input type="checkbox" id="ruleEnabled" checked> 启用规则
+          </label>
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+            <input type="checkbox" id="ruleNegate"> 否定条件（NOT）
+          </label>
+          <p class="form-hint">开启后反向匹配：不满足该条件的才命中。典型场景如"标签 不等于 product-dev"，一条规则即可排除产品开发内容。</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="ruleModal" type="button">取消</button>
+        <button class="btn btn-primary" id="confirmRule" type="button">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Confirm Modal ── -->
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal" style="width:min(380px,calc(100vw-40px))">
+      <div class="modal-header">
+        <h3 id="confirmTitle">确认</h3>
+        <button class="modal-close" data-close="confirmModal" type="button">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="confirmMessage" style="margin:0;color:var(--ws-muted)"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="confirmModal" type="button">取消</button>
+        <button class="btn btn-danger" id="confirmAction" type="button">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Column Input Modal ── -->
+  <div class="modal-overlay" id="columnInputModal">
+    <div class="modal" style="width:min(400px,calc(100vw-40px))">
+      <div class="modal-header">
+        <h3 id="columnInputTitle">输入名称</h3>
+        <button class="modal-close" data-close="columnInputModal" type="button">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="columnInputValue">名称</label>
+          <input class="form-input" id="columnInputValue" type="text" placeholder="输入名称" autocomplete="off">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="columnInputModal" type="button">取消</button>
+        <button class="btn btn-primary" id="confirmColumnInput" type="button">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 功能点详情 + 历史迭代 Modal ── -->
+  <div class="modal-overlay" id="pdRequirementModal">
+    <div class="modal pd-req-modal">
+      <div class="modal-header">
+        <h3 id="pdReqModalTitle">功能点详情</h3>
+        <button class="modal-close" data-close="pdRequirementModal" type="button">&times;</button>
+      </div>
+      <div class="modal-body" id="pdReqModalBody"></div>
+    </div>
+  </div>
+
+  <script src="js/workspace.js"></script>
+  <script src="js/ui-common.js"></script>
+  <script src="js/logger.js"></script>
+</body>
+</html>

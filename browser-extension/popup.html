@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="notion">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能剪藏助手</title>
+  <link rel="stylesheet" href="shared-ui-theme.css">
+  <link rel="stylesheet" href="shared-ui-base.css">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="logo">
+      </div>
+      <h1>智能剪藏</h1>
+      <button class="settings-btn" id="settingsBtn" title="设置">⚙️</button>
+    </header>
+
+    <main class="main">
+      <form id="clipForm">
+        <div class="form-group">
+          <label for="type">剪藏类型</label>
+          <select id="type">
+            <option value="ai-text">AI文本整理</option>
+            <option value="store-only">仅存储内容</option>
+            <option value="link-ai">链接AI解析</option>
+            <option value="doc-ai">文档AI解析</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="content">内容</label>
+          <textarea id="content" placeholder="输入或粘贴要剪藏的内容..."></textarea>
+          <div class="input-tips">💡 支持粘贴图片、文本、链接</div>
+        </div>
+
+        <div class="form-group">
+          <label for="source">来源</label>
+          <input type="text" id="source" placeholder="输入来源URL或网址...">
+        </div>
+
+        <div class="form-group">
+          <label for="category">分类</label>
+          <select id="category">
+            <option value="">AI自动分类</option>
+            <option value="work">工作项目</option>
+            <option value="study">学习成长</option>
+            <option value="life">生活健康</option>
+            <option value="hobby">兴趣探索</option>
+            <option value="finance">财务规划</option>
+            <option value="social">人脉社交</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <div class="ai-tags-checkbox">
+            <input type="checkbox" id="aiGenerateTags" checked>
+            <label for="aiGenerateTags">AI自动生成标签</label>
+          </div>
+          <div class="tags-container">
+            <div class="tags-list" id="tagsList"></div>
+            <input type="text" id="tagInput" placeholder="输入标签按回车添加" disabled>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" id="clearBtn">清空</button>
+          <button type="button" class="btn-primary smart-ingest-btn" id="smartIngestBtn">
+            <span class="btn-text">智能入库</span>
+            <span class="btn-loading" style="display: none;">分析中...</span>
+          </button>
+          <button type="submit" class="btn-primary" id="submitBtn">
+            <span class="btn-text">添加剪藏</span>
+            <span class="btn-loading" style="display: none;">处理中...</span>
+          </button>
+        </div>
+      </form>
+
+      <div class="status-message" id="statusMessage"></div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-links">
+        <a href="#" id="openClipList">查看剪藏列表</a>
+        <span class="separator">|</span>
+        <a href="#" id="openTopicList">话题</a>
+        <span class="separator">|</span>
+        <a href="#" id="openOptions">设置</a>
+      </div>
+      <div class="shortcut-tip">
+        <span>⌨️ 快捷键: <kbd>Ctrl+Shift+S</kbd> 剪藏页面 | <kbd>Ctrl+Shift+V</kbd> 剪藏选中
+      </div>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

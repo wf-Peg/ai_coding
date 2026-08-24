@@ -1,0 +1,247 @@
+/* ============================================================================
+   ui-common.css — 全模块共享 UI 组件层
+   基于 design-tokens.css 的 --app-* 主题变量，自动适配 light / regular / dark。
+   依赖：链接本文件前需先引入 design-tokens.css。
+   规范：全部使用 token，禁止硬编码色值；尊重 prefers-reduced-motion。
+   ============================================================================ */
+
+/* ---------- Toast ---------- */
+.ui-root {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2147483000;
+}
+.ui-toast {
+  pointer-events: auto;
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(70vw, 460px);
+  padding: 10px 34px 10px 16px;
+  border-radius: var(--app-radius, 10px);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--app-text);
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  box-shadow: var(--app-shadow-lg, 0 8px 28px rgba(0,0,0,0.18));
+  white-space: pre-wrap;
+  text-align: center;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.ui-toast .ui-toast__icon { flex: 0 0 auto; font-size: 15px; line-height: 1.5; }
+.ui-toast .ui-toast__text { flex: 1 1 auto; }
+.ui-toast .ui-toast__close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: none;
+  border: none;
+  color: var(--app-text-muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.ui-toast .ui-toast__close:hover { color: var(--app-text); background: var(--app-surface-hover); }
+.ui-toast--success .ui-toast__icon { color: var(--app-success); }
+.ui-toast--error   .ui-toast__icon { color: var(--app-danger); }
+.ui-toast--warning .ui-toast__icon { color: var(--app-warning); }
+.ui-toast--info    .ui-toast__icon { color: var(--app-primary); }
+
+/* ---------- Modal ---------- */
+.ui-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.ui-modal {
+  background: var(--app-surface);
+  color: var(--app-text);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg, 12px);
+  box-shadow: var(--app-shadow-xl, 0 12px 40px rgba(0,0,0,0.3));
+  padding: 20px 22px;
+  min-width: 300px;
+  max-width: 440px;
+  width: 100%;
+}
+.ui-modal__title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 10px;
+  color: var(--app-text);
+}
+.ui-modal__body {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--app-text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.ui-modal__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+/* ---------- Buttons ---------- */
+.ui-btn {
+  padding: 7px 16px;
+  border-radius: var(--app-radius, 8px);
+  border: 1px solid var(--app-border);
+  background: transparent;
+  color: var(--app-text);
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: background var(--app-duration-fast, 0.12s) var(--app-ease-smooth, ease),
+              color var(--app-duration-fast, 0.12s) var(--app-ease-smooth, ease),
+              border-color var(--app-duration-fast, 0.12s) var(--app-ease-smooth, ease),
+              box-shadow var(--app-duration-fast, 0.12s) var(--app-ease-smooth, ease);
+}
+.ui-btn:hover { background: var(--app-surface-hover); border-color: var(--app-border-strong); }
+.ui-btn:focus-visible { outline: 2px solid var(--app-primary); outline-offset: 2px; }
+.ui-btn--primary {
+  border: none;
+  background: var(--app-primary);
+  color: #fff;
+}
+.ui-btn--primary:hover { background: var(--app-primary-hover); }
+.ui-btn--danger {
+  border: none;
+  background: var(--app-danger);
+  color: #fff;
+}
+.ui-btn--danger:hover { filter: brightness(1.06); }
+.ui-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--app-text);
+}
+.ui-btn--ghost:hover { background: var(--app-surface-hover); border-color: transparent; }
+
+/* ---------- Empty state ---------- */
+.ui-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--app-text-secondary);
+}
+.ui-empty__icon { font-size: 40px; margin-bottom: 12px; opacity: 0.7; }
+.ui-empty__title { font-size: 15px; font-weight: 600; color: var(--app-text); margin: 0 0 6px; }
+.ui-empty__desc { font-size: 13px; color: var(--app-text-muted); margin: 0 0 14px; line-height: 1.6; }
+.ui-empty.is-hidden { display: none; }
+
+/* ---------- Loading / Skeleton ---------- */
+.ui-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 24px;
+  color: var(--app-text-muted);
+  font-size: 13px;
+}
+.ui-loading.is-hidden { display: none; }
+.ui-spinner {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--app-primary-soft);
+  border-top-color: var(--app-primary);
+  animation: ui-spin 0.8s linear infinite;
+}
+@keyframes ui-spin { to { transform: rotate(360deg); } }
+.ui-skeleton {
+  border-radius: var(--app-radius, 8px);
+  background: linear-gradient(90deg, var(--app-surface-subtle) 25%, var(--app-surface-hover) 37%, var(--app-surface-subtle) 63%);
+  background-size: 400% 100%;
+  animation: ui-shimmer 1.4s ease infinite;
+}
+@keyframes ui-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+/* ---------- Notice banner (离线/错误横幅) ---------- */
+.ui-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--app-radius, 8px);
+  border: 1px solid;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.ui-notice--error { background: var(--app-danger-soft); border-color: var(--app-danger); color: var(--app-danger); }
+.ui-notice--warning { background: var(--app-warning); border-color: var(--app-warning); color: #fff; }
+
+/* ---------- Form controls ---------- */
+.ui-input, .ui-textarea, .ui-select {
+  padding: 8px 12px;
+  border-radius: var(--app-radius, 8px);
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color var(--app-duration-fast, 0.12s) var(--app-ease-smooth, ease),
+              box-shadow var(--app-duration-fast, 0.12s) var(--app-ease-smooth, ease);
+}
+.ui-input:focus, .ui-textarea:focus, .ui-select:focus {
+  border-color: var(--app-primary);
+  box-shadow: 0 0 0 3px var(--app-primary-soft);
+}
+
+/* ---------- Utility animations ---------- */
+.ui-fade-in  { animation: ui-fade-in  var(--app-duration-normal, 0.2s)  var(--app-ease-smooth, ease) both; }
+.ui-slide-up { animation: ui-slide-up var(--app-duration-panel, 0.25s) var(--app-ease-smooth, ease) both; }
+.ui-pop      { animation: ui-pop      var(--app-duration-normal, 0.2s)  var(--app-ease-out-expo, ease) both; }
+.ui-scale-in { animation: ui-scale-in var(--app-duration-normal, 0.2s)  var(--app-ease-out-expo, ease) both; }
+@keyframes ui-fade-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ui-slide-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ui-pop      { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+@keyframes ui-scale-in { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+
+/* 卡片/按钮通用过渡口径 */
+.ui-card {
+  transition: transform var(--app-duration-fast, 0.12s) var(--app-ease-out-expo, ease),
+              box-shadow var(--app-duration-fast, 0.12s) var(--app-ease-out-expo, ease),
+              border-color var(--app-duration-fast, 0.12s) var(--app-ease-out-expo, ease);
+}
+.ui-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--app-shadow-md);
+}
+
+/* ---------- 减少动态效果 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .ui-toast, .ui-modal, .ui-fade-in, .ui-slide-up, .ui-pop, .ui-scale-in,
+  .ui-card:hover, .ui-skeleton, .ui-spinner {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    transform: none !important;
+  }
+  .ui-skeleton { animation: none !important; background: var(--app-surface-subtle); }
+}

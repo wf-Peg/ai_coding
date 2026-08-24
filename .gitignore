@@ -1,6 +1,11 @@
 # 剪藏Demo项目Git忽略文件配置
 # 参考阿里巴巴Java开发手册，添加详细注释
 
+# JDK 运行时目录（超大文件）
+jdk/
+jre/
+win-unpacked/
+
 # 编译生成的class文件
 *.class
 
@@ -64,6 +69,7 @@ node_modules/
 # 构建输出目录
 dist/
 dist-electron/
+dist-electron-new/
 build/
 
 # Electron构建输出
@@ -77,5 +83,30 @@ jre/
 .DS_Store
 Thumbs.db
 
+# Windows 设备名误创建的空文件（git 幽灵条目）
+nul
+
 # Obsidian配置目录
 .obsidian/
+
+# DSH 离线依赖闭包（由 scripts/build-dsh-offline.mjs 生成）
+dist-dsh-offline/
+
+# DSH 运行期配置 / 存储 / 档案（本地生成，不提交）
+.dsh/
+
+# 临时目录 / 构建临时产物
+.tmp/
+tmp/
+
+# SQLite 本地索引运行期数据库（本地生成，不提交）
+.index/
+
+# AI 代理（superpowers）工作目录（本地生成，不提交）
+.superpowers/
+
+# IPC 复现/调试临时目录（不提交）
+electron/repro-ipc/
+
+# jlink 精简 JRE 构建产物（打包时由 build-jlink-slim.mjs 生成）
+jre-slim/

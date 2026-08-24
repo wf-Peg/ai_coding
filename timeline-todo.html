@@ -518,11 +518,11 @@
     width: 52px;
     height: 52px;
     border-radius: 16px;
-    background: var(--primary);
-    color: #fff;
+    background: var(--accent);
+    color: var(--fg);
     border: none;
     cursor: pointer;
-    box-shadow: 0 4px 14px rgba(66,133,244,0.35);
+    box-shadow: 0 4px 14px rgba(244,180,0,0.35);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -539,8 +539,8 @@
   }
   .fab:hover {
     transform: scale(1.06);
-    box-shadow: 0 6px 20px rgba(66,133,244,0.45);
-    background: var(--primary-dark);
+    box-shadow: 0 6px 20px rgba(244,180,0,0.45);
+    background: #DB9F00;
   }
   .fab:active { transform: scale(0.96); }
 
@@ -818,11 +818,12 @@
     .fab { bottom: 16px; right: 16px; width: 48px; height: 48px; border-radius: 14px; }
   }
 
-  /* ── Scrollbar ── */
-  ::-webkit-scrollbar { width: 4px; }
+  /* ── Obsidian 风格滚动条 ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
+  * { scrollbar-width: thin; scrollbar-color: var(--border-light) transparent; }
 
   /* ── Date input styling ── */
   input[type="date"]::-webkit-calendar-picker-indicator {

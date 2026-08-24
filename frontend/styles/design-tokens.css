@@ -1,0 +1,81 @@
+:root {
+  --app-bg: #f7f7f5;
+  --app-surface: #ffffff;
+  --app-surface-subtle: #f1f1ef;
+  --app-surface-hover: #ececea;
+  --app-border: #e3e3df;
+  --app-border-strong: #d2d2cd;
+  --app-text: #2f3437;
+  --app-text-secondary: #6b6f76;
+  --app-text-muted: #92969d;
+  --app-primary: #2383e2;
+  --app-primary-hover: #1f76c9;
+  --app-primary-soft: rgba(35, 131, 226, 0.1);
+  --app-success: #238b63;
+  --app-warning: #b7791f;
+  --app-danger: #d14343;
+  --app-danger-soft: rgba(209, 67, 67, 0.1);
+  --app-radius-sm: 6px;
+  --app-radius: 9px;
+  --app-radius-lg: 12px;
+  --app-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 10px 24px rgba(15, 23, 42, 0.06);
+
+  /* 新增阴影层级 */
+  --app-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --app-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --app-shadow-md: 0 4px 6px rgba(15, 23, 42, 0.06), 0 2px 4px rgba(15, 23, 42, 0.04);
+  --app-shadow-lg: 0 10px 15px rgba(15, 23, 42, 0.08), 0 4px 6px rgba(15, 23, 42, 0.04);
+  --app-shadow-xl: 0 20px 25px rgba(15, 23, 42, 0.10), 0 8px 10px rgba(15, 23, 42, 0.06);
+  --app-shadow-panel: 0 0 0 1px rgba(15, 23, 42, 0.04), 0 2px 6px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.08);
+  --app-shadow-panel-right: -4px 0 8px rgba(15, 23, 42, 0.04), -8px 0 24px rgba(15, 23, 42, 0.08);
+  --app-shadow-panel-left: 4px 0 8px rgba(15, 23, 42, 0.04), 8px 0 24px rgba(15, 23, 42, 0.08);
+
+  /* 新增动画曲线 */
+  --app-ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --app-ease-in-out-expo: cubic-bezier(0.87, 0, 0.13, 1);
+  --app-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --app-ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* 动画时长 */
+  --app-duration-fast: 120ms;
+  --app-duration-normal: 200ms;
+  --app-duration-slow: 300ms;
+  --app-duration-panel: 250ms;
+
+  --app-font: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+  --app-font-mono: "IBM Plex Mono", "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+}
+
+html[data-theme="regular"] {
+  --app-bg: #edf5ff;
+  --app-surface-subtle: #e2efff;
+  --app-surface-hover: #d7e8fd;
+  --app-border: #c9dcf5;
+  --app-border-strong: #adc8eb;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --app-bg: #1e1e1e;
+  --app-surface: #282828;
+  --app-surface-subtle: #323232;
+  --app-surface-hover: #3b3b3b;
+  --app-border: #414141;
+  --app-border-strong: #525252;
+  --app-text: #dedede;
+  --app-text-secondary: #aaaaaa;
+  --app-text-muted: #777777;
+  --app-primary: #61a6ff;
+  --app-primary-hover: #7bb5ff;
+  --app-primary-soft: rgba(97, 166, 255, 0.14);
+  --app-success: #56c997;
+  --app-warning: #e6b35c;
+  --app-danger: #ef7777;
+  --app-danger-soft: rgba(239, 119, 119, 0.12);
+  --app-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+  --app-shadow-panel: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.3), 0 16px 32px rgba(0, 0, 0, 0.4);
+  --app-shadow-panel-right: -4px 0 12px rgba(0, 0, 0, 0.3);
+  --app-shadow-panel-left: 4px 0 12px rgba(0, 0, 0, 0.3);
+  --app-shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.3);
+  --app-shadow-xl: 0 20px 30px rgba(0, 0, 0, 0.4);
+}

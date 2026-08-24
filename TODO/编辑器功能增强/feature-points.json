@@ -1,0 +1,532 @@
+{
+  "version": "2.0",
+  "requirement": {
+    "title": "编辑器功能增强",
+    "summary": "对编辑器模块进行全面功能增强，涵盖多标签页、右键菜单扩展、标签拖拽排序、收藏文件、面板动画美化、选中逻辑优化、翻译词典增强、右键打开目录/路径双击/历史回退/快捷键调整、启动加载遮罩等九大子需求",
+    "tags": ["product-dev", "editor"],
+    "phase": "completed",
+    "createdAt": "2026-07-01T00:00:00",
+    "completedAt": "2026-08-16T03:30:00"
+  },
+  "featurePoints": [
+    {
+      "id": "fp-001",
+      "name": "多标签（Multi-Tab）功能",
+      "description": "为编辑器模块增加多标签能力，支持双击标签栏空白区域或 Ctrl+T 新建标签，标签间切换编辑，各标签的编辑状态（内容、文件路径、修改标记、编码、光标位置等）完全隔离。采用单 Ace 实例 + 标签快照方案，避免多实例内存开销。",
+      "layer": "frontend",
+      "tags": ["product-dev", "editor", "multi-tab"],
+      "designSections": ["核心思路：单 Ace 实例 + 标签快照", "标签状态快照结构", "全局状态变化", "标签切换流程", "边界情况处理"],
+      "tasks": [
+        { "title": "editor.html 新增标签栏 DOM（tab-bar）", "status": "done" },
+        { "title": "editor.js 新增 createTabState() 工厂函数", "status": "done" },
+        { "title": "editor.js 新增 saveActiveTabSnapshot() 保存快照", "status": "done" },
+        { "title": "editor.js 新增 switchToTab() 切换标签", "status": "done" },
+        { "title": "editor.js 新增 createNewTab() / closeTab()", "status": "done" },
+        { "title": "editor.js 新增 renderTabBar() 标签渲染", "status": "done" },
+        { "title": "改造 setEditorContent() / resetDocument() 等核心函数支持多标签", "status": "done" },
+        { "title": "新增 Ctrl+T/W/Tab 等快捷键绑定", "status": "done" },
+        { "title": "editor.css 新增标签栏完整样式", "status": "done" },
+        { "title": "editor-app Grid 从 4 行改为 5 行布局", "status": "done" },
+        { "title": "beforeunload 检查所有标签未保存状态", "status": "done" },
+        { "title": "边界情况：关闭最后一个标签、未保存确认、切换标签退出对比模式", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "启动编辑器默认有一个未命名标签", "status": "done" },
+        { "title": "双击标签栏空白区域新建标签", "status": "done" },
+        { "title": "Ctrl+T 新建标签快捷键", "status": "done" },
+        { "title": "不同标签输入不同内容，切换验证内容隔离", "status": "done" },
+        { "title": "保存文件后 fileToken 绑定正确", "status": "done" },
+        { "title": "关闭有未保存修改的标签弹出确认", "status": "done" },
+        { "title": "关闭最后一个标签至少保留一个", "status": "done" },
+        { "title": "Ctrl+Tab / Ctrl+Shift+Tab 切换标签", "status": "done" },
+        { "title": "Ctrl+W 关闭当前标签", "status": "done" },
+        { "title": "修改内容后标签圆点指示器正确显示", "status": "done" },
+        { "title": "对比模式切换标签时自动退出", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-002",
+      "name": "编辑器右键菜单扩展",
+      "description": "在编辑器画布右键菜单中新增「智能入库」和「AI 识别导入密码」两个操作项，选中文本时显示，点击后分别调用后端 API 进行处理。",
+      "layer": "frontend",
+      "tags": ["product-dev", "editor", "context-menu"],
+      "designSections": ["HTML 改动：新增两个菜单按钮", "JS 改动：elements 扩展、openEditorContextMenu、executeEditorContextAction"],
+      "tasks": [
+        { "title": "editor.html 新增 smartIngestContextBtn 和 aiImportPasswordContextBtn", "status": "done" },
+        { "title": "editor.js elements 对象扩展两个 id 引用", "status": "done" },
+        { "title": "openEditorContextMenu 中根据选中文本控制显隐", "status": "done" },
+        { "title": "executeEditorContextAction 新增 smartIngest 分支调 POST /api/ingest", "status": "done" },
+        { "title": "executeEditorContextAction 新增 aiImportPassword 分支调 POST /api/vault/auto-fill", "status": "done" },
+        { "title": "请求期间按钮加载状态（文字改为处理中，禁用）", "status": "done" },
+        { "title": "完成后通过 showToast 显示结果", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "空白区域右键只显示基本菜单项", "status": "done" },
+        { "title": "选中文字后右键显示智能入库和 AI 识别导入密码", "status": "done" },
+        { "title": "智能入库功能 Toast 提示成功/失败", "status": "done" },
+        { "title": "AI 识别导入密码 Toast 提示识别条目数", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-003",
+      "name": "标签栏拖拽排序",
+      "description": "为标签栏增加拖拽排序能力，利用 HTML5 原生 Drag & Drop API 实现标签重排，拖拽后自动调整 tabs 数组顺序并修正 activeTabIndex。",
+      "layer": "frontend",
+      "tags": ["product-dev", "editor", "tab-drag"],
+      "designSections": ["原理：HTML5 原生 Drag & Drop API", "renderTabBar 拖拽事件绑定", "activeTabIndex 修正逻辑"],
+      "tasks": [
+        { "title": "renderTabBar 中为每个 tab-item 添加 draggable 属性和拖拽事件", "status": "done" },
+        { "title": "实现 dragstart/dragover/drop/dragend 事件处理", "status": "done" },
+        { "title": "实现 activeTabIndex 修正逻辑（拖拽涉及活跃标签时）", "status": "done" },
+        { "title": "tabBar 容器注册 dragover/drop 防止默认行为", "status": "done" },
+        { "title": "editor.css 新增拖拽排序样式（tab-dragging / tab-drop-target）", "status": "done" },
+        { "title": "拖拽结束后清理所有拖拽状态 class", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "拖拽标签 A 到标签 B 位置，标签顺序交换", "status": "done" },
+        { "title": "点击标签验证内容正确切换", "status": "done" },
+        { "title": "拖拽活跃标签到其他位置，当前编辑内容不变", "status": "done" },
+        { "title": "只有一个标签时不拖拽", "status": "done" },
+        { "title": "拖拽到自身位置不做任何事", "status": "done" },
+        { "title": "拖拽到标签栏空白区域不做排序处理", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-004",
+      "name": "右键打开目录 + 路径栏双击打开目录",
+      "description": "文件树/最近文件/标签栏右键菜单增加「打开文件所在目录」功能，同时文件名下方路径栏支持双击打开目录，均通过 Electron shell.showItemInFolder 实现。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "editor", "electron", "file-system"],
+      "designSections": ["原理：Electron shell.showItemInFolder", "main.js 新增 IPC handler", "preload.js 暴露方法", "三个右键菜单新增项", "路径栏双击事件"],
+      "tasks": [
+        { "title": "main.js 新增 show-item-in-folder IPC handler", "status": "done" },
+        { "title": "preload.js 暴露 showItemInFolder 方法", "status": "done" },
+        { "title": "editor.js 三个右键菜单（文件树/最近/标签栏）新增打开目录按钮", "status": "done" },
+        { "title": "editor.js 路径栏双击事件注册", "status": "done" },
+        { "title": "editor.css 路径栏 cursor:pointer + hover 下划线样式", "status": "done" },
+        { "title": "无 electronAPI 时 Toast 提示仅在桌面模式可用", "status": "done" },
+        { "title": "filePath 为空时隐藏按钮（未保存标签）", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "文件树右键 → 打开文件所在目录 → 系统文件管理器打开对应目录", "status": "done" },
+        { "title": "最近文件右键 → 打开文件所在目录", "status": "done" },
+        { "title": "标签栏右键 → 打开文件所在目录", "status": "done" },
+        { "title": "双击路径栏 → 打开文件所在目录", "status": "done" },
+        { "title": "未保存文件不显示打开目录按钮", "status": "done" },
+        { "title": "浏览器环境下 Toast 提示仅在桌面模式可用", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-005",
+      "name": "历史面板增强：点击回退 + 200 条限制",
+      "description": "历史面板支持点击条目回退到指定编辑状态，通过 ACE UndoManager 的 $undoStack/$redoStack 计算差值并循环执行 undo/redo 跳转。默认保留最近 200 条历史记录。",
+      "layer": "frontend",
+      "tags": ["product-dev", "editor", "history"],
+      "designSections": ["原理：ACE UndoManager 栈操作", "maxHistoryEntries = 200 限制", "历史条目点击回退逻辑", "当前条目特殊样式标识"],
+      "tasks": [
+        { "title": "updateHistoryPanel 增加 200 条上限截断逻辑", "status": "done" },
+        { "title": "历史条目添加 click 事件，计算 $stackPosition 差值执行 undo/redo", "status": "done" },
+        { "title": "连续 undo/redo 操作间延迟 50ms", "status": "done" },
+        { "title": "完成后刷新历史面板", "status": "done" },
+        { "title": "历史条目添加 data-history-index 标识当前位置", "status": "done" },
+        { "title": "当前条目特殊样式区分", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "打开历史面板，点击某条记录，编辑器内容回退到该状态", "status": "done" },
+        { "title": "历史面板同步刷新", "status": "done" },
+        { "title": "连续编辑超过 200 次，最早的记录被截断", "status": "done" },
+        { "title": "当前条目有特殊样式标识", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-006",
+      "name": "全局快捷键调整",
+      "description": "全局唤醒快捷键从 Ctrl+Shift+Z 改为 Alt+X，避免与编辑器内 Ctrl+Shift+Z 重做快捷键冲突。设置页同步更新默认显示值。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "editor", "shortcut"],
+      "designSections": ["main.js 修改默认值", "设置页同步"],
+      "tasks": [
+        { "title": "main.js shortcutAccelerator 默认值改为 Alt+X", "status": "done" },
+        { "title": "设置页（settings.html/settings.js）同步更新默认显示值", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "按 Alt+X 窗口显示/隐藏", "status": "done" },
+        { "title": "编辑器内 Ctrl+Z 撤销正常", "status": "done" },
+        { "title": "编辑器内 Ctrl+Shift+Z 重做正常", "status": "done" },
+        { "title": "设置页快捷键默认值显示为 Alt+X", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-007",
+      "name": "常用文件收藏功能",
+      "description": "在编辑器右下角状态栏新增收藏按钮，点击后左侧滑出收藏面板。用户可手动收藏/取消收藏文件，支持拖拽排序，不限数量上限。数据通过 localStorage 持久化。",
+      "layer": "frontend",
+      "tags": ["product-dev", "editor", "favorite", "localStorage"],
+      "designSections": ["数据结构（localStorage editor_favorite_files）", "面板层（renderFavPanel / toggleFavPanel）", "拖拽排序（HTML5 原生 DnD API）", "收藏入口集成（右键菜单）", "动效设计"],
+      "tasks": [
+        { "title": "editor.html 新增 favPane 收藏面板 HTML", "status": "done" },
+        { "title": "editor.js 数据层：getFavoriteFiles / saveFavoriteFiles / addFavoriteFile / removeFavoriteFile / isFavoriteFile / reorderFavoriteFiles", "status": "done" },
+        { "title": "editor.js 面板层：renderFavPanel / toggleFavPanel / closeFavPanel", "status": "done" },
+        { "title": "editor.js 拖拽排序 HTML5 原生 DnD 实现", "status": "done" },
+        { "title": "文件树右键菜单添加收藏/取消收藏选项", "status": "done" },
+        { "title": "标签栏右键菜单添加收藏/取消收藏选项", "status": "done" },
+        { "title": "状态栏 favBtn 按钮创建", "status": "done" },
+        { "title": "面板互斥逻辑（关闭文件树/历史/最近）", "status": "done" },
+        { "title": "editor.css 收藏面板完整样式与动效", "status": "done" },
+        { "title": "空状态提示、添加/删除动画", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "状态栏出现收藏按钮", "status": "done" },
+        { "title": "点击收藏按钮左侧滑出收藏面板（240ms 动画）", "status": "done" },
+        { "title": "文件树右键收藏到常用，文件出现在收藏列表", "status": "done" },
+        { "title": "标签栏右键收藏到常用，文件出现在收藏列表", "status": "done" },
+        { "title": "点击收藏面板中的文件在编辑器中打开", "status": "done" },
+        { "title": "点击 × 取消收藏，淡出动画", "status": "done" },
+        { "title": "拖拽文件项排序，松开后顺序保持", "status": "done" },
+        { "title": "清空所有收藏显示空状态提示", "status": "done" },
+        { "title": "收藏面板与文件树/历史/最近面板互斥切换", "status": "done" },
+        { "title": "关闭应用重新打开，收藏数据持久化", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-008",
+      "name": "面板动画与视觉美化",
+      "description": "为编辑器模块五个面板（机器人/文件/最近/历史/概览）增加推拉式抽屉动画（打开/关闭双向），进行视觉升级——按钮激活态、列表项 hover 动效、面板滑入动画、无障碍降级。",
+      "layer": "frontend",
+      "tags": ["product-dev", "editor", "animation", "ui"],
+      "designSections": ["核心策略：推拉式抽屉（grid 列宽过渡）", "editor.html 移除 hidden 硬依赖", "editor.css grid 过渡与面板隐藏机制", "方向性滑入动画与概览浮层动画", "状态栏按钮激活态", "无障碍降级"],
+      "tasks": [
+        { "title": "editor.html 5 个面板移除 hidden 属性，改 aria-hidden", "status": "done" },
+        { "title": "editor.css editor-workspace grid-template-columns 过渡", "status": "done" },
+        { "title": "editor.css 面板隐藏机制改造（aria-hidden 控制 visibility/opacity）", "status": "done" },
+        { "title": "editor.css 面板内容方向性滑入动画（pane-in / pane-in-right）", "status": "done" },
+        { "title": "editor.css 概览浮层 opacity+scale 过渡", "status": "done" },
+        { "title": "editor.css 状态栏按钮激活态 + hover 微动效", "status": "done" },
+        { "title": "editor.css 面板内部视觉升级（头部、列表项）", "status": "done" },
+        { "title": "editor.css prefers-reduced-motion 降级", "status": "done" },
+        { "title": "editor.js 新增 setPaneVisibility 统一辅助函数", "status": "done" },
+        { "title": "editor.js 改造 5 个开关函数（hidden→aria-hidden + resize 时序 250ms）", "status": "done" },
+        { "title": "editor.js 按钮激活态同步 classList.toggle('active', open)", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "依次打开/关闭5个面板，推拉式动画平滑，编辑区让位无跳变", "status": "done" },
+        { "title": "互斥关系仍正确（打开文件树关闭历史/最近）", "status": "done" },
+        { "title": "动画期间及结束后编辑区无错位/留白", "status": "done" },
+        { "title": "机器人面板宽度拖拽把手仍可用", "status": "done" },
+        { "title": "打开面板时对应状态栏按钮高亮，关闭后取消", "status": "done" },
+        { "title": "系统开启减弱动态效果后动画全部关闭，功能正常", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-009",
+      "name": "选中逻辑优化",
+      "description": "优化编辑器选中行为，将 Ace 的 selectionStyle 从默认的 'text' 改为 'line'，使空行在多行选区中也能正确显示选中高亮，选区视觉连续，与 VS Code 行为一致。",
+      "layer": "frontend",
+      "tags": ["product-dev", "editor", "ace", "selection"],
+      "designSections": ["问题分析：selectionStyle: 'text' 导致空行无高亮", "修改方案：createEditor 中设置 selectionStyle: 'line'"],
+      "tasks": [
+        { "title": "createEditor 中 setOptions 增加 selectionStyle: 'line'", "status": "done" },
+        { "title": "同时应用于主编辑器和对比编辑器", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "输入多行文本含空行，拖拽选中跨多行，空行显示选中高亮", "status": "done" },
+        { "title": "复制选中内容仅复制实际字符", "status": "done" },
+        { "title": "对比模式下同样行为正确", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-010",
+      "name": "离线翻译增强：中英双向",
+      "description": "离线词典新增 DICT_CN 中文→英文映射，修改 offlineTranslate 逻辑，检测中文文本时直接查 DICT_CN 和 USER_DICT，跳过英文词形变化逻辑，实现中英文双向离线翻译。",
+      "layer": "frontend",
+      "tags": ["product-dev", "editor", "translation", "dictionary"],
+      "designSections": ["离线词典增强：支持中英文双向翻译", "修改 offlineTranslate 中文检测分支", "修改 lookupOfflineWord 入口判断"],
+      "tasks": [
+        { "title": "dict-offline.js 新增 DICT_CN 中文→英文映射对象", "status": "done" },
+        { "title": "导出 window.DICT_CN", "status": "done" },
+        { "title": "editor.js 修改 offlineTranslate 函数，检测中文文本走中文翻译分支", "status": "done" },
+        { "title": "修改 lookupOfflineWord 入口，中文跳过英文词形变化", "status": "done" },
+        { "title": "离线翻译结果显示来源标注（内置词典/用户词典）", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "选中英文词右键离线翻译显示中文释义", "status": "done" },
+        { "title": "选中中文词右键离线翻译显示英文释义", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-011",
+      "name": "在线翻译改为AI对话方式",
+      "description": "在线翻译从依赖 MyMemory 第三方 API 改为调用 AI 对话方式，使用 sendAiMessage() 发送提示词到右侧 AI 聊天面板，统一交互入口。同时修改添加英文翻译逻辑为 AI 翻译后插入编辑器。",
+      "layer": "frontend",
+      "tags": ["product-dev", "editor", "translation", "ai"],
+      "designSections": ["在线翻译改为AI对话方式", "删除 MyMemory API 调用逻辑"],
+      "tasks": [
+        { "title": "删除 onlineTranslateText 中 MyMemory API 调用逻辑", "status": "done" },
+        { "title": "改为调用 sendAiMessage('一句话翻译：' + text) 到右侧AI面板", "status": "done" },
+        { "title": "删除 translateViaAi 独立函数", "status": "done" },
+        { "title": "addEnglishTranslation 改为调用 sendAiMessage + 插入编辑器", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "右键选中文本在线翻译，右侧AI面板弹出并发送翻译请求", "status": "done" },
+        { "title": "右键选中中文添加英文翻译，AI翻译后插入到编辑器", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-012",
+      "name": "用户自定义词典管理",
+      "description": "新增用户自定义词典功能，支持添加/删除/查看词条，数据通过 localStorage 持久化。词典管理弹窗重构为双标签分区管理：自定义映射 + 词典库。右键菜单新增「添加自定义词典」和「添加词典库」两个功能。",
+      "layer": "frontend",
+      "tags": ["product-dev", "editor", "dictionary", "localStorage"],
+      "designSections": ["用户自定义词典添加功能", "词典库存储（DICT_LIB）", "弹窗改造为双标签分区", "右键菜单拆分"],
+      "tasks": [
+        { "title": "editor.js 新增 USER_DICT 存储（localStorage editor_user_dict_v1）", "status": "done" },
+        { "title": "新增 loadUserDict / saveUserDict / addUserDictEntry / removeUserDictEntry", "status": "done" },
+        { "title": "editor.html 新增词典管理弹窗 HTML（双标签）", "status": "done" },
+        { "title": "editor.css 新增弹窗样式（标签切换、列表样式）", "status": "done" },
+        { "title": "editor.js 新增 DICT_LIB 存储（localStorage editor_dict_lib_v1）", "status": "done" },
+        { "title": "新增 loadDictLib / saveDictLib / addDictLibEntry / removeDictLibEntry / lookupDictLib", "status": "done" },
+        { "title": "弹窗改为双标签：自定义映射 + 词典库", "status": "done" },
+        { "title": "右键菜单「添加英文翻译」→ 拆分为「添加自定义词典」和「添加词典库」", "status": "done" },
+        { "title": "右键菜单新增「管理词典」菜单项", "status": "done" },
+        { "title": "词典查找优先级：USER_DICT → DICT_LIB → DICT_CN → DICT", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "右键管理词典，弹窗标题为管理词典，有自定义映射和词典库两个标签", "status": "done" },
+        { "title": "自定义映射标签可添加/删除词条", "status": "done" },
+        { "title": "词典库标签可查看/删除条目", "status": "done" },
+        { "title": "右键选中文本→添加自定义词典→弹窗打开，源词预填", "status": "done" },
+        { "title": "右键选中文本→添加词典库→弹出输入框，保存后生效", "status": "done" },
+        { "title": "词典库条目在离线翻译中生效", "status": "done" },
+        { "title": "刷新页面后自定义词条持久化", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-013",
+      "name": "编辑器词典自动补全",
+      "description": "为 ACE 编辑器注册自定义 completer，在用户输入时自动匹配 USER_DICT + DICT + DICT_CN + DICT_LIB 中的内容，提供候选词补全，类似 SQL 中 S→SELECT 的体验。",
+      "layer": "frontend",
+      "tags": ["product-dev", "editor", "autocomplete", "dictionary"],
+      "designSections": ["编辑器输入时自动匹配词典", "completer 实现（前缀匹配，不区分大小写）"],
+      "tasks": [
+        { "title": "registerDictCompleter 注册自定义 completer", "status": "done" },
+        { "title": "completer 逻辑：获取当前单词前缀，在合并词典中搜索匹配", "status": "done" },
+        { "title": "候选词展示 caption + meta（词典释义）", "status": "done" },
+        { "title": "结果取前 30 个", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "编辑器输入 hel，自动弹出 hello 等候选词", "status": "done" },
+        { "title": "候选词显示词典释义", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-014",
+      "name": "启动加载遮罩",
+      "description": "优化桌面应用启动体验：先显示窗口和加载遮罩，后端异步启动，通过 IPC 推送进度。前端遮罩层显示 spinner 和进度文字，后端就绪后自动隐藏，失败时显示错误和重试按钮。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "editor", "electron", "startup"],
+      "designSections": ["核心思路：先显示窗口，后端异步启动", "主进程启动流程改为并行", "preload 新增 IPC 监听器", "前端遮罩层 CSS + HTML + JS"],
+      "tasks": [
+        { "title": "main.js 启动流程改为并行（startBackend 不 await）", "status": "done" },
+        { "title": "main.js 移除 3 秒额外等待", "status": "done" },
+        { "title": "main.js startBackend 轮询期间推送进度", "status": "done" },
+        { "title": "main.js 后端就绪后 IPC 通知渲染进程", "status": "done" },
+        { "title": "preload.js 新增 onBackendReady / onBackendError / onBackendProgress", "status": "done" },
+        { "title": "index.html 新增 startup-overlay 遮罩层 CSS", "status": "done" },
+        { "title": "index.html 新增遮罩层 HTML（spinner + 进度文字）", "status": "done" },
+        { "title": "index.html 新增遮罩控制 JS（进度更新/就绪隐藏/失败重试）", "status": "done" },
+        { "title": "浏览器环境下不显示遮罩", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "启动应用窗口立即出现，显示 loading 遮罩和 spinner", "status": "done" },
+        { "title": "遮罩显示应用启动中 + 正在启动后端服务", "status": "done" },
+        { "title": "后端启动完成后遮罩消失，正常显示主界面", "status": "done" },
+        { "title": "后端启动失败显示错误信息 + 重试按钮", "status": "done" },
+        { "title": "浏览器环境下不显示遮罩", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-015",
+      "name": "Obsidian 双链（wikilink）支持",
+      "description": "编辑器支持 Obsidian 风格双链 [[target|alias]]，含输入补全、Markdown 预览渲染为可点击链接、点击跳转（编辑器文件/剪藏/知识）、反链面板。采用 basename 全局解析为主 + 库内相对路径为辅，vault root 默认 {storagePath}/clip-organized。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "editor", "wikilink", "obsidian"],
+      "designSections": ["双链相对路径解析", "FP-1 Obsidian 双链支持"],
+      "tasks": [
+        { "title": "media-render.js 新增 renderWikilinks 预替换 [[target|alias]] 为可点击链接，白名单放行 a[data-target]", "status": "done" },
+        { "title": "editor.js 新增 buildLinkIndex / resolveWikilink / openWikilink / registerWikilinkCompleter / buildBacklinks", "status": "done" },
+        { "title": "main.js/preload.js 新增 IPC editor:list-wikilink-targets 扫描 organizedPath 下 md 返回索引", "status": "done" },
+        { "title": "editor.js 新增 main.js IPC editor:save-to-vault 保存到知识库", "status": "done" },
+        { "title": "editor.css 新增 .wikilink 样式与反链面板样式", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "输入 [[ 触发补全，候选来自链接索引", "status": "done" },
+        { "title": "[[文件名]] 在 Markdown 预览渲染为可点击链接", "status": "done" },
+        { "title": "点击跳转到编辑器文件/剪藏/知识", "status": "done" },
+        { "title": "反链面板在被引用文件里看到当前文件", "status": "done" },
+        { "title": "tmp 文件与 clip-organized/clips 剪藏 md 均可被 basename 命中", "status": "done" },
+        { "title": "basename 冲突时补全/预览给出提示", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-016",
+      "name": "打通知识图谱与 Obsidian",
+      "description": "双链对知识条目标题命中时跳转知识详情/图谱聚焦，复用现有知识 API 与 openTextData/navigate 路由，不新增后端；renderWikilinks 对剪藏/知识目标生成可点击链接。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "editor", "wikilink", "knowledge-graph", "obsidian"],
+      "designSections": ["FP-6 打通知识图谱与 Obsidian"],
+      "tasks": [
+        { "title": "editor.js resolveWikilink 对知识条目标题命中时跳转知识详情/图谱聚焦", "status": "done" },
+        { "title": "media-render.js renderWikilinks 对剪藏/知识目标生成可点击链接", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "点击指向知识条目的双链跳转知识详情/图谱", "status": "done" },
+        { "title": "点击指向剪藏的双链跳转剪藏详情", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-017",
+      "name": "Mermaid 流程图渲染",
+      "description": "编辑器 Markdown 预览支持 ```mermaid 代码块渲染为 SVG 流程图，引入 libs/mermaid.min.js，扩展 sanitizeHtml 白名单（mermaid 前缀类），渲染后异步注入。",
+      "layer": "frontend",
+      "tags": ["product-dev", "editor", "mermaid", "render"],
+      "designSections": ["FP-7 Mermaid 流程图渲染"],
+      "tasks": [
+        { "title": "editor.html 引入 libs/mermaid.min.js", "status": "done" },
+        { "title": "media-render.js renderMermaid 异步渲染 mermaid 代码块为 SVG", "status": "done" },
+        { "title": "media-render.js 白名单扩展示禁 mermaid 前缀类", "status": "done" },
+        { "title": "editor.js 预览 DOM 注入后触发 Mermaid 渲染", "status": "done" },
+        { "title": "editor.css 新增 Mermaid 样式", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "Markdown 预览中 ```mermaid 代码块渲染为流程图", "status": "done" },
+        { "title": "渲染不被 sanitizeHtml 过滤", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-018",
+      "name": "Callout 提示块渲染",
+      "description": "编辑器 Markdown 预览支持 Obsidian 风格 > [!type] callout 提示块渲染，借用 marked blockquote 渲染器识别，扩展白名单（callout 前缀类）。",
+      "layer": "frontend",
+      "tags": ["product-dev", "editor", "callout", "render"],
+      "designSections": ["FP-8 Callout 提示块渲染"],
+      "tasks": [
+        { "title": "media-render.js getCalloutRenderer 借用 marked blockquote 渲染器识别 > [!type]", "status": "done" },
+        { "title": "media-render.js 白名单放行 callout 相关 class", "status": "done" },
+        { "title": "editor.css 新增 Callout 样式", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "Markdown 预览中 > [!note] 渲染为 Callout 提示块", "status": "done" },
+        { "title": "渲染不被 sanitizeHtml 过滤", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-019",
+      "name": "多模块多类型双向链接（双链/反链/出链，Obsidian 对齐）",
+      "description": "双向链接从单一根（clip-organized/md）升级为多模块多类型：以 storagePath 为基自动发现所有含可链接文本文件的一级子目录作为独立模块，每模块独立索引 + fs.watch 自动重建 + TTL 兜底；可链接类型扩展为 md + 编辑器文本类型（txt/sql/json/xml/csv/log/yaml/yml/ini/conf），自动排除 clip-storage 与点开头目录；反链/出链跨模块聚合、就近优先（同模块>相对路径短）、同名歧义弹窗选择；新增出链面板（断链标红），交互样式对齐 Obsidian。",
+      "layer": "fullstack",
+      "tags": ["product-dev", "editor", "wikilink", "backlink", "obsidian", "multi-module"],
+      "designSections": ["多模块 + 多类型索引设计", "后端（electron/main.js）", "前端（frontend/js/editor.js + editor.html + editor.css）", "Obsidian 对齐的产品/交互"],
+      "tasks": [
+        { "title": "main.js 新增 LINKABLE_EXT_RE（md+编辑器文本类型）与 EXCLUDED_MODULE_DIRS", "status": "done" },
+        { "title": "main.js 实现 discoverLinkModules 自动发现模块（storagePath 一级子目录）", "status": "done" },
+        { "title": "main.js 实现 buildModuleIndex 逐模块构建（10MB 大小守卫）", "status": "done" },
+        { "title": "main.js 逐模块 fs.watch 监听 + 500ms 防抖重建 + TTL 兜底", "status": "done" },
+        { "title": "main.js aggregateBacklinks(currentPath) 多键查+去自引用+就近排序", "status": "done" },
+        { "title": "main.js 新增 editor-find-outgoing 出链扫描 IPC", "status": "done" },
+        { "title": "main.js editor-save-to-vault 优先使用 clip-organized 模块根", "status": "done" },
+        { "title": "preload.js findBacklinks(currentPath) + 新增 findOutgoing(currentPath)", "status": "done" },
+        { "title": "editor.js wikilinkState 兼容新结构（targets/modules）", "status": "done" },
+        { "title": "editor.js getModuleIdByPath 模块归属判定", "status": "done" },
+        { "title": "editor.js resolveWikilink 就近优先 + fileName 精确匹配", "status": "done" },
+        { "title": "editor.js 修复反链点击用 openWikilinkByPath 打开精确文件", "status": "done" },
+        { "title": "editor.js 反链条目显示模块小标签、标题显示真实文件名", "status": "done" },
+        { "title": "editor.js 新增 buildOutgoing 出链面板渲染（断链标红）", "status": "done" },
+        { "title": "editor.js scheduleBacklinksRefresh 按激活 tab 刷新", "status": "done" },
+        { "title": "editor.js 打开新文件后显式刷新反链/出链", "status": "done" },
+        { "title": "editor.js registerWikilinkCompleter 同名消歧（basename+ext 去重、[[相对路径]] 候选）", "status": "done" },
+        { "title": "editor.html 反链面板新增「反链|出链」标签栏与 outgoingList", "status": "done" },
+        { "title": "editor.css 新增分段 tab、模块小标签、出链条目、断链样式（Obsidian 对齐）", "status": "done" },
+        { "title": "验证脚本 verify-wikilink 多模块/跨模块/非 md 断言（用后删除）", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "模块自动发现 ≈ [clip-organized, clip-weekly-report, obsidian-vault, tmp]，不含 clip-storage/.tmp/.git", "status": "done" },
+        { "title": "tmp 下 test.txt/test.sql 可被 [[test]]/[[test.txt]] 补全、跳转、反链、出链", "status": "done" },
+        { "title": "跨模块互引反链正确（如 clip-organized 引用 obsidian-vault 文件）", "status": "done" },
+        { "title": "反链条目点击打开精确文件（不误开同名/不误弹选择框）", "status": "done" },
+        { "title": "自引用不进入反链", "status": "done" },
+        { "title": "同名目标就近优先排序（同模块>相对路径短），歧义弹窗选择列表", "status": "done" },
+        { "title": "出链面板显示目标解析结果，断链标红不可点", "status": "done" },
+        { "title": "面板交互（tab/数量徽标/条目卡片/行号高亮）对齐 Obsidian，暗色主题适配", "status": "done" },
+        { "title": "Ctrl+Shift+B 开关、[[ 补全（含同名消歧候选）回归正常", "status": "done" },
+        { "title": "verify-wikilink 脚本断言全部通过（含模块发现/跨模块反链/非 md 链接/就近排序/消歧）", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-020",
+      "name": "删除每行末尾换行符（joinLineEnds）",
+      "description": "编辑器右键菜单新增「删除每行末换行符」功能，将客户端截断的多行日志合并为整行，便于后续格式化（JSON/SQL等）。有选中处理选中行，无选中处理全文。兼容 \\r\\n / \\r / \\n 三种行尾，5MB 内容限制防止性能问题。",
+      "layer": "frontend",
+      "tags": ["product-dev", "editor", "transform"],
+      "designSections": ["joinLineEnds 实现：replace 移除全部换行符", "右键菜单按钮 + 上下文菜单集成"],
+      "tasks": [
+        { "title": "editor.js 新增 joinLineEnds() 函数（replace 移除换行符，兼容三种行尾）", "status": "done" },
+        { "title": "editor.js 新增 5MB 长度守卫", "status": "done" },
+        { "title": "editor.js 右键菜单 showContextMenu 中暴露 joinLineEndsContextBtn", "status": "done" },
+        { "title": "editor.js 右键菜单 action 分发入口新增 joinLineEnds 分支", "status": "done" },
+        { "title": "editor.html 新增「删除每行末换行符」右键菜单按钮", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "右键菜单出现「删除每行末换行符」按钮", "status": "done" },
+        { "title": "选中多行点击后换行符被删除，内容合并为一行", "status": "done" },
+        { "title": "无选中时处理全文，过长内容阻止并有 Toast 提示", "status": "done" }
+      ]
+    }
+  ],
+  "knowledgePoints": [
+    {
+      "title": "Mermaid 渲染与 XSS 安全",
+      "content": "Mermaid 渲染需在 sanitizeHtml 之后进行，并在 sanitizeHtml 白名单上扩展 SVG 相关标签和属性（mermaid 前缀类），确保渲染安全且不被过滤。先渲染白名单放行，再异步渲染 mermaid 代码块为 SVG 注入预览 DOM。",
+      "tags": ["product-dev", "技术", "render", "mermaid"]
+    },
+    {
+      "title": "双链 basename 全局解析语义",
+      "content": "Obsidian 双链采用 basename 全局解析（与目录无关），配合可配置 vault root 与编辑器文件「保存到知识库」（写入 vault root notes/）机制，绕开编辑器临时目录与剪藏归档目录不一致的问题。链接写 [[文件basename|别名]]，冲突时建议相对路径消歧。",
+      "tags": ["product-dev", "技术", "wikilink", "obsidian"]
+    },
+    {
+      "title": "单 Ace 实例 + 标签快照方案",
+      "content": "多标签功能采用单 Ace 实例 + 标签快照方案，而非创建多个 Ace 实例。原因：Ace 实例创建开销大、内存占用高。切换标签时，先将当前标签的内容、光标/滚动位置、选择状态保存到快照，再切换到目标标签恢复快照。每个标签维护独立的 TabState 对象。",
+      "tags": ["product-dev", "技术", "architecture"]
+    },
+    {
+      "title": "grid 列宽动画与 hidden 属性冲突",
+      "content": "面板动画中，display:none 会瞬时塌陷 grid 列，无法播放列宽过渡。因此必须将隐藏机制从 hidden 属性改为 class 控制 + aria-hidden，配合 grid-template-columns 过渡（0fr↔目标宽度）实现推拉式抽屉动画。",
+      "tags": ["product-dev", "技术", "css"]
+    },
+    {
+      "title": "HTML5 原生 Drag & Drop API 实现拖拽排序",
+      "content": "标签拖拽排序和收藏文件拖拽排序均使用 HTML5 原生 Drag & Drop API，不引入第三方库。通过 dragstart/dragover/drop/dragend 事件实现排序，拖拽后调整数组顺序并重新渲染。注意 activeTabIndex 修正逻辑：当拖拽涉及活跃标签或跨过活跃标签时，需要正确调整索引。",
+      "tags": ["product-dev", "技术", "html5"]
+    },
+    {
+      "title": "ACE UndoManager 历史回退原理",
+      "content": "ACE UndoManager 内部维护 $undoStack（已撤销栈）、$redoStack（已重做栈）和 $stackPosition（当前在栈中的位置索引）。通过计算目标条目在栈中的位置与当前 $stackPosition 的差值，循环执行 undo()/redo() 跳转到目标状态。每次操作后延迟 50ms 再执行下一次，以保证 ACE 有足够时间处理。",
+      "tags": ["product-dev", "技术", "ace"]
+    },
+    {
+      "title": "Electron 启动流程优化",
+      "content": "桌面应用启动优化核心思路：将后端启动从同步阻塞改为异步并行，先创建窗口显示加载遮罩，后端就绪后通过 IPC 通知渲染进程隐藏遮罩。同时移除多余的 3 秒等待，后端轮询期间推送进度到前端。",
+      "tags": ["product-dev", "技术", "electron"]
+    },
+    {
+      "title": "词典查找优先级策略",
+      "content": "词典查找优先级为：USER_DICT（用户自定义映射）→ DICT_LIB（词典库）→ DICT_CN（中译英内置）→ DICT（英译中内置）。用户自定义词典优先于内置词典，确保用户可覆盖默认翻译。",
+      "tags": ["product-dev", "技术", "dictionary"]
+    },
+    {
+      "title": "翻译功能改造：第三方 API → AI 对话",
+      "content": "在线翻译从依赖 MyMemory 第三方 API（有每日限流）改为直接调用右侧 AI 聊天面板，通过 sendAiMessage('一句话翻译：{text}') 统一交互入口。降低了外部依赖，提升了翻译可用性和用户体验。",
+      "tags": ["product-dev", "技术", "translation", "ai"]
+    }
+  ]
+}

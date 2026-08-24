@@ -1,0 +1,16 @@
+# 统一行尾策略：文本在仓库内存储为 LF（nomal），检出为平台原生（Windows CRLF / Unix LF）
+* text=auto
+
+# 二进制文件不入行尾转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.jar binary
+*.zip binary
+*.7z binary
+*.docx binary
+*.xlsx binary
+*.pdf binary
+*.exe binary

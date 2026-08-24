@@ -1,0 +1,472 @@
+{
+  "version": "2.0",
+  "requirement": {
+    "title": "剪藏图片功能重新设计",
+    "summary": "剪藏模块图文一体重构：图片能力抽象为通用 media 层（multipart 分步上传、UUID+按月分片存储、magic-byte 校验、256px 缩略图、生命周期管理），正文改 markdown 渲染+白名单消毒，前端/编辑器/扩展三端对齐，组织整理链路修复 Obsidian 导出断裂。",
+    "tags": [
+      "product-dev",
+      "clip",
+      "图文一体"
+    ],
+    "phase": "completed",
+    "createdAt": "2026-08-14T09:00:00",
+    "completedAt": "2026-08-14T23:30:00"
+  },
+  "featurePoints": [
+    {
+      "id": "fp-001",
+      "name": "通用 media 层（后端存储与端点）",
+      "description": "图片能力抽象为跨模块通用 media 层（决策 D-H）：新增 MediaStorageProperties 配置与 MediaController（POST /api/media/upload、GET /api/media/{yyMM}/{file}?thumb=1、POST /api/media/cleanup-orphans、GET /api/media/file/{fileName}）。ImageUtils 重写为 UUID 命名 + 按月分片（media/{yyMM}/{uuid}.{ext}），magic-byte 校验（jpg/png/gif/webp），ImageIO 256px 缩略图，相对路径白名单+normalize+限定根目录的路径穿越防护，doc-ai 源文件独立存 documents/。",
+      "layer": "backend",
+      "tags": [
+        "product-dev",
+        "clip",
+        "backend",
+        "media"
+      ],
+      "designSections": [
+        "05-图文一体设计.md 一、核心数据流",
+        "05-图文一体设计.md 三、跨模块 media 层设计",
+        "02-设计文档.md 二、核心设计决策 2.1/2.2/2.3/2.4"
+      ],
+      "tasks": [
+        {
+          "title": "MediaStorageProperties 配置类（clip.media.*，默认回退 {clip.storage.path}/media）",
+          "status": "done"
+        },
+        {
+          "title": "ImageUtils 重写：storeImage/storeDocument/readMedia/resolveMediaFile/生成缩略图",
+          "status": "done"
+        },
+        {
+          "title": "magic-byte 校验（JPEG/PNG/GIF/WEBP）替代扩展名判断",
+          "status": "done"
+        },
+        {
+          "title": "路径穿越防护（^[\\w.-]+$ + normalize + 限定根目录）",
+          "status": "done"
+        },
+        {
+          "title": "MediaController：upload/serve(?thumb=1)/cleanup-orphans/file 下载",
+          "status": "done"
+        },
+        {
+          "title": "删除废弃 ClipImageStorageProperties（clip.organized-storage 图片绑定）",
+          "status": "done"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "multipart 上传返回 {path,url,size}，路径含 media/{yyMM}/{uuid}.{ext}",
+          "status": "done"
+        },
+        {
+          "title": "GET 图片 200 且 Content-Type 正确；?thumb=1 返回缩略图",
+          "status": "done"
+        },
+        {
+          "title": "路径穿越（..%2f）返回 400/404",
+          "status": "done"
+        },
+        {
+          "title": "伪造扩展名的非图片文件被 magic-byte 拒绝",
+          "status": "done"
+        },
+        {
+          "title": "doc-ai 源文件独立存 documents/，可下载",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "fp-002",
+      "name": "数据模型与剪藏图片生命周期",
+      "description": "ClipContent.imagePaths 语义明确为 media 相对路径权威清单并新增 attachmentPath（doc-ai 源文件）；ClipRequest 新增 imagePaths，imageDataList 标废弃保留 base64 兼容解析。saveClip 校验 imagePaths 存在于 media 根；deleteClip 按引用计数清理未被其他剪藏引用的图片；updateClipFromEditor 重扫 content 中图片引用 reconcile imagePaths；cleanup-orphans 扫描清理孤儿；migrate-images 幂等迁移旧 /api/clip/image/{cat}/{file} 引用。",
+      "layer": "backend",
+      "tags": [
+        "product-dev",
+        "clip",
+        "backend",
+        "生命周期"
+      ],
+      "designSections": [
+        "02-设计文档.md 二、核心设计决策 2.5/2.6/2.7",
+        "05-图文一体设计.md 二、场景 4"
+      ],
+      "tasks": [
+        {
+          "title": "ClipContent 新增 attachmentPath + imagePaths 语义注释更新",
+          "status": "done"
+        },
+        {
+          "title": "ClipRequest 新增 imagePaths，imageDataList 标废弃（保留解析）",
+          "status": "done"
+        },
+        {
+          "title": "saveClip 校验 imagePaths 存在 + 旧 base64 兼容存储",
+          "status": "done"
+        },
+        {
+          "title": "doc-ai 改走 storeDocument + attachmentPath",
+          "status": "done"
+        },
+        {
+          "title": "deleteClip 引用计数清理未被引用图片",
+          "status": "done"
+        },
+        {
+          "title": "updateClipFromEditor reconcile imagePaths",
+          "status": "done"
+        },
+        {
+          "title": "cleanupOrphanMedia 孤儿清理",
+          "status": "done"
+        },
+        {
+          "title": "migrateImages 旧数据迁移（POST /api/clip/migrate-images）",
+          "status": "done"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "提交剪藏携带 imagePaths → 列表返回 imagePaths 且 content 含引用",
+          "status": "done"
+        },
+        {
+          "title": "cleanup-orphans 不删除被引用图片（cleanedCount=0）",
+          "status": "done"
+        },
+        {
+          "title": "删除剪藏后其唯一引用图片被清理（404）",
+          "status": "done"
+        },
+        {
+          "title": "编辑器移除图片引用后 imagePaths reconcile 为空，孤儿被 cleanup 清理",
+          "status": "done"
+        },
+        {
+          "title": "migrate-images 无旧数据时返回 0（幂等）",
+          "status": "done"
+        },
+        {
+          "title": "后端 114 个测试全部通过（0 失败 0 错误）",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "fp-003",
+      "name": "内容整理链路修复（Obsidian 导出）",
+      "description": "ContentOrganizeService 修复原正则丢弃 category/子目录问题：organize 时把剪藏引用的 media 图片复制到 {organizedPath}/{category}/assets/{uuid}.{ext}（扁平化），content 引用重写为 ./assets/{uuid}.{ext}，原图保留在 media/ 供引用计数。兼容未迁移的旧 /api/clip/image/{cat}/{file} 引用重写。",
+      "layer": "backend",
+      "tags": [
+        "product-dev",
+        "clip",
+        "backend",
+        "obsidian"
+      ],
+      "designSections": [
+        "02-设计文档.md 二、核心设计决策 2.8",
+        "05-图文一体设计.md 二、场景 4"
+      ],
+      "tasks": [
+        {
+          "title": "copyClipImagesToAssets：复制 media 图片到 organized assets（扁平化）",
+          "status": "done"
+        },
+        {
+          "title": "rewriteImageReferences：media/{yyMM}/{file} 与旧引用重写为 ./assets/{file}",
+          "status": "done"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "整理后 Markdown 图片引用为 ./assets/{uuid}.{ext}（不再丢 category/子目录）",
+          "status": "done"
+        },
+        {
+          "title": "原剪藏引用不受整理影响（复制而非移动）",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "fp-004",
+      "name": "前端剪藏图文一体（创作端）",
+      "description": "frontend/clip.html 恢复图片区（ai-text/store-only）：新增图片工具栏（📷 上传按钮 + 粘贴/拖拽提示 + 预览开关）、多选 file input、缩略条（压缩中/上传进度/成功/失败可重试/删除）。粘贴或拖拽图片 → canvas 客户端压缩（1600px/q0.82/PNG 保留透明/gif 原样）→ 立即 multipart 上传（upload.onprogress 进度）→ 成功后光标处插入 ![图片](media/...)，删除缩略图同时移除 content 中对应引用；预览开关切换 textarea ↔ markdown 渲染；提交携带 imagePaths。",
+      "layer": "fullstack",
+      "tags": [
+        "product-dev",
+        "clip",
+        "frontend"
+      ],
+      "designSections": [
+        "05-图文一体设计.md 二、场景 1",
+        "02-设计文档.md 二、核心设计决策 2.1"
+      ],
+      "tasks": [
+        {
+          "title": "media-uploader.js 共享 helper（压缩/上传/进度/重试）",
+          "status": "done"
+        },
+        {
+          "title": "clip.html 图片区 HTML/CSS（工具栏/缩略条/预览容器）",
+          "status": "done"
+        },
+        {
+          "title": "粘贴/拖拽/上传按钮事件 + 光标处插入 markdown 引用",
+          "status": "done"
+        },
+        {
+          "title": "缩略条状态渲染（进度/失败重试/删除并移除引用）",
+          "status": "done"
+        },
+        {
+          "title": "预览开关（textarea ↔ markdown 渲染）",
+          "status": "done"
+        },
+        {
+          "title": "提交携带 imagePaths + handleTypeChange 控制图片区显隐",
+          "status": "done"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "粘贴/选择/拖拽图片 → 压缩 → 上传 → 光标处插入引用",
+          "status": "done"
+        },
+        {
+          "title": "上传过程显示进度百分比，失败可重试且不阻塞其它图片",
+          "status": "done"
+        },
+        {
+          "title": "删除缩略图同时移除 content 中对应引用",
+          "status": "done"
+        },
+        {
+          "title": "预览开关在编辑/渲染间切换，图片可见",
+          "status": "done"
+        },
+        {
+          "title": "clip.html 内联脚本语法检查通过",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "fp-005",
+      "name": "正文渲染与安全（G1/G3/G5）",
+      "description": "修复设计文档未覆盖的三处关键缺口：G1 正文 renderContent 由 escapeHtml 纯文本改为 marked 渲染（media-render.js 的 renderMarkdown = marked → 白名单消毒 → rewriteImageSrc 图片重写），图片在剪藏详情正常显示不再 404；G3 新增 DOMParser 白名单消毒（D-K，不引入依赖）并统一应用到 analysis/divergentSummary/正文渲染；G5 列表首图缩略图（?thumb=1）。",
+      "layer": "frontend",
+      "tags": [
+        "product-dev",
+        "clip",
+        "frontend",
+        "安全"
+      ],
+      "designSections": [
+        "05-图文一体设计.md 二、场景 2",
+        "05-图文一体设计.md 四、D-K"
+      ],
+      "tasks": [
+        {
+          "title": "media-render.js 共享 helper（rewriteImageSrc/sanitizeHtml/renderMarkdown）",
+          "status": "done"
+        },
+        {
+          "title": "G1：renderContent 改为 markdown 渲染 + 消毒 + 图片重写",
+          "status": "done"
+        },
+        {
+          "title": "G3：analysis/divergentSummary 渲染统一走 renderMarkdown",
+          "status": "done"
+        },
+        {
+          "title": "G5：列表首图缩略图（clip-thumb，?thumb=1）",
+          "status": "done"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "含 media/ 引用的剪藏详情图片正常显示（不再是纯文本 markdown 源码）",
+          "status": "done"
+        },
+        {
+          "title": "渲染前消毒：脚本/事件属性被剥离",
+          "status": "done"
+        },
+        {
+          "title": "列表显示首图缩略图，无图不占位",
+          "status": "done"
+        },
+        {
+          "title": "media-render.js 语法检查通过",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "fp-006",
+      "name": "编辑器图文编辑（Ace）",
+      "description": "补设计缺口 G2：editor.html 新增 📷 工具栏按钮与隐藏 file input，引入 media-uploader/media-render；editor.js 实现图片按钮/粘贴事件 → 压缩上传 → Ace 光标处插入 ![图片](media/...)，markdown 预览面板（markdownBody）改为 renderMarkdown（图片实时可见），保存走 updateClipFromEditor 由后端 reconcile imagePaths。",
+      "layer": "frontend",
+      "tags": [
+        "product-dev",
+        "clip",
+        "frontend",
+        "editor"
+      ],
+      "designSections": [
+        "05-图文一体设计.md 二、场景 3"
+      ],
+      "tasks": [
+        {
+          "title": "editor.html 引入 helper + 图片按钮 + 隐藏 file input",
+          "status": "done"
+        },
+        {
+          "title": "editor.js 图片上传/粘贴 → Ace 光标处插入",
+          "status": "done"
+        },
+        {
+          "title": "editor.js markdown 预览改 renderMarkdown（图片重写）",
+          "status": "done"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "编辑器工具栏 📷 点击/粘贴图片 → 上传 → 光标处插入引用",
+          "status": "done"
+        },
+        {
+          "title": "markdown 预览面板图片正常显示",
+          "status": "done"
+        },
+        {
+          "title": "editor.js / editor.html 语法检查通过",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "fp-007",
+      "name": "浏览器扩展对齐（M4）",
+      "description": "browser-extension/clip-main.js 替换旧 base64 imageDataList 流为新上传流：canvas 压缩 → 立即上传 → 光标处插入、缩略条（进度/重试/删除并移除引用）、提交 imagePaths；clip.html 引入复制到 libs/ 的 media helper（决策 D-L，与 frontend/js 标注同步）；扩展正文/分析/发散渲染同步走 renderMarkdown（G1/G3）。",
+      "layer": "fullstack",
+      "tags": [
+        "product-dev",
+        "clip",
+        "extension"
+      ],
+      "designSections": [
+        "05-图文一体设计.md 三、第 3 点（扩展 helper 同步）",
+        "03-实施任务.md M4"
+      ],
+      "tasks": [
+        {
+          "title": "复制 media-render.js/media-uploader.js 到 browser-extension/libs/（D-L）",
+          "status": "done"
+        },
+        {
+          "title": "clip-main.js 新上传流（handleImageFiles/renderImagePreviews/insertImageMarkdown/retryUpload/removeUploadedImage）",
+          "status": "done"
+        },
+        {
+          "title": "提交 imagePaths 替代 imageDataList",
+          "status": "done"
+        },
+        {
+          "title": "扩展正文/分析/发散渲染走 renderMarkdown（G1/G3）",
+          "status": "done"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "扩展粘贴/选择图片 → 上传 → 光标插入 + 缩略条管理",
+          "status": "done"
+        },
+        {
+          "title": "提交携带 imagePaths",
+          "status": "done"
+        },
+        {
+          "title": "clip-main.js / clip.html / libs helper 语法检查通过",
+          "status": "done"
+        }
+      ]
+    }
+  ],
+  "knowledgePoints": [
+    {
+      "title": "跨模块复用：通用 media 层（D-H）",
+      "content": "图片端点与存储从 clip-specific 抽象为通用 /api/media/* 与 {storage}/media/，成本≈0（仅控制器命名与路径），Knowledge/Wiki 等模块后续零成本接入，避免各模块各自造轮子。剪藏旧路径由 migrate-images 重写，无需兼容别名。",
+      "tags": [
+        "product-dev",
+        "clip",
+        "架构"
+      ]
+    },
+    {
+      "title": "相对路径存储 + 渲染时重写（D-B）",
+      "content": "content 中存相对路径 media/{yyMM}/{uuid}.{ext}，前端 marked 渲染时按 API origin 重写为绝对 URL。端口/前端源变更无需迁移数据；Obsidian 导出时重写为 ./assets/{uuid}.{ext}。",
+      "tags": [
+        "product-dev",
+        "clip",
+        "架构"
+      ]
+    },
+    {
+      "title": "multipart 分步上传替代 base64 JSON（D-A/D-C）",
+      "content": "粘贴即传（非随提交）：客户端 canvas 压缩（1600px/q0.82/PNG 保留透明/gif 原样/webp 转 jpg）→ XHR multipart + upload.onprogress 进度 + 单张重试。解决 base64 膨胀 ~33%、无进度、大请求体、易超时问题。imagePaths 为权威清单，content 引用与之一致。",
+      "tags": [
+        "product-dev",
+        "clip",
+        "性能"
+      ]
+    },
+    {
+      "title": "XSS 白名单消毒（D-K）",
+      "content": "marked 无内置 sanitize（v4+ 移除），渲染用户 Markdown 为 HTML 必须消毒。用 DOMParser 深度遍历：仅允许 p/div/strong/em/code/pre/blockquote/ul/ol/li/a/img/h1-h6/br/hr/table 等标签与 src/href/alt/title/class 属性，杜绝 javascript: 协议。不引入新依赖。",
+      "tags": [
+        "product-dev",
+        "clip",
+        "安全"
+      ]
+    },
+    {
+      "title": "图片生命周期：imagePaths 权威清单 + 引用计数",
+      "content": "imagePaths 为权威引用清单：saveClip 校验存在、deleteClip 按引用计数清理（未被其他剪藏引用才删）、updateClipFromEditor 重扫 content reconcile、cleanup-orphans 兜底未提交剪藏的孤儿。文件写临时名+rename 防半写。",
+      "tags": [
+        "product-dev",
+        "clip",
+        "生命周期"
+      ]
+    },
+    {
+      "title": "magic-byte 校验 + 路径穿越防护",
+      "content": "图片类型校验用 magic-byte（FFD8FF/89504E47/GIF8/RIFF..WEBP）而非扩展名；读取路径白名单 ^[\\w.-]+$ + normalize + 限定 media/documents 根目录，杜绝任意文件读。中文分类 URL 编码风险由 UUID 命名根除。",
+      "tags": [
+        "product-dev",
+        "clip",
+        "安全"
+      ]
+    },
+    {
+      "title": "扩展与主前端 helper 同步策略（D-L）",
+      "content": "浏览器扩展是独立打包单元无法引用 frontend/js，复制 media-uploader.js/media-render.js 到 browser-extension/libs/ 并在文件头标注与 frontend/js 同步，接受小规模重复换取零构建依赖。",
+      "tags": [
+        "product-dev",
+        "clip",
+        "工程"
+      ]
+    },
+    {
+      "title": "测试环境 Logback 写用户目录问题",
+      "content": "logback-spring.xml 写 ${user.home}/.cut-demo/logs，在无写权限的沙箱/CI 环境会导致 Spring 上下文加载失败。新增 src/test/resources/logback-test.xml 仅输出控制台，测试专用，不影响生产配置。",
+      "tags": [
+        "product-dev",
+        "测试"
+      ]
+    }
+  ]
+}

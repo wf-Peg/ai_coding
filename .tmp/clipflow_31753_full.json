@@ -1,0 +1,102 @@
+[
+ {
+  "post_number": 1,
+  "username": "硬气一点",
+  "text": "一、Demo 简介\n\n这是一个帮助高频使用web的开发者、内容创作者、学生解决「从网页复制内容到 AI 时格式丢失、整理耗时」问题的 Chrome 浏览器扩展。\n\n核心用户画像很具体：每天需要在web页之间来回切换的人——比如从 API 文档复制代码示例到 DeepSeek 提问、从论坛发帖内容让 AI 总结、从网页内容让AI进行页面结构分析、看到好的图片需要ai去反推模仿处理等等。\n\n替代ctrl+c/v 快速复制粘贴，提高工作效率\n\n解决一些直接给ai链接没法识别或者识别效果不好的问题\n\n部分解决一些文档页面限制无法获取内容的问题\n\nClipFlow 的三个核心功能：\n\n智能识别模式：鼠标悬停自动识别网页上的内容块，支持元素级精准选中，也支持整页批量提取。\n\n多格式一键输出：选中内容后可输出为 Markdown / 富文本 HTML / 结构树 / JSON 四种格式，直接复制到剪贴板或一键跳转到 DeepSeek / 豆包 / ChatGPT 并自动填入输入框。\n\n截图 + 长截图 + 导出编辑器：支持区域截图和自动滚动长截图，截图后可在编辑器中裁剪标注；AI 对话内容可导出到整理编辑器，一键去除空行、去重、正则替换等。\n\nimage2518×1283 483 KB\n\n二、Demo 创作思路\n\n灵感来源：\n\n这个灵感来自己的真实日常。比如我在TRAE参加比赛看到一大段内容，我想整理成一个skills帮我发帖要么快捷键全都复制了，要么鼠标拖动起来很麻烦，还在用传统的办法搬运数据。\n\n想解决的问题：\n\n不是做一个大而全的「网页抓取工具」，不是爬虫，而是聚焦一个具体场景：用户不需要拖来拖去不停切换，点一下就行。\n\n为什么做这个方向：\n\n简单，不需要特别复杂的技术知识，非技术开发背景也能coding起来\n\n实用，至少能解决我自己的问题，立马用的起来\n\n可扩展，比如增加一些预置提示词、更多的跳转方式、转换格式等等\n\n三、Demo 体验地址\n\nGitHub 仓库（开源代码）： TRAE项目-ClipFlow\n\n演示视频：小破站bilibili\n\nChrome 开发者模式安装：\n\n下载仓库代码并解压\n\n打开 Chrome → chrome://extensions/ → 开启「开发者模式」\n\n点击「加载已解压的扩展程序」→ 选择 trae-creative-proposal/clipflow-extension 文件夹\n\n四、TRAE 实践过程\n\n任务一：搭建扩展基础框架与识别模式\n\n任务目标： 根据报名文件和详细需求，使用spec模式确认开发计划进行开发。\n\n与 TRAE 协作：\n\n我从零开始让 TRAE 帮我搭建扩展骨架——manifest.json 配置、content script 注入、popup 面板。最初识别模式只能识别单个文本段落，我反馈「在论坛页面上无法区分发帖人和评论」，TRAE 帮我引入了内容密度算法：从点击位置向上遍历 DOM，找到包含 ≥2 个内容元素的祖先节点作为识别边界。这个算法让识别从��单段落」升级为「内容块」。\n\n0011920×1136 211 KB\n\n3587068320290864:822e6abc9acc3732116cc5f89646642a_6a3107ba0f82d4726d836972.6a3107ba0f82d4726d836975.6a3107ba0f82d4726d836973:TRAE Work CN.0.1.19.no_sid.no_ppe.T(2026/6/16 16:22:18)\n\nimage1920×1131 242 KB\n\nimage1920×1132 225 KB\n\n3587068320290864:670ac8ed43023d484ed10b3102834a61_6a3107ba0f82d4726d836972.6a31113f2e9dad1875f67596.6a31113f2e9dad1875f67594:TRAE Work CN.0.1.19.no_sid.no_ppe.T(2026/6/16 17:02:55)\n\n任务二：实现多格式解析与 AI 平台集成\n\n任务目标： 把识别到的内容解析为 Markdown / HTML / 结构树 / JSON，并接入 DeepSeek / 豆包 / ChatGPT 一键跳转。\n\n与 TRAE 协作：\n\n这是整个项目最复杂的部分。我先把需求拆成两个子任务：「解析器」和「投递链路」。TRAE 帮我设计了 6 个独立解析器（text-parser、code-parser、table-parser、image-parser、layout-parser、format-converter），用 getter 模式懒加载避免循环依赖。\n\n投递链路遇到一个大坑：跨域图片无法直接通过剪贴板复制给 AI。TRAE 建议用 background service worker 做 CORS-free 图片获取，再转成 Blob 写入剪贴板。我一度担心权限问题（host_permissions: <all_urls> 看起来很强），TRAE 帮我确认了 Manifest V3 的权限模型，最终方案安全可行。\n\nimage2859×1671 490 KB\n\nimage1920×1103 202 KB\n\n3587068320290864:5731fcfbd913f2acb3496f7fb278c2bd_6a3107ba0f82d4726d836972.6a325a443d24631f8587a297.6a325a443d24631f8587a295:TRAE Work CN.0.1.19.no_sid.no_ppe.T(2026/6/17 16:26:44)\n\n任务三：截图功能与 UI 精细化打磨\n\n任务目标： 实现区域截图、长截图、截图编辑器，并持续优化工具栏和识别精度。\n\n与 TRAE 协作：\n\n截图功能迭代了整整两个 Session。第一次实现后我发现：截图把 ClipFlow 自己的绿色选中框和标签也截进去了，这很荒谬。TRAE 帮我用 setProperty('display', 'none', 'important') 在截图前强制隐藏所有 UI 元素，截图后恢复。\n\n另一个棘手问题是长截图：AI 平台（如 DeepSeek）页面有两个滚动条，自动滚动会卡住。TRAE 参考了 pixpin 的实现思路，帮我调整了滚动策略——优先滚动主内容区，检测滚动到底后停止拼接。\n\n识别精度也在这个阶段大幅提升。我反馈「在论坛页面上识别范围太大，把发帖人和所有评论混在一起了」，TRAE 重构了识别优先级：独立元素（图片/代码块/表格）> 帖子项（单条评论）> 内容块 > 大容器。这样用户既可以精准选中一张图片，也可以选中整段评论流。\n\nimage1920×1141 178 KB\n\n3587068320290864:4bb716fdc0b20fe7ba6c735c5d623906_6a3107ba0f82d4726d836972.6a32c586ffc5f17fa8ae6cc7.6a32c586ffc5f17fa8ae6cc5:TRAE Work CN.0.1.19.no_sid.no_ppe.T(2026/6/18 00:04:22)\n\nimage2841×1676 509 KB\n\n3587068320290864:360c5eacf6cb37b4304dded203158b50_6a3107ba0f82d4726d836972.6a333c5a52e6e0c6c31e98b6.6a333c5a52e6e0c6c31e98b4:TRAE Work CN.0.1.19.no_sid.no_ppe.T(2026/6/18 08:31:22)\n\n任务四：文本整理工具与最终打磨\n\n任务目标： 在导出编辑器中增加文本整理功能，优化工具栏布局，准备开源发布。\n\n与 TRAE 协作：\n\n用户反馈导出后的内容经常带有分割线、多余空行、不需要的图片。我让 TRAE 在导出编辑器里加了「去除空行」「去除分割线」「去除图片」「正则替换」四个工具，每个都是 DOM 级别的操作，保留 HTML 结构的同时清理内容。\n\n工具栏布局也做了压缩——原本卡片太大，跳转按钮占了一整行。TRAE 帮我把格式选择器移到标题行，跳转按钮和操作按钮放在同一行，整体宽度从 420px 缩到 360px，更紧凑。\n\n最后整理了 .gitignore，排除了开发文档、字体资源、网页版代码等无关文件，只保留扩展本体 + README + LICENSE 推送到 GitHub。\n\nimage2855×1683 474 KB\n\nimage2872×1674 430 KB\n\n3587068320290864:70090eab66dc3f98e9c561e816a0944e_6a3107ba0f82d4726d836972.6a335acf52e6e0c6c31ea27b.6a335acf52e6e0c6c31ea279:TRAE Work CN.0.1.19.no_sid.no_ppe.T(2026/6/18 10:41:19)\n\n五、效果展示\n\n演示视频：小破站bilibili\n\nimage1920×897 561 KB\n\n报名帖链接： 【学习工作赛道】ClipFlow — 一键转换网页元素，探索更高效、智能的体验"
+ },
+ {
+  "post_number": 2,
+  "username": "耿家威PhpJavaGo用户17",
+  "text": "image348×150 12.1 KB"
+ },
+ {
+  "post_number": 3,
+  "username": "耿家威PhpJavaGo用户17",
+  "text": "@TRAE宝 用大白话总结一下，这是浏览器插件吗"
+ },
+ {
+  "post_number": 4,
+  "username": "硬气一点",
+  "text": "就是插件本来还想加一个web页面，但是一个月咋搞啊，难办hhhh"
+ },
+ {
+  "post_number": 5,
+  "username": "耿家威PhpJavaGo用户17",
+  "text": "原来如此，auto 能省一点，个人感觉"
+ },
+ {
+  "post_number": 6,
+  "username": "硬气一点",
+  "text": "100次都是省吃俭用的，大半夜我偷偷排队，不过GLM5.2目前确实好用"
+ },
+ {
+  "post_number": 7,
+  "username": "耿家威PhpJavaGo用户17",
+  "text": "我的干完还剩了87次"
+ },
+ {
+  "post_number": 8,
+  "username": "硬气一点",
+  "text": "已经养成了好习惯，晚上2点半偷偷排队，写不出800字小作文就不开速通模式"
+ },
+ {
+  "post_number": 9,
+  "username": "耿家威PhpJavaGo用户17",
+  "text": "晚上两点应该就不用排队了，爽用，现在应该都玩去了，嗨起来"
+ },
+ {
+  "post_number": 10,
+  "username": "用户64688",
+  "text": "在便利店后门投喂AI的两人"
+ },
+ {
+  "post_number": 11,
+  "username": "骆谦实",
+  "text": "不愧是 社区Builder之星，学到了，浏览器插件也是一类有趣的产品形态！"
+ },
+ {
+  "post_number": 12,
+  "username": "硬气一点",
+  "text": "不愧是社区活力之星，说话就是好听（其实太难的我搞不定 哈哈哈"
+ },
+ {
+  "post_number": 13,
+  "username": "硬气一点",
+  "text": "玛奇玛和日车宽见"
+ },
+ {
+  "post_number": 14,
+  "username": "骆谦实",
+  "text": "哈哈哈哈商业互吹时刻~\n\n不过感觉AI Coding这波浪潮下，做很多前端产品挺多的。\n\nSPA小游戏、工具\n\nWeb WIKI\n\n还有浏览器插件\n\n有的伙伴做出小程序等等"
+ },
+ {
+  "post_number": 15,
+  "username": "硬气一点",
+  "text": "比如胡彦斌的手搓的——彦火APP\n\nimage619×1082 129 KB"
+ },
+ {
+  "post_number": 16,
+  "username": "u3942200365034860",
+  "text": "我的已经做完���，各位可否帮忙测试一下bug，互动教育赛道 + 星云课堂宠物平台 - 游戏化课堂积分激励系统"
+ },
+ {
+  "post_number": 18,
+  "username": "硬气一点",
+  "text": "看了一下创建班级不成功，可以加一个教学引导页，具体问题已经发到你的主贴下面了"
+ },
+ {
+  "post_number": 19,
+  "username": "用户18",
+  "text": "image704×150 23.4 KB\n\n支持"
+ },
+ {
+  "post_number": 20,
+  "username": "骆谦实",
+  "text": "笑死了，你的这个首图是不是要喊阳姐来看看"
+ },
+ {
+  "post_number": 21,
+  "username": "硬气一点",
+  "text": "我提奶奶们谢谢您！"
+ }
+]

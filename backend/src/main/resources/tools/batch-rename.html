@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>批量重命名</title>
+<style>
+:root{
+  --bg:#f7f7f5; --surface:#ffffff; --surface-subtle:#f1f1ef; --surface-hover:#ececea;
+  --border:#e3e3df; --border-strong:#d2d2cd; --text:#2f3437; --text-secondary:#6b6f76;
+  --text-muted:#92969d; --primary:#2383e2; --primary-hover:#1f76c9; --primary-soft:rgba(35,131,226,.1);
+  --success:#238b63; --danger:#d14343; --danger-soft:rgba(209,67,67,.1);
+  --radius-sm:6px; --radius:9px; --radius-lg:12px;
+  --shadow:0 1px 2px rgba(15,23,42,.06),0 10px 24px rgba(15,23,42,.06);
+  --ease-out-expo:cubic-bezier(.16,1,.3,1);
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#1f2224; --surface:#2a2e31; --surface-subtle:#33373a; --surface-hover:#3a3f42;
+    --border:#3a3f42; --border-strong:#4a4f53; --text:#e8eaec; --text-secondary:#a6acb2;
+    --text-muted:#7d8389; --primary:#4b9cf0; --primary-hover:#5fa8f2; --primary-soft:rgba(75,156,240,.15);
+    --success:#3aa97c; --danger:#e05b5b; --danger-soft:rgba(224,91,91,.15);
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 24px rgba(0,0,0,.25); }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5;-webkit-font-smoothing:antialiased}
+.app{max-width:760px;margin:0 auto;padding:28px 20px 56px}
+.header{margin-bottom:20px;animation:slideDown .4s var(--ease-out-expo)}
+.header h1{font-size:1.4rem;font-weight:700;letter-spacing:-.01em;margin-bottom:6px}
+.header p{font-size:.9rem;color:var(--text-secondary)}
+@keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+
+.dir-picker{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:18px}
+.dir-picker .path{flex:1;font-size:.85rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dir-picker .count{font-size:.78rem;color:var(--text-muted)}
+.btn{border:none;border-radius:var(--radius);padding:10px 18px;font-size:.88rem;font-weight:500;cursor:pointer;transition:all .2s var(--ease-out-expo)}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-hover);transform:translateY(-1px)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn-ghost{background:var(--surface);border:1px solid var(--border-strong);color:var(--text)}
+.btn-ghost:hover{background:var(--surface-hover)}
+
+.rules{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:18px;display:none}
+.rules.show{display:block;animation:fade .25s ease}
+.rules h3{font-size:.95rem;margin-bottom:14px}
+.rule-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.rule-row label{font-size:.83rem;color:var(--text-secondary);min-width:64px}
+.rule-row input[type=text]{flex:1;min-width:120px;padding:8px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:.85rem;outline:none}
+.rule-row input[type=text]:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
+.rule-row input[type=number]{width:70px;padding:8px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:.85rem;outline:none}
+.rule-row select{padding:8px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:.85rem;outline:none}
+.rule-row .or{color:var(--text-muted);font-size:.78rem}
+.rule-row .checkbox{display:flex;align-items:center;gap:6px;font-size:.83rem;color:var(--text-secondary)}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+
+.preview{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px;display:none}
+.preview.show{display:block;animation:fade .25s ease}
+.preview h3{font-size:.95rem;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border)}
+th{color:var(--text-muted);font-weight:500}
+td.mono{font-family:ui-monospace,"SF Mono","Consolas",monospace}
+td .arrow{color:var(--text-muted);margin:0 8px}
+td .new{color:var(--success);font-weight:500}
+td .conflict{color:var(--danger)}
+.preview-body{max-height:280px;overflow:auto}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+
+.message{font-size:.85rem;padding:10px 14px;border-radius:var(--radius);margin-top:14px}
+.message.error{background:var(--danger-soft);color:var(--danger)}
+.message.info{background:var(--primary-soft);color:var(--primary)}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>🗂️ 批量重命名</h1>
+    <p>按规则批量重命名目录下的文件，实时预览新文件名</p>
+  </div>
+
+  <div class="dir-picker">
+    <button class="btn btn-ghost" id="selectBtn">选择目录</button>
+    <span class="path" id="dirPath">尚未选择目录</span>
+    <span class="count" id="fileCount"></span>
+  </div>
+
+  <div class="rules" id="rules">
+    <h3>重命名规则</h3>
+    <div class="rule-row">
+      <label>前缀</label>
+      <input type="text" id="prefix" placeholder="在文件名前添加，如 repo_">
+    </div>
+    <div class="rule-row">
+      <label>后缀</label>
+      <input type="text" id="suffix" placeholder="在文件名后添加，如 _final">
+    </div>
+    <div class="rule-row">
+      <label>替换</label>
+      <input type="text" id="find" placeholder="查找文本" style="flex:.7">
+      <span class="or">→</span>
+      <input type="text" id="replace" placeholder="替换为" style="flex:.7">
+    </div>
+    <div class="rule-row">
+      <label>序号</label>
+      <select id="seqMode">
+        <option value="none">不编序号</option>
+        <option value="prefix">作为前缀</option>
+        <option value="suffix">作为后缀</option>
+      </select>
+      <span class="or">起始</span>
+      <input type="number" id="seqStart" value="1" min="0">
+      <span class="or">位数</span>
+      <input type="number" id="seqPad" value="3" min="1" max="6">
+    </div>
+    <div class="rule-row">
+      <label>大小写</label>
+      <select id="caseMode">
+        <option value="none">保持不变</option>
+        <option value="lower">全部小写</option>
+        <option value="upper">全部大写</option>
+      </select>
+      <label class="checkbox" style="margin-left:auto">
+        <input type="checkbox" id="keepExt" checked> 保留扩展名
+      </label>
+    </div>
+    <div class="rule-row">
+      <button class="btn btn-primary" id="previewBtn">生成预览</button>
+      <button class="btn btn-primary" id="applyBtn" style="display:none">执行重命名</button>
+    </div>
+  </div>
+
+  <div class="preview" id="preview">
+    <h3><span>重命名预览</span><span id="previewCount"></span></h3>
+    <div class="preview-body">
+      <table>
+        <thead><tr><th style="width:20px">#</th><th>旧文件名</th><th></th><th>新文件名</th></tr></thead>
+        <tbody id="previewBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div id="msg"></div>
+</div>
+
+<script>
+let currentDir = null;
+let currentFiles = [];
+let plan = [];
+
+const $ = id => document.getElementById(id);
+
+$('selectBtn').addEventListener('click', async () => {
+  if (!window.electronAPI || typeof window.electronAPI.selectRenameDirectory !== 'function') {
+    showMsg('⚠️ 批量重命名需要桌面应用环境支持', 'error');
+    return;
+  }
+  const res = await window.electronAPI.selectRenameDirectory();
+  if (!res || !res.dirPath) return;
+  currentDir = res.dirPath;
+  currentFiles = res.files || [];
+  $('dirPath').textContent = currentDir;
+  $('fileCount').textContent = currentFiles.length + ' 个文件';
+  $('rules').classList.add('show');
+  $('preview').classList.remove('show');
+  $('applyBtn').style.display = 'none';
+  $('msg').innerHTML = '';
+});
+
+$('previewBtn').addEventListener('click', () => buildPlan(false));
+$('applyBtn').addEventListener('click', () => buildPlan(true));
+
+function buildPlan(apply) {
+  if (!currentDir || currentFiles.length === 0) {
+    showMsg('请先选择目录', 'error');
+    return;
+  }
+  const prefix = $('prefix').value;
+  const suffix = $('suffix').value;
+  const find = $('find').value;
+  const replace = $('replace').value;
+  const seqMode = $('seqMode').value;
+  const seqStart = parseInt($('seqStart').value || '1', 10);
+  const seqPad = parseInt($('seqPad').value || '3', 10);
+  const caseMode = $('caseMode').value;
+  const keepExt = $('keepExt').checked;
+
+  plan = [];
+  let idx = seqStart;
+  for (const f of currentFiles) {
+    let name = f.name;
+    let ext = '';
+    if (keepExt) {
+      const dot = name.lastIndexOf('.');
+      if (dot > 0) { ext = name.slice(dot); name = name.slice(0, dot); }
+    }
+    let base = name;
+    if (find) base = base.split(find).join(replace);
+    if (seqMode !== 'none') {
+      const seq = String(idx).padStart(seqPad, '0');
+      base = seqMode === 'prefix' ? seq + base : base + seq;
+      idx++;
+    }
+    base = prefix + base + suffix;
+    if (caseMode === 'lower') base = base.toLowerCase();
+    if (caseMode === 'upper') base = base.toUpperCase();
+    const newName = base + ext;
+
+    // 检测冲突
+    const conflict = newName !== f.name && currentFiles.some(o => o.name === newName && o.path !== f.path);
+    plan.push({ from: f.path, oldName: f.name, newName, conflict });
+  }
+
+  renderPreview(plan);
+  $('preview').classList.add('show');
+  $('applyBtn').style.display = 'inline-block';
+  if (apply) applyRenames();
+}
+
+function renderPreview(plan) {
+  const changed = plan.filter(p => p.oldName !== p.newName);
+  $('previewCount').textContent = changed.length + ' 个文件将被重命名';
+  $('previewBody').innerHTML = '';
+  plan.forEach((p, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${i + 1}</td>
+      <td class="mono">${escapeHtml(p.oldName)}</td>
+      <td><span class="arrow">→</span></td>
+      <td class="mono ${p.oldName === p.newName ? '' : 'new'} ${p.conflict ? 'conflict' : ''}">${escapeHtml(p.newName)}${p.conflict ? ' ⚠️冲突' : ''}</td>`;
+    $('previewBody').appendChild(tr);
+  });
+}
+
+async function applyRenames() {
+  const renames = plan.filter(p => p.oldName !== p.newName && !p.conflict);
+  if (renames.length === 0) { showMsg('没有需要重命名的文件', 'error'); return; }
+  if (!window.electronAPI || typeof window.electronAPI.applyRenames !== 'function') { showMsg('桌面环境不支持', 'error'); return; }
+  const btn = $('applyBtn');
+  btn.disabled = true;
+  btn.textContent = '<span class="spinner"></span>重命名中…';
+  try {
+    const res = await window.electronAPI.applyRenames({ dirPath: currentDir, renames });
+    if (res && res.success) {
+      showMsg('✅ 成功重命名 ' + res.renamed + ' 个文件', 'info');
+      // 重新加载目录
+      const fresh = await window.electronAPI.selectRenameDirectory(currentDir);
+      if (fresh && fresh.dirPath) { currentFiles = fresh.files || []; $('fileCount').textContent = currentFiles.length + ' 个文件'; }
+    } else {
+      showMsg('重命名失败: ' + (res && res.error ? res.error : '未知错误'), 'error');
+    }
+  } catch (e) { showMsg('重命名失败: ' + e.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = '执行重命名'; }
+}
+
+function showMsg(text, type) {
+  $('msg').innerHTML = `<div class="message ${type}">${text}</div>`;
+}
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>

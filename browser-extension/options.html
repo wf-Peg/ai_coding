@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="notion">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能剪藏助手 - 设置</title>
+  <link rel="stylesheet" href="shared-ui-theme.css">
+  <link rel="stylesheet" href="shared-ui-base.css">
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>智能剪藏助手</h1>
+      <p class="subtitle">设置与配置</p>
+    </header>
+
+    <main class="main">
+      <form id="optionsForm">
+        <section class="section">
+          <h2>界面风格</h2>
+
+          <div class="form-group">
+            <label for="uiTheme">选项页风格</label>
+            <select id="uiTheme">
+              <option value="regular">常规风格</option>
+              <option value="notion">Notion 风格</option>
+            </select>
+            <p class="help-text">仅影响插件设置页的视觉样式，保存后下次打开会自动生效</p>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>后端服务配置</h2>
+          
+          <div class="form-group">
+            <label for="apiUrl">API地址</label>
+            <input type="text" id="apiUrl" placeholder="http://localhost:8081/api/clip/add">
+            <p class="help-text">后端服务的API接口地址</p>
+          </div>
+
+          <div class="form-group">
+            <label for="apiTimeout">API超时时间 (秒)</label>
+            <input type="number" id="apiTimeout" min="1" max="60" placeholder="30">
+            <p class="help-text">API调用的超时时间，默认为30秒</p>
+          </div>
+
+          <div class="form-group">
+            <label for="apiRetryCount">API重试次数</label>
+            <input type="number" id="apiRetryCount" min="0" max="5" placeholder="2">
+            <p class="help-text">API调用失败时的重试次数，默认为2次</p>
+          </div>
+
+          <div class="form-group">
+            <label for="ingestUrl">智能入库API地址</label>
+            <input type="text" id="ingestUrl" placeholder="http://localhost:8081/api/ingest">
+            <p class="help-text">智能入库接口地址，自动识别意图并路由入库</p>
+          </div>
+
+          <div class="form-group">
+            <button type="button" class="btn-secondary" id="testBtn">测试连接</button>
+            <span id="testStatus" class="test-status"></span>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>剪藏默认设置</h2>
+
+          <div class="form-group">
+            <label for="defaultType">默认剪藏类型</label>
+            <select id="defaultType">
+              <option value="ai-text">AI文本整理</option>
+              <option value="store-only">仅存储内容</option>
+              <option value="link-ai">链接AI解析</option>
+              <option value="doc-ai">文档AI解析</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <div class="checkbox-group">
+              <input type="checkbox" id="autoTags">
+              <label for="autoTags">默认使用AI自动生成标签</label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <div class="checkbox-group">
+              <input type="checkbox" id="autoSource">
+              <label for="autoSource">自动记录来源URL</label>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>通知设置</h2>
+
+          <div class="form-group">
+            <div class="checkbox-group">
+              <input type="checkbox" id="enableNotifications">
+              <label for="enableNotifications">启用浏览器通知</label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <div class="checkbox-group">
+              <input type="checkbox" id="successNotification">
+              <label for="successNotification">剪藏成功通知</label>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>快捷键设置</h2>
+          
+          <div class="form-group">
+            <label for="clipPageShortcut">剪藏页面</label>
+            <input type="text" id="clipPageShortcut" placeholder="Ctrl+Shift+S" disabled>
+            <p class="help-text">默认为 Ctrl+Shift+S (Mac: Cmd+Shift+S)</p>
+          </div>
+          
+          <div class="form-group">
+            <label for="clipSelectionShortcut">剪藏选中内容</label>
+            <input type="text" id="clipSelectionShortcut" placeholder="Ctrl+Shift+V" disabled>
+            <p class="help-text">默认为 Ctrl+Shift+V (Mac: Cmd+Shift+V)</p>
+          </div>
+          
+          <p class="help-text">
+            💡 提示：右键菜单也提供剪藏功能，支持剪藏页面、选中内容或图片
+          </p>
+          
+          <p class="help-text">
+            ⚙️ 自定义快捷键：在Chrome扩展管理页面（chrome://extensions/shortcuts）中可以自定义快捷键
+          </p>
+        </section>
+
+        <section class="section">
+          <h2>内容提取规则配置</h2>
+          
+          <div class="form-group">
+            <label for="selectorInput">选择器</label>
+            <input type="text" id="selectorInput" placeholder="例如: article, .content, #main">
+            <p class="help-text">CSS选择器，用于提取页面内容</p>
+          </div>
+          
+          <div class="form-group">
+            <button type="button" class="btn-secondary" id="addRuleBtn">添加规则</button>
+            <button type="button" class="btn-secondary" id="resetRulesBtn">重置默认规则</button>
+          </div>
+          
+          <div class="form-group">
+            <h3>提取规则列表</h3>
+            <div id="rulesList" class="rules-list">
+              <!-- 规则列表将通过JavaScript动态生成 -->
+            </div>
+          </div>
+          
+          <p class="help-text">
+            💡 提示：规则按顺序执行，找到第一个匹配的选择器后停止
+          </p>
+        </section>
+
+        <section class="section">
+          <h2>大模型噪声内容整理</h2>
+          
+          <div class="form-group">
+            <div class="checkbox-group">
+              <input type="checkbox" id="enableModelCleanup">
+              <label for="enableModelCleanup">启用大模型内容整理</label>
+            </div>
+            <p class="help-text">使用大模型清理提取内容中的噪声，使内容更清晰</p>
+          </div>
+          
+          <div class="form-group">
+            <label for="modelApiKey">大模型API密钥</label>
+            <input type="password" id="modelApiKey" placeholder="输入大模型API密钥">
+            <p class="help-text">支持OpenAI、Anthropic等大模型API</p>
+          </div>
+          
+          <div class="form-group">
+            <label for="modelProvider">模型提供商</label>
+            <select id="modelProvider">
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="azure">Azure OpenAI</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="modelName">模型名称</label>
+            <input type="text" id="modelName" placeholder="例如: gpt-3.5-turbo, claude-3-opus-20240229">
+          </div>
+          
+          <p class="help-text">
+            💡 提示：启用此功能会增加剪藏时间，建议在网络条件良好时使用
+          </p>
+        </section>
+
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" id="resetBtn">重置默认</button>
+          <button type="submit" class="btn-primary">保存设置</button>
+        </div>
+      </form>
+    </main>
+
+    <footer class="footer">
+      <p>
+        💡 提示：确保后端服务正在运行，配置正确的API地址
+      </p>
+    </footer>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

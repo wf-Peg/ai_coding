@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>截图</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; cursor: crosshair; background: #101014; }
+  #bg { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  #bgCanvas { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
+  #mask { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
+  #anno, #annoFloat {
+    position: fixed; inset: 0; pointer-events: none; z-index: 3;
+  }
+  #annoFloat { display: none; }
+  #annoText {
+    position: fixed; display: none; z-index: 11;
+    background: rgba(0,0,0,0.28); border: 1px dashed #3f8cff; border-radius: 3px;
+    color: #fff; font-weight: bold; font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+    font-size: 18px; line-height: 1.2; resize: none; outline: none;
+    overflow: hidden; padding: 4px; min-width: 24px; min-height: 24px;
+  }
+  #annoText::placeholder { color: rgba(255,255,255,0.5); font-weight: normal; }
+  #sel {
+    position: fixed; border: 1px solid #3f8cff;
+    background: rgba(63,140,255,0.12);
+    box-shadow: 0 0 0 1px rgba(63,140,255,0.22), 0 0 14px rgba(63,140,255,0.16);
+    display: none; pointer-events: none;
+  }
+  #sel .handle {
+    position: absolute; width: 9px; height: 9px; background: #fff;
+    border: 1.5px solid #3f8cff; border-radius: 2px; pointer-events: auto;
+    display: none;
+  }
+  #sel.resize .handle { display: block; }
+  #sel .size-label {
+    position: absolute; left: 0; top: -24px;
+    background: rgba(0,0,0,0.75); color: #fff; font-size: 12px;
+    padding: 2px 8px; border-radius: 4px; white-space: nowrap;
+    font-variant-numeric: tabular-nums; pointer-events: none;
+  }
+  #magnifier {
+    position: fixed; width: 120px; height: 120px; display: none; z-index: 6;
+    border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; overflow: hidden;
+    background: #fff; box-shadow: 0 4px 16px rgba(0,0,0,0.4); pointer-events: none;
+  }
+  #magnifier canvas { width: 100%; height: 100%; }
+  #magnifier .mp-pos {
+    position: absolute; left: 4px; bottom: 4px; background: rgba(0,0,0,0.6);
+    color: #fff; font-size: 10px; padding: 1px 5px; border-radius: 3px;
+    font-variant-numeric: tabular-nums;
+  }
+  #toolbar {
+    position: fixed; display: none; gap: 4px; z-index: 10;
+    background: rgba(30,30,30,0.94); border-radius: 10px; padding: 5px 7px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.45); align-items: center;
+    animation: popIn 0.14s ease; /* display:none→flex 时播放一次 */
+    flex-wrap: wrap; max-width: calc(100vw - 16px); justify-content: center; /* 窄屏自动换行，杜绝按钮溢出/重叠 */
+  }
+  #toolbar button {
+    border: none; background: transparent; color: #e5e7eb; font-size: 12.5px;
+    padding: 6px 11px; border-radius: 6px; cursor: pointer; white-space: nowrap;
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+  }
+  #toolbar button:hover { background: rgba(255,255,255,0.13); }
+  #toolbar button.primary { background: #3f8cff; color: #fff; }
+  #toolbar button.primary:hover { background: #2f72d8; }
+  #toolbar button.tool { display: inline-flex; align-items: center; gap: 4px; }
+  #toolbar button.tool.active { box-shadow: inset 0 0 0 2px #3f8cff; background: rgba(63,140,255,0.18); }
+  #toolbar .color-dot {
+    width: 15px; height: 15px; border-radius: 50%; border: 2px solid #fff;
+    cursor: pointer; padding: 0; flex: none; box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  }
+  #toolbar .sep { width: 1px; height: 20px; background: rgba(255,255,255,0.22); }
+  #gui { position: fixed; left: 0; top: 0; z-index: 4; pointer-events: none; }
+  #hint {
+    position: fixed; left: 50%; top: 16px; transform: translateX(-50%);
+    background: rgba(0,0,0,0.62); color: #fff; font-size: 12.5px;
+    padding: 6px 16px; border-radius: 999px; z-index: 5; pointer-events: none;
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif; white-space: nowrap;
+    animation: fadeIn 0.12s ease;
+  }
+  @keyframes popIn {
+    from { opacity: 0; transform: scale(0.92); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+<img id="bg" alt="">
+<canvas id="bgCanvas"></canvas>
+<canvas id="mask" width="0" height="0"></canvas>
+<canvas id="gui"></canvas>
+<canvas id="anno"></canvas>
+<canvas id="annoFloat"></canvas>
+<div id="hint">拖拽选择区域 · R/O/A/P/T/M/E 切换标注 · 数字切粗细 · C 取色 · Ctrl+Z 撤销 · Esc 取消 · Enter 复制</div>
+<div id="sel"><div class="size-label" id="sizeLabel"></div><div class="handle" data-h="nw"></div><div class="handle" data-h="n"></div><div class="handle" data-h="ne"></div><div class="handle" data-h="e"></div><div class="handle" data-h="se"></div><div class="handle" data-h="s"></div><div class="handle" data-h="sw"></div><div class="handle" data-h="w"></div></div>
+<div id="magnifier"><canvas id="magCanvas"></canvas><div class="mp-pos" id="magPos"></div></div>
+<textarea id="annoText" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="输入文字，Enter 确认 · Esc 取消"></textarea>
+<div id="toolbar">
+  <button class="primary" id="btnCopy">✓ 复制</button>
+  <button id="btnSave">💾 保存</button>
+  <button id="btnOcr">🔤 OCR</button>
+  <button id="btnPaste">📌 贴图</button>
+  <div class="sep"></div>
+  <button class="tool" id="annoRect">▭ 方框</button>
+  <button class="tool" id="annoEllipse">◯ 椭圆</button>
+  <button class="tool" id="annoArrow">↗ 箭头</button>
+  <button class="tool" id="annoPen">✎ 画笔</button>
+  <button class="tool" id="annoText">Ｔ 文本</button>
+  <button class="tool" id="annoMosaic">▦ 马赛克</button>
+  <button class="tool" id="annoEraser">▧ 橡皮</button>
+  <span class="color-dot" id="annoColor" title="切换标注颜色（C 取色）"></span>
+  <button class="tool" id="annoClear" title="清除全部标注（Ctrl+Z 撤销）">⌫ 清除</button>
+  <div class="sep"></div>
+  <button id="btnCancel">✕ 取消</button>
+</div>
+<script>
+  const screenshotApi = window.electronScreenshotApi;
+  const bg = document.getElementById('bg');
+  const bgCanvas = document.getElementById('bgCanvas');
+  const mask = document.getElementById('mask');
+  const sel = document.getElementById('sel');
+  const sizeLabel = document.getElementById('sizeLabel');
+  const toolbar = document.getElementById('toolbar');
+  const hint = document.getElementById('hint');
+  const mag = document.getElementById('magnifier');
+  const magCanvas = document.getElementById('magCanvas');
+  const magPos = document.getElementById('magPos');
+  const magCtx = magCanvas.getContext('2d');
+  const anno = document.getElementById('anno');           // 已提交标注
+  const annoCtx = anno.getContext('2d');
+  const annoFloat = document.getElementById('annoFloat'); // 绘制中预览
+  const annoFloatCtx = annoFloat.getContext('2d');
+  const annoColorDot = document.getElementById('annoColor');
+  const annoTextInput = document.getElementById('annoText');
+  const MAG_SIZE = 120, MAG_SCALE = 6; // 放大镜 120px，6 倍
+  const gui = document.getElementById('gui');
+  const guiCtx = gui.getContext('2d');
+  let lastCursor = null;   // 最近一次鼠标位置（供选区改变时重绘辅助线/读数）
+  let hintedSel = false;   // 选区首次出现时是否已提示后续操作
+  const SNAP_PX = 8;       // 选区吸附阈值（像素）
+  const RGB_CROSS = ['#ff4d4d', '#4caf50', '#4d8bff']; // 红/绿/蓝十字准星
+  let offDark = null;      // 离屏全暗遮罩底图（性能优化：选区变化仅 drawImage+clearRect）
+  let rafPending = null;   // RAF 节流：合并 mousemove
+  let pendingMouse = null; // 待处理的最新鼠标坐标
+  let canceling = false;   // 淡出取消进行中（防重复触发）
+  let wheelAccum = 0;      // 滚轮选区缩放累积量（触控板细小 delta 归一化）
+  let annoTool = null;    // 标注工具：'rect'|'ellipse'|'arrow'|'pen'|'text'|'mosaic'|'eraser'|null
+  let annoColor = '#ff3b30'; // 标注颜色（默认红，与 Snipaste 一致）
+  let annoStart = null;   // 标注绘制起点（物理坐标，null=未绘制中）
+  let annoPath = null;    // 画笔/橡皮当前路径点集（物理坐标）
+  let annoWidth = 3;      // 画笔/橡皮粗细（px，数字 1-4 切换）
+  let undoStack = [];     // 撤销栈（每次提交标注前的 ImageData 快照）
+  let annoCount = 0;      // 已提交标注数（判断 hasAnnotation）
+  let textRect = null;    // 文字工具当前矩形（物理坐标，{x,y,w,h}）
+  let textActive = false; // 文字输入框是否激活
+
+  /** 当前显示的背景源：raw 模式用 bgCanvas，PNG 模式用 img */
+  function bgSrc() {
+    return bgCanvas.style.display !== 'none' ? bgCanvas : bg;
+  }
+
+  let display = null;      // {width,height,scaleFactor} DIP
+  let sf = 1;              // 显示器缩放（裁剪用）
+  let sfPhys = 1;          // 背景实际物理缩放比 = 背景像素宽 / display.width（与 getSize 对齐，避免位置偏移）
+  let selRect = null;      // {x,y,w,h} 全为 CSS/DIP 坐标
+  let dragMode = null;     // 'draw'(拖拽新建) | {dir: 手柄方向}（调整）
+  let dragStart = null;    // 拖拽起点
+  let lastRect = null;     // 调整前的选区（用于手柄计算）
+  let currentUrl = null;   // 当前背景 Blob URL（复用窗口时释放）
+
+  /** 每次开始截图前复位状态（窗口复用，必须清掉上一轮的选区/工具栏/遮罩/背景） */
+  function resetOverlay() {
+    selRect = null; dragMode = null; dragStart = null; lastRect = null;
+    wheelAccum = 0; canceling = false; hintedSel = false;
+    annoTool = null; annoStart = null; annoPath = null; annoCount = 0;
+    undoStack = []; annoWidth = 3;
+    [annoCtx, annoFloatCtx].forEach(c => c.clearRect(0, 0, anno.width || 0, anno.height || 0));
+    annoFloat.style.display = 'none';
+    annoTextInput.style.display = 'none'; textActive = false; textRect = null;
+    document.querySelectorAll('#toolbar button.tool').forEach(b => b.classList.remove('active'));
+    sel.style.display = 'none';
+    toolbar.style.display = 'none';
+    mag.style.display = 'none';
+    document.body.style.opacity = '1';
+    document.body.style.transition = '';
+    const ctx = mask.getContext('2d');
+    ctx.clearRect(0, 0, mask.width || 0, mask.height || 0);
+    guiCtx.clearRect(0, 0, gui.width || 0, gui.height || 0);
+    lastCursor = null;
+    document.body.style.cursor = 'crosshair';
+    bg.removeAttribute('src');        // 清掉上一轮背景，加载态不显示陈旧画面
+    bgCanvas.style.display = 'none';  // 隐藏 raw 位图
+  }
+
+  /** 背景就绪后的公共初始化（mask 尺寸、遮罩底图、提示、性能回传） */
+  function onBackgroundReady(t0) {
+    mask.width = display.width;
+    mask.height = display.height;
+    gui.width = display.width;
+    gui.height = display.height;
+    gui.style.width = '100%';
+    gui.style.height = '100%';
+    mask.style.width = '100%';
+    mask.style.height = '100%';
+    // 预渲染全暗遮罩底图（一次）
+    offDark = document.createElement('canvas');
+    offDark.width = mask.width; offDark.height = mask.height;
+    const octx = offDark.getContext('2d');
+    octx.fillStyle = 'rgba(0,0,0,0.45)';
+    octx.fillRect(0, 0, offDark.width, offDark.height);
+    // 标注画布：物理尺寸与背景源一致（getSize 实际像素），保证标注与背景坐标完全对齐
+    const src = bgSrc();
+    anno.width = src.width || Math.round(display.width * sf);
+    anno.height = src.height || Math.round(display.height * sf);
+    annoFloat.width = anno.width; annoFloat.height = anno.height;
+    sfPhys = (anno.width && display.width) ? anno.width / display.width : sf;
+    drawMask(null);
+    hint.textContent = '拖拽选择区域 · R/O/A/P/T/M/E 切换标注 · 数字切粗细 · C 取色 · Ctrl+Z 撤销 · Esc 取消 · Enter 复制';
+    // 性能回传：主进程记录"发送→渲染完成"耗时
+    screenshotApi.send('screenshot:painted', { delta: Date.now() - (t0 || Date.now()) });
+  }
+
+  /** raw 模式：仅 Windows 走此路径，数据为 BGRA，就地交换 B/R 为 RGBA → putImageData；macOS 走 PNG，无需交换 */
+  function showRaw(payload) {
+    const u8 = new Uint8Array(payload.bitmap);
+    if (payload.bgra) { // toBitmap 为 BGRA 时交换；非 BGRA（RGBA）直通
+      for (let i = 0; i < u8.length; i += 4) {
+        const r = u8[i];
+        u8[i] = u8[i + 2];
+        u8[i + 2] = r;
+      }
+    }
+    const clamped = new Uint8ClampedArray(u8.buffer, u8.byteOffset, u8.length);
+    const imageData = new ImageData(clamped, payload.width, payload.height);
+    bgCanvas.width = payload.width;
+    bgCanvas.height = payload.height;
+    bgCanvas.style.width = '100%';
+    bgCanvas.style.height = '100%';
+    bgCanvas.getContext('2d').putImageData(imageData, 0, 0);
+    bg.removeAttribute('src');
+    bg.style.display = 'none';
+    bgCanvas.style.display = 'block';
+    onBackgroundReady(payload.t0);
+  }
+
+  screenshotApi.on('screenshot:reset', () => {
+    // 主进程关闭覆盖层前的复位：清掉本轮到下一轮的任何残留（遮罩/选区/工具栏/背景），
+    // 避免复用窗口在下次 F1 时显示陈旧黑屏或残影。
+    resetOverlay();
+    hint.style.display = 'none';
+  });
+
+  // 贴图快捷键（F2）在覆盖层打开时：把当前已拖出的选区直接确认成贴图，
+  // 得到"与截图区域同等大小"的贴图，而不是整屏原图（Snipaste 语义）。
+  screenshotApi.on('screenshot:paste-selection', () => {
+    if (!selRect || selRect.w < 4 || selRect.h < 4) {
+      showHint('请先拖拽选择区域再贴图');
+      return;
+    }
+    confirm('paste');
+  });
+
+  /** 加载态：主进程按下 F1 后立即广播（深色底 + 提示，感知即时响应） */
+  screenshotApi.on('screenshot:loading', () => {
+    resetOverlay();
+    hint.style.display = '';
+    hint.textContent = '正在截取屏幕…';
+  });
+
+  screenshotApi.on('screenshot:init', (payload) => {
+    display = payload.display;
+    sf = display.scaleFactor || 1;
+    resetOverlay();
+    if (payload.mode === 'raw') {
+      showRaw(payload);
+      return;
+    }
+    // PNG 模式（超大分辨率降级路径）
+    if (currentUrl) { URL.revokeObjectURL(currentUrl); currentUrl = null; }
+    const blob = new Blob([payload.bg], { type: payload.mime || 'image/png' });
+    currentUrl = URL.createObjectURL(blob);
+    bg.style.display = '';
+    bgCanvas.style.display = 'none';
+    bg.src = currentUrl;
+    bg.onload = () => {
+      // 空图（解码成功但尺寸为 0，常见于 macOS 空/黑帧）也视为失败，回传主进程主动收尾
+      if (bg.naturalWidth <= 0 || bg.naturalHeight <= 0) {
+        screenshotApi.send('screenshot:init-error', { message: '图像尺寸为空' });
+        return;
+      }
+      onBackgroundReady(payload.t0);
+    };
+    bg.onerror = () => screenshotApi.send('screenshot:init-error', { message: '图像解码失败' });
+  });
+
+  // ── 遮罩：离屏底图 + 选区亮区（性能优化，避免全屏重绘） ──
+  function drawMask(rect) {
+    const ctx = mask.getContext('2d');
+    ctx.clearRect(0, 0, mask.width, mask.height);
+    if (offDark) ctx.drawImage(offDark, 0, 0);
+    if (rect) ctx.clearRect(rect.x, rect.y, rect.w, rect.h); // 亮区露出背景
+  }
+
+  // ── 选区 DOM 更新 ──
+  function updateSel(rect) {
+    if (!rect || rect.w < 4 || rect.h < 4) {
+      sel.style.display = 'none';
+      toolbar.style.display = 'none';
+      hint.style.display = '';
+      return;
+    }
+    sel.style.display = 'block';
+    sel.style.left = rect.x + 'px';
+    sel.style.top = rect.y + 'px';
+    sel.style.width = rect.w + 'px';
+    sel.style.height = rect.h + 'px';
+    sizeLabel.textContent = Math.round(rect.w) + ' × ' + Math.round(rect.h);
+    // 手柄位置
+    const h = (dir) => sel.querySelector('.handle[data-h="' + dir + '"]');
+    const hw = 9;
+    h('nw').style.transform = 'translate(0px,0px)';
+    h('n').style.transform = 'translate(' + (rect.w / 2 - hw / 2) + 'px,0px)';
+    h('ne').style.transform = 'translate(' + (rect.w - hw) + 'px,0px)';
+    h('e').style.transform = 'translate(' + (rect.w - hw) + 'px,' + (rect.h / 2 - hw / 2) + 'px)';
+    h('se').style.transform = 'translate(' + (rect.w - hw) + 'px,' + (rect.h - hw) + 'px)';
+    h('s').style.transform = 'translate(' + (rect.w / 2 - hw / 2) + 'px,' + (rect.h - hw) + 'px)';
+    h('sw').style.transform = 'translate(0px,' + (rect.h - hw) + 'px)';
+    h('w').style.transform = 'translate(0px,' + (rect.h / 2 - hw / 2) + 'px)';
+    sel.classList.add('resize');
+    // 选区首次有效时给出下一步操作引导（一次性提示，直至 resetOverlay 复位）
+    if (!hintedSel) {
+      hintedSel = true;
+      showHint('拖动内部移动 · 拖手柄调整 · 滚轮缩放 · 方向键微调 · R/O/A/P/T/M/E 标注 · Enter 复制', 2600);
+    }
+    // 工具栏跟随：先显示再测量，避免 display:none 时 offsetWidth=0 退回 300px 导致定位偏移/按钮溢出重叠
+    toolbar.style.display = 'flex';
+    const tbW = toolbar.offsetWidth;
+    const tbH = toolbar.offsetHeight;
+    let tx = rect.x + rect.w - tbW;
+    let ty = rect.y + rect.h + 12;
+    if (ty + tbH + 8 > window.innerHeight) ty = Math.max(8, rect.y - tbH - 8);
+    if (tx < 8) tx = 8;
+    if (tx + tbW > window.innerWidth) tx = window.innerWidth - tbW - 8;
+    toolbar.style.left = tx + 'px';
+    toolbar.style.top = ty + 'px';
+    if (lastCursor) renderGui(lastCursor.x, lastCursor.y); else renderGui(null, null);
+    hint.style.display = 'none';
+  }
+
+  // ── 鼠标拖拽：新建选区 / 手柄调整 ──
+  window.addEventListener('mousedown', (e) => {
+    if (e.target.closest('#toolbar')) return;
+    // 标注工具激活且点击在选区内：开始绘制标注（锁定选区，不触发选区移动）
+    if (annoTool && selRect && e.clientX >= selRect.x && e.clientX <= selRect.x + selRect.w &&
+        e.clientY >= selRect.y && e.clientY <= selRect.y + selRect.h) {
+      annoStart = { x: e.clientX * sfPhys, y: e.clientY * sfPhys };
+      // 画笔/橡皮：记录路径起点
+      if (annoTool === 'pen' || annoTool === 'eraser') {
+        annoPath = [{ x: annoStart.x, y: annoStart.y }];
+        drawAnnoPreview(annoStart.x, annoStart.y, annoStart.x, annoStart.y);
+      }
+      e.preventDefault();
+      return;
+    }
+    const handle = e.target.closest('.handle');
+    if (handle) {
+      dragMode = { dir: handle.dataset.h };
+      dragStart = { x: e.clientX, y: e.clientY };
+      lastRect = { ...selRect };
+      e.preventDefault();
+      return;
+    }
+    if (selRect && e.clientX >= selRect.x && e.clientX <= selRect.x + selRect.w &&
+        e.clientY >= selRect.y && e.clientY <= selRect.y + selRect.h) {
+      // 点击选区内部：整体移动
+      dragMode = 'move';
+      dragStart = { x: e.clientX, y: e.clientY };
+      lastRect = { ...selRect };
+      e.preventDefault();
+      return;
+    }
+    dragMode = 'draw';
+    dragStart = { x: e.clientX, y: e.clientY };
+    selRect = { x: e.clientX, y: e.clientY, w: 0, h: 0 };
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    // RAF 节流：合并连续 mousemove，仅按帧处理
+    pendingMouse = { x: e.clientX, y: e.clientY };
+    if (rafPending) return;
+    rafPending = requestAnimationFrame(processMouseMove);
+  });
+
+  function processMouseMove() {
+    rafPending = null;
+    const e = pendingMouse;
+    pendingMouse = null;
+    if (!e) return;
+    // 放大镜（在选区边缘 8px 内或拖拽调整时显示）
+    updateMagnifier(e.x, e.y);
+    lastCursor = { x: e.x, y: e.y };
+    renderGui(e.x, e.y);
+    // 光标反馈：悬停选区内移动、其余十字
+    document.body.style.cursor = (selRect && dragMode && dragMode !== 'move' && !dragMode.dir) ? 'default'
+      : (selRect && e.x >= selRect.x + 2 && e.x <= selRect.x + selRect.w - 2 &&
+         e.y >= selRect.y + 2 && e.y <= selRect.y + selRect.h - 2) ? 'move' : 'crosshair';
+    // 标注绘制中：实时预览到 annoFloat
+    if (annoStart) {
+      if (annoTool === 'pen' || annoTool === 'eraser') {
+        // 画笔/橡皮：连续追加路径点，描出整条轨迹（含中间点，避免直线折点）
+        if (annoPath) {
+          const px = Math.round(e.x * sfPhys), py = Math.round(e.y * sfPhys);
+          const last = annoPath[annoPath.length - 1];
+          if (Math.hypot(px - last.x, py - last.y) >= 1) annoPath.push({ x: px, y: py });
+          drawPathPreview();
+        }
+      } else {
+        drawAnnoPreview(annoStart.x, annoStart.y, e.x * sfPhys, e.y * sfPhys);
+      }
+      return;
+    }
+    if (!dragMode) return;
+    const x = e.x, y = e.y;
+    if (dragMode === 'draw') {
+      selRect = normRect(dragStart.x, dragStart.y, x, y);
+    } else if (dragMode === 'move') {
+      selRect = { x: lastRect.x + (x - dragStart.x), y: lastRect.y + (y - dragStart.y), w: lastRect.w, h: lastRect.h };
+      clampRect();
+    } else if (dragMode.dir) {
+      selRect = resizeByHandle(lastRect, dragMode.dir, x - dragStart.x, y - dragStart.y);
+      clampRect();
+    }
+    snapRect();
+    drawMask(selRect);
+    updateSel(selRect);
+  }
+
+  window.addEventListener('mouseup', () => {
+    if (annoStart) {
+      const end = pendingMouse || { x: annoStart.x / sfPhys, y: annoStart.y / sfPhys };
+      if (annoTool === 'text') {
+        // 文字工具：拖出矩形后进入输入，不直接提交
+        annoFloatCtx.clearRect(0, 0, annoFloat.width, annoFloat.height);
+        annoFloat.style.display = 'none';
+        openTextInput(annoStart.x, annoStart.y, end.x * sfPhys, end.y * sfPhys);
+        annoStart = null;
+        annoPath = null;
+      } else if (annoTool === 'pen' || annoTool === 'eraser') {
+        // 画笔/橡皮：提交整条路径
+        if (annoPath && annoPath.length) pushAnnoSnapshot();
+        if (annoPath && annoPath.length) drawPathOn(annoCtx, annoPath);
+        if (annoPath && annoPath.length) annoCount++;
+        annoFloatCtx.clearRect(0, 0, annoFloat.width, annoFloat.height);
+        annoFloat.style.display = 'none';
+        annoStart = null;
+        annoPath = null;
+      } else {
+        commitAnno(annoStart.x, annoStart.y, end.x * sfPhys, end.y * sfPhys);
+        annoPath = null;
+      }
+      return;
+    }
+    if (!dragMode) return;
+    dragMode = null;
+    if (!selRect || selRect.w < 4 || selRect.h < 4) {
+      selRect = null;
+      drawMask(null);
+      updateSel(null);
+    } else {
+      updateSel(selRect);
+    }
+  });
+
+  // 手柄方向调整（snipaste 风格：8 方向独立拖拽）
+  function resizeByHandle(base, dir, dx, dy) {
+    let r = { x: base.x, y: base.y, w: base.w, h: base.h };
+    if (dir.includes('e')) r.w = Math.max(4, base.w + dx);
+    if (dir.includes('s')) r.h = Math.max(4, base.h + dy);
+    if (dir.includes('w')) { const nx = Math.min(base.x + base.w - 4, base.x + dx); r.w = base.w + (base.x - nx); r.x = nx; }
+    if (dir.includes('n')) { const ny = Math.min(base.y + base.h - 4, base.y + dy); r.h = base.h + (base.y - ny); r.y = ny; }
+    return r;
+  }
+
+  function normRect(x1, y1, x2, y2) {
+    return { x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) };
+  }
+  function clampRect() {
+    if (!selRect) return;
+    selRect.x = Math.max(0, Math.min(selRect.x, display.width - 4));
+    selRect.y = Math.max(0, Math.min(selRect.y, display.height - 4));
+    selRect.w = Math.min(selRect.w, display.width - selRect.x);
+    selRect.h = Math.min(selRect.h, display.height - selRect.y);
+  }
+
+  // 选区吸附：移动时贴齐屏幕四边与垂直/水平中心线（阈值 SNAP_PX DIP 像素）
+  function snapRect() {
+    if (!selRect || dragMode !== 'move') return;
+    const r = selRect;
+    // 屏幕边缘
+    if (Math.abs(r.x) < SNAP_PX) r.x = 0;
+    else if (Math.abs((display.width - (r.x + r.w))) < SNAP_PX) r.x = display.width - r.w;
+    if (Math.abs(r.y) < SNAP_PX) r.y = 0;
+    else if (Math.abs((display.height - (r.y + r.h))) < SNAP_PX) r.y = display.height - r.h;
+    // 屏幕中心线
+    const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    if (Math.abs(cx - display.width / 2) < SNAP_PX) r.x = Math.round(display.width / 2 - r.w / 2);
+    if (Math.abs(cy - display.height / 2) < SNAP_PX) r.y = Math.round(display.height / 2 - r.h / 2);
+    // 边界收敛（与 clampRect 一致）
+    r.x = Math.max(0, Math.min(r.x, display.width - 4));
+    r.y = Math.max(0, Math.min(r.y, display.height - 4));
+  }
+
+  // ── 方向键微调选区（Shift 1px） ──
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); cancelScreenshot(); return; }
+    // 文本输入框聚焦时不响应标注快捷键（Enter/Esc 由文本框自行处理）
+    if (e.target === annoTextInput) return;
+    if (!selRect) return;
+    const step = e.shiftKey ? 1 : 10;
+    let dx = 0, dy = 0;
+    if (e.key === 'ArrowLeft') dx = -step;
+    else if (e.key === 'ArrowRight') dx = step;
+    else if (e.key === 'ArrowUp') dy = -step;
+    else if (e.key === 'ArrowDown') dy = step;
+    else if (e.key === 'Enter') { e.preventDefault(); confirm('copy'); return; }
+    else if (e.key.toLowerCase() === 'c' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); confirm('copy'); return; }
+    else if (e.key.toLowerCase() === 's' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); confirm('save'); return; }
+    else if (e.key.toLowerCase() === 't' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); confirm('paste'); return; } // Snipaste：Ctrl+T 直接贴图
+    else if (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); undoAnno(); return; } // 撤销
+    if (e.ctrlKey || e.metaKey || e.altKey) { /* 组合键不冲突工具键 */ }
+    else if (e.key.toLowerCase() === 'r') setTool('rect');       // R 方框
+    else if (e.key.toLowerCase() === 'o') setTool('ellipse');    // O 椭圆
+    else if (e.key.toLowerCase() === 'a') setTool('arrow');      // A 箭头
+    else if (e.key.toLowerCase() === 'p') setTool('pen');        // P 画笔
+    else if (e.key.toLowerCase() === 't') setTool('text');       // T 文本
+    else if (e.key.toLowerCase() === 'm') setTool('mosaic');     // M 马赛克
+    else if (e.key.toLowerCase() === 'e') setTool('eraser');     // E 橡皮
+    else if (e.key.toLowerCase() === 'c') { e.preventDefault(); pickColorAt(e.clientX, e.clientY); return; } // C 取色
+    else if (/^[1-4]$/.test(e.key)) { // 数字 1-4 切画笔/橡皮粗细
+      e.preventDefault();
+      annoWidth = [2, 4, 6, 10][parseInt(e.key, 10) - 1];
+      showHint('画笔粗细 ' + annoWidth + 'px');
+      return;
+    }
+    if (dx || dy) {
+      e.preventDefault();
+      selRect.x += dx; selRect.y += dy;
+      clampRect();
+      drawMask(selRect); updateSel(selRect);
+    }
+  });
+
+  // ── 滚轮缩放选区（悬停选区时；上滚放大、下滚缩小，与贴图方向一致） ──
+  // delta 归一化（像素/行/页）并累积，跨过阈值才步进，触控板细小 delta 不会连滚失控
+  const WHEEL_STEP = 100; // 约一个标准鼠标滚轮档位的像素量
+  window.addEventListener('wheel', (e) => {
+    if (!selRect) return;
+    const inSel = e.clientX >= selRect.x && e.clientX <= selRect.x + selRect.w &&
+                  e.clientY >= selRect.y && e.clientY <= selRect.y + selRect.h;
+    if (!inSel) return;
+    e.preventDefault();
+    let dy = e.deltaY;
+    if (e.deltaMode === 1) dy *= 16;        // 行 → 像素
+    else if (e.deltaMode === 2) dy *= 100;  // 页 → 像素
+    wheelAccum += dy;
+    const steps = Math.trunc(wheelAccum / WHEEL_STEP);
+    if (steps === 0) return;
+    wheelAccum -= steps * WHEEL_STEP;
+    const d = steps > 0 ? -1 : 1; // 下滚(deltaY>0)=缩小，上滚=放大
+    const step = Math.max(2, Math.round(selRect.w * 0.02));
+    selRect.w = Math.max(4, selRect.w + d * step * Math.abs(steps));
+    selRect.h = Math.max(4, selRect.h + d * step * Math.abs(steps));
+    clampRect();
+    drawMask(selRect); updateSel(selRect);
+  }, { passive: false });
+
+  // ── 十字准星 + 辅助线 + 读数（DIP 空间，单 canvas 合绘） ──
+  function renderGui(cx, cy) {
+    const W = gui.width, H = gui.height;
+    guiCtx.clearRect(0, 0, W, H);
+    // 辅助线：选中后从选区四边延伸到屏幕边缘（浅蓝虚线）
+    if (selRect && selRect.w >= 4 && selRect.h >= 4) {
+      guiCtx.save();
+      guiCtx.strokeStyle = 'rgba(63,140,255,0.3)';
+      guiCtx.setLineDash([4, 4]);
+      guiCtx.lineWidth = 1;
+      guiCtx.beginPath();
+      guiCtx.moveTo(selRect.x, 0); guiCtx.lineTo(selRect.x, H);
+      guiCtx.moveTo(selRect.x + selRect.w, 0); guiCtx.lineTo(selRect.x + selRect.w, H);
+      guiCtx.moveTo(0, selRect.y); guiCtx.lineTo(W, selRect.y);
+      guiCtx.moveTo(0, selRect.y + selRect.h); guiCtx.lineTo(W, selRect.y + selRect.h);
+      guiCtx.stroke();
+      guiCtx.restore();
+    }
+    // 无光标则不画准星（仅辅助线场景）
+    if (cx == null || cy == null) return;
+    // 经典红绿蓝三色细十字
+    for (let k = 0; k < 3; k++) {
+      const off = k - 1;
+      guiCtx.strokeStyle = RGB_CROSS[k];
+      guiCtx.lineWidth = 1;
+      guiCtx.beginPath();
+      guiCtx.moveTo(cx + off, 0); guiCtx.lineTo(cx + off, H);
+      guiCtx.moveTo(0, cy + off); guiCtx.lineTo(W, cy + off);
+      guiCtx.stroke();
+    }
+    guiCtx.closePath();
+    // 读数：未选区显坐标，选区中/后显 w×h
+    const label = (selRect && selRect.w >= 4 && selRect.h >= 4)
+      ? Math.round(selRect.w) + ' × ' + Math.round(selRect.h)
+      : Math.round(cx) + ', ' + Math.round(cy);
+    guiCtx.font = '11px "IBM Plex Sans","Noto Sans SC",sans-serif';
+    const tw = guiCtx.measureText(label).width + 12;
+    const bx = Math.min(cx + 14, W - tw - 4);
+    const by = cy < H - 22 ? cy + 14 : cy - 22;
+    guiCtx.fillStyle = 'rgba(0,0,0,0.6)';
+    guiCtx.fillRect(bx, by, tw, 18);
+    guiCtx.fillStyle = '#fff';
+    guiCtx.fillText(label, bx + 6, by + 13);
+  }
+
+  // ── 放大镜（光标周围 6 倍放大 + 坐标） ──
+  function updateMagnifier(cx, cy) {
+    const src = bgSrc();
+    if (!src.width) return;
+    const show = !!dragMode || (selRect &&
+      (Math.abs(cx - selRect.x) < 8 || Math.abs(cx - (selRect.x + selRect.w)) < 8 ||
+       Math.abs(cy - selRect.y) < 8 || Math.abs(cy - (selRect.y + selRect.h)) < 8));
+    if (!show) { mag.style.display = 'none'; return; }
+    mag.style.display = 'block';
+    // 位置：光标右上偏移，越界翻转
+    let mx = cx + 16, my = cy - MAG_SIZE - 16;
+    if (mx + MAG_SIZE > window.innerWidth) mx = cx - MAG_SIZE - 16;
+    if (my < 0) my = cy + 16;
+    mag.style.left = mx + 'px';
+    mag.style.top = my + 'px';
+    // 绘制：源像素（img 自然像素 / canvas 物理像素）= CSS×sf
+    const srcSize = Math.ceil((MAG_SIZE / MAG_SCALE) * sfPhys);
+    const sx = Math.max(0, Math.min(src.width - srcSize, cx * sfPhys - srcSize / 2));
+    const sy = Math.max(0, Math.min(src.height - srcSize, cy * sfPhys - srcSize / 2));
+    magCanvas.width = MAG_SIZE; magCanvas.height = MAG_SIZE;
+    magCtx.imageSmoothingEnabled = false;
+    magCtx.clearRect(0, 0, MAG_SIZE, MAG_SIZE);
+    magCtx.drawImage(src, sx, sy, srcSize, srcSize, 0, 0, MAG_SIZE, MAG_SIZE);
+    // 十字线
+    magCtx.strokeStyle = 'rgba(255,80,80,0.8)';
+    magCtx.beginPath();
+    magCtx.moveTo(MAG_SIZE / 2, 0); magCtx.lineTo(MAG_SIZE / 2, MAG_SIZE);
+    magCtx.moveTo(0, MAG_SIZE / 2); magCtx.lineTo(MAG_SIZE, MAG_SIZE / 2);
+    magCtx.stroke();
+    magPos.textContent = Math.round(cx) + ', ' + Math.round(cy);
+  }
+
+  // ── 标注：绘制工具（方框 / 椭圆 / 箭头 / 马赛克） ──
+  function drawShapeOn(ctx, x1, y1, x2, y2) {
+    ctx.save();
+    ctx.strokeStyle = annoColor; ctx.fillStyle = annoColor;
+    ctx.lineWidth = Math.max(2, Math.round(2 * sfPhys));
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    if (annoTool === 'rect') {
+      const x = Math.min(x1, x2), y = Math.min(y1, y2);
+      ctx.strokeRect(x, y, Math.abs(x2 - x1), Math.abs(y2 - y1));
+    } else if (annoTool === 'ellipse') {
+      const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, Math.abs(x2 - x1) / 2, Math.abs(y2 - y1) / 2, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (annoTool === 'arrow') {
+      drawArrow(ctx, x1, y1, x2, y2, Math.max(10, Math.round(14 * sfPhys)));
+    }
+    ctx.restore();
+  }
+  function drawArrow(ctx, x1, y1, x2, y2, head) {
+    if (Math.hypot(x2 - x1, y2 - y1) < 3) return;
+    const a = Math.atan2(y2 - y1, x2 - x1);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - head * Math.cos(a - Math.PI / 6), y2 - head * Math.sin(a - Math.PI / 6));
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - head * Math.cos(a + Math.PI / 6), y2 - head * Math.sin(a + Math.PI / 6));
+    ctx.stroke();
+  }
+  function drawMosaic(ctx, x1, y1, x2, y2) {
+    const src = bgSrc(); if (!src.width) return;
+    const x = Math.round(Math.min(x1, x2)), y = Math.round(Math.min(y1, y2));
+    const w = Math.round(Math.abs(x2 - x1)), h = Math.round(Math.abs(y2 - y1));
+    if (w < 2 || h < 2) return;
+    const block = Math.max(6, Math.round(8 * sfPhys));
+    // 先缩到块级小图（像素化），再放大回目标区域
+    const tmp = document.createElement('canvas');
+    const cw = Math.max(1, Math.ceil(w / block)), ch = Math.max(1, Math.ceil(h / block));
+    tmp.width = cw * block; tmp.height = ch * block;
+    const t = tmp.getContext('2d');
+    t.imageSmoothingEnabled = false;
+    t.drawImage(src, x, y, w, h, 0, 0, tmp.width, tmp.height);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(tmp, 0, 0, tmp.width, tmp.height, x, y, w, h);
+    ctx.imageSmoothingEnabled = true;
+  }
+  function drawShapeOrMosaic(ctx, x1, y1, x2, y2) {
+    if (annoTool === 'mosaic') drawMosaic(ctx, x1, y1, x2, y2);
+    else drawShapeOn(ctx, x1, y1, x2, y2);
+  }
+  function drawAnnoPreview(x1, y1, x2, y2) {
+    annoFloatCtx.clearRect(0, 0, annoFloat.width, annoFloat.height);
+    annoFloat.style.display = 'block';
+    drawShapeOrMosaic(annoFloatCtx, x1, y1, x2, y2);
+  }
+  function commitAnno(x1, y1, x2, y2) {
+    pushAnnoSnapshot();
+    drawShapeOrMosaic(annoCtx, x1, y1, x2, y2);
+    annoCount++;
+    annoFloatCtx.clearRect(0, 0, annoFloat.width, annoFloat.height);
+    annoFloat.style.display = 'none';
+    annoStart = null;
+  }
+  // ── 画笔 / 橡皮：路径绘制（连续描点） ──
+  function strokePathTo(ctx, pts) {
+    if (!pts || pts.length < 2) return;
+    ctx.save();
+    if (annoTool === 'eraser') {
+      // 橡皮：擦除 anno 画布上已绘内容（露出背景），用 destination-out
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.strokeStyle = 'rgba(0,0,0,1)';
+    } else {
+      ctx.strokeStyle = annoColor;
+    }
+    ctx.lineWidth = annoWidth * sfPhys;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.stroke();
+    ctx.restore();
+  }
+  function drawPathPreview() {
+    annoFloatCtx.clearRect(0, 0, annoFloat.width, annoFloat.height);
+    annoFloat.style.display = 'block';
+    strokePathTo(annoFloatCtx, annoPath);
+  }
+  function drawPathOn(ctx, pts) { strokePathTo(ctx, pts); }
+  // ── 撤销：回滚到上一次提交前的标注快照 ──
+  function pushAnnoSnapshot() {
+    // 快照仅选区区域（物理像素），避免全屏大图（HiDPI 下每张 ~18MB）撑爆内存
+    try {
+      const x0 = selRect ? Math.max(0, Math.round(selRect.x * sfPhys)) : 0;
+      const y0 = selRect ? Math.max(0, Math.round(selRect.y * sfPhys)) : 0;
+      const w0 = selRect ? Math.min(anno.width - x0, Math.max(1, Math.round(selRect.w * sfPhys))) : anno.width;
+      const h0 = selRect ? Math.min(anno.height - y0, Math.max(1, Math.round(selRect.h * sfPhys))) : anno.height;
+      const snap = annoCtx.getImageData(x0, y0, w0, h0);
+      snap._x = x0; snap._y = y0;
+      undoStack.push(snap);
+    } catch (err) {}
+    if (undoStack.length > 30) undoStack.shift();
+  }
+  function undoAnno() {
+    if (textActive) { cancelAnnoText(); return; }
+    if (!undoStack.length) { showHint('没有可撤销的标注'); return; }
+    const snap = undoStack.pop();
+    annoCtx.putImageData(snap, snap._x || 0, snap._y || 0);
+    annoCount = Math.max(0, annoCount - 1);
+    showHint('已撤销');
+  }
+  // ── 取色器：从背景对应像素取色并复制（Compose 复用） ──
+  function pickColorAt(cx, cy) {
+    const src = bgSrc();
+    if (!src || !src.width) return;
+    const px = Math.round(cx * sfPhys), py = Math.round(cy * sfPhys);
+    if (px < 0 || py < 0 || px >= src.width || py >= src.height) return;
+    const tmp = document.createElement('canvas');
+    tmp.width = 1; tmp.height = 1;
+    const tctx = tmp.getContext('2d');
+    tctx.drawImage(src, px, py, 1, 1, 0, 0, 1, 1);
+    const d = tctx.getImageData(0, 0, 1, 1).data;
+    const hex = '#' + [d[0], d[1], d[2]].map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+    annoColor = hex;
+    annoColorDot.style.background = annoColor; annoColorDot.style.borderColor = annoColor;
+    if (textActive) annoTextInput.style.color = annoColor;
+    try { screenshotApi.copyText(hex); } catch (err) {}
+    showHint('取色 ' + hex + '（已复制）');
+  }
+  // ── 短暂提示 ──
+  let hintTimer = null;
+  function showHint(msg, duration = 1000) {
+    const h = document.getElementById('hint_tmp') || (() => {
+      const el = document.createElement('div');
+      el.id = 'hint_tmp';
+      el.style.cssText = 'position:fixed;left:50%;top:56px;transform:translateX(-50%);background:rgba(0,0,0,0.7);color:#fff;font-size:12px;padding:5px 14px;border-radius:999px;z-index:20;pointer-events:none;white-space:nowrap;';
+      document.body.appendChild(el);
+      return el;
+    })();
+    h.textContent = msg;
+    h.style.opacity = '1';
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(() => { h.style.opacity = '0'; }, duration);
+  }
+  /** 把背景选区 + 标注合成一张 PNG dataURL（物理像素），随确认回传主进程 */
+  function composeAnno(rect) {
+    const src = bgSrc();
+    const px = Math.round(rect.x * sfPhys), py = Math.round(rect.y * sfPhys);
+    const pw = Math.max(1, Math.round(rect.w * sfPhys)), ph = Math.max(1, Math.round(rect.h * sfPhys));
+    const c = document.createElement('canvas');
+    c.width = pw; c.height = ph;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(src, px, py, pw, ph, 0, 0, pw, ph);
+    ctx.drawImage(anno, px, py, pw, ph, 0, 0, pw, ph);
+    return c.toDataURL('image/png');
+  }
+  // 工具切换（再次点击取消）；颜色循环（红橙黄绿蓝紫黑）
+  const ANNO_TOOLS = { rect: 'annoRect', ellipse: 'annoEllipse', arrow: 'annoArrow', pen: 'annoPen', mosaic: 'annoMosaic', text: 'annoText', eraser: 'annoEraser' };
+  function setTool(name) {
+    document.querySelectorAll('#toolbar button.tool:not(#annoColor):not(#annoClear)').forEach(b => b.classList.remove('active'));
+    if (annoTool === name) { annoTool = null; return; }
+    annoTool = name;
+    const btn = document.getElementById(ANNO_TOOLS[name]);
+    if (btn) btn.classList.add('active');
+  }
+  document.getElementById('annoRect').addEventListener('click', () => setTool('rect'));
+  document.getElementById('annoEllipse').addEventListener('click', () => setTool('ellipse'));
+  document.getElementById('annoArrow').addEventListener('click', () => setTool('arrow'));
+  document.getElementById('annoPen').addEventListener('click', () => setTool('pen'));
+  document.getElementById('annoMosaic').addEventListener('click', () => setTool('mosaic'));
+  document.getElementById('annoText').addEventListener('click', () => setTool('text'));
+  document.getElementById('annoEraser').addEventListener('click', () => setTool('eraser'));
+  document.getElementById('annoClear').addEventListener('click', () => {
+    if (textActive) cancelAnnoText();
+    pushAnnoSnapshot();
+    annoCtx.clearRect(0, 0, anno.width, anno.height);
+    annoFloatCtx.clearRect(0, 0, annoFloat.width, annoFloat.height);
+    annoCount = 0;
+  });
+  const ANNO_COLORS = ['#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#007aff', '#af52de', '#111111'];
+  let colorIdx = 0;
+  function setColor() { annoColor = ANNO_COLORS[colorIdx]; annoColorDot.style.background = annoColor; annoColorDot.style.borderColor = annoColor; if (textActive) annoTextInput.style.color = annoColor; }
+  setColor();
+  annoColorDot.addEventListener('click', () => { colorIdx = (colorIdx + 1) % ANNO_COLORS.length; setColor(); });
+
+  // ── 文字标注：拖框输入，自动换行并缩放字号填满框（Snipaste） ──
+  const TEXT_FONT = '"IBM Plex Sans", "Noto Sans SC", sans-serif';
+  function wrapTextN(ctx, str, maxW) {
+    const out = []; let line = '';
+    for (const ch of String(str || '')) {
+      const t = line + ch;
+      if (ctx.measureText(t).width > maxW && line) { out.push(line); line = ch; }
+      else line = t;
+    }
+    if (line) out.push(line);
+    return out;
+  }
+  function drawTextLayer(ctx, tr, str) {
+    str = String(str || '');
+    if (!str.trim()) return;
+    const pad = 2 * sfPhys;
+    const maxW = Math.max(8, tr.w - pad * 2), maxH = Math.max(8, tr.h - pad * 2);
+    ctx.save(); ctx.textBaseline = 'top';
+    let size = Math.floor(maxH); let lines = [''];
+    for (; size >= 6; size--) {
+      ctx.font = 'bold ' + size + 'px ' + TEXT_FONT;
+      lines = wrapTextN(ctx, str, maxW);
+      const mw = Math.max.apply(null, lines.map(l => ctx.measureText(l).width));
+      if (lines.length * size * 1.15 <= maxH && mw <= maxW) break;
+    }
+    ctx.font = 'bold ' + size + 'px ' + TEXT_FONT;
+    const lineH = size * 1.15;
+    ctx.fillStyle = annoColor;
+    lines.forEach((ln, i) => ctx.fillText(ln, tr.x + pad, tr.y + pad + i * lineH));
+    ctx.restore();
+  }
+  function openTextInput(x1, y1, x2, y2) {
+    const rx = Math.round(Math.min(x1, x2)), ry = Math.round(Math.min(y1, y2));
+    const rw = Math.round(Math.abs(x2 - x1)), rh = Math.round(Math.abs(y2 - y1));
+    if (rw < 12 || rh < 12) return; // 矩形过小视为误触
+    textRect = { x: rx, y: ry, w: rw, h: rh };
+    annoFloatCtx.clearRect(0, 0, annoFloat.width, annoFloat.height);
+    annoFloat.style.display = 'none';
+    annoTextInput.value = '';
+    annoTextInput.style.left = (rx / sfPhys) + 'px';
+    annoTextInput.style.top = (ry / sfPhys) + 'px';
+    annoTextInput.style.width = Math.max(24, rw / sfPhys) + 'px';
+    annoTextInput.style.height = Math.max(24, rh / sfPhys) + 'px';
+    annoTextInput.style.color = annoColor;
+    annoTextInput.style.display = 'block';
+    textActive = true;
+    annoTextInput.focus();
+  }
+  function commitAnnoText() {
+    if (!textActive) return;
+    textActive = false;
+    annoTextInput.style.display = 'none';
+    annoFloatCtx.clearRect(0, 0, annoFloat.width, annoFloat.height);
+    annoFloat.style.display = 'none';
+    const v = annoTextInput.value;
+    if (v && v.trim() && textRect) { pushAnnoSnapshot(); drawTextLayer(annoCtx, textRect, v); annoCount++; }
+    textRect = null;
+    annoTextInput.value = '';
+  }
+  function cancelAnnoText() {
+    if (!textActive) return;
+    textActive = false;
+    annoTextInput.style.display = 'none';
+    annoFloatCtx.clearRect(0, 0, annoFloat.width, annoFloat.height);
+    annoFloat.style.display = 'none';
+    textRect = null; annoTextInput.value = '';
+  }
+  annoTextInput.addEventListener('input', () => {
+    if (!textActive || !textRect) return;
+    annoFloatCtx.clearRect(0, 0, annoFloat.width, annoFloat.height);
+    if (annoTextInput.value.trim()) { annoFloat.style.display = 'block'; drawTextLayer(annoFloatCtx, textRect, annoTextInput.value); }
+    else annoFloat.style.display = 'none';
+  });
+  annoTextInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitAnnoText(); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancelAnnoText(); }
+  });
+  annoTextInput.addEventListener('blur', () => { if (textActive) commitAnnoText(); });
+
+  // ── 确认 / 取消 ──
+  function confirm(action) {
+    if (!selRect) return;
+    if (textActive) commitAnnoText(); // 文字输入中确认：先提交文字，避免丢失
+    // 有标注时，把背景选区与标注合成一张图，随确认一起交给主进程（替代纯 crop）
+    let imgData = null;
+    if (annoCount > 0) imgData = composeAnno(selRect);
+    screenshotApi.invoke('screenshot:confirm', {
+      rect: { x: selRect.x, y: selRect.y, width: selRect.w, height: selRect.h },
+      action: action,
+      imgData: imgData
+    });
+  }
+
+  /** 取消：先淡出再通知主进程（120ms，视觉不突兀）；确认保持立即响应 */
+  function cancelScreenshot() {
+    if (canceling) return;
+    canceling = true;
+    document.body.style.transition = 'opacity 0.12s ease';
+    document.body.style.opacity = '0';
+    setTimeout(() => screenshotApi.invoke('screenshot:cancel'), 120);
+  }
+
+  document.getElementById('btnCopy').addEventListener('click', () => confirm('copy'));
+  document.getElementById('btnSave').addEventListener('click', () => confirm('save'));
+  document.getElementById('btnOcr').addEventListener('click', () => confirm('ocr'));
+  document.getElementById('btnPaste').addEventListener('click', () => confirm('paste'));
+  document.getElementById('btnCancel').addEventListener('click', cancelScreenshot);
+
+  // 双击选区确认
+  window.addEventListener('dblclick', (e) => {
+    if (selRect && e.clientX >= selRect.x && e.clientX <= selRect.x + selRect.w &&
+        e.clientY >= selRect.y && e.clientY <= selRect.y + selRect.h) confirm('copy');
+  });
+</script>
+</body>
+</html>

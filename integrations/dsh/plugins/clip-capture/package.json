@@ -1,0 +1,11 @@
+{
+  "name": "clip-capture",
+  "version": "0.1.0",
+  "description": "DSH plugin: save session outcomes into the CutShelter knowledge base (clip_session tool)",
+  "private": true,
+  "type": "module",
+  "main": "index.mjs",
+  "dependencies": {
+    "@deepseek-ai/dsh-tools": "0.1.0-rc.7"
+  }
+}

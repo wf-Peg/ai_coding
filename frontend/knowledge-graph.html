@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识图谱</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        :root {
+            --primary: #3f8cff;
+            --primary-light: #73b2ff;
+            --primary-dark: #2f72d8;
+            --background: #f9fafb;
+            --surface: #ffffff;
+            --text: #1f2937;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            --border: #e5e7eb;
+            --radius: 12px;
+            --radius-sm: 8px;
+            --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+            --shadow-hover: 0 8px 25px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
+            --transition: all 0.25s ease;
+            --link-color: #ccc;
+            --link-opacity: 0.3;
+            --node-dim-opacity: 0.15;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'IBM Plex Sans', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--background);
+            color: var(--text);
+            line-height: 1.6;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Nav */
+        .nav {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            flex-shrink: 0;
+        }
+        .nav .back-btn {
+            background: none;
+            border: 1px solid var(--border);
+            padding: 6px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            transition: var(--transition);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .nav .back-btn:hover { background: var(--border); }
+        .nav .title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            flex: 1;
+        }
+        .nav .nav-hint {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* Nav Controls */
+        .nav-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-right: 8px;
+        }
+        .search-input {
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 0.85rem;
+            background: var(--surface);
+            color: var(--text);
+            width: 180px;
+            outline: none;
+            transition: var(--transition);
+        }
+        .search-input:focus { border-color: var(--primary); }
+        .view-toggle {
+            display: flex;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            overflow: hidden;
+        }
+        .view-toggle .seg-btn {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            border: none;
+            background: var(--surface);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .view-toggle .seg-btn.active { background: var(--primary); color: #fff; }
+        .sync-btn {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            background: var(--surface);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .sync-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .sync-btn.loading { opacity: 0.6; pointer-events: none; }
+
+        /* Legend */
+        .legend {
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
+            display: flex;
+            gap: 14px;
+            padding: 8px 14px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            z-index: 50;
+            box-shadow: var(--shadow);
+        }
+        .legend-item { display: inline-flex; align-items: center; gap: 5px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+        .dot.clip-dot { border-radius: 2px; background: #f59e0b; }
+        .dot.kno-dot { background: #3f8cff; }
+        .tri { width: 0; height: 0; display: inline-block;
+            border-left: 6px solid transparent; border-right: 6px solid transparent;
+            border-bottom: 10px solid #22c55e; }
+        .lmark { width: 16px; height: 0; display: inline-block; border-top: 2px solid; }
+        .lmark.derived-line { border-top-style: dashed; border-top-color: #fb923c; }
+        .lmark.linked-line { border-top-color: #3f8cff; }
+        .lmark.plan-line { border-top-color: #22c55e; }
+
+        /* SVG Node shape by type */
+        .node rect {
+            stroke: var(--surface);
+            stroke-width: 2px;
+            cursor: pointer;
+            transition: stroke-width 0.2s ease;
+        }
+        .node:hover rect { stroke-width: 3px; }
+
+        /* Graph Container */
+        .graph-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: var(--background);
+        }
+        .graph-container svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Loading */
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: var(--text-muted);
+            z-index: 10;
+        }
+        .loading .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Empty State */
+        .empty-state {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: var(--text-muted);
+            z-index: 10;
+        }
+        .empty-state .icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+        }
+        .empty-state h3 {
+            font-size: 1.2rem;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+        .empty-state p {
+            font-size: 0.9rem;
+        }
+
+        /* Side Panel */
+        .side-panel {
+            position: fixed;
+            top: 0;
+            right: -320px;
+            width: 300px;
+            height: 100vh;
+            background: var(--surface);
+            border-left: 1px solid var(--border);
+            z-index: 200;
+            transition: right 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            box-shadow: -4px 0 20px rgba(0,0,0,0.08);
+        }
+        .side-panel.open {
+            right: 0;
+        }
+        .side-panel .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        .side-panel .panel-header h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            flex: 1;
+            margin-right: 8px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .side-panel .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            color: var(--text-muted);
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: var(--transition);
+            line-height: 1;
+        }
+        .side-panel .close-btn:hover {
+            background: var(--border);
+            color: var(--text);
+        }
+        .side-panel .panel-body {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .side-panel .panel-body .label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        .side-panel .panel-body .summary-text {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-bottom: 20px;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .side-panel .panel-body .tags-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .side-panel .panel-body .tag-badge {
+            padding: 3px 10px;
+            border-radius: 12px;
+            background: #eff6ff;
+            color: var(--primary);
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .side-panel .panel-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+        }
+        .side-panel .detail-link {
+            display: block;
+            width: 100%;
+            padding: 10px 0;
+            text-align: center;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            transition: var(--transition);
+        }
+        .side-panel .detail-link:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(63,140,255,0.3);
+        }
+
+        /* SVG Node & Link styles */
+        .link {
+            stroke: var(--link-color);
+            stroke-opacity: var(--link-opacity);
+            stroke-width: 1px;
+        }
+        .node circle {
+            stroke: var(--surface);
+            stroke-width: 2px;
+            cursor: pointer;
+            transition: stroke-width 0.2s ease;
+        }
+        .node:hover circle {
+            stroke-width: 3px;
+        }
+        .node polygon {
+            stroke: var(--surface);
+            stroke-width: 2px;
+            stroke-linejoin: round;
+            cursor: pointer;
+            transition: stroke-width 0.2s ease;
+        }
+        .node:hover polygon {
+            stroke-width: 3px;
+        }
+        .node.dimmed polygon {
+            opacity: 0.15;
+        }
+        .node text {
+            font-size: 10px;
+            font-family: 'IBM Plex Sans', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+            fill: var(--text-secondary);
+            text-anchor: middle;
+            pointer-events: none;
+            user-select: none;
+        }
+        .node.dimmed circle {
+            opacity: 0.15;
+        }
+        .node.dimmed text {
+            opacity: 0.15;
+        }
+        .link.dimmed {
+            stroke-opacity: 0.05;
+        }
+
+        /* Notion 主题 */
+        html[data-theme="notion"] {
+            --primary: #2383e2;
+            --primary-dark: #1f76c9;
+            --background: #f7f7f5;
+            --surface: #ffffff;
+            --text: #2f3437;
+            --text-secondary: #6b6f76;
+            --text-muted: #8a8f98;
+            --border: #e8e8e6;
+            --link-color: #b8b8b0;
+            --link-opacity: 0.35;
+        }
+        html[data-theme="notion"] .nav {
+            border-bottom-color: #e8e8e6;
+        }
+        html[data-theme="notion"] .nav .back-btn {
+            border-color: #dcdcd8;
+            color: #6b6f76;
+        }
+        html[data-theme="notion"] .nav .back-btn:hover { background: #f1f1ef; }
+        html[data-theme="notion"] .side-panel {
+            border-left-color: #e8e8e6;
+        }
+        html[data-theme="notion"] .side-panel .panel-header {
+            border-bottom-color: #e8e8e6;
+        }
+        html[data-theme="notion"] .side-panel .panel-footer {
+            border-top-color: #e8e8e6;
+        }
+        html[data-theme="notion"] .side-panel .tag-badge {
+            background: #f1f1ef;
+            color: #5f646c;
+        }
+        html[data-theme="notion"] .side-panel .detail-link {
+            background: #2f3437;
+        }
+        html[data-theme="notion"] .side-panel .detail-link:hover {
+            background: #1f2328;
+            box-shadow: 0 4px 12px rgba(31,35,40,0.3);
+        }
+        html[data-theme="notion"] .loading .spinner {
+            border-color: #e8e8e6;
+            border-top-color: #2383e2;
+        }
+        html[data-theme="notion"] .node circle {
+            stroke: #ffffff;
+        }
+
+        /* 深色主题 */
+        html[data-theme="dark"] {
+            --primary: #569cff;
+            --primary-light: #73b2ff;
+            --primary-dark: #4a8ae8;
+            --background: #1e1e1e;
+            --surface: #2d2d2d;
+            --text: #d4d4d4;
+            --text-secondary: #9a9a9a;
+            --text-muted: #6a6a6a;
+            --border: #3e3e3e;
+            --link-color: #555;
+            --link-opacity: 0.4;
+            --node-dim-opacity: 0.08;
+        }
+        html[data-theme="dark"] body { background: var(--background); color: var(--text); }
+        html[data-theme="dark"] .nav { background: var(--surface); border-bottom-color: var(--border); }
+        html[data-theme="dark"] .nav .back-btn { border-color: var(--border); color: var(--text-secondary); }
+        html[data-theme="dark"] .nav .back-btn:hover { background: #3a3a3a; }
+        html[data-theme="dark"] .side-panel { background: var(--surface); border-left-color: var(--border); }
+        html[data-theme="dark"] .side-panel .panel-header { border-bottom-color: var(--border); }
+        html[data-theme="dark"] .side-panel .panel-footer { border-top-color: var(--border); }
+        html[data-theme="dark"] .side-panel .tag-badge { background: #3a3a3a; color: #9a9a9a; }
+        html[data-theme="dark"] .side-panel .close-btn:hover { background: #3a3a3a; color: #d4d4d4; }
+        html[data-theme="dark"] .side-panel .detail-link { background: var(--primary); }
+        html[data-theme="dark"] .side-panel .detail-link:hover { background: var(--primary-dark); }
+        html[data-theme="dark"] .loading { color: var(--text-muted); }
+        html[data-theme="dark"] .loading .spinner { border-color: var(--border); border-top-color: var(--primary); }
+        html[data-theme="dark"] .empty-state { color: var(--text-muted); }
+        html[data-theme="dark"] .node circle { stroke: #2d2d2d; }
+        html[data-theme="dark"] .node text { fill: var(--text-secondary); }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+        * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+
+        @media (max-width: 768px) {
+            .nav { padding: 10px 16px; }
+            .nav .nav-hint { display: none; }
+            .side-panel { width: 260px; right: -280px; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="knowledge.html" class="back-btn">← 返回</a>
+        <span class="title">知识图谱</span>
+        <div class="nav-controls">
+            <input type="text" class="search-input" id="searchInput" placeholder="搜索节点 / 标签 / 分类...">
+            <div class="view-toggle">
+                <button class="seg-btn active" data-view="all">知识+剪藏</button>
+                <button class="seg-btn" data-view="knowledge">仅知识</button>
+            </div>
+            <button class="sync-btn" id="syncBtn">刷新关系</button>
+        </div>
+        <span class="nav-hint">拖拽节点 · 滚轮缩放 · 点击查看详情</span>
+    </nav>
+
+    <div class="graph-container" id="graphContainer">
+        <div class="loading" id="loadingEl">
+            <div class="spinner"></div>
+            <p>加载中...</p>
+        </div>
+        <div class="empty-state" id="emptyEl" style="display:none;">
+            <div class="icon">🕸️</div>
+            <h3 id="emptyTitle">暂无图谱数据</h3>
+            <p id="emptyDesc">请先创建剪藏或知识条目并建立关联</p>
+        </div>
+        <div class="legend">
+            <div class="legend-item"><span class="dot clip-dot"></span>剪藏</div>
+            <div class="legend-item"><span class="dot kno-dot"></span>知识</div>
+            <div class="legend-item"><span class="tri"></span>学习计划</div>
+            <div class="legend-item"><span class="lmark derived-line"></span>来源</div>
+            <div class="legend-item"><span class="lmark linked-line"></span>关联</div>
+            <div class="legend-item"><span class="lmark plan-line"></span>计划关联</div>
+        </div>
+    </div>
+
+    <div class="side-panel" id="sidePanel">
+        <div class="panel-header">
+            <h3 id="panelTitle">节点详情</h3>
+            <button class="close-btn" id="panelCloseBtn">✕</button>
+        </div>
+        <div class="panel-body">
+            <div class="label">类型</div>
+            <div class="summary-text" id="panelMeta" style="margin-bottom:14px;"></div>
+            <div class="label">摘要</div>
+            <div class="summary-text" id="panelSummary">暂无摘要</div>
+            <div class="label">标签</div>
+            <div class="tags-row" id="panelTags"></div>
+        </div>
+        <div class="panel-footer">
+            <a class="detail-link" id="panelDetailLink" href="#">查看详情</a>
+        </div>
+    </div>
+
+    <script src="knowledge-graph.js"></script>
+    <script>
+      (function() {
+        const THEME_KEY = 'app_theme_v1';
+        const APPEARANCE_KEY = 'app_appearance_v1';
+        function getEffective() {
+          const app = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+          if (app === 'system') return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'notion';
+          return app;
+        }
+        function apply() {
+          const t = getEffective();
+          document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : (t === 'regular' ? 'regular' : 'notion'));
+          if (typeof window.onThemeChange === 'function') window.onThemeChange();
+        }
+        window.applyTheme = apply;
+        apply();
+        window.addEventListener('storage', function(e) {
+          if (e.key === THEME_KEY || e.key === APPEARANCE_KEY) apply();
+        });
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+          if ((localStorage.getItem(APPEARANCE_KEY) || 'notion') === 'system') apply();
+        });
+      })();
+    </script>
+</body>
+</html>

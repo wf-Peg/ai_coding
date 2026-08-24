@@ -1,0 +1,169 @@
+/**
+ * 使用Canvas生成浏览器扩展图标（C形庇护设计）
+ * 在浏览器中打开 browser-extension/icons/generate-icons.html 使用
+ */
+
+// 生成HTML内容
+const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>生成浏览器扩展图标</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            text-align: center;
+        }
+        h1 { color: #4A9E9E; }
+        button {
+            background: #4A9E9E;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover { background: #3A8B8B; }
+        #preview { margin: 30px 0; }
+        .icon-preview { margin: 10px; display: inline-block; }
+        .icon-preview img { display: block; margin-bottom: 5px; }
+        .icon-preview .label { font-size: 12px; color: #666; }
+    </style>
+</head>
+<body>
+    <h1>生成浏览器扩展图标</h1>
+    <p>C形庇护设计 — 点击按钮生成并下载所有尺寸图标</p>
+    
+    <button id="generateBtn">生成所有图标</button>
+    
+    <div id="preview"></div>
+    
+    <script>
+        function drawCShape(ctx, size) {
+            const s = size;
+            // C形庇护路径（无背景，透明）
+            // 左弧
+            ctx.beginPath();
+            ctx.moveTo(s * 0.28, s * 0.82);
+            ctx.bezierCurveTo(s * 0.18, s * 0.76, s * 0.14, s * 0.66, s * 0.14, s * 0.54);
+            ctx.bezierCurveTo(s * 0.14, s * 0.42, s * 0.18, s * 0.32, s * 0.28, s * 0.26);
+            ctx.lineTo(s * 0.34, s * 0.33);
+            ctx.bezierCurveTo(s * 0.26, s * 0.37, s * 0.23, s * 0.45, s * 0.23, s * 0.54);
+            ctx.bezierCurveTo(s * 0.23, s * 0.63, s * 0.26, s * 0.71, s * 0.34, s * 0.75);
+            ctx.closePath();
+            ctx.fillStyle = '#4A9E9E';
+            ctx.fill();
+
+            // 顶弧
+            ctx.beginPath();
+            ctx.moveTo(s * 0.28, s * 0.26);
+            ctx.bezierCurveTo(s * 0.36, s * 0.20, s * 0.46, s * 0.18, s * 0.56, s * 0.20);
+            ctx.bezierCurveTo(s * 0.64, s * 0.22, s * 0.68, s * 0.25, s * 0.72, s * 0.30);
+            ctx.lineTo(s * 0.66, s * 0.37);
+            ctx.bezierCurveTo(s * 0.62, s * 0.33, s * 0.58, s * 0.30, s * 0.54, s * 0.28);
+            ctx.bezierCurveTo(s * 0.46, s * 0.26, s * 0.38, s * 0.28, s * 0.34, s * 0.33);
+            ctx.closePath();
+            ctx.fillStyle = '#3A9B9B';
+            ctx.fill();
+
+            // 碎片 - 黄色
+            ctx.beginPath();
+            ctx.arc(s * 0.40, s * 0.50, s * 0.055, 0, Math.PI * 2);
+            ctx.fillStyle = '#FFD93D';
+            ctx.fill();
+
+            // 碎片 - 橙色
+            ctx.beginPath();
+            ctx.arc(s * 0.52, s * 0.46, s * 0.045, 0, Math.PI * 2);
+            ctx.fillStyle = '#FF9F45';
+            ctx.fill();
+
+            // 碎片 - 红色
+            ctx.beginPath();
+            ctx.arc(s * 0.48, s * 0.56, s * 0.038, 0, Math.PI * 2);
+            ctx.fillStyle = '#FF6B6B';
+            ctx.fill();
+
+            // 微光
+            ctx.beginPath();
+            ctx.arc(s * 0.40, s * 0.50, s * 0.02, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(s * 0.52, s * 0.46, s * 0.015, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            ctx.fill();
+        }
+
+        function generateIcon(size) {
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            drawCShape(ctx, size);
+            return canvas;
+        }
+        
+        function downloadIcon(canvas, size) {
+            const link = document.createElement('a');
+            link.download = 'icon-' + size + '.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+        
+        function displayIcon(canvas, size) {
+            const div = document.createElement('div');
+            div.className = 'icon-preview';
+            
+            const img = document.createElement('img');
+            img.src = canvas.toDataURL('image/png');
+            img.style.width = '64px';
+            img.style.height = '64px';
+            img.style.border = '1px solid #ddd';
+            img.style.borderRadius = '8px';
+            
+            const label = document.createElement('div');
+            label.className = 'label';
+            label.textContent = size + 'x' + size;
+            
+            div.appendChild(img);
+            div.appendChild(label);
+            document.getElementById('preview').appendChild(div);
+        }
+        
+        document.getElementById('generateBtn').addEventListener('click', function() {
+            document.getElementById('preview').innerHTML = '';
+            
+            const sizes = [16, 32, 48, 128];
+            sizes.forEach(size => {
+                const canvas = generateIcon(size);
+                displayIcon(canvas, size);
+                downloadIcon(canvas, size);
+            });
+            
+            this.textContent = '✅ 已下载图标';
+            setTimeout(() => {
+                this.textContent = '生成所有图标';
+            }, 2000);
+        });
+        
+        // 页面加载时预览
+        window.addEventListener('load', function() {
+            const canvas = generateIcon(128);
+            displayIcon(canvas, 128);
+        });
+    </script>
+</body>
+</html>
+`;
+
+console.log('图标生成HTML已准备好');
+console.log('请在浏览器中打开以下HTML内容，或保存为HTML文件');
+console.log(htmlContent);
