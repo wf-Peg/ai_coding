@@ -12,7 +12,9 @@
   --app-primary-hover: #1f76c9;
   --app-primary-soft: rgba(35, 131, 226, 0.1);
   --app-success: #238b63;
+  --app-success-soft: rgba(35, 139, 99, 0.1);
   --app-warning: #b7791f;
+  --app-warning-soft: rgba(183, 121, 31, 0.12);
   --app-danger: #d14343;
   --app-danger-soft: rgba(209, 67, 67, 0.1);
   --app-radius-sm: 6px;
@@ -89,7 +91,9 @@ html[data-theme="dark"] {
   --app-primary-hover: #7bb5ff;
   --app-primary-soft: rgba(97, 166, 255, 0.14);
   --app-success: #56c997;
+  --app-success-soft: rgba(86, 201, 151, 0.14);
   --app-warning: #e6b35c;
+  --app-warning-soft: rgba(230, 179, 92, 0.14);
   --app-danger: #ef7777;
   --app-danger-soft: rgba(239, 119, 119, 0.12);
   --app-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
@@ -116,7 +120,9 @@ html[data-theme="focus"] {
   --app-primary-hover: #7bb5ff;
   --app-primary-soft: rgba(97, 166, 255, 0.14);
   --app-success: #4ecb71;
+  --app-success-soft: rgba(78, 203, 113, 0.14);
   --app-warning: #e0a94d;
+  --app-warning-soft: rgba(224, 169, 77, 0.14);
   --app-danger: #ef7777;
   --app-danger-soft: rgba(239, 119, 119, 0.12);
   --app-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
@@ -162,7 +168,9 @@ html[data-theme="studio"] {
   --app-primary-hover: #92b5ff;
   --app-primary-soft: rgba(122, 165, 255, 0.16);
   --app-success: #5fd3a0;
+  --app-success-soft: rgba(95, 211, 160, 0.16);
   --app-warning: #f0c060;
+  --app-warning-soft: rgba(240, 192, 96, 0.16);
   --app-danger: #ff8b8b;
   --app-danger-soft: rgba(255, 139, 139, 0.14);
   --app-shadow: 0 10px 30px rgba(5, 12, 24, 0.5);

@@ -1,36 +1,37 @@
+/* notion 主题 —— 布局沿用 Notion 的层级与留白，颜色一律映射到 --app-* 语义令牌 */
 :root {
-  --bg: #f7f7f5;
-  --bg-elevated: #ffffff;
-  --card: #ffffff;
-  --card-hover: #fbfbfa;
-  --border: #e8e8e6;
-  --border-light: #dcdcd8;
-  --fg: #2f3437;
-  --fg-secondary: #6b6f76;
-  --fg-muted: #8a8f98;
-  --primary: #2383e2;
-  --primary-dark: #1f76c9;
-  --primary-light: #e9f3ff;
-  --primary-glow: rgba(35, 131, 226, 0.12);
-  --accent: #f1f1ef;
-  --accent-light: #f6f6f4;
-  --danger: #e03e3e;
-  --danger-light: #fdeeee;
-  --success: #1f9d66;
-  --success-light: #eaf8f2;
-  --priority-high: #e03e3e;
-  --priority-medium: #b8860b;
-  --priority-low: #2383e2;
-  --timeline-line: #d8d8d4;
-  --timeline-dot: #c7c7c2;
-  --radius-sm: 10px;
-  --radius-md: 12px;
-  --radius-lg: 14px;
-  --shadow-sm: 0 1px 0 rgba(15, 23, 42, 0.03), 0 8px 20px rgba(15, 23, 42, 0.04);
-  --shadow-md: 0 1px 0 rgba(15, 23, 42, 0.04), 0 12px 24px rgba(15, 23, 42, 0.08);
-  --shadow-lg: 0 1px 0 rgba(15, 23, 42, 0.04), 0 14px 28px rgba(15, 23, 42, 0.1);
-  --font-body: 'IBM Plex Sans', 'Noto Sans SC', sans-serif;
-  --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --bg: var(--app-bg);
+  --bg-elevated: var(--app-surface);
+  --card: var(--app-surface);
+  --card-hover: var(--app-surface-hover);
+  --border: var(--app-border);
+  --border-light: var(--app-border-strong);
+  --fg: var(--app-text);
+  --fg-secondary: var(--app-text-secondary);
+  --fg-muted: var(--app-text-muted);
+  --primary: var(--app-primary);
+  --primary-dark: var(--app-primary-hover);
+  --primary-light: var(--app-primary-soft);
+  --primary-glow: var(--app-primary-soft);
+  --accent: var(--app-text);
+  --accent-light: var(--app-surface-subtle);
+  --danger: var(--app-danger);
+  --danger-light: var(--app-danger-soft);
+  --success: var(--app-success);
+  --success-light: var(--app-success-soft);
+  --priority-high: var(--app-danger);
+  --priority-medium: var(--app-warning);
+  --priority-low: var(--app-primary);
+  --timeline-line: var(--app-border);
+  --timeline-dot: var(--app-border-strong);
+  --radius-sm: var(--app-radius-sm);
+  --radius-md: var(--app-radius);
+  --radius-lg: var(--app-radius-lg);
+  --shadow-sm: var(--app-shadow-sm);
+  --shadow-md: var(--app-shadow-md);
+  --shadow-lg: var(--app-shadow-lg);
+  --font-body: var(--app-font);
+  --transition: var(--app-duration-normal) var(--app-ease-smooth);
 }
 
 body {
@@ -54,11 +55,12 @@ body {
 }
 
 .top-bar-icon {
-  background: #2f3437;
+  background: var(--fg);
+  color: var(--bg);
 }
 
 .top-bar h1 {
-  color: #1f2328;
+  color: var(--fg);
 }
 
 .filter-bar {
@@ -68,26 +70,26 @@ body {
 .filter-btn {
   border-radius: 8px;
   padding: 6px 12px;
-  background: #ffffff;
+  background: var(--card);
   border: 1px solid var(--border);
   color: var(--fg-secondary);
 }
 
 .filter-btn:hover {
   border-color: var(--border-light);
-  background: #f3f3f1;
+  background: var(--card-hover);
   color: var(--fg);
 }
 
 .filter-btn.active {
-  background: #2f3437;
-  border-color: #2f3437;
-  color: #ffffff;
+  background: var(--fg);
+  border-color: var(--fg);
+  color: var(--bg);
   box-shadow: none;
 }
 
 .timeline::before {
-  background: linear-gradient(to bottom, #d8d8d4 0%, #d8d8d4 100%);
+  background: linear-gradient(to bottom, var(--timeline-line) 0%, var(--timeline-line) 100%);
 }
 
 .todo-card {
@@ -98,13 +100,13 @@ body {
 }
 
 .todo-card:hover {
-  border-color: #d8d8d4;
+  border-color: var(--border-light);
   box-shadow: none;
   transform: none;
 }
 
 .timeline-item.completed .todo-card {
-  background: #f7f7f5;
+  background: var(--app-surface-subtle);
 }
 
 .todo-tag {
@@ -115,12 +117,12 @@ body {
 .tag-high,
 .tag-medium,
 .tag-low {
-  background: #f1f1ef;
-  color: #5f646c;
+  background: var(--app-surface-subtle);
+  color: var(--fg-secondary);
 }
 
 .action-btn:hover {
-  background: #f1f1ef;
+  background: var(--app-surface-subtle);
 }
 
 .modal-card,
@@ -131,11 +133,11 @@ body {
 
 .modal-close {
   border: 1px solid var(--border);
-  background: #ffffff;
+  background: var(--card);
 }
 
 .modal-close:hover {
-  background: #f3f3f1;
+  background: var(--card-hover);
 }
 
 .modal-input,
@@ -143,9 +145,10 @@ body {
 .modal-options input[type="date"],
 .edit-form input,
 .edit-form select {
-  border: 1px solid #d9d9d6;
+  border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--card);
+  color: var(--fg);
 }
 
 .modal-input:focus,
@@ -153,94 +156,44 @@ body {
 .modal-options input[type="date"]:focus,
 .edit-form input:focus,
 .edit-form select:focus {
-  box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.15);
+  box-shadow: 0 0 0 3px var(--app-primary-soft);
   border-color: var(--primary);
 }
 
 .modal-submit,
 .btn-save {
-  background: #2f3437;
-  border-color: #2f3437;
+  background: var(--fg);
+  border-color: var(--fg);
+  color: var(--bg);
 }
 
 .modal-submit:hover,
 .btn-save:hover {
-  background: #1f2328;
+  background: var(--fg-secondary);
+  border-color: var(--fg-secondary);
   box-shadow: none;
 }
 
 .btn-cancel,
 .btn-confirm-cancel {
-  background: #f7f7f5;
-  border-color: #dcdcd8;
+  background: var(--app-surface-subtle);
+  border-color: var(--border-light);
   color: var(--fg-secondary);
 }
 
 .btn-cancel:hover,
 .btn-confirm-cancel:hover {
-  background: #efefed;
+  background: var(--card-hover);
   color: var(--fg);
 }
 
 .fab {
-  background: #2f3437;
-  color: #ffffff;
-  box-shadow: 0 8px 18px rgba(31, 35, 40, 0.22);
+  background: var(--fg);
+  color: var(--bg);
+  box-shadow: 0 8px 18px var(--app-shadow-md);
 }
 
 .fab:hover {
-  background: #1f2328;
-  box-shadow: 0 10px 24px rgba(31, 35, 40, 0.3);
+  background: var(--fg-secondary);
+  box-shadow: 0 10px 24px var(--app-shadow-lg);
 }
-
-/* 深色主题 */
-html[data-theme="dark"] {
-  --bg: #1e1e1e;
-  --bg-elevated: #2d2d2d;
-  --card: #2d2d2d;
-  --card-hover: #3a3a3a;
-  --border: #3e3e3e;
-  --border-light: #4a4a4a;
-  --fg: #d4d4d4;
-  --fg-secondary: #9a9a9a;
-  --fg-muted: #6a6a6a;
-  --primary: #569cff;
-  --primary-dark: #4a8ae8;
-  --primary-light: #1a2d4a;
-  --primary-glow: rgba(86, 156, 255, 0.12);
-  --accent: #3a3a3a;
-  --accent-light: #333333;
-  --danger: #e06060;
-  --danger-light: #3a1a1a;
-  --success: #4ecb71;
-  --success-light: #1a3a2a;
-  --timeline-line: #3e3e3e;
-  --timeline-dot: #4a4a4a;
-  --shadow-sm: 0 1px 0 rgba(0,0,0,0.3);
-  --shadow-md: 0 8px 20px rgba(0,0,0,0.4);
-  --shadow-lg: 0 14px 28px rgba(0,0,0,0.5);
-}
-html[data-theme="dark"] body { background: var(--bg); color: var(--fg); }
-html[data-theme="dark"] .top-bar { background: var(--card); border-color: var(--border); }
-html[data-theme="dark"] .top-bar h1 { color: #d4d4d4; }
-html[data-theme="dark"] .top-bar-icon { background: #569cff; }
-html[data-theme="dark"] .filter-btn { background: #3a3a3a; border-color: #4a4a4a; color: #9a9a9a; }
-html[data-theme="dark"] .filter-btn:hover { background: #4a4a4a; color: #d4d4d4; }
-html[data-theme="dark"] .filter-btn.active { background: #569cff; border-color: #569cff; color: #fff; }
-html[data-theme="dark"] .timeline::before { background: linear-gradient(to bottom, #3e3e3e 0%, #3e3e3e 100%); }
-html[data-theme="dark"] .todo-card { background: var(--card); border-color: var(--border); }
-html[data-theme="dark"] .todo-card:hover { border-color: #4a4a4a; }
-html[data-theme="dark"] .timeline-item.completed .todo-card { background: #252525; }
-html[data-theme="dark"] .todo-tag { border-color: #4a4a4a; }
-html[data-theme="dark"] .tag-high, html[data-theme="dark"] .tag-medium, html[data-theme="dark"] .tag-low { background: #3a3a3a; color: #9a9a9a; }
-html[data-theme="dark"] .action-btn:hover { background: #3a3a3a; }
-html[data-theme="dark"] .modal-card, html[data-theme="dark"] .confirm-dialog { border-color: var(--border); }
-html[data-theme="dark"] .modal-close { background: #3a3a3a; border-color: #4a4a4a; }
-html[data-theme="dark"] .modal-close:hover { background: #4a4a4a; }
-html[data-theme="dark"] .modal-input, html[data-theme="dark"] .modal-options select, html[data-theme="dark"] .modal-options input[type="date"],
-html[data-theme="dark"] .edit-form input, html[data-theme="dark"] .edit-form select { background: #3a3a3a; border-color: #4a4a4a; color: #d4d4d4; }
-html[data-theme="dark"] .modal-submit, html[data-theme="dark"] .btn-save { background: #569cff; border-color: #569cff; }
-html[data-theme="dark"] .modal-submit:hover, html[data-theme="dark"] .btn-save:hover { background: #4a8ae8; }
-html[data-theme="dark"] .btn-cancel, html[data-theme="dark"] .btn-confirm-cancel { background: #3a3a3a; border-color: #4a4a4a; color: #9a9a9a; }
-html[data-theme="dark"] .btn-cancel:hover, html[data-theme="dark"] .btn-confirm-cancel:hover { background: #4a4a4a; color: #d4d4d4; }
-html[data-theme="dark"] .fab { background: #569cff; }
