@@ -34,12 +34,20 @@ function has(css, token) {
 const tokensCss = read('frontend/styles/design-tokens.css');
 const uiCommonCss = read('frontend/styles/ui-common.css');
 
-const SIX_THEMES = ['regular', 'notion', 'dark', 'focus', 'calm', 'studio'];
-SIX_THEMES.forEach(t => {
+const THEMES = ['regular', 'notion', 'dark'];
+THEMES.forEach(t => {
   check(
     `design-tokens.css declares html[data-theme="${t}"]`,
     has(tokensCss, `html[data-theme="${t}"]`),
     '缺少主题选择器'
+  );
+});
+// 已删除的三套实验主题不应再残留
+['focus', 'calm', 'studio'].forEach(t => {
+  check(
+    `design-tokens.css no longer declares html[data-theme="${t}"]`,
+    !has(tokensCss, `html[data-theme="${t}"]`),
+    '残留已删除的主题选择器'
   );
 });
 

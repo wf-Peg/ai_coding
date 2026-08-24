@@ -1,7 +1,7 @@
 const API_BASE = 'http://127.0.0.1:8081/api/config';
 const MODEL_TEST_BASE = 'http://127.0.0.1:8081/api/model-config';
 const THEME_KEY = 'app_theme_v1';
-const APPEARANCE_KEY = 'app_appearance_v1'; // regular | dark | notion | system | focus | calm | studio
+const APPEARANCE_KEY = 'app_appearance_v1'; // regular | dark | notion | system
 const MOTION_KEY = 'app_motion_v1'; // full | reduced
 let currentStoragePath = ''; // 用于检测路径变更
 

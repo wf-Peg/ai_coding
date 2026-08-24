@@ -394,9 +394,7 @@ select:focus {
 
 
 /* 思考徽章为状态色（数据可视化范畴），深色系下单独调整以保持可读 */
-html[data-theme="dark"] .clip-header-left .thoughts-badge,
-html[data-theme="focus"] .clip-header-left .thoughts-badge,
-html[data-theme="studio"] .clip-header-left .thoughts-badge {
+html[data-theme="dark"] .clip-header-left .thoughts-badge {
     background: rgba(168, 85, 247, 0.16) !important;
     color: #c084fc !important;
     border-color: rgba(168, 85, 247, 0.38) !important;

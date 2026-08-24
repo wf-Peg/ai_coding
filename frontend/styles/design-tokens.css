@@ -104,89 +104,6 @@ html[data-theme="dark"] {
   --app-shadow-xl: 0 20px 30px rgba(0, 0, 0, 0.4);
 }
 
-/* focus：专注工作台（基于 dark 深色增强：更深、更低噪、克制的靛蓝强调） */
-html[data-theme="focus"] {
-  color-scheme: dark;
-  --app-bg: #16171c;
-  --app-surface: #1f2026;
-  --app-surface-subtle: #26272e;
-  --app-surface-hover: #2c2d35;
-  --app-border: #2a2b33;
-  --app-border-strong: #36373f;
-  --app-text: #d3d4da;
-  --app-text-secondary: #9a9ba3;
-  --app-text-muted: #6c6d75;
-  --app-primary: #6f8fd8;
-  --app-primary-hover: #819ddf;
-  --app-primary-soft: rgba(111, 143, 216, 0.14);
-  --app-success: #56b988;
-  --app-success-soft: rgba(86, 185, 136, 0.14);
-  --app-warning: #d4a04a;
-  --app-warning-soft: rgba(212, 160, 74, 0.14);
-  --app-danger: #e07878;
-  --app-danger-soft: rgba(224, 120, 120, 0.12);
-  --app-shadow: 0 6px 20px rgba(0, 0, 0, 0.34);
-  --app-shadow-md: 0 4px 8px rgba(0, 0, 0, 0.28);
-  --app-shadow-lg: 0 10px 22px rgba(0, 0, 0, 0.36);
-  --app-shadow-xl: 0 18px 32px rgba(0, 0, 0, 0.44);
-  --app-shadow-panel: 0 0 0 1px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.28), 0 14px 28px rgba(0, 0, 0, 0.38);
-}
-
-/* calm：安静秩序（基于 notion 浅色增强：暖纸感、柔和蓝、更大留白与更软圆角） */
-html[data-theme="calm"] {
-  --app-bg: #faf9f6;
-  --app-surface: #ffffff;
-  --app-surface-subtle: #f3f1ec;
-  --app-surface-hover: #edeae4;
-  --app-border: #e8e5dc;
-  --app-border-strong: #d5d1c5;
-  --app-text: #393733;
-  --app-text-secondary: #6e6b63;
-  --app-text-muted: #98948a;
-  --app-primary: #4a84c4;
-  --app-primary-hover: #3f71ab;
-  --app-primary-soft: rgba(74, 132, 196, 0.12);
-  --app-success: #3c9266;
-  --app-success-soft: rgba(60, 146, 102, 0.1);
-  --app-warning: #b58a2a;
-  --app-warning-soft: rgba(181, 138, 42, 0.12);
-  --app-danger: #cc5a4e;
-  --app-danger-soft: rgba(204, 90, 78, 0.1);
-  --app-radius-sm: 7px;
-  --app-radius: 10px;
-  --app-radius-lg: 14px;
-}
-
-/* studio：AI 创作工作室（基于 dark 深色增强：深蓝渐层 + AI 青色点缀） */
-html[data-theme="studio"] {
-  color-scheme: dark;
-  --app-bg: #0e1725;
-  --app-surface: #141f31;
-  --app-surface-subtle: #19263c;
-  --app-surface-hover: #1e2d45;
-  --app-border: #22324a;
-  --app-border-strong: #2c415e;
-  --app-text: #e3ebf6;
-  --app-text-secondary: #a4b5ca;
-  --app-text-muted: #6d8099;
-  --app-primary: #7aa7ff;
-  --app-primary-hover: #8eb6ff;
-  --app-primary-soft: rgba(122, 167, 255, 0.16);
-  --app-success: #5fd0a0;
-  --app-success-soft: rgba(95, 208, 160, 0.16);
-  --app-warning: #ecc468;
-  --app-warning-soft: rgba(236, 196, 104, 0.16);
-  --app-danger: #ff8f8f;
-  --app-danger-soft: rgba(255, 143, 143, 0.14);
-  --app-shadow: 0 10px 30px rgba(4, 10, 20, 0.5);
-  --app-shadow-md: 0 4px 10px rgba(4, 10, 20, 0.4);
-  --app-shadow-lg: 0 12px 28px rgba(4, 10, 20, 0.5);
-  --app-shadow-xl: 0 20px 40px rgba(4, 10, 20, 0.55);
-  --app-shadow-panel: 0 0 0 1px rgba(14, 28, 50, 0.6), 0 2px 8px rgba(4, 10, 20, 0.4), 0 16px 36px rgba(4, 10, 20, 0.5);
-  --app-modal-backdrop: rgba(4, 10, 20, 0.66);
-  --app-ai-accent: #5fd0d0;
-}
-
 /* ============================================================================
    组件语义令牌 —— 共享组件一律消费 --app-*，禁止读取主题专属色值。
    这些令牌大多以 :root 值作为别名，随主题自动切换。
@@ -219,11 +136,6 @@ html[data-theme="studio"] {
 
 html[data-theme="dark"] {
   --app-modal-backdrop: rgba(0, 0, 0, 0.6);
-}
-
-html[data-theme="focus"] {
-  --app-modal-backdrop: rgba(0, 0, 0, 0.62);
-  --app-ai-accent: #819ddf;
 }
 
 /* ============================================================================

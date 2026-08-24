@@ -358,7 +358,7 @@
     document.documentElement.setAttribute('data-theme', theme);
     document.documentElement.setAttribute('data-motion', motion);
     // Ace 语法主题与应用主题分离：深色系用深色语法主题，浅色系用浅色
-    const isDark = theme === 'dark' || theme === 'focus' || theme === 'studio';
+    const isDark = theme === 'dark';
     const aceTheme = isDark ? 'ace/theme/tomorrow_night' : 'ace/theme/textmate';
     mainEditor.setTheme(aceTheme);
     compareEditor.setTheme(aceTheme);

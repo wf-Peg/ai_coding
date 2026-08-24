@@ -40,13 +40,7 @@ CutShelter 的核心不是复制 Obsidian、Notion 或 YouMind，而是在本地
 
 ## 3. 全局工作风格
 
-保留现有主题 `regular`、`notion`、`dark`，新增三种全局工作风格。工作风格共享组件结构和语义变量，只改变视觉表达与局部动效倾向。
-
-| 标识 | 名称 | 视觉方向 | 适合场景 |
-| --- | --- | --- | --- |
-| `focus` | 专注工作台 | Obsidian 启发；深色、低噪声、低装饰 | 编辑、长时写作、文件整理 |
-| `calm` | 安静秩序 | Notion 启发；纸感、明亮、留白、内容层级 | 工作台、知识、任务和阅读 |
-| `studio` | AI 创作工作室 | YouMind 启发；深蓝渐层、焦点状态、适度表现力 | AI 协作、研究和内容加工 |
+> **已调整（2026-08-23 落地时确认）**：本节最初规划的三套「工作风格」（`focus` / `calm` / `studio`）在实现阶段经确认**不予保留**，最终主题集合收敛为 `regular`（浅色）、`notion`、`dark`（深色）三套。原工作风格的「视觉方向」作为设计探索记录保留，但不落地为独立主题；「动效、用户体验、高级感」等体验目标统一作用于三套主题本身（见第 6 节动效语言）。
 
 主题切换是全局行为，必须同步到主导航、编辑器、工作台、剪藏、设置、知识、学习、PDF、工具、观测和其他 iframe 页面。
 
@@ -205,18 +199,18 @@ AI 看板娘、快捷搜索、右侧详情抽屉、内容预览、操作历史�
 
 ### 已落地
 
-- 主题纯逻辑核心 `frontend/js/theme-core.js`：六套主题规范化、动效偏好、`system` 外观解析、`themeChange` 消息契约与持久化读取，Node/浏览器双端导出。
+- 主题纯逻辑核心 `frontend/js/theme-core.js`：三套主题（`regular` / `notion` / `dark`）规范化、动效偏好、`system` 外观解析、`themeChange` 消息契约与持久化读取，Node/浏览器双端导出；历史遗留的 `focus`/`calm`/`studio` 值安全回退到 `notion`。
 - 主题桥接 `frontend/js/theme-bridge.js`：`init` / `apply` / `listen`，主页面广播 `{ action: "themeChange", theme, motion }`，子页面回执 `{ type: "themeReady", theme }`。
-- 令牌入口 `frontend/styles/design-tokens.css`：`regular` / `notion` / `dark` / `focus` / `calm` / `studio` 六套主题、组件语义令牌与旧版别名（`--background`/`--surface`/`--text`/`--border` → `--app-*`）。
+- 令牌入口 `frontend/styles/design-tokens.css`：`regular` / `notion` / `dark` 三套主题、组件语义令牌与旧版别名（`--background`/`--surface`/`--text`/`--border` → `--app-*`）。
 - 共享动效 `frontend/styles/ui-common.css`：`--app-duration-*` 消费与 `[data-motion="reduced"]` + `prefers-reduced-motion` 双重减少动效。
-- 设置页六主题卡片选择器、跟随系统开关与减少动效开关（`frontend/settings.html` / `frontend/js/settings.js`）。
+- 设置页三主题卡片选择器、跟随系统开关与减少动效开关（`frontend/settings.html` / `frontend/js/settings.js`）。
 - 全部模块入口页接入 `theme-core.js` + `theme-bridge.js` + `design-tokens.css` + `ui-common.css`，并在 `<head>` 内同步应用主题以避免白屏闪烁。
-- 静态冒烟 `scripts/smoke-theme.js`：121 项断言（六主题选择器、语义令牌、旧版别名、减少动效、可访问性、全页面桥接引用）。
-- 手动验收清单 `docs/superpowers/self-test/global-theme-ux-checklist.md`（六主题 × 桌面/浏览器矩阵 + 减少动效 + 可访问性 + 回归门禁）。
+- 静态冒烟 `scripts/smoke-theme.js`：断言三主题选择器、语义令牌、旧版别名、减少动效、可访问性、全页面桥接引用，并断言已删除的 `focus`/`calm`/`studio` 不再残留。
+- 手动验收清单 `docs/superpowers/self-test/global-theme-ux-checklist.md`（三主题 × 桌面/浏览器矩阵 + 减少动效 + 可访问性 + 回归门禁）。
 
 ### 自动化验证结果
 
-- `node scripts/smoke-theme.js`：121/121 通过。
+- `node scripts/smoke-theme.js`：通过。
 - `npm run test:theme`：9 通过 / 0 失败。
 - `npm run test:editor-all`：23 通过 / 0 失败。
 - `npm run test:editor`：4 通过 / 0 失败。
@@ -225,6 +219,6 @@ AI 看板娘、快捷搜索、右侧详情抽屉、内容预览、操作历史�
 
 ### 待人工验证
 
-- 六主题 × 桌面/浏览器矩阵与视觉回归（见验收清单），需人工在 Electron 与浏览器模式逐项勾选。
+- 三主题 × 桌面/浏览器矩阵与视觉回归（见验收清单），需人工在 Electron 与浏览器模式逐项勾选。
 - 深色/浅色对比度与窄屏布局检查。
 - 既有页面内联 `:root` 硬编码与 `html[data-theme="dark"]` 分支的清理，属分期建议第 6 步的持续收敛工作。

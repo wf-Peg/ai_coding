@@ -260,8 +260,8 @@ var selectedClipIds = new Set();
         currentTheme = effectiveTheme === 'regular' ? 'regular' : DEFAULT_THEME;
         const notionThemeLink = document.getElementById('clipThemeNotion');
         if (notionThemeLink) {
-            // 纸感浅色主题（notion / calm）启用 notion 样式；其余主题关闭
-            notionThemeLink.disabled = !(effectiveTheme === 'notion' || effectiveTheme === 'calm');
+            // 纸感浅色主题（notion）启用 notion 样式；其余主题关闭
+            notionThemeLink.disabled = effectiveTheme !== 'notion';
         }
         document.documentElement.setAttribute('data-theme', effectiveTheme);
         if (core) document.documentElement.setAttribute('data-motion', core.readStoredMotion(localStorage));

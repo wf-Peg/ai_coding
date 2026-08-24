@@ -8,7 +8,7 @@
   'use strict';
 
   // 全局主题集合（固定，版本无关）
-  var THEMES = ['regular', 'notion', 'dark', 'focus', 'calm', 'studio'];
+  var THEMES = ['regular', 'notion', 'dark'];
   var DEFAULT_THEME = 'notion';
 
   // 动效偏好集合
@@ -23,7 +23,7 @@
     return Object.prototype.hasOwnProperty.call(obj, key);
   }
 
-  // 将任意输入规范化为六套主题之一，默认 notion
+  // 将任意输入规范化为三套主题之一，默认 notion
   function normalizeTheme(value) {
     if (typeof value === 'string' && THEMES.indexOf(value) !== -1) {
       return value;
@@ -39,7 +39,7 @@
     return DEFAULT_MOTION;
   }
 
-  // appearance 为偏好值：六主题之一或 'system'；system 映射为 dark / notion
+  // appearance 为偏好值：三主题之一或 'system'；system 映射为 dark / notion
   function resolveAppearance(appearance, systemPrefersDark) {
     if (appearance === 'system') {
       return systemPrefersDark ? 'dark' : 'notion';
