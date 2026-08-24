@@ -234,8 +234,14 @@
   box-shadow: var(--app-shadow-md);
 }
 
-/* ---------- 减少动态效果 ---------- */
+/* ---------- 减少动态效果（系统偏好 + 应用设置） ---------- */
 @media (prefers-reduced-motion: reduce) {
+  :root {
+    --app-duration-fast: 0.001ms;
+    --app-duration-normal: 0.001ms;
+    --app-duration-slow: 0.001ms;
+    --app-duration-panel: 0.001ms;
+  }
   .ui-toast, .ui-modal, .ui-fade-in, .ui-slide-up, .ui-pop, .ui-scale-in,
   .ui-card:hover, .ui-skeleton, .ui-spinner {
     animation-duration: 0.001ms !important;
@@ -245,3 +251,25 @@
   }
   .ui-skeleton { animation: none !important; background: var(--app-surface-subtle); }
 }
+
+[data-motion="reduced"] {
+  --app-duration-fast: 0.001ms;
+  --app-duration-normal: 0.001ms;
+  --app-duration-slow: 0.001ms;
+  --app-duration-panel: 0.001ms;
+}
+[data-motion="reduced"] .ui-toast,
+[data-motion="reduced"] .ui-modal,
+[data-motion="reduced"] .ui-fade-in,
+[data-motion="reduced"] .ui-slide-up,
+[data-motion="reduced"] .ui-pop,
+[data-motion="reduced"] .ui-scale-in,
+[data-motion="reduced"] .ui-card:hover,
+[data-motion="reduced"] .ui-skeleton,
+[data-motion="reduced"] .ui-spinner {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  transform: none !important;
+}
+[data-motion="reduced"] .ui-skeleton { animation: none !important; background: var(--app-surface-subtle); }

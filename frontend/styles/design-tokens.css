@@ -170,4 +170,69 @@ html[data-theme="studio"] {
   --app-shadow-lg: 0 12px 28px rgba(5, 12, 24, 0.5);
   --app-shadow-xl: 0 20px 40px rgba(5, 12, 24, 0.55);
   --app-shadow-panel: 0 0 0 1px rgba(15, 30, 55, 0.6), 0 2px 8px rgba(5, 12, 24, 0.4), 0 16px 36px rgba(5, 12, 24, 0.5);
+  --app-modal-backdrop: rgba(5, 12, 24, 0.66);
+  --app-ai-accent: #8fb3ff;
+}
+
+/* ============================================================================
+   组件语义令牌 —— 共享组件一律消费 --app-*，禁止读取主题专属色值。
+   这些令牌大多以 :root 值作为别名，随主题自动切换。
+   ============================================================================ */
+:root {
+  --app-control-bg: var(--app-surface);
+  --app-control-border: var(--app-border);
+  --app-control-focus-ring: var(--app-primary-soft);
+
+  --app-card-bg: var(--app-surface);
+  --app-card-border: var(--app-border);
+  --app-card-hover-bg: var(--app-surface-hover);
+
+  --app-nav-bg: var(--app-surface-subtle);
+  --app-nav-active-bg: var(--app-primary-soft);
+  --app-nav-active-text: var(--app-primary);
+
+  --app-modal-bg: var(--app-surface);
+  --app-modal-backdrop: rgba(15, 23, 42, 0.4);
+  --app-drawer-bg: var(--app-surface);
+
+  --app-editor-bg: var(--app-bg);
+  --app-editor-gutter-bg: var(--app-surface-subtle);
+  --app-editor-selection-bg: var(--app-primary-soft);
+
+  --app-ai-bg: var(--app-surface-subtle);
+  --app-ai-accent: var(--app-primary);
+  --app-ai-thinking-ring: var(--app-primary);
+}
+
+html[data-theme="dark"] {
+  --app-modal-backdrop: rgba(0, 0, 0, 0.6);
+}
+
+html[data-theme="focus"] {
+  --app-modal-backdrop: rgba(0, 0, 0, 0.62);
+  --app-ai-accent: #7bb5ff;
+}
+
+/* ============================================================================
+   旧版别名（迁移期兼容）—— 把历史硬编码变量名映射到 --app-*。
+   页面内联 :root 仍可能覆盖这些别名，随页面迁移逐步清理。
+   ============================================================================ */
+:root {
+  --background: var(--app-bg);
+  --surface: var(--app-surface);
+  --text: var(--app-text);
+  --text-secondary: var(--app-text-secondary);
+  --text-muted: var(--app-text-muted);
+  --border: var(--app-border);
+  --border-light: var(--app-border-strong);
+  --primary: var(--app-primary);
+  --primary-dark: var(--app-primary-hover);
+  --primary-light: var(--app-primary-soft);
+  --success: var(--app-success);
+  --danger: var(--app-danger);
+  --radius: var(--app-radius);
+  --radius-sm: var(--app-radius-sm);
+  --radius-lg: var(--app-radius-lg);
+  --shadow: var(--app-shadow);
+  --transition: var(--app-duration-normal) var(--app-ease-smooth);
 }
