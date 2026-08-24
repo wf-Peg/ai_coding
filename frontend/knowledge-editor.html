@@ -7,18 +7,18 @@
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #3f8cff;
-            --primary-dark: #2f72d8;
-            --background: #f9fafb;
-            --surface: #ffffff;
-            --text: #1f2937;
-            --text-secondary: #6b7280;
-            --text-muted: #9ca3af;
-            --border: #e5e7eb;
-            --radius: 12px;
-            --radius-sm: 8px;
-            --shadow: 0 1px 3px rgba(0,0,0,0.06);
-            --transition: all 0.25s ease;
+            --primary: var(--app-primary);
+            --primary-dark: var(--app-primary-hover);
+            --background: var(--app-bg);
+            --surface: var(--app-surface);
+            --text: var(--app-text);
+            --text-secondary: var(--app-text-secondary);
+            --text-muted: var(--app-text-muted);
+            --border: var(--app-border);
+            --radius: var(--app-radius);
+            --radius-sm: var(--app-radius-sm);
+            --shadow: var(--app-shadow-sm);
+            --transition: var(--app-duration-normal) var(--app-ease-smooth);
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -155,7 +155,7 @@
             gap: 4px;
             padding: 3px 10px;
             border-radius: 16px;
-            background: #eff6ff;
+            background: var(--app-primary-soft);
             color: var(--primary);
             font-size: 0.8rem;
             font-weight: 500;
@@ -215,10 +215,8 @@
             border-radius: 8px;
             line-height: 1.5;
         }
-        html[data-theme="dark"] .source-chip .source-chip-site {
-            color: #f0c36d;
-            background: rgba(245, 158, 11, 0.18);
-        }
+
+
         .source-chips-area .btn-add-source {
             background: var(--surface);
             border: 1px dashed var(--border);
@@ -238,7 +236,7 @@
         .import-section {
             margin-top: 20px;
             padding: 16px;
-            background: #f0f7ff;
+            background: var(--app-primary-soft);
             border-radius: var(--radius);
             border: 1px dashed var(--primary);
         }
@@ -497,160 +495,7 @@
         .confirm-btn.danger { background: #ef4444; color: #fff; border-color: #ef4444; }
         .confirm-btn.danger:hover { background: #dc2626; }
 
-        /* Notion 主题 */
-        html[data-theme="notion"] {
-            --primary: #2383e2;
-            --primary-dark: #1f76c9;
-            --background: #f7f7f5;
-            --surface: #ffffff;
-            --text: #2f3437;
-            --text-secondary: #6b6f76;
-            --text-muted: #8a8f98;
-            --border: #e8e8e6;
-            --radius: 12px;
-            --radius-sm: 8px;
-            --shadow: 0 1px 0 rgba(15,23,42,0.03), 0 8px 20px rgba(15,23,42,0.04);
-        }
-        html[data-theme="notion"] .nav {
-            border-bottom-color: #e8e8e6;
-        }
-        html[data-theme="notion"] .nav .back-btn {
-            border-color: #dcdcd8;
-            color: #6b6f76;
-        }
-        html[data-theme="notion"] .nav .back-btn:hover { background: #f1f1ef; }
-        html[data-theme="notion"] .nav .btn-secondary {
-            border-color: #dcdcd8;
-            color: #6b6f76;
-        }
-        html[data-theme="notion"] .nav .btn-secondary:hover { background: #f1f1ef; }
-        html[data-theme="notion"] .nav .btn-primary {
-            background: #2f3437;
-            color: #ffffff;
-        }
-        html[data-theme="notion"] .nav .btn-primary:hover { background: #1f2328; }
-        html[data-theme="notion"] .form-group input,
-        html[data-theme="notion"] .form-group select,
-        html[data-theme="notion"] .form-group textarea {
-            border-color: #dcdcd8;
-            background: #ffffff;
-        }
-        html[data-theme="notion"] .form-group input:focus,
-        html[data-theme="notion"] .form-group select:focus,
-        html[data-theme="notion"] .form-group textarea:focus {
-            border-color: #2383e2;
-            box-shadow: 0 0 0 3px rgba(35,131,226,0.15);
-        }
-        html[data-theme="notion"] .tags-input-wrapper {
-            border-color: #dcdcd8;
-            background: #ffffff;
-        }
-        html[data-theme="notion"] .tags-input-wrapper:focus-within {
-            border-color: #2383e2;
-            box-shadow: 0 0 0 3px rgba(35,131,226,0.15);
-        }
-        html[data-theme="notion"] .tag-item {
-            background: #f1f1ef;
-            color: #5f646c;
-        }
-        html[data-theme="notion"] .source-chip {
-            background: #fef9e7;
-            color: #92400e;
-        }
-        html[data-theme="notion"] .source-chips-area {
-            border-color: #dcdcd8;
-            background: #ffffff;
-        }
-        html[data-theme="notion"] .source-chips-area .btn-add-source {
-            border-color: #dcdcd8;
-            color: #6b6f76;
-        }
-        html[data-theme="notion"] .source-chips-area .btn-add-source:hover {
-            border-color: #2383e2;
-            color: #2383e2;
-        }
-        html[data-theme="notion"] .modal-panel { border-color: #dcdcd8; }
-        html[data-theme="notion"] .modal-search-input { background: #f7f7f5; border-color: #dcdcd8; }
-        html[data-theme="notion"] .modal-results { border-color: #dcdcd8; }
-        html[data-theme="notion"] .modal-footer .btn-confirm {
-            background: #2f3437;
-            color: #ffffff;
-        }
-        html[data-theme="notion"] .modal-footer .btn-confirm:hover { background: #1f2328; }
-        html[data-theme="notion"] .import-section {
-            background: #f1f1ef;
-            border-color: #2383e2;
-        }
-        html[data-theme="notion"] .import-section h3 { color: #2383e2; }
-        html[data-theme="notion"] .import-section .btn-import {
-            background: #2f3437;
-            color: #ffffff;
-        }
-        html[data-theme="notion"] .import-section .btn-import:hover { background: #1f2328; }
-
-        /* 深色主题 */
-        html[data-theme="dark"] {
-            --primary: #569cff;
-            --primary-dark: #4a8ae8;
-            --background: #1e1e1e;
-            --surface: #2d2d2d;
-            --text: #d4d4d4;
-            --text-secondary: #9a9a9a;
-            --text-muted: #6a6a6a;
-            --border: #3e3e3e;
-        }
-        html[data-theme="dark"] body { background: var(--background); color: var(--text); }
-        html[data-theme="dark"] .nav { background: var(--surface); border-bottom-color: var(--border); }
-        html[data-theme="dark"] .nav .back-btn { border-color: var(--border); color: var(--text-secondary); }
-        html[data-theme="dark"] .nav .back-btn:hover { background: #3a3a3a; }
-        html[data-theme="dark"] .nav .btn-secondary { background: var(--surface); border-color: var(--border); color: var(--text-secondary); }
-        html[data-theme="dark"] .nav .btn-secondary:hover { background: #3a3a3a; }
-        html[data-theme="dark"] .nav .btn-primary { background: var(--primary); color: #fff; }
-        html[data-theme="dark"] .nav .btn-primary:hover { background: var(--primary-dark); }
-        html[data-theme="dark"] .form-group label { color: var(--text-secondary); }
-        html[data-theme="dark"] input, html[data-theme="dark"] textarea, html[data-theme="dark"] select {
-            background: #3a3a3a; border-color: #4a4a4a; color: #d4d4d4;
-        }
-        html[data-theme="dark"] input:focus, html[data-theme="dark"] textarea:focus, html[data-theme="dark"] select:focus {
-            border-color: var(--primary); box-shadow: 0 0 0 3px rgba(86,156,255,0.2);
-        }
-        html[data-theme="dark"] .tags-input-wrapper { background: #3a3a3a; border-color: #4a4a4a; }
-        html[data-theme="dark"] .tags-input-wrapper:focus-within { border-color: var(--primary); }
-        html[data-theme="dark"] .tags-input-wrapper input { background: transparent; color: #d4d4d4; }
-        html[data-theme="dark"] .tag-item { background: #3a3a3a; color: #9a9a9a; }
-        html[data-theme="dark"] .source-chips-area { background: #3a3a3a; border-color: #4a4a4a; }
-        html[data-theme="dark"] .source-chip { background: #3d3520; color: #f0c36d; }
-        html[data-theme="dark"] .source-chips-area .btn-add-source { background: #3a3a3a; border-color: #4a4a4a; color: #9a9a9a; }
-        html[data-theme="dark"] .source-chips-area .btn-add-source:hover { border-color: var(--primary); color: var(--primary); }
-        html[data-theme="dark"] .import-section { background: #2a2d3a; border-color: var(--primary); }
-        html[data-theme="dark"] .import-section h3 { color: var(--primary); }
-        html[data-theme="dark"] .import-section .btn-import { background: var(--primary); color: #fff; }
-        html[data-theme="dark"] .import-section .btn-import:hover { background: var(--primary-dark); }
-        html[data-theme="dark"] .clip-select-list { background: #3a3a3a; border-color: #4a4a4a; }
-        html[data-theme="dark"] .clip-select-list .clip-option { border-bottom-color: #4a4a4a; color: #d4d4d4; }
-        html[data-theme="dark"] .clip-select-list .clip-option:hover { background: rgba(86,156,255,0.12); }
-        html[data-theme="dark"] .clip-select-list .clip-option.selected { background: rgba(86,156,255,0.2); color: var(--primary); }
-        html[data-theme="dark"] .modal-overlay { background: rgba(0,0,0,0.6); }
-        html[data-theme="dark"] .modal-panel { background: var(--surface); }
-        html[data-theme="dark"] .modal-header { border-bottom-color: var(--border); }
-        html[data-theme="dark"] .modal-footer { border-top-color: var(--border); }
-        html[data-theme="dark"] .modal-search-input { background: #3a3a3a; border-color: #4a4a4a; color: #d4d4d4; }
-        html[data-theme="dark"] .modal-results { border-color: #4a4a4a; }
-        html[data-theme="dark"] .modal-results .modal-clip-item { border-bottom-color: #4a4a4a; color: #d4d4d4; }
-        html[data-theme="dark"] .modal-results .modal-clip-item:hover { background: rgba(86,156,255,0.1); }
-        html[data-theme="dark"] .modal-results .modal-clip-item.selected { background: rgba(86,156,255,0.2); color: var(--primary); }
-        html[data-theme="dark"] .modal-results .modal-clip-item .check-icon { border-color: #4a4a4a; }
-        html[data-theme="dark"] .modal-footer .btn-cancel { background: var(--surface); border-color: var(--border); color: var(--text-secondary); }
-        html[data-theme="dark"] .modal-footer .btn-cancel:hover { background: #3a3a3a; }
-        html[data-theme="dark"] .wikilink-dropdown { background: var(--surface); border-color: var(--border); }
-        html[data-theme="dark"] .wikilink-dropdown .wikilink-item { border-bottom-color: var(--border); color: #d4d4d4; }
-        html[data-theme="dark"] .wikilink-dropdown .wikilink-item:hover,
-        html[data-theme="dark"] .wikilink-dropdown .wikilink-item.active { background: rgba(86,156,255,0.15); color: var(--primary); }
-        html[data-theme="dark"] .btn { background: #3a3a3a; color: #d4d4d4; border-color: #4a4a4a; }
-        html[data-theme="dark"] .btn-primary { background: #569cff; color: #fff; border-color: #569cff; }
-        html[data-theme="dark"] .tag { background: #3a3a3a; color: #d4d4d4; }
-
-        @media (max-width: 768px) {
+                        @media (max-width: 768px) {
             .form-row { flex-direction: column; }
             .container { padding: 16px; }
             .modal-panel { width: 95%; max-height: 80vh; }
@@ -662,9 +507,12 @@
         ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; transition: background 0.2s ease; }
         ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
         * { scrollbar-width: thin; scrollbar-color: var(--border-light) transparent; }
-        html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: var(--border); }
-        html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
-        html[data-theme="dark"] * { scrollbar-color: var(--border) transparent; }
+
+
+
+
+
+
     </style>
     <link rel="stylesheet" href="styles/design-tokens.css">
     <link rel="stylesheet" href="styles/ui-common.css">

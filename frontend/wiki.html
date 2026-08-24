@@ -7,127 +7,39 @@
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #3f8cff;
-            --primary-light: #73b2ff;
-            --primary-dark: #2f72d8;
-            --primary-glow: rgba(63, 140, 255, 0.15);
-            --bg: #f9fafb;
-            --bg-elevated: #ffffff;
-            --card: #ffffff;
-            --card-hover: #fbfbfa;
-            --border: #e5e7eb;
-            --border-light: #dcdcd8;
-            --fg: #1f2937;
-            --fg-secondary: #6b7280;
-            --fg-muted: #9ca3af;
-            --accent: #f3f4f6;
-            --accent-light: #f9fafb;
-            --danger: #e03e3e;
-            --danger-light: #fdeeee;
-            --success: #1f9d66;
-            --success-light: #eaf8f2;
-            --radius: 10px;
-            --radius-sm: 8px;
-            --shadow: 0 2px 8px rgba(0,0,0,0.04);
-            --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            --primary: var(--app-primary);
+            --primary-light: var(--app-primary-soft);
+            --primary-dark: var(--app-primary-hover);
+            --primary-glow: var(--app-primary-soft);
+            --bg: var(--app-bg);
+            --bg-elevated: var(--app-surface);
+            --card: var(--app-surface);
+            --card-hover: var(--app-surface-hover);
+            --border: var(--app-border);
+            --border-light: var(--app-border-strong);
+            --fg: var(--app-text);
+            --fg-secondary: var(--app-text-secondary);
+            --fg-muted: var(--app-text-muted);
+            --accent: var(--app-text);
+            --accent-light: var(--app-surface-subtle);
+            --danger: var(--app-danger);
+            --danger-light: var(--app-danger-soft);
+            --success: var(--app-success);
+            --success-light: var(--app-success-soft);
+            --radius: var(--app-radius);
+            --radius-sm: var(--app-radius-sm);
+            --shadow: var(--app-shadow-sm);
+            --transition: var(--app-duration-normal) var(--app-ease-smooth);
         }
 
-        /* Notion 主题 */
-        html[data-theme="notion"] {
-            --primary: #2383e2;
-            --primary-light: #e9f3ff;
-            --primary-dark: #1f76c9;
-            --primary-glow: rgba(35, 131, 226, 0.12);
-            --bg: #f7f7f5;
-            --bg-elevated: #ffffff;
-            --card: #ffffff;
-            --card-hover: #fbfbfa;
-            --border: #e8e8e6;
-            --border-light: #dcdcd8;
-            --fg: #2f3437;
-            --fg-secondary: #6b6f76;
-            --fg-muted: #8a8f98;
-            --accent: #f1f1ef;
-            --accent-light: #f6f6f4;
-            --danger: #e03e3e;
-            --danger-light: #fdeeee;
-            --success: #1f9d66;
-            --success-light: #eaf8f2;
-            --shadow: 0 1px 0 rgba(15,23,42,0.03), 0 8px 20px rgba(15,23,42,0.04);
-        }
-        html[data-theme="notion"] .header {
-            background: rgba(255,255,255,0.9);
-            border-bottom-color: #e8e8e6;
-        }
-        html[data-theme="notion"] .tab-btn.active {
-            background: #2f3437;
-            color: #ffffff;
-        }
-        html[data-theme="notion"] .btn-primary {
-            background: #2f3437;
-            color: #ffffff;
-        }
-        html[data-theme="notion"] .btn-primary:hover { background: #1f2328; }
+                        /* 常规主题（regular）直接使用 :root 默认值 */
 
-        /* 深色主题 */
-        html[data-theme="dark"] {
-            --primary: #569cff;
-            --primary-light: #73b2ff;
-            --primary-dark: #4a8ae8;
-            --primary-glow: rgba(86, 156, 255, 0.15);
-            --bg: #1e1e1e;
-            --bg-elevated: #2d2d2d;
-            --card: #2d2d2d;
-            --card-hover: #333333;
-            --border: #3e3e3e;
-            --border-light: #4a4a4a;
-            --fg: #d4d4d4;
-            --fg-secondary: #9a9a9a;
-            --fg-muted: #6a6a6a;
-            --accent: #3a3a3a;
-            --accent-light: #333333;
-            --danger: #ef4444;
-            --danger-light: rgba(239,68,68,0.15);
-            --success: #22c55e;
-            --success-light: rgba(34,197,94,0.15);
-            --shadow: 0 2px 8px rgba(0,0,0,0.4);
-        }
-        html[data-theme="dark"] .header {
-            background: rgba(45,45,45,0.9);
-            border-bottom-color: var(--border);
-        }
-        html[data-theme="dark"] .tab-btn.active {
-            background: var(--primary);
-            color: #fff;
-        }
-        html[data-theme="dark"] .tab-btn:hover { background: var(--accent); }
-        html[data-theme="dark"] .btn-primary { background: var(--primary); color: #fff; }
-        html[data-theme="dark"] .btn-primary:hover { background: var(--primary-dark); }
-        html[data-theme="dark"] .btn-secondary {
-            background: var(--card);
-            color: var(--fg-secondary);
-            border-color: var(--border);
-        }
-        html[data-theme="dark"] .btn-secondary:hover { border-color: var(--primary); color: var(--primary); }
-        html[data-theme="dark"] .card:hover { box-shadow: var(--shadow); }
-        html[data-theme="dark"] .page-list-item .type-badge.entity { background: rgba(86,156,255,0.15); color: var(--primary); }
-        html[data-theme="dark"] .page-list-item .type-badge.concept { background: rgba(239,68,68,0.15); color: #ef4444; }
-        html[data-theme="dark"] .page-list-item .type-badge.synthesis { background: rgba(34,197,94,0.15); color: #22c55e; }
-        html[data-theme="dark"] .page-list-item .type-badge.source { background: rgba(234,179,8,0.15); color: #eab308; }
-        html[data-theme="dark"] .error-msg { background: rgba(239,68,68,0.15); color: #ef4444; }
-        html[data-theme="dark"] .success-msg { background: rgba(34,197,94,0.15); color: #22c55e; }
 
-        /* 常规主题（regular）直接使用 :root 默认值 */
-        html[data-theme="regular"] .header {
-            background: rgba(255,255,255,0.9);
-            border-bottom-color: var(--border);
-        }
-        html[data-theme="regular"] .tab-btn.active {
-            background: var(--primary);
-            color: #fff;
-        }
-        html[data-theme="regular"] .btn-primary { background: var(--primary); color: #fff; }
-        html[data-theme="regular"] .btn-primary:hover { background: var(--primary-dark); }
+
+
+
+
+
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {

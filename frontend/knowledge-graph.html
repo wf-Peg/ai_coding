@@ -8,20 +8,20 @@
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
         :root {
-            --primary: #3f8cff;
-            --primary-light: #73b2ff;
-            --primary-dark: #2f72d8;
-            --background: #f9fafb;
-            --surface: #ffffff;
-            --text: #1f2937;
-            --text-secondary: #6b7280;
-            --text-muted: #9ca3af;
-            --border: #e5e7eb;
-            --radius: 12px;
-            --radius-sm: 8px;
-            --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-            --shadow-hover: 0 8px 25px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
-            --transition: all 0.25s ease;
+            --primary: var(--app-primary);
+            --primary-light: var(--app-primary-soft);
+            --primary-dark: var(--app-primary-hover);
+            --background: var(--app-bg);
+            --surface: var(--app-surface);
+            --text: var(--app-text);
+            --text-secondary: var(--app-text-secondary);
+            --text-muted: var(--app-text-muted);
+            --border: var(--app-border);
+            --radius: var(--app-radius);
+            --radius-sm: var(--app-radius-sm);
+            --shadow: var(--app-shadow-sm);
+            --shadow-hover: var(--app-shadow-md);
+            --transition: var(--app-duration-normal) var(--app-ease-smooth);
             --link-color: #ccc;
             --link-opacity: 0.3;
             --node-dim-opacity: 0.15;
@@ -143,13 +143,13 @@
         .legend-item { display: inline-flex; align-items: center; gap: 5px; }
         .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
         .dot.clip-dot { border-radius: 2px; background: #f59e0b; }
-        .dot.kno-dot { background: #3f8cff; }
+        .dot.kno-dot { background: var(--app-primary); }
         .tri { width: 0; height: 0; display: inline-block;
             border-left: 6px solid transparent; border-right: 6px solid transparent;
             border-bottom: 10px solid #22c55e; }
         .lmark { width: 16px; height: 0; display: inline-block; border-top: 2px solid; }
         .lmark.derived-line { border-top-style: dashed; border-top-color: #fb923c; }
-        .lmark.linked-line { border-top-color: #3f8cff; }
+        .lmark.linked-line { border-top-color: var(--app-primary); }
         .lmark.plan-line { border-top-color: #22c55e; }
 
         /* SVG Node shape by type */
@@ -298,7 +298,7 @@
         .side-panel .panel-body .tag-badge {
             padding: 3px 10px;
             border-radius: 12px;
-            background: #eff6ff;
+            background: var(--app-primary-soft);
             color: var(--primary);
             font-size: 0.75rem;
             font-weight: 500;
@@ -374,88 +374,7 @@
             stroke-opacity: 0.05;
         }
 
-        /* Notion 主题 */
-        html[data-theme="notion"] {
-            --primary: #2383e2;
-            --primary-dark: #1f76c9;
-            --background: #f7f7f5;
-            --surface: #ffffff;
-            --text: #2f3437;
-            --text-secondary: #6b6f76;
-            --text-muted: #8a8f98;
-            --border: #e8e8e6;
-            --link-color: #b8b8b0;
-            --link-opacity: 0.35;
-        }
-        html[data-theme="notion"] .nav {
-            border-bottom-color: #e8e8e6;
-        }
-        html[data-theme="notion"] .nav .back-btn {
-            border-color: #dcdcd8;
-            color: #6b6f76;
-        }
-        html[data-theme="notion"] .nav .back-btn:hover { background: #f1f1ef; }
-        html[data-theme="notion"] .side-panel {
-            border-left-color: #e8e8e6;
-        }
-        html[data-theme="notion"] .side-panel .panel-header {
-            border-bottom-color: #e8e8e6;
-        }
-        html[data-theme="notion"] .side-panel .panel-footer {
-            border-top-color: #e8e8e6;
-        }
-        html[data-theme="notion"] .side-panel .tag-badge {
-            background: #f1f1ef;
-            color: #5f646c;
-        }
-        html[data-theme="notion"] .side-panel .detail-link {
-            background: #2f3437;
-        }
-        html[data-theme="notion"] .side-panel .detail-link:hover {
-            background: #1f2328;
-            box-shadow: 0 4px 12px rgba(31,35,40,0.3);
-        }
-        html[data-theme="notion"] .loading .spinner {
-            border-color: #e8e8e6;
-            border-top-color: #2383e2;
-        }
-        html[data-theme="notion"] .node circle {
-            stroke: #ffffff;
-        }
-
-        /* 深色主题 */
-        html[data-theme="dark"] {
-            --primary: #569cff;
-            --primary-light: #73b2ff;
-            --primary-dark: #4a8ae8;
-            --background: #1e1e1e;
-            --surface: #2d2d2d;
-            --text: #d4d4d4;
-            --text-secondary: #9a9a9a;
-            --text-muted: #6a6a6a;
-            --border: #3e3e3e;
-            --link-color: #555;
-            --link-opacity: 0.4;
-            --node-dim-opacity: 0.08;
-        }
-        html[data-theme="dark"] body { background: var(--background); color: var(--text); }
-        html[data-theme="dark"] .nav { background: var(--surface); border-bottom-color: var(--border); }
-        html[data-theme="dark"] .nav .back-btn { border-color: var(--border); color: var(--text-secondary); }
-        html[data-theme="dark"] .nav .back-btn:hover { background: #3a3a3a; }
-        html[data-theme="dark"] .side-panel { background: var(--surface); border-left-color: var(--border); }
-        html[data-theme="dark"] .side-panel .panel-header { border-bottom-color: var(--border); }
-        html[data-theme="dark"] .side-panel .panel-footer { border-top-color: var(--border); }
-        html[data-theme="dark"] .side-panel .tag-badge { background: #3a3a3a; color: #9a9a9a; }
-        html[data-theme="dark"] .side-panel .close-btn:hover { background: #3a3a3a; color: #d4d4d4; }
-        html[data-theme="dark"] .side-panel .detail-link { background: var(--primary); }
-        html[data-theme="dark"] .side-panel .detail-link:hover { background: var(--primary-dark); }
-        html[data-theme="dark"] .loading { color: var(--text-muted); }
-        html[data-theme="dark"] .loading .spinner { border-color: var(--border); border-top-color: var(--primary); }
-        html[data-theme="dark"] .empty-state { color: var(--text-muted); }
-        html[data-theme="dark"] .node circle { stroke: #2d2d2d; }
-        html[data-theme="dark"] .node text { fill: var(--text-secondary); }
-
-        /* Scrollbar */
+                        /* Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }

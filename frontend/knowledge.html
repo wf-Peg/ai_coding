@@ -7,20 +7,20 @@
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #3f8cff;
-            --primary-light: #73b2ff;
-            --primary-dark: #2f72d8;
-            --background: #f9fafb;
-            --surface: #ffffff;
-            --text: #1f2937;
-            --text-secondary: #6b7280;
-            --text-muted: #9ca3af;
-            --border: #e5e7eb;
-            --radius: 12px;
-            --radius-sm: 8px;
-            --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-            --shadow-hover: 0 8px 25px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
-            --transition: all 0.25s ease;
+            --primary: var(--app-primary);
+            --primary-light: var(--app-primary-soft);
+            --primary-dark: var(--app-primary-hover);
+            --background: var(--app-bg);
+            --surface: var(--app-surface);
+            --text: var(--app-text);
+            --text-secondary: var(--app-text-secondary);
+            --text-muted: var(--app-text-muted);
+            --border: var(--app-border);
+            --radius: var(--app-radius);
+            --radius-sm: var(--app-radius-sm);
+            --shadow: var(--app-shadow-sm);
+            --shadow-hover: var(--app-shadow-md);
+            --transition: var(--app-duration-normal) var(--app-ease-smooth);
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -217,7 +217,7 @@
         .topic-item .tag {
             padding: 2px 8px;
             border-radius: 12px;
-            background: #eff6ff;
+            background: var(--app-primary-soft);
             color: var(--primary);
             font-size: 0.75rem;
             font-weight: 500;
@@ -252,72 +252,6 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* Notion 主题 */
-        html[data-theme="notion"] {
-            --primary: #2383e2;
-            --primary-dark: #1f76c9;
-            --background: #f7f7f5;
-            --surface: #ffffff;
-            --text: #2f3437;
-            --text-secondary: #6b6f76;
-            --text-muted: #8a8f98;
-            --border: #e8e8e6;
-            --shadow: 0 1px 0 rgba(15,23,42,0.03), 0 8px 20px rgba(15,23,42,0.04);
-            --shadow-hover: 0 1px 0 rgba(15,23,42,0.04), 0 12px 24px rgba(15,23,42,0.08);
-        }
-        html[data-theme="notion"] .header {
-            background: rgba(255,255,255,0.9);
-            border-bottom-color: #e8e8e6;
-        }
-        html[data-theme="notion"] .search-box input {
-            background: #f1f1ef;
-            border-color: #dcdcd8;
-        }
-        html[data-theme="notion"] .search-box input:focus {
-            background: #ffffff;
-            border-color: #2383e2;
-        }
-        html[data-theme="notion"] .filter-tag {
-            border-color: #dcdcd8;
-            background: #ffffff;
-            color: #6b6f76;
-        }
-        html[data-theme="notion"] .filter-tag:hover { border-color: #2383e2; color: #2383e2; }
-        html[data-theme="notion"] .filter-tag.active {
-            background: #2f3437;
-            color: #ffffff;
-            border-color: #2f3437;
-        }
-        html[data-theme="notion"] .topic-item {
-            border-bottom-color: #e8e8e6;
-        }
-        html[data-theme="notion"] .topic-item:hover { background: transparent; }
-        html[data-theme="notion"] .topic-item .tag {
-            background: #f1f1ef;
-            color: #5f646c;
-        }
-        html[data-theme="notion"] .btn-primary {
-            background: #2f3437;
-            color: #ffffff;
-        }
-        html[data-theme="notion"] .btn-primary:hover {
-            background: #1f2328;
-            box-shadow: 0 4px 12px rgba(31,35,40,0.3);
-        }
-        html[data-theme="notion"] .btn-secondary {
-            background: #ffffff;
-            color: #6b6f76;
-            border-color: #dcdcd8;
-        }
-        html[data-theme="notion"] .btn-secondary:hover {
-            border-color: #2383e2;
-            color: #2383e2;
-        }
-        html[data-theme="notion"] .loading .spinner {
-            border-color: #e8e8e6;
-            border-top-color: #2383e2;
-        }
-
         @media (max-width: 768px) {
             .header-inner { flex-wrap: wrap; }
             .search-box { order: 3; max-width: 100%; flex-basis: 100%; }
@@ -325,68 +259,12 @@
             .filter-bar { padding: 0 16px; }
         }
 
-        /* 深色主题 */
-        html[data-theme="dark"] {
-            --primary: #569cff;
-            --primary-light: #73b2ff;
-            --primary-dark: #4a8ae8;
-            --background: #1e1e1e;
-            --surface: #2d2d2d;
-            --text: #d4d4d4;
-            --text-secondary: #9a9a9a;
-            --text-muted: #6a6a6a;
-            --border: #3e3e3e;
-            --shadow: 0 2px 8px rgba(0,0,0,0.4);
-            --shadow-hover: 0 8px 25px rgba(0,0,0,0.5);
-        }
-        html[data-theme="dark"] body { background: var(--background); color: var(--text); }
-        html[data-theme="dark"] .header {
-            background: rgba(45,45,45,0.9);
-            border-bottom-color: var(--border);
-        }
-        html[data-theme="dark"] .search-box input {
-            background: #3a3a3a;
-            border-color: #4a4a4a;
-            color: #d4d4d4;
-        }
-        html[data-theme="dark"] .search-box input:focus { background: #3a3a3a; border-color: var(--primary); }
-        html[data-theme="dark"] .search-box svg { color: var(--text-muted); }
-        html[data-theme="dark"] .btn-primary { background: var(--primary); color: #fff; }
-        html[data-theme="dark"] .btn-primary:hover { background: var(--primary-dark); }
-        html[data-theme="dark"] .btn-secondary {
-            background: var(--surface);
-            color: var(--text-secondary);
-            border-color: var(--border);
-        }
-        html[data-theme="dark"] .btn-secondary:hover {
-            border-color: var(--primary);
-            color: var(--primary);
-        }
-        html[data-theme="dark"] .filter-tag {
-            background: var(--surface);
-            border-color: var(--border);
-            color: var(--text-secondary);
-        }
-        html[data-theme="dark"] .filter-tag:hover { border-color: var(--primary); color: var(--primary); }
-        html[data-theme="dark"] .filter-tag.active { background: var(--primary); color: #fff; border-color: var(--primary); }
-        html[data-theme="dark"] .topic-item {
-            border-bottom-color: var(--border);
-        }
-        html[data-theme="dark"] .topic-item:hover { background: rgba(255,255,255,0.02); }
-        html[data-theme="dark"] .topic-item .tag { background: #3a3a3a; color: #9a9a9a; }
-        html[data-theme="dark"] .empty-state { color: var(--text-muted); }
-        html[data-theme="dark"] .loading { color: var(--text-muted); }
-        html[data-theme="dark"] .loading .spinner { border-color: var(--border); border-top-color: var(--primary); }
-
         /* ===== Obsidian 风格全局滚动条 ===== */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; transition: background 0.2s ease; }
         ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
         * { scrollbar-width: thin; scrollbar-color: var(--border-light) transparent; }
-        html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: var(--border); }
-        html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
-        html[data-theme="dark"] * { scrollbar-color: var(--border) transparent; }
     </style>
     <link rel="stylesheet" href="styles/design-tokens.css">
     <link rel="stylesheet" href="styles/ui-common.css">

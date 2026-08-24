@@ -9,145 +9,30 @@
     <script src="libs/marked.min.js"></script>
     <style>
         :root {
-            --primary: #2383e2;
-            --primary-light: #e9f3ff;
-            --primary-dark: #1f76c9;
-            --background: #f7f7f5;
-            --surface: #ffffff;
-            --surface-hover: #fbfbfa;
-            --text: #2f3437;
-            --text-secondary: #6b6f76;
-            --text-muted: #8a8f98;
-            --border: #e8e8e6;
-            --border-light: #f1f1ef;
-            --success: #1f9d66;
-            --warning: #e9a23b;
-            --error: #e03e3e;
-            --radius: 12px;
-            --radius-sm: 8px;
-            --shadow: 0 1px 0 rgba(15,23,42,0.03), 0 8px 20px rgba(15,23,42,0.04);
-            --shadow-hover: 0 1px 0 rgba(15,23,42,0.04), 0 12px 24px rgba(15,23,42,0.08);
-            --transition: all 0.25s ease;
+            --primary: var(--app-primary);
+            --primary-light: var(--app-primary-soft);
+            --primary-dark: var(--app-primary-hover);
+            --background: var(--app-bg);
+            --surface: var(--app-surface);
+            --surface-hover: var(--app-surface-hover);
+            --text: var(--app-text);
+            --text-secondary: var(--app-text-secondary);
+            --text-muted: var(--app-text-muted);
+            --border: var(--app-border);
+            --border-light: var(--app-border-strong);
+            --success: var(--app-success);
+            --warning: var(--app-warning);
+            --error: var(--app-danger);
+            --radius: var(--app-radius);
+            --radius-sm: var(--app-radius-sm);
+            --shadow: var(--app-shadow-sm);
+            --shadow-hover: var(--app-shadow-md);
+            --transition: var(--app-duration-normal) var(--app-ease-smooth);
         }
 
-        html[data-theme="regular"] {
-            --primary: #3f8cff;
-            --primary-light: #eff6ff;
-            --primary-dark: #2f72d8;
-            --background: #f9fafb;
-            --surface: #ffffff;
-            --surface-hover: #f3f4f6;
-            --text: #1f2937;
-            --text-secondary: #6b7280;
-            --text-muted: #9ca3af;
-            --border: #e5e7eb;
-            --border-light: #f3f4f6;
-            --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-            --shadow-hover: 0 8px 25px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
-        }
 
-        /* 深色主题 */
-        html[data-theme="dark"] {
-            --primary: #569cff;
-            --primary-light: #1a2d4a;
-            --primary-dark: #4a8ae8;
-            --background: #1e1e1e;
-            --surface: #2d2d2d;
-            --surface-hover: #3a3a3a;
-            --text: #d4d4d4;
-            --text-secondary: #9a9a9a;
-            --text-muted: #6a6a6a;
-            --border: #3e3e3e;
-            --border-light: #353535;
-            --success: #4ecb71;
-            --warning: #e9a23b;
-            --error: #e06060;
-            --shadow: 0 1px 3px rgba(0,0,0,0.3);
-            --shadow-hover: 0 8px 25px rgba(0,0,0,0.4);
-        }
-        html[data-theme="dark"] .header {
-            background: rgba(45,45,45,0.9);
-            border-bottom-color: #3e3e3e;
-        }
-        html[data-theme="dark"] input,
-        html[data-theme="dark"] select {
-            background: #3a3a3a;
-            border-color: #4a4a4a;
-            color: #d4d4d4;
-        }
-        html[data-theme="dark"] input:focus,
-        html[data-theme="dark"] select:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(86,156,255,0.2);
-        }
-        html[data-theme="dark"] .btn-secondary {
-            background: #3a3a3a;
-            border-color: #4a4a4a;
-            color: #d4d4d4;
-        }
-        html[data-theme="dark"] .btn-secondary:hover { background: #4a4a4a; }
-        html[data-theme="dark"] .btn-danger {
-            border-color: #e06060;
-            color: #e06060;
-        }
-        html[data-theme="dark"] .plan-card {
-            background: #2d2d2d;
-            border-color: #3e3e3e;
-        }
-        html[data-theme="dark"] .plan-card:hover { border-color: var(--primary); }
-        html[data-theme="dark"] .plan-card-footer { border-top-color: #353535; }
-        html[data-theme="dark"] .detail-meta {
-            background: #2d2d2d;
-            border-color: #3e3e3e;
-        }
-        html[data-theme="dark"] .mermaid-container {
-            background: #2d2d2d;
-            border-color: #3e3e3e;
-        }
-        html[data-theme="dark"] .phase-card {
-            background: #2d2d2d;
-            border-color: #3e3e3e;
-        }
-        html[data-theme="dark"] .phase-card-header:hover { background: #3a3a3a; }
-        html[data-theme="dark"] .phase-card-body { border-top-color: #353535; }
-        html[data-theme="dark"] .phase-progress-row { border-bottom-color: #353535; }
-        html[data-theme="dark"] .phase-weeks { background: #3a3a3a; }
-        html[data-theme="dark"] .resource-card { background: #252525; border-color: #353535; }
-        html[data-theme="dark"] .resource-icon { background: #1a2d4a; }
-        html[data-theme="dark"] .quiz-item,
-        html[data-theme="dark"] .task-item {
-            background: #252525;
-            border-color: #353535;
-        }
-        html[data-theme="dark"] .quiz-option {
-            background: #3a3a3a;
-            border-color: #4a4a4a;
-            color: #9a9a9a;
-        }
-        html[data-theme="dark"] .quiz-type {
-            background: #1a2d4a;
-            color: #569cff;
-        }
-        html[data-theme="dark"] .task-criteria { border-left-color: var(--success); }
-        html[data-theme="dark"] .modal {
-            background: #2d2d2d;
-        }
-        html[data-theme="dark"] .modal-header { border-bottom-color: #3e3e3e; }
-        html[data-theme="dark"] .modal-footer { border-top-color: #3e3e3e; }
-        html[data-theme="dark"] .modal-overlay { background: rgba(0,0,0,0.7); }
-        html[data-theme="dark"] .loading-card {
-            background: #2d2d2d;
-        }
-        html[data-theme="dark"] .loading-spinner { border-color: #3e3e3e; }
-        html[data-theme="dark"] .loading-overlay { background: rgba(0,0,0,0.8); }
-        html[data-theme="dark"] .progress-bar { background: #3a3a3a; }
-        html[data-theme="dark"] .back-btn { background: #2d2d2d; border-color: #4a4a4a; }
-        html[data-theme="dark"] .back-btn:hover { background: #3a3a3a; color: #d4d4d4; }
-        html[data-theme="dark"] .source-exa { background: #064e3b; color: #6ee7b7; }
-        html[data-theme="dark"] .source-ai { background: #78350f; color: #fcd34d; }
-        html[data-theme="dark"] .task-difficulty .star.off { color: #4a4a4a; }
 
-        /* ===== Obsidian 风格全局滚动条 ===== */
+                /* ===== Obsidian 风格全局滚动条 ===== */
         ::-webkit-scrollbar {
             width: 6px;
             height: 6px;
@@ -167,15 +52,11 @@
             scrollbar-width: thin;
             scrollbar-color: var(--border-light) transparent;
         }
-        html[data-theme="dark"] ::-webkit-scrollbar-thumb {
-            background: var(--border);
-        }
-        html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
-            background: var(--text-muted);
-        }
-        html[data-theme="dark"] * {
-            scrollbar-color: var(--border) transparent;
-        }
+
+
+
+
+
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -198,8 +79,10 @@
             backdrop-filter: blur(10px);
             background: rgba(255,255,255,0.85);
         }
-        html[data-theme="notion"] .header { background: rgba(255,255,255,0.85); }
-        html[data-theme="regular"] .header { background: rgba(255,255,255,0.85); }
+
+
+
+
         .header-inner {
             max-width: 1200px;
             margin: 0 auto;
@@ -691,7 +574,6 @@
         .source-exa { background: #dcfce7; color: #166534; }
         .source-ai { background: #fef3c7; color: #92400e; }
 
-
         /* ====== Quiz & Tasks ====== */
         .quiz-item, .task-item {
             padding: 10px 14px;
@@ -1016,10 +898,13 @@
         .sel-capsule .x { cursor: pointer; font-weight: 700; opacity: 0.6; }
         .sel-capsule .x:hover { opacity: 1; }
         .link-picker-footer .btn { flex-shrink: 0; }
-        html[data-theme="dark"] .link-chip.clip-chip { background: rgba(233,162,59,0.18); color: #f0b249; }
-        html[data-theme="dark"] .sel-capsule { background: #1a2d4a; color: #569cff; }
-        html[data-theme="dark"] .link-picker-modal { background: #2d2d2d; }
-        html[data-theme="dark"] .link-picker-item:hover { background: #3a3a3a; }
+
+
+
+
+
+
+
 
         /* ====== Detail Markdown Modal ====== */
         .detail-markdown-overlay {
@@ -1119,15 +1004,12 @@
         }
         .detail-markdown-modal-body strong { font-weight: 600; }
 
-        html[data-theme="dark"] .detail-markdown-modal-body code {
-            background: #3a3a3a;
-        }
-        html[data-theme="dark"] .detail-markdown-modal-body pre {
-            background: #3a3a3a;
-        }
-        html[data-theme="dark"] .detail-markdown-modal-body th {
-            background: #3a3a3a;
-        }
+
+
+
+
+
+
     </style>
     <link rel="stylesheet" href="styles/design-tokens.css">
     <link rel="stylesheet" href="styles/ui-common.css">
@@ -1331,8 +1213,6 @@ window.addEventListener('message', (e) => {
         loadPlans();
     }
 });
-
-
 
 // ====== API Calls ======
 async function apiFetch(path, options = {}) {
