@@ -350,31 +350,17 @@
             }
         }
 
-        /* ── Dark theme tweaks (driven by data-theme/body class) ── */
-        html[data-theme="dark"] .text-input,
-        html[data-theme="dark"] .result-textarea {
-            background: var(--bg-elevated);
-        }
-        body.dark-theme .text-input,
-        body.dark-theme .result-textarea {
-            background: var(--bg-elevated);
-        }
-
         /* ── Scrollbar ── */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; transition: background 0.2s ease; }
         ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
-        html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: var(--border); }
-        html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
 
         /* result-textarea 专属滚动条 */
         .result-textarea::-webkit-scrollbar { width: 6px; }
         .result-textarea::-webkit-scrollbar-track { background: transparent; }
         .result-textarea::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; transition: background 0.2s ease; }
         .result-textarea::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
-        html[data-theme="dark"] .result-textarea::-webkit-scrollbar-thumb { background: var(--border); }
-        html[data-theme="dark"] .result-textarea::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
     </style>
     <link rel="stylesheet" href="styles/design-tokens.css">
     <link rel="stylesheet" href="styles/ui-common.css">
@@ -496,27 +482,12 @@
         'use strict';
 
         // ── Theme sync ──
-        function applyTheme() {
-            const theme = localStorage.getItem('app_appearance_v1') || 'notion';
-            let isDark = theme === 'dark';
-            if (theme === 'system') {
-                isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            }
-            document.documentElement.setAttribute('data-theme', isDark ? 'dark' : theme);
-            if (isDark) {
-                document.body.classList.add('dark-theme');
-            } else {
-                document.body.classList.remove('dark-theme');
-            }
-        }
+        // 主题由全局主题桥（theme-bridge.js）在 <head> 中处理：init 应用存储主题、listen 响应 themeChange。
         window.addEventListener('message', (e) => {
-            if (e.data && e.data.action === 'themeChange') {
-                applyTheme();
-            } else if (e.data && e.data.action === 'refresh') {
+            if (e.data && e.data.action === 'refresh') {
                 location.reload();
             }
         });
-        applyTheme();
 
         // ── API base ──
         const API_BASE = window.location.protocol === 'file:' ? 'http://127.0.0.1:8081' : '';

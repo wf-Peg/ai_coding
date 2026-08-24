@@ -15,38 +15,19 @@
     </script>
     <style>
         :root {
-            --bg: #f7f7f5;
-            --titlebar-bg: #f0f0ec;
-            --titlebar-border: #e0e0da;
-            --panel-border: #e2e2dd;
-            --primary: #3f8cff;
-            --primary-light: #eff6ff;
-            --text: #1f2937;
-            --text-secondary: #6b7280;
+            --bg: var(--app-bg);
+            --titlebar-bg: var(--app-surface-subtle);
+            --titlebar-border: var(--app-border);
+            --panel-border: var(--app-border);
+            --primary: var(--app-primary);
+            --primary-light: var(--app-primary-soft);
+            --text: var(--app-text);
+            --text-secondary: var(--app-text-secondary);
             --nav-width: 64px;
             --titlebar-height: 38px;
-            --win-btn-hover: #e0e0dc;
+            --win-btn-hover: var(--app-surface-hover);
             --win-btn-close-hover: #e81123;
             --win-btn-close-active: #bf0f1d;
-        }
-
-        html[data-theme="regular"] {
-            --bg: #ecf5ff;
-            --panel-border: #c5daf8;
-            --titlebar-bg: #e0edff;
-            --titlebar-border: #c5daf8;
-        }
-
-        html[data-theme="dark"] {
-            --bg: #1e1e1e;
-            --titlebar-bg: #2d2d2d;
-            --titlebar-border: #3e3e3e;
-            --panel-border: #3e3e3e;
-            --primary: #569cff;
-            --primary-light: #1a2d4a;
-            --text: #d4d4d4;
-            --text-secondary: #9a9a9a;
-            --win-btn-hover: #3e3e3e;
         }
 
         body {

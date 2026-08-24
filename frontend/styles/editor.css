@@ -2893,24 +2893,24 @@ html[data-theme="dark"] .markdown-body {
   background: var(--app-surface);
   color: var(--app-text);
 }
-html[data-theme="dark"] .markdown-body a { color: #7db4ff; }
+html[data-theme="dark"] .markdown-body a { color: var(--app-primary); }
 html[data-theme="dark"] .markdown-body code {
-  background: #3a3a3a;
-  color: #e5e7eb;
+  background: var(--app-surface-hover);
+  color: var(--app-text);
 }
 html[data-theme="dark"] .markdown-body pre {
-  background: #1f1f1f;
-  border: 1px solid #3e3e3e;
+  background: var(--app-bg);
+  border: 1px solid var(--app-border);
 }
 html[data-theme="dark"] .markdown-body pre code {
   background: transparent;
-  color: #d4d4d4;
+  color: var(--app-text);
 }
 html[data-theme="dark"] .markdown-body blockquote {
-  background: rgba(255,255,255,0.04);
-  color: #b0b0b0;
+  background: var(--app-surface-subtle);
+  color: var(--app-text-secondary);
 }
-html[data-theme="dark"] .markdown-body table th { background: #323232; }
+html[data-theme="dark"] .markdown-body table th { background: var(--app-surface-subtle); }
 
 /* ── Obsidian 双链（wikilink）样式 ── */
 a.wikilink {
