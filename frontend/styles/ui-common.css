@@ -250,6 +250,12 @@
     transform: none !important;
   }
   .ui-skeleton { animation: none !important; background: var(--app-surface-subtle); }
+  /* 全局兜底：页面内硬编码的 transition/animation 时长同样被压平 */
+  * , *::before, *::after {
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 [data-motion="reduced"] {
@@ -273,3 +279,10 @@
   transform: none !important;
 }
 [data-motion="reduced"] .ui-skeleton { animation: none !important; background: var(--app-surface-subtle); }
+[data-motion="reduced"] * ,
+[data-motion="reduced"] *::before,
+[data-motion="reduced"] *::after {
+  transition-duration: 0.001ms !important;
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+}
