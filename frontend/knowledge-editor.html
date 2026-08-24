@@ -268,7 +268,7 @@
             cursor: pointer;
             font-size: 0.85rem;
             border-bottom: 1px solid var(--border);
-            transition: background 0.15s;
+            transition: background var(--app-duration-fast);
         }
         .clip-select-list .clip-option:last-child { border-bottom: none; }
         .clip-select-list .clip-option:hover { background: rgba(63,140,255,0.08); }
@@ -350,7 +350,7 @@
             cursor: pointer;
             font-size: 0.85rem;
             border-bottom: 1px solid var(--border);
-            transition: background 0.15s;
+            transition: background var(--app-duration-fast);
             display: flex;
             align-items: center;
             gap: 10px;
@@ -437,7 +437,7 @@
             cursor: pointer;
             font-size: 0.85rem;
             border-bottom: 1px solid var(--border);
-            transition: background 0.15s;
+            transition: background var(--app-duration-fast);
         }
         .wikilink-dropdown .wikilink-item:last-child { border-bottom: none; }
         .wikilink-dropdown .wikilink-item:hover,
@@ -464,7 +464,7 @@
             padding: 12px 24px;
             border-radius: 8px;
             z-index: 1000;
-            animation: slideIn 0.3s ease-out;
+            animation: slideIn var(--app-duration-slow) ease-out;
         }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
@@ -489,7 +489,7 @@
             padding: 8px 20px; border-radius: 8px; border: 1px solid var(--border);
             cursor: pointer; font-size: 13px;
             background: var(--surface); color: var(--text-secondary);
-            transition: all 0.15s;
+            transition: all var(--app-duration-fast);
         }
         .confirm-btn:hover { border-color: var(--primary); color: var(--primary); }
         .confirm-btn.danger { background: #ef4444; color: #fff; border-color: #ef4444; }
@@ -504,7 +504,7 @@
         /* ===== Obsidian 风格全局滚动条 ===== */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; transition: background 0.2s ease; }
+        ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; transition: background var(--app-duration-normal) ease; }
         ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
         * { scrollbar-width: thin; scrollbar-color: var(--border-light) transparent; }
 

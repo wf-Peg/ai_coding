@@ -170,7 +170,7 @@
             color: var(--fg-muted); cursor: pointer; font-size: 12px;
             display: flex; align-items: center; justify-content: center;
             padding: 0; line-height: 1; opacity: 0; pointer-events: none;
-            transition: opacity 0.15s ease;
+            transition: opacity var(--app-duration-fast) ease;
         }
         .search-box .search-clear.visible { opacity: 1; pointer-events: all; }
         .search-box .search-clear:hover { color: var(--fg); background: var(--border); }
@@ -196,7 +196,7 @@
         .timeline-empty {
             text-align: center;
             padding: 40px 16px;
-            animation: fadeIn 0.4s ease-out;
+            animation: fadeIn var(--app-duration-slow) ease-out;
         }
         .timeline-empty .empty-icon {
             font-size: 2.4rem;
@@ -219,7 +219,7 @@
         .timeline-item {
             position: relative;
             margin-bottom: 8px;
-            animation: fadeSlideUp 0.35s ease-out both;
+            animation: fadeSlideUp var(--app-duration-slow) ease-out both;
         }
         .timeline-item:nth-child(1) { animation-delay: 0s; }
         .timeline-item:nth-child(2) { animation-delay: 0.03s; }
@@ -510,7 +510,7 @@
         .edit-form.active {
             display: flex;
             flex-wrap: wrap;
-            animation: editFormIn 0.25s ease-out;
+            animation: editFormIn var(--app-duration-panel) ease-out;
         }
         @keyframes editFormIn {
             from { opacity: 0; transform: translateY(-4px); }
@@ -527,7 +527,7 @@
             font-family: var(--font-body);
             font-size: 0.8rem;
             outline: none;
-            transition: all 0.2s ease;
+            transition: all var(--app-duration-normal) ease;
             box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
         }
         .edit-form input[type="text"]:focus {
@@ -544,7 +544,7 @@
             font-family: var(--font-body);
             font-size: 0.75rem;
             outline: none;
-            transition: all 0.2s ease;
+            transition: all var(--app-duration-normal) ease;
             cursor: pointer;
         }
         .edit-form select:focus,
@@ -566,7 +566,7 @@
             font-size: 0.75rem;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all var(--app-duration-normal) ease;
         }
         .btn-save {
             background: var(--fg);
@@ -635,7 +635,7 @@
         }
         .modal-overlay.active {
             display: flex;
-            animation: fadeIn 0.25s ease-out;
+            animation: fadeIn var(--app-duration-panel) ease-out;
         }
         .modal-card {
             background: var(--card);
@@ -648,7 +648,7 @@
                 0 0 0 1px rgba(0,0,0,0.03),
                 0 2px 4px rgba(0,0,0,0.02),
                 0 12px 32px rgba(0,0,0,0.08);
-            animation: modalEnter 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+            animation: modalEnter var(--app-duration-slow) cubic-bezier(0.22, 0.61, 0.36, 1);
             position: relative;
         }
         @keyframes modalEnter {
@@ -680,7 +680,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.2s ease;
+            transition: all var(--app-duration-normal) ease;
         }
         .modal-close svg {
             width: 16px;
@@ -705,7 +705,7 @@
             font-family: var(--font-body);
             font-size: 0.9rem;
             outline: none;
-            transition: all 0.2s ease;
+            transition: all var(--app-duration-normal) ease;
             margin-bottom: 6px;
             box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
         }
@@ -746,7 +746,7 @@
             font-family: var(--font-body);
             font-size: 0.8rem;
             outline: none;
-            transition: all 0.2s ease;
+            transition: all var(--app-duration-normal) ease;
             cursor: pointer;
             flex: 1;
             min-width: 0;
@@ -853,7 +853,7 @@
             background: var(--border);
             border-radius: 22px;
             cursor: pointer;
-            transition: background 0.25s ease;
+            transition: background var(--app-duration-panel) ease;
         }
         .toggle-slider::before {
             content: '';
@@ -864,7 +864,7 @@
             bottom: 3px;
             background: #fff;
             border-radius: 50%;
-            transition: transform 0.25s ease;
+            transition: transform var(--app-duration-panel) ease;
         }
         .toggle-switch input:checked + .toggle-slider {
             background: var(--primary);
@@ -927,7 +927,7 @@
             font-size: 0.88rem;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all var(--app-duration-normal) ease;
             letter-spacing: 0.01em;
             position: relative;
             overflow: hidden;
@@ -963,13 +963,13 @@
             font-size: 0.78rem;
             color: var(--fg);
             box-shadow: var(--shadow-lg);
-            animation: toastIn 0.3s ease-out;
+            animation: toastIn var(--app-duration-slow) ease-out;
             display: flex;
             align-items: center;
             gap: 6px;
         }
         .toast.leaving {
-            animation: toastOut 0.25s ease-in forwards;
+            animation: toastOut var(--app-duration-panel) ease-in forwards;
         }
         .toast-icon {
             font-size: 0.9rem;
@@ -984,7 +984,7 @@
             z-index: 999;
             align-items: center;
             justify-content: center;
-            animation: fadeIn 0.2s ease-out;
+            animation: fadeIn var(--app-duration-normal) ease-out;
         }
         .confirm-overlay.active {
             display: flex;
@@ -998,7 +998,7 @@
             width: 90%;
             text-align: center;
             box-shadow: 0 0 0 1px rgba(0,0,0,0.03), 0 12px 32px rgba(0,0,0,0.1);
-            animation: modalEnter 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+            animation: modalEnter var(--app-duration-slow) cubic-bezier(0.22, 0.61, 0.36, 1);
         }
         .confirm-dialog h3 {
             font-size: 0.9rem;
@@ -1027,7 +1027,7 @@
             font-size: 0.8rem;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all var(--app-duration-normal) ease;
         }
         .btn-confirm-delete:hover {
             background: #D33426;
@@ -1043,7 +1043,7 @@
             font-family: var(--font-body);
             font-size: 0.8rem;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all var(--app-duration-normal) ease;
         }
         .btn-confirm-cancel:hover {
             background: var(--border);

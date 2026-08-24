@@ -193,7 +193,7 @@
             border-bottom: 1px dashed var(--primary);
             padding: 0 2px;
             border-radius: 2px;
-            transition: all 0.15s ease;
+            transition: all var(--app-duration-fast) ease;
             cursor: pointer;
         }
         .wikilink:hover {
@@ -322,7 +322,7 @@
                 /* ===== Obsidian 风格全局滚动条 ===== */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; transition: background 0.2s ease; }
+        ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; transition: background var(--app-duration-normal) ease; }
         ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
         * { scrollbar-width: thin; scrollbar-color: var(--border-light) transparent; }
 
@@ -337,7 +337,7 @@
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.4); z-index: 2100;
       display: flex; align-items: center; justify-content: center;
-      animation: fadeIn 0.2s ease;
+      animation: fadeIn var(--app-duration-normal) ease;
     }
     .clip-preview-modal {
       width: min(640px, 92vw);
@@ -348,7 +348,7 @@
       box-shadow: 0 20px 60px rgba(0,0,0,0.25);
       display: flex; flex-direction: column;
       overflow: hidden;
-      animation: clipPreviewIn 0.25s ease;
+      animation: clipPreviewIn var(--app-duration-panel) ease;
     }
     .clip-preview-header {
       display: flex; align-items: center; justify-content: space-between;
@@ -394,13 +394,13 @@
     .confirm-dialog { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; max-width: 380px; width: 90%; box-shadow: 0 8px 30px rgba(0,0,0,0.15); }
     .confirm-dialog p { font-size: 14px; color: var(--text); margin-bottom: 20px; line-height: 1.5; }
     .confirm-actions { display: flex; justify-content: flex-end; gap: 10px; }
-    .confirm-btn { padding: 8px 20px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; font-size: 13px; background: var(--surface); color: var(--text-secondary); transition: all 0.15s; }
+    .confirm-btn { padding: 8px 20px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; font-size: 13px; background: var(--surface); color: var(--text-secondary); transition: all var(--app-duration-fast); }
     .confirm-btn:hover { border-color: var(--text-secondary); color: var(--text); }
     .confirm-btn.danger { background: #ef4444; color: #fff; border-color: #ef4444; }
     .confirm-btn.danger:hover { background: #dc2626; }
 
     /* toast */
-    .toast { position: fixed; top: 20px; right: 20px; background: var(--surface); color: var(--text); padding: 10px 20px; border-radius: 10px; border: 1px solid var(--border); z-index: 3000; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,0.15); animation: toastSlideIn 0.3s ease-out; }
+    .toast { position: fixed; top: 20px; right: 20px; background: var(--surface); color: var(--text); padding: 10px 20px; border-radius: 10px; border: 1px solid var(--border); z-index: 3000; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,0.15); animation: toastSlideIn var(--app-duration-slow) ease-out; }
     @keyframes toastSlideIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
     @keyframes toastSlideOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(30px); } }
 
@@ -460,7 +460,7 @@
         color: var(--text-muted);
         padding: 2px 8px;
         border-radius: 4px;
-        transition: all 0.15s;
+        transition: all var(--app-duration-fast);
     }
     .comment-actions .action-btn:hover {
         background: var(--surface);
@@ -517,7 +517,7 @@
         font-size: 0.8rem;
         cursor: pointer;
         color: var(--text-secondary);
-        transition: all 0.15s;
+        transition: all var(--app-duration-fast);
     }
     .comment-edit-actions .cancel-btn:hover {
         border-color: var(--text-secondary);

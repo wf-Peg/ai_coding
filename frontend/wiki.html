@@ -87,7 +87,7 @@
             font-weight: 500;
             cursor: pointer;
             border-radius: 8px;
-            transition: all 0.2s ease;
+            transition: all var(--app-duration-normal) ease;
             font-family: inherit;
         }
         .tab-btn:hover { background: var(--accent-light); color: var(--fg); }
@@ -104,7 +104,7 @@
         }
         .tab-panel {
             display: none;
-            animation: tabFadeIn 0.2s ease;
+            animation: tabFadeIn var(--app-duration-normal) ease;
         }
         .tab-panel.active { display: block; }
         @keyframes tabFadeIn {
@@ -119,7 +119,7 @@
             border-radius: 10px;
             padding: 18px 22px;
             margin-bottom: 14px;
-            transition: box-shadow 0.2s ease, transform 0.15s ease;
+            transition: box-shadow var(--app-duration-normal) ease, transform var(--app-duration-fast) ease;
         }
         .card:hover {
             box-shadow: var(--shadow);
@@ -169,7 +169,7 @@
             font-size: 0.9rem;
             font-weight: 500;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all var(--app-duration-normal) ease;
             font-family: inherit;
             white-space: nowrap;
         }
@@ -179,7 +179,7 @@
         .btn-primary {
             background: var(--primary);
             color: #ffffff;
-            transition: all 0.2s ease;
+            transition: all var(--app-duration-normal) ease;
         }
         .btn-primary:hover { background: var(--primary-dark); }
         .btn-primary:disabled {
@@ -191,7 +191,7 @@
             background: var(--card);
             color: var(--fg-secondary);
             border: 1px solid var(--border);
-            transition: all 0.2s ease;
+            transition: all var(--app-duration-normal) ease;
         }
         .btn-secondary:hover {
             background: var(--accent-light);

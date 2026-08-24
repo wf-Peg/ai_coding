@@ -33,7 +33,7 @@
         /* ── Header ── */
         .page-header {
             margin-bottom: 24px;
-            animation: fadeSlideDown 0.4s ease-out;
+            animation: fadeSlideDown var(--app-duration-slow) ease-out;
         }
         .page-header h1 {
             font-size: 1.5rem;
@@ -79,7 +79,7 @@
         /* ── Card ── */
         .tab-content {
             display: none;
-            animation: fadeIn 0.25s ease-out;
+            animation: fadeIn var(--app-duration-panel) ease-out;
         }
         .tab-content.active {
             display: block;
@@ -353,13 +353,13 @@
         /* ── Scrollbar ── */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; transition: background 0.2s ease; }
+        ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; transition: background var(--app-duration-normal) ease; }
         ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
 
         /* result-textarea 专属滚动条 */
         .result-textarea::-webkit-scrollbar { width: 6px; }
         .result-textarea::-webkit-scrollbar-track { background: transparent; }
-        .result-textarea::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; transition: background 0.2s ease; }
+        .result-textarea::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; transition: background var(--app-duration-normal) ease; }
         .result-textarea::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
     </style>
     <link rel="stylesheet" href="styles/design-tokens.css">

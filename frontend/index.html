@@ -97,7 +97,7 @@
             font-weight: 500;
             color: var(--text-secondary);
             font-family: inherit;
-            transition: all 0.15s ease;
+            transition: all var(--app-duration-fast) ease;
             display: flex;
             align-items: center;
             gap: 6px;
@@ -157,7 +157,7 @@
             border-radius: 7px;
             background: var(--search-bg, rgba(127,127,127,0.08));
             color: var(--text);
-            transition: width 0.2s cubic-bezier(0.4,0,0.2,1), border-color 0.15s ease, box-shadow 0.15s ease;
+            transition: width var(--app-duration-normal) cubic-bezier(0.4,0,0.2,1), border-color var(--app-duration-fast) ease, box-shadow var(--app-duration-fast) ease;
         }
         .gsearch-input-wrap:focus-within {
             width: 210px;
@@ -194,7 +194,7 @@
             padding: 1px 4px;
             line-height: 1.2;
             flex-shrink: 0;
-            transition: opacity 0.15s ease;
+            transition: opacity var(--app-duration-fast) ease;
         }
         .gsearch-input-wrap:focus-within .gsearch-kbd { opacity: 0; }
 
@@ -218,7 +218,7 @@
         html[data-theme="dark"] .gsearch-panel { box-shadow: 0 14px 44px rgba(0,0,0,0.5); }
         .gsearch-panel.open {
             display: block;
-            animation: gsearchPop 0.16s cubic-bezier(0.2,0,0,1);
+            animation: gsearchPop 0var(--app-duration-fast) cubic-bezier(0.2,0,0,1);
         }
         @keyframes gsearchPop {
             from { opacity: 0; transform: scale(0.96); }
@@ -286,7 +286,7 @@
             border-radius: 7px;
             cursor: pointer;
             border-left: 2px solid transparent;
-            transition: background 0.12s ease, border-color 0.12s ease;
+            transition: background var(--app-duration-fast) ease, border-color var(--app-duration-fast) ease;
         }
         .gsearch-item:hover,
         .gsearch-item.active {
@@ -372,7 +372,7 @@
             height: 100%;
             opacity: 1;
             transform: scale(1);
-            transition: opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1), transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: opacity var(--app-duration-panel) cubic-bezier(0.4, 0, 0.2, 1), transform var(--app-duration-panel) cubic-bezier(0.4, 0, 0.2, 1);
         }
         .view-panel-hidden {
             opacity: 0;
@@ -570,7 +570,7 @@
         background: linear-gradient(135deg, #667eea, #764ba2);
         color: white; border-radius: 8px; cursor: pointer;
         font-size: 13px; font-family: inherit; font-weight: 500;
-        transition: opacity 0.2s;
+        transition: opacity var(--app-duration-normal);
     }
     .startup-error .retry-btn:hover { opacity: 0.85; }
 
@@ -595,7 +595,7 @@
             width: 7px;
             height: 7px;
             border-radius: 50%;
-            transition: background 0.3s ease, box-shadow 0.3s ease;
+            transition: background var(--app-duration-slow) ease, box-shadow var(--app-duration-slow) ease;
             flex-shrink: 0;
         }
         .backend-global-dot.stopped { background: #9ca3af; }
@@ -621,7 +621,7 @@
             cursor: pointer;
             font-family: inherit;
             white-space: nowrap;
-            transition: all 0.15s;
+            transition: all var(--app-duration-fast);
         }
         .backend-global-start-btn:hover {
             background: var(--primary);
@@ -643,7 +643,7 @@
             font-size: 13px;
             font-weight: 500;
             text-align: center;
-            animation: notif-slide-down 0.25s ease;
+            animation: notif-slide-down var(--app-duration-panel) ease;
             cursor: pointer;
         }
         .global-notification-bar.info {
@@ -703,7 +703,7 @@
         width: 40px; height: 40px; border-radius: 10px;
         border: 1px solid var(--panel-border); background: var(--bg);
         cursor: pointer; display: flex; align-items: center; justify-content: center;
-        transition: all 0.15s; opacity: 0.55; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        transition: all var(--app-duration-fast); opacity: 0.55; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         color: var(--text-secondary);
     }
     .scroll-tool-btn:hover { opacity: 1; border-color: var(--primary); color: var(--primary); }
@@ -728,7 +728,7 @@
         cursor: pointer;
         box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         opacity: 0.9;
-        transition: all 0.15s ease;
+        transition: all var(--app-duration-fast) ease;
     }
     .module-back-btn svg { width: 14px; height: 14px; }
     .module-back-btn:hover { color: var(--primary); border-color: var(--primary); opacity: 1; }
@@ -1791,7 +1791,7 @@
           if (!toast) {
             toast = document.createElement('div');
             toast.id = 'systemToast';
-            toast.style.cssText = 'position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:99999;padding:10px 20px;border-radius:8px;font-size:13px;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.2);opacity:0;transition:opacity .25s;pointer-events:none;max-width:80vw;word-break:break-all;';
+            toast.style.cssText = 'position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:99999;padding:10px 20px;border-radius:8px;font-size:13px;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.2);opacity:0;transition:opacity 0.25s;pointer-events:none;max-width:80vw;word-break:break-all;';
             document.body.appendChild(toast);
           }
           toast.style.background = isError ? '#dc2626' : '#16a34a';

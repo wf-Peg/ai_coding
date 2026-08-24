@@ -175,7 +175,7 @@
             width: 3px;
             border-radius: 2px;
             background: transparent;
-            transition: background 0.2s ease;
+            transition: background var(--app-duration-normal) ease;
         }
         .topic-item:hover { padding-left: 8px; }
         .topic-item:hover::before { background: var(--primary); }
@@ -262,7 +262,7 @@
         /* ===== Obsidian 风格全局滚动条 ===== */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; transition: background 0.2s ease; }
+        ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; transition: background var(--app-duration-normal) ease; }
         ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
         * { scrollbar-width: thin; scrollbar-color: var(--border-light) transparent; }
     </style>

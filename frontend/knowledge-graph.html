@@ -157,7 +157,7 @@
             stroke: var(--surface);
             stroke-width: 2px;
             cursor: pointer;
-            transition: stroke-width 0.2s ease;
+            transition: stroke-width var(--app-duration-normal) ease;
         }
         .node:hover rect { stroke-width: 3px; }
 
@@ -227,7 +227,7 @@
             background: var(--surface);
             border-left: 1px solid var(--border);
             z-index: 200;
-            transition: right 0.3s ease;
+            transition: right var(--app-duration-slow) ease;
             display: flex;
             flex-direction: column;
             box-shadow: -4px 0 20px rgba(0,0,0,0.08);
@@ -338,7 +338,7 @@
             stroke: var(--surface);
             stroke-width: 2px;
             cursor: pointer;
-            transition: stroke-width 0.2s ease;
+            transition: stroke-width var(--app-duration-normal) ease;
         }
         .node:hover circle {
             stroke-width: 3px;
@@ -348,7 +348,7 @@
             stroke-width: 2px;
             stroke-linejoin: round;
             cursor: pointer;
-            transition: stroke-width 0.2s ease;
+            transition: stroke-width var(--app-duration-normal) ease;
         }
         .node:hover polygon {
             stroke-width: 3px;

@@ -161,13 +161,13 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(0,0,0,0.4); z-index: 1000;
   display: flex; align-items: center; justify-content: center;
-  opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  opacity: 0; pointer-events: none; transition: opacity var(--app-duration-normal);
 }
 .modal-overlay.show { opacity: 1; pointer-events: all; }
 .modal-card {
   background: var(--card); border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg); width: 440px; max-height: 80vh; overflow-y: auto;
-  transform: scale(0.95); transition: transform 0.2s;
+  transform: scale(0.95); transition: transform var(--app-duration-normal);
 }
 .modal-overlay.show .modal-card { transform: scale(1); }
 .modal-header { padding: 20px 24px 12px; font-size: 16px; font-weight: 600; }
@@ -204,7 +204,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
   padding: 8px 20px; border: none; border-radius: 8px;
   background: var(--vault-accent); color: #fff;
   font-size: 13px; font-weight: 500; cursor: pointer;
-  font-family: inherit; transition: all 0.15s;
+  font-family: inherit; transition: all var(--app-duration-fast);
 }
 .modal-submit:hover { opacity: 0.9; }
 
@@ -216,7 +216,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
   letter-spacing: 1px; word-break: break-all;
 }
 .gen-strength { height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; margin-bottom: 16px; }
-.gen-strength-fill { height: 100%; transition: width 0.3s, background 0.3s; }
+.gen-strength-fill { height: 100%; transition: width var(--app-duration-slow), background var(--app-duration-slow); }
 .checkbox-row {
   display: flex; align-items: center; gap: 8px; padding: 6px 0;
   font-size: 13px; color: var(--fg-secondary); cursor: pointer;
@@ -227,7 +227,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
 .audit-section { margin-bottom: 20px; }
 .audit-section-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
 .audit-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 6px; }
-.audit-bar-segment { transition: width 0.3s; }
+.audit-bar-segment { transition: width var(--app-duration-slow); }
 .audit-item { padding: 8px 12px; background: var(--accent-light); border-radius: 6px; margin-bottom: 4px; font-size: 12px; }
 
 /* Toast */
@@ -235,7 +235,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
   background: var(--fg); color: var(--bg-elevated); padding: 10px 24px;
   border-radius: var(--radius-sm); font-size: 13px; box-shadow: var(--shadow-md);
-  transition: transform 0.3s; z-index: 2000; pointer-events: none;
+  transition: transform var(--app-duration-slow); z-index: 2000; pointer-events: none;
 }
 .toast.show { transform: translateX(-50%) translateY(0); }
 
@@ -245,7 +245,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
   padding: 14px 16px; margin-bottom: 10px;
   background: var(--card); border-radius: 10px;
   border: 1px solid var(--border-light);
-  transition: all 0.15s;
+  transition: all var(--app-duration-fast);
 }
 .vault-mgr-card:hover { border-color: var(--vault-accent); background: var(--card-hover); }
 .vault-mgr-main { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
@@ -525,7 +525,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--fg); o
             <option value="lastpass">LastPass</option>
           </select>
         </div>
-        <div id="csvDropZone" style="border:2px dashed var(--border);border-radius:10px;padding:32px;text-align:center;cursor:pointer;transition:all 0.2s;">
+        <div id="csvDropZone" style="border:2px dashed var(--border);border-radius:10px;padding:32px;text-align:center;cursor:pointer;transition:all var(--app-duration-normal);">
           <svg viewBox="0 0 24 24" fill="none" stroke="var(--fg-muted)" stroke-width="1.5" style="width:32px;height:32px;margin-bottom:8px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           <div style="font-size:13px;color:var(--fg-secondary);">点击选择 CSV 文件，或拖拽到此处</div>
           <div style="font-size:11px;color:var(--fg-muted);margin-top:4px;">支持 .csv 格式</div>
