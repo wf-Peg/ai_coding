@@ -1168,9 +1168,13 @@
       return;
     }
     if (!sharedState.transformTarget || elements.transformPreview.value.startsWith('转换失败：')) return;
-    mainEditor.session.replace(sharedState.transformTarget.range, elements.transformPreview.value);
+    const target = sharedState.transformTarget;
+    mainEditor.session.replace(target.range, elements.transformPreview.value);
     closeTransformPanel();
-    showToast('转换结果已替换原文');
+    // 反馈替换成功数量：一次替换原文对应 1 处；并区分作用于「选中选区」还是「全文」便于用户确认范围
+    const count = 1;
+    showToast(`已替换${target.selection ? '选中内容' : '全文'}（成功 ${count} 处）`);
+    FrontendLogger.info('[Editor] applyTransform', { selection: target.selection, operation, count });
   }
 
   /**
