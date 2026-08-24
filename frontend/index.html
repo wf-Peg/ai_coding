@@ -7,6 +7,12 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M 7 20 C 3 17, 2 13, 2 10 C 2 7, 3 4, 7 2 L 9 5 C 6 6, 5 8, 5 10 C 5 13, 6 15, 9 17 Z' fill='%234A9E9E'/%3E%3Cpath d='M 7 2 C 10 0, 14 0, 17 2 L 16 5 C 13 3, 10 3, 9 5 Z' fill='%233A9B9B'/%3E%3Ccircle cx='10' cy='10' r='2.5' fill='%23FFD93D'/%3E%3Ccircle cx='13' cy='9' r='2' fill='%23FF9F45'/%3E%3Ccircle cx='12' cy='13' r='1.8' fill='%23FF6B6B'/%3E%3C/svg%3E" type="image/svg+xml" />
     <link rel="stylesheet" href="styles/design-tokens.css">
     <link rel="stylesheet" href="styles/ui-common.css">
+    <script src="js/theme-core.js"></script>
+    <script src="js/theme-bridge.js"></script>
+    <script>
+        // 同步应用已保存主题，避免首次渲染白屏闪烁
+        (function () { window.CutShelterThemeBridge.init({ root: document.documentElement }); })();
+    </script>
     <style>
         :root {
             --bg: #f7f7f5;
@@ -928,38 +934,49 @@
 <script>
   (function() {
       const THEME_KEY = 'app_theme_v1';
-      const APPEARANCE_KEY = 'app_appearance_v1'; // regular | dark | notion | system
+      const APPEARANCE_KEY = 'app_appearance_v1'; // regular | dark | notion | system | focus | calm | studio
+      const MOTION_KEY = 'app_motion_v1'; // full | reduced
+
+      const themeCore = window.CutShelterThemeCore;
 
       // ====== 主题管理 ======
       function getEffectiveTheme() {
         const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
-        if (appearance === 'system') {
-          return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'notion';
-        }
-        return appearance;
+        return themeCore.resolveAppearance(appearance, window.matchMedia('(prefers-color-scheme: dark)').matches);
+      }
+
+      function getMotion() {
+        return themeCore.readStoredMotion(localStorage);
+      }
+
+      function themeFrames() {
+        return [editorFrame, workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, settingsFrame, learningPlanFrame, toolsFrame, agentFrame, dataObservabilityFrame];
+      }
+
+      function broadcastThemeChange(theme, motion) {
+        const msg = themeCore.buildThemeMessage(theme, motion);
+        themeFrames().forEach(frame => {
+          try { if (frame && frame.contentWindow) frame.contentWindow.postMessage(msg, '*'); } catch(e) {}
+        });
       }
 
       function applyTheme(themeOverride, persist = true) {
         const theme = themeOverride || getEffectiveTheme();
-        const dataTheme = theme === 'dark' ? 'dark' : (theme === 'regular' ? 'regular' : 'notion');
-        document.documentElement.setAttribute('data-theme', dataTheme);
+        const motion = getMotion();
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.setAttribute('data-motion', motion);
         if (persist) {
-          localStorage.setItem(THEME_KEY, dataTheme);
+          localStorage.setItem(THEME_KEY, theme);
+          localStorage.setItem(MOTION_KEY, motion);
         }
         // 广播主题变更到所有 iframe 子页面
-        broadcastThemeChange();
+        broadcastThemeChange(theme, motion);
         // 同步 Windows 原生标题栏 Overlay 按钮颜色到当前主题
         if (window.syncTitleBarOverlay) window.syncTitleBarOverlay();
       }
 
-      function broadcastThemeChange() {
-        [editorFrame, workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, settingsFrame, learningPlanFrame, toolsFrame, agentFrame, dataObservabilityFrame].forEach(frame => {
-          try { if (frame && frame.contentWindow) frame.contentWindow.postMessage({ action: 'themeChange', theme: document.documentElement.getAttribute('data-theme') }, '*'); } catch(e) {}
-        });
-      }
-
       function notifyAllFrames(message) {
-        [editorFrame, workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, settingsFrame, learningPlanFrame, toolsFrame, agentFrame, dataObservabilityFrame].forEach(frame => {
+        themeFrames().forEach(frame => {
           try { if (frame && frame.contentWindow) frame.contentWindow.postMessage(message, '*'); } catch(e) {}
         });
       }
@@ -973,7 +990,7 @@
       });
 
       window.addEventListener('storage', event => {
-        if (event.key === THEME_KEY || event.key === APPEARANCE_KEY) {
+        if (event.key === THEME_KEY || event.key === APPEARANCE_KEY || event.key === MOTION_KEY) {
           applyTheme(null, false);
         }
         if (event.key === 'active_workspace_id') {

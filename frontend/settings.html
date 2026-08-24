@@ -7,6 +7,11 @@
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles/design-tokens.css">
     <link rel="stylesheet" href="styles/ui-common.css">
+    <script src="js/theme-core.js"></script>
+    <script src="js/theme-bridge.js"></script>
+    <script>
+        (function () { window.CutShelterThemeBridge.init({ root: document.documentElement }); })();
+    </script>
     <style>
         :root {
             --primary: #3f8cff;
@@ -625,6 +630,75 @@
         html[data-theme="dark"] .save-section-actions {
             box-shadow: 0 -4px 12px rgba(0,0,0,0.25);
         }
+
+        /* ====== 主题选择卡片 ====== */
+        .theme-card-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 8px;
+        }
+        .theme-card {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 10px;
+            border-radius: var(--radius-sm, 8px);
+            border: 2px solid var(--border);
+            background: var(--surface);
+            color: var(--text);
+            cursor: pointer;
+            text-align: left;
+            font-family: inherit;
+            transition: border-color var(--app-duration-fast, 0.12s) var(--app-ease-smooth, ease),
+                        box-shadow var(--app-duration-fast, 0.12s) var(--app-ease-smooth, ease);
+        }
+        .theme-card:hover { border-color: var(--primary); }
+        .theme-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+        .theme-card[aria-checked="true"] {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--app-primary-soft, rgba(63,140,255,0.15));
+        }
+        .theme-card__preview {
+            display: block;
+            height: 56px;
+            border-radius: 6px;
+            border: 1px solid var(--pv-border, #e5e7eb);
+            background: var(--pv-bg, #f9fafb);
+            position: relative;
+            overflow: hidden;
+        }
+        .theme-card__preview::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 26%;
+            background: var(--pv-sidebar, #eef1f4);
+        }
+        .theme-card__preview::after {
+            content: '';
+            position: absolute;
+            left: 34%; top: 12px;
+            width: 46%; height: 6px;
+            border-radius: 3px;
+            background: var(--pv-line, #cbd2da);
+            box-shadow: 0 12px 0 var(--pv-line, #cbd2da),
+                        0 24px 0 var(--pv-accent, #3f8cff);
+        }
+        .theme-card__name {
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--text);
+        }
+        .theme-card--regular .theme-card__preview { --pv-bg:#edf5ff; --pv-sidebar:#e0edff; --pv-line:#c5daf8; --pv-accent:#3f8cff; --pv-border:#c5daf8; }
+        .theme-card--notion   .theme-card__preview { --pv-bg:#f7f7f5; --pv-sidebar:#f1f1ef; --pv-line:#d8d8d4; --pv-accent:#2f3437; --pv-border:#e3e3df; }
+        .theme-card--dark     .theme-card__preview { --pv-bg:#1e1e1e; --pv-sidebar:#282828; --pv-line:#3e3e3e; --pv-accent:#569cff; --pv-border:#3e3e3e; }
+        .theme-card--focus    .theme-card__preview { --pv-bg:#14161a; --pv-sidebar:#1c1f24; --pv-line:#2c3036; --pv-accent:#61a6ff; --pv-border:#2c3036; }
+        .theme-card--calm     .theme-card__preview { --pv-bg:#fbfaf7; --pv-sidebar:#f4f2ee; --pv-line:#e4e1da; --pv-accent:#2383e2; --pv-border:#e4e1da; }
+        .theme-card--studio   .theme-card__preview { --pv-bg:#0f1b2d; --pv-sidebar:#14243c; --pv-line:#24405f; --pv-accent:#7aa5ff; --pv-border:#24405f; }
+        @media (max-width: 520px) {
+            .theme-card-grid { grid-template-columns: repeat(2, 1fr); }
+        }
     </style>
 </head>
 <body>
@@ -638,12 +712,56 @@
             </div>
             <div class="form-group">
                 <label class="form-label">界面主题</label>
-                <select id="appearanceSelect" onchange="onAppearanceChange()">
-                    <option value="regular">默认（浅色）</option>
-                    <option value="dark">深色</option>
-                    <option value="notion">Notion 风格</option>
-                    <option value="system">跟随系统</option>
-                </select>
+                <div class="theme-card-grid" id="themeCardGrid" role="radiogroup" aria-label="界面主题">
+                    <button type="button" class="theme-card theme-card--regular" data-theme="regular" role="radio" aria-checked="false" aria-label="默认（浅色）">
+                        <span class="theme-card__preview" aria-hidden="true"></span>
+                        <span class="theme-card__name">默认</span>
+                    </button>
+                    <button type="button" class="theme-card theme-card--notion" data-theme="notion" role="radio" aria-checked="false" aria-label="Notion 风格">
+                        <span class="theme-card__preview" aria-hidden="true"></span>
+                        <span class="theme-card__name">Notion</span>
+                    </button>
+                    <button type="button" class="theme-card theme-card--dark" data-theme="dark" role="radio" aria-checked="false" aria-label="深色">
+                        <span class="theme-card__preview" aria-hidden="true"></span>
+                        <span class="theme-card__name">深色</span>
+                    </button>
+                    <button type="button" class="theme-card theme-card--focus" data-theme="focus" role="radio" aria-checked="false" aria-label="专注工作台">
+                        <span class="theme-card__preview" aria-hidden="true"></span>
+                        <span class="theme-card__name">专注</span>
+                    </button>
+                    <button type="button" class="theme-card theme-card--calm" data-theme="calm" role="radio" aria-checked="false" aria-label="安静秩序">
+                        <span class="theme-card__preview" aria-hidden="true"></span>
+                        <span class="theme-card__name">安静</span>
+                    </button>
+                    <button type="button" class="theme-card theme-card--studio" data-theme="studio" role="radio" aria-checked="false" aria-label="AI 创作工作室">
+                        <span class="theme-card__preview" aria-hidden="true"></span>
+                        <span class="theme-card__name">工作室</span>
+                    </button>
+                </div>
+                <div class="setting-row" style="margin-top: 14px;">
+                    <div class="setting-label">
+                        <div class="setting-title">跟随系统浅色/深色</div>
+                        <div class="setting-desc">系统切换深色模式时自动跟随</div>
+                    </div>
+                    <div class="setting-control">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="systemThemeToggle" onchange="onSystemThemeChange()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="setting-row" style="border-bottom: none;">
+                    <div class="setting-label">
+                        <div class="setting-title">减少动效</div>
+                        <div class="setting-desc">关闭位移、弹跳和呼吸动画，仅保留必要状态反馈</div>
+                    </div>
+                    <div class="setting-control">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="reduceMotionToggle" onchange="onReduceMotionChange()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
             </div>
         </div>
 

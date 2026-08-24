@@ -1,53 +1,100 @@
 const API_BASE = 'http://127.0.0.1:8081/api/config';
 const MODEL_TEST_BASE = 'http://127.0.0.1:8081/api/model-config';
 const THEME_KEY = 'app_theme_v1';
-const APPEARANCE_KEY = 'app_appearance_v1'; // regular | dark | notion | system
+const APPEARANCE_KEY = 'app_appearance_v1'; // regular | dark | notion | system | focus | calm | studio
+const MOTION_KEY = 'app_motion_v1'; // full | reduced
 let currentStoragePath = ''; // 用于检测路径变更
+
+const themeCore = window.CutShelterThemeCore;
+const themeBridge = window.CutShelterThemeBridge;
 
 // ====== 外观管理 ======
 function getEffectiveTheme() {
   const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
-  if (appearance === 'system') {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'notion';
-  }
-  return appearance;
+  return themeCore.resolveAppearance(appearance, window.matchMedia('(prefers-color-scheme: dark)').matches);
+}
+
+function getMotion() {
+  return themeCore.readStoredMotion(localStorage);
 }
 
 function applyAppearance(appearance) {
   localStorage.setItem(APPEARANCE_KEY, appearance);
   const theme = getEffectiveTheme();
-  const dataTheme = theme === 'dark' ? 'dark' : (theme === 'regular' ? 'regular' : 'notion');
-  document.documentElement.setAttribute('data-theme', dataTheme);
-  localStorage.setItem(THEME_KEY, dataTheme);
-  // 通知父页面
+  const motion = getMotion();
+  themeBridge.apply(theme, motion, { persist: true });
+  renderThemeCards();
+  // 通知父页面（父页面作为唯一事实来源会重新广播）
   try { window.parent.postMessage({ type: 'appearanceChanged', appearance: appearance }, '*'); } catch(e) {}
 }
 
+function applyMotion(motion) {
+  const theme = getEffectiveTheme();
+  const m = themeCore.normalizeMotion(motion);
+  localStorage.setItem(MOTION_KEY, m);
+  themeBridge.apply(theme, m, { persist: true });
+}
+
 function onAppearanceChange() {
-  applyAppearance(document.getElementById('appearanceSelect').value);
+  applyAppearance(document.getElementById('appearanceSelect')?.value || 'notion');
+}
+
+function onSystemThemeChange() {
+  const checked = document.getElementById('systemThemeToggle').checked;
+  applyAppearance(checked ? 'system' : getEffectiveTheme());
+}
+
+function onReduceMotionChange() {
+  applyMotion(document.getElementById('reduceMotionToggle').checked ? 'reduced' : 'full');
 }
 
 function applyTheme() {
-  const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
   const theme = getEffectiveTheme();
-  const dataTheme = theme === 'dark' ? 'dark' : (theme === 'regular' ? 'regular' : 'notion');
-  document.documentElement.setAttribute('data-theme', dataTheme);
+  const motion = getMotion();
+  themeBridge.apply(theme, motion, { persist: false });
+  renderThemeCards();
+}
+
+function renderThemeCards() {
+  const grid = document.getElementById('themeCardGrid');
+  const effective = getEffectiveTheme();
+  const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+  if (grid) {
+    grid.querySelectorAll('.theme-card').forEach(card => {
+      const isActive = appearance !== 'system' && card.dataset.theme === effective;
+      card.setAttribute('aria-checked', isActive ? 'true' : 'false');
+    });
+  }
+  const systemToggle = document.getElementById('systemThemeToggle');
+  if (systemToggle) systemToggle.checked = appearance === 'system';
+  const reduceToggle = document.getElementById('reduceMotionToggle');
+  if (reduceToggle) reduceToggle.checked = getMotion() === 'reduced';
 }
 
 // 初始化外观
 (function initAppearance() {
   const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
-  document.getElementById('appearanceSelect').value = appearance;
   const theme = getEffectiveTheme();
-  const dataTheme = theme === 'dark' ? 'dark' : (theme === 'regular' ? 'regular' : 'notion');
-  document.documentElement.setAttribute('data-theme', dataTheme);
+  const motion = getMotion();
+  themeBridge.apply(theme, motion, { persist: false });
+
+  // 主题卡片点击
+  const grid = document.getElementById('themeCardGrid');
+  if (grid) {
+    grid.addEventListener('click', function(e) {
+      const card = e.target.closest('.theme-card');
+      if (!card) return;
+      const themeName = card.dataset.theme;
+      localStorage.setItem(APPEARANCE_KEY, themeName);
+      applyAppearance(themeName);
+      const nameEl = card.querySelector('.theme-card__name');
+      showToast('已切换主题：' + (nameEl ? nameEl.textContent : themeName));
+    });
+  }
 
   window.addEventListener('storage', function(e) {
-    if (e.key === THEME_KEY || e.key === APPEARANCE_KEY) {
-      const theme = getEffectiveTheme();
-      const dataTheme = theme === 'dark' ? 'dark' : (theme === 'regular' ? 'regular' : 'notion');
-      document.documentElement.setAttribute('data-theme', dataTheme);
-      document.getElementById('appearanceSelect').value = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+    if (e.key === THEME_KEY || e.key === APPEARANCE_KEY || e.key === MOTION_KEY) {
+      applyTheme();
     }
   });
 
@@ -55,11 +102,14 @@ function applyTheme() {
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
     const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
     if (appearance === 'system') {
-      const theme = getEffectiveTheme();
-      const dataTheme = theme === 'dark' ? 'dark' : (theme === 'regular' ? 'regular' : 'notion');
-      document.documentElement.setAttribute('data-theme', dataTheme);
+      applyTheme();
     }
   });
+
+  // 监听父页面广播的主题变更并回执
+  themeBridge.listen({ onChange: function () { renderThemeCards(); } });
+
+  renderThemeCards();
 })();
 
 // 加载配置
@@ -849,8 +899,7 @@ function showToast(message, isError = false) {
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
-  const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
-  document.getElementById('appearanceSelect').value = appearance;
+  renderThemeCards();
   loadConfig();
   document.getElementById('mascotAction')?.addEventListener('change', handleMascotActionChange);
   document.getElementById('mascotPresetList')?.addEventListener('click', handleMascotPreset);

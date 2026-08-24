@@ -57,3 +57,14 @@ test('handles missing storage safely', () => {
   assert.equal(core.readStoredTheme(null), 'notion');
   assert.equal(core.readStoredMotion(null), 'full');
 });
+
+test('exposes the version-stable storage keys', () => {
+  assert.equal(core.THEME_KEY, 'app_theme_v1');
+  assert.equal(core.MOTION_KEY, 'app_motion_v1');
+});
+
+test('themeChange message always carries both theme and motion', () => {
+  const msg = core.buildThemeMessage('focus', 'reduced');
+  assert.equal(msg.action, 'themeChange');
+  assert.ok('theme' in msg && 'motion' in msg);
+});

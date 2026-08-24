@@ -46,6 +46,26 @@
   --app-font-mono: "IBM Plex Mono", "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
 }
 
+/* notion：纸感明亮（与 :root 同源，显式声明便于主题枚举与覆盖） */
+html[data-theme="notion"] {
+  --app-bg: #f7f7f5;
+  --app-surface: #ffffff;
+  --app-surface-subtle: #f1f1ef;
+  --app-surface-hover: #ececea;
+  --app-border: #e3e3df;
+  --app-border-strong: #d2d2cd;
+  --app-text: #2f3437;
+  --app-text-secondary: #6b6f76;
+  --app-text-muted: #92969d;
+  --app-primary: #2383e2;
+  --app-primary-hover: #1f76c9;
+  --app-primary-soft: rgba(35, 131, 226, 0.1);
+  --app-success: #238b63;
+  --app-warning: #b7791f;
+  --app-danger: #d14343;
+  --app-danger-soft: rgba(209, 67, 67, 0.1);
+}
+
 html[data-theme="regular"] {
   --app-bg: #edf5ff;
   --app-surface-subtle: #e2efff;
@@ -78,4 +98,76 @@ html[data-theme="dark"] {
   --app-shadow-panel-left: 4px 0 12px rgba(0, 0, 0, 0.3);
   --app-shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.3);
   --app-shadow-xl: 0 20px 30px rgba(0, 0, 0, 0.4);
+}
+
+/* focus：专注工作台（Obsidian 启发，深色、低噪声、低装饰） */
+html[data-theme="focus"] {
+  color-scheme: dark;
+  --app-bg: #121417;
+  --app-surface: #1c1f24;
+  --app-surface-subtle: #22262c;
+  --app-surface-hover: #2a2f36;
+  --app-border: #2c3036;
+  --app-border-strong: #3a3f47;
+  --app-text: #d8dce2;
+  --app-text-secondary: #9aa2ac;
+  --app-text-muted: #6b7280;
+  --app-primary: #61a6ff;
+  --app-primary-hover: #7bb5ff;
+  --app-primary-soft: rgba(97, 166, 255, 0.14);
+  --app-success: #4ecb71;
+  --app-warning: #e0a94d;
+  --app-danger: #ef7777;
+  --app-danger-soft: rgba(239, 119, 119, 0.12);
+  --app-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --app-shadow-md: 0 4px 8px rgba(0, 0, 0, 0.32);
+  --app-shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.42);
+  --app-shadow-xl: 0 20px 36px rgba(0, 0, 0, 0.5);
+  --app-shadow-panel: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.32), 0 16px 32px rgba(0, 0, 0, 0.44);
+}
+
+/* calm：安静秩序（Notion 启发，纸感、明亮、留白、内容层级） */
+html[data-theme="calm"] {
+  --app-bg: #fbfaf7;
+  --app-surface: #ffffff;
+  --app-surface-subtle: #f4f2ee;
+  --app-surface-hover: #ece9e3;
+  --app-border: #e8e5de;
+  --app-border-strong: #d6d2c8;
+  --app-text: #3a3a36;
+  --app-text-secondary: #6f6d66;
+  --app-text-muted: #97948a;
+  --app-primary: #2383e2;
+  --app-primary-hover: #1f76c9;
+  --app-primary-soft: rgba(35, 131, 226, 0.12);
+  --app-success: #2f9e6e;
+  --app-warning: #b98a1f;
+  --app-danger: #d95c50;
+  --app-danger-soft: rgba(217, 92, 80, 0.1);
+}
+
+/* studio：AI 创作工作室（YouMind 启发，深蓝渐层、焦点状态、适度表现力） */
+html[data-theme="studio"] {
+  color-scheme: dark;
+  --app-bg: #0f1b2d;
+  --app-surface: #16233a;
+  --app-surface-subtle: #1b2a44;
+  --app-surface-hover: #223352;
+  --app-border: #24405f;
+  --app-border-strong: #2f5276;
+  --app-text: #e6edf7;
+  --app-text-secondary: #a8b8cc;
+  --app-text-muted: #6f829c;
+  --app-primary: #7aa5ff;
+  --app-primary-hover: #92b5ff;
+  --app-primary-soft: rgba(122, 165, 255, 0.16);
+  --app-success: #5fd3a0;
+  --app-warning: #f0c060;
+  --app-danger: #ff8b8b;
+  --app-danger-soft: rgba(255, 139, 139, 0.14);
+  --app-shadow: 0 10px 30px rgba(5, 12, 24, 0.5);
+  --app-shadow-md: 0 4px 10px rgba(5, 12, 24, 0.4);
+  --app-shadow-lg: 0 12px 28px rgba(5, 12, 24, 0.5);
+  --app-shadow-xl: 0 20px 40px rgba(5, 12, 24, 0.55);
+  --app-shadow-panel: 0 0 0 1px rgba(15, 30, 55, 0.6), 0 2px 8px rgba(5, 12, 24, 0.4), 0 16px 36px rgba(5, 12, 24, 0.5);
 }
