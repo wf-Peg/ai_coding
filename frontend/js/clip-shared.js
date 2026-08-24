@@ -230,7 +230,11 @@ var selectedClipIds = new Set();
 
 
     function getEffectiveTheme() {
+        const core = window.CutShelterThemeCore;
         const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+        if (core) {
+            return core.resolveAppearance(appearance, window.matchMedia('(prefers-color-scheme: dark)').matches);
+        }
         if (appearance === 'system') {
             return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'notion';
         }
@@ -250,20 +254,18 @@ var selectedClipIds = new Set();
     }
 
     function applyTheme(themeId, persist = true) {
-        currentTheme = themeId === 'regular' ? 'regular' : DEFAULT_THEME;
+        const core = window.CutShelterThemeCore;
+        const raw = themeId == null ? getEffectiveTheme() : themeId;
+        const effectiveTheme = core ? core.normalizeTheme(raw) : (raw === 'regular' ? 'regular' : DEFAULT_THEME);
+        currentTheme = effectiveTheme === 'regular' ? 'regular' : DEFAULT_THEME;
         const notionThemeLink = document.getElementById('clipThemeNotion');
         if (notionThemeLink) {
-            notionThemeLink.disabled = currentTheme !== 'notion';
+            // 纸感浅色主题（notion / calm）启用 notion 样式；其余主题关闭
+            notionThemeLink.disabled = !(effectiveTheme === 'notion' || effectiveTheme === 'calm');
         }
-        const effectiveTheme = getEffectiveTheme();
-        if (effectiveTheme === 'dark') {
-            document.documentElement.setAttribute('data-theme', 'dark');
-        } else {
-            document.documentElement.setAttribute('data-theme', currentTheme);
-        }
-        if (persist && effectiveTheme !== 'dark') {
-            localStorage.setItem(THEME_STORAGE_KEY, currentTheme);
-        }
+        document.documentElement.setAttribute('data-theme', effectiveTheme);
+        if (core) document.documentElement.setAttribute('data-motion', core.readStoredMotion(localStorage));
+        if (persist) localStorage.setItem(THEME_STORAGE_KEY, effectiveTheme);
         updateThemeToggleLabel();
     }
 
@@ -556,7 +558,7 @@ var selectedClipIds = new Set();
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-        applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME, false);
+        applyTheme(null, false);
         fetchClips();
         loadCategories();
         loadSyncStatus();
@@ -572,16 +574,19 @@ var selectedClipIds = new Set();
             });
         }
         window.addEventListener('storage', event => {
-            if (event.key === THEME_STORAGE_KEY || event.key === APPEARANCE_KEY) {
-                applyTheme(event.newValue || localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME, false);
+            if (event.key === THEME_STORAGE_KEY || event.key === APPEARANCE_KEY || event.key === 'app_motion_v1') {
+                applyTheme(null, false);
             }
         });
         document.addEventListener('click', () => closeAllMoreActions());
 
         // 监听父页面主题变更消息
         window.addEventListener('message', event => {
-            if (event.data && (event.data.type === 'themeChanged' || event.data.type === 'appearanceChanged')) {
-                applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME, false);
+            const d = event.data || {};
+            if (d.action === 'themeChange') {
+                applyTheme(d.theme, false);
+            } else if (d.type === 'themeChanged' || d.type === 'appearanceChanged') {
+                applyTheme(null, false);
             }
         });
 
@@ -589,7 +594,7 @@ var selectedClipIds = new Set();
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
             const appearance = localStorage.getItem(APPEARANCE_KEY) || 'light';
             if (appearance === 'system') {
-                applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME, false);
+                applyTheme(null, false);
             }
         });
 
@@ -758,4 +763,3 @@ var selectedClipIds = new Set();
     });
 
     // Type label mapping
-

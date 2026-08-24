@@ -344,19 +344,22 @@
    *        非空时优先采用，避免切页后本地缓存与父窗口不一致导致背景色错乱（Bug 修复）。
    */
   function applyTheme(parentTheme) {
+    const core = window.CutShelterThemeCore;
     const appearance = localStorage.getItem(APPEARANCE_KEY) || 'notion';
-    let theme = localStorage.getItem(THEME_STORAGE_KEY) || 'notion';
-    if (appearance === 'dark') theme = 'dark';
-    else if (appearance === 'regular') theme = 'regular';
-    else if (appearance === 'system') {
-      theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'notion';
-    }
+    let theme = core
+      ? core.resolveAppearance(appearance, window.matchMedia('(prefers-color-scheme: dark)').matches)
+      : (localStorage.getItem(THEME_STORAGE_KEY) || 'notion');
     // 父窗口显式传入主题时优先采用（规避 iframe 隐藏期间缓存未同步造成的错乱）
-    if (parentTheme === 'dark' || parentTheme === 'notion' || parentTheme === 'regular') {
+    if (core && parentTheme && core.THEMES.indexOf(parentTheme) !== -1) {
       theme = parentTheme;
     }
+    theme = core ? core.normalizeTheme(theme) : theme;
+    const motion = core ? core.readStoredMotion(localStorage) : 'full';
     document.documentElement.setAttribute('data-theme', theme);
-    const aceTheme = theme === 'dark' ? 'ace/theme/tomorrow_night' : 'ace/theme/textmate';
+    document.documentElement.setAttribute('data-motion', motion);
+    // Ace 语法主题与应用主题分离：深色系用深色语法主题，浅色系用浅色
+    const isDark = theme === 'dark' || theme === 'focus' || theme === 'studio';
+    const aceTheme = isDark ? 'ace/theme/tomorrow_night' : 'ace/theme/textmate';
     mainEditor.setTheme(aceTheme);
     compareEditor.setTheme(aceTheme);
     // 重绘兜底：强制刷新排版，确保隐藏/重新显示后背景色、选区高亮等正确
@@ -3486,7 +3489,7 @@
   });
 
   window.addEventListener('storage', event => {
-    if (event.key === THEME_STORAGE_KEY || event.key === APPEARANCE_KEY) applyTheme();
+    if (event.key === THEME_STORAGE_KEY || event.key === APPEARANCE_KEY || event.key === 'app_motion_v1') applyTheme();
   });
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   // 页面（iframe）切回可见时强制重绘主题，修复切换页面后 ACE 背景色/高亮错乱的问题（Bug 修复）

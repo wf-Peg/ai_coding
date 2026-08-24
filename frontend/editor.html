@@ -7,6 +7,11 @@
   <link rel="stylesheet" href="styles/design-tokens.css">
   <link rel="stylesheet" href="styles/ui-common.css">
   <link rel="stylesheet" href="styles/editor.css">
+  <script src="js/theme-core.js"></script>
+  <script src="js/theme-bridge.js"></script>
+  <script>
+    (function () { window.CutShelterThemeBridge.init({ root: document.documentElement }); })();
+  </script>
 </head>
 <body>
   <main class="editor-app">

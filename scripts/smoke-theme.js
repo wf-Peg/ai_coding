@@ -81,7 +81,9 @@ check(
 
 // ---- 主题桥接引用 ----
 const SHELL_PAGES = ['frontend/index.html', 'frontend/settings.html'];
-SHELL_PAGES.forEach(rel => {
+const CORE_PAGES = ['frontend/editor.html', 'frontend/workspace.html', 'frontend/clip.html'];
+const ALL_PAGES = SHELL_PAGES.concat(CORE_PAGES);
+ALL_PAGES.forEach(rel => {
   const html = read(rel);
   const exists = html !== null;
   check(`${rel} exists`, exists, '文件不存在');

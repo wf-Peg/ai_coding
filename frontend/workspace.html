@@ -6,9 +6,14 @@
   <title>工作台 - CutShelter</title>
   <link rel="stylesheet" href="styles/design-tokens.css">
   <link rel="stylesheet" href="styles/ui-common.css">
+  <link rel="stylesheet" href="styles/workspace.css">
+  <script src="js/theme-core.js"></script>
+  <script src="js/theme-bridge.js"></script>
+  <script>
+    (function () { window.CutShelterThemeBridge.init({ root: document.documentElement }); })();
+  </script>
   <script src="libs/chart.umd.min.js" defer></script>
   <script src="libs/d3.min.js" defer></script>
-  <link rel="stylesheet" href="styles/workspace.css">
 </head>
 <body>
   <div class="shell">

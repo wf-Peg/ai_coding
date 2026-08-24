@@ -1924,7 +1924,10 @@
       }
       window.addEventListener('message', event => {
         const action = event.data?.action;
-        if (action === 'themeChange') document.documentElement.setAttribute('data-theme', event.data.theme);
+        if (action === 'themeChange') {
+          document.documentElement.setAttribute('data-theme', event.data.theme || 'notion');
+          document.documentElement.setAttribute('data-motion', event.data.motion || 'full');
+        }
         if (action === 'refresh') {
           if (overviewView.classList.contains('hidden')) {
             loadDetailOverview();
@@ -1943,7 +1946,13 @@
           scrollWorkspaceToTop('smooth');
         }
       });
-      document.documentElement.setAttribute('data-theme', localStorage.getItem('app_theme_v1') || 'notion');
+      (function applyInitialTheme() {
+        const core = window.CutShelterThemeCore;
+        const theme = core ? core.readStoredTheme(localStorage) : (localStorage.getItem('app_theme_v1') || 'notion');
+        const motion = core ? core.readStoredMotion(localStorage) : 'full';
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.setAttribute('data-motion', motion);
+      })();
 
       /* ── Refresh button handler ── */
       if (refreshButton) {
