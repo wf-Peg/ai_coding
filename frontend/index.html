@@ -1298,7 +1298,8 @@
           case 'ready':
             setAgentStatus('on', p.message || '运行中');
             hideAgentProgress();
-            loadAgentFrame(AGENT_PORT, true);   // 就绪后确保面板加载/重载
+            // 用广播携带的真实端口加载面板（复用场景可能是 3080 而非固定 3081）
+            loadAgentFrame(p.port || AGENT_PORT, true);   // 就绪后确保面板加载/重载
             break;
           case 'need-install':
             // 未装 dsh：CutShelter 不再代装，提示用户自助安装后重试
@@ -1321,7 +1322,15 @@
         // iframe，避免每次进入 AI 干活视图都重复加载，接近原生体验。
         const stEl = document.getElementById('agentStatus');
         if (stEl && stEl.classList.contains('on')) {
-          loadAgentFrame(AGENT_PORT, false);
+          // 缓存复用：先查实际运行端口（复用场景可能是 3080），再加载对应面板
+          const resolvePort = async () => {
+            try {
+              const s = await window.electronAPI.dshAgentStatus();
+              return (s && s.port) || AGENT_PORT;
+            } catch (_) { return AGENT_PORT; }
+          };
+          const curPort = await resolvePort();
+          loadAgentFrame(curPort, false);
           return Promise.resolve({ success: true, reused: true });
         }
         if (!(window.electronAPI && typeof window.electronAPI.ensureDshAgent === 'function')) {

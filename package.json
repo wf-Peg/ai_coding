@@ -13,7 +13,7 @@
     "test:editor-ai-integration": "node --test electron/editor-ai-integration.test.js",
     "test:editor-all": "node --test electron/editor-ai-chat-core.test.js electron/editor-ai-integration.test.js",
     "test:theme": "node --test electron/theme-core.test.js",
-    "postinstall": "electron-builder install-app-deps",
+    "postinstall": "cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder install-app-deps",
     "generate-icons": "node scripts/generate-icons.js",
     "build:dsh-offline": "node scripts/build-dsh-offline.mjs",
     "prebuild": "node scripts/generate-icons.js && node scripts/prebuild-clean.js && node scripts/prebuild-integrations.mjs",
@@ -25,18 +25,16 @@
     "build:jlink:unix": "bash scripts/build-jlink.sh",
     "build:jlink:slim": "node scripts/build-jlink-slim.mjs",
     "build:jar": "cd backend && mvn clean package -DskipTests",
-    "build:jlink:win": "npm run build:jar && npm run build:jlink && npm run prebuild && electron-builder --win --x64 && node scripts/build-update-zip.js",
-    "build:win": "npm run build:jar && npm run prebuild && electron-builder --win --x64 && node scripts/build-update-zip.js && node scripts/clean-artifacts.js",
-    "build:mac": "npm run build:jar && npm run build:jlink:slim && npm run prebuild && electron-builder --mac --arm64 --x64 && node scripts/clean-artifacts.js",
-    "build:mac:arm": "npm run build:jar && npm run build:jlink:slim && npm run prebuild && electron-builder --mac --arm64 && node scripts/clean-artifacts.js",
-    "build:mac:dir": "npm run build:jar && npm run build:jlink:slim && npm run prebuild && electron-builder --mac --dir --arm64",
-    "build:win:dir": "npm run build:jar && npm run build:jlink:slim && npm run prebuild && electron-builder --win --dir --x64",
-    "build:linux": "npm run build:jar && npm run prebuild && electron-builder --linux --x64 && node scripts/clean-artifacts.js",
-    "build:all": "npm run build:jar && npm run prebuild && electron-builder --win --mac --linux && node scripts/clean-artifacts.js",
-    "build:portable:win": "npm run prebuild && electron-builder --win portable --x64",
-    "build:portable:mac-x64": "npm run prebuild && electron-builder --mac --x64 zip",
-    "build:portable:mac-arm": "npm run prebuild && electron-builder --mac --arm64 zip",
-    "build:portable:all": "npm run prebuild && electron-builder --win portable --x64 --mac --arm64 --x64 zip",
+    "build:jlink:win": "npm run build:jar && npm run build:jlink && npm run prebuild && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder --win --x64 && node scripts/build-update-zip.js",
+    "build:win": "npm run build:jar && npm run prebuild && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder --win --x64 && node scripts/build-update-zip.js && node scripts/clean-artifacts.js",
+    "build:mac": "npm run build:jar && npm run build:jlink:slim && npm run prebuild && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder --mac --arm64 --x64 && node scripts/clean-artifacts.js",
+    "build:mac:arm": "npm run build:jar && npm run build:jlink:slim && npm run prebuild && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder --mac --arm64 && node scripts/clean-artifacts.js",
+    "build:mac:dir": "npm run build:jar && npm run build:jlink:slim && npm run prebuild && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder --mac --dir --arm64",
+    "build:win:dir": "npm run build:jar && npm run build:jlink:slim && npm run prebuild && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder --win --dir --x64",
+    "build:linux": "npm run build:jar && npm run prebuild && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder --linux --x64 && node scripts/clean-artifacts.js",
+    "build:all": "npm run build:jar && npm run prebuild && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder --win --mac --linux && node scripts/clean-artifacts.js",
+    "build:portable:mac-x64": "npm run prebuild && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder --mac --x64 zip",
+    "build:portable:mac-arm": "npm run prebuild && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder --mac --arm64 zip",
     "test:clip": "node scripts/smoke-clip.js",
     "test:workspace": "node scripts/smoke-workspace.js",
     "test:frontend-split": "node scripts/smoke-clip.js && node scripts/smoke-workspace.js",
@@ -47,6 +45,7 @@
   "build": {
     "appId": "com.example.clip-demo",
     "productName": "CutShelter",
+    "electronDist": "node_modules/electron/dist",
     "asarUnpack": [
       "./node_modules/node-notifier/**/*"
     ],
@@ -108,19 +107,9 @@
           "arch": [
             "x64"
           ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
         }
       ],
       "signtoolOptions": null
-    },
-    "portable": {
-      "artifactName": "${productName}-portable-${version}-win-x64.${ext}",
-      "requestExecutionLevel": "user"
     },
     "nsis": {
       "oneClick": false,
@@ -317,6 +306,7 @@
   },
   "devDependencies": {
     "@deepseek-ai/dsh": "0.1.0-rc.7",
+    "cross-env": "^10.1.0",
     "electron": "^36.9.5",
     "electron-builder": "^26.15.7"
   }

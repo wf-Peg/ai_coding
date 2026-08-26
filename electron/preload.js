@@ -537,6 +537,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dshSkillStatus: () => ipcRenderer.invoke('dsh-agent:skill-status'),
 
   /**
+   * 查询 DSH 插件市场（dshmarket）预装状态
+   * @returns {Promise<{installed: boolean, port: number, running: boolean}>}
+   */
+  dshAgentMarketStatus: () => ipcRenderer.invoke('dsh-agent:market-status'),
+
+  /**
    * 获取当前启动模式
    * @returns {Promise<string>} 'full' | 'frontend-only' | 'frontend-async-backend'
    */

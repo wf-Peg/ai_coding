@@ -1,6 +1,8 @@
 # 剪藏（CutShelter）× DSH 集成 —— Phase 0/1/2/3：MCP 桥 + 会话成果落库 + Agent 面板 + Tools Hub 互通
 
-让 DeepSeek Harness（DSH）的 Agent 能**检索与写入剪藏知识库**（剪藏 / 待办 / 学习计划 / Wiki 索引 / 周报状态 / Tools Hub），完成工作后**把会话成果自动落库**，并在剪藏桌面端提供**内嵌的「AI 干活」面板**（iframe 固定端口 3081），实现"AI 用你的知识库干活，干完自动沉淀"。
+让 DeepSeek Harness（DSH）的 Agent 能**检索与写入剪藏知识库**（剪藏 / 待办 / 学习计划 / Wiki 索引 / 周报状态 / Tools Hub），完成工作后**把会话成果自动落库**，并在剪藏桌面端提供**内嵌的「AI 干活」面板**（iframe），实现"AI 用你的知识库干活，干完自动沉淀"。
+
+> **共享 profile 语义**：本集成的 DSH_HOME 统一为官方默认根 `~/.dsh`，应用拉起（端口 3081）与手动 `dsh web`（端口 3080）共享同一 `web` profile —— 插件 / 技能 / 插件市场安装两端互通（同步由 DSH_HOME 决定，与端口无关）。应用采用**单实例复用优先**：检测到 3080 或 3081 任一已有 DSH 实例即复用打开，避免同 profile 双开导致的 cordis.patch.yml / pnpm 锁并发写。
 
 完整的方向分析与路线图见 [docs/DSH集成探索.md](../../docs/DSH集成探索.md)。
 
@@ -24,7 +26,14 @@ integrations/dsh/
 
 > 💡 **想直接上手体验？** 端到端步骤（启动后端 → 启动 patched DSH → 6 个体验场景 → 排查表）见 [docs/DSH体验测试指南.md](../../docs/DSH体验测试指南.md)。
 >
-> 💡 **Phase 2（剪藏内嵌 Agent 面板）**：改动在 `electron/main.js`（DSH sidecar：固定 3081、复用检测、按需启动）、`electron/preload.js`（IPC）、`frontend/index.html`（「AI 干活」视图 + 主题适配）。启动剪藏桌面应用后点导航「AI 干活」即可。
+> 💡 **Phase 2（剪藏内嵌 Agent 面板）**：改动在 `electron/main.js`（DSH sidecar：单实例复用优先、共享 `~/.dsh` profile、按需启动、profile 化自研集成 + 自动预装 dshmarket）、`electron/preload.js`（IPC）、`frontend/index.html`（「AI 干活」视图 + 主题适配）、`frontend/settings.html`（DSH 设置：插件市场入口）。启动剪藏桌面应用后点导航「AI 干活」即可。
+
+## 插件市场与扩展
+
+应用在 DSH **就绪后自动预装 dshmarket**（DSH 内嵌 Plugin Market，数据源 `awesome-dsh-plugin.com`）。使用路径：**剪藏 设置 → AI 与集成 → DSH Agent → 打开插件市场**（或打开 DSH 根页 → Settings → Plugin Market）。
+
+- **插件安装即共享**：在任一端口装好的插件进同一 `web` profile，两端（手动 3080 / 应用 3081）互通。
+- **扩展新插件**：自研集成统一走主进程 `ensureDshPlugin(spec)` 底座（npm 包或 file 路径），拷入 `~/.dsh/plugins/cutshelter/` 稳定目录 + 写 profile patch（`~/.dsh/profiles/web/cordis.patch.yml`，upsert 幂等）。第三方插件从 Plugin Market 管理即可，应用不硬编码其内部路由。
 
 ## 快速开始
 
@@ -49,11 +58,13 @@ node test-plugin.mjs   # Phase 1：插件装载 + clip_session 端到端（创�
 
 ### 3. 接入 DSH Web
 
+> 推荐走剪藏桌面端（设置 → DSH Agent → 启动）：应用会统一 DSH_HOME、复用/拉起实例、自研集成已 profile 化（拷入 `~/.dsh/plugins/cutshelter/`），并自动预装 dshmarket。以下为手动接入的等价路径。
+
 ```bash
 npx @deepseek-ai/dsh web --patch ./integrations/dsh/cordis.example.yml
 ```
 
-打开 `http://127.0.0.1:3080`，Agent 将看到 `mcp__cut_shelter__clip_search` 等 **13 个 MCP 工具**，以及 `clip_session` 插件（Phase 1，合计 14 个可选工具）。
+打开 `http://127.0.0.1:3080`，Agent 将看到 `mcp__cut_shelter__clip_search` 等 **13 个 MCP 工具**，以及 `clip_session` 插件（Phase 1，合计 14 个可选工具）。手动实例默认 `~/.dsh`，与应用共享同一 `web` profile。
 
 在 DSH 里试一句：
 
@@ -61,7 +72,7 @@ npx @deepseek-ai/dsh web --patch ./integrations/dsh/cordis.example.yml
 
 ### 4.（可选）安装技能包
 
-把 `skills/cut-shelter/` 复制到 DSH 技能目录（如 `~/.dsh/skills/cut-shelter/` 或项目 `.dsh/skills/cut-shelter/`），Agent 会按 `SKILL.md` 的规范读写剪藏。
+把 `skills/cut-shelter/` 复制到 DSH 技能目录 `~/.dsh/skills/cut-shelter/`（或在设置页「一键安装技能包」），Agent 会按 `SKILL.md` 的规范读写剪藏。
 
 ## 工具清单
 
@@ -90,7 +101,7 @@ npx @deepseek-ai/dsh web --patch ./integrations/dsh/cordis.example.yml
 
 ## 常见问题
 
-- **端口冲突**：3080 被占用时，在 `cordis.example.yml` 中改 `webserver.config.port`（官方示例为 3081）。
+- **端口/实例**：应用单实例复用优先——检测 3080（手动）或 3081（应用）任一已有实例即复用，不双开（同 profile 双开会并发写 patch / pnpm 锁）。两端口共享 `~/.dsh` 的 `web` profile。
 - **工具不出现**：确认后端已启动（桥在启动时会 listTools，失败只记日志不阻止激活，见 mcp-client `failOnStartupError` 配置）。
 - **Windows 路径**：`cordis.example.yml` 中 `command`/`args` 用正斜杠绝对路径，YAML 避免反斜杠转义问题。
 - **卸载**：去掉 `--patch` 参数重启 DSH 即可，不影响剪藏本体。

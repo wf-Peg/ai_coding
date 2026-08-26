@@ -1799,6 +1799,7 @@ function initDshAgentSection() {
         if (r && r.success) showToast(r.reused ? '已复用现有实例（端口 ' + r.port + '）' : 'DSH 已启动（端口 ' + r.port + '）');
         else showToast('启动失败：' + ((r && r.message) || '未知错误'), true);
         refreshRunStatus();
+        if (typeof refreshMarketStatus === 'function') refreshMarketStatus();
       }).catch((e) => { btnStart.disabled = false; showToast('启动失败: ' + e.message, true); });
     });
   }
@@ -1818,6 +1819,27 @@ function initDshAgentSection() {
       window.open('http://127.0.0.1:' + port, '_blank');
     });
   }
+
+  // 插件市场入口：打开 DSH 根页（市场 UI 走 DSH 自身 Settings → Plugin Market，不硬编码内部路由）
+  const refreshMarketStatus = () => {
+    if (!api.dshAgentMarketStatus) return;
+    api.dshAgentMarketStatus().then((s) => {
+      const desc = document.getElementById('dshMarketStatusDesc');
+      const btn = document.getElementById('btnOpenDshMarket');
+      if (desc && s) desc.textContent = s.installed
+        ? '✅ 已装 dshmarket：打开 DSH → Settings → Plugin Market 浏览安装社区插件'
+        : (s.running ? 'dshmarket 暂未安装（DSH 就绪后将自动预装）' : 'DSH 未运行：启动后可打开插件市场');
+      if (btn && s) btn.disabled = !s.installed;
+    }).catch(() => {});
+  };
+  const btnOpenMarket = document.getElementById('btnOpenDshMarket');
+  if (btnOpenMarket) {
+    btnOpenMarket.addEventListener('click', () => {
+      const port = parseInt((document.getElementById('dshPort') || {}).value, 10) || 3081;
+      window.open('http://127.0.0.1:' + port, '_blank');
+    });
+  }
+  refreshMarketStatus();
 }
 
 // 页面就绪后初始化（settings.html 底部脚本调用时机）
