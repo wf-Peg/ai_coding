@@ -149,6 +149,9 @@ const CONFIG_DIR = path.join(app.getPath('userData'), 'config');
 /** 配置文件路径 */
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 
+// DSH 配套版本单一来源：devDependencies 的 @deepseek-ai/dsh 与插件 @deepseek-ai/dsh-tools 须与此保持一致。
+const DSH_VERSION = '0.1.0-rc.7';
+
 /** 默认配置（新用户首次运行时使用） */
 const DEFAULT_CONFIG = {
   backendPort: 8081,           // Spring Boot 后端端口
@@ -179,18 +182,17 @@ const DEFAULT_CONFIG = {
   screenshotShortcut: 'F1',      // 截图快捷键（默认 F1）
   pasteShortcut: 'F2',           // 贴图快捷键（默认 F2）
   screenshotHideMain: true,      // 截图时是否收起主窗口
-  screenshotSaveDir: ''          // 截图默认保存目录（空 = 弹保存对话框）
-  ,
+  screenshotSaveDir: '',         // 截图默认保存目录（空 = 弹保存对话框）
   // ===== DSH Agent 内嵌（Phase 2）=====
   dshAgentEnabled: true,        // 是否启用"AI 干活"面板（打开 Agent 视图时按需拉起 dsh web sidecar）
   dshPort: 3081,                // DSH sidecar 端口（固定 3081，避免与用户手动启动的 3080 冲突；若 3081 已有 DSH 则复用）
   dshBinPath: '',               // DSH CLI 路径（空 = 自动探测：DSH_BIN env → 内置 node_modules → npx 缓存 → npx）
-  dshAgentNpxSpec: '@deepseek-ai/dsh@0.1.0-rc.7', // dsh 安装命令的固定兜底 spec（在线同步失败时的最后手段，可被配置/环境变量覆盖）
+  dshAgentNpxSpec: `@deepseek-ai/dsh@${DSH_VERSION}`, // dsh 安装命令的固定兜底 spec（在线同步失败时的最后手段，可被配置/环境变量覆盖）
   dshSync: { version: '', ts: 0 } // dsh 最新版本在线同步缓存（version + 时间戳，TTL=DSH_SYNC_TTL）
 };
 
 // ===== dsh 安装命令在线同步（npm 优先 + GitHub README 兜底）=====
-const DEFAULT_DSH_SPEC = '@deepseek-ai/dsh@0.1.0-rc.7'; // 最后的兜底固定版本（未配置 dshAgentNpxSpec 时）
+const DEFAULT_DSH_SPEC = `@deepseek-ai/dsh@${DSH_VERSION}`; // 最后的兜底固定版本（未配置 dshAgentNpxSpec 时）
 const DSH_SYNC_TTL = 6 * 3600 * 1000;                   // 在线同步缓存 TTL：6 小时
 const DSH_SYNC_TIMEOUT = 8000;                          // 单次在线探测超时（ms）
 let dshCmdPromise = null;                               // 并发去重：同一次解析只发一个网络请求，其余复用其结果
@@ -865,6 +867,17 @@ function findNodeDir() {
   return (nodeExe === 'node' || !fs.existsSync(nodeExe) || dir === '.') ? '' : dir;
 }
 
+/**
+ * 解析 DSH 工作目录（DSH_HOME）。优先用户 storagePath 下的 .dsh（跟随主数据目录即可写、
+ * 可在卸载后一并清理），可被环境变量 DSH_HOME 显式覆盖，最后兜底 ~/.dsh。
+ * 该函数是唯一权威定义，sidecar 启动、技能安装/查询必须共用它，避免目录不一致导致"装了不生效"。
+ */
+function resolveDshHome(config) {
+  if (process.env.DSH_HOME) return process.env.DSH_HOME;
+  const base = (config && config.storagePath) || APP_DIR;
+  return path.join(base, '.dsh');
+}
+
 /** 定位 integrations/dsh 资源目录（含 MCP 桥与插件）：env → 打包资源 → 开发目录 */
 function resolveDshPatchDir() {
   const candidates = [
@@ -1058,8 +1071,8 @@ function resolveDshBin(config) {
     try { dirs = fs.readdirSync(root); } catch (e) { continue; }
     for (const d of dirs) {
       const p = path.join(root, d, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
-      const hit = tryNodeScript(p);
-      if (hit) return hit;
+      // npx 缓存命中标记为 mode:'npx'，便于 persistDshBinIfNpx 将落盘路径固化到配置（下次秒起、免 npx）
+      if (fs.existsSync(p)) return { mode: 'npx', node: findNodeExe(), script: p };
     }
   }
   return { mode: 'missing', file: 'npx' };
@@ -1174,8 +1187,8 @@ async function startDshAgent(config) {
   // 3) 解析 dsh CLI：未安装本地 dsh 时不再自动联网安装，改为提示用户自助安装并检测解锁
   const bin = resolveDshBin(config);
   log.info(`[DSH Agent] resolved dsh bin: mode=${bin.mode}${bin.script ? ' script=' + bin.script : ''}`);
-  // 未装本地 dsh（mode missing/npx）：CutShelter 不代联网安装，仅广播 need-install 供前端展示说明+重试
-  if (bin.mode === 'missing' || bin.mode === 'npx') {
+  // 仅 mode:missing（无任何本地/缓存 dsh）才提示自助安装；npx 缓存命中（mode:npx）视为已安装，直接启动
+  if (bin.mode === 'missing') {
     const { command: DSH_INSTALL_CMD } = await getDshInstallCommand(false);
     broadcastDshProgress('need-install',
       '未检测到 DeepSeek Harness，请先自行安装后再重试。安装命令：' + DSH_INSTALL_CMD);
@@ -1195,10 +1208,8 @@ async function startDshAgent(config) {
 
   // 为 DSH 提供独立的可写工作目录（DSH_HOME），避免依赖 ~/.dsh（受限/权限/与其他工具冲突）。
   // 目录位于用户 config.storagePath 下，跟随主数据目录即可写，也可在卸载后一并清理。
-  const dshHome = path.join(
-    (config && config.storagePath) || APP_DIR,
-    '.dsh'
-  );
+  // 与其他 DSH 相关入口共享 resolveDshHome()，保证技能安装/查询与运行时目录一致。
+  const dshHome = resolveDshHome(config);
   try { fs.mkdirSync(dshHome, { recursive: true }); } catch (e) { /* 忽略，兜底让 DSH 走默认 ~/.dsh */ }
 
   dshAgentProcess = spawn(spawnCmd, npxMode ? args : [bin.script, ...args], {
@@ -2369,7 +2380,7 @@ function setupIPC() {
       if (fs.existsSync(repo)) srcDir = repo;
     }
     if (!srcDir) return { success: false, message: '技能包源目录未找到（integrations/dsh/skills/cut-shelter）' };
-    const dshHome = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
+    const dshHome = resolveDshHome(loadConfig());
     const destDir = path.join(dshHome, 'skills', 'cut-shelter');
     try {
       fs.rmSync(destDir, { recursive: true, force: true });
@@ -2386,7 +2397,7 @@ function setupIPC() {
    * 查询 CutShelter 技能包是否已安装到 DSH 技能目录
    */
   ipcMain.handle('dsh-agent:skill-status', async () => {
-    const dshHome = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
+    const dshHome = resolveDshHome(loadConfig());
     const dest = path.join(dshHome, 'skills', 'cut-shelter', 'SKILL.md');
     const result = { installed: fs.existsSync(dest), target: path.dirname(dest) };
     // 附带工具清单漂移校验：对比 server.mjs + plugins 实际注册的工具与 SKILL.md 登记条目
