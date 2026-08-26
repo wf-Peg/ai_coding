@@ -2212,12 +2212,15 @@
             flex-wrap: wrap;
         }
         .image-upload-btn {
+            display: inline-block;
             padding: 6px 14px;
             border: 1px solid var(--border);
             border-radius: 8px;
             background: var(--surface-hover);
             color: var(--text);
             font-size: 0.85rem;
+            font-family: inherit;
+            user-select: none;
             cursor: pointer;
             transition: all var(--app-duration-normal) ease;
         }
