@@ -1030,12 +1030,46 @@ async function getDshInstallCommand(force = false) {
   return dshCmdPromise;
 }
 
+// 动态解析真实的 npm 缓存目录（`npm config get cache`），npx 的包缓存位于 `<cache>/_npx`。
+// 修复：用户自定义 Node 安装/缓存路径时（如 D:\develop\...\node_cache），
+// 原硬编码 %LOCALAPPDATA%\npm-cache 扫不到 npx 缓存里的 dsh，导致误报"未安装"。
+let npmCacheDirPromise = null;
+function resolveNpmCacheDir() {
+  if (npmCacheDirPromise) return npmCacheDirPromise;
+  npmCacheDirPromise = new Promise((resolve) => {
+    // npm 会给子进程注入 npm_config_cache，优先直接使用，避免 spawn 开销
+    if (process.env.npm_config_cache && process.env.npm_config_cache.trim()) {
+      resolve(process.env.npm_config_cache.trim());
+      return;
+    }
+    const nodeDir = findNodeDir();
+    const npmBin = nodeDir ? path.join(nodeDir, process.platform === 'win32' ? 'npm.cmd' : 'npm') : 'npm';
+    execAsync(`"${npmBin}" config get cache`, { timeout: 5000 }).then(({ stdout }) => {
+      resolve(String(stdout || '').trim());
+    });
+  });
+  return npmCacheDirPromise;
+}
+
+/** 汇总所有可能的 npx 缓存根目录（硬编码兜底 + 动态解析的真实 cache 目录） */
+async function resolveNpxRoots() {
+  const roots = new Set([
+    path.join(process.env.LOCALAPPDATA || '', 'npm-cache', '_npx'),
+    path.join(os.homedir(), 'AppData', 'Local', 'npm-cache', '_npx'),
+    path.join(os.homedir(), '.npm', '_npx'),
+    path.join(process.env.APPDATA || '', 'npm-cache', '_npx'),
+  ]);
+  const cache = await resolveNpmCacheDir();
+  if (cache) roots.add(path.join(cache, '_npx'));
+  return [...roots];
+}
+
 /**
  * 解析 dsh CLI 入口。
  * 返回 { mode: 'node', node, script }（node 运行 dsh bin.js）或 { mode: 'missing', file: 'npx' }。
  * 优先级：配置 dshBinPath（目录或 bin.js）→ 环境变量 DSH_BIN → 内置 node_modules → npx 缓存。
  */
-function resolveDshBin(config) {
+async function resolveDshBin(config) {
   const tryNodeScript = (p) => (p && fs.existsSync(p)) ? { mode: 'node', node: findNodeExe(), script: p } : null;
   const candidates = [
     config && config.dshBinPath ? config.dshBinPath : '',
@@ -1049,12 +1083,7 @@ function resolveDshBin(config) {
     if (hit) return hit;
   }
   // npx 缓存扫描（用户可能通过 npx @deepseek-ai/dsh web 运行过，缓存里已有 dsh）
-  const npxRoots = [
-    path.join(process.env.LOCALAPPDATA || '', 'npm-cache', '_npx'),
-    path.join(os.homedir(), 'AppData', 'Local', 'npm-cache', '_npx'),
-    path.join(os.homedir(), '.npm', '_npx'),
-    path.join(process.env.APPDATA || '', 'npm-cache', '_npx'),
-  ];
+  const npxRoots = await resolveNpxRoots();
   for (const root of npxRoots) {
     if (!fs.existsSync(root)) continue;
     let dirs = [];
@@ -1112,17 +1141,12 @@ function buildDshFailMessage(recentTail) {
 }
 
 /** 启动成功后若走的是 npx 路径，把已落盘的 dsh 缓存路径固化到配置（下次秒起、免 npx） */
-function persistDshBinIfNpx(bin, config) {
+async function persistDshBinIfNpx(bin, config) {
   if (bin.mode !== 'npx') return;
   try {
+    const roots = await resolveNpxRoots();
     const cached = (function find() {
-      const npxRoots = [
-        path.join(process.env.LOCALAPPDATA || '', 'npm-cache', '_npx'),
-        path.join(os.homedir(), 'AppData', 'Local', 'npm-cache', '_npx'),
-        path.join(os.homedir(), '.npm', '_npx'),
-        path.join(process.env.APPDATA || '', 'npm-cache', '_npx'),
-      ];
-      for (const root of npxRoots) {
+      for (const root of roots) {
         if (!fs.existsSync(root)) continue;
         for (const d of fs.readdirSync(root)) {
           const p = path.join(root, d, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
@@ -1186,7 +1210,7 @@ async function startDshAgent(config) {
   }
 
   // 3) 解析 dsh CLI：未安装本地 dsh 时不再自动联网安装，改为提示用户自助安装并检测解锁
-  const bin = resolveDshBin(config);
+  const bin = await resolveDshBin(config);
   log.info(`[DSH Agent] resolved dsh bin: mode=${bin.mode}${bin.script ? ' script=' + bin.script : ''}`);
   // 仅 mode:missing（无任何本地/缓存 dsh）才提示自助安装；npx 缓存命中（mode:npx）视为已安装，直接启动
   if (bin.mode === 'missing') {
@@ -1298,7 +1322,7 @@ async function startDshAgent(config) {
       broadcastDshProgress('ready', npxMode
         ? `DeepSeek Harness 安装并启动成功（端口 ${primaryPort}），下次将直接使用本地缓存`
         : `DeepSeek Harness 已就绪（端口 ${primaryPort}）`, primaryPort);
-      persistDshBinIfNpx(bin, config);
+      await persistDshBinIfNpx(bin, config);
       // 就绪后异步收紧：自研集成 profile 化（copy）+ 预装 dshmarket。两者均不阻塞 ready 返回，
       // 失败只记录日志/广播 warning（不阻断 DSH 使用）。
       try {
