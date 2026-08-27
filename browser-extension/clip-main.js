@@ -1516,7 +1516,9 @@ function renderImagePreviews() {
         } else if (entry.status === 'done') {
             inner += '<div class="preview-dot" title="上传完成"></div>';
         }
-        inner += '<button type="button" class="preview-remove" data-id="' + entry.localId + '" title="移除图片（同时移除内容引用）">✕</button>';
+        inner += '<button type="button" class="preview-remove" data-id="' + entry.localId + '" title="移除图片（同时移除内容引用）">'
+            + '<svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"/></svg>'
+            + '</button>';
         item.innerHTML = inner;
         grid.appendChild(item);
     });

@@ -466,6 +466,13 @@
     .pd-iter-badge.pending { background: #f3f4f6; color: #6b7280; }
     .pd-iter-time { margin-left: auto; color: var(--ws-faint); font-size: 11px; white-space: nowrap; }
     .pd-iter-note { margin-top: 6px; font-size: 12px; color: var(--ws-muted); line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+    /* DSH 会话成果（AI 干活记录）卡片 */
+    .pd-iter-item.pd-iter-ai { border-left: 3px solid var(--ws-primary); background: var(--ws-primary-soft); }
+    .pd-iter-badge.ai { background: linear-gradient(135deg, #dbeafe, #e0e7ff); color: #3730a3; }
+    .pd-iter-title { margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--ws-text); word-break: break-word; }
+    .pd-iter-four { margin-top: 6px; }
+    .pd-iter-four-k { display: block; font-size: 10px; font-weight: 650; color: var(--ws-primary); margin-bottom: 2px; }
+    .pd-iter-four-v { font-size: 12px; color: var(--ws-muted); line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
     .pd-iter-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
     .pd-iter-tag { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 10px; background: var(--ws-primary-soft); color: var(--ws-primary); }
     .pd-iter-actions { margin-top: 6px; }

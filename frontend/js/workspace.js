@@ -2696,10 +2696,24 @@
               var st = r.status || 'in-progress';
               var stLabel = st === 'done' ? '已完成' : st === 'todo' ? '待开始' : st === 'pending' ? '待定' : '进行中';
               var rTags = (r.tags || []).map(function(t) { return '<span class="pd-iter-tag">' + escapeHtml(t) + '</span>'; }).join('');
-              return '<div class="pd-iter-item" data-iter-id="' + escapeHtml(r.id) + '">' +
+              var isAi = r.source === 'dsh-session' || r.source === 'dsh-agent';
+              var aiBadge = isAi
+                ? '<span class="pd-iter-badge ai" title="由 DSH AI 会话归档（' + escapeHtml(r.source) + '）">AI 干活</span>'
+                : '';
+              // 四字段（DSH 会话成果）：干了什么 / 解决什么问题 / 如何解决 / 大白话产出
+              var fourHtml = '';
+              if (r.title || r.problem || r.solution || r.outcome) {
+                fourHtml =
+                  (r.title ? '<div class="pd-iter-title">' + escapeHtml(r.title) + '</div>' : '') +
+                  (r.problem ? '<div class="pd-iter-four"><span class="pd-iter-four-k">解决什么问题</span><div class="pd-iter-four-v">' + escapeHtml(r.problem) + '</div></div>' : '') +
+                  (r.solution ? '<div class="pd-iter-four"><span class="pd-iter-four-k">如何解决</span><div class="pd-iter-four-v">' + escapeHtml(r.solution) + '</div></div>' : '') +
+                  (r.outcome ? '<div class="pd-iter-four"><span class="pd-iter-four-k">大白话产出</span><div class="pd-iter-four-v">' + escapeHtml(r.outcome) + '</div></div>' : '');
+              }
+              return '<div class="pd-iter-item' + (isAi ? ' pd-iter-ai' : '') + '" data-iter-id="' + escapeHtml(r.id) + '">' +
                 '<div class="pd-iter-marker"><span class="pd-iter-dot"></span><span class="pd-iter-line"></span></div>' +
                 '<div class="pd-iter-body">' +
-                  '<div class="pd-iter-head"><span class="pd-iter-version">' + escapeHtml(r.version || 'v1') + '</span><span class="pd-iter-badge ' + st + '">' + stLabel + '</span><span class="pd-iter-time">' + escapeHtml(formatDateTime(r.createdAt)) + '</span></div>' +
+                  '<div class="pd-iter-head"><span class="pd-iter-version">' + escapeHtml(r.version || 'v1') + '</span><span class="pd-iter-badge ' + st + '">' + stLabel + '</span>' + aiBadge + '<span class="pd-iter-time">' + escapeHtml(formatDateTime(r.createdAt)) + '</span></div>' +
+                  fourHtml +
                   (r.note ? '<div class="pd-iter-note">' + escapeHtml(r.note) + '</div>' : '') +
                   (rTags ? '<div class="pd-iter-tags">' + rTags + '</div>' : '') +
                   '<div class="pd-iter-actions"><button class="pd-iter-delete" type="button" data-iter-delete="' + escapeHtml(r.id) + '">删除</button></div>' +

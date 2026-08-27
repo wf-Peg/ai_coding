@@ -937,6 +937,18 @@
                     <button class="btn" id="btnOpenDshAgent">打开面板</button>
                 </div>
             </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">DSH 升级助手</div>
+                    <div class="setting-desc" id="dshVersionDesc">当前版本：—</div>
+                    <div class="setting-desc" id="dshUpgradeResult" style="display:none;margin-top:6px;"></div>
+                </div>
+                <div class="setting-control" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <button class="btn" id="btnCopyDshUpgradeCmd">复制升级命令</button>
+                    <button class="btn" id="btnDetectDshLatest">检测升级</button>
+                    <button class="btn" id="btnRefreshDshVersion">刷新版本</button>
+                </div>
+            </div>
         </div>
 
         <div class="section save-section needs-attention" id="unifiedConfigSection">
@@ -1445,11 +1457,7 @@
     </div>
 
     <script src="js/logger.js"></script>
-    <script>
-    // 接收主框架消息：后端就绪后自动刷新数据
-    window.addEventListener('message', (e) => {
-      if (e.data && e.data.action === 'refresh') location.reload();
-    });
+    <script>/* 主框架消息（滚动/刷新/主题/后端就绪）统一由 js/settings.js 处理，此处不再整页重载 */
     </script>
     <script src="js/settings.js"></script>
     <script src="js/ui-common.js"></script>

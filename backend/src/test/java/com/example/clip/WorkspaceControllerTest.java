@@ -1,6 +1,7 @@
 package com.example.clip;
 
 import com.example.clip.controller.WorkspaceController;
+import com.example.clip.core.AiService;
 import com.example.clip.index.ContentIndexService;
 import com.example.clip.index.ContentRef;
 import com.example.clip.index.Project;
@@ -197,8 +198,9 @@ class WorkspaceControllerTest {
     private WorkspaceController controller() {
         AppConfigService configService = mock(AppConfigService.class);
         FeaturePointsService fpService = mock(FeaturePointsService.class);
+        AiService aiService = mock(AiService.class);
         when(configService.getConfigDirPath()).thenReturn(tempDir.toString());
-        return new WorkspaceController(configService, fpService);
+        return new WorkspaceController(configService, fpService, aiService);
     }
 
     @SuppressWarnings("unchecked")

@@ -40,7 +40,6 @@
             top: 0;
             z-index: 100;
             backdrop-filter: blur(10px);
-            background: rgba(255,255,255,0.85);
         }
         .header-inner {
             max-width: 1200px;
@@ -306,10 +305,7 @@
     <script src="js/logger.js"></script>
     <script src="knowledge.js"></script>
     <script>
-      // 接收主框架消息：后端就绪后自动刷新数据
-      window.addEventListener('message', (e) => {
-        if (e.data && e.data.action === 'refresh') location.reload();
-      });
+      // 主框架消息（滚动/刷新/主题等）统一由 knowledge.js 处理，此处不再整页重载
     </script>
     <script>
       (function() {

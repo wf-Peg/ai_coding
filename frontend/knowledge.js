@@ -167,7 +167,8 @@ window.addEventListener('message', (e) => {
   if (e.data.action === 'scrollToTop') {
     document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
   } else if (e.data.action === 'refresh') {
-    location.reload();
+    // 后端就绪/手动刷新：仅重拉列表数据，避免整页重载造成闪烁与重复加载
+    fetchTopics(document.getElementById('searchInput')?.value || '');
   } else if (e.data.action === 'themeChange') {
     if (typeof window.applyTheme === 'function') window.applyTheme();
   } else if (e.data.action === 'workspaceChange') {

@@ -69,8 +69,12 @@ public class FeaturePointIterationService {
 
     /**
      * 新增一条迭代记录。缺省字段自动补全：id 用 UUID，createdAt 用当前时间。
+     * <p>
+     * 支持两个来源的记录：手动记录（source=manual，仅 note）与 DSH 会话成果
+     * （source=dsh-session / dsh-agent，含 title/problem/solution/outcome 四字段）。
      *
-     * @param record 前端传入的记录（project/fpId/fpName/version/note/tags/status）
+     * @param record 前端传入的记录（project/fpId/fpName/version/note/tags/status，
+     *               可选 title/problem/solution/outcome/source）
      * @return 补全后的完整记录
      */
     public synchronized Map<String, Object> add(Map<String, Object> record) {
@@ -90,6 +94,11 @@ public class FeaturePointIterationService {
         item.put("tags", record.getOrDefault("tags", List.of()));
         item.put("status", record.getOrDefault("status", "in-progress"));
         item.put("createdAt", createdAt);
+        item.put("title", record.getOrDefault("title", ""));
+        item.put("problem", record.getOrDefault("problem", ""));
+        item.put("solution", record.getOrDefault("solution", ""));
+        item.put("outcome", record.getOrDefault("outcome", ""));
+        item.put("source", record.getOrDefault("source", "manual"));
         all.add(item);
         writeAll(all);
         return item;

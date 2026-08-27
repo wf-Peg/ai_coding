@@ -46,7 +46,7 @@ description: 剪藏（CutShelter）个人知识库的使用规范：存储布局
 | 11 | `weekly_report_status` | 只读 | 周报状态/路径 | 无 |
 | 12 | `tools_hub_list` | 只读 | Tools Hub 小工具注册表（id/名称/分类/描述/启用状态） | 无 |
 | 13 | `tools_hub_page` | 只读 | 读取 Tools Hub 小工具 HTML 源码（前 3000 字符，便于复用） | `id`（先用 `tools_hub_list` 获取） |
-| — | `clip_session`（插件，Phase 1） | 写 | 把会话成果摘要落库为剪藏（source=dsh） | `title`、`summary` |
+| — | `clip_session`（插件） | 写 | 把会话成果四字段归档到产品概览迭代记录（source=dsh-agent） | `title`、`outcome`（必填）；`project`、`problem`、`solution`、`tags`（可选） |
 
 > 说明：`clip_search` 走后端语义检索（可能涉及嵌入服务/消耗 token）；列表、状态、新增类操作是纯本地接口，不额外消耗 LLM token。
 
@@ -71,11 +71,16 @@ Tools Hub 是剪藏桌面端内置的自包含 HTML 小工具集（如知识/Wik
 - 用户在 DSH 里说"把我上周收集的关于 X 的内容整理一下" → `clip_search('X')` → 汇总结果给用户，需要落库时用 `clip_add`。
 - "帮我建一个待办：周五前写完周报" → `todo_add({title:'…', deadline:'…'})`。
 - "知识库里有什么学习计划？" → `learning_plan_list`。
-- 干完活要沉淀成果 → 用 `clip_session` 工具把会话成果摘要落库（Phase 1）；或按约定写入 `TODO/` 目录（见下）。
+- 干完活要沉淀成果 → 用 `clip_session` 工具把会话成果归档到产品概览（四个字段）；或者什么都不用做，插件会在回合结束时自动归档（见下）。
 
-## 会话成果落库（Phase 1）
+## 会话成果归档产品概览（clip-capture 插件）
 
-完成一段有保留价值的工作后，调用 **`clip_session`** 工具：`title` 给简短主题，`summary` 给 Markdown 成果摘要，自动成为一条剪藏（`source=dsh`）进入知识库。
+完成一段有保留价值的工作后，成果自动进入**工作台产品概览的迭代记录**（不再落剪藏/待办，避免与用户手动内容混杂）。两条路径：
+
+1. **自动归档（默认开）**：插件监听每轮会话结束事件（`turn/end`），本轮有产出（调用过工具，或 AI 输出足够长）且未显式归档过时，自动把会话内容发给后端 `/api/workspace/feature-points/iterations/ai-session`，由后端 AI 提炼四字段落库（source=dsh-session）。闲聊轮不归档。
+2. **显式归档**：调用 **`clip_session`** 工具，自己填四字段：`title`=这轮干了什么、`problem`=解决什么问题、`solution`=如何解决、`outcome`=最终结果的大白话描述（必填 `title`+`outcome`）；`project` 可选填所属需求（如「DSH（DeepSeek Harness）集成」）。落库 source=dsh-agent，该轮自动归档自动跳过避免重复。
+
+插件配置（cordis.patch.yml）里 `config.autoArchive: false` 可关闭自动归档。
 
 ## TODO 目录约定（feature-points.json，当前构建扫描器已禁用）
 

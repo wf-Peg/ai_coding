@@ -1820,21 +1820,22 @@
         }
 
         // ====== 后端就绪 → 自动刷新子页面 ======
-        // 最近一次后端就绪刷新的时间戳（去重：多个 onBackendReady 回调只触发一次刷新）
-        var lastBackendRefreshAt = 0;
         // 已广播过 refresh 的 frame 集合，用于切断「refresh → 子页 reload → load → refresh」的无限循环
         var refreshedFrameSet = new Set();
+        // 后端就绪处理是否已执行过（幂等：无论 handleBackendReady 被注册/触发多少次，
+        // toast 与整页刷新广播只执行一次，避免后端就绪事件重复派发导致重复弹提示与重复刷新）
+        var backendReadyHandled = false;
         function frameLoaded(frame) {
           try { return frame && frame.contentDocument && frame.contentDocument.readyState === 'complete'; } catch (e) { return false; }
         }
         function handleBackendReady() {
+          // 每次触发都保持状态同步（幂等）：标记就绪 + 同步全局指示器与 backendState 广播（子页仅按需补载，无副作用）
           backendReadyFlag = true;
           setGlobalBackendState(BACKEND_STATE.READY, '后端已就绪');
+          // 首次就绪才弹提示 + 广播一次整页刷新，后续重复触发直接忽略
+          if (backendReadyHandled) return;
+          backendReadyHandled = true;
           showGlobalNotification('后端服务已就绪，所有功能可用', 'success');
-          // 去重保护：5 秒内只广播一次
-          var now = Date.now();
-          if (now - lastBackendRefreshAt < 5000) return;
-          lastBackendRefreshAt = now;
           refreshAllSubPages();
         }
         function refreshAllSubPages() {
@@ -1964,8 +1965,9 @@
           });
         }
 
-        // 时序竞态兜底：子页面 iframe 在 backend-ready 事件之后才加载完成时，补发一次刷新。
-        // 仅对「未被 refreshAllSubPages 广播过」的 frame 补发，避免 refresh → reload → load → refresh 无限循环
+        // 时序竞态兜底：子页面 iframe 在 backend-ready 事件之后才加载完成时，补发一次 refresh。
+        // 这些"晚加载"帧常在后端就绪前发起首屏请求而失败，必须用 refresh 驱动其恢复数据。
+        // refreshedFrameSet 已切断「refresh → reload → load → refresh」循环，因此最多只补发一次。
         [workspaceFrame, todoFrame, clipFrame, knowledgeFrame, wikiFrame, vaultFrame, learningPlanFrame, toolsFrame, dataObservabilityFrame, settingsFrame].forEach(function(frame) {
           if (!frame) return;
           frame.addEventListener('load', function() {

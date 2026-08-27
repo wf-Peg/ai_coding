@@ -1,6 +1,6 @@
-# 剪藏（CutShelter）× DSH 集成 —— Phase 0/1/2/3：MCP 桥 + 会话成果落库 + Agent 面板 + Tools Hub 互通
+# 剪藏（CutShelter）× DSH 集成 —— Phase 0/1/2/3：MCP 桥 + 会话成果自动归档产品概览 + Agent 面板 + Tools Hub 互通
 
-让 DeepSeek Harness（DSH）的 Agent 能**检索与写入剪藏知识库**（剪藏 / 待办 / 学习计划 / Wiki 索引 / 周报状态 / Tools Hub），完成工作后**把会话成果自动落库**，并在剪藏桌面端提供**内嵌的「AI 干活」面板**（iframe），实现"AI 用你的知识库干活，干完自动沉淀"。
+让 DeepSeek Harness（DSH）的 Agent 能**检索与写入剪藏知识库**（剪藏 / 待办 / 学习计划 / Wiki 索引 / 周报状态 / Tools Hub），完成工作后**把会话成果自动归档进工作台产品概览**（四字段迭代记录），并在剪藏桌面端提供**内嵌的「AI 干活」面板**（iframe），实现"AI 用你的知识库干活，干完自动沉淀"。
 
 > **共享 profile 语义**：本集成的 DSH_HOME 统一为官方默认根 `~/.dsh`，应用拉起（端口 3081）与手动 `dsh web`（端口 3080）共享同一 `web` profile —— 插件 / 技能 / 插件市场安装两端互通（同步由 DSH_HOME 决定，与端口无关）。应用采用**单实例复用优先**：检测到 3080 或 3081 任一已有 DSH 实例即复用打开，避免同 profile 双开导致的 cordis.patch.yml / pnpm 锁并发写。
 
@@ -17,7 +17,7 @@ integrations/dsh/
 │   ├── package.json       依赖 @modelcontextprotocol/sdk
 │   └── test.mjs           standalone 测试（initialize → tools/list → tools/call）
 ├── plugins/clip-capture/   DSH 本地插件 —— Phase 1
-│   ├── index.mjs          注册 clip_session 工具（会话成果摘要 → 剪藏，source=dsh）
+│   ├── index.mjs          注册 clip_session 工具（显式归档四字段）+ turn/end 自动归档监听
 │   ├── package.json       依赖 @deepseek-ai/dsh-tools
 │   └── test-plugin.mjs    standalone 测试（插件装载 + execute 端到端）
 ├── cordis.example.yml     dsh web --patch 覆盖层示例（挂 mcp-client + clip-capture；端口 3081）
@@ -53,7 +53,7 @@ node test.mjs     # Phase 0：要求后端已启动；只读探测 + 带标记�
 
 cd ../plugins/clip-capture
 npm install
-node test-plugin.mjs   # Phase 1：插件装载 + clip_session 端到端（创建→分析落盘→删除）
+node test-plugin.mjs   # Phase 1：插件装载 + clip_session 端到端（四字段归档→产品概览迭代记录）
 ```
 
 ### 3. 接入 DSH Web
@@ -64,7 +64,7 @@ node test-plugin.mjs   # Phase 1：插件装载 + clip_session 端到端（创�
 npx @deepseek-ai/dsh web --patch ./integrations/dsh/cordis.example.yml
 ```
 
-打开 `http://127.0.0.1:3080`，Agent 将看到 `mcp__cut_shelter__clip_search` 等 **13 个 MCP 工具**，以及 `clip_session` 插件（Phase 1，合计 14 个可选工具）。手动实例默认 `~/.dsh`，与应用共享同一 `web` profile。
+打开 `http://127.0.0.1:3080`，Agent 将看到 `mcp__cut_shelter__clip_search` 等 **13 个 MCP 工具**，以及 `clip_session` 插件（合计 14 个可选工具；另有回合结束自动归档，无需调用）。手动实例默认 `~/.dsh`，与应用共享同一 `web` profile。
 
 在 DSH 里试一句：
 
@@ -106,15 +106,19 @@ npx @deepseek-ai/dsh web --patch ./integrations/dsh/cordis.example.yml
 - **Windows 路径**：`cordis.example.yml` 中 `command`/`args` 用正斜杠绝对路径，YAML 避免反斜杠转义问题。
 - **卸载**：去掉 `--patch` 参数重启 DSH 即可，不影响剪藏本体。
 - **删除剪藏要重试**：`clip_add` 会异步触发 AI 分析，刚新增后立即 `clip_delete` 可能被分析写回（后端行为）。删除后建议确认列表里已消失，必要时重试一次。
+- **TODO 落库现状**：后端 `TodoScannerService`（读取 `TODO/feature-points.json` 批量导入）在当前构建中**被硬禁用且无调用方**。现阶段请用 `mcp__cut_shelter__todo_add`（API 路径）；若需恢复文件批量导入，需还原扫描器实现并接回启动钩子（见探索文档第 5 节）。
 
-## Phase 1：会话成果自动落库（clip-capture 插件）
+## Phase 1：会话成果自动归档产品概览（clip-capture 插件）
 
-Agent 完成一段有保留价值的工作后，调用 **`clip_session`** 工具（`title` + `summary`），成果自动成为剪藏（`source=dsh`）。
+AI 完成一段有保留价值的工作后，成果自动进入**工作台产品概览的迭代记录**（不再落剪藏/待办）。两条路径：
+
+- **自动归档（默认开）**：插件监听会话事件 `session/event` 的 `turn/end`（reason=completed，DSH 0.1.0-rc.7 实测枚举：completed/blocked/aborted/error/max-tokens/interrupted），本轮有产出信号（调用过工具，或 AI 输出足够长）时自动聚合会话文本 POST `/api/workspace/feature-points/iterations/ai-session`，由后端 AI（flash 小模型，一次调用）提炼四字段——`title` 干了什么 / `problem` 解决什么问题 / `solution` 如何解决 / `outcome` 大白话产出——落库为迭代记录（source=dsh-session）。闲聊轮不归档；归档失败仅告警，绝不干扰 DSH。
+- **显式归档**：Agent 主动调用 **`clip_session`** 工具自填四字段（source=dsh-agent），该轮自动归档自动跳过避免重复。
 
 - 插件位于 `plugins/clip-capture/`，通过 `cordis.example.yml` 的 `insert` 行挂载；依赖 `@deepseek-ai/dsh-tools`（**版本须与本机 dsh 一致**，当前 0.1.0-rc.7）。
-- 基地址可用插件 `config.baseUrl` 或环境变量 `CUTSHELTER_BASE_URL` 覆盖。
-- **TODO 落库现状**：后端 `TodoScannerService`（读取 `TODO/feature-points.json` 批量导入）在当前构建中**被硬禁用且无调用方**。现阶段请用 `mcp__cut_shelter__todo_add`（API 路径）；若需恢复文件批量导入，需还原扫描器实现并接回启动钩子（见探索文档第 5 节）。
-- 可选演进：基于 `session/event` 在 turn 结束时自动生成摘要并落库（当前为 Agent 显式调用，行为可预期、更省 token）。
+- 基地址可用插件 `config.baseUrl` 或环境变量 `CUTSHELTER_BASE_URL` 覆盖；`config.autoArchive: false` 可关闭自动归档。
+- 产品概览迭代记录后端：`FeaturePointIterationService`（`feature-point-iterations.json`），迭代记录现含可选字段 `title/problem/solution/outcome/source`，前端工作台时间线渲染「AI 干活」徽标卡片。
+- 旧剪藏收集模式（`source=dsh` 落剪藏）已废弃，会话成果统一走产品概览。
 
 ## 后续路线
 

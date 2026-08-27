@@ -2302,16 +2302,22 @@
             position: absolute;
             top: 3px; right: 3px;
             width: 20px; height: 20px;
+            min-width: 0;
             border: none;
             border-radius: 50%;
             background: rgba(0,0,0,0.5);
             color: #fff;
-            font-size: 0.72rem;
-            line-height: 20px;
-            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             cursor: pointer;
             padding: 0;
             transition: background var(--app-duration-fast) ease;
+        }
+        .image-preview-item .preview-remove svg {
+            display: block;
+            width: 10px;
+            height: 10px;
         }
         .image-preview-item .preview-remove:hover {
             background: rgba(220,38,38,0.9);

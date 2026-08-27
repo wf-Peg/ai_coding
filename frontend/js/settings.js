@@ -113,9 +113,20 @@ function renderThemeCards() {
 })();
 
 // 加载配置
+// 配置是否已成功从后端加载（防止 backendState:ready 重复触发重复加载）
+let configLoaded = false;
+
 async function loadConfig() {
+  if (configLoaded) return;
   try {
-    const response = await fetch(API_BASE);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    let response;
+    try {
+      response = await fetch(API_BASE, { signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
     if (!response.ok) {
       if (response.status === 404) {
         throw new Error('后端未更新（返回 404），请重新编译后端后再试');
@@ -123,6 +134,10 @@ async function loadConfig() {
       throw new Error('后端返回状态码: ' + response.status);
     }
     const config = await response.json();
+    configLoaded = true;
+    // 成功后移除此前可能的连接错误提示（后端已就绪）
+    const prevErr = document.querySelector('.backend-error');
+    if (prevErr) prevErr.remove();
     // AI 模型配置
     document.getElementById('activeProvider').value = config.activeProvider || 'dashscope';
     document.getElementById('dashscopeApiKey').value = config.dashscopeApiKey || '';
@@ -1840,6 +1855,71 @@ function initDshAgentSection() {
     });
   }
   refreshMarketStatus();
+
+  // ====== DSH 升级助手：版本展示 + 升级命令 + 检测升级 ======
+  const SOURCE_LABEL = { npx: 'npx 缓存', config: '用户指定路径', builtin: '内置', runtime: '运行实例' };
+  let dshCurVersion = null;
+  let dshCurSource = null; // 最近一次探测的来源（复制升级命令的判断依据）
+
+  const refreshDshVersion = () => {
+    if (!api.detectDshVersionState) return;
+    api.detectDshVersionState().then((r) => {
+      const desc = document.getElementById('dshVersionDesc');
+      if (!desc) return;
+      dshCurVersion = (r && r.version) || null;
+      dshCurSource = (r && r.source) || null;
+      if (dshCurVersion) {
+        const src = SOURCE_LABEL[dshCurSource] || dshCurSource || '';
+        desc.textContent = '当前版本：v' + dshCurVersion + (src ? '（来源：' + src + '）' : '');
+      } else {
+        desc.textContent = '当前版本：未检测到（无 dsh 或运行实例版本未知）';
+      }
+    }).catch(() => {});
+  };
+
+  const btnCopyCmd = document.getElementById('btnCopyDshUpgradeCmd');
+  if (btnCopyCmd) {
+    btnCopyCmd.addEventListener('click', () => {
+      let cmd;
+      let msg;
+      if (!dshCurVersion) {
+        cmd = 'npm i -g @deepseek-ai/dsh';
+        msg = '未检测到 DSH，已复制「全局安装」命令到剪贴板';
+      } else if (dshCurSource === 'config') {
+        // 只有探测来源确认为"用户手动指定路径"时才提示，避免输入框残留值误判
+        cmd = '';
+        msg = 'DSH 路径由你手动指定，升级请移除该配置或换装新版后重开启动';
+      } else {
+        // npx/内置/运行实例/未知 → 复制 npx 升级命令，用户到终端执行后自动对齐
+        cmd = 'npx -y @deepseek-ai/dsh@latest --version';
+        msg = '已复制升级命令到剪贴板，请在终端执行（应用不会自动升级）';
+      }
+      if (cmd && navigator.clipboard) { navigator.clipboard.writeText(cmd); }
+      showToast(msg);
+    });
+  }
+
+  const btnDetect = document.getElementById('btnDetectDshLatest');
+  if (btnDetect) {
+    btnDetect.addEventListener('click', () => {
+      if (!api.checkDshLatest) return;
+      const out = document.getElementById('dshUpgradeResult');
+      out.style.display = 'block';
+      out.textContent = '正在查询 npm 最新版本…';
+      api.checkDshLatest().then((r) => {
+        const latest = (r && r.latest) || null;
+        if (!latest) { out.textContent = '无法获取 npm 最新版本（网络或 registry 异常）'; return; }
+        if (!dshCurVersion) out.textContent = '当前未检测到 DSH。npm 最新为 v' + latest + '，请复制升级命令手动安装。';
+        else if (latest === dshCurVersion) out.textContent = '当前已是 npm 最新版本 v' + latest + '，无需升级。';
+        else out.textContent = '当前 v' + dshCurVersion + ' → npm 最新 v' + latest + '。请复制升级命令手动执行，升级后点「刷新版本」即可完成对齐。';
+      }).catch(() => { out.textContent = '查询最新版本失败'; });
+    });
+  }
+
+  const btnRefresh = document.getElementById('btnRefreshDshVersion');
+  if (btnRefresh) btnRefresh.addEventListener('click', () => { refreshDshVersion(); showToast('已刷新版本信息'); });
+
+  refreshDshVersion();
 }
 
 // 页面就绪后初始化（settings.html 底部脚本调用时机）
@@ -1852,8 +1932,12 @@ window.addEventListener('message', (e) => {
   if (e.data.action === 'scrollToTop') {
     document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
   } else if (e.data.action === 'refresh') {
-    location.reload();
+    // 就绪/手动刷新：仅当配置尚未加载时才补拉，避免整页重载与重复弹提示
+    loadConfig();
   } else if (e.data.action === 'themeChange') {
     applyTheme();
+  } else if (e.data.action === 'backendState' && e.data.state === 'ready' && !configLoaded) {
+    // 后端就绪后再补载配置，避免冷启动时设置页与后端就绪竞态导致字段长时间空白
+    loadConfig();
   }
 });
