@@ -50,7 +50,7 @@
 | 学习计划 | `GET /api/learning-plan`、`POST /api/learning-plan` | AI 生成路线图 + Mermaid + Exa 资源 |
 | 密码库 | `PasswordVaultController` | DES 零知识加密，**不在开放范围内** |
 | 工具 Hub | `GET/POST /api/tools` | 自包含 HTML 小工具注册表（PDF 工具箱、批量重命名、图片转换…），**是 UI 小工具，不是 Agent 可调用工具**，两者概念不同 |
-| 产品开发工作台 | `product-dev.todo-dir`（配置指向 `./TODO`） | 曾有"Agent 产出自动落库"机制（读取 `TODO/feature-points.json` 导入），**当前构建中扫描器被硬禁用且无调用方**（见第 5 节 Phase 1） |
+| 产品开发工作台 | `product-dev.todo-dir`（配置指向 `./TODO`） | `feature-points.json`（v2.0）由 `FeaturePointsService` 直读服务产品概览；DSH 会话成果经 `FeaturePointIterationService` 落库为迭代记录。旧 `TodoScannerService`（v1 clips/todos 导入）已退役（见第 5 节 Phase 1） |
 | 模型 | `DashScope / DeepSeek / OpenAI 兼容 / 智能路由`，`/api/ai/chat/stream` SSE 流式对话 | CutShelter 自带单轮 AI 能力，多提供者可路由 |
 
 数据布局（本地文件）：`clip-storage/`（剪藏正文 JSON+Markdown）、`obsidian-vault/`（wiki 源）、`weekly-report/`、`TODO/`（Agent 产出落库）、`~/.cut-shelter/`（git 配置、工具注册表等）。
@@ -96,7 +96,7 @@
 ### 3.3 应用到 CutShelter 的结论
 
 1. **采纳"数据交给 Agent"**：把剪藏 / wiki / 待办 / 学习计划开放为 Agent 可调用的面（Phase 0 的 MCP 桥）。密码库维持零知识边界，不开放。
-2. **采纳"产出自动落库"**：DSH 工作（会话摘要、TODO 约定文件、git 提交）自动进入剪藏知识库。**剪藏已有 `product-dev.todo-dir` 扫描机制，这一步近乎零成本**（Phase 1）。
+2. **采纳"产出自动落库"**：DSH 工作成果自动进入产品概览（`FeaturePointIterationService` 迭代记录 / `FeaturePointsService` 直读 `feature-points.json`）。(Phase 1)。
 3. **采纳"不重复造 harness"但保留产品壳**：剪藏不自己实现 agent loop / 工具框架（它现有的单轮 AI 对话 + 工具 Hub 与 Agent 是不同层次），把"智能层"开放给 DSH。长期存在"壳倒置"可能（DSH Web 成为主入口、剪藏退化为数据底座 + 采集插件），列为演进方向而非当前决策。
 4. **规避评论区踩过的坑**：确定性操作走本地工具控成本；集成层保持薄；不承诺"全部迁移到 DSH"这种激进结论。
 
@@ -140,10 +140,11 @@
 ### Phase 1 —— 会话成果自动落库（✅ 已实现：`clip_session` 插件 + 约定文档化）
 
 - DSH 插件 `clip-capture`：注册 `clip_session` 工具，Agent 完成工作后把成果摘要 POST 到 `/api/clip/add`（`source=dsh`），自动成为剪藏。实现于 `integrations/dsh/plugins/clip-capture/`（依赖 `@deepseek-ai/dsh-tools`，版本与 dsh 一致）。
-- **TODO 落库现状（重要发现）**：后端 `TodoScannerService`（约定读取 `TODO/feature-points.json` 批量导入剪藏与待办）在当前构建中**被硬禁用**（`scanAndImport()` 方法体直接返回空结果）且**无任何调用方**。因此：
-  - 现阶段待办落库走 **API 路径**（MCP 桥 `todo_add` / `todo_set_status`），可靠且低成本；
-  - `feature-points.json` 字段约定已文档化进 `SKILL.md`；如需恢复文件批量导入，需还原扫描器实现并接回启动钩子（见下"可选"）。
-- 可选：基于 `session/event` 在 turn 结束时自动生成摘要并落库（当前为 Agent 显式调用，行为可预期、更省 token）；恢复 TODO 目录扫描（还原 `TodoScannerService.scanAndImport()` 实现 + 在启动流程调用）。
+- **TODO 落库现状（已定论：扫描器退役）**：旧 `TodoScannerService`（曾约定读取 `TODO/feature-points.json` 的 v1 格式 `clips[]/todos[]` 批量导入剪藏与待办）已**退役**——`scanAndImport()` 实现已清空、无调用方。替代分工如下：
+  - `feature-points.json`（v2.0：`requirement/featurePoints/knowledgePoints`）由后端 `FeaturePointsService` 直读，经 `GET /api/workspace/feature-points` 服务产品概览页，**不再导入剪藏/待办**；
+  - DSH 会话成果经 `FeaturePointIterationService` 的 `POST /feature-points/iterations`（显式）与 `/iterations/ai-session`（自动）落库为四字段迭代记录；
+  - 剪藏/待办落库走 **API 路径**（MCP 桥 `clip_add` / `todo_add` / `todo_set_status`），可靠且低成本。
+- 可选：基于 `session/event` 在 turn 结束时自动生成摘要并落库（当前为 Agent 显式调用，行为可预期、更省 token）。
 
 ### Phase 2 —— 剪藏内嵌 DSH「Agent 模式」（✅ 已实现）
 
@@ -189,7 +190,7 @@
 - spring-ai 0.8.1 **不包含** MCP server 模块（MCP 支持自 1.0.0-M 起），故 A2（Java 内嵌 MCP）需手工实现协议或升级 spring-ai，暂缓；A1（Node stdio 包装器）零 Java 改动。
 - CutShelter API 实测（本机 8081 启动验证）：`/api/health` UP；`/api/clip/list` 返回数组；`/api/clip/categories` 6 个分类；`/api/todo/list` 数组；`/api/learning-plan` 返回含 phases/mermaidDiagram 的对象数组；`/api/weekly-report/status` 返回 `{status,message,storagePath}`；`/api/wiki/index` 返回 Markdown 索引。
 - 剪藏"工具 Hub"是 HTML 小工具注册表（`~/.cut-shelter/tools/registry.json` + 自包含 HTML 页面），**不是 Agent 可调用工具**——与 DSH 工具是两个概念，映射见方向 E。
-- 剪藏已有"Agent 产出自动落库"雏形：`product-dev.todo-dir`（默认 `./TODO`），Agent 按约定写 TODO 目录，后端启动扫描。
+- 剪藏的"产出自动落库"现为：`feature-points.json`（v2.0）由 `FeaturePointsService` 直读 → 产品概览；DSH 会话成果经 `FeaturePointIterationService` 落库为迭代记录。旧 `TodoScannerService`（v1 导入剪藏/待办）已退役。
 
 ### B. Phase 0 交付物（本仓库 `integrations/dsh/`）
 
@@ -229,7 +230,7 @@ integrations/dsh/
 | Phase 1：`clip_session` 落库插件 | `integrations/dsh/plugins/clip-capture/` | ✅ 8/8 测试通过 |
 | Phase 2：Electron sidecar + 前端「AI 干活」面板 | `electron/main.js`、`electron/preload.js`、`frontend/index.html` | ✅ 已实现（需启动 Electron 应用体验） |
 | Phase 3：Tools Hub 互通桥工具 | `integrations/dsh/mcp-server/server.mjs` | ✅ 已实现（13 工具含新增 2 个） |
-| 自动安装 + 进度交互（首次无 DSH 时替用户执行 npx，面板显示安装/启动进度，可取消/重试，成功后固化 dsh 路径） | `electron/main.js`、`frontend/index.html` | ✅ 已实现 |
+| 自助安装引导 + 检测解锁（未检测到 DSH 时展示在线同步的安装命令 + 一键复制 + 检测/重试，就绪后才装载面板） | `electron/main.js`、`frontend/tools.html`、`frontend/js/tools-core.js` | ✅ 已实现 |
 | 设置页 DSH 配置（启用开关/端口/dsh 路径 + 一键装技能包 + 启动/停止/打开） | `frontend/settings.html`、`frontend/js/settings.js` | ✅ 已实现 |
 | 一键安装 cut-shelter 技能包到 `~/.dsh/skills` | `electron/main.js`（IPC `dsh-agent:install-skill`） | ✅ 已实现 |
 | Trae 技能同步到 DSH 技能目录（18 个 → `~/.dsh/skills`，6 个 → 仓库 `.dsh/skills`） | —（复制完成，格式兼容已验证） | ✅ 已同步 |
@@ -240,13 +241,12 @@ integrations/dsh/
 - **DSH sidecar 固定 3081**（`electron/main.js` 的 `dshPort`、`cordis.example.yml` 的 `webserver.config.port`）：避开用户手动启动 DSH 的默认 3080，避免端口冲突；3081 已有 DSH 实例时自动复用。
 - 剪藏后端 8081、前端 3001 不变。
 
-### 8.2b 首次使用自动安装（friendly waiting 交互）
+### 8.2b 首次使用自助安装（CutShelter 不再代为联网安装）
 
-- **应用替用户执行安装**：主进程 `resolveDshBin()` 四级探测（配置 → `DSH_BIN` → 内置 → npx 缓存）都未命中时，自动执行 `npx -y @deepseek-ai/dsh@0.1.0-rc.7 web --patch <生成patch>`（版本固定、`DSH_NPX_SPEC` 可覆盖），无需用户手动装任何东西。
-- **实时进度反馈**：主进程 `broadcastDshProgress()` 通过 `dsh-agent-progress` 事件推送 `检测 → 安装（含已等待秒数 + 节流的实时日志）→ 启动 → 就绪/失败`；面板显示转圈进度条与文案。
-- **可取消/可重试**：安装/启动期间「取消」（IPC `dsh-agent:cancel` → `cancelDshAgent()` 杀进程）；失败后「重试」。
-- **安装结果固化**：npx 安装成功后自动把落盘的 dsh bin 路径写入配置 `dshBinPath`，后续启动秒起、不再走 npx。
-- 超时：安装路径 300 秒、缓存路径 90 秒；超时/失败均有明确文案与重试入口。
+- **不自动安装**：桌面端不再替用户执行 `npx` 联网下载。主进程 `resolveDshBin()` 四级探测（配置 `dshBinPath` → `DSH_BIN` → 内置 node_modules → npx 缓存）都未命中时，返回 `{ needInstall: true, command }`，由「工具 → AI 干活」卡片（`tools-core.js`）与工具页浮层（`tools.html`）展示**在线同步的自助安装命令**（版本由 npm/GitHub 在线解析，`DSH_NPX_SPEC` 可覆盖），用户复制到终端自行执行。
+- **检测解锁**：安装完成后点「检测/重试」（IPC `checkDshInstall`，会强制刷新命令版本），检测到 dsh 后即可装载面板。
+- **npx 缓存命中即视为已装**：`resolveDshBin()` 命中 npx 缓存（`mode:npx`）时直接用缓存里的 bin.js 启动，不再重新下载。
+- **就绪后不代装插件市场**：sidecar 就绪后由主进程 `ensureCutshelterPlugins()` 幂等收紧自研集成（MCP 桥 + clip-capture），dshmarket 预装通过 `ensureDshMarket()` 非阻塞进行，失败仅告警。
 
 ### 8.3 测试方法（从零验证到端到端）
 
@@ -274,9 +274,9 @@ npx @deepseek-ai/dsh web --patch "L:\归档\30_Projects (行动项目)\31_Work (
 ### 8.4 已知限制与后续
 
 - **DSH 预览期**：集成层只用 MCP/HTTP/文件标准，不深绑 DSH 内部 API；升级 DSH 时插件依赖（`@deepseek-ai/dsh-tools`）版本需同步。
-- **TODO 批量落库**：后端 `TodoScannerService` 当前构建中硬禁用且无调用方；待办落库走 API（`todo_add`）。恢复文件批量导入需还原扫描器实现并接回启动钩子。
+- **TODO 批量落库（已退役）**：旧 `TodoScannerService` 已退役（`scanAndImport()` 清空、无调用方）。`feature-points.json` 由 `FeaturePointsService` 直读服务产品概览；剪藏/待办落库走 API（`clip_add`/`todo_add`）。
 - **打包**：`integrations/dsh/` 已加入 `package.json` 的 `extraResources`（打进 `<exe>/resources/integrations/dsh`）；主进程**运行时生成 patch**（`buildDshAgentPatch()` 写入 `~/.cut-shelter/config/dsh-agent.patch.yml`），桥/插件路径按打包形态解析，不再依赖仓库内的 `cordis.example.yml`。dsh CLI 探测含 **LOCALAPPDATA** 的 npx 缓存（早期版本误用 APPDATA 导致漏检，已修复）。⚠️ **win-unpacked 现有构建需重新打包（`npm run build:win`）才含上述主进程修复**；临时应急已把资源复制到旧代码查找路径（`win-unpacked/integrations/dsh`）让旧构建走 npx 兜底可用。
-- **完全离线（可选，已接通）**：`scripts/build-dsh-offline.mjs` 从 `@deepseek-ai/dsh` 收集生产依赖闭包（约 532 包 / 214MB，含 AWS/Google/Anthropic SDK 与 sharp 原生库）→ `dist-dsh-offline`，`prebuild` 钩子自动生成，extraResources 以 `dist-dsh-offline → resources/dsh-offline` 内置；`resolveDshBin` 优先命中 `resources/dsh-offline/node_modules/@deepseek-ai/dsh`。**代价是安装包约 +214MB**；日常用 npx 缓存 + 首次自动安装（带进度交互）即可，无网络/离线分发场景再依赖它。
+- **完全离线（可选，已接通）**：`scripts/build-dsh-offline.mjs` 从 `@deepseek-ai/dsh` 收集生产依赖闭包（约 532 包 / 214MB，含 AWS/Google/Anthropic SDK 与 sharp 原生库）→ `dist-dsh-offline`，`prebuild` 钩子自动生成，extraResources 以 `dist-dsh-offline → resources/dsh-offline` 内置；`resolveDshBin` 优先命中 `resources/dsh-offline/node_modules/@deepseek-ai/dsh`。**代价是安装包约 +214MB**；日常用 npx 缓存 + 首次自助安装（浮层展示命令）即可，无网络/离线分发场景再依赖它。
 - **设置页 DSH 区块（已实现）**：设置 → 「DSH Agent（AI 干活）」即时生效区块——启用开关 / 端口（3081）/ dsh CLI 路径（保存写 `config.json`）、**一键安装技能包**（IPC `dsh-agent:install-skill` 复制 `integrations/dsh/skills/cut-shelter` → `~/.dsh/skills/cut-shelter`）、启动/停止/打开面板按钮。
 - **Trae 技能同步（已执行，格式兼容零转换）**：`~/.trae-cn/skills/*`（18 个）→ `~/.dsh/skills/`（用户级）；仓库 `.trae/skills/*`（6 个）→ `.dsh/skills/`（项目级）。新增 Trae 技能后重跑复制即可。
 - **DSH Web 客户端插件（conversation node）**：需从 DSH 源码构建才可加载，npx 安装方式下不可用，留待源码部署时再做。

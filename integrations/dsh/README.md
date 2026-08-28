@@ -30,7 +30,7 @@ integrations/dsh/
 
 ## 插件市场与扩展
 
-应用在 DSH **就绪后自动预装 dshmarket**（DSH 内嵌 Plugin Market，数据源 `awesome-dsh-plugin.com`）。使用路径：**剪藏 设置 → AI 与集成 → DSH Agent → 打开插件市场**（或打开 DSH 根页 → Settings → Plugin Market）。
+应用在 DSH **就绪后自动预装 dshmarket**（DSH 内嵌 Plugin Market，数据源 `awesome-dsh-plugin.com`）。使用路径：**剪藏 设置 → AI 与集成 → DSH Agent → 打开面板**（在浏览器打开完整 DSH UI → Settings → Plugin Market）。
 
 - **插件安装即共享**：在任一端口装好的插件进同一 `web` profile，两端（手动 3080 / 应用 3081）互通。
 - **扩展新插件**：自研集成统一走主进程 `ensureDshPlugin(spec)` 底座（npm 包或 file 路径），拷入 `~/.dsh/plugins/cutshelter/` 稳定目录 + 写 profile patch（`~/.dsh/profiles/web/cordis.patch.yml`，upsert 幂等）。第三方插件从 Plugin Market 管理即可，应用不硬编码其内部路由。
@@ -106,7 +106,7 @@ npx @deepseek-ai/dsh web --patch ./integrations/dsh/cordis.example.yml
 - **Windows 路径**：`cordis.example.yml` 中 `command`/`args` 用正斜杠绝对路径，YAML 避免反斜杠转义问题。
 - **卸载**：去掉 `--patch` 参数重启 DSH 即可，不影响剪藏本体。
 - **删除剪藏要重试**：`clip_add` 会异步触发 AI 分析，刚新增后立即 `clip_delete` 可能被分析写回（后端行为）。删除后建议确认列表里已消失，必要时重试一次。
-- **TODO 落库现状**：后端 `TodoScannerService`（读取 `TODO/feature-points.json` 批量导入）在当前构建中**被硬禁用且无调用方**。现阶段请用 `mcp__cut_shelter__todo_add`（API 路径）；若需恢复文件批量导入，需还原扫描器实现并接回启动钩子（见探索文档第 5 节）。
+- **TODO 落库现状（已退役）**：旧 `TodoScannerService`（读取 `TODO/feature-points.json` 的 v1 格式批量导入剪藏/待办）已退役。`feature-points.json` 现由后端 `FeaturePointsService` 直读服务产品概览；待办落库请用 `mcp__cut_shelter__todo_add`（API 路径）。
 
 ## Phase 1：会话成果自动归档产品概览（clip-capture 插件）
 

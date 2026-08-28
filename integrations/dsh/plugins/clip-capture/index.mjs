@@ -28,6 +28,12 @@ const MAX_CONVERSATION_CHARS = 12000;
 /** 纯文本产出的最小长度阈值（无工具调用时以此判断"有没有干活"） */
 const MIN_PLAIN_OUTPUT_CHARS = 500;
 
+/**
+ * 纯操作/运维类工具：这类调用本身不构成"干活"（如 pwsh 跑 git 提交推送、
+ * 任务/进程管理），单独出现时不触发自动归档，避免"提交推送"这种例行动作也被落成卡片。
+ */
+const OPERATIONAL_TOOLS = new Set(['pwsh', 'job_kill', 'job_list', 'job_output']);
+
 function extractText(message) {
   if (!message || !Array.isArray(message.content)) return '';
   return message.content
@@ -186,9 +192,9 @@ export function apply(ctx, config) {
       archivedTurns.set(subject.id, turn);
       return;
     }
-    const hasToolWork = toolNames.length > 0;
+    const hasToolWork = toolNames.filter((n) => !OPERATIONAL_TOOLS.has(n)).length > 0;
     const plainLen = aggregateTurnPlainLen(subject, turn);
-    if (!hasToolWork && plainLen < MIN_PLAIN_OUTPUT_CHARS) return; // 闲聊轮，跳过
+    if (!hasToolWork && plainLen < MIN_PLAIN_OUTPUT_CHARS) return; // 闲聊/纯运维轮，跳过
 
     const lastArchived = archivedTurns.get(subject.id) || 0;
     if (turn <= lastArchived) return;
@@ -207,6 +213,9 @@ export function apply(ctx, config) {
         if (!res.ok) {
           // 归档失败绝不干扰 DSH，仅打印警告
           console.warn(`[clip-capture] 自动归档失败 -> HTTP ${res.status}`);
+        } else {
+          // 运行期观测：成功归档打点（便于统计归档率/排查静默失效）
+          console.log(`[clip-capture] 自动归档成功 turn=${turn} conversation=${conversation.length}字 source=dsh-session`);
         }
       } catch (e) {
         console.warn('[clip-capture] 自动归档异常:', e?.message || e);

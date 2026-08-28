@@ -1,0 +1,78 @@
+{
+  "version": "2.0",
+  "requirement": {
+    "title": "DSH Agent 设置模块统一管理",
+    "summary": "收敛设置页「DSH Agent（AI 干活）」为 DSH 的统一管理中心：去除「打开插件市场」与「打开面板」的冗余入口，并在产品概览补充「AI 干活记录」可见性（修复 fp012 自动归档结果入库但不可见的缺口）。",
+    "tags": ["product-dev", "dsh", "settings", "workspace"],
+    "phase": "completed",
+    "createdAt": "2026-08-28T17:17:00",
+    "completedAt": "2026-08-28T17:17:26"
+  },
+  "featurePoints": [
+    {
+      "id": "fp-001",
+      "name": "DSH Agent 设置区块去冗余与集中管理",
+      "description": "设置页「AI 与集成 → DSH Agent（AI 干活）」区块收敛为 DSH 统一管理中心：删除「打开插件市场」按钮（与「打开面板」完全重复，都只是 window.open(3081)），把 dshmarket 预装状态折叠为「技能包」行的被动说明，「打开面板」明确为「在浏览器打开完整 DSH UI（含 Settings → Plugin Market）」。",
+      "layer": "frontend",
+      "tags": ["product-dev", "dsh", "settings"],
+      "designSections": [
+        {
+          "title": "打开入口收敛",
+          "summary": "应用内 iframe「AI 干活」（导航）+ 设置页「打开面板」（浏览器完整 UI）双入口；删除冗余的「打开插件市场」按钮，插件市场是 DSH 自身 UI 的一部分，无需独立入口。"
+        },
+        {
+          "title": "状态折叠",
+          "summary": "dshmarket 预装状态从「独立行 + 按钮」折叠为「技能包」行的被动说明文字（refreshMarketStatus 仍更新该元素，仅去掉按钮禁用逻辑）。"
+        }
+      ],
+      "tasks": [
+        { "title": "settings.html 删除「插件市场」setting-row 与「打开插件市场」按钮", "status": "done" },
+        { "title": "settings.html 将 dshmarket 状态折叠为「技能包」行被动说明 + 「打开面板」语义澄清", "status": "done" },
+        { "title": "settings.js 删除 btnOpenDshMarket 监听，refreshMarketStatus 改为纯被动状态", "status": "done" },
+        { "title": "integrations/dsh/README.md 同步「打开插件市场」→「打开面板」", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "设置页无「打开插件市场」按钮，无残留引用", "status": "done" },
+        { "title": "「打开面板」tooltip/说明明确为浏览器打开完整 DSH UI", "status": "done" }
+      ]
+    },
+    {
+      "id": "fp-002",
+      "name": "产品概览「AI 干活记录」可见性（fp012 补缺）",
+      "description": "fp012 自动归档 POST 的 project=''/fpId=''，产品概览仅在需求详情弹窗按 fpId 匹配渲染迭代记录，导致自动归档结果「入库但不可见」。在总览 Tab 新增「AI 干活记录」区块，展示所有 source∈{dsh-session,dsh-agent} 的记录（四字段 + AI 干活徽标 + 时间），不依赖 project/fpId。",
+      "layer": "frontend",
+      "tags": ["product-dev", "dsh", "workspace", "archive"],
+      "designSections": [
+        {
+          "title": "可见性缺口",
+          "summary": "自动归档记录 project/fpId 为空，主视图（最近活动/看板/归档）均按 project/fpId 过滤，导致 AI 记录无处展示。"
+        },
+        {
+          "title": "最小修复",
+          "summary": "总览 Tab「最近活动」下新增「AI 干活记录」区块，直接读取 pdIterations 中 source=dsh-session/dsh-agent 的记录渲染，复用 pd-iter-* 样式，零后端/插件改动。"
+        }
+      ],
+      "tasks": [
+        { "title": "workspace.html 总览 Tab 新增 pdAiArchiveList 容器", "status": "done" },
+        { "title": "workspace.js 新增 renderPdAiArchive 并在加载流程调用", "status": "done" },
+        { "title": "workspace.css 补 pd-ai-archive-list 最小样式", "status": "done" }
+      ],
+      "verifications": [
+        { "title": "存在 source=dsh-session 记录时，「AI 干活记录」区块正确渲染四字段 + 徽标", "status": "done" },
+        { "title": "无 AI 记录时显示空态占位，不影响原页面", "status": "done" }
+      ]
+    }
+  ],
+  "knowledgePoints": [
+    {
+      "title": "DSH 打开入口收敛：应用内 iframe vs 浏览器完整 UI",
+      "content": "「打开插件市场」「打开面板」实际都是 window.open(127.0.0.1:3081)，且插件市场只是 DSH 自身 UI 里的一项（Settings → Plugin Market），无需独立入口。收敛为：导航「AI 干活」= 应用内 iframe 内嵌 Agent；设置「打开面板」= 浏览器打开完整 DSH UI（含设置/插件市场）。",
+      "tags": ["product-dev", "dsh", "ux"]
+    },
+    {
+      "title": "fp012 自动归档 record project/fpId 为空导致前端不可见",
+      "content": "fp012 自动归档 POST /iterations/ai-session 时 project=''/fpId=''（clip-capture index.mjs），而产品概览仅在需求详情弹窗按 r.fpId===item.id 渲染迭代记录，主视图亦按 project 过滤，导致 source=dsh-session 记录「入库但不可见」。修复：总览 Tab 新增「AI 干活记录」区块，直接过滤 source∈{dsh-session,dsh-agent} 渲染，不依赖 project/fpId，零后端/插件改动。",
+      "tags": ["product-dev", "dsh", "pitfall", "workspace"]
+    }
+  ]
+}

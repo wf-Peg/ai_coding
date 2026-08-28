@@ -21,31 +21,23 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * TODO 目录扫描服务
+ * TODO 目录扫描服务 —— 已退役（保留占位以防历史引用）。
  * <p>
- * 启动时扫描 TODO 目录下的 feature-points.json，将剪藏和待办内容导入到
- * ClipService 和 TodoService，并写入 .imported 标记避免重复导入。
+ * 本服务曾在启动时扫描 TODO 目录下 feature-points.json 的 v1 格式
+ * （requirement/clips/todos/config），把剪藏与待办导入 ClipService / TodoService。
+ * 该机制已被产品架构演进取代，正式退役：
  * </p>
- *
- * <h3>扫描逻辑</h3>
- * <ol>
- *   <li>遍历 TODO 目录下的所有子目录</li>
- *   <li>读取 .imported 标记（JSON：{importedAt, featurePointIds}），
- *       仅导入尚未处理过的功能点（按 featurePoints[].id 幂等去重）</li>
- *   <li>解析 feature-points.json（字段约定见 product-dev-archive SKILL.md）</li>
- *   <li>按 featurePoints 定义，将 clips 写入 ClipService，todos 写入 TodoService</li>
- *   <li>导入成功后更新 .imported 标记</li>
- * </ol>
- *
- * <h3>feature-points.json 字段约定（与 SKILL.md 对齐）</h3>
  * <ul>
- *   <li>requirement：对象，含 title/summary/tags/phase/createdAt/completedAt</li>
- *   <li>clips[]：{title, contentFile, section, category, tags}</li>
- *   <li>todos[]：{title, priority, status}（status: todo/done）</li>
- *   <li>config：{clipCategory, todoCategory, autoTag}</li>
+ *   <li>feature-points.json 现为 v2.0（requirement/featurePoints/knowledgePoints），
+ *       由 {@link FeaturePointsService} 直读并经 GET /api/workspace/feature-points
+ *       服务产品概览页，不再导入剪藏/待办；</li>
+ *   <li>剪藏/待办落库走 REST API（MCP 桥 clip_add / todo_add / todo_set_status）；</li>
+ *   <li>DSH 会话成果经 FeaturePointIterationService 落库为迭代记录。</li>
  * </ul>
+ * {@link #scanAndImport()} 现为无操作（返回空结果）且无任何调用方，请勿再尝试恢复本扫描器。
  */
 @Service
+@Deprecated
 public class TodoScannerService {
 
     private static final Logger log = LoggerFactory.getLogger(TodoScannerService.class);
@@ -101,12 +93,16 @@ public class TodoScannerService {
     }
 
     /**
-     * 扫描并导入所有待处理的 TODO 目录
+     * 扫描并导入 TODO 目录（已退役，无操作）。
+     * <p>
+     * 历史实现已随产品架构演进移除：feature-points.json 改由
+     * {@link FeaturePointsService} 直读服务产品概览，剪藏/待办走 REST API 落库。
+     * 保留本法仅供潜在历史调用方兼容，恒返回空结果。
      *
-     * @return 导入结果摘要
+     * @return 空导入结果摘要
      */
     public ScanResult scanAndImport() {
-        log.info("[TodoScannerService] 扫描功能已禁用，不再扫描 TODO 目录");
+        log.info("[TodoScannerService] 扫描器已退役，不再扫描 TODO 目录");
         return new ScanResult(0, 0, 0, 0, 0, List.of());
     }
 

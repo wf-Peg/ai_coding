@@ -544,7 +544,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   /**
    * 实时探测宿主 DSH 版本（版本对齐事实来源）
-   * @returns {Promise<{version: string|null, source: string|null}>}
+   * @returns {Promise<{version: string|null, source: string|null, supported: string, mismatch: {host:string, supported:string}|null}>}
    */
   detectDshVersionState: () => ipcRenderer.invoke('dsh-agent:detect-version'),
 

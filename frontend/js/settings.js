@@ -1679,7 +1679,7 @@ function onStartupModeChange() {
   }
 }
 
-// ==================== DSH Agent 设置（AI 干活） ====================
+// ==================== DSH Agent 设置（牛马） ====================
 
 /**
  * 初始化 DSH Agent 设置区块：回填配置、技能包状态、运行状态，并绑定操作按钮。
@@ -1747,7 +1747,7 @@ function initDshAgentSection() {
   };
   refreshRunStatus();
 
-  // 状态自动同步：DSH 可能由「工具→AI 干活」等其它入口启动/停止，须自动刷新。
+  // 状态自动同步：DSH 可能由「工具→牛马」等其它入口启动/停止，须自动刷新。
   // ① 事件驱动：订阅主进程 dsh-agent-progress 广播（install/start/ready/failed 时立即刷新）
   if (api.onDshAgentProgress) api.onDshAgentProgress(() => { refreshRunStatus(); });
   // ② 兜底轮询：每 2s 探测一次 3081；仅页面可见时轮询，隐藏时暂停以降低开销
@@ -1835,25 +1835,16 @@ function initDshAgentSection() {
     });
   }
 
-  // 插件市场入口：打开 DSH 根页（市场 UI 走 DSH 自身 Settings → Plugin Market，不硬编码内部路由）
+  // 插件市场状态：折叠为「技能包」行的被动说明（插件市场是 DSH 自身 UI 的一部分，无需独立入口/按钮）
   const refreshMarketStatus = () => {
     if (!api.dshAgentMarketStatus) return;
     api.dshAgentMarketStatus().then((s) => {
       const desc = document.getElementById('dshMarketStatusDesc');
-      const btn = document.getElementById('btnOpenDshMarket');
       if (desc && s) desc.textContent = s.installed
-        ? '✅ 已装 dshmarket：打开 DSH → Settings → Plugin Market 浏览安装社区插件'
-        : (s.running ? 'dshmarket 暂未安装（DSH 就绪后将自动预装）' : 'DSH 未运行：启动后可打开插件市场');
-      if (btn && s) btn.disabled = !s.installed;
+        ? '插件市场：✅ 已装 dshmarket（打开 DSH → Settings → Plugin Market 浏览安装社区插件）'
+        : (s.running ? '插件市场：dshmarket 暂未安装（DSH 就绪后将自动预装）' : '插件市场：DSH 未运行，启动后自动预装 dshmarket');
     }).catch(() => {});
   };
-  const btnOpenMarket = document.getElementById('btnOpenDshMarket');
-  if (btnOpenMarket) {
-    btnOpenMarket.addEventListener('click', () => {
-      const port = parseInt((document.getElementById('dshPort') || {}).value, 10) || 3081;
-      window.open('http://127.0.0.1:' + port, '_blank');
-    });
-  }
   refreshMarketStatus();
 
   // ====== DSH 升级助手：版本展示 + 升级命令 + 检测升级 ======
@@ -1874,6 +1865,18 @@ function initDshAgentSection() {
       } else {
         desc.textContent = '当前版本：未检测到（无 dsh 或运行实例版本未知）';
       }
+      // 版本漂移告警：宿主 DSH ≠ 应用适配版本（DSH_VERSION）时上屏，避免自动归档插件静默失效
+      const mm = document.getElementById('dshVersionMismatchDesc');
+      if (mm) {
+        mm.style.display = 'none';
+        mm.textContent = '';
+        const mismatch = (r && r.mismatch) || null;
+        if (mismatch) {
+          mm.style.display = 'block';
+          mm.textContent = '⚠️ 当前 DSH v' + mismatch.host + ' 与应用适配版本 v' + mismatch.supported
+            + ' 不一致：自动归档等插件依赖 DSH 事件契约，可能静默失效，建议对齐版本后重试。';
+        }
+      }
     }).catch(() => {});
   };
 
@@ -1891,8 +1894,8 @@ function initDshAgentSection() {
         msg = 'DSH 路径由你手动指定，升级请移除该配置或换装新版后重开启动';
       } else {
         // npx/内置/运行实例/未知 → 复制 npx 升级命令，用户到终端执行后自动对齐
-        cmd = 'npx -y @deepseek-ai/dsh@latest --version';
-        msg = '已复制升级命令到剪贴板，请在终端执行（应用不会自动升级）';
+        cmd = 'npx -y @deepseek-ai/dsh@latest';
+        msg = '已复制升级命令。到终端粘贴执行即可完成升级，无需再装内置版；缓存被清理后可能回退，长期固定可再执行 npm i -D @deepseek-ai/dsh@latest';
       }
       if (cmd && navigator.clipboard) { navigator.clipboard.writeText(cmd); }
       showToast(msg);
@@ -1911,7 +1914,10 @@ function initDshAgentSection() {
         if (!latest) { out.textContent = '无法获取 npm 最新版本（网络或 registry 异常）'; return; }
         if (!dshCurVersion) out.textContent = '当前未检测到 DSH。npm 最新为 v' + latest + '，请复制升级命令手动安装。';
         else if (latest === dshCurVersion) out.textContent = '当前已是 npm 最新版本 v' + latest + '，无需升级。';
-        else out.textContent = '当前 v' + dshCurVersion + ' → npm 最新 v' + latest + '。请复制升级命令手动执行，升级后点「刷新版本」即可完成对齐。';
+        else {
+          out.textContent = '当前 v' + dshCurVersion + ' → npm 最新 v' + latest + '。';
+          out.insertAdjacentHTML('beforeend', ' 请复制升级命令并到终端粘贴执行，应用会扫描到缓存中的新版并自动选用（仅此一条命令即可完成升级，无需另装内置版）。若后续缓存被清理可能回退，如需长期固定可再执行 <code>npm i -D @deepseek-ai/dsh@latest</code>，完成后点「刷新版本」确认。');
+        }
       }).catch(() => { out.textContent = '查询最新版本失败'; });
     });
   }

@@ -82,20 +82,12 @@ Tools Hub 是剪藏桌面端内置的自包含 HTML 小工具集（如知识/Wik
 
 插件配置（cordis.patch.yml）里 `config.autoArchive: false` 可关闭自动归档。
 
-## TODO 目录约定（feature-points.json，当前构建扫描器已禁用）
+## TODO 目录与 feature-points.json（产品开发工作台约定）
 
-后端存在 `TodoScannerService`，约定从 `product-dev.todo-dir`（默认 `./TODO`）读取 **`feature-points.json`** 批量导入剪藏与待办（按 `.imported` 标记幂等去重）。格式（与后端注释约定对齐）：
-
-```json
-{
-  "requirement": { "title": "需求标题", "summary": "…", "tags": [], "phase": "…", "createdAt": "…" },
-  "clips": [ { "title": "…", "contentFile": "path.md", "section": "可选章节", "category": "…", "tags": [] } ],
-  "todos": [ { "title": "…", "priority": "high|medium|low", "status": "todo|done" } ],
-  "config": { "clipCategory": "…", "todoCategory": "…", "autoTag": "…" }
-}
-```
-
-> ⚠️ **注意**：当前 `TodoScannerService.scanAndImport()` 在构建中被硬禁用（方法体直接返回空结果），且无调用方。**现阶段待办落库请走 `todo_add` 工具（API 路径，可靠）**；如需恢复批量文件导入，需还原扫描器实现并接回启动钩子（参见 `docs/DSH集成探索.md` 第 5 节 Phase 1）。
+- `TODO/*/feature-points.json`（v2.0：`requirement` / `featurePoints` / `knowledgePoints`）是**产品开发工作台**的数据源，由后端 `FeaturePointsService` 直读并经 `GET /api/workspace/feature-points` 渲染产品概览页。它**不**导入剪藏/待办，请勿当作待办批量导入文件来写。
+- 本知识库的待办一律走接口：`todo_add`（建）/ `todo_set_status`（改状态）/ `todo_list`（查）。不要手写 `feature-points.json` 来"落库待办"，那会污染产品概览数据源。
+- 旧 `TodoScannerService`（曾把 feature-points.json 的 v1 `clips[]/todos[]` 导入剪藏/待办）**已退役**，请勿再依赖或尝试"恢复"。
+- 涉及产品开发工作台的需求归档，改用 `product-dev-archive` 技能（独立维护的约定），而非直接手写 feature-points.json。
 
 ## 技能包维护约定（新增/修改工具时必读）
 

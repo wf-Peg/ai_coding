@@ -871,12 +871,12 @@
 
         <div class="section" id="dshAgentSection">
             <div class="section-title">
-                🤖 DSH Agent（AI 干活）
+                🤖 DSH Agent（牛马）
                 <span class="section-badge immediate">即时生效</span>
             </div>
             <div class="setting-row">
                 <div class="setting-label">
-                    <div class="setting-title">启用「AI 干活」面板</div>
+                    <div class="setting-title">启用「牛马」面板</div>
                     <div class="setting-desc">顶部导航显示入口，内嵌 DeepSeek Harness Agent</div>
                 </div>
                 <div class="setting-control">
@@ -899,7 +899,7 @@
             <div class="setting-row">
                 <div class="setting-label">
                     <div class="setting-title">dsh CLI 路径</div>
-                    <div class="setting-desc">留空自动探测（配置 → DSH_BIN → 内置 → npx 缓存 → 自动安装）</div>
+                    <div class="setting-desc">留空自动探测（配置 → DSH_BIN → 内置 → npx 缓存）；未检测到时提示自助安装</div>
                 </div>
                 <div class="setting-control">
                     <input type="text" id="dshBinPath" placeholder="自动探测" style="width:320px;">
@@ -910,6 +910,7 @@
                     <div class="setting-title">技能包</div>
                     <div class="setting-desc" id="dshSkillStatusDesc">将 cut-shelter 技能安装到 ~/.dsh/skills</div>
                     <div class="setting-desc" id="dshSkillDriftDesc" style="display:none;margin-top:6px;"></div>
+                    <div class="setting-desc" id="dshMarketStatusDesc" style="margin-top:6px;"></div>
                 </div>
                 <div class="setting-control" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                     <button class="btn btn-primary" id="btnInstallSkill">一键安装技能包</button>
@@ -918,29 +919,22 @@
             </div>
             <div class="setting-row">
                 <div class="setting-label">
-                    <div class="setting-title">插件市场</div>
-                    <div class="setting-desc" id="dshMarketStatusDesc">DSH 内嵌 Plugin Market（dshmarket）。打开 DSH → Settings → Plugin Market 浏览安装社区插件</div>
-                </div>
-                <div class="setting-control" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                    <button class="btn btn-primary" id="btnOpenDshMarket">打开插件市场</button>
-                </div>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
                     <div class="setting-title">操作</div>
                     <div class="setting-desc" id="dshAgentRunDesc">启动/停止本地 DSH 实例（3081）</div>
+                    <div class="setting-desc" style="margin-top:4px;">「打开面板」在浏览器打开完整 DSH UI（含 Settings → Plugin Market）；应用内嵌面板请用导航「牛马」</div>
                 </div>
                 <div class="setting-control" style="display:flex;gap:8px;align-items:center;">
                     <button class="btn btn-primary" id="btnSaveDshConfig">保存设置</button>
                     <button class="btn" id="btnStartDshAgent">启动</button>
                     <button class="btn" id="btnStopDshAgent">停止</button>
-                    <button class="btn" id="btnOpenDshAgent">打开面板</button>
+                    <button class="btn" id="btnOpenDshAgent" title="在浏览器打开完整 DSH UI（含 Settings → Plugin Market）">打开面板</button>
                 </div>
             </div>
             <div class="setting-row">
                 <div class="setting-label">
                     <div class="setting-title">DSH 升级助手</div>
                     <div class="setting-desc" id="dshVersionDesc">当前版本：—</div>
+                    <div class="setting-desc" id="dshVersionMismatchDesc" style="display:none;margin-top:6px;color:var(--danger,#dc2626);font-weight:500;"></div>
                     <div class="setting-desc" id="dshUpgradeResult" style="display:none;margin-top:6px;"></div>
                 </div>
                 <div class="setting-control" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">

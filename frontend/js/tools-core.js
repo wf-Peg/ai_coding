@@ -126,7 +126,7 @@
     },
     {
       id: 'module-agent',
-      name: 'AI干活',
+      name: '牛马',
       icon: '🤖',
       module: true,
       viewName: 'agent',
@@ -415,7 +415,7 @@
     }
   }
 
-  // ── AI干活：前置检测激活 ──
+  // ── 牛马：前置检测激活 ──
   // 未装 dsh 时展示安装说明 + 命令，允许用户自助安装后「检测/重试」解锁，装好才跳转装载面板。
   let agentChecking = false;
   async function openModuleAgent(t) {

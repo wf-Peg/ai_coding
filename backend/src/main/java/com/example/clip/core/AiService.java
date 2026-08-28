@@ -257,7 +257,7 @@ public class AiService {
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
             Map<String, Object> parsed = mapper.readValue(cleaned, new TypeReference<Map<String, Object>>() {});
             Map<String, Object> result = new LinkedHashMap<>();
-            result.put("title", asText(parsed.get("title"), "AI 干活记录"));
+            result.put("title", asText(parsed.get("title"), "牛马记录"));
             result.put("problem", asText(parsed.get("problem"), ""));
             result.put("solution", asText(parsed.get("solution"), ""));
             result.put("outcome", asText(parsed.get("outcome"), ""));

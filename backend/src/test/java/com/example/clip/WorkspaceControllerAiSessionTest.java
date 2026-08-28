@@ -25,7 +25,7 @@ import static org.mockito.Mockito.when;
  *
  * 覆盖：
  *  1) AI 提炼成功 → 200 + 四字段 + source=dsh-session 落库
- *  2) AI 提炼失败（返回 null）→ 200 + 兜底四字段（title=AI 干活记录，outcome=会话截断）
+ *  2) AI 提炼失败（返回 null）→ 200 + 兜底四字段（title=牛马记录，outcome=会话截断）
  *  3) conversation 为空 → 400
  */
 class WorkspaceControllerAiSessionTest {
@@ -76,7 +76,7 @@ class WorkspaceControllerAiSessionTest {
 
         assertEquals(HttpStatus.OK, resp.getStatusCode());
         Map<String, Object> body = cast(resp.getBody());
-        assertEquals("AI 干活记录", body.get("title"));
+        assertEquals("牛马记录", body.get("title"));
         assertEquals("", body.get("problem"));
         assertEquals("", body.get("solution"));
         // outcome 为会话文本截断（>500 截取前 500）

@@ -1140,7 +1140,7 @@ public class WorkspaceController {
      * POST /api/workspace/feature-points/iterations/ai-session
      * Body: { conversation, project? }
      * <p>
-     * AI 提炼失败时不阻断：返回 200 与兜底四字段记录（标题「AI 干活记录」，
+     * AI 提炼失败时不阻断：返回 200 与兜底四字段记录（标题「牛马记录」，
      * outcome 为会话文本截断），保证会话成果不丢失。
      */
     @PostMapping("/feature-points/iterations/ai-session")
@@ -1157,7 +1157,7 @@ public class WorkspaceController {
             Map<String, Object> fields = aiService.generateSessionArchive(conversation);
             if (fields == null) {
                 fields = new LinkedHashMap<>();
-                fields.put("title", "AI 干活记录");
+                fields.put("title", "牛马记录");
                 fields.put("problem", "");
                 fields.put("solution", "");
                 String fallback = conversation.length() > 500 ? conversation.substring(0, 500) : conversation;

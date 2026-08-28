@@ -2,7 +2,7 @@
   "version": "2.0",
   "requirement": {
     "title": "DSH（DeepSeek Harness）集成",
-    "summary": "让 DeepSeek Harness（DSH）的 Agent 能检索与写入剪藏知识库（剪藏/待办/学习计划/Wiki索引/周报状态），并在完成工作后将会话成果自动归档到工作台产品概览。已实现 Phase 0（MCP 桥）、Phase 1（会话成果自动归档产品概览：turn/end 自动监听 + clip_session 显式四字段归档）、Phase 2（Electron sidecar + AI 干活面板）、Phase 3（Tools Hub 互通）+ 离线打包 + 技能同步；待开发：TODO 目录扫描恢复、DSH Web 客户端插件。",
+    "summary": "让 DeepSeek Harness（DSH）的 Agent 能检索与写入剪藏知识库（剪藏/待办/学习计划/Wiki索引/周报状态），并在完成工作后将会话成果自动归档到工作台产品概览。已实现 Phase 0（MCP 桥）、Phase 1（会话成果自动归档产品概览：turn/end 自动监听 + clip_session 显式四字段归档）、Phase 2（Electron sidecar + AI 干活面板）、Phase 3（Tools Hub 互通）+ 离线打包 + 技能同步；已退役：TODO 目录扫描（TodoScannerService）；待开发：DSH Web 客户端插件。",
     "tags": [
       "product-dev",
       "dsh",
@@ -286,8 +286,8 @@
     },
     {
       "id": "fp-006",
-      "name": "DSH 离线依赖闭包（build-dsh-offline）",
-      "description": "scripts/build-dsh-offline.mjs 依据 package-lock.json 从 @deepseek-ai/dsh 出发 BFS 收集生产依赖到 dist-dsh-offline/node_modules；接入 prebuild 钩子，由 electron-builder extraResources 内置为 resources/dsh-offline，实现打包应用 DSH 离线可用（resolveDshBin 优先探测内置 bin.js）。",
+      "name": "DSH 离线依赖闭包（build-dsh-offline，可选手动）",
+      "description": "scripts/build-dsh-offline.mjs 依据 package-lock.json 从 @deepseek-ai/dsh 出发 BFS 收集生产依赖到 dist-dsh-offline/node_modules。后经 fp-006b 演进：离线闭包不再默认内置——prebuild 不调用 build:dsh-offline、extraResources 移出 resources/dsh-offline，仅为离线分发场景的研发手动可用项。",
       "layer": "fullstack",
       "tags": [
         "product-dev",
@@ -300,8 +300,8 @@
           "summary": "从 @deepseek-ai/dsh 出发按 dependencies/optionalDependencies BFS 收集，仅生产依赖，输出 dist-dsh-offline/node_modules。"
         },
         {
-          "title": "打包集成",
-          "summary": "package.json 增加 build:dsh-offline 并接入 prebuild；extraResources 将 dist-dsh-offline 内置为 resources/dsh-offline；.gitignore 排除生成目录。"
+          "title": "不再默认内置（fp-006b 演进）",
+          "summary": "为减小安装体积（约 +214MB），离线闭包退化为研发手动可用：prebuild（generate-icons/prebuild-clean/prebuild-integrations）不调用 build:dsh-offline，extraResources 移出 resources/dsh-offline。"
         }
       ],
       "tasks": [
@@ -310,11 +310,11 @@
           "status": "done"
         },
         {
-          "title": "package.json 增加 build:dsh-offline 脚本并接入 prebuild",
+          "title": "退化为手动：prebuild 不再调用 build:dsh-offline",
           "status": "done"
         },
         {
-          "title": "extraResources 内置 dist-dsh-offline → resources/dsh-offline",
+          "title": "extraResources 移出 resources/dsh-offline，减小安装体积",
           "status": "done"
         },
         {
@@ -324,11 +324,56 @@
       ],
       "verifications": [
         {
-          "title": "脚本可离线生成 node_modules 依赖闭包",
+          "title": "脚本可离线生成 node_modules 依赖闭包（手动触发）",
           "status": "done"
         },
         {
-          "title": "resolveDshBin 可探测到内置 dsh bin.js",
+          "title": "常规打包不携带 dsh-offline，安装体积显著减小",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "fp-006b",
+      "name": "安装命令在线同步（npm 优先 + README 兜底）",
+      "description": "getDshInstallCommand(force) 作为单一解析器，统一所有展示点（need-install / check-install / 兜底文案），展示的安装命令不再硬编码版本：npm registry latest 优先（8s 超时）→ GitHub README raw 兜底 → 6h 缓存（config.dshSync）→ DSH_NPX_SPEC/dshAgentNpxSpec 覆盖。全程失败非致命，断网自动降级缓存/默认。",
+      "layer": "fullstack",
+      "tags": [
+        "product-dev",
+        "dsh",
+        "install"
+      ],
+      "designSections": [
+        {
+          "title": "单一解析器",
+          "summary": "getDshInstallCommand(force) 收敛所有安装命令展示点，废除散落的硬编码版本；force（检测/重试）强制联网刷新。"
+        },
+        {
+          "title": "降级链",
+          "summary": "DSH_NPX_SPEC 环境变量 → 6h 缓存 → npm registry latest（8s）→ GitHub README raw → 配置/默认兜底；任何一步失败都不抛错。"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "getDshInstallCommand 单一解析器，废除硬编码版本",
+          "status": "done"
+        },
+        {
+          "title": "npm latest + GitHub README 兜底 + 6h 缓存",
+          "status": "done"
+        },
+        {
+          "title": "preload checkDshInstall(force) 透传 force",
+          "status": "done"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "所有展示点不再硬编码 0.1.0-rc.7",
+          "status": "done"
+        },
+        {
+          "title": "断网时降级缓存/默认，不报错",
           "status": "done"
         }
       ]
@@ -477,8 +522,8 @@
     },
     {
       "id": "fp-010",
-      "name": "待开发：恢复 TODO 目录扫描（TodoScannerService）",
-      "description": "后端 TodoScannerService.scanAndImport() 当前被硬禁用（方法体直接返回空结果）且无调用方。待开发：还原扫描器实现（读取 TODO/feature-points.json 批量导入剪藏与待办，按 .imported 标记幂等去重），并接回启动钩子，实现 DSH Agent 写入 TODO/feature-points.json 后自动落库。",
+      "name": "已退役：TODO 目录扫描（TodoScannerService）",
+      "description": "旧 TodoScannerService（v1 feature-points.json clips/todos → ClipService/TodoService 导入）已正式退役：scanAndImport() 清空、无调用方。feature-points.json 现由 FeaturePointsService 直读服务产品概览；剪藏/待办走 REST API（MCP 桥 clip_add/todo_add）；DSH 会话成果走 FeaturePointIterationService 迭代记录。",
       "layer": "backend",
       "tags": [
         "product-dev",
@@ -488,36 +533,32 @@
       ],
       "designSections": [
         {
-          "title": "现状",
-          "summary": "TodoScannerService.scanAndImport() 硬禁用（backend/src/main/java/com/example/clip/service/TodoScannerService.java:108），无调用方；现阶段待办落库走 MCP 桥 todo_add API 路径"
+          "title": "退役依据",
+          "summary": "feature-points.json 已升级 v2.0（requirement/featurePoints/knowledgePoints），由 FeaturePointsService 直读服务产品概览，不再导入剪藏/待办；剪藏/待办走 REST API。旧 v1 扫描器无消费者、上下文过时。"
         },
         {
-          "title": "恢复方案",
-          "summary": "还原 scanAndImport() 实现（feature-points.json 批量导入剪藏与待办，按 .imported 标记幂等去重），接回启动钩子"
+          "title": "退役落地",
+          "summary": "TodoScannerService 标记 @Deprecated 并修订 javadoc；SKILL.md/README/DSH集成探索.md 去除误导性'可恢复'表述；产品概览、MCP 工具、迭代记录分工明确。"
         }
       ],
       "tasks": [
         {
-          "title": "还原 TodoScannerService.scanAndImport() 实现",
-          "status": "todo"
+          "title": "标记 TodoScannerService @Deprecated 并修订 javadoc",
+          "status": "done"
         },
         {
-          "title": "接回启动钩子（启动时扫描 TODO 目录落库）",
-          "status": "todo"
-        },
-        {
-          "title": "验证 .imported 标记幂等去重",
-          "status": "todo"
+          "title": "同步 SKILL.md/README/探索文档，去除'可恢复扫描器'误导",
+          "status": "done"
         }
       ],
       "verifications": [
         {
-          "title": "TODO/feature-points.json 写入后重启后端自动导入剪藏与待办",
-          "status": "todo"
+          "title": "live 文档（SKILL.md/README/探索文档/feature-points.json）不再提示'可恢复扫描器'",
+          "status": "done"
         },
         {
-          "title": "重复导入不产生重复数据（幂等）",
-          "status": "todo"
+          "title": "feature-points.json 供 FeaturePointsService 直读，剪藏/待办走 API，分工清晰",
+          "status": "done"
         }
       ]
     },
@@ -683,7 +724,7 @@
     },
     {
       "title": "Phase 路线图规划",
-      "content": "Phase 0（MCP 桥）✅ → Phase 1（会话自动落库 clip_session）✅ → Phase 2（Electron 内嵌 DSH「AI 干活」面板）✅ → Phase 3（Tools Hub 互通桥工具）✅。待开发：恢复 TODO 目录扫描（TodoScannerService）、DSH Web 客户端插件（需源码构建）、会话级自动摘要（session/event 可选演进）。",
+      "content": "Phase 0（MCP 桥）✅ → Phase 1（会话自动落库 clip_session）✅ → Phase 2（Electron 内嵌 DSH「AI 干活」面板）✅ → Phase 3（Tools Hub 互通桥工具）✅。已退役：TODO 目录扫描（TodoScannerService，feature-points.json 改由 FeaturePointsService 直读）。待开发：DSH Web 客户端插件（需源码构建）、会话级自动摘要（session/event 可选演进）。",
       "tags": [
         "product-dev",
         "roadmap",

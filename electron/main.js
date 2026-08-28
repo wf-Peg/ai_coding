@@ -1314,6 +1314,8 @@ async function startDshAgent(config) {
   broadcastDshProgress('starting',
     `正在启动 DeepSeek Harness（${path.basename(bin.script)}）…`, { elapsed: 0 });
 
+  // npxMode 恒为 false：首次安装已改为「提示用户自助安装」（need-install 状态），不再代为联网下载。
+  // 此标志及其下方 npxMode 分支是旧自动安装路径的残留，保留以维持可读性与可回退性（勿当 bug 删除）。
   const npxMode = false;
   // 用 web 的 --port 设置端口，避免 patch 注入 `- id: webserver` 与 profile 内置
   // id: webserver（dsh-host-webserver）重复导致 duplicate loader entry 崩溃。
@@ -1600,7 +1602,14 @@ function ensureCutshelterPlugins(patchDir) {
     const mcpSrc = src('mcp-server');
     const clipSrc = path.join(patchDir, 'plugins', 'clip-capture');
     const haveSrc = fs.existsSync(mcpSrc) && fs.existsSync(clipSrc);
-    const marker = haveSrc ? fs.readFileSync(path.join(mcpSrc, 'package.json'), 'utf-8') : '';
+    // 版本标记需同时覆盖 mcp 桥与 clip-capture：此前仅用 mcp-server/package.json，
+    // 当只更新 clip-capture（如 fp012 增加 turn/end 自动归档）时标记不变 → 跳过重拷，
+    // 导致 ~/.dsh/plugins/cutshelter/clip-capture 残留旧版、自动归档失效。现把 index.mjs 一并纳入。
+    const clipIndexPath = path.join(clipSrc, 'index.mjs');
+    let marker = haveSrc ? fs.readFileSync(path.join(mcpSrc, 'package.json'), 'utf-8') : '';
+    if (haveSrc && fs.existsSync(clipIndexPath)) {
+      marker += '\n##clip-capture##\n' + fs.readFileSync(clipIndexPath, 'utf-8');
+    }
     // 如果需要重拷（标记缺失/不匹配/源改动）
     let needsCopy = true;
     if (haveSrc && fs.existsSync(vFile)) {
@@ -2710,14 +2719,24 @@ function setupIPC() {
     // 防御：config.dshBinPath 若为 npx 缓存残留(_npx)，即使内存态残留也强制重新解析，
     // 交给 resolveDshBin 跳过残留路径、按 npx 缓存选最高版本。
     const hasNpxResidue = typeof (config && config.dshBinPath) === 'string' && config.dshBinPath.includes('_npx');
+    // 版本漂移：宿主 DSH 版本 ≠ 应用适配版本（DSH_VERSION）时，随返回值上抛，供设置页告警。
+    const withMismatch = (version) => ({
+      version,
+      supported: DSH_VERSION,
+      mismatch: (version && version !== DSH_VERSION) ? { host: version, supported: DSH_VERSION } : null,
+    });
     if (dshVersionState && dshVersionState.version && !hasNpxResidue) {
       log.info(`[dsh detect-version] → 返回内存态 source=${dshVersionState.source} version=${dshVersionState.version}`);
-      return { version: dshVersionState.version, source: dshVersionState.source };
+      const m = withMismatch(dshVersionState.version);
+      if (m.mismatch) log.warn(`[dsh detect-version] 宿主 v${dshVersionState.version} ≠ 内置支持 v${DSH_VERSION}（已上报前端告警）`);
+      return { ...m, source: dshVersionState.source };
     }
     const bin = await resolveDshBin(config);
     const det = detectDshVersion(bin, config);
     log.info(`[dsh detect-version] → resolveDshBin mode=${bin.mode} script=${bin.script} → source=${det.source} version=${det.version}`);
-    return { version: det.version, source: det.source };
+    const m = withMismatch(det.version);
+    if (m.mismatch) log.warn(`[dsh detect-version] 宿主 v${det.version} ≠ 内置支持 v${DSH_VERSION}（已上报前端告警）`);
+    return { ...m, source: det.source };
   });
 
   /**
