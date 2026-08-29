@@ -320,6 +320,7 @@
           renderOverviewDashboard(dashboardStats);
           renderOverviewCharts(typeDist, data.contents || [], summary);
           renderRecentActivities(data.contents || []);
+          CutShelterScroll.restore('workspace');
         } catch (e) {
           if (requestId !== overviewRequestId) return;
           renderOverviewDashboard({ total: 0, clip: 0, knowledge: 0, todo: 0, 'learning-plan': 0 });
@@ -1941,6 +1942,10 @@
           if (productDevView && productDevView.classList.contains('visible')) loadProductDev();
           // 刷新数据后回到顶部，让内容更新可见（避免"只对图标有效"的观感）
           scrollWorkspaceToTop('auto');
+        }
+        if (action === 'hardRefresh') {
+          CutShelterScroll.capture(event.data.module || 'workspace');
+          location.reload();
         }
         if (action === 'scrollToTop') {
           scrollWorkspaceToTop('smooth');

@@ -154,6 +154,7 @@
 
             filteredClips.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             renderClipList(filteredClips);
+            CutShelterScroll.restore('clip');
         } catch (error) {
             if (seq !== fetchSeq) return; // 过期请求的失败也忽略
             console.error('获取剪藏列表失败:', error);

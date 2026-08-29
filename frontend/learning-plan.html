@@ -1153,6 +1153,7 @@
     </div>
 </div>
 
+<script src="js/scroll-restore.js"></script>
 <script>
 // ====== API Base ======
 const API_BASE = 'http://127.0.0.1:8081/api/learning-plan';
@@ -1203,6 +1204,10 @@ window.addEventListener('message', (e) => {
     if (e.data && e.data.action === 'refresh') {
         loadPlans();
     }
+    if (e.data && e.data.action === 'hardRefresh') {
+        CutShelterScroll.capture(e.data.module || 'learning-plan');
+        location.reload();
+    }
     if (e.data && e.data.action === 'workspaceChange') {
         const wsId = e.data.workspaceId;
         if (wsId) {
@@ -1235,6 +1240,7 @@ async function loadPlans() {
         if (wsId) url += '?workspaceId=' + encodeURIComponent(wsId);
         plans = await apiFetch(url.replace(API_BASE, ''));
         renderList();
+        CutShelterScroll.restore('learning-plan');
     } catch (e) {
         console.error('Failed to load plans:', e);
     }
