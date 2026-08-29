@@ -1272,12 +1272,21 @@ async function startDshAgent(config) {
     log.info(`[DSH Agent] Reusing existing DSH instance on port ${port}`);
     // 复用运行中实例：dock 版本 ≠ 磁盘版本，尽力从实例 HTTP 读版本（best-effort，拿不到标"运行中（版本未知）"）。
     const rt = await fetchRuntimeDshVersion(port);
-    dshVersionState = { version: rt.ok ? rt.version : null, source: rt.ok ? 'runtime' : null, at: Date.now() };
-    const ver = rt.ok ? rt.version : null;
+    // runtime HTTP 读不到时，回退到本地磁盘解析版本（best-effort，消除「已复用…（版本未知）」）。
+    // 磁盘版本用于 3081（应用内置/npx 缓存）场景是准确的；3080 手动实例场景仅作参考。
+    let ver = rt.ok ? rt.version : null;
+    let src = rt.ok ? 'runtime' : null;
+    if (!ver) {
+      try {
+        const disk = detectDshVersion(await resolveDshBin(config), config);
+        if (disk && disk.version) { ver = disk.version; src = disk.source; }
+      } catch (e) { /* 磁盘解析失败则保持未知 */ }
+    }
+    dshVersionState = { version: ver, source: src, at: Date.now() };
     const mismatch = (ver && ver !== DSH_VERSION) ? { host: ver, builtin: DSH_VERSION } : null;
     if (ver) {
-      log.info(`[DSH Agent] DSH 运行实例版本: v${ver}`);
-      if (mismatch) log.warn(`[DSH Agent] 运行实例 v${ver} ≠ 内置支持版本 v${DSH_VERSION}（仅提示，不阻断）`);
+      log.info(`[DSH Agent] DSH 复用实例版本: v${ver}（来源 ${src}）`);
+      if (mismatch) log.warn(`[DSH Agent] 复用实例 v${ver} ≠ 内置支持版本 v${DSH_VERSION}（仅提示，不阻断）`);
     }
     broadcastDshProgress('ready',
       `已复用现有 DSH 实例（端口 ${port}）${ver ? ' · v' + ver : '（版本未知）'}`,
@@ -1287,7 +1296,7 @@ async function startDshAgent(config) {
       const reusedPatchDir = resolveDshPatchDir();
       if (reusedPatchDir) ensureCutshelterPlugins(reusedPatchDir);
     } catch (e) { log.warn(`[DSH Agent] profile 化自研集成失败(复用): ${e.message}`); }
-    return { success: true, reused: true, port, version: ver, source: rt.ok ? 'runtime' : null };
+    return { success: true, reused: true, port, version: ver, source: src };
   }
 
   // 2) 定位 integrations/dsh 资源目录，并生成运行时 patch
@@ -1319,7 +1328,14 @@ async function startDshAgent(config) {
   const npxMode = false;
   // 用 web 的 --port 设置端口，避免 patch 注入 `- id: webserver` 与 profile 内置
   // id: webserver（dsh-host-webserver）重复导致 duplicate loader entry 崩溃。
-  const args = ['web', '--port', String(primaryPort)];
+  // DSH ≥ 0.1.1 的 `dsh web` 默认会拉起系统默认浏览器（openBrowser 默认 true）；CutShelter
+  // 用 iframe 内嵌面板，无需该动作，按版本条件传 --no-open（0.1.0-rc.x 无此 flag，硬传会报 unknown option）。
+  let supportsNoOpen = false;
+  try {
+    const det = detectDshVersion(bin, config);
+    supportsNoOpen = !!det.version && compareVersions(det.version, '0.1.0') > 0;
+  } catch (e) { /* 版本探测失败时保守不加 --no-open，避免老版本报 unknown option */ }
+  const args = ['web', ...(supportsNoOpen ? ['--no-open'] : []), '--port', String(primaryPort)];
   const spawnCmd = bin.node;
   log.info(`[DSH Agent] Starting: ${spawnCmd} ${bin.script} ${args.join(' ')}`);
 
