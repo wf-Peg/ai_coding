@@ -23,6 +23,7 @@ before(() => {
   fs.mkdirSync(path.join(base, 'clip-storage', 'inbox', 'screen'), { recursive: true });
   fs.mkdirSync(path.join(base, 'knowledge'), { recursive: true });
   fs.mkdirSync(path.join(base, 'learning-plan'), { recursive: true });
+  fs.mkdirSync(path.join(base, 'obsidian-vault', 'sources'), { recursive: true });
 });
 
 after(() => {
@@ -52,6 +53,14 @@ function seed() {
       { id: 21, goal: 'node 进阶学习计划', phases: [{ title: 'node 基础' }, { title: '模块化' }] },
       { id: 22, goal: '烹饪计划', phases: [{ title: '切菜' }] }
     ])
+  );
+  fs.writeFileSync(
+    path.join(base, 'obsidian-vault', 'sources', 'WinUI 应用列表.md'),
+    '# WinUI 应用列表\n\n这是网页剪藏源头文件，内容包含 node 生态与 unique-vault-token。'
+  );
+  fs.writeFileSync(
+    path.join(base, 'obsidian-vault', 'sources', '无关源文件.md'),
+    '# 无关源文件\n\n不相关的正文内容。'
   );
 }
 
@@ -121,5 +130,26 @@ test('M4.1 searchAll 空查询/空库守卫', () => {
   assert.deepEqual(search.searchAll(null), []);
 
   assert.ok(Array.isArray(search.SEARCHABLE_TYPES));
-  assert.deepEqual(search.SEARCHABLE_TYPES, ['clip', 'knowledge', 'learning-plan']);
+  assert.deepEqual(search.SEARCHABLE_TYPES, ['clip', 'knowledge', 'learning-plan', 'vault']);
+});
+
+test('M4.x searchAll 命中 vault 源文件：type/title/snippet/filePath', () => {
+  seed();
+  svc.initLocalIndex(base);
+
+  const hits = search.searchAll('unique-vault-token');
+  assert.ok(hits.some((h) => h.type === 'vault'), '应命中 vault 源文件');
+  const v = hits.find((h) => h.type === 'vault');
+  assert.equal(v.title, 'WinUI 应用列表');
+  assert.ok(typeof v.snippet === 'string' && v.snippet.length > 0, 'snippet 应为正文截断');
+  assert.ok(v.filePath && v.filePath.endsWith('WinUI 应用列表.md'), '应携带绝对路径 filePath');
+
+  // 类型过滤
+  const onlyVault = search.searchAll('node', { type: 'vault' });
+  assert.ok(onlyVault.length > 0);
+  assert.ok(onlyVault.every((h) => h.type === 'vault'));
+
+  // 中文子串 LIKE 兜底命中源文件标题
+  const byTitle = search.searchAll('WinUI');
+  assert.ok(byTitle.some((h) => h.type === 'vault'), 'vault 标题 LIKE 命中');
 });

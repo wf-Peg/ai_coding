@@ -50,6 +50,27 @@ function indexEntities(dbConn, storagePath) {
 }
 
 /**
+ * 扫描并索引 obsidian-vault/sources 源文件（type='vault'），收集 id 集合用于增量 prune。
+ * 不参与关系表构建；仅供全局搜索（searchAll）命中与打开。
+ *
+ * @param {import('node:sqlite').DatabaseSync} dbConn
+ * @param {string} storagePath config.storagePath
+ * @returns {number} 本次新写入条数
+ */
+function indexVaultSources(dbConn, storagePath) {
+  const records = scanner.scanVaultSources(storagePath);
+  const scannedIds = new Set();
+  let added = 0;
+  for (const { filePath, mtime, source } of records) {
+    const id = indexer.vaultId(source.relativePath);
+    scannedIds.add(id);
+    if (indexer.upsertVaultSource(dbConn, source, filePath, mtime)) added++;
+  }
+  indexer.pruneMissing(dbConn, scannedIds, 'vault');
+  return added;
+}
+
+/**
  * 初始化本地索引：建库建表 + 全量扫描 clip-storage 建索引。
  * 幂等，可安全重复调用；不阻塞，由调用方决定时机。
  *
@@ -76,6 +97,8 @@ function initLocalIndex(storagePath) {
     }
     // 实体（knowledge/learning-plan）索引 + 关系表重建（内含遗留 index 合并）
     indexEntities(dbConn, storagePath);
+    // vault 源文件（obsidian-vault/sources，type='vault'）索引（不参与关系）
+    indexVaultSources(dbConn, storagePath);
   });
 
   const generation = (parseInt(getMeta(dbConn, 'data_generation') || '0', 10) || 0) + 1;
@@ -125,6 +148,8 @@ function rescan(storagePath) {
     removed = indexer.pruneMissing(dbConn, scannedIds);
     // 实体（knowledge/learning-plan）增量索引 + 关系表重建（含遗留 index 合并）
     indexEntities(dbConn, storagePath);
+    // vault 源文件增量索引（obsidian-vault/sources）
+    indexVaultSources(dbConn, storagePath);
   });
 
   // FTS 统一重建，规避 external content 表在 WAL 下行级删除/写入的 CORRUPT
