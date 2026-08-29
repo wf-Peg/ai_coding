@@ -61,6 +61,14 @@
         }
     }
 
+    // 原文多行省略：点击展开/收起全文（markdown 渲染为多块时 line-clamp 缺省略号，以底部渐变遮罩兜底作入口）
+    document.addEventListener('click', (e) => {
+        const el = e.target.closest('.content-text.truncated');
+        if (!el) return;
+        if (window.getSelection && window.getSelection().toString()) return; // 拖选文本时不要误触发
+        el.classList.toggle('expanded');
+    });
+
     document.getElementById('search-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const query = document.getElementById('search-query').value;

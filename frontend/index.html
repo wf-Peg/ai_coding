@@ -1029,6 +1029,19 @@
             sendPendingClipToEditor();
           }
         }
+        if (event.data && event.data.type === 'openFileInEditor' && event.data.filePath) {
+          // 按绝对路径在编辑器新标签打开（全局搜索「源文件」/ 知识模块源文件引用共用）
+          var filePath = event.data.filePath;
+          window.electronAPI.openFileByPath(filePath).then(function(result) {
+            if (result && !result.canceled) {
+              renderView('editor');
+              window.history.pushState({ view: 'editor' }, '', '/');
+              sendToEditor({ type: 'openFileData', fileData: result });
+            }
+          }).catch(function(err) {
+            console.error('[openFileInEditor] 打开文件失败:', err);
+          });
+        }
         if (event.data && event.data.type === 'navigateKnowledge' && event.data.knowledgeId) {
           renderView('knowledge');
           window.history.pushState({ view: 'knowledge' }, '', '/knowledge');
@@ -2213,9 +2226,10 @@
     const TYPE_META = {
       clip:        { label: '剪藏',       color: '#3f8cff', action: function (h) { deliver({ type: 'openClipInNewTab', clipId: numericId(h.id) }); } },
       knowledge:   { label: '知识',       color: '#8b5cf6', action: function (h) { window.postMessage({ type: 'navigateKnowledge', knowledgeId: numericId(h.id) }, '*'); } },
-      'learning-plan': { label: '学习计划', color: '#10b981', action: function (h) { window.postMessage({ type: 'navigateLearningPlan', planId: numericId(h.id) }, '*'); } }
+      'learning-plan': { label: '学习计划', color: '#10b981', action: function (h) { window.postMessage({ type: 'navigateLearningPlan', planId: numericId(h.id) }, '*'); } },
+      vault:       { label: '源文件',     color: '#f59e0b', action: function (h) { if (h.filePath) deliver({ type: 'openFileInEditor', filePath: h.filePath }); } }
     };
-    const ORDER = ['clip', 'knowledge', 'learning-plan'];
+    const ORDER = ['clip', 'knowledge', 'learning-plan', 'vault'];
     let allHits = [];   // 全部命中（用于分组与总计数）
     let flatHits = [];  // 实际渲染的行（与 data-index 严格对齐，用于键盘/点击导航）
     let activeIndex = -1;
@@ -2282,7 +2296,7 @@
       allHits = hits || [];
       flatHits = [];
       activeIndex = -1;
-      const groups = { clip: [], knowledge: [], 'learning-plan': [] };
+      const groups = { clip: [], knowledge: [], 'learning-plan': [], vault: [] };
       allHits.forEach(h => { if (groups[h.type]) groups[h.type].push(h); });
 
       const count = allHits.length;

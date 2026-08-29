@@ -3298,6 +3298,17 @@ function setupIPC() {
     return candidates[0] || path.join(config.storagePath || APP_DIR, 'clip-organized');
   }
 
+  // Obsidian Vault 根路径：对齐后端 WikiConfig 默认 vault-path=./obsidian-vault 的解析语义
+  // （相对路径以 Clip_Bed 父目录为基准）。config.storagePath 存 Clip_Bed 父目录，
+  // 兼容其直接指向 clip-storage 的旧写法。
+  function resolveObsidianVaultRoot(config) {
+    const sp = config.storagePath || APP_DIR;
+    const base = (sp.endsWith('clip-storage') || sp.endsWith('clip-storage\\'))
+      ? path.dirname(sp)
+      : sp;
+    return path.join(base, 'obsidian-vault');
+  }
+
   // 多模块 + 多类型索引：以 config.storagePath 为父目录，自动发现其下所有含
   // 「可链接文本文件」的一级子目录作为独立模块（clip-organized / clip-weekly-report /
   // obsidian-vault / tmp 等），每个模块各自维护「目标列表 + 反链反向索引」，
@@ -3438,6 +3449,14 @@ function setupIPC() {
         const root = path.join(parentDir, entry.name);
         if (!dirHasLinkableFile(root)) continue;
         discovered.push({ id: entry.name, name: entry.name, root });
+      }
+    }
+    // 显式纳入 Obsidian Vault（Web Clipper sources 源文件所在），
+    // 即使 vault 未落在 storagePath 一级子目录也能进入双向链接/快速打开索引。
+    const vaultRoot = resolveObsidianVaultRoot(config);
+    if (vaultRoot && !discovered.some(m => path.normalize(m.root) === path.normalize(vaultRoot))) {
+      if (dirHasLinkableFile(vaultRoot)) {
+        discovered.push({ id: 'obsidian-vault', name: 'obsidian-vault', root: vaultRoot });
       }
     }
     // 兜底：无任何模块 → 回退 resolveVaultRoot 单一模块，保证兼容
