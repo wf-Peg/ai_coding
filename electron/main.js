@@ -65,7 +65,9 @@ const resourcesPath = process.resourcesPath || app.getAppPath();
 const APP_DIR = isPackaged ? path.dirname(app.getPath('exe')) : app.getAppPath();
 
 /** 日志输出目录（与应用根目录相同） */
-const LOG_DIR = APP_DIR;
+// 固定日志目标到安装目录（exe 所在目录），避免"双击 exe 时 cwd≠安装目录"导致日志丢失；不可写时 logger 自动兜底到 userData
+log.init(APP_DIR);
+const LOG_DIR = log.logDir;
 
 log.info('=== App Startup ===');
 log.info('isPackaged:', isPackaged);
@@ -4660,12 +4662,27 @@ if (!gotTheLock) {
   // 因此第二个实例仍会继续执行到 app.whenReady()，
   // 必须在那里也加退出检查（见下方 whenReady 入口），
   // 否则第二个实例会创建窗口，导致双任务栏图标。
+  // 可见化：双击却"无反应"的最常见场景是已有实例在后台运行但窗口不可见（如云桌面会话冻结后残留）。
+  log.error(
+    '[Startup] Another instance is already running, quitting this one.'
+    + ' If no window appears, check taskbar/notification area for a hidden CutShelter window,'
+    + ' or end the leftover CutShelter.exe in Task Manager.'
+  );
   app.quit();
 } else {
   app.on('second-instance', (event, commandLine, workingDirectory) => {
     // 已有实例正在运行：还原（若最小化）并聚焦主窗口
     if (mainWindow && !mainWindow.isDestroyed()) {
       log.info('[SecondInstance] Focusing existing window');
+      // 加固：若旧窗口被最小化/隐藏（例如云桌面会话冻结后窗口不可见），
+      // 二次启动强制还原并拉回前台，避免"双击无反应"的错觉。
+      try {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        if (!mainWindow.isVisible()) mainWindow.show();
+        mainWindow.focus();
+      } catch (e) {
+        log.warn('[SecondInstance] restore/show/focus failed:', e.message);
+      }
       showMainWindow();
     } else if (!appStartupComplete) {
       // 启动流程进行中（主窗口尚未创建）：不重复创建窗口！
@@ -4709,6 +4726,24 @@ app.whenReady().then(async () => {
 
   // 清理 30 天前的旧日志
   log.cleanupOldLogs();
+
+  // 启动探针：记录进入主流程，离线环境下据此定位"卡在哪一步"
+  log.info('[Probe] whenReady entered; APP_DIR=' + APP_DIR + ', resourcesPath=' + resourcesPath);
+
+  // 打包资源预检：一把列出关键资源是否存在，离线环境下据此判定"缺资源"类根因
+  try {
+    const res = resourcesPath;
+    const probe = {
+      'jre/bin/java.exe': !!fs.existsSync(path.join(res, 'jre', 'bin', 'java.exe')),
+      'runtime/bin/java.exe': !!fs.existsSync(path.join(res, 'runtime', 'bin', 'java.exe')),
+      'backend-jar': !!fs.existsSync(path.join(res, 'backend', 'clip-demo-0.0.1-SNAPSHOT.jar')),
+      'frontend': !!fs.existsSync(path.join(res, 'frontend')),
+      'integrations/dsh': !!fs.existsSync(path.join(res, 'integrations', 'dsh'))
+    };
+    log.info('[Probe] packaged resources:', JSON.stringify(probe));
+  } catch (e) {
+    log.warn('[Probe] resource check failed:', e.message);
+  }
 
   setupIPC();
 
