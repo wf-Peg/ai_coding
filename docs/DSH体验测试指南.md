@@ -43,7 +43,7 @@ npx @deepseek-ai/dsh web --patch "L:\归档\30_Projects (行动项目)\31_Work (
 
 它应回答能看到 `mcp__cut_shelter__clip_search`、`clip_add`、`todo_add` 等 11 个桥工具，以及 `clip_session`。
 
-## 步骤 3：五个体验场景（按顺序，每个都去剪藏侧验证）
+## 步骤 3：四个体验场景（按顺序，每个都去剪藏侧验证）
 
 ### 场景 A —— Agent 读你的知识库（只读，无副作用）
 > 用剪藏知识库工具，查一下 Wiki 索引里有哪些实体（用 wiki_index 工具）。
@@ -63,19 +63,11 @@ npx @deepseek-ai/dsh web --patch "L:\归档\30_Projects (行动项目)\31_Work (
 预期：Agent 调用 `todo_add` 返回 id。
 **剪藏侧验证**：`GET http://127.0.0.1:8081/api/todo/list` 可见该待办；前端待办时间线页面也能看到。
 
-### 场景 D —— 会话成果显式归档产品概览（clip_session 四字段）
-> 本次会话验证完成：DSH 能通过 MCP 桥检索剪藏知识库、创建剪藏与待办。用 clip_session 把成果归档：title=“DSH 集成体验验证”，problem=“验证 DSH 与剪藏知识库的连通性”，solution=“通过 MCP 桥分别执行 clip_search / clip_add / todo_add 全链路”，outcome=“DSH 已能检索和写入剪藏，具备日常使用条件”。
+### 场景 D —— 会话成果自动落库（Phase 1，clip_session）
+> 本次会话验证完成：DSH 能通过 MCP 桥检索剪藏知识库、创建剪藏与待办。用 clip_session 把这段成果总结保存进知识库。
 
-预期：Agent 调用 `clip_session`，返回 id 与 source=dsh-agent。
-**剪藏侧验证**：产品概览（工作台 → 产品概览）迭代记录中出现「AI 干活」徽标卡片，四字段（干了什么/解决什么问题/如何解决/大白话产出）渲染正确；也可 `GET http://127.0.0.1:8081/api/workspace/feature-points/iterations` 看到 `source=dsh-agent` 的记录。
-**注意**：场景 D 这一轮已显式归档，自动归档会自动跳过，不会产生重复记录。
-
-### 场景 E —— 会话成果自动归档（教程/动，turn/end 自动监听）
-> 帮我用剪藏知识库工具做一件事：先 `clip_search` 查一下"学习计划"相关的内容，然后新增一条剪藏："验证 DSH 回合结束自动归档"，标题"DSH自动归档-01"。完成后不用调用 clip_session 等任何归档工具。
-
-预期：Agent 只调用 `clip_search`、`clip_add`，**不调用** `clip_session`。这轮结束后（有工具产出），插件监听到 `turn/end`（reason=completed）自动归档。
-**剪藏侧验证**：稍等 2-3 秒（后端 AI 提炼四字段），`GET /api/workspace/feature-points/iterations` 出现一条 `source=dsh-session` 且 `tags` 含「AI会话」的新记录，title 概括了刚才的操作（如"搜索学习计划并新增剪藏"），outcome 为大白话产出描述。
-**负例**：再随便发起一轮纯闲聊（如"你好，今天天气怎么样"）——不触发任何工具、AI 输出短暂，此时**不应**产生任何新迭代记录。
+预期：Agent 调用 `clip_session`（`source=dsh`），返回 id。
+**剪藏侧验证**：`clip/list` 中出现 `source=dsh` 的剪藏。
 
 ## 步骤 4：清理与恢复
 

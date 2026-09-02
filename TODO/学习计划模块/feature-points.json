@@ -40,44 +40,44 @@
       "tasks": [
         {
           "id": "task-model",
-          "title": "创建后端数据模型",
+          "name": "创建后端数据模型",
           "description": "创建LearningPlan、Phase、VideoResource、QuizQuestion、PracticeTask POJO模型",
-          "status": "done",
+          "status": "completed",
           "priority": "high"
         },
         {
           "id": "task-service",
-          "title": "实现学习计划业务逻辑",
+          "name": "实现学习计划业务逻辑",
           "description": "实现LearningPlanService：AI生成阶段结构、解析阶段、CRUD操作、进度更新",
-          "status": "done",
+          "status": "completed",
           "priority": "high"
         },
         {
           "id": "task-controller",
-          "title": "实现REST API控制器",
+          "name": "实现REST API控制器",
           "description": "实现LearningPlanController：POST/GET/PUT/DELETE端点、批量删除、打开文件夹、导出PDF",
-          "status": "done",
+          "status": "completed",
           "priority": "high"
         },
         {
           "id": "task-storage",
-          "title": "实现文件存储层",
+          "name": "实现文件存储层",
           "description": "在FileStorageService中增加saveLearningPlan/getLearningPlanById/getAllLearningPlans/deleteLearningPlan方法",
-          "status": "done",
+          "status": "completed",
           "priority": "high"
         },
         {
           "id": "task-frontend-page",
-          "title": "创建前端学习计划页面",
+          "name": "创建前端学习计划页面",
           "description": "创建learning-plan.html：计划列表、详情页、新建弹窗、阶段卡片折叠展开、Mermaid渲染、进度跟踪、主题切换",
-          "status": "done",
+          "status": "completed",
           "priority": "high"
         },
         {
           "id": "task-frontend-nav",
-          "title": "添加导航入口",
+          "name": "添加导航入口",
           "description": "在index.html新增学习按钮导航、视图面板、路由映射",
-          "status": "done",
+          "status": "completed",
           "priority": "high"
         }
       ],
@@ -108,23 +108,23 @@
       "tasks": [
         {
           "id": "task-exa-service",
-          "title": "创建ExaSearchService",
+          "name": "创建ExaSearchService",
           "description": "实现Exa语义搜索服务，支持searchLearningResources和batchSearchResources方法",
-          "status": "done",
+          "status": "completed",
           "priority": "high"
         },
         {
           "id": "task-exa-integration",
-          "title": "集成到学习计划生成流程",
+          "name": "集成到学习计划生成流程",
           "description": "在LearningPlanService.generatePlan()中：AI生成阶段结构后，Exa为每个阶段搜索真实资源，填充videos[]",
-          "status": "done",
+          "status": "completed",
           "priority": "high"
         },
         {
           "id": "task-exa-config",
-          "title": "Exa配置与降级逻辑",
+          "name": "Exa配置与降级逻辑",
           "description": "在application.yml配置exa.api-key和exa.enabled；Exa不可用时自动降级为AI生成资源，标记source:ai",
-          "status": "done",
+          "status": "completed",
           "priority": "high"
         }
       ],
@@ -162,44 +162,44 @@
       "tasks": [
         {
           "id": "task-builtin-doc",
-          "title": "编写产品说明书",
+          "name": "编写产品说明书",
           "description": "创建docs/产品说明书.md，13章覆盖产品定位/架构/安装/各模块/扩展/快捷键/使用技巧",
-          "status": "done",
+          "status": "completed",
           "priority": "high"
         },
         {
           "id": "task-builtin-json",
-          "title": "创建内置计划JSON数据",
+          "name": "创建内置计划JSON数据",
           "description": "创建product-feature-learning-plan.json，13个阶段映射说明书章节，含detailMarkdown/知识作业/实战任务",
-          "status": "done",
+          "status": "completed",
           "priority": "high"
         },
         {
           "id": "task-builtin-model",
-          "title": "修改数据模型支持内置计划",
+          "name": "修改数据模型支持内置计划",
           "description": "LearningPlan增加builtin字段和totalWeeks改为String；Phase增加detailMarkdown字段和estimatedWeeks改为String",
-          "status": "done",
+          "status": "completed",
           "priority": "high"
         },
         {
           "id": "task-builtin-seeder",
-          "title": "创建启动Seeder",
+          "name": "创建启动Seeder",
           "description": "创建BuiltinLearningPlanSeeder，启动时检测并自动重建内置计划",
-          "status": "done",
+          "status": "completed",
           "priority": "high"
         },
         {
           "id": "task-builtin-delete-guard",
-          "title": "实现内置计划删除拦截",
+          "name": "实现内置计划删除拦截",
           "description": "后端DELETE/batch-delete对内置计划返回400/跳过；前端隐藏删除按钮和批量复选框",
-          "status": "done",
+          "status": "completed",
           "priority": "high"
         },
         {
           "id": "task-builtin-frontend",
-          "title": "前端内置计划展示",
+          "name": "前端内置计划展示",
           "description": "内置徽标、∞显示、Markdown弹窗渲染、删除拦截、批量模式排除",
-          "status": "done",
+          "status": "completed",
           "priority": "high"
         }
       ],
@@ -236,9 +236,9 @@
       "tasks": [
         {
           "id": "task-bugfix-sync",
-          "title": "修改AppConfigService.loadConfig()",
+          "name": "修改AppConfigService.loadConfig()",
           "description": "在loadConfig()末尾、return config前添加syncToModelConfig(config)调用",
-          "status": "done",
+          "status": "completed",
           "priority": "high"
         }
       ],
@@ -268,23 +268,23 @@
       "tasks": [
         {
           "id": "task-bugfix-exa-model",
-          "title": "AppConfig新增Exa字段",
+          "name": "AppConfig新增Exa字段",
           "description": "AppConfig.java新增exaApiKey、exaEnabled字段+getter/setter",
-          "status": "done",
+          "status": "completed",
           "priority": "high"
         },
         {
           "id": "task-bugfix-exa-service",
-          "title": "改造ExaSearchService",
+          "name": "改造ExaSearchService",
           "description": "ExaSearchService改为从AppConfigService运行时读取配置，不再使用@Value注入",
-          "status": "done",
+          "status": "completed",
           "priority": "high"
         },
         {
           "id": "task-bugfix-exa-settings",
-          "title": "设置页面新增Exa配置",
+          "name": "设置页面新增Exa配置",
           "description": "settings.html新增Exa API Key输入框和启用开关；settings.js加载/保存Exa配置",
-          "status": "done",
+          "status": "completed",
           "priority": "high"
         }
       ],
@@ -315,9 +315,9 @@
       "tasks": [
         {
           "id": "task-bugfix-pdf",
-          "title": "重写exportPdf()函数",
+          "name": "重写exportPdf()函数",
           "description": "将window.open+document.write替换为Blob URL+隐藏iframe，添加@page和@media print CSS",
-          "status": "done",
+          "status": "completed",
           "priority": "high"
         }
       ],
@@ -348,9 +348,9 @@
       "tasks": [
         {
           "id": "task-boundary-decision",
-          "title": "记录边界决策并约束开发",
+          "name": "记录边界决策并约束开发",
           "description": "明确学习模块不在本轮MVP范围内，约束agent不修改pd-builtin规则、feature-points.json结构或TodoScannerService",
-          "status": "done",
+          "status": "completed",
           "priority": "medium"
         }
       ],
@@ -376,9 +376,9 @@
       "tasks": [
         {
           "id": "task-bugfix-dedup",
-          "title": "修改 LearningPlanService.saveBuiltinPlan()",
+          "name": "修改 LearningPlanService.saveBuiltinPlan()",
           "description": "检测到同名内置计划时，按 updatedAt 排序保留最新一条，清除其余重复副本",
-          "status": "done",
+          "status": "completed",
           "priority": "high"
         }
       ],
