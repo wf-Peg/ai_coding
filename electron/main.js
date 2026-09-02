@@ -4802,12 +4802,23 @@ app.whenReady().then(async () => {
 
   // 启动即清浏览器 HTTP 缓存：避免前端页面（设置页等）加载到旧版 JS/静态资源，
   // 防止「改了版本探测逻辑但界面仍走旧判断」这类缓存不一致问题。
+  // 注意：clearCache 在个别内网/离线机器上会卡住或底层崩溃导致 exitCode=1，
+  // 在此用超时降级（Promise.race）保护：超时/异常都只是跳过，绝不阻塞后续启动与建窗。
   stepLadder('cache.before');
+  // clearTimer 需在 try/finally 外部声明，finally 才能正确引用并清理定时器
+  let clearTimer = null;
   try {
-    await session.defaultSession.clearCache();
+    const CLEAR_CACHE_TIMEOUT_MS = 8000;
+    const clearTimeoutPromise = new Promise((_, rej) => {
+      clearTimer = setTimeout(() => rej(new Error('clearCache timeout exceeded')), CLEAR_CACHE_TIMEOUT_MS);
+    });
+    await Promise.race([session.defaultSession.clearCache(), clearTimeoutPromise]);
+    clearTimeout(clearTimer);
     log.info('[Startup] Browser cache cleared on startup');
   } catch (e) {
-    log.warn(`[Startup] clearCache on startup failed: ${e.message}`);
+    log.warn(`[Startup] clearCache skipped (${e.message}); continuing startup`);
+  } finally {
+    if (clearTimer) clearTimeout(clearTimer);
   }
   stepLadder('cache.after');
 
