@@ -248,15 +248,10 @@
     </div>
   </div>
   <script src="js/logger.js"></script>
-  <script src="js/scroll-restore.js"></script>
   <script>
     // 接收主框架消息：后端就绪后自动刷新数据
     window.addEventListener('message', (e) => {
       if (e.data && e.data.action === 'refresh') location.reload();
-      if (e.data && e.data.action === 'hardRefresh') {
-        CutShelterScroll.capture(e.data.module || 'data-observability');
-        location.reload();
-      }
     });
   </script>
   <script src="js/data-observability.js"></script>

@@ -27,7 +27,7 @@ function serve(req, res) {
   // Only serve existing files
   if (fs.existsSync(filePath) && !fs.statSync(filePath).isDirectory()) {
     const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': 'no-store' });
+    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
     fs.createReadStream(filePath).pipe(res);
     return;
   }
@@ -36,7 +36,7 @@ function serve(req, res) {
   const indexPath = path.join(ROOT, 'index.html');
   fs.readFile(indexPath, (err, data) => {
     if (err) { res.writeHead(500); res.end('Error'); return; }
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(data);
   });
 }

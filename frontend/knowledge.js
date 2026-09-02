@@ -4,17 +4,11 @@ let allTopics = [];
 let pageSize = 12;
 let currentIndex = 0;
 let isLoading = false;
-let scrollSentinel = null;
-let scrollObserver = null;
 
 // 获取知识列表
 async function fetchTopics(keyword) {
   const list = document.getElementById('topicList');
-  // 已有内容时走后台刷新：保留现有列表，避免清空成 loading 造成「有数据→空白→再渲染」的闪烁
-  const hasContent = !!list.querySelector('.topic-item');
-  if (!hasContent) {
-    list.innerHTML = '<div class="loading"><div class="spinner"></div><p>加载中...</p></div>';
-  }
+  list.innerHTML = '<div class="loading"><div class="spinner"></div><p>加载中...</p></div>';
   allTopics = [];
   currentIndex = 0;
 
@@ -39,18 +33,13 @@ async function fetchTopics(keyword) {
           <h3>暂无知识条目</h3>
           <p>点击右上角"新建知识"开始构建你的知识库吧！</p>
         </div>`;
-      ensureScrollSentinel();
       return;
     }
 
     list.innerHTML = '';
     loadMore();
-    ensureScrollSentinel();
-    CutShelterScroll.restore('knowledge');
   } catch (error) {
     console.error('获取知识列表失败:', error);
-    // 后台刷新失败时保留旧数据，不覆盖成错误页
-    if (hasContent) return;
     list.innerHTML = `
       <div class="empty-state">
         <h3>加载失败</h3>
@@ -130,26 +119,6 @@ function injectMetaStyles() {
   document.head.appendChild(style);
 }
 
-// 挂载/重新挂载滚动哨兵：fetchTopics 里 innerHTML 清空会把哨兵一并移除，
-// 渲染后重新追加（沿用同一个节点，IntersectionObserver 无需重建）。
-function ensureScrollSentinel() {
-  const list = document.getElementById('topicList');
-  if (!scrollSentinel) {
-    scrollSentinel = document.createElement('div');
-    scrollSentinel.id = 'scrollSentinel';
-    scrollSentinel.style.height = '1px';
-    scrollObserver = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && !isLoading) {
-        loadMore();
-      }
-    }, { rootMargin: '200px' });
-    scrollObserver.observe(scrollSentinel);
-  }
-  if (scrollSentinel.parentNode !== list) {
-    list.appendChild(scrollSentinel);
-  }
-}
-
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
   injectMetaStyles();
@@ -179,7 +148,18 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // 无限滚动
-  ensureScrollSentinel();
+  const sentinel = document.createElement('div');
+  sentinel.id = 'scrollSentinel';
+  sentinel.style.height = '1px';
+  document.getElementById('topicList').appendChild(sentinel);
+
+  const observer = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting && !isLoading) {
+      loadMore();
+    }
+  }, { rootMargin: '200px' });
+
+  observer.observe(sentinel);
 });
 
 // ====== 接收主框架消息：滚动到顶部 / 刷新 / 工作台切换 ======
@@ -187,10 +167,6 @@ window.addEventListener('message', (e) => {
   if (e.data.action === 'scrollToTop') {
     document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
   } else if (e.data.action === 'refresh') {
-    // 后端就绪/手动刷新：仅重拉列表数据，避免整页重载造成闪烁与重复加载
-    fetchTopics(document.getElementById('searchInput')?.value || '');
-  } else if (e.data.action === 'hardRefresh') {
-    CutShelterScroll.capture(e.data.module || 'knowledge');
     location.reload();
   } else if (e.data.action === 'themeChange') {
     if (typeof window.applyTheme === 'function') window.applyTheme();

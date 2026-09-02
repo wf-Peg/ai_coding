@@ -1532,7 +1532,7 @@
             padding: 10px;
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            background: var(--surface);
+            background: rgba(255, 255, 255, 0.96);
             box-shadow: var(--shadow-hover);
             z-index: 12;
             backdrop-filter: blur(4px);
@@ -1995,46 +1995,10 @@
         }
 
         .content-text.truncated {
-            position: relative;
             display: -webkit-box;
             -webkit-line-clamp: 3;
             -webkit-box-orient: vertical;
             overflow: hidden;
-            cursor: pointer;
-        }
-        /* 底部渐变遮罩：markdown 渲染为「根下多个块级子元素」时 -webkit-line-clamp 不会渲染末尾省略号，
-           用淡出遮罩补足「还有更多」提示，同时作为点击展开的入口标识 */
-        .content-text.truncated::after {
-            content: '';
-            position: absolute;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            height: 1.4em;
-            background: linear-gradient(to bottom, transparent, var(--surface));
-            pointer-events: none;
-            opacity: 1;
-        }
-        .content-text.truncated.expanded {
-            display: block;
-            -webkit-line-clamp: unset;
-        }
-        .content-text.truncated.expanded::after {
-            opacity: 0;
-        }
-        .content-text.truncated.expanded > * {
-            margin: revert;
-        }
-
-        /* 原文为 markdown 渲染的块级内容（p/pre/h/ul 等），浏览器默认外边距与 pre 不换行
-           会破坏 -webkit-line-clamp 的省略号显示；在截断预览态归零外边距并让代码块换行 */
-        .content-text.truncated > * {
-            margin: 0;
-        }
-        .content-text.truncated pre,
-        .content-text.truncated pre code {
-            white-space: pre-wrap;
-            word-break: break-word;
         }
 
         .copy-btn {
@@ -2248,15 +2212,12 @@
             flex-wrap: wrap;
         }
         .image-upload-btn {
-            display: inline-block;
             padding: 6px 14px;
             border: 1px solid var(--border);
             border-radius: 8px;
             background: var(--surface-hover);
             color: var(--text);
             font-size: 0.85rem;
-            font-family: inherit;
-            user-select: none;
             cursor: pointer;
             transition: all var(--app-duration-normal) ease;
         }
@@ -2338,22 +2299,16 @@
             position: absolute;
             top: 3px; right: 3px;
             width: 20px; height: 20px;
-            min-width: 0;
             border: none;
             border-radius: 50%;
             background: rgba(0,0,0,0.5);
             color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            font-size: 0.72rem;
+            line-height: 20px;
+            text-align: center;
             cursor: pointer;
             padding: 0;
             transition: background var(--app-duration-fast) ease;
-        }
-        .image-preview-item .preview-remove svg {
-            display: block;
-            width: 10px;
-            height: 10px;
         }
         .image-preview-item .preview-remove:hover {
             background: rgba(220,38,38,0.9);

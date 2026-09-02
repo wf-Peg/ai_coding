@@ -594,7 +594,6 @@
 
     <script src="libs/marked.min.js"></script>
     <script src="js/logger.js"></script>
-    <script src="js/scroll-restore.js"></script>
     <script>
         // ====== 主题初始化 ======
         (function() {
@@ -630,10 +629,6 @@
         // 接收主框架消息：主题切换 + 后端就绪刷新
         window.addEventListener('message', (e) => {
             if (e.data && e.data.action === 'refresh') location.reload();
-            if (e.data && e.data.action === 'hardRefresh') {
-                CutShelterScroll.capture(e.data.module || 'wiki');
-                location.reload();
-            }
             if (e.data && e.data.action === 'themeChange') {
                 document.documentElement.setAttribute('data-theme', e.data.theme === 'dark' ? 'dark' : (e.data.theme === 'regular' ? 'regular' : 'notion'));
             }
@@ -998,7 +993,6 @@
                         + '<span class="name">' + escapeHtml(p.name) + '</span>'
                         + '</div>';
                 }).join('');
-                CutShelterScroll.restore('wiki');
             } catch (e) {
                 document.getElementById('pageList').innerHTML = '<div class="empty-state">加载失败: ' + escapeHtml(e.message) + '</div>';
             }
