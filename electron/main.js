@@ -2373,7 +2373,9 @@ function createMainWindow(config) {
   });
 
   // 监听页面加载失败事件（如连接被拒绝 ERR_CONNECTION_REFUSED: -102）
-  mainWindow.webContents.on('did-fail-load', (event, errorCode) => {
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    // 始终记录失败详情，便于内网环境定位"窗口在但页面空白/转圈"类问题
+    log.warn(`[Window] did-fail-load code=${errorCode} desc=${errorDescription || ''} url=${validatedURL || ''}`);
     if (errorCode === -102 || errorCode === -3) {
       // -102: ERR_CONNECTION_REFUSED（后端未就绪）
       // -3:  ERR_ABORTED（加载被中断）
@@ -2381,6 +2383,20 @@ function createMainWindow(config) {
         mainWindow.loadURL(`http://127.0.0.1:${config.frontendPort}`);
       }, 2000);
     }
+  });
+
+  // 渲染进程崩溃/被系统强杀（如 GPU 进程异常、内存不足、电源管理），
+  // 记录到主进程日志，供"窗口没弹出来/刚打开就闪退"定位
+  mainWindow.webContents.on('render-process-gone', (event, details) => {
+    log.error(`[Window] render-process-gone reason=${details.reason} exitCode=${details.exitCode} cwd=${details.cwd ? '' : 'n/a'}`);
+  });
+
+  // 页面长时间无响应（事件循环被占）或恢复响应，辅助判断是否出现卡死
+  mainWindow.webContents.on('unresponsive', () => {
+    log.error('[Window] renderer unresponsive (页面无响应)');
+  });
+  mainWindow.webContents.on('responsive', () => {
+    log.info('[Window] renderer responsive again');
   });
 
   // 页面加载完成时（含 Ctrl+R 刷新），若后端已启动则重新发送就绪事件
@@ -4709,7 +4725,41 @@ if (!gotTheLock) {
 
 // ==================== 应用生命周期 ====================
 
+// 启动"阶梯(Ladder)"探针：记录每个启动阶段进入/完成时间，
+// 内网/离线环境无法弹窗时，依据 app.log 里最后一条阶梯标记即可定位卡在哪一步。
+const startupTimer = { t0: Date.now(), last: Date.now() };
+
+/** 打印启动阶段标记，并在阶梯模式下保留到全局，供诊断脚本查询最后阶段 */
+let startupStageReached = null;
+function stepLadder(name) {
+  const now = Date.now();
+  startupStageReached = name;
+  log.info(`[Ladder] step:${name} elapsed=${now - startupTimer.t0}ms gap=${now - startupTimer.last}ms`);
+  startupTimer.last = now;
+}
+
+// 启动看门狗：若探针后长时间未创建主窗口也未见"Config loaded"，持续标记"仍无窗口"，
+// 辅助区分"事件循环被同步大扫描占住"（CPU 高、标记零散）与"等待一个永不 resolve 的 Promise"。
+let startupWatchdog = null;
+function startStartupWatchdog() {
+  if (startupWatchdog) return;
+  startupWatchdog = setInterval(() => {
+    const ms = Date.now() - startupTimer.t0;
+    const windowCreated = !!mainWindow && !mainWindow.isDestroyed();
+    const configLoaded = startupStageReached === 'config.after';
+    if (windowCreated || appStartupComplete || configLoaded) {
+      try { clearInterval(startupWatchdog); } catch (_) {}
+      startupWatchdog = null;
+      return;
+    }
+    log.warn(`[Ladder][STALL] no-window elapsed=${Math.round(ms / 1000)}s lastStage=${startupStageReached || 'none'}`);
+  }, 10000);
+}
+
 app.whenReady().then(async () => {
+  // 顶层兜底：whenReady 回调体内任何未被分段 catch 捕获的异常，都记录主进程异常日志，
+  // 避免"只看到几个 Probe 日志然后静默停住"这类难以定位的情况。
+  try {
   // 安全双保险：单实例锁未获取到（第二个实例），
   // app.quit() 已在上面调用但它是异步的——js 仍会继续执行到这里。
   // 必须立即 return，绝不创建任何窗口，否则第二个实例的窗口会
@@ -4744,23 +4794,30 @@ app.whenReady().then(async () => {
   } catch (e) {
     log.warn('[Probe] resource check failed:', e.message);
   }
+  stepLadder('probe');
+  startStartupWatchdog();
 
   setupIPC();
+  stepLadder('ipc.after');
 
   // 启动即清浏览器 HTTP 缓存：避免前端页面（设置页等）加载到旧版 JS/静态资源，
   // 防止「改了版本探测逻辑但界面仍走旧判断」这类缓存不一致问题。
+  stepLadder('cache.before');
   try {
     await session.defaultSession.clearCache();
     log.info('[Startup] Browser cache cleared on startup');
   } catch (e) {
     log.warn(`[Startup] clearCache on startup failed: ${e.message}`);
   }
+  stepLadder('cache.after');
 
   // SQLite 本地索引层初始化（懒加载全量建索引，异步、不阻塞窗口；
   // 若 node:sqlite 在当前 Electron 不可用则降级跳过，不影响主流程）
+  stepLadder('index.before');
   try {
     const _config = loadConfig();
     const _idxRes = localIndexService.initLocalIndex(_config.storagePath);
+    stepLadder('index.after');
     log.info(`[local-index] initialized: count=${_idxRes.count}, generation=${_idxRes.generation}`);
     // 启动 clip-storage 实时监听：新增/修改/删除时增量重扫更新索引
     if (!localIndexWatcher) {
@@ -4790,11 +4847,13 @@ app.whenReady().then(async () => {
   } catch (e) {
     log.error('[Screenshot] init failed:', e.message);
   }
+  stepLadder('screenshot.after');
 
   // 预创建系统托盘图标（不等窗口创建）
   if (!tray) {
     createTray();
   }
+  stepLadder('tray.after');
 
   // 迁移旧配置：如果旧路径存在配置但新路径不存在，自动复制
   const newConfigDir = path.join(app.getPath('userData'), 'config');
@@ -4832,6 +4891,7 @@ app.whenReady().then(async () => {
   }
 
   const config = loadConfig();
+  stepLadder('config.after');
   log.info('Config loaded:', JSON.stringify(config, null, 2));
 
   // 修复旧版本可能写入的不完整 macOS 登录项（仅在用户已开启自启时校准）。
@@ -4846,6 +4906,7 @@ app.whenReady().then(async () => {
     killPortProcess(config.backendPort),
     killPortProcess(config.frontendPort)
   ]);
+  stepLadder('ports.after');
 
   if (!config.configured) {
     // ===== 首次运行：显示配置引导窗口 =====
@@ -4889,13 +4950,16 @@ app.whenReady().then(async () => {
       }
 
       try {
+        stepLadder('fe.before');
         await startFrontendServer(newConfig);
+        stepLadder('fe.after');
 
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('startup-progress', '正在启动后端服务，请稍候...');
         }
 
         // 后端异步启动，不阻塞窗口创建
+        stepLadder('backend.before');
         startBackend(newConfig).then(() => {
           log.info('Backend ready, closing config window');
           // 初始化异常日志模块
@@ -4914,6 +4978,7 @@ app.whenReady().then(async () => {
           }
           // 创建主窗口
           createMainWindow(newConfig);
+          stepLadder('window.after');
           // 注册全局快捷键
           loadShortcutFromConfig();
           registerGlobalShortcut();
@@ -4959,13 +5024,17 @@ app.whenReady().then(async () => {
       ensureContextMenuRegistered(config);
 
       // 始终启动前端
+      stepLadder('fe.before');
       await startFrontendServer(config);
+      stepLadder('fe.after');
 
       // 根据启动模式决定后端行为
       if (config.startupMode === 'full') {
         // 模式1: 完全启动 — 后端同步启动，阻塞窗口创建
         log.info('[Startup] Mode: full - starting backend synchronously');
+        stepLadder('backend.before');
         await startBackend(config);
+        stepLadder('backend.after');
         backendStarted = true;
         const clipStoragePath = config.storagePath.endsWith('clip-storage') || config.storagePath.endsWith('clip-storage\\')
           ? config.storagePath
@@ -4978,7 +5047,9 @@ app.whenReady().then(async () => {
       } else if (config.startupMode === 'frontend-async-backend') {
         // 模式2: 启动前端后异步启动后端，就绪后系统通知
         log.info('[Startup] Mode: frontend-async-backend - starting backend asynchronously');
+        stepLadder('backend.before');
         startBackend(config).then(() => {
+          stepLadder('backend.after');
           backendStarted = true;
           const clipStoragePath = config.storagePath.endsWith('clip-storage') || config.storagePath.endsWith('clip-storage\\')
             ? config.storagePath
@@ -5012,6 +5083,7 @@ app.whenReady().then(async () => {
       }
 
       createMainWindow(config);
+      stepLadder('window.after');
       // 处理命令行参数（系统右键菜单传递的文件路径）
       const actions = parseCommandLineArgs(process.argv, APP_DIR);
       if (actions.length > 0) {
@@ -5060,6 +5132,12 @@ app.whenReady().then(async () => {
         mainWindow.webContents.send('load-config', loadConfig());
       });
     }
+  }
+  } catch (outerErr) {
+    // 顶层兜底：whenReady 流程内未被分段 catch 捕获的异常统一留下痕迹，
+    // 供内网环境判断"到底是否抛了错"而非静默停住。
+    log.error('[Startup] FATAL in whenReady:', outerErr);
+    log.writeExceptionLog('electron', outerErr.message || String(outerErr), outerErr.stack || '', 'ERROR');
   }
 });
 
