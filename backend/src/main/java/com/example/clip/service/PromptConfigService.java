@@ -71,7 +71,6 @@ public class PromptConfigService {
         normalized.setWikiQueryIndexPrompt(normalizeOrDefault(loaded.getWikiQueryIndexPrompt(), DEFAULT_WIKI_QUERY_INDEX_PROMPT));
         normalized.setWikiQuerySynthesisPrompt(normalizeOrDefault(loaded.getWikiQuerySynthesisPrompt(), DEFAULT_WIKI_QUERY_SYNTHESIS_PROMPT));
         normalized.setWikiLintPrompt(normalizeOrDefault(loaded.getWikiLintPrompt(), DEFAULT_WIKI_LINT_PROMPT));
-        normalized.setDshSessionArchivePrompt(normalizeOrDefault(loaded.getDshSessionArchivePrompt(), DEFAULT_DSH_SESSION_ARCHIVE_PROMPT));
         return normalized;
     }
 
@@ -105,7 +104,6 @@ public class PromptConfigService {
         normalized.setWikiQueryIndexPrompt(normalizeOrDefault(config.getWikiQueryIndexPrompt(), existing.getWikiQueryIndexPrompt()));
         normalized.setWikiQuerySynthesisPrompt(normalizeOrDefault(config.getWikiQuerySynthesisPrompt(), existing.getWikiQuerySynthesisPrompt()));
         normalized.setWikiLintPrompt(normalizeOrDefault(config.getWikiLintPrompt(), existing.getWikiLintPrompt()));
-        normalized.setDshSessionArchivePrompt(normalizeOrDefault(config.getDshSessionArchivePrompt(), existing.getDshSessionArchivePrompt()));
         validate(normalized);
         storageService.saveConfig(normalized);
         return normalized;
@@ -176,10 +174,6 @@ public class PromptConfigService {
 
     public String getGenerateSummaryPrompt() {
         return getPromptConfig().getGenerateSummaryPrompt();
-    }
-
-    public String getDshSessionArchivePrompt() {
-        return getPromptConfig().getDshSessionArchivePrompt();
     }
 
     public String getGenerateTagsPrompt() {
@@ -290,7 +284,6 @@ public class PromptConfigService {
         c.setWikiQueryIndexPrompt(DEFAULT_WIKI_QUERY_INDEX_PROMPT);
         c.setWikiQuerySynthesisPrompt(DEFAULT_WIKI_QUERY_SYNTHESIS_PROMPT);
         c.setWikiLintPrompt(DEFAULT_WIKI_LINT_PROMPT);
-        c.setDshSessionArchivePrompt(DEFAULT_DSH_SESSION_ARCHIVE_PROMPT);
         return c;
     }
 
@@ -316,7 +309,6 @@ public class PromptConfigService {
         validateField("wikiQueryIndexPrompt", config.getWikiQueryIndexPrompt());
         validateField("wikiQuerySynthesisPrompt", config.getWikiQuerySynthesisPrompt());
         validateField("wikiLintPrompt", config.getWikiLintPrompt());
-        validateField("dshSessionArchivePrompt", config.getDshSessionArchivePrompt());
     }
 
     private void validateField(String fieldName, String value) {
@@ -681,21 +673,4 @@ public class PromptConfigService {
             "- The pages field lists the page names involved (use the exact page names from the input).\n" +
             "- If no issues are found, return an empty array: []\n" +
             "- Return ONLY the JSON array, no other text.";
-
-    /** 默认 DSH 会话成果归档 Prompt — 把一轮会话提炼为产品概览迭代记录的四字段 */
-    private static final String DEFAULT_DSH_SESSION_ARCHIVE_PROMPT =
-            "You are a work-log archivist. Given a transcript of one AI working session (user requests, " +
-            "assistant replies and tool-call records interleaved), distill it into four fields:\n" +
-            "\n" +
-            "1. title: what was done in this session (a short Chinese phrase, <= 30 chars).\n" +
-            "2. problem: the problem or need that was being solved (Chinese, 1-3 sentences, plain language).\n" +
-            "3. solution: how it was solved — key approach, technical decisions, files/functions involved (Chinese, concise).\n" +
-            "4. outcome: the final result explained in plain, non-technical language (Chinese, 1-2 sentences).\n" +
-            "\n" +
-            "Rules:\n" +
-            "- All four fields must be written in plain Chinese (大白话), no jargon dumps.\n" +
-            "- Base everything strictly on the transcript; do not invent work that did not happen.\n" +
-            "- If the session is only casual chat with no real work, return a JSON object whose \"title\" is \"闲聊\" and the other three fields are empty strings.\n" +
-            "- Return ONLY a JSON object, no markdown code block, no extra text, format:\n" +
-            "{\"title\": \"...\", \"problem\": \"...\", \"solution\": \"...\", \"outcome\": \"...\"}";
 }

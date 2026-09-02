@@ -20,7 +20,6 @@ import com.example.clip.index.WorkspaceResolution;
 import com.example.clip.index.WorkspaceRule;
 import com.example.clip.index.WorkspaceRuleService;
 import com.example.clip.index.WorkspaceSuggestionService;
-import com.example.clip.core.AiService;
 import com.example.clip.service.AppConfigService;
 import com.example.clip.service.FeaturePointIterationService;
 import com.example.clip.service.FeaturePointsService;
@@ -63,16 +62,13 @@ public class WorkspaceController {
 
     private final AppConfigService appConfigService;
     private final FeaturePointsService featurePointsService;
-    private final AiService aiService;
 
     @Autowired(required = false)
     private UserActionEventRecorder actionEventRecorder;
 
-    public WorkspaceController(AppConfigService appConfigService, FeaturePointsService featurePointsService,
-                               AiService aiService) {
+    public WorkspaceController(AppConfigService appConfigService, FeaturePointsService featurePointsService) {
         this.appConfigService = appConfigService;
         this.featurePointsService = featurePointsService;
-        this.aiService = aiService;
     }
 
     @GetMapping("/list")
@@ -1129,58 +1125,6 @@ public class WorkspaceController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "迭代记录不存在"));
             }
             return ResponseEntity.ok(Map.of("success", true, "id", id));
-        } catch (RuntimeException error) {
-            return errorResponse(error);
-        }
-    }
-
-    /**
-     * DSH 会话成果自动归档：把一轮会话文本提炼为四字段迭代记录并落库。
-     * <p>
-     * POST /api/workspace/feature-points/iterations/ai-session
-     * Body: { conversation, project? }
-     * <p>
-     * AI 提炼失败时不阻断：返回 200 与兜底四字段记录（标题「牛马记录」，
-     * outcome 为会话文本截断），保证会话成果不丢失。
-     */
-    @PostMapping("/feature-points/iterations/ai-session")
-    public ResponseEntity<?> createAiSessionIteration(@RequestBody Map<String, Object> body) {
-        try {
-            String conversation = body.get("conversation") != null
-                    ? String.valueOf(body.get("conversation"))
-                    : "";
-            if (conversation.isBlank()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "conversation 不能为空"));
-            }
-            String project = body.get("project") != null ? String.valueOf(body.get("project")) : "";
-
-            Map<String, Object> fields = aiService.generateSessionArchive(conversation);
-            if (fields == null) {
-                fields = new LinkedHashMap<>();
-                fields.put("title", "牛马记录");
-                fields.put("problem", "");
-                fields.put("solution", "");
-                String fallback = conversation.length() > 500 ? conversation.substring(0, 500) : conversation;
-                fields.put("outcome", fallback);
-            }
-
-            Map<String, Object> record = new LinkedHashMap<>();
-            record.put("project", project);
-            record.put("version", "ai");
-            String note = conversation.length() > 300 ? conversation.substring(0, 300) : conversation;
-            record.put("note", note);
-            record.put("title", fields.get("title"));
-            record.put("problem", fields.get("problem"));
-            record.put("solution", fields.get("solution"));
-            record.put("outcome", fields.get("outcome"));
-            record.put("source", "dsh-session");
-            record.put("status", "done");
-            record.put("tags", List.of("AI会话"));
-
-            Map<String, Object> created = new FeaturePointIterationService(indexDir()).add(record);
-            return ResponseEntity.ok(created);
-        } catch (IllegalArgumentException error) {
-            return ResponseEntity.badRequest().body(Map.of("error", error.getMessage()));
         } catch (RuntimeException error) {
             return errorResponse(error);
         }

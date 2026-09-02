@@ -238,46 +238,6 @@ public class AiService {
     }
 
     /**
-     * 将一轮 DSH 会话内容提炼为产品概览迭代记录的四个字段。
-     * <p>
-     * 返回 Map：title（干了什么）/ problem（解决什么问题）/ solution（如何解决）/
-     * outcome（大白话产出描述）。使用闪速小模型（simple tier）一次调用完成。
-     * 调用失败或结果解析失败时返回 null，由调用方兜底。
-     * </p>
-     *
-     * @param conversation 一轮会话的聚合文本（用户消息、助手回复与工具调用记录）
-     * @return 四字段 Map；失败时返回 null
-     */
-    public Map<String, Object> generateSessionArchive(String conversation) {
-        try {
-            String responseStr = llmProvider.chatForTier(
-                    promptConfigService.getDshSessionArchivePrompt(), conversation, "simple");
-            String cleaned = cleanJsonWrapper(responseStr);
-            ObjectMapper mapper = new ObjectMapper()
-                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-            Map<String, Object> parsed = mapper.readValue(cleaned, new TypeReference<Map<String, Object>>() {});
-            Map<String, Object> result = new LinkedHashMap<>();
-            result.put("title", asText(parsed.get("title"), "牛马记录"));
-            result.put("problem", asText(parsed.get("problem"), ""));
-            result.put("solution", asText(parsed.get("solution"), ""));
-            result.put("outcome", asText(parsed.get("outcome"), ""));
-            return result;
-        } catch (Exception e) {
-            logger.error("[AI] generateSessionArchive failed: {}", e.getMessage(), e);
-            return null;
-        }
-    }
-
-    /** 非空文本兜底：null/空白时用默认值。 */
-    private String asText(Object value, String fallback) {
-        if (value == null) {
-            return fallback;
-        }
-        String text = String.valueOf(value).trim();
-        return text.isEmpty() ? fallback : text;
-    }
-
-    /**
      * 提取关键词标签。
      * <p>
      * 要求 LLM 提取不超过 10 个关键词作为标签，以逗号分隔。
