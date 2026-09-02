@@ -67,20 +67,6 @@ function resolveBasePath(storagePath) {
 }
 
 /**
- * Obsidian Vault 根目录归一化。
- * 对齐后端 WikiConfig 默认 vault-path=./obsidian-vault 的解析语义：
- * 相对路径以 Clip_Bed 父目录（resolveBasePath）为基准解析。
- * sources/ 目录在此根下，存放 Obsidian Web Clipper 写入的原始 Markdown。
- *
- * @param {string} storagePath config.storagePath（Clip_Bed 父目录或 clip-storage）
- * @returns {string} obsidian-vault 根目录路径
- */
-function resolveVaultRoot(storagePath) {
-  if (!storagePath) throw new Error('resolveVaultRoot: storagePath is required');
-  return path.join(resolveBasePath(storagePath), 'obsidian-vault');
-}
-
-/**
  * 递归扫描 clip-storage 下所有 .json 文件（排除非 clip 目录），
  * 提取可索引 clip 记录数组。
  *
@@ -239,47 +225,6 @@ function scanEntities(storagePath) {
 }
 
 /**
- * 扫描 Obsidian Vault 的 sources/ 目录（非递归，仅 .md），提取可索引源文件记录。
- * 对齐后端 SourceSyncService.listMarkdownFiles 的「非递归 + .md」语义：
- * 只采集 Web Clipper 写入的原始 Markdown，不递归 wiki/ 生成页。
- *
- * @param {string} storagePath config.storagePath（Clip_Bed 父目录或 clip-storage）
- * @returns {Array<{filePath:string, mtime:string, source:Object}>}
- *          source = { type:'vault', relativePath, fileName, title, content }
- */
-function scanVaultSources(storagePath) {
-  const results = [];
-  const sourcesDir = path.join(resolveVaultRoot(storagePath), 'sources');
-  if (!fs.existsSync(sourcesDir) || !fs.statSync(sourcesDir).isDirectory()) return results;
-
-  let entries;
-  try { entries = fs.readdirSync(sourcesDir, { withFileTypes: true }); }
-  catch (e) { return results; }
-
-  for (const ent of entries) {
-    if (!ent.isFile() || !ent.name.endsWith('.md')) continue;
-    const full = path.join(sourcesDir, ent.name);
-    const relativePath = 'sources/' + ent.name;
-    let content = '';
-    try { content = fs.readFileSync(full, 'utf-8'); } catch (e) { continue; }
-    let mtime = '';
-    try { mtime = fs.statSync(full).mtimeMs.toString(); } catch (e) { /* ignore */ }
-    results.push({
-      filePath: full,
-      mtime,
-      source: {
-        type: 'vault',
-        relativePath,
-        fileName: ent.name,
-        title: ent.name.replace(/\.md$/i, ''),
-        content
-      }
-    });
-  }
-  return results;
-}
-
-/**
  * 从实体对象抽取用于 FTS 的纯文本（knowledge / learning-plan）。
  *
  * @param {Object} entity
@@ -307,7 +252,6 @@ function extractEntityBodyPlain(entity, type) {
 
 module.exports = {
   scanClips, parseClipFile, extractBodyPlain, isExcludedPath,
-  resolveClipStoragePath, resolveBasePath, resolveVaultRoot, candidateRoots,
-  scanEntities, parseEntityFile, extractEntityBodyPlain, ENTITY_DIRS,
-  scanVaultSources
+  resolveClipStoragePath, resolveBasePath, candidateRoots,
+  scanEntities, parseEntityFile, extractEntityBodyPlain, ENTITY_DIRS
 };

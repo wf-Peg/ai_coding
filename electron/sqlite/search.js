@@ -89,7 +89,7 @@ function ftsMatchExpr(q) {
 // ── 全库统一搜索（M4）：跨 clip / knowledge / learning-plan 全部实体 ──
 
 /** 允许参与全库检索的实体类型。 */
-const SEARCHABLE_TYPES = ['clip', 'knowledge', 'learning-plan', 'vault'];
+const SEARCHABLE_TYPES = ['clip', 'knowledge', 'learning-plan'];
 
 /**
  * 全库统一搜索：跨全部实体类型命中，返回统一类型化命中结构。
@@ -127,8 +127,8 @@ function normalizeType(type) {
 function searchAllFts(dbConn, q, limit, type) {
   try {
     const sql = type
-      ? 'SELECT c.type, c.id, c.content_ref, c.file_path FROM content_fts f JOIN content c ON c.rowid = f.rowid WHERE c.type = ? AND content_fts MATCH ? LIMIT ?'
-      : 'SELECT c.type, c.id, c.content_ref, c.file_path FROM content_fts f JOIN content c ON c.rowid = f.rowid WHERE content_fts MATCH ? LIMIT ?';
+      ? 'SELECT c.type, c.id, c.content_ref FROM content_fts f JOIN content c ON c.rowid = f.rowid WHERE c.type = ? AND content_fts MATCH ? LIMIT ?'
+      : 'SELECT c.type, c.id, c.content_ref FROM content_fts f JOIN content c ON c.rowid = f.rowid WHERE content_fts MATCH ? LIMIT ?';
     return type
       ? dbConn.prepare(sql).all(type, ftsMatchExpr(q), limit)
       : dbConn.prepare(sql).all(ftsMatchExpr(q), limit);
@@ -140,8 +140,8 @@ function searchAllFts(dbConn, q, limit, type) {
 function searchAllLike(dbConn, q, limit, type) {
   const like = `%${q}%`;
   const sql = type
-    ? 'SELECT type, id, content_ref, file_path FROM content WHERE type = ? AND (title LIKE ? OR body_plain LIKE ? OR tags LIKE ?) LIMIT ?'
-    : 'SELECT type, id, content_ref, file_path FROM content WHERE title LIKE ? OR body_plain LIKE ? OR tags LIKE ? LIMIT ?';
+    ? 'SELECT type, id, content_ref FROM content WHERE type = ? AND (title LIKE ? OR body_plain LIKE ? OR tags LIKE ?) LIMIT ?'
+    : 'SELECT type, id, content_ref FROM content WHERE title LIKE ? OR body_plain LIKE ? OR tags LIKE ? LIMIT ?';
   return type
     ? dbConn.prepare(sql).all(type, like, like, like, limit)
     : dbConn.prepare(sql).all(like, like, like, limit);
@@ -163,8 +163,7 @@ function toHit(row, entity) {
     type,
     id: row.id || (type + ':' + entity.id),
     title: String(title || bodyFallback(entity) || '未命名').slice(0, 120),
-    snippet: String(snippet || '').slice(0, 200),
-    filePath: row.file_path || null
+    snippet: String(snippet || '').slice(0, 200)
   };
 }
 
