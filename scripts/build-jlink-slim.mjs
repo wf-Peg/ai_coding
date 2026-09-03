@@ -33,8 +33,9 @@ const MODULES_BASE = [
   'java.scripting', 'jdk.localedata', 'java.rmi', 'jdk.naming.rmi', 'java.transaction.xa',
   'jdk.security.jgss', 'jdk.jfr', 'java.desktop',
 ];
-// 仅 Windows 存在的模块（CryptoAPI/CNG）
-const MODULES_WIN_ONLY = ['jdk.crypto.mscapi', 'jdk.crypto.cng'];
+// 仅 Windows 存在的模块（CryptoAPI）
+// 注意：Temurin 使用 jdk.crypto.mscapi；jdk.crypto.cng 并不存在（脚本曾因引用它导致 jlink 失败），已移除
+const MODULES_WIN_ONLY = ['jdk.crypto.mscapi'];
 const MODULES = [...MODULES_BASE, ...(OS_KEY === 'win' ? MODULES_WIN_ONLY : [])].join(',');
 
 function fingerprint() {
@@ -45,9 +46,11 @@ function fingerprint() {
 }
 
 // 1) 源校验
-const jlinkBin = path.join(SRC, 'bin', 'jlink');
+// Windows 下可执行文件带 .exe 后缀，Unix 下无后缀；两者都尝试，确保跨平台可用
+const jlinkCandidates = [path.join(SRC, 'bin', 'jlink'), path.join(SRC, 'bin', 'jlink.exe')];
+const jlinkBin = jlinkCandidates.find((p) => fs.existsSync(p));
 const jmods = path.join(SRC, 'jmods');
-if (!fs.existsSync(jlinkBin) || !fs.existsSync(jmods)) {
+if (!jlinkBin || !fs.existsSync(jmods)) {
   console.error(`[jlink] 未找到完整 JDK 源: ${SRC}（需要 bin/jlink 与 jmods）`);
   console.error('[jlink] 可先运行下载脚本获取完整 JDK 后重试。');
   process.exit(1);

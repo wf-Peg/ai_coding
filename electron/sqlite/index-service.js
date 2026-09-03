@@ -181,11 +181,13 @@ function stopMaintenance() {
   if (vacuumTimer) { clearInterval(vacuumTimer); vacuumTimer = null; }
 }
 
-/** 关闭索引库：停维护 → closeDatabase（内含 optimize + WAL checkpoint 落盘）。 */
+/** 关闭索引库：停维护 → closeFast（轻量落盘，无全库 optimize，不阻塞退出）。 */
 function close() {
   stopMaintenance();
   try { state.ready = false; } catch (e) {}
-  db.closeDatabase();
+  // 应用退出时使用 closeFast：不做全库 optimize，仅 PASSIVE checkpoint 落盘；
+  // 避免大库下全库扫描阻塞 will-quit 导致关闭慢；残留 WAL 由 SQLite 下次打开自动恢复。
+  db.closeFast();
 }
 
 /** 索引状态。 */

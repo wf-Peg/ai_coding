@@ -790,6 +790,28 @@
         </div>
             </section>
 
+            <section class="settings-group" id="group-gpu">
+                <div class="settings-group-title"><span class="group-icon">🖥️</span>渲染性能</div>
+        <div class="section">
+            <div class="section-title">
+                🖥️ GPU 渲染
+                <span class="section-badge immediate">即时生效</span>
+            </div>
+            <div class="setting-row" style="border-bottom: none;">
+                <div class="setting-label">
+                    <div class="setting-title">渲染模式</div>
+                    <div class="setting-desc">受限内网/无独显/远程桌面环境请用「稳定模式」；若切换后启动异常会自动回退。修改后重启应用生效</div>
+                </div>
+                <div class="setting-control">
+                    <select id="gpuProfileSelect" onchange="onGpuProfileChange()" style="width: 240px;">
+                        <option value="stable">稳定模式（软件渲染，兼容性最高）</option>
+                        <option value="performance">性能模式（启用硬件加速，可能更快）</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+            </section>
+
             <section class="settings-group" id="group-shortcuts">
                 <div class="settings-group-title"><span class="group-icon">⌨️</span>快捷操作</div>
 

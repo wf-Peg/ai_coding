@@ -901,6 +901,7 @@ function showToast(message, isError = false) {
 document.addEventListener('DOMContentLoaded', () => {
   renderThemeCards();
   loadConfig();
+  loadGpuProfile();
   document.getElementById('mascotAction')?.addEventListener('change', handleMascotActionChange);
   document.getElementById('mascotPresetList')?.addEventListener('click', handleMascotPreset);
   document.getElementById('mascotHistoryFilter')?.addEventListener('input', renderMascotHistory);
@@ -1660,6 +1661,47 @@ function onStartupModeChange() {
     }).catch(function(e) {
       console.error('保存启动模式失败:', e);
       showToast('保存启动模式失败: ' + (e.message || '未知错误'), true);
+    });
+  }
+}
+
+// ==================== GPU 渲染档位设置 ====================
+
+/**
+ * 加载 GPU 渲染档位并回填下拉框（非 Electron 环境隐藏该项）。
+ */
+function loadGpuProfile() {
+  var api = getElectronAPI();
+  var select = document.getElementById('gpuProfileSelect');
+  if (!api || typeof api.gpuGetProfile !== 'function') {
+    if (select) {
+      var row = select.closest('.setting-row');
+      if (row) row.style.display = 'none';
+    }
+    return;
+  }
+  api.gpuGetProfile().then(function(profile) {
+    if (select) select.value = profile || 'stable';
+  }).catch(function(e) {
+    console.warn('加载 GPU 渲染档位失败:', e);
+  });
+}
+
+/**
+ * GPU 渲染档位变更时保存（重启后生效；若 performance 启动异常会自动回退稳定模式）。
+ */
+function onGpuProfileChange() {
+  var select = document.getElementById('gpuProfileSelect');
+  if (!select) return;
+  var profile = select.value;
+  var api = getElectronAPI();
+  if (api && typeof api.gpuSetProfile === 'function') {
+    api.gpuSetProfile(profile).then(function(result) {
+      var msg = (result && result.message) ? result.message : '渲染档位已保存，重启应用后生效';
+      showToast(msg);
+    }).catch(function(e) {
+      console.error('保存 GPU 渲染档位失败:', e);
+      showToast('保存渲染档位失败: ' + (e.message || '未知错误'), true);
     });
   }
 }

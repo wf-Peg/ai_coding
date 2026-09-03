@@ -43,22 +43,13 @@ const log = require('./logger');
 /** 文本编辑器文件能力服务，只保存原生对话框授权过的路径。 */
 const editorFileService = new EditorFileService();
 
-// ==================== 硬件加速控制（必须早于 app ready） ====================
+// ==================== GPU 渲染档位策略（必须早于 app ready） ====================
 // 规避内网/无独显/远程桌面环境下新版 Chromium(Electron 36+) GPU 进程启动失败导致
 // 主进程 FATAL 崩溃(`GPU process isn't usable. Goodbye`, exitCode=1)无法启动的问题。
-// 显式关闭硬件加速并追加软件渲染开关，让渲染走软件路径；必须在 app ready 前设置，
-// 因此放在模块加载顶部（log 之后、其它业务逻辑之前），确保应用一启动即生效。
-app.disableHardwareAcceleration();
-app.commandLine.appendSwitch('disable-gpu');
-app.commandLine.appendSwitch('disable-gpu-compositing');
-// 关键修复：即使禁用硬件加速，Chromium 仍会拉起沙箱化 GPU 子进程；在管理员提权/精简系统/
-// 远程桌面等受限 Windows 环境下，该子进程启动失败(error_code=18) → FATAL "GPU process isn't usable"。
-// 必须禁用 GPU 进程沙箱。
-app.commandLine.appendSwitch('disable-gpu-sandbox');
-// 兜底：完全禁用 Chromium 沙箱，覆盖 renderer/GPU 等全部子进程，适配最强受限环境。
-// 应用已 nodeIntegration:false + contextIsolation:true，主进程安全基线不依赖 Chromium 沙箱。
-app.commandLine.appendSwitch('no-sandbox');
-log.info('[GPU] Hardware acceleration & GPU sandbox disabled for restricted Windows env');
+// 渲染档位需要读取用户 GPU 配置（存于 userData 目录）后才能决定，因此统一的
+// applyGpuPolicy() 被放置在下方 userData 路径定义之后、任何 whenReady 之前同步调用。
+// 全局约定：沙箱底线(disable-gpu-sandbox / no-sandbox)固定禁用、永不开放给用户配置，
+// 它是内网能正常启动的关键。用户可切换的是软件/硬件渲染档位（stable / performance）。
 
 // 懒加载的模块（避免阻塞启动）
 let finalhandler, serveStatic;
@@ -165,6 +156,91 @@ const CONFIG_DIR = path.join(app.getPath('userData'), 'config');
 
 /** 配置文件路径 */
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
+
+// ==================== GPU 渲染档位策略实现 ====================
+// 档位：'stable'（软件渲染，兼容性最高，默认） / 'performance'（硬件加速，更快但受限环境有崩溃风险）
+// 安全设计：
+//  1) 沙箱底线(disable-gpu-sandbox/no-sandbox)固定禁用，永不开放——这是内网能启动的关键。
+//  2) --safe-gpu 命令行可强制进入稳定档（用户被锁死时改快捷方式即可回退）。
+//  3) 崩溃自动降级：performance 档启动时写 pending 标记，成功显示主窗口后清除；
+//     若启动异常(FATAL/崩溃)标记残留，下次启动强制回退 stable 并重置配置，防止被锁死。
+/** GPU 档位配置文件 */
+const GPU_PROFILE_FILE = path.join(CONFIG_DIR, 'gpu-profile.json');
+/** performance 模式启动 pending 标记（崩溃自动降级凭据） */
+const GPU_PERF_PENDING_FLAG = path.join(CONFIG_DIR, 'gpu-perf-pending');
+
+/** 读取 GPU 档位配置（缺省 stable） */
+function getGpuProfile() {
+  try {
+    if (fs.existsSync(GPU_PROFILE_FILE)) {
+      const c = JSON.parse(fs.readFileSync(GPU_PROFILE_FILE, 'utf8'));
+      const v = String(c.profile || 'stable').toLowerCase();
+      return v === 'performance' ? 'performance' : 'stable';
+    }
+  } catch (e) {
+    log.warn('[GPU] 读取 gpu-profile.json 失败:', e.message);
+  }
+  return 'stable';
+}
+
+/** 写入 GPU 档位配置 */
+function writeGpuProfile(profile) {
+  try {
+    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    const p = String(profile || 'stable').toLowerCase() === 'performance' ? 'performance' : 'stable';
+    fs.writeFileSync(GPU_PROFILE_FILE, JSON.stringify({ profile: p }), 'utf8');
+    log.info(`[GPU] 已保存渲染档位: ${p}`);
+  } catch (e) {
+    log.warn('[GPU] 写入 gpu-profile.json 失败:', e.message);
+  }
+}
+
+/**
+ * 应用 GPU 档位策略（必须在 app ready 之前同步执行）。
+ * 返回最终生效的档位，供上层日志与降级标记管理参考。
+ */
+function applyGpuPolicy() {
+  // 1) --safe-gpu 命令行最高优先级：强制稳定档，作为被锁死时的逃生通道
+  const forceSafe = process.argv.includes('--safe-gpu');
+  // 2) 崩溃自动降级：上次 performance 启动异常（pending 标记残留）→ 强制 stable 并重置配置
+  let profile = getGpuProfile();
+  if (forceSafe) {
+    profile = 'stable';
+  } else if (profile === 'performance' && fs.existsSync(GPU_PERF_PENDING_FLAG)) {
+    log.warn('[GPU] 上次 performance 模式疑似异常退出，本次自动回退 stable 并重置配置');
+    profile = 'stable';
+    writeGpuProfile('stable');
+    try { fs.rmSync(GPU_PERF_PENDING_FLAG, { force: true }); } catch (_) {}
+  }
+  // 3) 沙箱底线固定禁用（内网崩溃根因），永不开放给用户
+  app.commandLine.appendSwitch('disable-gpu-sandbox');
+  app.commandLine.appendSwitch('no-sandbox');
+  // 4) 按档位应用软/硬件渲染
+  if (profile === 'performance') {
+    // 性能模式：允许硬件加速 + GPU 合成，写入 pending 标记，待主窗口成功显示后清除
+    try { fs.writeFileSync(GPU_PERF_PENDING_FLAG, String(Date.now()), 'utf8'); } catch (_) {}
+    log.info('[GPU] profile=performance: hardware acceleration ENABLED (pending flag written, auto-fallback armed)');
+  } else {
+    app.disableHardwareAcceleration();
+    app.commandLine.appendSwitch('disable-gpu');
+    app.commandLine.appendSwitch('disable-gpu-compositing');
+    log.info(`[GPU] profile=stable: hardware acceleration disabled${forceSafe ? ' (--safe-gpu forced)' : ''}`);
+  }
+  return profile;
+}
+
+/** performance 档成功显示主窗口后清除 pending 标记（由窗口成功回调调用） */
+function clearGpuPerfPendingFlag() {
+  if (getGpuProfile() === 'performance') {
+    try {
+      fs.rmSync(GPU_PERF_PENDING_FLAG, { force: true });
+      log.info('[GPU] performance 启动成功，已清除 pending 标记');
+    } catch (_) {}
+  }
+}
+
+// 应用 GPU 档位策略（必须在 app ready 之前执行）
+const appliedGpuProfile = applyGpuPolicy();
 
 /** 默认配置（新用户首次运行时使用） */
 const DEFAULT_CONFIG = {
@@ -285,6 +361,8 @@ function applyAutoStartSetting(enabled) {
 /** 后端 Java 进程引用 */
 let backendProcess = null;
 let backendStarted = false;
+/** 后端强杀守卫：一次退出只强杀一次，避免 quitApp/before-quit/will-quit 重复执行 */
+let backendStopInFlight = false;
 
 /** 主窗口引用 */
 let mainWindow = null;
@@ -301,6 +379,8 @@ let tray = null;
  * 设为 true 后，close 事件将不再拦截，允许窗口正常关闭
  */
 let isQuitting = false;
+/** 完整关闭是否已开始：收敛 quitApp/before-quit/will-quit 三入口，保证只停一次服务 */
+let shutdownStarted = false;
 
 /**
  * 主启动流程是否已完成（主窗口已创建、全局快捷键已注册）。
@@ -754,6 +834,7 @@ function startBackend(config) {
     // windowsHide: true 避免 Windows 上弹出命令行窗口
     // -Xms64m -Xmx256m: 限制堆内存，减少内存占用
     // -XX:+UseG1GC: 使用 G1 垃圾回收器，启动更快
+    backendStopInFlight = false; // 每次重新启动后端时重置强杀守卫，兼容重启场景
     backendProcess = spawn(javaCmd, [
       '-Xms64m', '-Xmx256m',
       '-XX:+UseG1GC',
@@ -821,44 +902,45 @@ function startBackend(config) {
 
 /**
  * 停止后端进程
- * 采用优雅关闭 + 强制终止 + 端口清理的三级策略：
- * 1. 先发送 SIGTERM 请求优雅关闭
- * 2. 3 秒后若未退出则 SIGKILL 强制终止
- * 3. 最后通过端口清理兜底（防止僵尸进程）
+ * 项目无关键数据，直接强杀后端（等价 kill -9 / taskkill /F），不做优雅关闭等待：
+ * 1. Windows：taskkill /F /T 连子树一起强杀，防 Java 子进程残留
+ * 2. macOS/Linux：SIGKILL 强杀
+ * 3. 末尾按端口清理兜底（防僵尸进程）
+ * 采用 backendStopInFlight 守卫确保一次退出只强杀一次。
  */
 function stopBackend() {
+  // 幂等守卫：quitApp/before-quit/will-quit 多次进入时，仅首次真正执行
+  if (backendStopInFlight) return;
+  backendStopInFlight = true;
+
   // 预加载配置，避免重复调用 loadConfig
   const config = loadConfig();
 
   if (backendProcess) {
-    log.info('Stopping backend...');
+    const pid = backendProcess.pid;
+    log.info(`Force-stopping backend PID ${pid}...`);
 
-    // 第一步：发送 SIGTERM（优雅关闭，Spring Boot 会执行 shutdown hook）
     try {
-      backendProcess.kill('SIGTERM');
+      if (process.platform === 'win32') {
+        // Windows：taskkill /F 强杀，/T 连子树一起终止，防止 Java 派生的子进程残留
+        exec(`taskkill /F /T /PID ${pid}`, (err) => {
+          if (err) log.warn(`Force-kill backend PID ${pid} failed: ${err.message}`);
+          else log.info(`Backend PID ${pid} force-killed (kill -9)`);
+        });
+      } else {
+        // macOS/Linux：直接 SIGKILL，进程无法捕获或忽略
+        backendProcess.kill('SIGKILL');
+      }
     } catch (e) {
       // 进程可能已经退出，忽略错误
+      log.warn(`Force-kill backend PID ${pid} error: ${e.message}`);
     }
 
-    // 第二步：3 秒后强制 SIGKILL（防止进程卡住不退出）
-    setTimeout(() => {
-      if (backendProcess) {
-        try {
-          backendProcess.kill('SIGKILL');
-        } catch (e) {
-          // ignore
-        }
-        backendProcess = null;
-      }
-    }, 3000);
-
-    // 1 秒后也通过端口清理兜底
-    if (config && config.backendPort) {
-      setTimeout(() => killPortProcess(config.backendPort), 1000);
-    }
+    // 进程句柄置空，close 事件内亦有置空逻辑（此处立即置空防止后续再次触发）
+    backendProcess = null;
   }
 
-  // 无论 backendProcess 是否存在，都执行端口清理以防僵尸进程
+  // 无论 backendProcess 是否存在，都执行端口清理以防僵尸进程（尽力而为，非阻塞）
   if (config) {
     killPortProcess(config.backendPort);
     killPortProcess(config.frontendPort);
@@ -1846,6 +1928,12 @@ async function showCloseDialog(win) {
     box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 16px 48px rgba(0,0,0,0.5);
     display: flex; flex-direction: column;
     overflow: hidden;
+    /* 入场动画：淡入 + 上浮缩放，提升弹出丝滑感 */
+    animation: cardIn .22s ease-out;
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(6px) scale(.97); }
+    to   { opacity: 1; transform: none; }
   }
   .card.light {
     box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 16px 48px rgba(0,0,0,0.12);
@@ -1886,6 +1974,8 @@ async function showCloseDialog(win) {
     cursor: pointer; font-family: inherit; transition: all 0.15s; font-weight: 500;
     letter-spacing: 0.01em;
   }
+  /* 按钮按压反馈：轻微回缩，提升交互丝滑感 */
+  .btn:active { transform: scale(.97); }
   .btn-cancel {
     background: var(--btn-secondary-bg); border-color: var(--btn-secondary-border); color: var(--fg);
   }
@@ -1934,9 +2024,20 @@ async function showCloseDialog(win) {
   </div>
 </div>
 <script>
+  function fadeOut(done) {
+    const card = document.querySelector('.card');
+    // 播放退场：淡出 + 轻微缩放，再回调收尾，避免"啪"一下消失
+    card.style.transition = 'opacity .16s ease-in, transform .16s ease-in';
+    card.style.opacity = '0';
+    card.style.transform = 'scale(.98)';
+    setTimeout(done, 160);
+  }
   function choose(action) {
-    window.dialogApi.choose(action, document.getElementById('remember').checked);
-    window.close();
+    const remember = document.getElementById('remember').checked;
+    fadeOut(() => {
+      window.dialogApi.choose(action, remember);
+      window.close();
+    });
   }
 </script>
 </body></html>`;
@@ -1981,9 +2082,9 @@ async function showCloseDialog(win) {
           closeToTray = dialogResult.action === 'tray';
         }
         if (dialogResult.action === 'tray') {
-          // macOS 上模态弹窗关闭后 minimize() 不生效（窗口仍可见），改用 hide() 真正收入托盘
+          // macOS 上模态弹窗关闭后 minimize() 不生效（窗口仍可见），改用淡出后 hide() 真正收入托盘
           trayHidden = true;
-          if (parent) parent.hide();
+          if (parent) fadeOutWindow(parent, 160, () => { if (!parent.isDestroyed()) parent.hide(); });
         } else {
           isQuitting = true;
           quitApp();
@@ -2081,6 +2182,8 @@ function createMainWindow(config) {
       mainWindow.webContents.send('backend-ready');
       mainWindow.webContents.send('load-config', config);
     }
+    // performance 渲染档启动成功：清除 pending 降级标记，避免下次误判为崩溃
+    clearGpuPerfPendingFlag();
   });
 
   // 开始加载页面，最多重试 5 次（共 10 秒）
@@ -2107,9 +2210,11 @@ function createMainWindow(config) {
     if (!isQuitting) {
       event.preventDefault();  // 阻止默认关闭行为
       if (closeToTray === true) {
-        // 最小化到托盘：hide() 真正将窗口收入托盘（macOS 上 minimize() 仍会残留/被激活弹回）
+        // 最小化到托盘：淡出后 hide() 真正将窗口收入托盘（macOS 上 minimize() 仍会残留/被激活弹回）
         trayHidden = true;
-        mainWindow.hide();
+        fadeOutWindow(mainWindow, 160, () => {
+          if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide();
+        });
       } else if (closeToTray === false) {
         isQuitting = true;
         quitApp();
@@ -2259,10 +2364,48 @@ function ensureContextMenuRegistered(config) {
 }
 
 /**
+ * 启动完整关闭：后端/前端/DSH 只停一次（幂等），
+ * 收敛 quitApp / before-quit / will-quit 三个入口，避免重复 netstat/taskkill。
+ */
+function beginShutdown() {
+  if (shutdownStarted) return;
+  shutdownStarted = true;
+  stopBackend();
+  stopFrontendServer();
+  stopDshAgent();
+}
+
+/**
+ * 主窗口退场淡出（GPU 原生透明度动画，见 BrowserWindow.setOpacity）。
+ * macOS 恒支持、Windows 支持；Linux 不支持 setOpacity，直接回调跳过。
+ * @param {BrowserWindow|null} win
+ * @param {number} ms 淡出总时长
+ * @param {Function} [done] 淡出完成后回调
+ */
+function fadeOutWindow(win, ms, done) {
+  if (!win || win.isDestroyed() || process.platform === 'linux') {
+    if (done) done();
+    return;
+  }
+  const steps = 12;
+  const stepMs = ms / steps;
+  for (let i = 1; i <= steps; i++) {
+    setTimeout(() => {
+      if (!win.isDestroyed()) win.setOpacity(1 - i / steps);
+    }, i * stepMs);
+  }
+  setTimeout(done || (() => {}), ms);
+}
+
+/**
  * 完整退出应用
- * 按顺序执行：销毁托盘 → 停止后端 → 停止前端 → 退出 Electron
+ * 按顺序执行：销毁托盘 → 停止后端 → 停止前端 → 主窗口淡出 → 退出 Electron
  */
 function quitApp() {
+  // 幂等守卫：一次运行只允许一次完整关闭，before-quit / will-quit 再次进入时直接返回
+  if (shutdownStarted) return;
+  shutdownStarted = true;
+
   isQuitting = true;
 
   // 停止更新检查定时器
@@ -2293,7 +2436,12 @@ function quitApp() {
   try { screenshotService.cleanupOnQuit(); } catch (e) { log.warn('[Quit] screenshot cleanup:', e.message); }
   try { destroyTransientToasts(); } catch (e) { log.warn('[Quit] toast cleanup:', e.message); }
 
-  app.quit();
+  // 主窗口淡出后退出，视觉丝滑；stop 系列已非阻塞，淡出期间系统无阻塞。
+  // beginShutdown 此处幂等，仅首次真正执行。
+  fadeOutWindow(mainWindow, 180, () => {
+    beginShutdown();
+    app.quit();
+  });
 }
 
 // ==================== IPC 通信 ====================
@@ -2533,6 +2681,22 @@ function setupIPC() {
   ipcMain.handle('get-startup-mode', () => {
     const config = loadConfig();
     return config.startupMode || 'frontend-only';
+  });
+
+  /**
+   * GPU 渲染档位：仅读写本地 gpu-profile.json（不依赖后端），供设置页选择并重启生效。
+   */
+  ipcMain.handle('gpu:get-profile', () => getGpuProfile());
+  ipcMain.handle('gpu:set-profile', (event, profile) => {
+    const v = String(profile || 'stable').toLowerCase() === 'performance' ? 'performance' : 'stable';
+    writeGpuProfile(v);
+    return {
+      success: true,
+      profile: v,
+      message: v === 'performance'
+        ? '性能模式已保存，重启应用后生效；若启动异常将自动回退稳定模式'
+        : '稳定模式（软件渲染）已保存，重启应用后生效',
+    };
   });
 
   ipcMain.handle('get-auto-start', () => {
@@ -4750,9 +4914,8 @@ app.on('before-quit', () => {
   try { screenshotService.cleanupOnQuit(); } catch (e) {}
   try { destroyTransientToasts(); } catch (e) {}
   stopReminderScheduler();
-  stopBackend();
-  stopFrontendServer();
-  stopDshAgent();
+  // 统一走 beginShutdown 幂等出口，避免与 quitApp/will-quit 重复 stop
+  beginShutdown();
 });
 
 // 应用退出时：确保清理所有服务进程
@@ -4761,12 +4924,11 @@ app.on('will-quit', () => {
     try { localIndexWatcher.stop(); } catch (e) {}
     localIndexWatcher = null;
   }
-  // 优雅关闭索引库：停维护 + closeDatabase（optimize + WAL checkpoint 落盘），避免 wal 残留
+  // 优雅关闭索引库：轻量落盘（PASSIVE checkpoint，无全库 optimize），避免阻塞进程退出
   try { localIndexService.close(); } catch (e) {}
   unregisterGlobalShortcut();
-  stopBackend();
-  stopFrontendServer();
-  stopDshAgent();
+  // 统一走 beginShutdown 幂等出口，避免与 quitApp/before-quit 重复 stop
+  beginShutdown();
 });
 
 // macOS Dock 图标点击或应用激活时

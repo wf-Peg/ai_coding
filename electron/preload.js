@@ -38,6 +38,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   saveConfig: (config) => ipcRenderer.invoke('save-config', config),
 
+  /** 读取 GPU 渲染档位（stable / performance） */
+  gpuGetProfile: () => ipcRenderer.invoke('gpu:get-profile'),
+  /** 设置 GPU 渲染档位（重启后生效；承载自动降级与 --safe-gpu 逃生通道） */
+  gpuSetProfile: (profile) => ipcRenderer.invoke('gpu:set-profile', profile),
+
   /**
    * 从主进程获取已保存的配置
    * @returns {Promise<Object>} 返回完整的配置对象，首次使用时可能返回空对象或默认值
