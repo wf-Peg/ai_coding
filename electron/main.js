@@ -43,6 +43,16 @@ const log = require('./logger');
 /** 文本编辑器文件能力服务，只保存原生对话框授权过的路径。 */
 const editorFileService = new EditorFileService();
 
+// ==================== 硬件加速控制（必须早于 app ready） ====================
+// 规避内网/无独显/远程桌面环境下新版 Chromium(Electron 36+) GPU 进程启动失败导致
+// 主进程 FATAL 崩溃(`GPU process isn't usable. Goodbye`, exitCode=1)无法启动的问题。
+// 显式关闭硬件加速并追加软件渲染开关，让渲染走软件路径；必须在 app ready 前设置，
+// 因此放在模块加载顶部（log 之后、其它业务逻辑之前），确保应用一启动即生效。
+app.disableHardwareAcceleration();
+app.commandLine.appendSwitch('disable-gpu');
+app.commandLine.appendSwitch('disable-gpu-compositing');
+log.info('[GPU] Hardware acceleration disabled for compatibility');
+
 // 懒加载的模块（避免阻塞启动）
 let finalhandler, serveStatic;
 

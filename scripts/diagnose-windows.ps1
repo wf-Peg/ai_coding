@@ -308,6 +308,13 @@ if ($Launch) {
             Write-Result "INFO" "排查提示（当前阶段=$stage）：$(Get-StageHint $stage)"
         }
 
+        # GPU 崩溃检测：新版 Chromium(Electron 36+) 在内网/无独显/远程桌面下
+        # GPU 进程启动失败(`GPU process isn't usable`)会导致主进程 FATAL 退出(exitCode=1)。
+        # 命中特征串即给出明确结论，避免误判为 clearCache/其它卡点。
+        if ($tail -match 'GPU process launch failed|GPU process isn.t usable|gpu_process_host\.cc|GPU process isn.t usable. Goodbye') {
+            Write-Result "FAIL" "检测到 GPU 进程崩溃（error_code=18 / 'GPU process isn't usable'）。这是新版 Chromium 硬件加速初始化失败导致主进程 FATAL 退出，与 clearCache/后端无关。需在 main.js 于 app ready 前调用 app.disableHardwareAcceleration() 并追加 disable-gpu 开关"
+        }
+
         if (-not $KeepRunning) {
             Write-Result "INFO" "停止本次启动以清理环境 (任务管理器结束 $exe)..."
             try { Stop-Process -Name $exe.BaseName -ErrorAction SilentlyContinue } catch { }
