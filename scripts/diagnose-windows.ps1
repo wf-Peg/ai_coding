@@ -312,7 +312,7 @@ if ($Launch) {
         # GPU 进程启动失败(`GPU process isn't usable`)会导致主进程 FATAL 退出(exitCode=1)。
         # 命中特征串即给出明确结论，避免误判为 clearCache/其它卡点。
         if ($tail -match 'GPU process launch failed|GPU process isn.t usable|gpu_process_host\.cc|GPU process isn.t usable. Goodbye') {
-            Write-Result "FAIL" "检测到 GPU 进程崩溃（error_code=18 / 'GPU process isn't usable'）。这是新版 Chromium 硬件加速初始化失败导致主进程 FATAL 退出，与 clearCache/后端无关。需在 main.js 于 app ready 前调用 app.disableHardwareAcceleration() 并追加 disable-gpu 开关"
+            Write-Result "FAIL" "检测到 GPU 进程崩溃（error_code=18 / 'GPU process isn't usable'）。这是新版 Chromium 的 GPU 子进程『沙箱(sandbox)』启动失败导致主进程 FATAL 退出，与 clearCache/后端无关。需在 main.js 于 app ready 前禁用 GPU 进程沙箱：追加 disable-gpu-sandbox，必要时加 no-sandbox 兜底"
         }
 
         if (-not $KeepRunning) {

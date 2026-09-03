@@ -51,7 +51,14 @@ const editorFileService = new EditorFileService();
 app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('disable-gpu');
 app.commandLine.appendSwitch('disable-gpu-compositing');
-log.info('[GPU] Hardware acceleration disabled for compatibility');
+// 关键修复：即使禁用硬件加速，Chromium 仍会拉起沙箱化 GPU 子进程；在管理员提权/精简系统/
+// 远程桌面等受限 Windows 环境下，该子进程启动失败(error_code=18) → FATAL "GPU process isn't usable"。
+// 必须禁用 GPU 进程沙箱。
+app.commandLine.appendSwitch('disable-gpu-sandbox');
+// 兜底：完全禁用 Chromium 沙箱，覆盖 renderer/GPU 等全部子进程，适配最强受限环境。
+// 应用已 nodeIntegration:false + contextIsolation:true，主进程安全基线不依赖 Chromium 沙箱。
+app.commandLine.appendSwitch('no-sandbox');
+log.info('[GPU] Hardware acceleration & GPU sandbox disabled for restricted Windows env');
 
 // 懒加载的模块（避免阻塞启动）
 let finalhandler, serveStatic;
