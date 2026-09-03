@@ -10,6 +10,7 @@ import com.example.clip.index.WorkspaceIndexService;
 import com.example.clip.index.WorkspaceRule;
 import com.example.clip.service.FeaturePointsService;
 import com.example.clip.service.AppConfigService;
+import com.example.clip.core.AiService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -197,8 +198,9 @@ class WorkspaceControllerTest {
     private WorkspaceController controller() {
         AppConfigService configService = mock(AppConfigService.class);
         FeaturePointsService fpService = mock(FeaturePointsService.class);
+        AiService aiService = mock(AiService.class);
         when(configService.getConfigDirPath()).thenReturn(tempDir.toString());
-        return new WorkspaceController(configService, fpService);
+        return new WorkspaceController(configService, fpService, aiService);
     }
 
     @SuppressWarnings("unchecked")

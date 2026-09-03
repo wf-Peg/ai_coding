@@ -495,6 +495,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dshAgentStatus: () => ipcRenderer.invoke('dsh-agent:status'),
 
   /**
+   * 查询当前 DSH 版本状态（设置页「DSH 升级助手」展示与版本漂移告警）
+   * @returns {Promise<{running: boolean, port: number, version: string|null, source: string|null, mismatch: null|{host: string, supported: string}, at: number|null}>}
+   */
+  detectDshVersionState: () => ipcRenderer.invoke('dsh-agent:detect-version'),
+
+  /**
    * 按需启动（或复用）DSH Agent sidecar（端口 3081）
    * @returns {Promise<{success: boolean, reused: boolean, port: number, message?: string}>}
    */

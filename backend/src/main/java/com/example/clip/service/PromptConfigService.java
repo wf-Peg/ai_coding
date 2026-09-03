@@ -62,6 +62,7 @@ public class PromptConfigService {
         normalized.setSmartOrganizePrompt(normalizeOrDefault(loaded.getSmartOrganizePrompt(), DEFAULT_SMART_ORGANIZE_PROMPT));
         normalized.setGenerateSynonymsPrompt(normalizeOrDefault(loaded.getGenerateSynonymsPrompt(), DEFAULT_GENERATE_SYNONYMS_PROMPT));
         normalized.setDivergentSummaryRoleMap(normalizeOrDefault(loaded.getDivergentSummaryRoleMap(), DEFAULT_DIVERGENT_SUMMARY_ROLE_MAP));
+        normalized.setDshSessionArchivePrompt(normalizeOrDefault(loaded.getDshSessionArchivePrompt(), DEFAULT_DSH_SESSION_ARCHIVE_PROMPT));
         // Wiki
         normalized.setWikiBatchExtractPrompt(normalizeOrDefault(loaded.getWikiBatchExtractPrompt(), DEFAULT_WIKI_BATCH_EXTRACT_PROMPT));
         normalized.setWikiGenerateEntityPagePrompt(normalizeOrDefault(loaded.getWikiGenerateEntityPagePrompt(), DEFAULT_WIKI_GENERATE_ENTITY_PAGE_PROMPT));
@@ -95,6 +96,7 @@ public class PromptConfigService {
         normalized.setSmartOrganizePrompt(normalizeOrDefault(config.getSmartOrganizePrompt(), existing.getSmartOrganizePrompt()));
         normalized.setGenerateSynonymsPrompt(normalizeOrDefault(config.getGenerateSynonymsPrompt(), existing.getGenerateSynonymsPrompt()));
         normalized.setDivergentSummaryRoleMap(normalizeOrDefault(config.getDivergentSummaryRoleMap(), existing.getDivergentSummaryRoleMap()));
+        normalized.setDshSessionArchivePrompt(normalizeOrDefault(config.getDshSessionArchivePrompt(), existing.getDshSessionArchivePrompt()));
         // Wiki
         normalized.setWikiBatchExtractPrompt(normalizeOrDefault(config.getWikiBatchExtractPrompt(), existing.getWikiBatchExtractPrompt()));
         normalized.setWikiGenerateEntityPagePrompt(normalizeOrDefault(config.getWikiGenerateEntityPagePrompt(), existing.getWikiGenerateEntityPagePrompt()));
@@ -178,6 +180,10 @@ public class PromptConfigService {
 
     public String getGenerateTagsPrompt() {
         return getPromptConfig().getGenerateTagsPrompt();
+    }
+
+    public String getDshSessionArchivePrompt() {
+        return getPromptConfig().getDshSessionArchivePrompt();
     }
 
     public String getSmartOrganizePrompt() {
@@ -275,6 +281,7 @@ public class PromptConfigService {
         c.setSmartOrganizePrompt(DEFAULT_SMART_ORGANIZE_PROMPT);
         c.setGenerateSynonymsPrompt(DEFAULT_GENERATE_SYNONYMS_PROMPT);
         c.setDivergentSummaryRoleMap(DEFAULT_DIVERGENT_SUMMARY_ROLE_MAP);
+        c.setDshSessionArchivePrompt(DEFAULT_DSH_SESSION_ARCHIVE_PROMPT);
         // Wiki
         c.setWikiBatchExtractPrompt(DEFAULT_WIKI_BATCH_EXTRACT_PROMPT);
         c.setWikiGenerateEntityPagePrompt(DEFAULT_WIKI_GENERATE_ENTITY_PAGE_PROMPT);
@@ -301,6 +308,7 @@ public class PromptConfigService {
         validateField("smartOrganizePrompt", config.getSmartOrganizePrompt());
         validateField("generateSynonymsPrompt", config.getGenerateSynonymsPrompt());
         validateField("divergentSummaryRoleMap", config.getDivergentSummaryRoleMap());
+        validateField("dshSessionArchivePrompt", config.getDshSessionArchivePrompt());
         validateField("wikiBatchExtractPrompt", config.getWikiBatchExtractPrompt());
         validateField("wikiGenerateEntityPagePrompt", config.getWikiGenerateEntityPagePrompt());
         validateField("wikiGenerateConceptPagePrompt", config.getWikiGenerateConceptPagePrompt());
@@ -565,6 +573,23 @@ public class PromptConfigService {
             "}";
 
     // ==================== 默认 Wiki Prompt 常量 ====================
+
+    /** 默认 DSH 会话成果归档 Prompt — 把一轮会话提炼为产品概览迭代记录的四字段 */
+    private static final String DEFAULT_DSH_SESSION_ARCHIVE_PROMPT =
+            "You are a work-log archivist. Given a transcript of one AI working session (user requests, " +
+            "assistant replies and tool-call records interleaved), distill it into four fields:\n" +
+            "\n" +
+            "1. title: what was done in this session (a short Chinese phrase, <= 30 chars).\n" +
+            "2. problem: the problem or need that was being solved (Chinese, 1-3 sentences, plain language).\n" +
+            "3. solution: how it was solved — key approach, technical decisions, files/functions involved (Chinese, concise).\n" +
+            "4. outcome: the final result explained in plain, non-technical language (Chinese, 1-2 sentences).\n" +
+            "\n" +
+            "Rules:\n" +
+            "- All four fields must be written in plain Chinese (大白话), no jargon dumps.\n" +
+            "- Base everything strictly on the transcript; do not invent work that did not happen.\n" +
+            "- If the session is only casual chat with no real work, return a JSON object whose \"title\" is \"闲聊\" and the other three fields are empty strings.\n" +
+            "- Return ONLY a JSON object, no markdown code block, no extra text, format:\n" +
+            "{\"title\": \"...\", \"problem\": \"...\", \"solution\": \"...\", \"outcome\": \"...\"}";
 
     /** 默认 Wiki 批量实体/概念抽取 Prompt */
     private static final String DEFAULT_WIKI_BATCH_EXTRACT_PROMPT =

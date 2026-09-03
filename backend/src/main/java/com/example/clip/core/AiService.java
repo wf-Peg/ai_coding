@@ -238,6 +238,43 @@ public class AiService {
     }
 
     /**
+     * DSH 会话成果自动归档（牛马记录）：把一轮会话提炼为四字段。
+     * <p>
+     * 失败时不抛出，返回 null，由调用方生成兜底四字段记录，保证会话成果不丢失。
+     *
+     * @param conversation 一轮会话的聚合文本（用户消息 / AI 回复 / 工具调用名）
+     * @return title/problem/solution/outcome 四字段映射；失败返回 null
+     */
+    public Map<String, Object> generateSessionArchive(String conversation) {
+        try {
+            String responseStr = llmProvider.chatForTier(
+                    promptConfigService.getDshSessionArchivePrompt(), conversation, "simple");
+            String cleaned = cleanJsonWrapper(responseStr);
+            ObjectMapper mapper = new ObjectMapper()
+                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            Map<String, Object> parsed = mapper.readValue(cleaned, new TypeReference<Map<String, Object>>() {});
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("title", asText(parsed.get("title"), "牛马记录"));
+            result.put("problem", asText(parsed.get("problem"), ""));
+            result.put("solution", asText(parsed.get("solution"), ""));
+            result.put("outcome", asText(parsed.get("outcome"), ""));
+            return result;
+        } catch (Exception e) {
+            logger.error("[AI] generateSessionArchive failed: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /** 非空文本兜底：null/空白时用默认值。 */
+    private String asText(Object value, String fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        String text = String.valueOf(value).trim();
+        return text.isEmpty() ? fallback : text;
+    }
+
+    /**
      * 提取关键词标签。
      * <p>
      * 要求 LLM 提取不超过 10 个关键词作为标签，以逗号分隔。

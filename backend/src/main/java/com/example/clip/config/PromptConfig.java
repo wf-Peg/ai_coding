@@ -54,6 +54,8 @@ public class PromptConfig {
 
     /** 标签提取的提示词 */
     private String generateTagsPrompt;
+    /** DSH 会话成果自动归档（牛马记录）：把一轮会话提炼为产品概览迭代记录的四字段 */
+    private String dshSessionArchivePrompt;
 
     /** 智能分类+标签的提示词 */
     private String smartOrganizePrompt;
@@ -134,6 +136,8 @@ public class PromptConfig {
 
     public String getGenerateTagsPrompt() { return generateTagsPrompt; }
     public void setGenerateTagsPrompt(String v) { this.generateTagsPrompt = v; }
+    public String getDshSessionArchivePrompt() { return dshSessionArchivePrompt; }
+    public void setDshSessionArchivePrompt(String v) { this.dshSessionArchivePrompt = v; }
 
     public String getSmartOrganizePrompt() { return smartOrganizePrompt; }
     public void setSmartOrganizePrompt(String v) { this.smartOrganizePrompt = v; }

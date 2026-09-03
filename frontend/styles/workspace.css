@@ -468,7 +468,7 @@
     .pd-iter-note { margin-top: 6px; font-size: 12px; color: var(--ws-muted); line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
     /* DSH 会话成果（牛马记录）卡片 */
     .pd-iter-item.pd-iter-ai { border-left: 3px solid var(--ws-primary); background: var(--ws-primary-soft); }
-    .pd-iter-badge.ai { background: linear-gradient(135deg, #dbeafe, #e0e7ff); color: #3730a3; }
+    .pd-iter-badge.ai { background: var(--ws-primary-soft); color: var(--ws-primary); }
     .pd-iter-title { margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--ws-text); word-break: break-word; }
     .pd-iter-four { margin-top: 6px; }
     .pd-iter-four-k { display: block; font-size: 10px; font-weight: 650; color: var(--ws-primary); margin-bottom: 2px; }

@@ -283,7 +283,8 @@ const DEFAULT_CONFIG = {
 };
 
 // ===== dsh 安装命令在线同步（npm 优先 + GitHub README 兜底）=====
-const DEFAULT_DSH_SPEC = '@deepseek-ai/dsh@0.1.0-rc.7'; // 最后的兜底固定版本（未配置 dshAgentNpxSpec 时）
+const DSH_VERSION = '0.1.0-rc.7';                       // 应用适配的 DSH 版本（单一常量：升级助手告警 + 兜底 spec 同源）
+const DEFAULT_DSH_SPEC = `@deepseek-ai/dsh@${DSH_VERSION}`; // 最后的兜底固定版本（未配置 dshAgentNpxSpec 时）
 const DSH_SYNC_TTL = 6 * 3600 * 1000;                   // 在线同步缓存 TTL：6 小时
 const DSH_SYNC_TIMEOUT = 8000;                          // 单次在线探测超时（ms）
 let dshCmdPromise = null;                               // 并发去重：同一次解析只发一个网络请求，其余复用其结果
@@ -957,6 +958,7 @@ function stopBackend() {
 let dshAgentProcess = null;
 let dshAgentOwned = false;   // true = 进程是本应用拉起的，退出需关闭；false = 复用了已有实例
 let dshManagedPort = null;   // 由本应用亲自拉起的 DSH 端口（跨 launcher 退出保留，用于按端口强杀守护进程）
+let dshVersionState = null;  // { version, source, at } 最近一次探测的 DSH 版本（复用/启动就绪时写入，供「升级助手」展示）
 
 /** 探测本地端口是否返回 HTTP 200（判断 DSH Web 是否就绪） */
 function checkHttpPort(port, pathname = '/') {
@@ -1198,6 +1200,63 @@ function resolveDshBin(config) {
 }
 
 /**
+ * 从已解析的 dsh bin 的 package.json 中读取磁盘版本号（best-effort）。
+ * 用于「升级助手」展示当前 DSH 版本；返回 { version, source }，source ∈ npx/config/builtin。
+ * @param {{mode:string,node?:string,script?:string}} bin resolveDshBin 的返回值
+ * @param {Object} [config]
+ */
+function detectDshVersion(bin, config) {
+  let version = null;
+  if (bin && bin.script) {
+    try {
+      // bin.script 形如 …/node_modules/@deepseek-ai/dsh/lib/bin.js → 上一级即包根
+      const pkgPath = path.join(path.dirname(bin.script), '..', 'package.json');
+      if (fs.existsSync(pkgPath)) {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+        if (pkg && typeof pkg.version === 'string' && pkg.version) version = pkg.version;
+      }
+    } catch (e) {
+      log.warn(`[DSH Agent] detect dsh version failed: ${e.message}`);
+    }
+  }
+  let source = null;
+  if (bin && bin.script && bin.script.includes('_npx')) source = 'npx';
+  // 配置 dshBinPath 是残留(_npx)时不视为"用户手动指定路径"，仍归为内置来源
+  else if (config && config.dshBinPath && !String(config.dshBinPath).includes('_npx')) source = 'config';
+  else source = 'builtin';
+  return { version, source };
+}
+
+/**
+ * 复用运行中 DSH 实例时，从实例 HTTP 尽力读取版本（best-effort，拿不到返回 ok:false）。
+ * 兼容纯文本版本号与 {"version":"x"} 两种响应形态。
+ */
+function fetchRuntimeDshVersion(port) {
+  return new Promise((resolve) => {
+    const req = http.request({
+      hostname: '127.0.0.1', port: port, path: '/version', method: 'GET', timeout: 1500
+    }, (res) => {
+      let buf = '';
+      res.setEncoding('utf-8');
+      res.on('data', (d) => { buf += d; });
+      res.on('end', () => {
+        const txt = (buf || '').trim();
+        let v = null;
+        if (txt.startsWith('{')) {
+          try { v = JSON.parse(txt).version || null; } catch (e) { v = null; }
+        } else if (txt) {
+          v = txt;
+        }
+        resolve(v ? { version: String(v), ok: true } : { version: null, ok: false });
+      });
+    });
+    req.on('error', () => resolve({ version: null, ok: false }));
+    req.on('timeout', () => { req.destroy(); resolve({ version: null, ok: false }); });
+    req.end();
+  });
+}
+
+/**
  * 向渲染进程广播 DSH Agent 启动进度（面板展示"检测/安装/启动/就绪/失败"）。
  * @param {string} state  detecting | installing | starting | ready | failed
  * @param {string} message 面向用户的文案
@@ -1284,8 +1343,27 @@ async function startDshAgent(config) {
   if (await checkHttpPort(port)) {
     dshAgentOwned = false;
     log.info(`[DSH Agent] Reusing existing DSH instance on port ${port}`);
-    broadcastDshProgress('ready', `已复用现有 DSH 实例（端口 ${port}）`);
-    return { success: true, reused: true, port };
+    // 复用运行中实例：dock 版本 ≠ 磁盘版本，优先从实例 HTTP /version 读（best-effort），
+    // 拿不到再回退本地磁盘解析，消除「版本未知」，供升级助手展示与版本漂移告警。
+    const rt = await fetchRuntimeDshVersion(port);
+    let ver = rt.ok ? rt.version : null;
+    let src = rt.ok ? 'runtime' : null;
+    if (!ver) {
+      try {
+        const disk = detectDshVersion(resolveDshBin(config), config);
+        if (disk && disk.version) { ver = disk.version; src = disk.source; }
+      } catch (e) { /* 磁盘解析失败则保持未知 */ }
+    }
+    dshVersionState = { version: ver, source: src, at: Date.now() };
+    const reuseMismatch = (ver && ver !== DSH_VERSION) ? { host: ver, supported: DSH_VERSION } : null;
+    if (ver) {
+      log.info(`[DSH Agent] DSH 复用实例版本: v${ver}（来源 ${src}）`);
+      if (reuseMismatch) log.warn(`[DSH Agent] 复用实例 v${ver} ≠ 应用适配版本 v${DSH_VERSION}（仅提示，不阻断）`);
+    }
+    broadcastDshProgress('ready',
+      `已复用现有 DSH 实例（端口 ${port}）${ver ? ' · v' + ver : '（版本未知）'}`,
+      { dshVersion: ver, dshMismatch: reuseMismatch });
+    return { success: true, reused: true, port, version: ver, source: src };
   }
 
   // 2) 定位 integrations/dsh 资源目录，并生成运行时 patch
@@ -1416,11 +1494,18 @@ async function startDshAgent(config) {
     }
     if (await checkHttpPort(port)) {
       log.info(`[DSH Agent] ready at http://127.0.0.1:${port}`);
+      // 启动成功：记录磁盘探测的版本（供升级助手展示 + 版本漂移告警）
+      const det = detectDshVersion(bin, config);
+      dshVersionState = { version: det.version, source: det.source, at: Date.now() };
+      const detMismatch = (det.version && det.version !== DSH_VERSION)
+        ? { host: det.version, supported: DSH_VERSION } : null;
+      if (detMismatch) log.warn(`[DSH Agent] 宿主 v${det.version} ≠ 应用适配版本 v${DSH_VERSION}（仅提示，不阻断）`);
       broadcastDshProgress('ready', npxMode
-        ? `DeepSeek Harness 安装并启动成功（端口 ${port}），下次将直接使用本地缓存`
-        : `DeepSeek Harness 已就绪（端口 ${port}）`);
+        ? `DeepSeek Harness 安装并启动成功（端口 ${port}），下次将直接使用本地缓存${det.version ? ' · v' + det.version : ''}`
+        : `DeepSeek Harness 已就绪（端口 ${port}）${det.version ? ' · v' + det.version : ''}`,
+        { dshVersion: det.version, dshMismatch: detMismatch });
       persistDshBinIfNpx(bin, config);
-      return { success: true, reused: false, port };
+      return { success: true, reused: false, port, version: det.version, source: det.source };
     }
     const now = Date.now();
     if (now - lastTickAt > 5000) {
@@ -2514,6 +2599,40 @@ function setupIPC() {
     const port = config.dshPort || 3081;
     const running = await checkHttpPort(port);
     return { running, owned: dshAgentOwned, port };
+  });
+
+  /**
+   * 返回当前 DSH 版本状态（升级助手展示用）。
+   * 优先使用最近探测的 dshVersionState；过期/未知时现场重探：运行中实例走 HTTP /version 再回退磁盘，
+   * 未运行则仅磁盘解析。命中版本漂移（宿主 ≠ 应用适配 DSH_VERSION）时随返回上抛告警字段。
+   */
+  ipcMain.handle('dsh-agent:detect-version', async () => {
+    const config = loadConfig();
+    const port = config.dshPort || 3081;
+    const running = await checkHttpPort(port);
+    let version = null;
+    let source = null;
+    const fresh = dshVersionState && (Date.now() - dshVersionState.at) < 30000; // 30s 内复用缓存
+    if (fresh) {
+      version = dshVersionState.version;
+      source = dshVersionState.source;
+    } else {
+      if (running) {
+        const rt = await fetchRuntimeDshVersion(port);
+        if (rt.ok) { version = rt.version; source = 'runtime'; }
+        else {
+          const disk = detectDshVersion(resolveDshBin(config), config);
+          version = disk.version; source = disk.source;
+        }
+      } else {
+        const disk = detectDshVersion(resolveDshBin(config), config);
+        version = disk.version; source = disk.source;
+      }
+      dshVersionState = { version, source, at: Date.now() };
+    }
+    const mismatch = (version && version !== DSH_VERSION)
+      ? { host: version, supported: DSH_VERSION } : null;
+    return { running, port, version, source, mismatch, at: dshVersionState ? dshVersionState.at : null };
   });
 
   /**
