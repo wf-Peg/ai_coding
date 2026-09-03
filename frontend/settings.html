@@ -892,12 +892,12 @@
 
         <div class="section" id="dshAgentSection">
             <div class="section-title">
-                🤖 DSH Agent（AI 干活）
+                🤖 DSH Agent（牛马）
                 <span class="section-badge immediate">即时生效</span>
             </div>
             <div class="setting-row">
                 <div class="setting-label">
-                    <div class="setting-title">启用「AI 干活」面板</div>
+                    <div class="setting-title">启用「牛马」面板</div>
                     <div class="setting-desc">顶部导航显示入口，内嵌 DeepSeek Harness Agent</div>
                 </div>
                 <div class="setting-control">
@@ -931,6 +931,7 @@
                     <div class="setting-title">技能包</div>
                     <div class="setting-desc" id="dshSkillStatusDesc">将 cut-shelter 技能安装到 ~/.dsh/skills</div>
                     <div class="setting-desc" id="dshSkillDriftDesc" style="display:none;margin-top:6px;"></div>
+                    <div class="setting-desc" id="dshMarketStatusDesc" style="margin-top:6px;"></div>
                 </div>
                 <div class="setting-control" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                     <button class="btn btn-primary" id="btnInstallSkill">一键安装技能包</button>
@@ -947,6 +948,19 @@
                     <button class="btn" id="btnStartDshAgent">启动</button>
                     <button class="btn" id="btnStopDshAgent">停止</button>
                     <button class="btn" id="btnOpenDshAgent">打开面板</button>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">DSH 升级助手</div>
+                    <div class="setting-desc" id="dshVersionDesc">当前版本：—</div>
+                    <div class="setting-desc" id="dshVersionMismatchDesc" style="display:none;margin-top:6px;color:var(--danger,#dc2626);font-weight:500;"></div>
+                    <div class="setting-desc" id="dshUpgradeResult" style="display:none;margin-top:6px;"></div>
+                </div>
+                <div class="setting-control" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <button class="btn" id="btnCopyDshUpgradeCmd">复制升级命令</button>
+                    <button class="btn" id="btnDetectDshLatest">检测升级</button>
+                    <button class="btn" id="btnRefreshDshVersion">刷新版本</button>
                 </div>
             </div>
         </div>
@@ -1457,12 +1471,6 @@
     </div>
 
     <script src="js/logger.js"></script>
-    <script>
-    // 接收主框架消息：后端就绪后自动刷新数据
-    window.addEventListener('message', (e) => {
-      if (e.data && e.data.action === 'refresh') location.reload();
-    });
-    </script>
     <script src="js/settings.js"></script>
     <script src="js/ui-common.js"></script>
     <script>

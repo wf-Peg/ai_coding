@@ -466,8 +466,21 @@
     .pd-iter-badge.pending { background: #f3f4f6; color: #6b7280; }
     .pd-iter-time { margin-left: auto; color: var(--ws-faint); font-size: 11px; white-space: nowrap; }
     .pd-iter-note { margin-top: 6px; font-size: 12px; color: var(--ws-muted); line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+    /* DSH 会话成果（牛马记录）卡片 */
+    .pd-iter-item.pd-iter-ai { border-left: 3px solid var(--ws-primary); background: var(--ws-primary-soft); }
+    .pd-iter-badge.ai { background: linear-gradient(135deg, #dbeafe, #e0e7ff); color: #3730a3; }
+    .pd-iter-title { margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--ws-text); word-break: break-word; }
+    .pd-iter-four { margin-top: 6px; }
+    .pd-iter-four-k { display: block; font-size: 10px; font-weight: 650; color: var(--ws-primary); margin-bottom: 2px; }
+    .pd-iter-four-v { font-size: 12px; color: var(--ws-muted); line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
     .pd-iter-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
     .pd-iter-tag { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 10px; background: var(--ws-primary-soft); color: var(--ws-primary); }
+    .pd-ai-archive-list { display: flex; flex-direction: column; gap: 0; max-height: 440px; overflow-y: auto; }
+    .pd-ai-count { display: inline-block; margin-left: 8px; padding: 1px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; background: var(--ws-primary-soft); color: var(--ws-primary); vertical-align: middle; }
+    .pd-ai-toggle { display: block; width: 100%; margin-top: 8px; padding: 8px 0; border: 1px dashed var(--ws-border); border-radius: var(--app-radius); background: transparent; color: var(--ws-muted); font-size: 12px; cursor: pointer; transition: all var(--app-duration-fast) ease; }
+    .pd-ai-toggle:hover { color: var(--ws-primary); border-color: var(--ws-primary); }
+    .pd-ai-del { margin-left: 8px; padding: 2px 8px; border: 1px solid var(--ws-border); border-radius: 6px; background: transparent; color: var(--ws-faint); font-size: 11px; cursor: pointer; transition: all var(--app-duration-fast) ease; }
+    .pd-ai-del:hover { border-color: var(--ws-danger); color: var(--ws-danger); }
     .pd-iter-actions { margin-top: 6px; }
     .pd-iter-delete { padding: 2px 8px; border: 1px solid var(--ws-border); border-radius: 6px; background: transparent; color: var(--ws-faint); font-size: 11px; cursor: pointer; transition: all var(--app-duration-fast) ease; }
     .pd-iter-delete:hover { border-color: var(--ws-danger); color: var(--ws-danger); }

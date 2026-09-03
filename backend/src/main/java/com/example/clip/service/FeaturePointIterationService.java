@@ -89,6 +89,12 @@ public class FeaturePointIterationService {
         item.put("note", record.getOrDefault("note", ""));
         item.put("tags", record.getOrDefault("tags", List.of()));
         item.put("status", record.getOrDefault("status", "in-progress"));
+        // DSH 会话成果（牛马记录）四字段：title/problem/solution/outcome 与来源 source
+        item.put("title", record.getOrDefault("title", ""));
+        item.put("problem", record.getOrDefault("problem", ""));
+        item.put("solution", record.getOrDefault("solution", ""));
+        item.put("outcome", record.getOrDefault("outcome", ""));
+        item.put("source", record.getOrDefault("source", "manual"));
         item.put("createdAt", createdAt);
         all.add(item);
         writeAll(all);

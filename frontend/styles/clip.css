@@ -1532,7 +1532,7 @@
             padding: 10px;
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            background: rgba(255, 255, 255, 0.96);
+            background: var(--surface);
             box-shadow: var(--shadow-hover);
             z-index: 12;
             backdrop-filter: blur(4px);

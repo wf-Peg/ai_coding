@@ -44,6 +44,8 @@ async function renderDetail(knowledge) {
 
   // 构建标题→ID 映射表（用于 wikilink 渲染）
   const titleToIdMap = await buildTitleToIdMap(knowledge.linkedKnowledgeIds || []);
+  // 加载 Vault 目标索引（用于 [[sources/...]] / 笔记双链解析）
+  await ensureVaultTargets();
 
   // Markdown 渲染内容
   let contentHtml = '';
@@ -277,18 +279,87 @@ async function buildTitleToIdMap(linkedIds) {
   return map;
 }
 
+// ===== Obsidian Vault 源文件/笔记目标解析（双向链接扩展到源文件）=====
+let vaultTargetsCache = null;
+let vaultTargetsPromise = null;
+
 /**
- * 将内容中的 [[知识标题]] 替换为 Obsidian 风格的可点击链接
+ * 加载编辑器双链目标索引（含 obsidian-vault sources 源文件）。
+ * 结果缓存；Electron 桌面模式可用，Web 模式返回空数组。
+ */
+async function ensureVaultTargets() {
+  if (vaultTargetsCache !== null) return vaultTargetsCache;
+  if (vaultTargetsPromise) return vaultTargetsPromise;
+  vaultTargetsPromise = (async () => {
+    try {
+      const api = window.electronAPI;
+      if (api && typeof api.listWikilinkTargets === 'function') {
+        const res = await api.listWikilinkTargets();
+        vaultTargetsCache = (res && res.targets) || [];
+      } else {
+        vaultTargetsCache = [];
+      }
+    } catch (e) {
+      vaultTargetsCache = [];
+    }
+    return vaultTargetsCache;
+  })();
+  return vaultTargetsPromise;
+}
+
+/**
+ * 把 [[链接文本]] 解析到目标文件（相对路径精确 → fileName 精确 → basename）。
+ * 未命中返回 null。多同名冲突时优先 obsidian-vault 的 sources/ 目标。
+ * @param {string} linkText 去掉 |别名 与 #锚点 后的链接文本
+ * @param {Array} targets    编辑器双链目标列表
+ * @returns {Object|null} 目标（含 absolutePath）
+ */
+function resolveVaultTarget(linkText, targets) {
+  if (!targets || !targets.length) return null;
+  const t = String(linkText || '').trim();
+  if (!t) return null;
+  const tNoExt = t.replace(/\.(md|mdown|markdown)$/i, '');
+  const match = (pred) => {
+    let hits = (targets || []).filter(pred);
+    if (!hits.length) return null;
+    if (hits.length === 1) return hits[0];
+    // 多冲突：优先 obsidian-vault 且 relativePath 以 sources/ 开头；否则取第一个
+    const src = hits.find(x => x.moduleId === 'obsidian-vault' && (x.relativePath || '').startsWith('sources/'));
+    return src || hits[0];
+  };
+  let r = match(x => x.relativePath === t || x.relativePath === tNoExt || x.relativePath === t + '.md');
+  if (r) return r;
+  r = match(x => x.fileName === t || x.fileName === tNoExt || x.fileName === t + '.md');
+  if (r) return r;
+  const base = tNoExt.split('/').pop();
+  return match(x => x.basename === base);
+}
+
+/**
+ * 将内容中的 [[引用]] 替换为可点击链接：
+ * - 命中知识标题 → 跳转知识（原有行为）
+ * - 命中 Vault 源文件/笔记 → 在编辑器打开该文件（双向链接扩展到源文件）
+ * - 均未命中 → 保留原文
  */
 function processWikilinks(content, titleToIdMap) {
-  if (!content || Object.keys(titleToIdMap).length === 0) return content || '';
+  if (!content || content.indexOf('[[') === -1) return content || '';
+  const targets = vaultTargetsCache || [];
+  const hasMap = titleToIdMap && Object.keys(titleToIdMap).length > 0;
+  if (!hasMap && targets.length === 0) return content || '';
 
   return content.replace(
     /\[\[([^\]]+)\]\]/g,
-    (match, title) => {
-      const id = titleToIdMap[title.trim()];
+    (match, raw) => {
+      const title = String(raw).trim();
+      const clean = title.split('|')[0].split('#')[0].trim(); // 去别名与锚点
+      if (!clean) return match;
+      const id = hasMap ? titleToIdMap[clean] : undefined;
       if (id) {
-        return `<a class="wikilink" href="javascript:void(0)" onclick="navigateToKnowledge(${id})" data-knowledge-id="${id}">${escapeHtml(title.trim())}</a>`;
+        return `<a class="wikilink" href="javascript:void(0)" onclick="navigateToKnowledge(${id})" data-knowledge-id="${id}">${escapeHtml(clean)}</a>`;
+      }
+      const target = resolveVaultTarget(clean, targets);
+      if (target && target.absolutePath) {
+        return `<a class="wikilink pc-vault-link" href="javascript:void(0)" data-open-file="${escapeHtml(target.absolutePath)}" data-open-target="${escapeHtml(clean)}">${escapeHtml(title)}</a>`;
       }
       return match; // 未匹配到的保留原文
     }
@@ -667,6 +738,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const submitBtn = document.getElementById('submitCommentBtn');
   if (submitBtn) {
     submitBtn.addEventListener('click', submitComment);
+  }
+
+  // Vault 源文件/笔记引用点击：通知主框架在编辑器打开该文件
+  const container = document.getElementById('detailContainer');
+  if (container) {
+    container.addEventListener('click', (e) => {
+      const el = e.target && e.target.closest ? e.target.closest('a.pc-vault-link') : null;
+      if (!el) return;
+      e.preventDefault();
+      const filePath = el.getAttribute('data-open-file');
+      if (filePath && window.parent) {
+        window.parent.postMessage({ type: 'openFileInEditor', filePath }, '*');
+      }
+    });
   }
 });
 

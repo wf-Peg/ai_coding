@@ -2247,6 +2247,10 @@
           // 渲染任务状态列表
           renderPdTaskList(allTasks);
 
+          // 渲染 牛马记录（DSH 会话成果自动归档，source=dsh-session/dsh-agent，不依赖 project/fpId）
+          pdAiArchiveExpanded = false;
+          renderPdAiArchive();
+
           // 最近活动：按真实时间（updatedAt / completedAt / createdAt / 迭代记录时间）倒序
           var allFps = [];
           filteredProjects.forEach(function(proj) {
@@ -2482,6 +2486,53 @@
         });
       }
 
+      function aiCardHtml(r) {
+        var fourHtml =
+          (r.title ? '<div class="pd-iter-title">' + escapeHtml(r.title) + '</div>' : '') +
+          (r.problem ? '<div class="pd-iter-four"><span class="pd-iter-four-k">解决什么问题</span><div class="pd-iter-four-v">' + escapeHtml(r.problem) + '</div></div>' : '') +
+          (r.solution ? '<div class="pd-iter-four"><span class="pd-iter-four-k">如何解决</span><div class="pd-iter-four-v">' + escapeHtml(r.solution) + '</div></div>' : '') +
+          (r.outcome ? '<div class="pd-iter-four"><span class="pd-iter-four-k">大白话产出</span><div class="pd-iter-four-v">' + escapeHtml(r.outcome) + '</div></div>' : '');
+        if (!fourHtml && r.note) fourHtml = '<div class="pd-iter-note">' + escapeHtml(r.note) + '</div>';
+        var srcTitle = r.source === 'dsh-agent' ? '显式归档' : '自动归档';
+        return '<div class="pd-iter-item pd-iter-ai">' +
+          '<div class="pd-iter-marker"><span class="pd-iter-dot"></span><span class="pd-iter-line"></span></div>' +
+          '<div class="pd-iter-body">' +
+            '<div class="pd-iter-head"><span class="pd-iter-badge ai" title="由 DSH AI 会话归档（' + escapeHtml(r.source) + '）">牛马</span>' +
+            '<span class="pd-iter-version">' + escapeHtml(srcTitle) + '</span>' +
+            '<span class="pd-iter-time">' + escapeHtml(formatDateTime(r.createdAt)) + '</span>' +
+            (r.id ? '<button class="pd-ai-del" type="button" data-ai-del="' + escapeHtml(r.id) + '">删除</button>' : '') +
+            '</div>' +
+            fourHtml +
+          '</div></div>';
+      }
+
+      function renderPdAiArchive() {
+        var el = $('pdAiArchiveList');
+        var countEl = $('pdAiArchiveCount');
+        if (!el) return;
+        var aiRecs = (pdIterations || []).filter(function(r) {
+          return r.source === 'dsh-session' || r.source === 'dsh-agent';
+        }).sort(function(a, b) { return (b.createdAt || '').localeCompare(a.createdAt || ''); });
+        if (countEl) countEl.textContent = aiRecs.length ? ('（' + aiRecs.length + ' 条）') : '';
+        if (!aiRecs.length) {
+          el.innerHTML = '<div class="empty-state">暂无牛马归档（DSH 回合结束且存在产出信号时自动记录）</div>';
+          return;
+        }
+        var LIMIT = 5;
+        var shown = pdAiArchiveExpanded ? aiRecs : aiRecs.slice(0, LIMIT);
+        var html = shown.map(aiCardHtml).join('');
+        if (aiRecs.length > LIMIT) {
+          html += '<button class="pd-ai-toggle" id="pdAiArchiveToggle" type="button">' +
+            (pdAiArchiveExpanded ? '收起' : '展开全部（共 ' + aiRecs.length + ' 条）') + '</button>';
+        }
+        el.innerHTML = html;
+        var toggle = document.getElementById('pdAiArchiveToggle');
+        if (toggle) toggle.addEventListener('click', function() {
+          pdAiArchiveExpanded = !pdAiArchiveExpanded;
+          renderPdAiArchive();
+        });
+      }
+
       function pdIterationCountFor(projDir, fpId) {
         var n = 0;
         (pdIterations || []).forEach(function(rec) {
@@ -2576,6 +2627,7 @@
       /* ── pd-kanban 卡片点击详情弹窗 ── */
       var pdRequirementsCache = {};
       var pdIterations = [];
+      var pdAiArchiveExpanded = false;
       var pdKanbanGroup = 'project';
 
       // 看板分组切换（按项目 / 按阶段）
@@ -2696,10 +2748,24 @@
               var st = r.status || 'in-progress';
               var stLabel = st === 'done' ? '已完成' : st === 'todo' ? '待开始' : st === 'pending' ? '待定' : '进行中';
               var rTags = (r.tags || []).map(function(t) { return '<span class="pd-iter-tag">' + escapeHtml(t) + '</span>'; }).join('');
-              return '<div class="pd-iter-item" data-iter-id="' + escapeHtml(r.id) + '">' +
+              var isAi = r.source === 'dsh-session' || r.source === 'dsh-agent';
+              var aiBadge = isAi
+                ? '<span class="pd-iter-badge ai" title="由 DSH AI 会话归档（' + escapeHtml(r.source) + '）">牛马</span>'
+                : '';
+              // 四字段（DSH 会话成果）：干了什么 / 解决什么问题 / 如何解决 / 大白话产出
+              var fourHtml = '';
+              if (r.title || r.problem || r.solution || r.outcome) {
+                fourHtml =
+                  (r.title ? '<div class="pd-iter-title">' + escapeHtml(r.title) + '</div>' : '') +
+                  (r.problem ? '<div class="pd-iter-four"><span class="pd-iter-four-k">解决什么问题</span><div class="pd-iter-four-v">' + escapeHtml(r.problem) + '</div></div>' : '') +
+                  (r.solution ? '<div class="pd-iter-four"><span class="pd-iter-four-k">如何解决</span><div class="pd-iter-four-v">' + escapeHtml(r.solution) + '</div></div>' : '') +
+                  (r.outcome ? '<div class="pd-iter-four"><span class="pd-iter-four-k">大白话产出</span><div class="pd-iter-four-v">' + escapeHtml(r.outcome) + '</div></div>' : '');
+              }
+              return '<div class="pd-iter-item' + (isAi ? ' pd-iter-ai' : '') + '" data-iter-id="' + escapeHtml(r.id) + '">' +
                 '<div class="pd-iter-marker"><span class="pd-iter-dot"></span><span class="pd-iter-line"></span></div>' +
                 '<div class="pd-iter-body">' +
-                  '<div class="pd-iter-head"><span class="pd-iter-version">' + escapeHtml(r.version || 'v1') + '</span><span class="pd-iter-badge ' + st + '">' + stLabel + '</span><span class="pd-iter-time">' + escapeHtml(formatDateTime(r.createdAt)) + '</span></div>' +
+                  '<div class="pd-iter-head"><span class="pd-iter-version">' + escapeHtml(r.version || 'v1') + '</span><span class="pd-iter-badge ' + st + '">' + stLabel + '</span>' + aiBadge + '<span class="pd-iter-time">' + escapeHtml(formatDateTime(r.createdAt)) + '</span></div>' +
+                  fourHtml +
                   (r.note ? '<div class="pd-iter-note">' + escapeHtml(r.note) + '</div>' : '') +
                   (rTags ? '<div class="pd-iter-tags">' + rTags + '</div>' : '') +
                   '<div class="pd-iter-actions"><button class="pd-iter-delete" type="button" data-iter-delete="' + escapeHtml(r.id) + '">删除</button></div>' +
