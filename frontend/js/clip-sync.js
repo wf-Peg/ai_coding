@@ -287,6 +287,9 @@ window.addEventListener('message', (e) => {
     document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
   } else if (e.data.action === 'refresh') {
     location.reload();
+  } else if (e.data.action === 'hardRefresh') {
+    CutShelterScroll.capture(e.data.module || 'clip');
+    location.reload();
   } else if (e.data.action === 'themeChange') {
     applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME, false);
   } else if (e.data.action === 'workspaceChange') {

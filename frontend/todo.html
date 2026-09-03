@@ -1221,6 +1221,7 @@
 </div>
 
 <script src="libs/axios.min.js"></script>
+<script src="js/scroll-restore.js"></script>
 <script>
 (function() {
   'use strict';
@@ -1345,6 +1346,7 @@
       });
       renderTimeline();
       updateStats();
+      CutShelterScroll.restore('todo');
     } catch (error) {
       console.error('获取待办事项失败，使用模拟数据:', error);
       // 使用模拟数据
@@ -1964,6 +1966,9 @@
       const scrollEl = document.querySelector('.timeline');
       if (scrollEl) scrollEl.scrollTo({ top: 0, behavior: 'smooth' });
     } else if (e.data.action === 'refresh') {
+      location.reload();
+    } else if (e.data.action === 'hardRefresh') {
+      CutShelterScroll.capture(e.data.module || 'todo');
       location.reload();
     } else if (e.data.action === 'themeChange') {
       applyTheme(e.data.theme, false);

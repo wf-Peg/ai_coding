@@ -2777,6 +2777,25 @@ function setupIPC() {
   });
 
   /**
+   * 查询 dshmarket 插件市场应用是否已预装（配合前端「插件市场」入口显示状态）
+   */
+  ipcMain.handle('dsh-agent:market-status', async () => {
+    const config = loadConfig();
+    const port = (config && config.dshPort) || 3081;
+    const dshHome = resolveDshHome();
+    const pkgFile = path.join(dshHome, 'profiles', 'web', 'package.json');
+    let installed = false;
+    if (fs.existsSync(pkgFile)) {
+      try {
+        const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf-8'));
+        const bundles = (pkg && pkg.dsh && pkg.dsh.profile && pkg.dsh.profile.bundles) || [];
+        installed = bundles.some((b) => String(b).includes('dshmarket'));
+      } catch (e) { installed = false; }
+    }
+    return { installed, port, running: await checkHttpPort(port) };
+  });
+
+  /**
    * 诊断 DSH 皮肤/主题状态（设置页「DSH 皮肤/主题」区）。
    * 探测运行实例可达性 + web profile 下的皮肤 bundle 是否存在，返回如实诊断。
    */

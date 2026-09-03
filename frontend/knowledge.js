@@ -38,6 +38,7 @@ async function fetchTopics(keyword) {
 
     list.innerHTML = '';
     loadMore();
+    CutShelterScroll.restore('knowledge');
   } catch (error) {
     console.error('获取知识列表失败:', error);
     list.innerHTML = `
@@ -169,6 +170,9 @@ window.addEventListener('message', (e) => {
   } else if (e.data.action === 'refresh') {
     // 就绪/手动刷新：仅轻量重拉列表数据并保留搜索词，避免整页重载造成闪烁与重复加载
     fetchTopics(document.getElementById('searchInput')?.value || '');
+  } else if (e.data.action === 'hardRefresh') {
+    CutShelterScroll.capture(e.data.module || 'knowledge');
+    location.reload();
   } else if (e.data.action === 'themeChange') {
     if (typeof window.applyTheme === 'function') window.applyTheme();
   } else if (e.data.action === 'workspaceChange') {

@@ -320,6 +320,7 @@
           renderOverviewDashboard(dashboardStats);
           renderOverviewCharts(typeDist, data.contents || [], summary);
           renderRecentActivities(data.contents || []);
+          CutShelterScroll.restore('workspace');
         } catch (e) {
           if (requestId !== overviewRequestId) return;
           renderOverviewDashboard({ total: 0, clip: 0, knowledge: 0, todo: 0, 'learning-plan': 0 });
@@ -1942,6 +1943,10 @@
           // 刷新数据后回到顶部，让内容更新可见（避免"只对图标有效"的观感）
           scrollWorkspaceToTop('auto');
         }
+        if (action === 'hardRefresh') {
+          CutShelterScroll.capture(event.data.module || 'workspace');
+          location.reload();
+        }
         if (action === 'scrollToTop') {
           scrollWorkspaceToTop('smooth');
         }
@@ -2670,6 +2675,26 @@
               loadProductDev();
             } catch (err) { /* 静默 */ }
           })();
+          return;
+        }
+        var aiDel = e.target.closest && e.target.closest('[data-ai-del]');
+        if (aiDel) {
+          var aiDelId = aiDel.getAttribute('data-ai-del');
+          if (!aiDelId) return;
+          $('confirmTitle').textContent = '删除牛马记录';
+          $('confirmMessage').textContent = '确定删除这条牛马记录吗？删除后不可恢复。';
+          var confirmActionBtn = $('confirmAction');
+          confirmActionBtn.onclick = async function() {
+            hideModal(confirmModal);
+            try {
+              var r = await fetch('/api/workspace/feature-points/iterations/' + encodeURIComponent(aiDelId), { method: 'DELETE' });
+              if (!r.ok) { alert('删除失败，请重试'); return; }
+              var iterRes = await fetch('/api/workspace/feature-points/iterations').catch(function() { return { ok: false }; });
+              pdIterations = iterRes && iterRes.ok ? (await iterRes.json().catch(function() { return []; })) : [];
+              renderPdAiArchive();
+            } catch (err) { alert('删除失败，请重试'); }
+          };
+          showModal(confirmModal);
           return;
         }
         var compareBtn = e.target.closest && e.target.closest('.pd-iter-compare');

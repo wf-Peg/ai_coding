@@ -229,7 +229,7 @@
                     <textarea id="content" placeholder="请输入要剪藏的内容..."></textarea>
                     <div id="image-upload-area" class="image-upload-area" style="display:none;">
                         <div class="image-toolbar">
-                            <button type="button" class="image-upload-btn" id="image-upload-btn" title="选择图片上传">📷 上传图片</button>
+                            <label class="image-upload-btn" id="image-upload-btn" for="image-input" title="选择图片上传">📷 上传图片</label>
                             <span class="image-upload-hint">支持 Ctrl+V 粘贴 / 拖拽图片到输入框</span>
                             <button type="button" class="image-preview-toggle" id="image-preview-toggle" title="切换编辑/预览">👁 预览</button>
                         </div>
@@ -361,6 +361,7 @@
 
 <script src="libs/axios.min.js"></script>
 <script src="js/logger.js"></script>
+<script src="js/scroll-restore.js"></script>
 <script src="js/media-render.js"></script>
 <script src="js/media-uploader.js"></script>
 <script src="js/clip-shared.js"></script>

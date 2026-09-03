@@ -38,6 +38,9 @@
     if (!d || typeof d !== 'object') return;
     if (d.action === 'themeChange') {
       applyTheme(d.theme);
+    } else if (d.action === 'hardRefresh') {
+      CutShelterScroll.capture(d.module || 'tools');
+      location.reload();
     } else if (d.action === 'refresh' || (d.action === 'backendState' && d.state === 'ready')) {
       // 后端就绪广播（refresh / backendState:ready）：立即刷新工具列表，
       // 并重载正在运行的工具页面（依赖后端服务的工具恢复可用）
@@ -245,6 +248,7 @@
     $('loading').style.display = 'none';
     grid.innerHTML = '';
     $('empty').style.display = list.length ? 'none' : 'block';
+    CutShelterScroll.restore('tools');
     list.forEach((t, i) => {
       const card = document.createElement('div');
       const disabled = t.system ? false : (t.enabled === false);

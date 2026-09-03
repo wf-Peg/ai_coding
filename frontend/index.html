@@ -900,7 +900,7 @@
             <polyline points="18 15 12 9 6 15"/>
         </svg>
     </button>
-    <button class="scroll-tool-btn" id="btnRefresh" title="刷新页面">
+    <button class="scroll-tool-btn" id="btnRefresh" title="强制刷新">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="23 4 23 10 17 10"/>
             <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
@@ -1550,15 +1550,30 @@
           if (clipFrame && clipFrame.contentWindow) clipFrame.contentWindow.postMessage({action: 'scrollToTop'}, '*');
         }
       });
-      document.getElementById('btnRefresh').addEventListener('click', () => {
-        // 牛马视图：走单一路径重载 iframe，避免跨域 postMessage 无效且与 ⟳ 叠加重载
-        if (currentView === 'agent') { loadAgentFrame(AGENT_PORT, true); return; }
-        if (activeIframe) {
-          activeIframe.contentWindow.postMessage({action: 'refresh'}, '*');
-        } else if (currentView === 'clip') {
-          if (todoFrame && todoFrame.contentWindow) todoFrame.contentWindow.postMessage({action: 'refresh'}, '*');
-          if (clipFrame && clipFrame.contentWindow) clipFrame.contentWindow.postMessage({action: 'refresh'}, '*');
+      // 强制刷新：对当前模块 iframe 发 hardRefresh，由模块自己保存滚动 → location.reload() → 渲染后恢复滚动
+      function hardRefreshActive() {
+        if (currentView === 'agent') {
+          // 牛马视图：跨域 iframe，走单一路径重载
+          loadAgentFrame(AGENT_PORT, true);
+          return;
         }
+        if (currentView === 'vault') {
+          // 密码模块不参与强刷（重载会回解锁屏），保持旧 refresh 行为
+          if (vaultFrame && vaultFrame.contentWindow) vaultFrame.contentWindow.postMessage({ action: 'refresh' }, '*');
+          return;
+        }
+        if (currentView === 'clip') {
+          // 剪藏工作台同时强刷待办和剪藏两个 iframe
+          if (todoFrame && todoFrame.contentWindow) todoFrame.contentWindow.postMessage({ action: 'hardRefresh', module: 'todo' }, '*');
+          if (clipFrame && clipFrame.contentWindow) clipFrame.contentWindow.postMessage({ action: 'hardRefresh', module: 'clip' }, '*');
+          return;
+        }
+        if (activeIframe) {
+          activeIframe.contentWindow.postMessage({ action: 'hardRefresh', module: currentView }, '*');
+        }
+      }
+      document.getElementById('btnRefresh').addEventListener('click', () => {
+        hardRefreshActive();
       });
       // 模块子工具「返回工具」按钮：回到工具模块
       document.getElementById('moduleBackBtn').addEventListener('click', () => {

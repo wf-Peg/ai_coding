@@ -199,6 +199,7 @@ async function loadConfig() {
     }
 
     showToast('配置加载成功');
+    CutShelterScroll.restore('settings');
   } catch (error) {
     console.error('加载配置失败:', error);
     const errDiv = document.createElement('div');
@@ -2030,6 +2031,9 @@ window.addEventListener('message', (e) => {
   } else if (e.data.action === 'refresh') {
     // 就绪/手动刷新：仅当配置尚未加载时才补拉，避免整页重载与重复弹提示
     loadConfig();
+  } else if (e.data.action === 'hardRefresh') {
+    CutShelterScroll.capture(e.data.module || 'settings');
+    location.reload();
   } else if (e.data.action === 'themeChange') {
     applyTheme();
   } else if (e.data.action === 'backendState' && e.data.state === 'ready' && !configLoaded) {

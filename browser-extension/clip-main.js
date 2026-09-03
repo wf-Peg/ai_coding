@@ -1451,7 +1451,7 @@ function removeUploadedImage(id) {
         if (textarea) {
             const escaped = entry.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             textarea.value = textarea.value
-                .replace(new RegExp('!\\[^\\]]*\\]\(' + escaped + '\\)'), '')
+                .replace(new RegExp('!\\[[^\\]]*\\]\\(' + escaped + '\\)'), '')
                 .replace(/\n{2,}/g, '\n');
         }
     }
@@ -1585,14 +1585,6 @@ function updateTagsDisplay() {
 
 // 事件监听器
 document.addEventListener('DOMContentLoaded', function() {
-    // 上传按钮点击事件
-    const uploadBtn = document.getElementById('upload-btn');
-    if (uploadBtn) {
-        uploadBtn.addEventListener('click', function() {
-            document.getElementById('image-input').click();
-        });
-    }
-
     // 图片输入变化事件
     const imageInput = document.getElementById('image-input');
     if (imageInput) {
