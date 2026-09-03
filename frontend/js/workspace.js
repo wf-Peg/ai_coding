@@ -2177,11 +2177,13 @@
               });
               if (monthKey) fpByMonth[monthKey] = (fpByMonth[monthKey] || 0) + 1;
               (fp.tasks || []).forEach(function(task) {
-                var s = task.status || 'todo';
+                // 兼容字符串任务（历史 feature-points.json 中 tasks 多为纯字符串描述）与对象任务
+                var s = (task && task.status) ? task.status : 'todo';
+                var taskTitle = typeof task === 'string' ? task : (task && (task.title || task.name)) || '';
                 taskTotal++;
                 if (s === 'done') taskDone++;
                 allTasks.push({
-                  title: task.title,
+                  title: taskTitle,
                   status: s,
                   fpName: fp.name,
                   fpId: fp.id,
@@ -2448,7 +2450,7 @@
           var itemsHtml = filtered.map(function(t) {
             var statusLabel = t.status === 'done' ? '已完成' : t.status === 'in-progress' ? '进行中' : '待完成';
             var statusClass = t.status === 'done' ? 'done' : t.status === 'in-progress' ? 'in-progress' : 'todo';
-          return '<div class="pd-task-item" data-req-id="' + escapeHtml(t.fpKey || t.fpId || '') + '"><span class="pd-task-status ' + statusClass + '"></span><span class="pd-task-name">' + escapeHtml(t.title) + '</span><span class="pd-task-meta">' + escapeHtml(g.fpName || '') + '</span><span class="pd-task-status-badge ' + statusClass + '">' + statusLabel + '</span></div>';
+          return '<div class="pd-task-item" data-req-id="' + escapeHtml(t.fpKey || t.fpId || '') + '"><span class="pd-task-status ' + statusClass + '"></span><span class="pd-task-name">' + escapeHtml(t.title || (g.fpName || '未命名任务')) + '</span><span class="pd-task-meta">' + escapeHtml(g.fpName || '') + '</span><span class="pd-task-status-badge ' + statusClass + '">' + statusLabel + '</span></div>';
           }).join('');
           return '<div style="margin-bottom:4px;font-size:11px;color:var(--ws-faint);padding:2px 14px">' + escapeHtml(g.projectName || '') + '</div>' + itemsHtml;
         }).join('');

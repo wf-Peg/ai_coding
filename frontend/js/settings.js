@@ -1968,6 +1968,54 @@ function initDshAgentSection() {
   if (btnRefresh) btnRefresh.addEventListener('click', () => { refreshDshVersion(); showToast('已刷新版本信息'); });
 
   refreshDshVersion();
+  initSkinSection();
+}
+
+// ====== DSH 皮肤/主题：诊断 + 一键补齐（不自动联网，用户点击才执行） ======
+function initSkinSection() {
+  const desc = document.getElementById('dshSkinDesc');
+  const result = document.getElementById('dshSkinResult');
+  const btnCheck = document.getElementById('btnDshSkinCheck');
+  const btnInstall = document.getElementById('btnDshSkinInstall');
+  if (!api.dshSkinStatus && !btnCheck && !btnInstall) return;
+
+  const render = (s) => {
+    if (desc && s) {
+      const parts = [];
+      parts.push(s.profileExists
+        ? (s.skinInstalled ? '✓ 皮肤 bundle 在位（@linxin666/dsh-web-ui-all）' : '⚠️ web profile 缺少皮肤 bundle（dsh-web-ui-all 缺失）')
+        : '⚠️ web profile 目录不存在（可能未启动过 web 界面）');
+      if (s.skinHome) parts.push('profile：' + s.skinHome);
+      parts.push('实例：' + (s.running ? '运行中' : '未运行'));
+      desc.textContent = parts.join(' · ');
+    }
+  };
+  const loadStatus = () => {
+    if (!api.dshSkinStatus) return;
+    if (desc) desc.textContent = '检测中…';
+    api.dshSkinStatus().then(render).catch(() => { if (desc) desc.textContent = '检测失败（主进程未暴露 dsh-agent:skin-status）'; });
+  };
+  if (btnCheck) btnCheck.addEventListener('click', () => { loadStatus(); showToast('已刷新皮肤状态'); });
+
+  if (btnInstall) {
+    btnInstall.addEventListener('click', () => {
+      if (!api.dshSkinInstall) { showToast('主进程未暴露皮肤补齐能力'); return; }
+      if (result) { result.style.display = 'block'; result.textContent = '正在补齐…（可能需要联网拉取皮肤 bundle）'; }
+      btnInstall.disabled = true;
+      api.dshSkinInstall().then((r) => {
+        if (result) {
+          result.style.display = 'block';
+          result.textContent = (r && r.output) || (r && r.success ? '完成' : '无输出');
+        }
+        showToast((r && r.success) ? '皮肤补齐完成' : '皮肤补齐未完成，请查看下方输出');
+      }).catch(() => {
+        if (result) { result.style.display = 'block'; result.textContent = '补齐命令执行异常'; }
+        showToast('皮肤补齐异常');
+      }).finally(() => { if (btnInstall) btnInstall.disabled = false; });
+    });
+  }
+
+  loadStatus();
 }
 
 // 页面就绪后初始化（settings.html 底部脚本调用时机）

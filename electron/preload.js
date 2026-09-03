@@ -501,6 +501,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
   detectDshVersionState: () => ipcRenderer.invoke('dsh-agent:detect-version'),
 
   /**
+   * 查询 npm 最新可用版本（设置页「检测升级」按钮）
+   * @returns {Promise<{latest: string|null, source: 'npm'|'readme'|null}>}
+   */
+  checkDshLatest: () => ipcRenderer.invoke('dsh-agent:check-latest'),
+
+  /**
+   * 查询 DSH 皮肤/主题状态（运行实例 + web profile 命中情况）
+   * @returns {Promise<{running: boolean, skinHome: string, webProfileFound: boolean}>}
+   */
+  dshSkinStatus: () => ipcRenderer.invoke('dsh-agent:skin-status'),
+
+  /**
+   * 一键补齐 DSH 皮肤/主题（用户点击触发，不自动联网）。尽力执行 DSH CLI 重装命令并如实回传输出。
+   * @returns {Promise<{success: boolean, output: string, command?: string}>}
+   */
+  dshSkinInstall: () => ipcRenderer.invoke('dsh-agent:skin-install'),
+
+  /**
    * 按需启动（或复用）DSH Agent sidecar（端口 3081）
    * @returns {Promise<{success: boolean, reused: boolean, port: number, message?: string}>}
    */

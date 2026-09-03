@@ -15,7 +15,7 @@
  *       baseUrl: http://127.0.0.1:8081
  *       autoArchive: true   # 可选，默认开启自动归档，false 关闭
  *
- * 依赖：@deepseek-ai/dsh-tools（0.1.0-rc.7，需与本机 dsh 版本匹配），npm install 后生效。
+ * 依赖：@deepseek-ai/dsh-tools（0.1.2-rc.1，npm 已发布的最新 0.1.2 系列，配套宿主 DSH 0.1.2-rc.x），npm install 后生效。
  */
 import { defineTool } from '@deepseek-ai/dsh-tools';
 

@@ -283,7 +283,7 @@ const DEFAULT_CONFIG = {
 };
 
 // ===== dsh 安装命令在线同步（npm 优先 + GitHub README 兜底）=====
-const DSH_VERSION = '0.1.0-rc.7';                       // 应用适配的 DSH 版本（单一常量：升级助手告警 + 兜底 spec 同源）
+const DSH_VERSION = '0.1.2-rc.7';                       // 应用适配的 DSH 版本（单一常量：升级助手告警 + 兜底 spec 同源）
 const DEFAULT_DSH_SPEC = `@deepseek-ai/dsh@${DSH_VERSION}`; // 最后的兜底固定版本（未配置 dshAgentNpxSpec 时）
 const DSH_SYNC_TTL = 6 * 3600 * 1000;                   // 在线同步缓存 TTL：6 小时
 const DSH_SYNC_TIMEOUT = 8000;                          // 单次在线探测超时（ms）
@@ -1012,6 +1012,15 @@ function resolveDshPatchDir() {
   return null;
 }
 
+/**
+ * 统一解析 DSH 主目录（DSH_HOME env 优先，兜底 ~/.dsh）。
+ * 与技能目录/皮肤 web profile 等 DSH 运行时资源路径保持一致，避免多处硬编码漂移。
+ * @returns {string}
+ */
+function resolveDshHome() {
+  return process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
+}
+
 /** 运行时生成 dsh --patch 覆盖层（路径按当前机器/打包形态解析） */
 function buildDshAgentPatch(patchDir) {
   const config = loadConfig();
@@ -1228,8 +1237,21 @@ function detectDshVersion(bin, config) {
 }
 
 /**
+ * 版本号合理性校验：仅接受类 semver 串（`A.B.C`，可带 `-rc.N`/build 后缀）。
+ * 用于杜绝运行实例把 `/version` 返回的 HTML 页面误当成版本号。
+ * @param {string} txt
+ * @returns {boolean}
+ */
+function semverLikeVersion(txt) {
+  if (typeof txt !== 'string') return false;
+  const s = txt.trim().replace(/^[vV]/, '');
+  return /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.\-]*)?$/.test(s);
+}
+
+/**
  * 复用运行中 DSH 实例时，从实例 HTTP 尽力读取版本（best-effort，拿不到返回 ok:false）。
- * 兼容纯文本版本号与 {"version":"x"} 两种响应形态。
+ * 兼容纯文本版本号与 {"version":"x"} 两种响应形态；非类 semver 响应（如 HTML 首页）一律视为不可用，
+ * 交由调用方落磁盘兜底，避免把整段 HTML 当版本号展示。
  */
 function fetchRuntimeDshVersion(port) {
   return new Promise((resolve) => {
@@ -1247,7 +1269,9 @@ function fetchRuntimeDshVersion(port) {
         } else if (txt) {
           v = txt;
         }
-        resolve(v ? { version: String(v), ok: true } : { version: null, ok: false });
+        // 仅透出类 semver 版本；HTML/缺 version → ok:false（交由磁盘兜底）
+        const ok = v && semverLikeVersion(v);
+        resolve(ok ? { version: String(v).trim().replace(/^[vV]/, ''), ok: true } : { version: null, ok: false });
       });
     });
     req.on('error', () => resolve({ version: null, ok: false }));
@@ -2636,6 +2660,20 @@ function setupIPC() {
   });
 
   /**
+   * 查询 npm 最新可用版本（「检测升级」按钮）。优先 npm registry latest，
+   * 失败回退 GitHub README；都不是返回 latest:null。
+   */
+  ipcMain.handle('dsh-agent:check-latest', async () => {
+    let latest = await fetchLatestDshVersionFromNpm();
+    let source = 'npm';
+    if (!latest) {
+      const r = await fetchDshHintFromReadme();
+      if (r && r.version) { latest = r.version; source = 'readme'; }
+    }
+    return { latest, source };
+  });
+
+  /**
    * 检查 dsh 是否已安装/运行（供「工具 → AI干活」卡片前置检测激活）。
    * 返回安装状态与自助安装命令，未装则仅提示，不代联网安装。
    */
@@ -2702,7 +2740,7 @@ function setupIPC() {
       if (fs.existsSync(repo)) srcDir = repo;
     }
     if (!srcDir) return { success: false, message: '技能包源目录未找到（integrations/dsh/skills/cut-shelter）' };
-    const dshHome = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
+    const dshHome = resolveDshHome();
     const destDir = path.join(dshHome, 'skills', 'cut-shelter');
     try {
       fs.rmSync(destDir, { recursive: true, force: true });
@@ -2719,7 +2757,7 @@ function setupIPC() {
    * 查询 CutShelter 技能包是否已安装到 DSH 技能目录
    */
   ipcMain.handle('dsh-agent:skill-status', async () => {
-    const dshHome = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
+    const dshHome = resolveDshHome();
     const dest = path.join(dshHome, 'skills', 'cut-shelter', 'SKILL.md');
     const result = { installed: fs.existsSync(dest), target: path.dirname(dest) };
     // 附带工具清单漂移校验：对比 server.mjs + plugins 实际注册的工具与 SKILL.md 登记条目
@@ -2736,6 +2774,81 @@ function setupIPC() {
       log.warn('[DSH Skill] verify-skill-table unavailable:', e.message);
     }
     return result;
+  });
+
+  /**
+   * 诊断 DSH 皮肤/主题状态（设置页「DSH 皮肤/主题」区）。
+   * 探测运行实例可达性 + web profile 下的皮肤 bundle 是否存在，返回如实诊断。
+   */
+  ipcMain.handle('dsh-agent:skin-status', async () => {
+    const config = loadConfig();
+    const port = config.dshPort || 3081;
+    const running = await checkHttpPort(port);
+    const dshHome = resolveDshHome();
+    const webProfileDir = path.join(dshHome, 'profiles', 'web');
+    const profileExists = fs.existsSync(webProfileDir);
+    const skinPkgDir = path.join(webProfileDir, 'node_modules', '@linxin666', 'dsh-web-ui-all');
+    const skinInstalled = fs.existsSync(skinPkgDir);
+    return {
+      running,
+      skinHome: webProfileDir,
+      profileExists,
+      skinPackage: '@linxin666/dsh-web-ui-all',
+      skinInstalled,
+      message: !profileExists
+        ? 'DSH web profile 目录不存在（可能尚未启动过 web 界面）'
+        : skinInstalled
+          ? 'web profile 已含皮肤 bundle（@linxin666/dsh-web-ui-all 在位）'
+          : 'web profile 存在但皮肤 bundle 缺失，可尝试「一键补齐」',
+    };
+  });
+
+  /**
+   * 一键补齐 DSH 皮肤/主题（用户点击触发，不自动联网启动）。
+   * 通过 DSH CLI `plugin --profile web add <skin>` 重装/拉取 web profile 皮肤 bundle，
+   * spawn 捕获 stdout 并如实回传输出（成功即成功，失败也逐字反馈，让用户看到真实原因）。
+   */
+  ipcMain.handle('dsh-agent:skin-install', async () => {
+    const config = loadConfig();
+    const skinPkg = '@linxin666/dsh-web-ui-all';
+    let nodeExe = 'node';
+    let binScript = null;
+    try {
+      const bin = resolveDshBin(config);
+      if (bin && bin.mode === 'node' && bin.script) { binScript = bin.script; }
+      if (bin && bin.node) nodeExe = bin.node;
+    } catch (e) { /* 解析失败则走内置兜底 */ }
+    if (!binScript) {
+      const builtin = path.join(APP_DIR, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
+      if (fs.existsSync(builtin)) binScript = builtin;
+    }
+    if (!binScript) {
+      const manual = `cd "${path.join(resolveDshHome(), 'profiles', 'web')}" && pnpm add ${skinPkg}`;
+      return { success: false, output: `未找到 DSH CLI（bin.js），无法自动补齐。\n请手动执行：${manual}`, command: manual };
+    }
+    const cmd = `"${nodeExe}" "${binScript}" plugin --profile web add ${skinPkg}`;
+    return new Promise((resolve) => {
+      let output = '';
+      let child;
+      try {
+        child = spawn(nodeExe, [binScript, 'plugin', '--profile', 'web', 'add', skinPkg], {
+          cwd: path.join(resolveDshHome(), 'profiles', 'web'),
+          shell: false,
+          windowsHide: true,
+        });
+      } catch (e) {
+        return resolve({ success: false, output: `启动补齐命令失败：${e.message}\n可手动执行：${cmd}`, command: cmd });
+      }
+      const onData = (d) => { output += String(d); };
+      if (child.stdout) child.stdout.on('data', onData);
+      if (child.stderr) child.stderr.on('data', onData);
+      child.on('error', (e) => {
+        resolve({ success: false, output: `${output.trim()}${output ? '\n' : ''}命令错误：${e.message}\n可手动执行：${cmd}`, command: cmd });
+      });
+      child.on('close', (code) => {
+        resolve({ success: code === 0, output: output.trim(), command: cmd });
+      });
+    });
   });
 
   // ===================== SQLite 本地索引层（仅 clip，主进程 Node 侧） =============
