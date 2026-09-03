@@ -1451,7 +1451,7 @@ function removeUploadedImage(id) {
         if (textarea) {
             const escaped = entry.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             textarea.value = textarea.value
-                .replace(new RegExp('!\\[[^\\]]*\\]\\(' + escaped + '\\)'), '')
+                .replace(new RegExp('!\\[^\\]]*\\]\(' + escaped + '\\)'), '')
                 .replace(/\n{2,}/g, '\n');
         }
     }
@@ -1516,9 +1516,7 @@ function renderImagePreviews() {
         } else if (entry.status === 'done') {
             inner += '<div class="preview-dot" title="上传完成"></div>';
         }
-        inner += '<button type="button" class="preview-remove" data-id="' + entry.localId + '" title="移除图片（同时移除内容引用）">'
-            + '<svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"/></svg>'
-            + '</button>';
+        inner += '<button type="button" class="preview-remove" data-id="' + entry.localId + '" title="移除图片（同时移除内容引用）">✕</button>';
         item.innerHTML = inner;
         grid.appendChild(item);
     });
@@ -1587,8 +1585,13 @@ function updateTagsDisplay() {
 
 // 事件监听器
 document.addEventListener('DOMContentLoaded', function() {
-    // 上传按钮已改为 <label for="image-input">，点击由浏览器原生激活文件选择框，
-    // 不再依赖 input.click()（display:none 的 file input 点击可能不弹窗）
+    // 上传按钮点击事件
+    const uploadBtn = document.getElementById('upload-btn');
+    if (uploadBtn) {
+        uploadBtn.addEventListener('click', function() {
+            document.getElementById('image-input').click();
+        });
+    }
 
     // 图片输入变化事件
     const imageInput = document.getElementById('image-input');

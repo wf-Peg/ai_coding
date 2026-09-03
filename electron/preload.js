@@ -537,24 +537,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dshSkillStatus: () => ipcRenderer.invoke('dsh-agent:skill-status'),
 
   /**
-   * 查询 DSH 插件市场（dshmarket）预装状态
-   * @returns {Promise<{installed: boolean, port: number, running: boolean}>}
-   */
-  dshAgentMarketStatus: () => ipcRenderer.invoke('dsh-agent:market-status'),
-
-  /**
-   * 实时探测宿主 DSH 版本（版本对齐事实来源）
-   * @returns {Promise<{version: string|null, source: string|null, supported: string, mismatch: {host:string, supported:string}|null}>}
-   */
-  detectDshVersionState: () => ipcRenderer.invoke('dsh-agent:detect-version'),
-
-  /**
-   * 查询 npm 上 DSH 最新版本（检测升级用，不下装）
-   * @returns {Promise<{latest: string|null}>}
-   */
-  checkDshLatest: () => ipcRenderer.invoke('dsh-agent:latest-version'),
-
-  /**
    * 获取当前启动模式
    * @returns {Promise<string>} 'full' | 'frontend-only' | 'frontend-async-backend'
    */

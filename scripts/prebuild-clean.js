@@ -5,16 +5,6 @@ const path = require('path');
 
 const distDir = path.join(__dirname, '..', 'dist-electron');
 
-// 0. 校验 DSH 插件依赖已安装（避免打包后运行时 MODULE_NOT_FOUND）
-const dshTools = path.join(__dirname, '..', 'integrations', 'dsh', 'plugins', 'clip-capture', 'node_modules', '@deepseek-ai', 'dsh-tools');
-if (!fs.existsSync(dshTools)) {
-  console.error('[prebuild] 缺少 DSH 插件依赖 @deepseek-ai/dsh-tools（clip-capture）。请先执行：');
-  console.error('  cd integrations/dsh/plugins/clip-capture && npm install');
-  process.exit(1);
-} else {
-  console.log('[prebuild] DSH 插件依赖 @deepseek-ai/dsh-tools 已就绪');
-}
-
 console.log('[prebuild] 检查残留进程...');
 
 // 1. 终止所有"剪藏"进程

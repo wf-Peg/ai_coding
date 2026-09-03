@@ -92,7 +92,6 @@
     'aiChatResizeHandle', 'aiPetBtn', 'editorContextMenu', 'aiSearchContextBtn', 'smartIngestContextBtn', 'aiImportPasswordContextBtn',
     'offlineTranslateContextBtn', 'onlineTranslateContextBtn', 'addCustomMappingContextBtn', 'addToDictLibContextBtn', 'aiContextAnalysisContextBtn',
     'manageDictionaryContextBtn', 'aiChatContextBtn', 'joinLineEndsContextBtn', 'formatContextBtn',
-    'toggleWordWrapContextBtn',
     'dictModal', 'dictSourceInput', 'dictTargetInput', 'dictAddBtn', 'dictList', 'dictLibList', 'dictTabMapping', 'dictTabLibrary',
     'wikilinkPickerModal', 'wikilinkPickerHint', 'wikilinkPickerList',
     'aiChatSelectionHint', 'aiChatSelectionHintText', 'aiChatSelectionHintClear'
@@ -1872,9 +1871,6 @@
     elements.joinLineEndsContextBtn.hidden = false;
     // 管理词典始终可用
     elements.manageDictionaryContextBtn.hidden = false;
-    // 自动换行：始终可用，刷新菜单项勾选状态与文字
-    elements.toggleWordWrapContextBtn.hidden = false;
-    elements.toggleWordWrapContextBtn.textContent = (mainEditor.getOption('wrap') !== 'off' ? '☑' : '☐') + ' 自动换行';
     // 分隔线显隐：共3条分隔线，后2条（翻译相关）按选中状态
     const translateDivider = elements.editorContextMenu.querySelectorAll('.editor-context-divider');
     translateDivider.forEach(function(div, idx) {
@@ -2009,11 +2005,6 @@
       formatCurrentContentAuto();
       return;
     }
-    // 自动换行：对超出窗口宽度的内容做自动换行排版（参考 Notepad），主/对比编辑器同步切换
-    if (action === 'toggleWordWrap') {
-      toggleWordWrap();
-      return;
-    }
     mainEditor.focus();
     const command = action === 'selectAll' ? 'selectall' : action;
     try {
@@ -2021,17 +2012,6 @@
     } catch (error) {
       showToast(`${action} 操作失败`, true);
     }
-  }
-
-  /**
-   * 自动换行开关：切换 ACE 软换行（wrap）选项，对超出窗口宽度的内容做自动换行排版（参考 Notepad）。
-   * 主编辑器与对比编辑器同步切换，使预览/对比视图与主视图排版一致。
-   */
-  function toggleWordWrap() {
-    const enable = mainEditor.getOption('wrap') === 'off';
-    mainEditor.setOption('wrap', enable);
-    compareEditor.setOption('wrap', enable);
-    showToast(enable ? '自动换行已开启' : '自动换行已关闭');
   }
 
   /**

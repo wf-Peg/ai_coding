@@ -163,7 +163,6 @@
       renderWorkspaceStats(wsStats, suggestionStats);
       renderDiagnosis(diag);
       $('status').textContent = '更新于 ' + formatTime(overview.observedAt);
-      CutShelterScroll.restore('data-observability');
     } catch (error) {
       $('status').textContent = error.message;
     }

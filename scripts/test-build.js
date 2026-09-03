@@ -80,6 +80,15 @@ check('mac.target 包含 zip', () => {
   }
 });
 
+check('mac 使用无签名发布模式', () => {
+  if (pkg.build.mac.identity !== null) {
+    throw new Error('macOS identity 必须显式设置为 null');
+  }
+  if (pkg.build.mac.hardenedRuntime !== false) {
+    throw new Error('无签名 macOS 构建必须关闭 hardenedRuntime');
+  }
+});
+
 check('extraResources 配置正确', () => {
   const resources = pkg.build.extraResources || [];
   const hasBackend = resources.some(r => r.to && r.to.includes('backend'));

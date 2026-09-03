@@ -38,9 +38,6 @@
     if (!d || typeof d !== 'object') return;
     if (d.action === 'themeChange') {
       applyTheme(d.theme);
-    } else if (d.action === 'hardRefresh') {
-      CutShelterScroll.capture(d.module || 'tools');
-      location.reload();
     } else if (d.action === 'refresh' || (d.action === 'backendState' && d.state === 'ready')) {
       // 后端就绪广播（refresh / backendState:ready）：立即刷新工具列表，
       // 并重载正在运行的工具页面（依赖后端服务的工具恢复可用）
@@ -129,7 +126,7 @@
     },
     {
       id: 'module-agent',
-      name: '牛马',
+      name: 'AI干活',
       icon: '🤖',
       module: true,
       viewName: 'agent',
@@ -189,7 +186,6 @@
       tools.unshift.apply(tools, SYSTEM_TOOLS);
       renderChips();
       renderGrid();
-      CutShelterScroll.restore('tools');
     } catch (e) {
       $('loading').style.display = 'none';
       $('empty').style.display = 'block';
@@ -419,7 +415,7 @@
     }
   }
 
-  // ── 牛马：前置检测激活 ──
+  // ── AI干活：前置检测激活 ──
   // 未装 dsh 时展示安装说明 + 命令，允许用户自助安装后「检测/重试」解锁，装好才跳转装载面板。
   let agentChecking = false;
   async function openModuleAgent(t) {

@@ -65,9 +65,7 @@ const resourcesPath = process.resourcesPath || app.getAppPath();
 const APP_DIR = isPackaged ? path.dirname(app.getPath('exe')) : app.getAppPath();
 
 /** 日志输出目录（与应用根目录相同） */
-// 固定日志目标到安装目录（exe 所在目录），避免"双击 exe 时 cwd≠安装目录"导致日志丢失；不可写时 logger 自动兜底到 userData
-log.init(APP_DIR);
-const LOG_DIR = log.logDir;
+const LOG_DIR = APP_DIR;
 
 log.info('=== App Startup ===');
 log.info('isPackaged:', isPackaged);
@@ -151,9 +149,6 @@ const CONFIG_DIR = path.join(app.getPath('userData'), 'config');
 /** 配置文件路径 */
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 
-// DSH 配套版本单一来源：devDependencies 的 @deepseek-ai/dsh 与插件 @deepseek-ai/dsh-tools 须与此保持一致。
-const DSH_VERSION = '0.1.0-rc.7';
-
 /** 默认配置（新用户首次运行时使用） */
 const DEFAULT_CONFIG = {
   backendPort: 8081,           // Spring Boot 后端端口
@@ -184,17 +179,18 @@ const DEFAULT_CONFIG = {
   screenshotShortcut: 'F1',      // 截图快捷键（默认 F1）
   pasteShortcut: 'F2',           // 贴图快捷键（默认 F2）
   screenshotHideMain: true,      // 截图时是否收起主窗口
-  screenshotSaveDir: '',         // 截图默认保存目录（空 = 弹保存对话框）
+  screenshotSaveDir: ''          // 截图默认保存目录（空 = 弹保存对话框）
+  ,
   // ===== DSH Agent 内嵌（Phase 2）=====
   dshAgentEnabled: true,        // 是否启用"AI 干活"面板（打开 Agent 视图时按需拉起 dsh web sidecar）
   dshPort: 3081,                // DSH sidecar 端口（固定 3081，避免与用户手动启动的 3080 冲突；若 3081 已有 DSH 则复用）
   dshBinPath: '',               // DSH CLI 路径（空 = 自动探测：DSH_BIN env → 内置 node_modules → npx 缓存 → npx）
-  dshAgentNpxSpec: `@deepseek-ai/dsh@${DSH_VERSION}`, // dsh 安装命令的固定兜底 spec（在线同步失败时的最后手段，可被配置/环境变量覆盖）
+  dshAgentNpxSpec: '@deepseek-ai/dsh@0.1.0-rc.7', // dsh 安装命令的固定兜底 spec（在线同步失败时的最后手段，可被配置/环境变量覆盖）
   dshSync: { version: '', ts: 0 } // dsh 最新版本在线同步缓存（version + 时间戳，TTL=DSH_SYNC_TTL）
 };
 
 // ===== dsh 安装命令在线同步（npm 优先 + GitHub README 兜底）=====
-const DEFAULT_DSH_SPEC = `@deepseek-ai/dsh@${DSH_VERSION}`; // 最后的兜底固定版本（未配置 dshAgentNpxSpec 时）
+const DEFAULT_DSH_SPEC = '@deepseek-ai/dsh@0.1.0-rc.7'; // 最后的兜底固定版本（未配置 dshAgentNpxSpec 时）
 const DSH_SYNC_TTL = 6 * 3600 * 1000;                   // 在线同步缓存 TTL：6 小时
 const DSH_SYNC_TIMEOUT = 8000;                          // 单次在线探测超时（ms）
 let dshCmdPromise = null;                               // 并发去重：同一次解析只发一个网络请求，其余复用其结果
@@ -301,15 +297,48 @@ let pendingShowAfterStart = false;
 
 // 主进程兜底：任何未捕获异常只记录日志，不让应用直接崩溃退出。
 // 窗口隐藏/显示、快捷键等 UI 路径的偶发异常不应导致"应用被杀死"。
+// 但必须让"进程活着却没窗口/无响应"的隐性失败变成可见错误（见 showStartupFatalError）。
+let startupFatalShown = false;
+
+/**
+ * 启动期致命错误展示：把"双击无反应/静默失败"变成用户可见的原生错误框。
+ * - 使用 dialog.showErrorBox（原生对话框，不依赖任何 BrowserWindow，
+ *   即使主窗口还没创建也能弹出）。
+ * - 节流：同一故障只弹一次，避免 uncaughtException 连环触发刷屏。
+ * - app 未 ready 时无法弹原生框，暂记日志并挂在 whenReady 后再弹。
+ */
+function showStartupFatalError(title, detail) {
+  // 仅启动阶段的可视化兜底：正常使用期（appStartupComplete 之后）的运行时错误只记日志，
+  // 避免偶发的 async rejection 弹"启动异常"窗打扰用户（见 uncaughtException/unhandledRejection 约束）。
+  if (appStartupComplete) return;
+  if (startupFatalShown) return;
+  startupFatalShown = true;
+  const show = () => {
+    try { dialog.showErrorBox(title || '启动失败', detail || ''); } catch (e) { /* 弹窗失败忽略 */ }
+  };
+  try {
+    if (app.isReady()) {
+      show();
+    } else {
+      log.error('[StartupFatal]', title, detail);
+      app.whenReady().then(show);
+    }
+  } catch (e) {
+    log.error('[StartupFatal] 弹窗失败:', e.message);
+  }
+}
+
 process.on('uncaughtException', (err) => {
   log.error('[Fatal] Uncaught exception (kept alive):', err);
   log.writeExceptionLog('electron', err.message || String(err), err.stack || '', 'ERROR');
+  showStartupFatalError('应用启动异常', (err && (err.stack || err.message)) || String(err));
 });
 process.on('unhandledRejection', (reason) => {
   log.error('[Fatal] Unhandled rejection (kept alive):', reason);
   const msg = reason instanceof Error ? reason.message : String(reason);
   const stack = reason instanceof Error ? reason.stack : '';
   log.writeExceptionLog('electron', msg, stack, 'ERROR');
+  showStartupFatalError('应用启动异常', (reason && (reason.stack || reason.message)) || String(reason));
 });
 
 /** 
@@ -829,7 +858,6 @@ function stopBackend() {
 let dshAgentProcess = null;
 let dshAgentOwned = false;   // true = 进程是本应用拉起的，退出需关闭；false = 复用了已有实例
 let dshManagedPort = null;   // 由本应用亲自拉起的 DSH 端口（跨 launcher 退出保留，用于按端口强杀守护进程）
-let dshVersionState = { version: null, source: null, at: 0 }; // 最近一次探测到的宿主 DSH 版本与来源（内存态，不持久化）
 
 /** 探测本地端口是否返回 HTTP 200（判断 DSH Web 是否就绪） */
 function checkHttpPort(port, pathname = '/') {
@@ -870,21 +898,6 @@ function findNodeDir() {
   return (nodeExe === 'node' || !fs.existsSync(nodeExe) || dir === '.') ? '' : dir;
 }
 
-/**
- * 解析 DSH 数据根目录（DSH_HOME）。回归官方默认语义：
- *   - DSH_HOME 指向数据根，per-profile 子目录 `$DSH_HOME/profiles/<name>`（含 workspace + node_modules）在下；
- *   - 官方默认根为 `~/.dsh`，`dsh web` ≡ `--profile web`；
- *   - 应用拉起（3081）与手动启动（3080）共用同一 DSH_HOME → 共享同一 profile，
- *     插件 / 技能 / 插件市场天然互通（同步由 DSH_HOME 决定，与端口无关）。
- * 可被环境变量 DSH_HOME 显式覆盖。该函数是唯一权威定义，sidecar 启动、技能安装/查询
- * 必须共用它，避免目录不一致导致"装了不生效"。
- */
-function resolveDshHome(config) {
-  if (process.env.DSH_HOME) return process.env.DSH_HOME;
-  void config; // 兼容旧签名；官方默认根与 storagePath 无关
-  return path.join(os.homedir(), '.dsh');
-}
-
 /** 定位 integrations/dsh 资源目录（含 MCP 桥与插件）：env → 打包资源 → 开发目录 */
 function resolveDshPatchDir() {
   const candidates = [
@@ -898,13 +911,39 @@ function resolveDshPatchDir() {
   return null;
 }
 
-/**
- * 运行时如何设置 DSH 端口：自研剪藏集成（mcp 桥 + clip-capture）已 profile 化，
- * 由 ensureCutshelterPlugins 写入 `~/.dsh/profiles/web/cordis.patch.yml`（手动 3080 与
- * 应用 3081 共享）。web 端口不再用 `--patch` 注入 `- id: webserver` —— 那会与 profile
- * 内置 `id: webserver`（dsh-host-webserver）重复注册导致启动失败
- * （duplicate loader entry id）。改为 `dsh web --port <n>` 直接指定，见 startDshAgent。
- */
+/** 运行时生成 dsh --patch 覆盖层（路径按当前机器/打包形态解析） */
+function buildDshAgentPatch(patchDir) {
+  const config = loadConfig();
+  const port = config.dshPort || 3081;
+  const backend = `http://127.0.0.1:${config.backendPort || 8081}`;
+  const nodeExe = findNodeExe().replace(/\\/g, '/');
+  const bridge = path.join(patchDir, 'mcp-server', 'server.mjs').replace(/\\/g, '/');
+  const pluginUrl = pathToFileURL(path.join(patchDir, 'plugins', 'clip-capture', 'index.mjs')).href;
+  return [
+    '# generated by CutShelter at runtime — do not edit',
+    '- id: webserver',
+    '  config:',
+    '    host: 127.0.0.1',
+    `    port: ${port}`,
+    '- insert:',
+    '    - id: mcp-cut-shelter',
+    "      name: '@deepseek-ai/dsh-mcp-client'",
+    '      config:',
+    '        serverName: cut_shelter',
+    '        transport: stdio',
+    `        command: '${nodeExe}'`,
+    '        args:',
+    `          - '${bridge}'`,
+    '        env:',
+    `          CUTSHELTER_BASE_URL: ${backend}`,
+    "          CUTSHELTER_TIMEOUT_MS: '60000'",
+    '    - id: clip-capture',
+    `      name: '${pluginUrl}'`,
+    '      config:',
+    `        baseUrl: ${backend}`,
+    '',
+  ].join('\n');
+}
 
 /**
  * 带超时的 GET 请求（https 走全局 fetch，比 httpGet 支持 TLS；失败返回 null，不抛出）。
@@ -1021,53 +1060,15 @@ async function getDshInstallCommand(force = false) {
   return dshCmdPromise;
 }
 
-// 动态解析真实的 npm 缓存目录（`npm config get cache`），npx 的包缓存位于 `<cache>/_npx`。
-// 修复：用户自定义 Node 安装/缓存路径时（如 D:\develop\...\node_cache），
-// 原硬编码 %LOCALAPPDATA%\npm-cache 扫不到 npx 缓存里的 dsh，导致误报"未安装"。
-let npmCacheDirPromise = null;
-function resolveNpmCacheDir() {
-  if (npmCacheDirPromise) return npmCacheDirPromise;
-  npmCacheDirPromise = new Promise((resolve) => {
-    // npm 会给子进程注入 npm_config_cache，优先直接使用，避免 spawn 开销
-    if (process.env.npm_config_cache && process.env.npm_config_cache.trim()) {
-      resolve(process.env.npm_config_cache.trim());
-      return;
-    }
-    const nodeDir = findNodeDir();
-    const npmBin = nodeDir ? path.join(nodeDir, process.platform === 'win32' ? 'npm.cmd' : 'npm') : 'npm';
-    execAsync(`"${npmBin}" config get cache`, { timeout: 5000 }).then(({ stdout }) => {
-      resolve(String(stdout || '').trim());
-    });
-  });
-  return npmCacheDirPromise;
-}
-
-/** 汇总所有可能的 npx 缓存根目录（硬编码兜底 + 动态解析的真实 cache 目录） */
-async function resolveNpxRoots() {
-  const roots = new Set([
-    path.join(process.env.LOCALAPPDATA || '', 'npm-cache', '_npx'),
-    path.join(os.homedir(), 'AppData', 'Local', 'npm-cache', '_npx'),
-    path.join(os.homedir(), '.npm', '_npx'),
-    path.join(process.env.APPDATA || '', 'npm-cache', '_npx'),
-  ]);
-  const cache = await resolveNpmCacheDir();
-  if (cache) roots.add(path.join(cache, '_npx'));
-  return [...roots];
-}
-
 /**
  * 解析 dsh CLI 入口。
  * 返回 { mode: 'node', node, script }（node 运行 dsh bin.js）或 { mode: 'missing', file: 'npx' }。
  * 优先级：配置 dshBinPath（目录或 bin.js）→ 环境变量 DSH_BIN → 内置 node_modules → npx 缓存。
  */
-async function resolveDshBin(config) {
+function resolveDshBin(config) {
   const tryNodeScript = (p) => (p && fs.existsSync(p)) ? { mode: 'node', node: findNodeExe(), script: p } : null;
-  // 历史版本 persistDshBinIfNpx 会把 npx 缓存路径固化进 config.dshBinPath（见 isNpxResidue）。
-  // 该路径指向固定版本缓存，升级会产生更高版本缓存但旧路径仍存在 → 一直锁旧版。
-  // 识别残留后跳过，让 npx 扫描按版本选最高。
-  const c0 = (config && config.dshBinPath && !isNpxResidue(config.dshBinPath)) ? config.dshBinPath : '';
   const candidates = [
-    c0,
+    config && config.dshBinPath ? config.dshBinPath : '',
     process.env.DSH_BIN || '',
     path.join(APP_DIR, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
     path.join(process.resourcesPath, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
@@ -1078,25 +1079,22 @@ async function resolveDshBin(config) {
     if (hit) return hit;
   }
   // npx 缓存扫描（用户可能通过 npx @deepseek-ai/dsh web 运行过，缓存里已有 dsh）
-  // 多版本残留时按版本排序取最高，不再"取到哪个算哪个"（旧版本残留会拖住高版本）。
-  const npxRoots = await resolveNpxRoots();
-  let best = null; // { script, version }
+  const npxRoots = [
+    path.join(process.env.LOCALAPPDATA || '', 'npm-cache', '_npx'),
+    path.join(os.homedir(), 'AppData', 'Local', 'npm-cache', '_npx'),
+    path.join(os.homedir(), '.npm', '_npx'),
+    path.join(process.env.APPDATA || '', 'npm-cache', '_npx'),
+  ];
   for (const root of npxRoots) {
     if (!fs.existsSync(root)) continue;
     let dirs = [];
     try { dirs = fs.readdirSync(root); } catch (e) { continue; }
     for (const d of dirs) {
       const p = path.join(root, d, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
-      if (!fs.existsSync(p)) continue;
-      let v = '0.0.0';
-      try {
-        const pkg = JSON.parse(fs.readFileSync(path.join(path.dirname(p), '..', 'package.json'), 'utf-8'));
-        if (pkg && pkg.version) v = pkg.version;
-      } catch (e) { /* 读不到版本当 0.0.0 处理，仍可作为候选 */ }
-      if (!best || compareVersions(v, best.version) > 0) best = { script: p, version: v };
+      const hit = tryNodeScript(p);
+      if (hit) return hit;
     }
   }
-  if (best) return { mode: 'npx', node: findNodeExe(), script: best.script };
   return { mode: 'missing', file: 'npx' };
 }
 
@@ -1126,39 +1124,12 @@ function sanitizeLogLine(raw) {
 }
 
 /**
- * 识别「profile bundle 缺失」类错误：DSH 内核在但 web 等 UI 组件包未安装/丢失导致秒退。
- * 匹配官方报错 `cannot resolve profile bundle "@pkg" ... run 'dsh plugin --profile <p> install'`
- * @param {string[]} tailLines 完整行（未截断）
- * @returns {{pkg:string, profile:string}|null}
- */
-function extractPluginInstallHint(tailLines) {
-  for (const line of tailLines || []) {
-    const m = line.match(/cannot resolve profile bundle "([^"]+)".*?dsh plugin --profile\s+([A-Za-z0-9_-]+)\s+install/i)
-      || line.match(/cannot resolve profile bundle "([^"]+)"/i);
-    if (m) return { pkg: m[1], profile: m[2] || 'web' };
-  }
-  return null;
-}
-
-/**
  * 从子进程输出尾段提炼关键报错，并附加可操作的自愈指引。
  * 问题 1 修复：把真实 ERR_MODULE_NOT_FOUND 等透传给面板，而不是让用户干等。
  * @param {string[]} recentTail 最近几行子进程输出（已去 ANSI/空白）
- * @param {{binScript?:string}} opts 可选的 bin.js 绝对路径，用于为 bundle 缺失定制补装命令
  * @returns {string} 面向面板的失败文案
  */
-function buildDshFailMessage(recentTail, opts = {}) {
-  const hint = extractPluginInstallHint(opts && opts.recentTailFull);
-  if (hint) {
-    const script = (opts && opts.binScript) || 'dsh';
-    // 注意：必须用 `add <pkg>` 而非 `install`。DSH 的 `plugin install` 只走 pnpm 装
-    // package.json 的 dependencies；而 bundle 声明在 dsh.profile.bundles 里，install 不处理，
-    // 只有 `add` 才会把 bundle 实际装进 profile 的 node_modules（否则照旧秒退）。
-    const cmd = `node "${script}" plugin --profile ${hint.profile} add ${hint.pkg}`;
-    return `安装/启动 DeepSeek Harness 失败：检测到组件 "${hint.pkg}" 未安装或已丢失（DSH 内核在，但 UI 组件缺失导致秒退）。` +
-      `请在项目根目录执行以下命令补装后重试：\n${cmd}\n` +
-      `（该命令需联网下载该组件，程序不会替您自动执行）`;
-  }
+function buildDshFailMessage(recentTail) {
   const keys = ['MODULE_NOT_FOUND', 'ERR_', 'Cannot find module', 'npm error', 'Error:'];
   const hit = [];
   for (const line of recentTail || []) {
@@ -1170,85 +1141,33 @@ function buildDshFailMessage(recentTail, opts = {}) {
     '② 清除 npx 缓存 npm cache clean --force 后重试；③ 在设置页配置 DSH CLI 路径（DSH_BIN）后重试。';
 }
 
-/** 简易版本比较：数字段逐段比较，预发布（rc/x）视为低于正式版。用于 npx 缓存多版本选最高。 */
-function compareVersions(a, b) {
-  const A = String(a || '').match(/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.]+))?$/);
-  const B = String(b || '').match(/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.]+))?$/);
-  if (!A || !B) return 0;
-  for (let i = 1; i <= 3; i++) {
-    const na = +A[i], nb = +B[i];
-    if (na !== nb) return na > nb ? 1 : -1;
-  }
-  const pa = A[4], pb = B[4];
-  if (!pa && !pb) return 0;
-  if (!pa) return 1;
-  if (!pb) return -1;
-  const ta = +(pa.split('.').pop() || 0), tb = +(pb.split('.').pop() || 0);
-  return ta === tb ? 0 : (ta > tb ? 1 : -1);
-}
-
-/**
- * 判定 config.dshBinPath 是否为 npx 缓存残留路径（历史版本 persistDshBinIfNpx 固化进去）。
- * 这类残留指向固定版本缓存，升级后旧路径仍存在会锁旧版，且不应视为"用户手动指定"。识别 `_npx` 特征。
- * @param {string} p
- * @returns {boolean}
- */
-function isNpxResidue(p) {
-  return typeof p === 'string' && p.includes('_npx');
-}
-
-/**
- * 探测宿主 DSH 版本（唯一事实来源）。纯 fs 读取 bin.js 所在包的 package.json，零 spawn。
- * @param {Object} bin `resolveDshBin()` 的返回（{ mode, script }）
- * @param {Object} config 应用配置（用于来源标记 config/builtin）
- * @returns {{version: string|null, source: string|null}} source ∈ npx/config/builtin
- */
-function detectDshVersion(bin, config) {
-  let version = null;
-  if (bin && bin.script) {
-    try {
-      // bin.script 形如 …/node_modules/@deepseek-ai/dsh/lib/bin.js → 上一级即包根
-      const pkgPath = path.join(path.dirname(bin.script), '..', 'package.json');
-      if (fs.existsSync(pkgPath)) {
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-        if (pkg && typeof pkg.version === 'string' && pkg.version) version = pkg.version;
-      }
-    } catch (e) {
-      log.warn(`[DSH Agent] detect dsh version failed: ${e.message}`);
-    }
-  }
-  let source = null;
-  if (bin && bin.mode === 'npx') source = 'npx';
-  // bin 来自内置(node_modules)时 config.dshBinPath 只是残留(_npx)，不视为"用户手动指定"
-  else if (config && config.dshBinPath && !isNpxResidue(config.dshBinPath)) source = 'config';
-  else source = 'builtin';
-  return { version, source };
-}
-
-/**
- * 复用运行中 DSH 实例时，从实例 HTTP 尽力读取版本（best-effort，拿不到返回 ok:false）。
- * 兼容纯文本版本号与 {"version":"x"} 两种响应形态。
- */
-function fetchRuntimeDshVersion(port) {
-  return new Promise((resolve) => {
-    const req = http.get({ host: '127.0.0.1', port, path: '/version', timeout: 1500 }, (res) => {
-      let buf = '';
-      res.setEncoding('utf-8');
-      res.on('data', (d) => { buf += d; });
-      res.on('end', () => {
-        const txt = (buf || '').trim();
-        let v = null;
-        if (txt.startsWith('{')) {
-          try { v = JSON.parse(txt).version || null; } catch (e) { v = null; }
-        } else if (txt) {
-          v = txt;
+/** 启动成功后若走的是 npx 路径，把已落盘的 dsh 缓存路径固化到配置（下次秒起、免 npx） */
+function persistDshBinIfNpx(bin, config) {
+  if (bin.mode !== 'npx') return;
+  try {
+    const cached = (function find() {
+      const npxRoots = [
+        path.join(process.env.LOCALAPPDATA || '', 'npm-cache', '_npx'),
+        path.join(os.homedir(), 'AppData', 'Local', 'npm-cache', '_npx'),
+        path.join(os.homedir(), '.npm', '_npx'),
+        path.join(process.env.APPDATA || '', 'npm-cache', '_npx'),
+      ];
+      for (const root of npxRoots) {
+        if (!fs.existsSync(root)) continue;
+        for (const d of fs.readdirSync(root)) {
+          const p = path.join(root, d, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
+          if (fs.existsSync(p)) return p;
         }
-        resolve(v ? { version: String(v), ok: true } : { version: null, ok: false });
-      });
-    });
-    req.on('error', () => resolve({ version: null, ok: false }));
-    req.on('timeout', () => { req.destroy(); resolve({ version: null, ok: false }); });
-  });
+      }
+      return null;
+    })();
+    if (cached && config) {
+      saveConfig({ ...config, dshBinPath: cached });
+      log.info(`[DSH Agent] Persisted cached dsh bin: ${cached}`);
+    }
+  } catch (e) {
+    log.warn(`[DSH Agent] persist dsh bin failed: ${e.message}`);
+  }
 }
 
 /**
@@ -1259,46 +1178,15 @@ function fetchRuntimeDshVersion(port) {
  * @returns {Promise<{success: boolean, reused: boolean, port: number, message?: string}>}
  */
 async function startDshAgent(config) {
-  const primaryPort = (config && config.dshPort) || 3081;
-  // 单实例复用优先：共享同一 profile 后，同 profile 双开会并发写 cordis.patch.yml / pnpm 锁。
-  // 因而先检测官方默认端口 3080（用户手动启动的实例）与主端口 3081，任一在响应即复用打开，不再双开。
-  const probePorts = [3080, primaryPort].filter((p, i, a) => p && a.indexOf(p) === i);
-  let reused = null;
-  for (const p of probePorts) {
-    broadcastDshProgress('detecting', `检查 127.0.0.1:${p}…`);
-    if (await checkHttpPort(p)) { reused = { port: p }; break; }
-  }
-  if (reused) {
+  const port = (config && config.dshPort) || 3081;
+
+  // 1) 端口已有 DSH 实例在响应 → 复用（用户手动启动的实例，避免端口冲突）
+  broadcastDshProgress('detecting', `检查 127.0.0.1:${port}…`);
+  if (await checkHttpPort(port)) {
     dshAgentOwned = false;
-    const port = reused.port;
     log.info(`[DSH Agent] Reusing existing DSH instance on port ${port}`);
-    // 复用运行中实例：dock 版本 ≠ 磁盘版本，尽力从实例 HTTP 读版本（best-effort，拿不到标"运行中（版本未知）"）。
-    const rt = await fetchRuntimeDshVersion(port);
-    // runtime HTTP 读不到时，回退到本地磁盘解析版本（best-effort，消除「已复用…（版本未知）」）。
-    // 磁盘版本用于 3081（应用内置/npx 缓存）场景是准确的；3080 手动实例场景仅作参考。
-    let ver = rt.ok ? rt.version : null;
-    let src = rt.ok ? 'runtime' : null;
-    if (!ver) {
-      try {
-        const disk = detectDshVersion(await resolveDshBin(config), config);
-        if (disk && disk.version) { ver = disk.version; src = disk.source; }
-      } catch (e) { /* 磁盘解析失败则保持未知 */ }
-    }
-    dshVersionState = { version: ver, source: src, at: Date.now() };
-    const mismatch = (ver && ver !== DSH_VERSION) ? { host: ver, builtin: DSH_VERSION } : null;
-    if (ver) {
-      log.info(`[DSH Agent] DSH 复用实例版本: v${ver}（来源 ${src}）`);
-      if (mismatch) log.warn(`[DSH Agent] 复用实例 v${ver} ≠ 内置支持版本 v${DSH_VERSION}（仅提示，不阻断）`);
-    }
-    broadcastDshProgress('ready',
-      `已复用现有 DSH 实例（端口 ${port}）${ver ? ' · v' + ver : '（版本未知）'}`,
-      { dshVersion: ver, dshMismatch: mismatch });
-    // 复用手动实例时，同样收紧自研集成（profile 化），保证共享 profile 具备剪藏工具。
-    try {
-      const reusedPatchDir = resolveDshPatchDir();
-      if (reusedPatchDir) ensureCutshelterPlugins(reusedPatchDir);
-    } catch (e) { log.warn(`[DSH Agent] profile 化自研集成失败(复用): ${e.message}`); }
-    return { success: true, reused: true, port, version: ver, source: src };
+    broadcastDshProgress('ready', `已复用现有 DSH 实例（端口 ${port}）`);
+    return { success: true, reused: true, port };
   }
 
   // 2) 定位 integrations/dsh 资源目录，并生成运行时 patch
@@ -1307,17 +1195,25 @@ async function startDshAgent(config) {
     broadcastDshProgress('failed', 'integrations/dsh 资源未找到（开发需在仓库根目录，打包需 extraResources 内置）');
     return { success: false, message: 'integrations/dsh 资源未找到（开发需在仓库根目录，打包需 extraResources 内置）' };
   }
+  const patchFile = path.join(CONFIG_DIR, 'dsh-agent.patch.yml');
+  try {
+    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    fs.writeFileSync(patchFile, buildDshAgentPatch(patchDir), 'utf-8');
+  } catch (e) {
+    broadcastDshProgress('failed', `生成 DSH 配置失败: ${e.message}`);
+    return { success: false, message: `生成 DSH patch 失败: ${e.message}` };
+  }
 
   // 3) 解析 dsh CLI：未安装本地 dsh 时不再自动联网安装，改为提示用户自助安装并检测解锁
-  const bin = await resolveDshBin(config);
+  const bin = resolveDshBin(config);
   log.info(`[DSH Agent] resolved dsh bin: mode=${bin.mode}${bin.script ? ' script=' + bin.script : ''}`);
-  // 仅 mode:missing（无任何本地/缓存 dsh）才提示自助安装；npx 缓存命中（mode:npx）视为已安装，直接启动
-  if (bin.mode === 'missing') {
+  // 未装本地 dsh（mode missing/npx）：CutShelter 不代联网安装，仅广播 need-install 供前端展示说明+重试
+  if (bin.mode === 'missing' || bin.mode === 'npx') {
     const { command: DSH_INSTALL_CMD } = await getDshInstallCommand(false);
     broadcastDshProgress('need-install',
       '未检测到 DeepSeek Harness，请先自行安装后再重试。安装命令：' + DSH_INSTALL_CMD);
     return {
-      success: false, needInstall: true, installed: false, port: primaryPort,
+      success: false, needInstall: true, installed: false, port,
       command: DSH_INSTALL_CMD,
       message: '未检测到 DeepSeek Harness（DSH）。请按说明自助安装后重试。'
     };
@@ -1325,25 +1221,17 @@ async function startDshAgent(config) {
   broadcastDshProgress('starting',
     `正在启动 DeepSeek Harness（${path.basename(bin.script)}）…`, { elapsed: 0 });
 
-  // npxMode 恒为 false：首次安装已改为「提示用户自助安装」（need-install 状态），不再代为联网下载。
-  // 此标志及其下方 npxMode 分支是旧自动安装路径的残留，保留以维持可读性与可回退性（勿当 bug 删除）。
   const npxMode = false;
-  // 用 web 的 --port 设置端口，避免 patch 注入 `- id: webserver` 与 profile 内置
-  // id: webserver（dsh-host-webserver）重复导致 duplicate loader entry 崩溃。
-  // DSH ≥ 0.1.1 的 `dsh web` 默认会拉起系统默认浏览器（openBrowser 默认 true）；CutShelter
-  // 用 iframe 内嵌面板，无需该动作，按版本条件传 --no-open（0.1.0-rc.x 无此 flag，硬传会报 unknown option）。
-  let supportsNoOpen = false;
-  try {
-    const det = detectDshVersion(bin, config);
-    supportsNoOpen = !!det.version && compareVersions(det.version, '0.1.0') > 0;
-  } catch (e) { /* 版本探测失败时保守不加 --no-open，避免老版本报 unknown option */ }
-  const args = ['web', ...(supportsNoOpen ? ['--no-open'] : []), '--port', String(primaryPort)];
+  const args = ['web', '--patch', patchFile];
   const spawnCmd = bin.node;
   log.info(`[DSH Agent] Starting: ${spawnCmd} ${bin.script} ${args.join(' ')}`);
 
-  // DSH_HOME 回归官方默认根（~/.dsh），与应用/手动启动共享同一 profile（插件/技能/市场互通）。
-  // 与其他 DSH 相关入口共享 resolveDshHome()，保证技能安装/查询与运行时目录一致。
-  const dshHome = resolveDshHome(config);
+  // 为 DSH 提供独立的可写工作目录（DSH_HOME），避免依赖 ~/.dsh（受限/权限/与其他工具冲突）。
+  // 目录位于用户 config.storagePath 下，跟随主数据目录即可写，也可在卸载后一并清理。
+  const dshHome = path.join(
+    (config && config.storagePath) || APP_DIR,
+    '.dsh'
+  );
   try { fs.mkdirSync(dshHome, { recursive: true }); } catch (e) { /* 忽略，兜底让 DSH 走默认 ~/.dsh */ }
 
   dshAgentProcess = spawn(spawnCmd, npxMode ? args : [bin.script, ...args], {
@@ -1366,15 +1254,12 @@ async function startDshAgent(config) {
   let processExited = false;        // 子进程已退出/启动失败 → 用于立即中止就绪轮询（修复无限"正在安装"）
   let exitCode = null;              // 子进程退出码，失败时纳入文案便于定位
   const recentTail = [];            // 最近输出尾段，供失败时按关键字提炼真实报错
-  const recentTailFull = [];        // 完整行（不做 140 字符截断），供「profile bundle 缺失」等长错误精确识别
   const TAIL_LIMIT = 30;
   const forward = (kind) => (d) => {
     const line = sanitizeLogLine(d);
     if (!line) return;
     recentTail.push(line);                       // 记录尾段（含下载进度等噪音，失败时再提炼）
     if (recentTail.length > TAIL_LIMIT) recentTail.shift();
-    const full = String(d).replace(/\u001b\[[0-9;]*m/g, '').replace(/[\r\n]+/g, ' ').trim();
-    if (full) { recentTailFull.push(full); if (recentTailFull.length > TAIL_LIMIT) recentTailFull.shift(); }
     if (kind === 'stdout') log.info(`[DSH Agent] ${line}`); else log.warn(`[DSH Agent] ${line}`);
     const now = Date.now();
     if (now - lastFwdAt > 2500) {
@@ -1401,7 +1286,7 @@ async function startDshAgent(config) {
     if (dshAgentProcess) { dshAgentProcess = null; dshAgentOwned = false; }
   });
   dshAgentOwned = true;
-  dshManagedPort = primaryPort;
+  dshManagedPort = port;
 
   // 4) 轮询等待就绪（npx 安装路径给更宽裕的超时；每 5 秒刷新等待文案）
   const timeoutMs = npxMode ? 300000 : 90000;
@@ -1424,40 +1309,19 @@ async function startDshAgent(config) {
   while (Date.now() < deadline) {
     // 子进程已退出：端口未就绪 → 立即失败并透传真实报错（不再空转到超时）；
     // 若已就绪（如父进程退出但守护子进程驻留）则回落就绪分支。
-    if (processExited && !(await checkHttpPort(primaryPort))) {
-      const msg = buildDshFailMessage(recentTail, { binScript: bin.script, recentTailFull }) + (exitCode != null ? `（退出码 ${exitCode}）` : '');
+    if (processExited && !(await checkHttpPort(port))) {
+      const msg = buildDshFailMessage(recentTail) + (exitCode != null ? `（退出码 ${exitCode}）` : '');
       log.warn(`[DSH Agent] tail: ${recentTail.slice(-15).join(' ｜ ')}`);
       failNow(msg);
       return { success: false, message: msg };
     }
-    if (await checkHttpPort(primaryPort)) {
-      log.info(`[DSH Agent] ready at http://127.0.0.1:${primaryPort}`);
-      // 就绪即探测并落内存态版本，作为「下次启动自动对齐」的事实来源。
-      const det = detectDshVersion(bin, config);
-      const prev = dshVersionState.version;
-      dshVersionState = { version: det.version, source: det.source, at: Date.now() };
-      const mismatch = (det.version && det.version !== DSH_VERSION) ? { host: det.version, builtin: DSH_VERSION } : null;
-      if (det.version) {
-        if (prev && prev !== det.version) log.info(`[DSH Agent] 宿主 DSH 版本对齐: ${prev} → ${det.version}（来源 ${det.source}）`);
-        else log.info(`[DSH Agent] 宿主 DSH 版本: v${det.version}（来源 ${det.source}）`);
-        if (mismatch) log.warn(`[DSH Agent] 宿主 v${det.version} ≠ 内置支持版本 v${DSH_VERSION}（仅提示，不阻断）`);
-      }
-      const readyText = `DeepSeek Harness 已就绪（端口 ${primaryPort}）${det.version ? ' · v' + det.version : ''}`;
-      broadcastDshProgress('ready', readyText, { dshVersion: det.version, dshMismatch: mismatch });
-      // 就绪后异步收紧：自研集成 profile 化（copy）+ 预装 dshmarket。两者均不阻塞 ready 返回，
-      // 失败只记录日志/广播 warning（不阻断 DSH 使用）。
-      try {
-        ensureCutshelterPlugins(patchDir);
-      } catch (e) { log.warn(`[DSH Agent] profile 化自研集成失败: ${e.message}`); }
-      if (npxMode) {
-        // npx 内存实例结束即失效，跳过 market 预装
-        log.info('[DSH Agent] skip ensureDshMarket (npx 临时实例)');
-      } else {
-        ensureDshMarket(bin)
-          .then((r) => log.info(`[DSH Agent] ensureDshMarket: installed=${r.installed}${r.err ? ' err=' + r.err : ''}`))
-          .catch((e) => log.warn(`[DSH Agent] ensureDshMarket error: ${e.message}`));
-      }
-      return { success: true, reused: false, port: primaryPort, version: det.version, source: det.source };
+    if (await checkHttpPort(port)) {
+      log.info(`[DSH Agent] ready at http://127.0.0.1:${port}`);
+      broadcastDshProgress('ready', npxMode
+        ? `DeepSeek Harness 安装并启动成功（端口 ${port}），下次将直接使用本地缓存`
+        : `DeepSeek Harness 已就绪（端口 ${port}）`);
+      persistDshBinIfNpx(bin, config);
+      return { success: true, reused: false, port };
     }
     const now = Date.now();
     if (now - lastTickAt > 5000) {
@@ -1493,198 +1357,6 @@ function cancelDshAgent() {
     return true;
   }
   return false;
-}
-
-/**
- * 解析 DSH 指定 profile 的目录（`$DSH_HOME/profiles/<name>`）。
- * profile 是 DSH 插件/技能/配置的隔离单元；统一 `~/.dsh` 后，web profile 为两侧共享。
- * @param {string} [profile] profile 名，默认 'web'
- * @returns {string} profile 绝对路径（可能尚不存在，需调用方 mkdir）
- */
-function getDshProfileDir(profile = 'web') {
-  return path.join(resolveDshHome(), 'profiles', profile);
-}
-
-/**
- * 通用插件确保底座：幂等地在指定 profile 中启用一个 npm 插件，并为后续扩展复用。
- * 判定依据：读取 profile 的 `dsh.profile.bundles`（cordis 插件清单）是否已包含目标 spec 的包名。
- * 未安装才执行 `dsh plugin --profile <name> add <spec>`。
- * @param {Object} bin  resolveDshBin() 返回的可执行入口（{node, script}）
- * @param {string} spec npm 插件包名或 file 路径
- * @param {Object} [opts] { profile?: string, timeout?: number }
- * @returns {Promise<{installed: boolean, existing: boolean, spec: string, err?: string}>}
- */
-async function ensureDshPlugin(bin, spec, opts = {}) {
-  const profile = opts.profile || 'web';
-  const dshHome = resolveDshHome();
-  const result = { installed: false, existing: false, spec };
-  try {
-    // 1) 已安装判定：profile 的 package.json 中 dsh.profile.bundles 是否含同名插件
-    const pkgFile = path.join(getDshProfileDir(profile), 'package.json');
-    const pkgName = /^(@?[^@]+)@/.test(spec)
-      ? spec.match(/^(@?[^@]+)@/)[1]
-      : (spec.startsWith('file:')
-        ? path.basename(spec).replace(/\.m?js$/, '')
-        : spec.split('@').pop() || spec);
-    if (fs.existsSync(pkgFile)) {
-      try {
-        const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf-8'));
-        const bundles = (pkg && pkg.dsh && pkg.dsh.profile && pkg.dsh.profile.bundles) || [];
-        if (bundles.some((b) => String(b).includes(pkgName))) {
-          result.existing = true;
-          result.installed = true;
-          return result;
-        }
-      } catch (e) { /* 解析失败按未安装处理 */ }
-    }
-    // 2) 未安装 → 执行安装（走官方 `dsh plugin add` 通道，与市场安装同源）
-    const cmd = [
-      '"' + (bin.script || bin.file || 'dsh') + '"',
-      'plugin', '--profile', profile, 'add', spec,
-    ].join(' ');
-    log.info(`[DSH] ensureDshPlugin: ${cmd}`);
-    const { err, stdout } = await execAsync(cmd, { timeout: opts.timeout || 120000 });
-    const out = sanitizeLogLine(stdout);
-    if (err) {
-      log.warn(`[DSH] ensureDshPlugin failed: ${err.message} ${out ? '(' + out + ')' : ''}`);
-      result.err = (err.message || '') + (out ? ' ' + out : '');
-    } else {
-      result.installed = true;
-      log.info(`[DSH] ensureDshPlugin installed: ${spec}`);
-    }
-  } catch (e) {
-    log.warn(`[DSH] ensureDshPlugin error: ${e.message}`);
-    result.err = e.message;
-  }
-  return result;
-}
-
-/**
- * 预装 dsh-market 插件市场应用（激活即止，不硬编码/不依赖其内部路由 UI）。
- * 幂等：已含 dshmarket 则跳过；失败仅记录日志并广播 warning，不阻断 DSH 启动。
- * @returns {Promise<{installed: boolean, err?: string}>}
- */
-async function ensureDshMarket(bin) {
-  const res = await ensureDshPlugin(bin, 'dshmarket', { profile: 'web', timeout: 180000 });
-  if (res.existing) log.info('[DSH] dshmarket already installed.');
-  if (!res.installed) {
-    broadcastDshProgress('warning', '插市场（dshmarket）预装失败，可在 DSH 的 Settings → Plugin Market 手动安装');
-  }
-  return { installed: res.installed, err: res.err };
-}
-
-/**
- * 递归拷贝目录到目标。
- * 会完整拷贝（含 node_modules），但用「已访问 realpath」集合防止目录循环（源 node_modules 深层
- * 嵌套/自引用时，fs.cpSync 会触发本机栈溢出 0xC0000409，Windows 实测；故手写递归 + 防循环）。
- * 符号链接拷贝链接本身（不跟随目标），避免跟随引出的循环。
- * @param {string} srcDir 源目录
- * @param {string} destDir 目标目录
- * @param {Set<string>} [visited] 已访问的真实目录路径集合（防循环）
- */
-function copyDir(srcDir, destDir, visited) {
-  if (!fs.existsSync(srcDir)) return;
-  visited = visited || new Set();
-  let real;
-  try { real = fs.realpathSync(srcDir); } catch (e) { return; }
-  if (visited.has(real)) return; // 循环防护
-  visited.add(real);
-  fs.mkdirSync(destDir, { recursive: true });
-  for (const ent of fs.readdirSync(srcDir, { withFileTypes: true })) {
-    const s = path.join(srcDir, ent.name);
-    const d = path.join(destDir, ent.name);
-    if (ent.isSymbolicLink()) {
-      try { fs.symlinkSync(fs.readlinkSync(s), d); } catch (e) { /* 忽略单个链接失败 */ }
-      continue;
-    }
-    if (ent.isDirectory()) copyDir(s, d, visited);
-    else {
-      try { fs.copyFileSync(s, d); } catch (e) { /* 忽略单个文件失败 */ }
-    }
-  }
-}
-
-/**
- * 自研剪藏集成 profile 化：把 MCP 桥 + clip-capture 插件拷贝到 `~/.dsh/plugins/cutshelter/` 稳定路径，
- * 并写进 profile patch（cordis.patch.yml）。使手动启动的 3080 实例同样具备剪藏工具，两入口等价。
- * 幂等 copy：以 `$target/.cutshelter-version` 标记比对源版本，源变化才重拷，避免每次启动全量复制。
- * @param {string} patchDir integrations/dsh 资源目录（env → resourcesPath → 开发目录）
- */
-function ensureCutshelterPlugins(patchDir) {
-  const dshHome = resolveDshHome();
-  const psDir = path.join(dshHome, 'plugins', 'cutshelter');
-  const vFile = path.join(psDir, '.cutshelter-version');
-  const src = (srcPath) => path.join(patchDir, srcPath);
-  try {
-    // 源的 mcp 桥与插件目录
-    const mcpSrc = src('mcp-server');
-    const clipSrc = path.join(patchDir, 'plugins', 'clip-capture');
-    const haveSrc = fs.existsSync(mcpSrc) && fs.existsSync(clipSrc);
-    // 版本标记需同时覆盖 mcp 桥与 clip-capture：此前仅用 mcp-server/package.json，
-    // 当只更新 clip-capture（如 fp012 增加 turn/end 自动归档）时标记不变 → 跳过重拷，
-    // 导致 ~/.dsh/plugins/cutshelter/clip-capture 残留旧版、自动归档失效。现把 index.mjs 一并纳入。
-    const clipIndexPath = path.join(clipSrc, 'index.mjs');
-    let marker = haveSrc ? fs.readFileSync(path.join(mcpSrc, 'package.json'), 'utf-8') : '';
-    if (haveSrc && fs.existsSync(clipIndexPath)) {
-      marker += '\n##clip-capture##\n' + fs.readFileSync(clipIndexPath, 'utf-8');
-    }
-    // 如果需要重拷（标记缺失/不匹配/源改动）
-    let needsCopy = true;
-    if (haveSrc && fs.existsSync(vFile)) {
-      try { needsCopy = fs.readFileSync(vFile, 'utf-8') !== marker; } catch (e) { needsCopy = true; }
-    }
-    if (haveSrc && needsCopy) {
-      fs.rmSync(psDir, { recursive: true, force: true });
-      fs.mkdirSync(psDir, { recursive: true });
-      copyDir(mcpSrc, path.join(psDir, 'mcp-server'));
-      copyDir(clipSrc, path.join(psDir, 'clip-capture'));
-      fs.writeFileSync(vFile, marker, 'utf-8');
-      log.info(`[DSH] cutshelter plugins synced to ${psDir}`);
-    }
-    // 写 profile patch（upsert 一条含 mcp 桥 + clip-capture 的 insert 数组项，以 id 为键幂等）。
-    // 关键：cordis.patch.yml 是「顶级 YAML 数组」——初始为 `[]`。若为空数组需「替换」而非 append，
-    // 否则会得到 `[]` 后跟新数组项的双根非法 YAML。
-    const profileDir = getDshProfileDir('web');
-    fs.mkdirSync(profileDir, { recursive: true });
-    const patchFile = path.join(profileDir, 'cordis.patch.yml');
-    let text = '';
-    if (fs.existsSync(patchFile)) text = fs.readFileSync(patchFile, 'utf-8');
-    const nodeExe = findNodeExe().replace(/\\/g, '/');
-    const bridge = path.join(psDir, 'mcp-server', 'server.mjs').replace(/\\/g, '/');
-    const backend = `http://127.0.0.1:${(loadConfig().backendPort) || 8081}`;
-    const pluginUrl = pathToFileURL(path.join(psDir, 'clip-capture', 'index.mjs')).href;
-    const cutBlock = [
-      '# --- managed by CutShelter (auto) — do not edit ---',
-      '- insert:',
-      '    - id: mcp-cut-shelter',
-      "      name: '@deepseek-ai/dsh-mcp-client'",
-      '      config:',
-      '        serverName: cut_shelter',
-      '        transport: stdio',
-      `        command: '${nodeExe}'`,
-      '        args:',
-      `          - '${bridge}'`,
-      '        env:',
-      `          CUTSHELTER_BASE_URL: ${backend}`,
-      "          CUTSHELTER_TIMEOUT_MS: '60000'",
-      '    - id: clip-capture',
-      `      name: '${pluginUrl}'`,
-      '      config:',
-      `        baseUrl: ${backend}`,
-      '# --- /managed by CutShelter ---',
-      '',
-    ].join('\n');
-    if (!text.includes('managed by CutShelter (auto)')) {
-      // 空数组（默认 `[]` 或其带注释形式）→ 整体替换；否则在末尾追加数组项
-      const isEmptyArr = /^\s*(#.*\n)*\s*\[\s*\]\s*$/.test(text);
-      fs.writeFileSync(patchFile, isEmptyArr ? cutBlock : text + '\n' + cutBlock, 'utf-8');
-      log.info(`[DSH] profile patch updated: ${patchFile} (${isEmptyArr ? 'replaced empty' : 'appended'})`);
-    }
-  } catch (e) {
-    log.warn(`[DSH] ensureCutshelterPlugins failed: ${e.message}`);
-  } finally {
-    fs.mkdirSync(psDir, { recursive: true }); // 保证目录存在
-  }
 }
 
 /** 停止本应用拉起的 DSH sidecar（复用实例不杀） */
@@ -1855,17 +1527,7 @@ function startFrontendServer(config) {
 
     // 创建静态文件服务中间件
     // fallthrough: false 表示文件不存在时触发 onerror 回调（而非交给 next）
-    const serve = serveStatic(frontendDir, {
-      index: ['index.html'],
-      fallthrough: false,
-      // HTML 入口禁用缓存，保证 web 端（外部浏览器）刷新即拿到最新前端；
-      // 静态资源（js/css/img）仍由协商缓存控制，避免每次全量重拉
-      setHeaders(res, filePath) {
-        if (filePath.endsWith('.html')) {
-          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        }
-      }
-    });
+    const serve = serveStatic(frontendDir, { index: ['index.html'], fallthrough: false });
 
     const server = http.createServer((req, res) => {
       // 代理 /api/* 请求到后端
@@ -1928,10 +1590,7 @@ function startFrontendServer(config) {
       fs.readFile(path.join(frontendDir, 'index.html'), (e, d) => {
         if (res.headersSent) return;
         if (e) { res.writeHead(500); res.end('Internal Server Error'); return; }
-        res.writeHead(200, {
-          'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'no-cache, no-store, must-revalidate'
-        });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(d);
       });
     });
@@ -2687,14 +2346,9 @@ function setupIPC() {
    */
   ipcMain.handle('dsh-agent:status', async () => {
     const config = loadConfig();
-    const primary = config.dshPort || 3081;
-    // 探测实际运行端口：优先已复用的手动实例端口(3080)，其次主端口(3081)，
-    // 让前端据真实端口加载面板，避免复用场景仍连固定 3081 白屏。
-    const probe = [3080, primary].filter((p, i, a) => p && a.indexOf(p) === i);
-    for (const p of probe) {
-      if (await checkHttpPort(p)) return { running: true, owned: dshAgentOwned, port: p };
-    }
-    return { running: false, owned: dshAgentOwned, port: primary };
+    const port = config.dshPort || 3081;
+    const running = await checkHttpPort(port);
+    return { running, owned: dshAgentOwned, port };
   });
 
   /**
@@ -2743,46 +2397,6 @@ function setupIPC() {
   });
 
   /**
-   * 实时探测宿主 DSH 版本（版本对齐的事实来源，设置页每次打开/手动刷新时调用）。
-   * 优先返回最近一次探测的内存态；无运行态时再解析磁盘 bin 读取。
-   */
-  ipcMain.handle('dsh-agent:detect-version', async () => {
-    const config = loadConfig();
-    // 诊断：记录判定关键输入，便于定位「来源为何显示用户指定(config)」
-    log.info(`[dsh detect-version] cfg.dshBinPath="${config && config.dshBinPath}", DSH_BIN="${process.env.DSH_BIN}", memState=${JSON.stringify(dshVersionState)}`);
-    // 防御：config.dshBinPath 若为 npx 缓存残留(_npx)，即使内存态残留也强制重新解析，
-    // 交给 resolveDshBin 跳过残留路径、按 npx 缓存选最高版本。
-    const hasNpxResidue = typeof (config && config.dshBinPath) === 'string' && config.dshBinPath.includes('_npx');
-    // 版本漂移：宿主 DSH 版本 ≠ 应用适配版本（DSH_VERSION）时，随返回值上抛，供设置页告警。
-    const withMismatch = (version) => ({
-      version,
-      supported: DSH_VERSION,
-      mismatch: (version && version !== DSH_VERSION) ? { host: version, supported: DSH_VERSION } : null,
-    });
-    if (dshVersionState && dshVersionState.version && !hasNpxResidue) {
-      log.info(`[dsh detect-version] → 返回内存态 source=${dshVersionState.source} version=${dshVersionState.version}`);
-      const m = withMismatch(dshVersionState.version);
-      if (m.mismatch) log.warn(`[dsh detect-version] 宿主 v${dshVersionState.version} ≠ 内置支持 v${DSH_VERSION}（已上报前端告警）`);
-      return { ...m, source: dshVersionState.source };
-    }
-    const bin = await resolveDshBin(config);
-    const det = detectDshVersion(bin, config);
-    log.info(`[dsh detect-version] → resolveDshBin mode=${bin.mode} script=${bin.script} → source=${det.source} version=${det.version}`);
-    const m = withMismatch(det.version);
-    if (m.mismatch) log.warn(`[dsh detect-version] 宿主 v${det.version} ≠ 内置支持 v${DSH_VERSION}（已上报前端告警）`);
-    return { ...m, source: det.source };
-  });
-
-  /**
-   * 查询 npm 上 DSH 最新版本（「检测升级」按钮调用，只查不下装）。
-   */
-  ipcMain.handle('dsh-agent:latest-version', async () => {
-    let latest = null;
-    try { latest = await fetchLatestDshVersionFromNpm(); } catch (e) { log.warn(`[DSH Agent] latest-version failed: ${e.message}`); }
-    return { latest: latest || null };
-  });
-
-  /**
    * 取消正在进行的 DSH 安装/启动
    */
   ipcMain.handle('dsh-agent:cancel', async () => {
@@ -2804,7 +2418,7 @@ function setupIPC() {
       if (fs.existsSync(repo)) srcDir = repo;
     }
     if (!srcDir) return { success: false, message: '技能包源目录未找到（integrations/dsh/skills/cut-shelter）' };
-    const dshHome = resolveDshHome(loadConfig());
+    const dshHome = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
     const destDir = path.join(dshHome, 'skills', 'cut-shelter');
     try {
       fs.rmSync(destDir, { recursive: true, force: true });
@@ -2821,7 +2435,7 @@ function setupIPC() {
    * 查询 CutShelter 技能包是否已安装到 DSH 技能目录
    */
   ipcMain.handle('dsh-agent:skill-status', async () => {
-    const dshHome = resolveDshHome(loadConfig());
+    const dshHome = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
     const dest = path.join(dshHome, 'skills', 'cut-shelter', 'SKILL.md');
     const result = { installed: fs.existsSync(dest), target: path.dirname(dest) };
     // 附带工具清单漂移校验：对比 server.mjs + plugins 实际注册的工具与 SKILL.md 登记条目
@@ -2838,22 +2452,6 @@ function setupIPC() {
       log.warn('[DSH Skill] verify-skill-table unavailable:', e.message);
     }
     return result;
-  });
-
-  /** 查询 dshmarket 插件市场应用是否已预装（配合前端「插件市场」入口显示状态） */
-  ipcMain.handle('dsh-agent:market-status', async () => {
-    const config = loadConfig();
-    const port = (config && config.dshPort) || 3081;
-    const pkgFile = path.join(getDshProfileDir('web'), 'package.json');
-    let installed = false;
-    if (fs.existsSync(pkgFile)) {
-      try {
-        const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf-8'));
-        const bundles = (pkg && pkg.dsh && pkg.dsh.profile && pkg.dsh.profile.bundles) || [];
-        installed = bundles.some((b) => String(b).includes('dshmarket'));
-      } catch (e) { installed = false; }
-    }
-    return { installed, port, running: await checkHttpPort(port) };
   });
 
   // ===================== SQLite 本地索引层（仅 clip，主进程 Node 侧） =============
@@ -3316,17 +2914,6 @@ function setupIPC() {
     return candidates[0] || path.join(config.storagePath || APP_DIR, 'clip-organized');
   }
 
-  // Obsidian Vault 根路径：对齐后端 WikiConfig 默认 vault-path=./obsidian-vault 的解析语义
-  // （相对路径以 Clip_Bed 父目录为基准）。config.storagePath 存 Clip_Bed 父目录，
-  // 兼容其直接指向 clip-storage 的旧写法。
-  function resolveObsidianVaultRoot(config) {
-    const sp = config.storagePath || APP_DIR;
-    const base = (sp.endsWith('clip-storage') || sp.endsWith('clip-storage\\'))
-      ? path.dirname(sp)
-      : sp;
-    return path.join(base, 'obsidian-vault');
-  }
-
   // 多模块 + 多类型索引：以 config.storagePath 为父目录，自动发现其下所有含
   // 「可链接文本文件」的一级子目录作为独立模块（clip-organized / clip-weekly-report /
   // obsidian-vault / tmp 等），每个模块各自维护「目标列表 + 反链反向索引」，
@@ -3467,14 +3054,6 @@ function setupIPC() {
         const root = path.join(parentDir, entry.name);
         if (!dirHasLinkableFile(root)) continue;
         discovered.push({ id: entry.name, name: entry.name, root });
-      }
-    }
-    // 显式纳入 Obsidian Vault（Web Clipper sources 源文件所在），
-    // 即使 vault 未落在 storagePath 一级子目录也能进入双向链接/快速打开索引。
-    const vaultRoot = resolveObsidianVaultRoot(config);
-    if (vaultRoot && !discovered.some(m => path.normalize(m.root) === path.normalize(vaultRoot))) {
-      if (dirHasLinkableFile(vaultRoot)) {
-        discovered.push({ id: 'obsidian-vault', name: 'obsidian-vault', root: vaultRoot });
       }
     }
     // 兜底：无任何模块 → 回退 resolveVaultRoot 单一模块，保证兼容
@@ -4678,27 +4257,12 @@ if (!gotTheLock) {
   // 因此第二个实例仍会继续执行到 app.whenReady()，
   // 必须在那里也加退出检查（见下方 whenReady 入口），
   // 否则第二个实例会创建窗口，导致双任务栏图标。
-  // 可见化：双击却"无反应"的最常见场景是已有实例在后台运行但窗口不可见（如云桌面会话冻结后残留）。
-  log.error(
-    '[Startup] Another instance is already running, quitting this one.'
-    + ' If no window appears, check taskbar/notification area for a hidden CutShelter window,'
-    + ' or end the leftover CutShelter.exe in Task Manager.'
-  );
   app.quit();
 } else {
   app.on('second-instance', (event, commandLine, workingDirectory) => {
     // 已有实例正在运行：还原（若最小化）并聚焦主窗口
     if (mainWindow && !mainWindow.isDestroyed()) {
       log.info('[SecondInstance] Focusing existing window');
-      // 加固：若旧窗口被最小化/隐藏（例如云桌面会话冻结后窗口不可见），
-      // 二次启动强制还原并拉回前台，避免"双击无反应"的错觉。
-      try {
-        if (mainWindow.isMinimized()) mainWindow.restore();
-        if (!mainWindow.isVisible()) mainWindow.show();
-        mainWindow.focus();
-      } catch (e) {
-        log.warn('[SecondInstance] restore/show/focus failed:', e.message);
-      }
       showMainWindow();
     } else if (!appStartupComplete) {
       // 启动流程进行中（主窗口尚未创建）：不重复创建窗口！
@@ -4777,7 +4341,7 @@ app.whenReady().then(async () => {
   // 清理 30 天前的旧日志
   log.cleanupOldLogs();
 
-  // 启动探针：记录进入主流程，离线环境下据此定位"卡在哪一步"
+// 启动探针：记录进入主流程，离线环境下据此定位"卡在哪一步"
   log.info('[Probe] whenReady entered; APP_DIR=' + APP_DIR + ', resourcesPath=' + resourcesPath);
 
   // 打包资源预检：一把列出关键资源是否存在，离线环境下据此判定"缺资源"类根因

@@ -12,6 +12,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { execFileSync } = require('child_process');
 
 // 保留的语言：中文（默认） + 英文（兜底）。其他约 50 种皆删除以减小体积。
 const KEEP_LOCALES = ['en', 'en_GB', 'en_US', 'zh_CN', 'zh_TW'];
@@ -34,9 +35,16 @@ exports.default = async function(context) {
     : path.join(appPath, 'resources');
   pruneNativeNodeModules(resourcesPath, platform);
 
-  // 3) macOS 专属：JRE 权限修复与可执行文件校验
+  // 3) 全平台 JRE 存在性校验：缺 JRE → 直接构建失败，避免产出"双击无反应"的坏包
+  validateBundledJre(resourcesPath, platform);
+
+  // 4) macOS 专属：JRE 权限修复与可执行文件校验
   if (platform !== 'mac') {
     return;
+  }
+
+  if (context.packager.platformSpecificBuildOptions.identity === null) {
+    resignAdHoc(appPath);
   }
 
   const jreBin = path.join(resourcesPath, 'jre', 'bin');
@@ -81,6 +89,29 @@ exports.default = async function(context) {
   // 裁剪原生依赖到当前平台（onnxruntime-node 等含多平台预编译二进制）
   pruneNativeNodeModules(resourcesPath, platform);
 };
+
+/**
+ * 校验打包产物内是否包含目标平台的 JRE。
+ * mac 走原有权限修复与可执行校验流程；win/linux 在缺 JRE 时直接抛错，
+ * 让"缺 jre-slim/${os} 仍成功出包、运行时双击无反应"这类问题在构建期暴露。
+ */
+function validateBundledJre(resourcesPath, platform) {
+  if (platform === 'mac') return; // mac 走下方专属权限修复 + 可执行校验
+  if (platform !== 'win' && platform !== 'linux') return;
+  const javaExe = path.join(resourcesPath, 'jre', 'bin', platform === 'win' ? 'java.exe' : 'java');
+  if (fs.existsSync(javaExe)) {
+    console.log(`[afterPack] 校验通过，${platform} JRE 存在:`, javaExe);
+    return;
+  }
+  const osKey = platform === 'win' ? 'win' : 'linux';
+  console.error(`[afterPack] ERROR: ${platform} 产物缺少 JRE: ${javaExe}`);
+  console.error('[afterPack] extraResources 将 jre-slim/' + osKey + ' 拷贝到 resources/jre。');
+  console.error('[afterPack] 请先运行: node scripts/build-jlink-slim.mjs （生成 jre-slim/' + osKey + '）');
+  throw new Error(
+    `Bundled JRE missing for ${platform}: ${javaExe}\n` +
+    `Run "node scripts/build-jlink-slim.mjs" to generate jre-slim/${osKey} first.`
+  );
+}
 
 /**
  * 裁剪 Electron 框架内置的多语言资源，仅保留中文与英文，减小包体积。
@@ -188,3 +219,53 @@ function fixPermissionsRecursive(dir) {
     console.error('[afterPack] Failed to fix permissions in', dir, ':', e.message);
   }
 }
+
+/**
+ * Apple Silicon (macOS 11+/Sequoia+) 要求原生 arm64 可执行文件必须带一个有效的
+ * adhoc 签名才能被 launchd 拉起，且已签名的进程不得加载未签名库（否则 dyld 报
+ * "Trying to load an unsigned library"）。因此【移除签名】会让 arm64 包彻底无法启动。
+ *
+ * 正确做法是对整包做【一致的 adhoc 重签名】：主程序、Electron Framework、嵌套
+ * Helper、libffmpeg.dylib 等动态库，以及 extraResources 里的 JRE，全部补上新鲜
+ * adhoc 签名。这样：
+ *  - launchd 能正常拉起（不会出现 "Launchd job spawn failed" / 无法打开）；
+ *  - 签名仍是非 Apple 的 adhoc（TeamIdentifier=not set），用户走「右键打开 /
+ *    隐私与安全性允许」即可运行，与 x64 无签名产物行为一致。
+ */
+function resignAdHoc(appPath) {
+  let signed = 0;
+  walkMacExecutables(appPath, filePath => {
+    execFileSync('/usr/bin/codesign', ['--force', '--sign', '-', '--timestamp=none', filePath], { stdio: 'pipe' });
+    signed++;
+  });
+
+  // 统一签名 Electron Framework 目录与整个 .app，确保嵌套库签名与主程序一致
+  const electronFramework = path.join(appPath, 'Contents', 'Frameworks', 'Electron Framework.framework');
+  if (fs.existsSync(electronFramework)) {
+    codesignFile(electronFramework);
+  }
+  // 仅当路径确实是 Mac 应用包（含 Info.plist）时才对 .app 本体签名
+  if (fs.existsSync(path.join(appPath, 'Contents', 'Info.plist'))) {
+    codesignFile(appPath);
+  }
+
+  console.log(`[afterPack] adhoc 重签名完成：已签名 ${signed} 个 Mach-O + 外层 .app`);
+}
+
+function codesignFile(filePath) {
+  execFileSync('/usr/bin/codesign', ['--force', '--sign', '-', '--timestamp=none', filePath], { stdio: 'pipe' });
+}
+
+function walkMacExecutables(dir, callback) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      walkMacExecutables(fullPath, callback);
+    } else if (entry.isFile() && isMacExecutable(fullPath)) {
+      callback(fullPath);
+    }
+  }
+}
+
+exports.resignAdHoc = resignAdHoc;
+exports.walkMacExecutables = walkMacExecutables;

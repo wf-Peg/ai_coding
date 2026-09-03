@@ -395,9 +395,7 @@ var selectedClipIds = new Set();
             } else if (entry.status === 'done') {
                 inner += '<div class="preview-dot" title="上传完成"></div>';
             }
-            inner += '<button type="button" class="preview-remove" data-id="' + entry.localId + '" title="移除图片（同时移除内容引用）">'
-                + '<svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"/></svg>'
-                + '</button>';
+            inner += '<button type="button" class="preview-remove" data-id="' + entry.localId + '" title="移除图片（同时移除内容引用）">✕</button>';
             el.innerHTML = inner;
             box.appendChild(el);
         });
@@ -416,7 +414,7 @@ var selectedClipIds = new Set();
             if (textarea) {
                 const escaped = entry.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 textarea.value = textarea.value
-                    .replace(new RegExp('!\\[[^\\]]*\\]\\(' + escaped + '\\)'), '')
+                    .replace(new RegExp('!\\[^\\]]*\\]\(' + escaped + '\\)'), '')
                     .replace(/\n{2,}/g, '\n');
             }
         }
@@ -454,8 +452,7 @@ var selectedClipIds = new Set();
     // 处理图片文件：压缩 → 上传 → 光标插入
     function handleImageFiles(files) {
         if (!files || files.length === 0) return;
-        // FileList 无 filter 方法，统一转数组（上传按钮传入的是 input.files）
-        const imageFiles = Array.from(files).filter(f => f.type && f.type.startsWith('image/'));
+        const imageFiles = files.filter(f => f.type && f.type.startsWith('image/'));
         if (imageFiles.length === 0) {
             showToast('未检测到图片文件');
             return;
@@ -517,8 +514,7 @@ var selectedClipIds = new Set();
         const previews = getPreviewsBox();
 
         if (btn && input) {
-            // 按钮已改为 <label for="image-input">，点击由浏览器原生激活文件选择框，
-            // 不再依赖 input.click()（display:none 的 file input 在 Electron 中调用 click() 可能不弹窗）
+            btn.addEventListener('click', () => input.click());
             input.addEventListener('change', function () {
                 handleImageFiles(input.files);
                 input.value = '';

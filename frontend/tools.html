@@ -24,16 +24,16 @@
     </div>
   </div>
 </div>
-<!-- 牛马：dsh 自助安装说明浮层（前置检测激活，未装时展示） -->
+<!-- AI干活：dsh 自助安装说明浮层（前置检测激活，未装时展示） -->
 <div id="agentInstallMask" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9998;align-items:center;justify-content:center;">
   <div style="background:var(--app-surface);color:var(--app-text);border:1px solid var(--app-border);border-radius:14px;padding:22px 26px;min-width:340px;max-width:480px;box-shadow:0 12px 40px rgba(0,0,0,0.3);">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
       <span style="font-size:22px;">🤖</span>
-      <div style="font-size:15px;font-weight:600;">启用 牛马</div>
+      <div style="font-size:15px;font-weight:600;">启用 AI 干活</div>
       <div class="th-status-dot off" id="agentInstallDot" style="margin-left:auto;font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--app-border);">未安装</div>
     </div>
     <div id="agentInstallHint" style="font-size:13px;line-height:1.7;color:var(--app-text-secondary);margin-bottom:12px;"></div>
-    <div style="font-size:12.5px;color:var(--app-text-secondary);margin-bottom:6px;">牛马依赖 DeepSeek Harness（DSH）。CutShelter 不再代为联网安装，请你在终端自助执行以下命令（免安装，首次会下载依赖）：</div>
+    <div style="font-size:12.5px;color:var(--app-text-secondary);margin-bottom:6px;">AI 干活依赖 DeepSeek Harness（DSH）。CutShelter 不再代为联网安装，请你在终端自助执行以下命令（免安装，首次会下载依赖）：</div>
     <div style="display:flex;gap:8px;margin-bottom:14px;">
       <input id="agentInstallCmd" readonly value="npx @deepseek-ai/dsh web" style="flex:1;padding:9px 12px;border-radius:8px;border:1px solid var(--app-border);background:var(--app-bg);color:var(--app-text);font-family:monospace;font-size:12px;outline:none;" />
       <button id="agentCopyCmd" style="padding:0 12px;border-radius:8px;border:1px solid var(--app-border);background:transparent;color:var(--app-text);cursor:pointer;font-size:12px;white-space:nowrap;">复制命令</button>
@@ -140,7 +140,6 @@
   </div>
 </div>
 
-<script src="js/scroll-restore.js"></script>
 <script src="js/tools-core.js"></script>
 <script src="js/ui-common.js"></script>
 </body>

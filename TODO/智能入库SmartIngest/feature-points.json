@@ -209,9 +209,9 @@
       "tags": ["product-dev", "smart-ingest", "improvement"],
       "designSections": ["改进建议（可选，不阻塞）"],
       "tasks": [
-        { "title": "改进A：background.js smartIngest 复用 apiRetryCount 重试配置", "status": "todo" },
+        { "title": "改进A：background.js smartIngest 复用 apiRetryCount 重试配置", "status": "pending" },
         { "title": "改进B：SKILL.md 意图规则前加同步提醒注释", "status": "done" },
-        { "title": "改进C：IngestController.java saveAsClip 响应title改为 clip.getTitle()", "status": "todo" },
+        { "title": "改进C：IngestController.java saveAsClip 响应title改为 clip.getTitle()", "status": "pending" },
         { "title": "改进D：记录saveAsClip二次保存现状（upsert逻辑正确，暂不修改）", "status": "done" }
       ],
       "verifications": [
@@ -236,8 +236,8 @@
         { "title": "Step 6: 前端话题详情页（topic-detail.html + topic-detail.js）", "status": "done" },
         { "title": "Step 7: 前端话题编辑器（topic-editor.html + topic-editor.js）", "status": "done" },
         { "title": "Step 8: 前端导航整合（index.html 左侧导航栏）", "status": "done" },
-        { "title": "Step 9: 浏览器扩展话题支持（background.js 右键菜单\"剪藏到话题\"）", "status": "todo" },
-        { "title": "Step 10: Electron 集成验证（话题页面加载+CORS检查）", "status": "todo" }
+        { "title": "Step 9: 浏览器扩展话题支持（background.js 右键菜单\"剪藏到话题\"）", "status": "pending" },
+        { "title": "Step 10: Electron 集成验证（话题页面加载+CORS检查）", "status": "pending" }
       ],
       "verifications": [
         "后端API全部可用：POST /api/topic, GET /api/topic/list, GET /api/topic/{id}, PUT/DELETE, POST like, POST from-clip, GET search",

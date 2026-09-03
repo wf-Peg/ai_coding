@@ -26,16 +26,16 @@
         }
       ],
       "tasks": [
-        { "title": "创建RuleGroup.java record模型（id, relation, ruleIds），含relation归一化", "status": "done" },
-        { "title": "创建RuleExpression.java record模型（workspaceId, relation, groups），含empty工厂方法", "status": "done" },
-        { "title": "创建RuleExpressionUpdateRequest.java请求体record", "status": "done" },
-        { "title": "WorkspaceRuleService新增表达式存储（readExpressions/writeExpressions），原子写（临时文件+rename）", "status": "done" },
-        { "title": "实现惰性迁移：getExpression()在无表达式但有旧平铺规则时，自动迁移为单组OR表达式", "status": "done" },
-        { "title": "重写resolve()为逐条ref求值：每组内启用规则按组relation折叠 → 组间按根relation折叠", "status": "done" },
-        { "title": "改造saveRule/removeRule/deleteWorkspaceData同步更新表达式", "status": "done" },
-        { "title": "新增分组CRUD：addGroup()追加空分组、deleteGroup()删除分组并连带删除组内规则", "status": "done" },
-        { "title": "新增WorkspaceController端点：GET/PUT /rule-expression、POST/DELETE groups", "status": "done" },
-        { "title": "ProductDevWorkspaceInitializer写入内置表达式（根AND）", "status": "done" }
+        "创建RuleGroup.java record模型（id, relation, ruleIds），含relation归一化",
+        "创建RuleExpression.java record模型（workspaceId, relation, groups），含empty工厂方法",
+        "创建RuleExpressionUpdateRequest.java请求体record",
+        "WorkspaceRuleService新增表达式存储（readExpressions/writeExpressions），原子写（临时文件+rename）",
+        "实现惰性迁移：getExpression()在无表达式但有旧平铺规则时，自动迁移为单组OR表达式",
+        "重写resolve()为逐条ref求值：每组内启用规则按组relation折叠 → 组间按根relation折叠",
+        "改造saveRule/removeRule/deleteWorkspaceData同步更新表达式",
+        "新增分组CRUD：addGroup()追加空分组、deleteGroup()删除分组并连带删除组内规则",
+        "新增WorkspaceController端点：GET/PUT /rule-expression、POST/DELETE groups",
+        "ProductDevWorkspaceInitializer写入内置表达式（根AND）"
       ],
       "verifications": [
         "编译通过：mvn compile",
@@ -61,16 +61,16 @@
         }
       ],
       "tasks": [
-        { "title": "规则区HTML结构调整：rules-header新增添加分组按钮、根关系控件容器", "status": "done" },
-        { "title": "新增renderRootRelation()渲染根关系AND/OR segmented控件", "status": "done" },
-        { "title": "renderExpression()分组卡片增强：分组头部新增删除分组按钮", "status": "done" },
-        { "title": "新增addGroup()/deleteGroup()前端函数，调用后端分组CRUD API", "status": "done" },
-        { "title": "新增updateTabVisibility()：全部工作台隐藏规则/排除Tab", "status": "done" },
-        { "title": "字段-操作符映射表：type→equals/in, category→equals/contains/in, tag→equals/contains/in, sourcePath→equals/contains/in, workflowStatus→equals/in, updatedAt→before/after", "status": "done" },
-        { "title": "Notion风格时间选择器：日期输入+日历面板+时间输入", "status": "done" },
-        { "title": "标签多选输入：胶囊样式、自动补全、Backspace删除", "status": "done" },
-        { "title": "操作反馈优化：loading状态、成功Toast、错误信息优化", "status": "done" },
-        { "title": "删除工作台修复：后端异常捕获、前端loading+反馈", "status": "done" }
+        "规则区HTML结构调整：rules-header新增添加分组按钮、根关系控件容器",
+        "新增renderRootRelation()渲染根关系AND/OR segmented控件",
+        "renderExpression()分组卡片增强：分组头部新增删除分组按钮",
+        "新增addGroup()/deleteGroup()前端函数，调用后端分组CRUD API",
+        "新增updateTabVisibility()：全部工作台隐藏规则/排除Tab",
+        "字段-操作符映射表：type→equals/in, category→equals/contains/in, tag→equals/contains/in, sourcePath→equals/contains/in, workflowStatus→equals/in, updatedAt→before/after",
+        "Notion风格时间选择器：日期输入+日历面板+时间输入",
+        "标签多选输入：胶囊样式、自动补全、Backspace删除",
+        "操作反馈优化：loading状态、成功Toast、错误信息优化",
+        "删除工作台修复：后端异常捕获、前端loading+反馈"
       ],
       "verifications": [
         "JS语法通过node --check",
@@ -94,11 +94,11 @@
         }
       ],
       "tasks": [
-        { "title": "WorkspaceRule.FIELDS添加workspace字段", "status": "done" },
-        { "title": "resolve()中构建内容→工作台反向映射（基于manualMembers/relationMembers）", "status": "done" },
-        { "title": "rawMatches()新增workspace字段分支，返回内容所属工作台ID列表", "status": "done" },
-        { "title": "overview()中workspaceId非空时返回内容维度统计（typeDistribution/sourceDistribution等）", "status": "done" },
-        { "title": "前端loadDetailOverview()根据workspaceSummary区分渲染内容统计", "status": "done" }
+        "WorkspaceRule.FIELDS添加workspace字段",
+        "resolve()中构建内容→工作台反向映射（基于manualMembers/relationMembers）",
+        "rawMatches()新增workspace字段分支，返回内容所属工作台ID列表",
+        "overview()中workspaceId非空时返回内容维度统计（typeDistribution/sourceDistribution等）",
+        "前端loadDetailOverview()根据workspaceSummary区分渲染内容统计"
       ],
       "verifications": [
         "编译通过：mvn compile",
@@ -120,12 +120,12 @@
         }
       ],
       "tasks": [
-        { "title": "Workspace.java新增boolean matchAll字段", "status": "done" },
-        { "title": "WorkspaceRuleService.resolve()增加matchAll参数+AND逻辑分支", "status": "done" },
-        { "title": "WorkspaceIndexService.resolveWorkspace()读取workspace.matchAll并传入", "status": "done" },
-        { "title": "WorkspaceController新增PUT /settings端点+WorkspaceSettingsRequest", "status": "done" },
-        { "title": "前端新增renderWorkspaceSettings()渲染toggle开关", "status": "done" },
-        { "title": "修复开关回弹bug：保存后以PUT响应刷新currentExpression再loadDetail()", "status": "done" }
+        "Workspace.java新增boolean matchAll字段",
+        "WorkspaceRuleService.resolve()增加matchAll参数+AND逻辑分支",
+        "WorkspaceIndexService.resolveWorkspace()读取workspace.matchAll并传入",
+        "WorkspaceController新增PUT /settings端点+WorkspaceSettingsRequest",
+        "前端新增renderWorkspaceSettings()渲染toggle开关",
+        "修复开关回弹bug：保存后以PUT响应刷新currentExpression再loadDetail()"
       ],
       "verifications": [
         "编译通过：mvn compile",
@@ -148,16 +148,16 @@
         }
       ],
       "tasks": [
-        { "title": "renderWsList()中默认工作台文本改为全部", "status": "done" },
-        { "title": "Workspace.java新增isDefault、sortOrder字段", "status": "done" },
-        { "title": "WorkspaceController新增PUT /set-default、PUT /reorder端点", "status": "done" },
-        { "title": "WorkspaceIndexService新增reorderWorkspaces()方法", "status": "done" },
-        { "title": "前端绿点标识渲染（default-indicator样式）", "status": "done" },
-        { "title": "右键菜单showContextMenu()设置默认工作台", "status": "done" },
-        { "title": "详情页设置区设为默认工作台按钮", "status": "done" },
-        { "title": "侧边栏拖拽排序（draggable属性+drag事件监听）", "status": "done" },
-        { "title": "排序持久化：localStorage+后端同步", "status": "done" },
-        { "title": "index.html中renderView()切换knowledge视图时发送workspaceChange消息", "status": "done" }
+        "renderWsList()中默认工作台文本改为全部",
+        "Workspace.java新增isDefault、sortOrder字段",
+        "WorkspaceController新增PUT /set-default、PUT /reorder端点",
+        "WorkspaceIndexService新增reorderWorkspaces()方法",
+        "前端绿点标识渲染（default-indicator样式）",
+        "右键菜单showContextMenu()设置默认工作台",
+        "详情页设置区设为默认工作台按钮",
+        "侧边栏拖拽排序（draggable属性+drag事件监听）",
+        "排序持久化：localStorage+后端同步",
+        "index.html中renderView()切换knowledge视图时发送workspaceChange消息"
       ],
       "verifications": [
         "侧边栏全部替代默认工作台文本",
@@ -179,10 +179,10 @@
         }
       ],
       "tasks": [
-        { "title": "删除#scopeManageBtn按钮HTML和manageBtn.onclick处理器", "status": "done" },
-        { "title": "全局变量区新增overviewRequestId请求计数器", "status": "done" },
-        { "title": "loadOverview()中校验请求是否过期（丢弃过期响应）", "status": "done" },
-        { "title": "空状态提示优化：区分当前工作台规则未命中 vs 确实无数据", "status": "done" }
+        "删除#scopeManageBtn按钮HTML和manageBtn.onclick处理器",
+        "全局变量区新增overviewRequestId请求计数器",
+        "loadOverview()中校验请求是否过期（丢弃过期响应）",
+        "空状态提示优化：区分当前工作台规则未命中 vs 确实无数据"
       ],
       "verifications": [
         "点击默认工作台不显示管理工作台按钮",
@@ -203,15 +203,15 @@
         }
       ],
       "tasks": [
-        { "title": "SuggestionCandidate.java新增type/title/suggestedField/suggestedValue字段", "status": "done" },
-        { "title": "WorkspaceSuggestionService新增generateRuleSuggestions()方法", "status": "done" },
-        { "title": "新增acceptRuleSuggestion()方法自动创建规则", "status": "done" },
-        { "title": "WorkspaceController增强suggestions端点：合并内容建议+规则建议", "status": "done" },
-        { "title": "新增GET /api/workspace/suggestions/{id}/detail详情接口", "status": "done" },
-        { "title": "前端新增suggestionDetailOverlay详情弹窗HTML+CSS", "status": "done" },
-        { "title": "renderSuggestions()检测type=rule-suggestion使用规则建议卡片模板", "status": "done" },
-        { "title": "新增openSuggestionDetail()/closeSuggestionDetail()函数", "status": "done" },
-        { "title": "操作后增加Toast反馈（showSuccessToast）", "status": "done" }
+        "SuggestionCandidate.java新增type/title/suggestedField/suggestedValue字段",
+        "WorkspaceSuggestionService新增generateRuleSuggestions()方法",
+        "新增acceptRuleSuggestion()方法自动创建规则",
+        "WorkspaceController增强suggestions端点：合并内容建议+规则建议",
+        "新增GET /api/workspace/suggestions/{id}/detail详情接口",
+        "前端新增suggestionDetailOverlay详情弹窗HTML+CSS",
+        "renderSuggestions()检测type=rule-suggestion使用规则建议卡片模板",
+        "新增openSuggestionDetail()/closeSuggestionDetail()函数",
+        "操作后增加Toast反馈（showSuccessToast）"
       ],
       "verifications": [
         "编译通过：mvn compile",
@@ -234,13 +234,13 @@
         }
       ],
       "tasks": [
-        { "title": "ClipRequest新增workspaceId字段", "status": "done" },
-        { "title": "TodoRequest新增workspaceId字段", "status": "done" },
-        { "title": "ClipController.addClip()创建内容后自动创建WorkspaceMembership（source=manual_input）", "status": "done" },
-        { "title": "TodoController.addTodo()同理创建成员关系", "status": "done" },
-        { "title": "WorkspaceRuleService.resolve()中contentSources区分manual_input来源", "status": "done" },
-        { "title": "前端剪藏创建时从localStorage读取active_workspace_id并传递", "status": "done" },
-        { "title": "前端待办创建时同理传递workspaceId", "status": "done" }
+        "ClipRequest新增workspaceId字段",
+        "TodoRequest新增workspaceId字段",
+        "ClipController.addClip()创建内容后自动创建WorkspaceMembership（source=manual_input）",
+        "TodoController.addTodo()同理创建成员关系",
+        "WorkspaceRuleService.resolve()中contentSources区分manual_input来源",
+        "前端剪藏创建时从localStorage读取active_workspace_id并传递",
+        "前端待办创建时同理传递workspaceId"
       ],
       "verifications": [
         "创建内容时传递workspaceId→成员关系自动创建",
@@ -262,10 +262,10 @@
         }
       ],
       "tasks": [
-        { "title": "ContentRefMapper新增resolveTitle辅助方法", "status": "done" },
-        { "title": "修改fromClip/fromTodo/fromKnowledge/fromLearningPlan使用resolveTitle", "status": "done" },
-        { "title": "前端workspace.html中4处未命名内容→无标题", "status": "done" },
-        { "title": "新增ContentRefMapperTest测试标题兜底策略", "status": "done" }
+        "ContentRefMapper新增resolveTitle辅助方法",
+        "修改fromClip/fromTodo/fromKnowledge/fromLearningPlan使用resolveTitle",
+        "前端workspace.html中4处未命名内容→无标题",
+        "新增ContentRefMapperTest测试标题兜底策略"
       ],
       "verifications": [
         "编译通过：mvn compile",
@@ -286,13 +286,13 @@
         }
       ],
       "tasks": [
-        { "title": "detailView内容Tab添加detailTypeFilters类型筛选按钮", "status": "done" },
-        { "title": "新增renderDetailTypeFilters()函数", "status": "done" },
-        { "title": "renderDetailContents()渲染前应用detailState.types筛选", "status": "done" },
-        { "title": "产品开发工作区renderPdTagFilter()增加类型筛选按钮行", "status": "done" },
-        { "title": "loadProductDev()联合使用activePdTag和activePdType过滤", "status": "done" },
-        { "title": "clip.html/todo.html/knowledge.js/learning-plan.html删除workspaceBanner横幅", "status": "done" },
-        { "title": "workspaceChange消息处理改为直接调用数据加载函数", "status": "done" }
+        "detailView内容Tab添加detailTypeFilters类型筛选按钮",
+        "新增renderDetailTypeFilters()函数",
+        "renderDetailContents()渲染前应用detailState.types筛选",
+        "产品开发工作区renderPdTagFilter()增加类型筛选按钮行",
+        "loadProductDev()联合使用activePdTag和activePdType过滤",
+        "clip.html/todo.html/knowledge.js/learning-plan.html删除workspaceBanner横幅",
+        "workspaceChange消息处理改为直接调用数据加载函数"
       ],
       "verifications": [
         "非默认工作台进入内容/规则/排除/建议详情页",
@@ -315,16 +315,16 @@
         }
       ],
       "tasks": [
-        { "title": "ProductDevWorkspaceInitializer注入ContentIndexService，scanAndImport()后立即重建索引", "status": "done" },
-        { "title": "ScheduledTasks添加TODO目录定时扫描（每5分钟）", "status": "done" },
-        { "title": "ClipController.getClipList()增加workspaceId参数+filterByWorkspace过滤", "status": "done" },
-        { "title": "TodoController.getTodoList()增加workspaceId参数", "status": "done" },
-        { "title": "KnowledgeController.listKnowledge()增加workspaceId参数", "status": "done" },
-        { "title": "LearningPlanController.getAllPlans()增加workspaceId参数", "status": "done" },
-        { "title": "index.html添加activeWorkspaceId全局状态+localStorage监听", "status": "done" },
-        { "title": "workspace.html写入localStorage（active_workspace_id）", "status": "done" },
-        { "title": "各模块页面接收workspaceChange消息附加workspaceId参数到API请求", "status": "done" },
-        { "title": "各模块页面添加workspaceBanner横幅和显示全部按钮", "status": "done" }
+        "ProductDevWorkspaceInitializer注入ContentIndexService，scanAndImport()后立即重建索引",
+        "ScheduledTasks添加TODO目录定时扫描（每5分钟）",
+        "ClipController.getClipList()增加workspaceId参数+filterByWorkspace过滤",
+        "TodoController.getTodoList()增加workspaceId参数",
+        "KnowledgeController.listKnowledge()增加workspaceId参数",
+        "LearningPlanController.getAllPlans()增加workspaceId参数",
+        "index.html添加activeWorkspaceId全局状态+localStorage监听",
+        "workspace.html写入localStorage（active_workspace_id）",
+        "各模块页面接收workspaceChange消息附加workspaceId参数到API请求",
+        "各模块页面添加workspaceBanner横幅和显示全部按钮"
       ],
       "verifications": [
         "启动时TODO扫描后即时重建索引，导入数据立即可见",
@@ -348,9 +348,9 @@
         }
       ],
       "tasks": [
-        { "title": "ProductDevWorkspaceInitializer.exists分支改为仅在表达式缺失时自愈", "status": "done" },
-        { "title": "删除exists分支中对ensureBuiltinRules/ensureBuiltinExpression的无条件调用", "status": "done" },
-        { "title": "保留创建时的ensureBuiltinRules→ensureBuiltinExpression顺序", "status": "done" }
+        "ProductDevWorkspaceInitializer.exists分支改为仅在表达式缺失时自愈",
+        "删除exists分支中对ensureBuiltinRules/ensureBuiltinExpression的无条件调用",
+        "保留创建时的ensureBuiltinRules→ensureBuiltinExpression顺序"
       ],
       "verifications": [
         "修改pd-builtin规则后重启后端→修改保留，未被覆盖",

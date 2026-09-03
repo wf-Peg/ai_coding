@@ -96,9 +96,6 @@ public class PromptConfig {
     /** Wiki 按需 Lint Prompt — 检测矛盾/过时/孤儿页/缺失页/缺失交叉引用 */
     private String wikiLintPrompt;
 
-    /** DSH 会话成果归档 Prompt — 提炼 title/problem/solution/outcome 四字段 */
-    private String dshSessionArchivePrompt;
-
     // ==================== 构造函数 ====================
 
     public PromptConfig() {
@@ -172,7 +169,4 @@ public class PromptConfig {
 
     public String getWikiLintPrompt() { return wikiLintPrompt; }
     public void setWikiLintPrompt(String v) { this.wikiLintPrompt = v; }
-
-    public String getDshSessionArchivePrompt() { return dshSessionArchivePrompt; }
-    public void setDshSessionArchivePrompt(String v) { this.dshSessionArchivePrompt = v; }
 }

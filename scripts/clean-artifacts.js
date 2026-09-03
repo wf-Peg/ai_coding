@@ -1,15 +1,15 @@
 // clean-artifacts.js — 打包完成后清理中间产物，为 dist-electron 瘦身
-// 删除 .app / linux-unpacked 等中间目录，只保留最终产物(dmg/zip/exe/blockmap/yaml) 与 win-unpacked（本机测试用）
+// 删除 .app / win-unpacked / linux-unpacked 等中间目录，只保留最终产物(dmg/zip/exe/blockmap/yaml)
 const fs = require('fs');
 const path = require('path');
 
 const distDir = path.join(__dirname, '..', 'dist-electron');
 
 // 需删除的中间目录（electron-builder 打包到最终镜像前的展开输出）
-// 注意：win-unpacked 刻意保留，用于本机免安装直接测试
 const INTERMEDIATE_DIRS = [
   'mac',            // macOS x64 .app 展开目录
   'mac-arm64',      // macOS arm64 .app 展开目录
+  'win-unpacked',   // Windows win-unpacked 目录
   'linux',          // Linux 展开目录
   'linux-unpacked', // Linux unpacked 目录
 ];

@@ -110,6 +110,3 @@ electron/repro-ipc/
 
 # jlink 精简 JRE 构建产物（打包时由 build-jlink-slim.mjs 生成）
 jre-slim/
-
-# 打包 asar 诊断临时目录（本地排查用，不提交）
-_asar_diag/
