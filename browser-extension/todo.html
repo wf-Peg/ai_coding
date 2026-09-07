@@ -134,6 +134,17 @@
             box-shadow: 0 2px 8px rgba(66,133,244,0.25);
         }
 
+        /* ── Fallback notice ── */
+        .fallback-notice {
+            margin: 10px 14px 0;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #b45309;
+            background: #fff7e6;
+            border: 1px solid #f5c97b;
+        }
+
         /* ── Timeline ── */
         .timeline {
             position: relative;
@@ -879,6 +890,11 @@
     <button class="filter-btn" data-filter="pending">进行中</button>
     <button class="filter-btn" data-filter="completed">已完成</button>
     <button class="filter-btn" data-filter="high">🔴 高优先</button>
+  </div>
+
+  <!-- Fallback notice (仅当后端不可达时显示，用于区分真实数据与示例数据) -->
+  <div class="fallback-notice" id="fallbackNotice" style="display:none;">
+    ⚠️ 未能连接后端，以下为示例数据
   </div>
 
   <!-- Timeline -->

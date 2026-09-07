@@ -4,18 +4,26 @@ let GIT_API_BASE_URL = 'http://127.0.0.1:8081/api/git';
 window.API_BASE_URL = API_BASE_URL;
 window.GIT_API_BASE_URL = GIT_API_BASE_URL;
 // 读取扩展配置中的自定义 API 地址（与 options 页/background.js 保持一致），
-// 避免修改配置后独立页面仍指向硬编码地址
+// 避免修改配置后独立页面仍指向硬编码地址。
+// 通过 apiConfigReady Promise 保证首次 fetchClips 一定在配置解析完成后再发请求，
+// 避免「先用默认地址发请求、配置随后覆盖」的竞态导致命中错误/不可达地址。
+let apiConfigReady;
 if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get(['apiUrl'], (result) => {
-        if (result && result.apiUrl) {
-            const base = result.apiUrl.replace(/\/api\/clip\/add$/, '').replace(/\/+$/, '');
-            API_BASE_URL = base + '/api/clip';
-            GIT_API_BASE_URL = base + '/api/git';
-            // 动态更新后同步到 window（上传/请求均读取 window 或最新值）
-            window.API_BASE_URL = API_BASE_URL;
-            window.GIT_API_BASE_URL = GIT_API_BASE_URL;
-        }
+    apiConfigReady = new Promise((resolve) => {
+        chrome.storage.local.get(['apiUrl'], (result) => {
+            if (result && result.apiUrl) {
+                const base = result.apiUrl.replace(/\/api\/clip\/add$/, '').replace(/\/+$/, '');
+                API_BASE_URL = base + '/api/clip';
+                GIT_API_BASE_URL = base + '/api/git';
+                // 动态更新后同步到 window（上传/请求均读取 window 或最新值）
+                window.API_BASE_URL = API_BASE_URL;
+                window.GIT_API_BASE_URL = GIT_API_BASE_URL;
+            }
+            resolve();
+        });
     });
+} else {
+    apiConfigReady = Promise.resolve();
 }
 let currentTags = [];
 const MAX_TAGS = 10;
@@ -309,68 +317,79 @@ function displaySearchResults(results) {
 }
 
 async function fetchClips() {
+    // 等待扩展配置（自定义 API 地址）解析完成，避免竞态命中错误/不可达地址
+    if (apiConfigReady) {
+        await apiConfigReady;
+    }
+
+    let clips;
     try {
         const response = await axios.get(`${API_BASE_URL}/list`);
-        let clips = response.data;
-
-        // 过滤掉待办事项数据（前端过滤，后端存储不变）
-        const filteredClips = clips.filter(clip => {
-            // 根据特征判断是否为待办事项数据
-            // 待办事项通常有特定的类型或内容特征
-            return !clip.type || clip.type !== 'todo' && !clip.content?.includes('前完成') && !clip.content?.includes('待办');
-        });
-
-        const clipItemsContainer = document.getElementById('clip-items');
-        const clipCountElement = document.getElementById('clip-count');
-
-        clipCountElement.textContent = filteredClips.length;
-        clipItemsContainer.innerHTML = '';
-
-        if (filteredClips.length === 0) {
-            clipItemsContainer.innerHTML = `
-                    <div class="empty-state">
-                        <h3>暂无剪藏内容</h3>
-                        <p>开始添加你的第一个剪藏吧！</p>
-                    </div>
-                `;
-            return;
-        }
-
-        filteredClips.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        allClipsCache = filteredClips;
-
-        filteredClips.forEach(clip => {
-            const clipItem = createClipItem(clip, false);
-            clipItemsContainer.appendChild(clipItem);
-        });
-
-        document.querySelectorAll('.delete-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const clipId = e.target.dataset.id;
-                showConfirmModal(clipId, '确定要删除这个剪藏吗？');
-            });
-        });
-
-        // 存在 pending 剪藏 → 2.5s 后自动轮询刷新（异步 AI 分析完成自动出现）
-        if (filteredClips.some(c => c.analysisStatus === 'pending')) {
-            if (!window.__clipPendingPollTimer) {
-                window.__clipPendingPollTimer = setTimeout(() => {
-                    window.__clipPendingPollTimer = null;
-                    fetchClips();
-                }, 2500);
-            }
-        } else if (window.__clipPendingPollTimer) {
-            clearTimeout(window.__clipPendingPollTimer);
-            window.__clipPendingPollTimer = null;
-        }
+        clips = response.data;
     } catch (error) {
-        console.error('获取剪藏列表失败:', error);
-        document.getElementById('clip-items').innerHTML = `
+        console.error('获取剪藏列表失败:', error, `URL=${API_BASE_URL}/list`);
+        const container = document.getElementById('clip-items');
+        if (container) {
+            container.innerHTML = `
                 <div class="empty-state">
                     <h3>获取剪藏列表失败</h3>
-                    <p>请检查后端服务是否正常运行</p>
+                    <p>请检查后端服务是否正常运行，或核对插件设置中的 API 地址<br>（当前：${escapeHtml(API_BASE_URL + '/list')}）</p>
                 </div>
             `;
+        }
+        return;
+    }
+
+    // 过滤掉待办事项数据（后端已按目录排除待办，前端仅按类型剔除，避免误删真实剪藏）
+    const filteredClips = (clips || []).filter(clip => clip.type !== 'todo');
+
+    const clipItemsContainer = document.getElementById('clip-items');
+    const clipCountElement = document.getElementById('clip-count');
+
+    clipCountElement.textContent = filteredClips.length;
+    clipItemsContainer.innerHTML = '';
+
+    if (filteredClips.length === 0) {
+        clipItemsContainer.innerHTML = `
+                <div class="empty-state">
+                    <h3>暂无剪藏内容</h3>
+                    <p>开始添加你的第一个剪藏吧！</p>
+                </div>
+            `;
+        return;
+    }
+
+    filteredClips.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    allClipsCache = filteredClips;
+
+    filteredClips.forEach(clip => {
+        try {
+            const clipItem = createClipItem(clip, false);
+            clipItemsContainer.appendChild(clipItem);
+        } catch (e) {
+            // 单卡片渲染失败不中断整个列表，也不误报为「获取失败」
+            console.error('渲染剪藏卡片失败 id=', clip && clip.id, e);
+        }
+    });
+
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const clipId = e.target.dataset.id;
+            showConfirmModal(clipId, '确定要删除这个剪藏吗？');
+        });
+    });
+
+    // 存在 pending 剪藏 → 2.5s 后自动轮询刷新（异步 AI 分析完成自动出现）
+    if (filteredClips.some(c => c.analysisStatus === 'pending')) {
+        if (!window.__clipPendingPollTimer) {
+            window.__clipPendingPollTimer = setTimeout(() => {
+                window.__clipPendingPollTimer = null;
+                fetchClips();
+            }, 2500);
+        }
+    } else if (window.__clipPendingPollTimer) {
+        clearTimeout(window.__clipPendingPollTimer);
+        window.__clipPendingPollTimer = null;
     }
 }
 
