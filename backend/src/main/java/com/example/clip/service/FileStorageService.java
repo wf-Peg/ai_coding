@@ -309,6 +309,7 @@ public class FileStorageService {
     private static final Set<String> EXCLUDED_DIR_NAMES = Set.of(
             "todoList", "knowledge", "knowledge-base", "topic", "vault", "learning-plan",
             "tmp", "editor", "weekly-report", "weeklyReport", "clip-organized",
+            "dispatch-records", // 内容投递记录（DispatchRecord，UUID id，非剪藏数据）
             ".tmp", ".trash", ".git", ".obsidian", ".dsh", ".index",
             "node_modules", "jre", "jre-slim", "dist-electron", "dist-dsh-offline",
             "dist", "build", "out", "backend", "frontend", "electron",
@@ -317,7 +318,9 @@ public class FileStorageService {
 
     /** 非剪藏配置文件（根级文件名匹配） */
     private static final Set<String> EXCLUDED_FILE_NAMES = Set.of(
-            "model-config.json", "app-config.json", "vaults.json", "vault-meta.json"
+            "model-config.json", "app-config.json", "vaults.json", "vault-meta.json",
+            "records.json",       // 产品需求/开发记录（DispatchRecord，UUID id，非剪藏数据）
+            "feature-points.json" // 功能点归档（独立数据类型，非剪藏数据）
     );
 
     /**
@@ -389,7 +392,10 @@ public class FileStorageService {
                     log.warn("[FileStorageService] Skipping non-clip JSON file: {}", path);
                     return new ArrayList<>();
                 }
-                return List.of(objectMapper.treeToValue(root, ClipContent.class));
+                // 单对象（旧格式）剪藏：返回可变列表，避免外层 removeIf 对不可变集合抛 UnsupportedOperationException
+                List<ClipContent> single = new ArrayList<>();
+                single.add(objectMapper.treeToValue(root, ClipContent.class));
+                return single;
             }
             log.warn("[FileStorageService] Ignoring unsupported clip data format: {}", path);
             return new ArrayList<>();

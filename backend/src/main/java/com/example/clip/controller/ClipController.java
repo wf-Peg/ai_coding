@@ -136,6 +136,11 @@ public class ClipController {
         }
         // 保存剪藏内容，service 层会根据 useAiTags 决定是否调用 AI 生成标签
         ClipContent clip = clipService.saveClip(request);
+        // 防御：保存失败时 saveClip 返回 null，避免后续 clip.getId() 抛 NPE，改为返回 500
+        if (clip == null) {
+            log.error("[API] /add 保存剪藏失败, type={}, category={}", request.getType(), request.getCategory());
+            return ResponseEntity.internalServerError().body(Map.of("status", "error", "message", "剪藏保存失败"));
+        }
         recordAction("content_created", "clip:" + clip.getId(), Map.of(
                 "category", clip.getCategory() == null ? "" : clip.getCategory(),
                 "tag", clip.getTags() == null || clip.getTags().isEmpty() ? "" : clip.getTags().get(0)));
