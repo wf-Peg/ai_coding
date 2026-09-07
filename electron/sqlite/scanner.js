@@ -250,8 +250,50 @@ function extractEntityBodyPlain(entity, type) {
   return parts.filter((p) => p != null && String(p).trim() !== '').join('\n');
 }
 
+/**
+ * 计算数据目录的轻量「变更签名」：仅做目录遍历 + stat 取每个可索引候选文件的最新 mtime，
+ * 不读取文件内容、不 JSON.parse（成本远低于 scanClips 的全量读取）。
+ * 用于启动时判断索引是否需要全量重建：签名未变则上次索引仍有效，可跳过。
+ *
+ * @param {string} storagePath config.storagePath（Clip_Bed 父目录或 clip-storage）
+ * @returns {string} 形如 "fileCount:maxMtime"，数据未变动时稳定
+ */
+function getStorageSignature(storagePath) {
+  let fileCount = 0;
+  let maxMtime = 0;
+  const addTree = (dir) => {
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
+    catch (e) { return; }
+    for (const ent of entries) {
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        if (EXCLUDED_DIR_NAMES.has(ent.name) || ent.name.startsWith('todoList')) continue;
+        addTree(full);
+      } else if (ent.isFile() && ent.name.endsWith('.json') && !isExcludedPath(full)) {
+        fileCount++;
+        try {
+          const m = fs.statSync(full).mtimeMs;
+          if (m > maxMtime) maxMtime = m;
+        } catch (e) { /* ignore */ }
+      }
+    }
+  };
+  // clip 文件：扫描 clip-storage 整棵子树（与 scanClips 的排除语义一致）
+  addTree(resolveClipStoragePath(storagePath));
+  // 实体文件：knowledge / learning-plan（与 scanEntities 的候选根一致）
+  for (const root of candidateRoots(storagePath)) {
+    for (const { dir } of ENTITY_DIRS) {
+      const dirPath = path.join(root, dir);
+      if (fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory()) addTree(dirPath);
+    }
+  }
+  return `${fileCount}:${maxMtime}`;
+}
+
 module.exports = {
   scanClips, parseClipFile, extractBodyPlain, isExcludedPath,
   resolveClipStoragePath, resolveBasePath, candidateRoots,
-  scanEntities, parseEntityFile, extractEntityBodyPlain, ENTITY_DIRS
+  scanEntities, parseEntityFile, extractEntityBodyPlain, ENTITY_DIRS,
+  getStorageSignature
 };

@@ -51,16 +51,37 @@ function indexEntities(dbConn, storagePath) {
 
 /**
  * 初始化本地索引：建库建表 + 全量扫描 clip-storage 建索引。
- * 幂等，可安全重复调用；不阻塞，由调用方决定时机。
+ *
+ * 启动加速：通过「变更签名」门控跳过全量重建。首次（无签名）或数据变更时
+ * （mtime/文件数变化）才执行全量重建；签名未变则复用上次索引，仅读出世代号与计数，
+ * 避免每次启动都全量扫描+读取+JSON.parse 大量 JSON 文件，显著缩短启动耗时。
  *
  * @param {string} storagePath config.storagePath（Clip_Bed 父目录）
- * @returns {{ready, generation, count}}
+ * @param {Object} [opts]
+ * @param {boolean} [opts.force=false] 为 true 时强制全量重建（等价 /api/relations/sync 语义）
+ * @returns {{ready, generation, count, rebuilt:boolean}}
  */
-function initLocalIndex(storagePath) {
+function initLocalIndex(storagePath, opts = {}) {
+  const force = !!opts.force;
   const dbConn = db.openDatabase(storagePath);
   const clipRoot = scanner.resolveClipStoragePath(storagePath);
 
-  // 清空后全量重建（索引是缓存，从权威 JSON 重建）
+  // 计算当前数据变更签名（仅目录遍历 + stat，不读文件内容，成本低）
+  const currentSignature = scanner.getStorageSignature(storagePath);
+  const storedSignature = getMeta(dbConn, 'index_signature');
+  const generation = parseInt(getMeta(dbConn, 'data_generation') || '0', 10) || 0;
+
+  // 签名门控：已有世代 + 签名未变 + 非强制 → 跳过全量重建，直接复用上次索引
+  if (!force && generation > 0 && storedSignature === currentSignature) {
+    state.ready = true;
+    state.generation = generation;
+    const count = indexer.count(dbConn);
+    const relationCount = relationBuilder.count(dbConn);
+    console.log(`[local-index] 签名未变化，跳过全量重建（gen=${generation}, count=${count}）`);
+    return { ready: true, generation, count, relationCount, rebuilt: false };
+  }
+
+  // 签名变化/首次/强制：清空后全量重建（索引是缓存，从权威 JSON 重建）
   const tx = (fn) => {
     dbConn.exec('BEGIN');
     try { const r = fn(); dbConn.exec('COMMIT'); return r; }
@@ -78,17 +99,20 @@ function initLocalIndex(storagePath) {
     indexEntities(dbConn, storagePath);
   });
 
-  const generation = (parseInt(getMeta(dbConn, 'data_generation') || '0', 10) || 0) + 1;
-  upsertMeta(dbConn, 'data_generation', String(generation));
+  const newGeneration = generation + 1;
+  upsertMeta(dbConn, 'data_generation', String(newGeneration));
+  // 记录本次全量重建后的数据签名，供下次启动门控判断
+  upsertMeta(dbConn, 'index_signature', currentSignature);
 
   state.ready = true;
-  state.generation = generation;
-  return { ready: true, generation, count: indexer.count(dbConn), relationCount: relationBuilder.count(dbConn) };
+  state.generation = newGeneration;
+  console.log(`[local-index] 数据签名已变化，已全量重建（gen=${newGeneration}, count=${count}）`);
+  return { ready: true, generation: newGeneration, count: indexer.count(dbConn), relationCount: relationBuilder.count(dbConn), rebuilt: true };
 }
 
-/** 全量重建（等价 /api/relations/sync 语义）。 */
+/** 全量重建（等价 /api/relations/sync 语义，force 跳过签名门控）。 */
 function rebuild(storagePath) {
-  return initLocalIndex(storagePath);
+  return initLocalIndex(storagePath, { force: true });
 }
 
 /**

@@ -2452,11 +2452,11 @@ function showConfigWindow(config) {
  * 从源头避免"config 记录与注册表实际内容不一致"。
  *
  * @param {Object} config - 配置对象（注册成功后原地更新并保存）
- * @returns {boolean} 是否已注册成功
+ * @returns {Promise<boolean>} 是否已注册成功
  */
-function ensureContextMenuRegistered(config) {
+async function ensureContextMenuRegistered(config) {
   try {
-    const registered = registerContextMenu(APP_DIR);
+    const registered = await registerContextMenu(APP_DIR);
     if (registered) {
       config.contextMenuRegistered = true;
       config.contextMenuPath = APP_DIR;
@@ -2523,12 +2523,10 @@ function quitApp() {
   // 停止提醒调度器
   stopReminderScheduler();
 
-  // 清理系统右键菜单注册表
-  try {
-    unregisterContextMenu();
-  } catch (e) {
-    log.warn('[ContextMenu] 注销失败:', e.message);
-  }
+  // 注意：退出时不再注销系统右键菜单。
+  // 原因：unregisterContextMenu 内部约 57 次顺序 spawnSync('reg',['delete',...]) 会同步阻塞主线程
+  // 数秒（拖慢退出）。右键菜单是持久 OS 注册，下次启动 registerWindowsContextMenu 会先清残留再重写，
+  // 无需在每次退出时清理；注销仅在卸载/设置里显式关闭时进行（走独立调用路径）。
 
   // 销毁系统托盘图标，防止退出后托盘残留
   if (tray) {
@@ -2547,8 +2545,11 @@ function quitApp() {
 
   // 主窗口淡出后退出，视觉丝滑；stop 系列已非阻塞，淡出期间系统无阻塞。
   // beginShutdown 此处幂等，仅首次真正执行。
+  const quitT0 = Date.now();
+  log.info('[Quit] 开始主窗口淡出（后端/前端/DSH 已触发停止）...');
   fadeOutWindow(mainWindow, 180, () => {
     beginShutdown();
+    log.info(`[Quit] 发起 app.quit（距退出启动 ${Date.now() - quitT0}ms）`);
     app.quit();
   });
 }
@@ -4799,23 +4800,28 @@ app.whenReady().then(async () => {
   // 启动即清浏览器 HTTP 缓存：避免前端页面（设置页等）加载到旧版 JS/静态资源，
   // 防止「改了版本探测逻辑但界面仍走旧判断」这类缓存不一致问题。
   // 注意：clearCache 在个别内网/离线机器上会卡住或底层崩溃导致 exitCode=1，
-  // 在此用超时降级（Promise.race）保护：超时/异常都只是跳过，绝不阻塞后续启动与建窗。
+  // 保留超时降级（Promise.race，8s）保护，但改为「后台执行、不 await」——
+  // 不再阻塞后续 createTray/config/建窗，避免个别机器上卡满 8 秒才出窗。
+  // 本地前端资源本就由当次加载缓存，缓存清理晚到不影响本次出窗，仅影响后续资源更新。
   stepLadder('cache.before');
-  // clearTimer 需在 try/finally 外部声明，finally 才能正确引用并清理定时器
-  let clearTimer = null;
-  try {
-    const CLEAR_CACHE_TIMEOUT_MS = 8000;
-    const clearTimeoutPromise = new Promise((_, rej) => {
-      clearTimer = setTimeout(() => rej(new Error('clearCache timeout exceeded')), CLEAR_CACHE_TIMEOUT_MS);
-    });
-    await Promise.race([session.defaultSession.clearCache(), clearTimeoutPromise]);
-    clearTimeout(clearTimer);
-    log.info('[Startup] Browser cache cleared on startup');
-  } catch (e) {
-    log.warn(`[Startup] clearCache skipped (${e.message}); continuing startup`);
-  } finally {
-    if (clearTimer) clearTimeout(clearTimer);
-  }
+  const clearCacheInBackground = async () => {
+    // clearTimer 需在 try/finally 外部声明，finally 才能正确引用并清理定时器
+    let clearTimer = null;
+    try {
+      const CLEAR_CACHE_TIMEOUT_MS = 8000;
+      const clearTimeoutPromise = new Promise((_, rej) => {
+        clearTimer = setTimeout(() => rej(new Error('clearCache timeout exceeded')), CLEAR_CACHE_TIMEOUT_MS);
+      });
+      await Promise.race([session.defaultSession.clearCache(), clearTimeoutPromise]);
+      clearTimeout(clearTimer);
+      log.info('[Startup] Browser cache cleared on startup');
+    } catch (e) {
+      log.warn(`[Startup] clearCache skipped (${e.message}); continuing startup`);
+    } finally {
+      if (clearTimer) clearTimeout(clearTimer);
+    }
+  };
+  clearCacheInBackground(); // fire-and-forget：立即放行，不再 await
   stepLadder('cache.after');
 
   // SQLite 本地索引层初始化（懒加载全量建索引，异步、不阻塞窗口；
@@ -5027,30 +5033,46 @@ app.whenReady().then(async () => {
       // 启动前同步 model-config.json，确保后端 AppConfigService 迁移时能读到 API Key
       syncModelConfigJson(config);
 
-      // 注册系统右键菜单（未注册或应用目录移动后自动重新注册，保证命令指向当前路径）
-      ensureContextMenuRegistered(config);
-
-      // 始终启动前端
+      // 先起前端服务（本地静态服务，很快），再立即建窗 —— 让窗口尽快出现（加载前端壳），
+      // 系统右键菜单与后端均改为「建窗后」按需启动/触发，不再阻塞首窗。
       stepLadder('fe.before');
       await startFrontendServer(config);
       stepLadder('fe.after');
 
-      // 根据启动模式决定后端行为
+      // 立即建主窗口（前端服务已就绪，loadWithRetry 对偶发未就绪会自动重试）
+      // 后端未就绪时前端渲染壳，后端就绪后通过 'backend-ready' 事件驱动进入可用态。
+      createMainWindow(config);
+      stepLadder('window.after');
+
+      // 系统右键菜单：改延时后台触发（Change 1 已异步化），不阻塞首窗
+      setTimeout(() => ensureContextMenuRegistered(config), 500);
+
+      // 后端按启动模式「后台」启动（三种模式均不再等待后端就绪后才建窗）
       if (config.startupMode === 'full') {
-        // 模式1: 完全启动 — 后端同步启动，阻塞窗口创建
-        log.info('[Startup] Mode: full - starting backend synchronously');
+        // 模式1: 完全启动 — 改为建窗后异步后台启动后端，就绪后推送 backend-ready/进度
+        log.info('[Startup] Mode: full - starting backend (window already shown)');
         stepLadder('backend.before');
-        await startBackend(config);
-        stepLadder('backend.after');
-        backendStarted = true;
-        const clipStoragePath = config.storagePath.endsWith('clip-storage') || config.storagePath.endsWith('clip-storage\\')
-          ? config.storagePath
-          : path.join(config.storagePath, 'clip-storage');
-        log.initExceptionLogger(clipStoragePath);
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('backend-ready');
-        }
-        startReminderScheduler();
+        startBackend(config).then(() => {
+          stepLadder('backend.after');
+          backendStarted = true;
+          const clipStoragePath = config.storagePath.endsWith('clip-storage') || config.storagePath.endsWith('clip-storage\\')
+            ? config.storagePath
+            : path.join(config.storagePath, 'clip-storage');
+          log.initExceptionLogger(clipStoragePath);
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('backend-ready');
+          }
+          startReminderScheduler();
+        }).catch(e => {
+          log.error('Backend start failed:', e);
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('backend-error', e.message);
+            mainWindow.webContents.send('show-notification', {
+              title: '后端启动失败',
+              body: '请检查配置后重试，或在编辑器状态栏点击启动按钮手动启动'
+            });
+          }
+        });
       } else if (config.startupMode === 'frontend-async-backend') {
         // 模式2: 启动前端后异步启动后端，就绪后系统通知
         log.info('[Startup] Mode: frontend-async-backend - starting backend asynchronously');
@@ -5089,12 +5111,9 @@ app.whenReady().then(async () => {
         log.info('[Startup] Mode: frontend-only, backend will be started manually');
       }
 
-      createMainWindow(config);
-      stepLadder('window.after');
-      // 处理命令行参数（系统右键菜单传递的文件路径）
+      // 处理命令行参数（系统右键菜单传递的文件路径）——紧随建窗注册监听，避免错过加载完成事件
       const actions = parseCommandLineArgs(process.argv, APP_DIR);
       if (actions.length > 0) {
-        // 等待窗口就绪后分发动作
         mainWindow.webContents.on('did-finish-load', () => {
           dispatchActions(actions, mainWindow);
         }, { once: true });
@@ -5171,15 +5190,17 @@ app.on('before-quit', () => {
 
 // 应用退出时：确保清理所有服务进程
 app.on('will-quit', () => {
+  const wq0 = Date.now();
   if (localIndexWatcher && typeof localIndexWatcher.stop === 'function') {
     try { localIndexWatcher.stop(); } catch (e) {}
     localIndexWatcher = null;
   }
-  // 优雅关闭索引库：轻量落盘（PASSIVE checkpoint，无全库 optimize），避免阻塞进程退出
+  // 优雅关闭索引库：退出时仅 close（无 optimize / 无 wal_checkpoint），不阻塞进程退出
   try { localIndexService.close(); } catch (e) {}
   unregisterGlobalShortcut();
   // 统一走 beginShutdown 幂等出口，避免与 quitApp/before-quit 重复 stop
   beginShutdown();
+  log.info(`[Quit] will-quit 清理完成（${Date.now() - wq0}ms）`);
 });
 
 // macOS Dock 图标点击或应用激活时

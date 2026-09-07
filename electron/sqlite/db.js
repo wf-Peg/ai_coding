@@ -78,13 +78,12 @@ function closeDatabase() {
  * 快速关闭连接（用于应用退出，避免阻塞进程退出）。
  * 与 closeDatabase 的区别：
  *   - 不做全库 optimize（避免退出时扫描全库耗时）；
- *   - 仅做 PRAGMA wal_checkpoint(PASSIVE)（只刷已提交页，通常毫秒级）。
- * node:sqlite 每条语句本就同步提交至 WAL，退出时残留 -wal/-shm 会在下次打开时由
- * SQLite 自动恢复，不会损坏数据；PASSIVE checkpoint 足以把已提交数据刷入主库。
+ *   - 不执行 wal_checkpoint（即使 PASSIVE，大 WAL 下仍是同步落盘、可能耗时）。
+ * 数据安全性：node:sqlite 每条语句本就同步提交至 WAL，退出时残留 -wal/-shm 会在下次打开时
+ * 由 SQLite 自动恢复，不会损坏数据；故退出直接 close 是最快的正确选择。
  */
 function closeFast() {
   if (dbInstance) {
-    try { dbInstance.exec('PRAGMA wal_checkpoint(PASSIVE);'); } catch (e) { /* ignore */ }
     try { dbInstance.close(); } catch (e) { /* ignore */ }
     dbInstance = null;
   }

@@ -12,15 +12,26 @@
  * 3. macOS: 通过 Info.plist 的 NSServices 注册 Finder 服务
  * 4. 卸载时清理注册表项
  *
- * 注意：必须使用 spawnSync('reg', [args...]) 参数数组方式调用 reg.exe，
- * 不要用 execSync 拼接命令字符串——命令值本身包含双引号（"exe" --clip-file "%1"），
- * 嵌套在 execSync 的 /d "..." 中会被 cmd.exe 错误解析导致 command 写入失败；
- * 且 execSync 走 cmd.exe 在中文/特殊字符路径下存在编码风险。
+ * 注意：必须使用 execFile('reg', [args...]) 参数数组方式调用 reg.exe，
+ * 不要用 execFile('reg', cmd字符串) 或 exec 拼接命令字符串——命令值本身包含双引号
+ * （"exe" --clip-file "%1"），嵌套在 cmd.exe 的 /d "..." 中会被错误解析导致写入失败；
+ * 且 exec 走 cmd.exe 在中文/特殊字符路径下存在编码风险。
+ * 使用异步 execFile（而非 spawnSync）避免阻塞 Electron 主进程事件循环，
+ * 使右键菜单注册/注销可在后台按序执行、不拖慢应用启动/退出。
  */
 
-const { spawnSync } = require('child_process');
+const { execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+
+/** 将 execFile 回调封装为 Promise（额外返回 status）。 */
+function execFileP(cmd, args, opts) {
+  return new Promise((resolve) => {
+    execFile(cmd, args, opts, (err, _stdout, stderr, code) => {
+      resolve({ error: err, status: code, stderr: String(stderr || '') });
+    });
+  });
+}
 
 /**
  * 每用户注册表根路径（HKCU\Software\Classes）
@@ -39,19 +50,19 @@ const LEGACY_FLAT_IDS = ['CutShelterClip', 'CutShelterAIClip', 'CutShelterOpen',
 const LEGACY_SUBKEYS = ['CutShelter.FileMenu', 'CutShelter.DesktopMenu'];
 
 /**
- * 执行 reg 命令（参数数组方式，避免引号嵌套与编码问题）
+ * 执行 reg 命令（异步、参数数组方式，避免引号嵌套与编码问题；不阻塞主进程）
  * @param {string[]} args - reg 参数
  * @param {boolean} silent - 为 true 时静默执行（用于清理不存在的键，忽略失败）
- * @returns {boolean} 是否成功（exit code 0）
+ * @returns {Promise<boolean>} 是否成功（exit code 0）
  */
-function runReg(args, silent) {
-  const result = spawnSync('reg', args, { encoding: 'utf-8', timeout: 5000, windowsHide: true });
-  if (result.error) {
-    if (!silent) console.error('[ContextMenu] reg exec error:', result.error.message);
+async function runReg(args, silent) {
+  const { error, status, stderr } = await execFileP('reg', args, { encoding: 'utf-8', timeout: 5000, windowsHide: true });
+  if (error) {
+    if (!silent) console.error('[ContextMenu] reg exec error:', error.message);
     return false;
   }
-  if (result.status !== 0) {
-    if (!silent) console.error('[ContextMenu] reg exit', result.status, ':', (result.stderr || '').trim());
+  if (status !== 0) {
+    if (!silent) console.error('[ContextMenu] reg exit', status, ':', stderr.trim());
     return false;
   }
   return true;
@@ -87,13 +98,13 @@ function getExeCommand(appDir) {
  * @param {string} exe - 命令前缀（含引号）
  * @returns {boolean} 是否成功
  */
-function registerOpenWith(exe) {
+async function registerOpenWith(exe) {
   const appKey = `${USER_CLASSES_ROOT}\\Applications\\CutShelter.exe`;
   let ok = true;
   // FriendlyAppName：打开方式对话框中的显示名
-  if (!runReg(['add', appKey, '/v', 'FriendlyAppName', '/t', 'REG_SZ', '/d', 'CutShelter 剪藏', '/f'])) ok = false;
+  if (!await runReg(['add', appKey, '/v', 'FriendlyAppName', '/t', 'REG_SZ', '/d', 'CutShelter 剪藏', '/f'])) ok = false;
   // shell\open\command：双击文件（默认打开方式）时执行的命令
-  if (!runReg(['add', `${appKey}\\shell\\open\\command`, '/ve', '/t', 'REG_SZ', '/d', `${exe} "%1"`, '/f'])) ok = false;
+  if (!await runReg(['add', `${appKey}\\shell\\open\\command`, '/ve', '/t', 'REG_SZ', '/d', `${exe} "%1"`, '/f'])) ok = false;
   if (ok) console.log('[ContextMenu] "打开方式"注册成功（Applications\\CutShelter.exe）');
   return ok;
 }
@@ -101,8 +112,8 @@ function registerOpenWith(exe) {
 /**
  * 注销"打开方式"支持
  */
-function unregisterOpenWith() {
-  runReg(['delete', `${USER_CLASSES_ROOT}\\Applications\\CutShelter.exe`, '/f'], true);
+async function unregisterOpenWith() {
+  await runReg(['delete', `${USER_CLASSES_ROOT}\\Applications\\CutShelter.exe`, '/f'], true);
 }
 
 /**
@@ -123,25 +134,25 @@ function unregisterOpenWith() {
  * @param {Object} item - 平铺项配置 { verb, label, arg, appliesTo, hasPath }
  * @returns {boolean} 是否成功
  */
-function registerFlatItem(root, exe, item) {
+async function registerFlatItem(root, exe, item) {
   const itemPath = `${USER_CLASSES_ROOT}\\${root}\\shell\\${item.verb}`;
 
   // 显示名（(Default) + MUIVerb 双保险）
-  if (!runReg(['add', itemPath, '/ve', '/t', 'REG_SZ', '/d', item.label, '/f'])) return false;
-  if (!runReg(['add', itemPath, '/v', 'MUIVerb', '/t', 'REG_SZ', '/d', item.label, '/f'])) return false;
+  if (!await runReg(['add', itemPath, '/ve', '/t', 'REG_SZ', '/d', item.label, '/f'])) return false;
+  if (!await runReg(['add', itemPath, '/v', 'MUIVerb', '/t', 'REG_SZ', '/d', item.label, '/f'])) return false;
 
   // 图标
   const exeToken = exe.match(/^(".*?"|\S+)/);
   const iconPath = exeToken ? exeToken[1] : exe;
-  if (!runReg(['add', itemPath, '/v', 'Icon', '/t', 'REG_SZ', '/d', `${iconPath},0`, '/f'])) return false;
+  if (!await runReg(['add', itemPath, '/v', 'Icon', '/t', 'REG_SZ', '/d', `${iconPath},0`, '/f'])) return false;
 
   // 命令（hasPath 为 false 的项不追加 "%1"）
   const cmdValue = item.hasPath ? `${exe} ${item.arg} "%1"` : `${exe} ${item.arg}`;
-  if (!runReg(['add', `${itemPath}\\command`, '/ve', '/t', 'REG_SZ', '/d', cmdValue, '/f'])) return false;
+  if (!await runReg(['add', `${itemPath}\\command`, '/ve', '/t', 'REG_SZ', '/d', cmdValue, '/f'])) return false;
 
   // AppliesTo 过滤（仅对 PDF 等）
   if (item.appliesTo) {
-    if (!runReg(['add', itemPath, '/v', 'AppliesTo', '/t', 'REG_SZ', '/d', item.appliesTo, '/f'])) return false;
+    if (!await runReg(['add', itemPath, '/v', 'AppliesTo', '/t', 'REG_SZ', '/d', item.appliesTo, '/f'])) return false;
   }
 
   return true;
@@ -158,9 +169,9 @@ function registerFlatItem(root, exe, item) {
  * @param {string} appDir - 应用根目录
  * @returns {boolean} 是否成功
  */
-function registerWindowsContextMenu(appDir) {
+async function registerWindowsContextMenu(appDir) {
   // 先清理旧版/残留菜单项（级联父项、扁平项、旧级联结构），再注册新的平铺菜单
-  unregisterWindowsContextMenu();
+  await unregisterWindowsContextMenu();
 
   const exe = getExeCommand(appDir);
 
@@ -196,7 +207,7 @@ function registerWindowsContextMenu(appDir) {
 
   // 1. 文件右键平铺项（新版菜单直接显示）
   for (const item of flatFileVerbs) {
-    if (!registerFlatItem('*', exe, item)) {
+    if (!await registerFlatItem('*', exe, item)) {
       console.error(`[ContextMenu] Failed to register flat item ${item.verb}`);
       allOk = false;
     }
@@ -204,7 +215,7 @@ function registerWindowsContextMenu(appDir) {
 
   // 2. 桌面/文件夹背景右键平铺项
   for (const item of flatBgVerbs) {
-    if (!registerFlatItem('Directory\\Background', exe, item)) {
+    if (!await registerFlatItem('Directory\\Background', exe, item)) {
       console.error(`[ContextMenu] Failed to register desktop flat item ${item.verb}`);
       allOk = false;
     }
@@ -212,14 +223,14 @@ function registerWindowsContextMenu(appDir) {
 
   // 3. PDF 类型专用右键项（新版菜单：桌面/文件夹中 PDF 文件右键均显示该功能）
   for (const item of pdfVerbs) {
-    if (!registerFlatItem('SystemFileAssociations\\.pdf', exe, item)) {
+    if (!await registerFlatItem('SystemFileAssociations\\.pdf', exe, item)) {
       console.error(`[ContextMenu] Failed to register pdf flat item ${item.verb}`);
       allOk = false;
     }
   }
 
   // 4. "打开方式"支持（默认打开方式双击文本文件 → 用编辑器打开）
-  if (!registerOpenWith(exe)) {
+  if (!await registerOpenWith(exe)) {
     console.error('[ContextMenu] Failed to register open-with support');
     allOk = false;
   }
@@ -234,36 +245,36 @@ function registerWindowsContextMenu(appDir) {
  * Windows: 注销右键菜单
  * 删除级联菜单父键（含所有子命令）、旧版扁平项、旧版独立子命令键，以及 HKLM 版 HKCR 残留项
  */
-function unregisterWindowsContextMenu() {
+async function unregisterWindowsContextMenu() {
   const roots = ['*', 'Directory\\Background', 'SystemFileAssociations\\.pdf'];
 
   // 0. 注销"打开方式"支持
-  unregisterOpenWith();
+  await unregisterOpenWith();
 
   // 1. 删除级联父键（reg delete 递归删除所有子键）
   for (const root of roots) {
-    runReg(['delete', `${USER_CLASSES_ROOT}\\${root}\\shell\\${MENU_ID}`, '/f'], true);
+    await runReg(['delete', `${USER_CLASSES_ROOT}\\${root}\\shell\\${MENU_ID}`, '/f'], true);
   }
 
   // 2. 删除旧版扁平独立菜单项（早期实现残留）
   for (const root of roots) {
     for (const id of LEGACY_FLAT_IDS) {
-      runReg(['delete', `${USER_CLASSES_ROOT}\\${root}\\shell\\${id}`, '/f'], true);
+      await runReg(['delete', `${USER_CLASSES_ROOT}\\${root}\\shell\\${id}`, '/f'], true);
     }
   }
 
   // 3. 删除旧版独立子命令键（更早期级联实现残留）
   for (const subKey of LEGACY_SUBKEYS) {
-    runReg(['delete', `${USER_CLASSES_ROOT}\\${subKey}`, '/f'], true);
+    await runReg(['delete', `${USER_CLASSES_ROOT}\\${subKey}`, '/f'], true);
   }
 
   // 4. 兼容清理：旧版本写入的 HKLM 版 HKCR 项（若之前以管理员权限注册过）
   const legacyRoots = ['HKEY_CLASSES_ROOT', 'HKEY_LOCAL_MACHINE\\Software\\Classes'];
   for (const root of legacyRoots) {
     for (const scope of roots) {
-      runReg(['delete', `${root}\\${scope}\\shell\\${MENU_ID}`, '/f'], true);
+      await runReg(['delete', `${root}\\${scope}\\shell\\${MENU_ID}`, '/f'], true);
       for (const id of LEGACY_FLAT_IDS) {
-        runReg(['delete', `${root}\\${scope}\\shell\\${id}`, '/f'], true);
+        await runReg(['delete', `${root}\\${scope}\\shell\\${id}`, '/f'], true);
       }
     }
   }
@@ -272,11 +283,11 @@ function unregisterWindowsContextMenu() {
 /**
  * 注册系统右键菜单（自动检测平台）
  * @param {string} appDir - 应用根目录
- * @returns {boolean} 是否成功
+ * @returns {Promise<boolean>} 是否成功
  */
-function registerContextMenu(appDir) {
+async function registerContextMenu(appDir) {
   if (process.platform === 'win32') {
-    return registerWindowsContextMenu(appDir);
+    return await registerWindowsContextMenu(appDir);
   }
   // macOS: 通过 electron-builder 的 mac.extendInfo.NSServices 在构建时处理
   // 无需运行时注册。
@@ -292,9 +303,9 @@ function registerContextMenu(appDir) {
 /**
  * 注销系统右键菜单
  */
-function unregisterContextMenu() {
+async function unregisterContextMenu() {
   if (process.platform === 'win32') {
-    unregisterWindowsContextMenu();
+    await unregisterWindowsContextMenu();
   }
 }
 
