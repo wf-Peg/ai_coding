@@ -98,6 +98,17 @@ public class PromptConfig {
     /** Wiki 按需 Lint Prompt — 检测矛盾/过时/孤儿页/缺失页/缺失交叉引用 */
     private String wikiLintPrompt;
 
+    // ==================== 剪藏全库问答 Prompt（1 个） ====================
+
+    /**
+     * 剪藏全库问答的答案综合 Prompt。
+     * <p>
+     * 用于 {@code /api/clip/ask}：给定问题与检索到的剪藏候选片段（编号拼接），
+     * 要求只基于候选内容作答、按编号引用来源、内容不足时明确说不知道。
+     * </p>
+     */
+    private String clipAskSynthesisPrompt;
+
     // ==================== 构造函数 ====================
 
     public PromptConfig() {
@@ -173,4 +184,9 @@ public class PromptConfig {
 
     public String getWikiLintPrompt() { return wikiLintPrompt; }
     public void setWikiLintPrompt(String v) { this.wikiLintPrompt = v; }
+
+    // ==================== 剪藏全库问答 Getter/Setter ====================
+
+    public String getClipAskSynthesisPrompt() { return clipAskSynthesisPrompt; }
+    public void setClipAskSynthesisPrompt(String v) { this.clipAskSynthesisPrompt = v; }
 }

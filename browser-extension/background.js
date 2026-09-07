@@ -42,6 +42,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case 'smartIngest':
       smartIngest(request.data, sendResponse);
       return true;
+    case 'getPageAnnotations':
+      getPageAnnotations(request.sourceUrl)
+        .then((result) => sendResponse(result))
+        .catch((error) => sendResponse({ success: false, annotations: [], error: error.message }));
+      return true;
+    case 'saveAnnotations':
+      saveAnnotationsFlow(request.data, sendResponse);
+      return true;
+    case 'dupCheck':
+      dupCheck(request.data)
+        .then((result) => sendResponse(result))
+        .catch((error) => sendResponse({ success: false, error: error.message }));
+      return true;
+    case 'suggestMeta':
+      suggestMeta(request.data)
+        .then((result) => sendResponse(result))
+        .catch((error) => sendResponse({ success: false, error: error.message }));
+      return true;
     default:
       sendResponse({ error: '未知操作' });
   }
@@ -626,6 +644,103 @@ function openOptions() {
 async function openPopupWithData(data) {
   await chrome.storage.local.set({ pendingClip: data });
   await chrome.action.openPopup();
+}
+
+// ==================== 网页标注（摘录留痕）后台通道 ====================
+
+/** 从配置的剪藏接口地址推导后端根地址（如 http://localhost:8081） */
+function resolveApiBase() {
+  return getConfigAsync().then((config) => {
+    const apiUrl = config.apiUrl || 'http://localhost:8081/api/clip/add';
+    return apiUrl.replace(/\/api\/clip\/add$/, '').replace(/\/api\/clip\/add\?.*$/, '').replace(/\/+$/, '');
+  });
+}
+
+/** 拉取当前页面的已入库标注，供 content.js 恢复高亮 */
+async function getPageAnnotations(sourceUrl) {
+  try {
+    const base = await resolveApiBase();
+    const resp = await fetch(`${base}/api/clip/annotations?sourceUrl=${encodeURIComponent(sourceUrl || '')}`, {
+      signal: AbortSignal.timeout(8000)
+    });
+    if (!resp.ok) {
+      return { success: false, annotations: [] };
+    }
+    const list = await resp.json();
+    return { success: true, annotations: Array.isArray(list) ? list : [] };
+  } catch (error) {
+    console.warn('获取页面标注失败（后端未连接时跳过）:', error.message);
+    return { success: false, annotations: [] };
+  }
+}
+
+/** 暂存标注草稿并打开保存弹窗（弹窗前不发后端，取消不产生记录） */
+async function saveAnnotationsFlow(data, sendResponse) {
+  try {
+    const payload = {
+      ...(data || {}),
+      type: 'ai-text',
+      useAiTags: true,
+      captureMethod: 'highlight-toolbar',
+      workflowStatus: DEFAULT_WORKFLOW_STATUS,
+      category: '',
+      tags: null,
+      imageDataList: []
+    };
+    await chrome.storage.local.set({ pendingClip: payload });
+    let opened = false;
+    try {
+      await chrome.action.openPopup();
+      opened = true;
+    } catch (error) {
+      // 无用户手势时 Chrome 可能拒绝自动打开弹窗，引导用户点击工具栏图标
+      console.warn('自动打开剪藏弹窗失败（可能缺少用户手势）:', error.message);
+    }
+    sendResponse({ success: true, opened });
+  } catch (error) {
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+/** 查重预检：内容 + 来源 URL 指纹统计已收藏次数 */
+async function dupCheck(data) {
+  try {
+    const base = await resolveApiBase();
+    const params = new URLSearchParams({
+      content: (data && data.content) || '',
+      sourceUrl: (data && data.sourceUrl) || ''
+    });
+    const resp = await fetch(`${base}/api/clip/dup-check?${params.toString()}`, {
+      signal: AbortSignal.timeout(8000)
+    });
+    if (!resp.ok) {
+      return { success: false };
+    }
+    const result = await resp.json();
+    return { success: true, ...result };
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+/** AI 建议标题/分类/标签（回溯到 /smart-organize，失败静默降级） */
+async function suggestMeta(data) {
+  try {
+    const base = await resolveApiBase();
+    const resp = await fetch(`${base}/api/clip/smart-organize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: (data && data.content) || '' }),
+      signal: AbortSignal.timeout(30000)
+    });
+    if (!resp.ok) {
+      return { success: false, error: `接口请求失败 (${resp.status})` };
+    }
+    const result = await resp.json();
+    return { success: true, data: result };
+  } catch (error) {
+    return { success: false, error: error.message || 'AI 建议失败' };
+  }
 }
 
 async function getConfig(sendResponse) {

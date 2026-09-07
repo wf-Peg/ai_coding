@@ -8,6 +8,7 @@ const DEFAULT_CONFIG = {
   defaultType: 'ai-text',
   autoTags: true,
   autoSource: true,
+  enableHighlightToolbar: true,
   enableNotifications: true,
   successNotification: true,
   clipPageShortcut: 'Ctrl+Shift+S',
@@ -41,6 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const defaultTypeSelect = document.getElementById('defaultType');
   const autoTagsCheckbox = document.getElementById('autoTags');
   const autoSourceCheckbox = document.getElementById('autoSource');
+  const enableHighlightToolbarCheckbox = document.getElementById('enableHighlightToolbar');
   const enableNotificationsCheckbox = document.getElementById('enableNotifications');
   const successNotificationCheckbox = document.getElementById('successNotification');
   const clipPageShortcutInput = document.getElementById('clipPageShortcut');
@@ -81,6 +83,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       defaultTypeSelect.value = config.defaultType;
       autoTagsCheckbox.checked = config.autoTags;
       autoSourceCheckbox.checked = config.autoSource;
+      enableHighlightToolbarCheckbox.checked = config.enableHighlightToolbar;
       enableNotificationsCheckbox.checked = config.enableNotifications;
       successNotificationCheckbox.checked = config.successNotification;
       clipPageShortcutInput.value = config.clipPageShortcut;
@@ -110,6 +113,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     defaultTypeSelect.value = DEFAULT_CONFIG.defaultType;
     autoTagsCheckbox.checked = DEFAULT_CONFIG.autoTags;
     autoSourceCheckbox.checked = DEFAULT_CONFIG.autoSource;
+    enableHighlightToolbarCheckbox.checked = DEFAULT_CONFIG.enableHighlightToolbar;
     enableNotificationsCheckbox.checked = DEFAULT_CONFIG.enableNotifications;
     successNotificationCheckbox.checked = DEFAULT_CONFIG.successNotification;
     clipPageShortcutInput.value = DEFAULT_CONFIG.clipPageShortcut;
@@ -142,6 +146,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       defaultType: defaultTypeSelect.value,
       autoTags: autoTagsCheckbox.checked,
       autoSource: autoSourceCheckbox.checked,
+      enableHighlightToolbar: enableHighlightToolbarCheckbox.checked,
       enableNotifications: enableNotificationsCheckbox.checked,
       successNotification: successNotificationCheckbox.checked,
       clipPageShortcut: clipPageShortcutInput.value.trim() || DEFAULT_CONFIG.clipPageShortcut,

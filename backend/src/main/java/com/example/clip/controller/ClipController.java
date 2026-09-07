@@ -10,6 +10,7 @@ import com.example.clip.dto.OrganizeClipRequest;
 import com.example.clip.dto.OrganizeInboxRequest;
 import com.example.clip.dto.TagRequest;
 import com.example.clip.model.ClipContent;
+import com.example.clip.model.Annotation;
 import com.example.clip.model.TodoContent;
 import com.example.clip.service.AppConfigService;
 import com.example.clip.service.ClipService;
@@ -32,6 +33,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -131,6 +134,15 @@ public class ClipController {
         // 去重：内容 + 来源 URL 一致时返回已有记录，避免重复剪藏
         ClipContent duplicate = clipService.findDuplicate(request);
         if (duplicate != null) {
+            // 摘录留痕：同一段文字重复摘录但携带新标注时，把标注合并进已有条目，不新开剪藏
+            if (request.getAnnotations() != null && !request.getAnnotations().isEmpty()) {
+                List<Annotation> merged = new ArrayList<>(duplicate.getAnnotations());
+                merged.addAll(request.getAnnotations());
+                duplicate.setAnnotations(merged);
+                clipService.saveClip(duplicate);
+                log.info("[API] /add duplicate, merged {} annotations into existing clipId={}",
+                        request.getAnnotations().size(), duplicate.getId());
+            }
             log.info("[API] /add duplicate detected, existing clipId={}", duplicate.getId());
             return ResponseEntity.ok(new ClipResponse(duplicate.getId(), "duplicate"));
         }
@@ -435,6 +447,127 @@ public class ClipController {
                                                               @RequestParam(defaultValue = "5") int topK) {
         List<ClipContent> results = searchService.searchByCategory(query, category, topK);
         return ResponseEntity.ok(results);
+    }
+
+    /**
+     * 剪藏查重预检
+     * <p>
+     * GET /api/clip/dup-check?content=xxx&amp;sourceUrl=yyy
+     * <p>
+     * 供浏览器插件保存弹窗「第 N 次收藏」提示使用：以内容（trim 相等）+
+     * 来源 URL（忽略大小写）为指纹统计全库已存在条数。
+     *
+     * @param content   待检内容
+     * @param sourceUrl 来源 URL
+     * @return {found, count}：count 为已收藏次数（0 表示新内容）
+     */
+    @GetMapping("/dup-check")
+    public ResponseEntity<Map<String, Object>> dupCheck(@RequestParam(required = false) String content,
+                                                        @RequestParam(required = false) String sourceUrl) {
+        List<ClipContent> duplicates = clipService.findDuplicates(content, sourceUrl);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("found", !duplicates.isEmpty());
+        result.put("count", duplicates.size());
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * 按来源 URL 查询网页标注
+     * <p>
+     * GET /api/clip/annotations?sourceUrl=xxx
+     * <p>
+     * 供浏览器插件在用户回到标过的网页时恢复高亮，返回该页面下全部标注的平铺列表。
+     *
+     * @param sourceUrl 来源网页链接
+     * @return 标注列表（可能为空），元素含 id/text/note/color/createdAt/sourceTitle/clipId
+     */
+    @GetMapping("/annotations")
+    public ResponseEntity<List<Map<String, Object>>> getAnnotations(@RequestParam(required = false) String sourceUrl) {
+        return ResponseEntity.ok(clipService.getAnnotationsByUrl(sourceUrl));
+    }
+
+    /**
+     * 全库问答
+     * <p>
+     * POST /api/clip/ask 请求体 {"question": "..."}
+     * <p>
+     * 流程：全库检索最相关候选（最多 8 条）→ 候选为空直接引导换说法；
+     * 有候选则调用强模型 {@link AiService#answerClipQuestion} 综合回答，
+     * 回答带 [N] 编号引用，随 response 返回引用来源清单。
+     *
+     * @param body 包含 question 字段的 JSON 对象
+     * @return {status, answer, sources}；status ∈ success / no_results / error
+     */
+    @PostMapping("/ask")
+    public ResponseEntity<Map<String, Object>> askLibrary(@RequestBody Map<String, String> body) {
+        String question = body == null ? "" : body.getOrDefault("question", "");
+        question = question == null ? "" : question.trim();
+        if (question.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "问题不能为空"));
+        }
+        if (question.length() > 200) {
+            question = question.substring(0, 200);
+        }
+
+        // 1. 全库检索，取最相关候选（最多 8 条）
+        List<ClipContent> candidates;
+        try {
+            candidates = searchService.search(question, 8);
+        } catch (Exception e) {
+            log.warn("[API] /ask search failed: {}", e.getMessage(), e);
+            candidates = new ArrayList<>();
+        }
+        if (candidates == null || candidates.isEmpty()) {
+            return ResponseEntity.ok(Map.of(
+                    "status", "no_results",
+                    "answer", "库里没有找到与这个问题相关的内容，换个说法再试试。",
+                    "sources", List.of()));
+        }
+        if (candidates.size() > 8) {
+            candidates = new ArrayList<>(candidates.subList(0, 8));
+        }
+
+        // 2. 拼装编号片段与来源清单（单条片段截断防 token 超限）
+        Map<String, String> pageContents = new LinkedHashMap<>();
+        List<Map<String, Object>> sources = new ArrayList<>();
+        int index = 1;
+        for (ClipContent clip : candidates) {
+            String title = firstNonBlank(clip.getTitle(), clip.getSummary(), "未命名剪藏 #" + clip.getId());
+            String text = clipService.resolveAiSourceText(clip);
+            if (text == null) {
+                text = "";
+            }
+            if (text.length() > 4000) {
+                text = text.substring(0, 4000);
+            }
+            pageContents.put("来源" + index + "「" + title + "」", text);
+
+            Map<String, Object> source = new LinkedHashMap<>();
+            source.put("index", index);
+            source.put("id", clip.getId());
+            source.put("title", title);
+            source.put("createdAt", clip.getCreatedAt());
+            source.put("sourceUrl", clip.getSourceUrl());
+            source.put("category", clip.getCategory());
+            sources.add(source);
+            index++;
+        }
+
+        // 3. 强模型综合回答（失败保留问题并提示重试，不硬编）
+        String answer = aiService.answerClipQuestion(question, pageContents);
+        if (answer == null) {
+            log.warn("[API] /ask answer generation failed for question: {}", question);
+            return ResponseEntity.ok(Map.of(
+                    "status", "error",
+                    "answer", "AI 服务暂时不可用，问题已保留，请稍后重试。",
+                    "sources", sources));
+        }
+        return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "answer", answer,
+                "sources", sources));
     }
 
     /**

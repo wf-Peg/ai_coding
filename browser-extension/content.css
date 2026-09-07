@@ -1,2 +1,191 @@
-/* 内容脚本样式 */
-/* 预留用于可能的UI元素 */
+/* ==================== 网页标注（摘录留痕）样式 ==================== */
+
+/* 高亮底色：四种颜色，半透明可叠加阅读 */
+mark.clip-hl {
+  cursor: pointer;
+  border-radius: 2px;
+  padding: 0 1px;
+  color: inherit;
+  transition: filter 0.15s ease;
+}
+
+mark.clip-hl:hover {
+  filter: brightness(0.92);
+}
+
+mark.clip-hl-yellow {
+  background: rgba(250, 204, 21, 0.45);
+}
+
+mark.clip-hl-green {
+  background: rgba(74, 222, 128, 0.45);
+}
+
+mark.clip-hl-blue {
+  background: rgba(96, 165, 250, 0.45);
+}
+
+mark.clip-hl-purple {
+  background: rgba(192, 132, 252, 0.45);
+}
+
+/* 标注工具条 */
+.clip-ann-toolbar {
+  position: fixed;
+  z-index: 2147483646;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  padding: 6px 8px;
+  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  user-select: none;
+}
+
+.clip-ann-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.clip-ann-hint {
+  font-size: 12px;
+  color: #6b7280;
+  margin-right: 2px;
+}
+
+.clip-ann-color {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.clip-ann-color:hover {
+  transform: scale(1.15);
+}
+
+.clip-ann-color.active {
+  border-color: #374151;
+}
+
+.clip-ann-color-yellow {
+  background: rgb(250, 204, 21);
+}
+
+.clip-ann-color-green {
+  background: rgb(74, 222, 128);
+}
+
+.clip-ann-color-blue {
+  background: rgb(96, 165, 250);
+}
+
+.clip-ann-color-purple {
+  background: rgb(192, 132, 252);
+}
+
+.clip-ann-btn {
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #374151;
+  background: #f3f4f6;
+  transition: background 0.15s ease;
+}
+
+.clip-ann-btn:hover {
+  background: #e5e7eb;
+}
+
+.clip-ann-btn.save {
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
+  color: #ffffff;
+}
+
+.clip-ann-btn.save:hover {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+}
+
+.clip-ann-close {
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.clip-ann-close:hover {
+  color: #374151;
+}
+
+/* 想法面板 */
+.clip-ann-note-panel {
+  margin-top: 6px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.1);
+  padding-top: 6px;
+  width: 260px;
+}
+
+.clip-ann-note-panel textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 52px;
+  resize: vertical;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.5;
+  outline: none;
+}
+
+.clip-ann-note-panel textarea:focus {
+  border-color: #3b82f6;
+}
+
+.clip-ann-note-actions {
+  margin-top: 6px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.clip-ann-undo {
+  border: none;
+  background: transparent;
+  color: #ef4444;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.clip-ann-undo:hover {
+  background: #fef2f2;
+}
+
+/* 轻提示 */
+#clip-ann-toast {
+  display: none;
+  position: fixed;
+  left: 50%;
+  bottom: 48px;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  background: rgba(17, 24, 39, 0.92);
+  color: #ffffff;
+  font-size: 13px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  max-width: 80vw;
+}

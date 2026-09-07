@@ -232,6 +232,10 @@ public class PromptConfigService {
         return getPromptConfig().getWikiLintPrompt();
     }
 
+    public String getClipAskSynthesisPrompt() {
+        return getPromptConfig().getClipAskSynthesisPrompt();
+    }
+
     // ==================== 模板渲染 ====================
 
     /**
@@ -317,6 +321,7 @@ public class PromptConfigService {
         validateField("wikiQueryIndexPrompt", config.getWikiQueryIndexPrompt());
         validateField("wikiQuerySynthesisPrompt", config.getWikiQuerySynthesisPrompt());
         validateField("wikiLintPrompt", config.getWikiLintPrompt());
+        validateField("clipAskSynthesisPrompt", config.getClipAskSynthesisPrompt());
     }
 
     private void validateField(String fieldName, String value) {
@@ -543,16 +548,18 @@ public class PromptConfigService {
     private static final String DEFAULT_GENERATE_TAGS_PROMPT =
             "请为以下内容提取10个以内的关键词作为标签，每个标签用逗号分隔，不要有其他文字。";
 
-    /** 默认智能分类+标签 Prompt，含 {{category_tree}} 占位符 */
+    /** 默认智能分类+标签+标题 Prompt，含 {{category_tree}} 占位符 */
     private static final String DEFAULT_SMART_ORGANIZE_PROMPT =
             "你是一个智能内容分类助手。请分析用户的内容，完成以下任务：\n\n" +
             "1. 从下面的预设分类中选择最匹配的【一个】分类（优先选二级分类，没有合适的选一级）\n" +
-            "2. 提取3-8个关键词作为标签\n\n" +
+            "2. 提取3-8个关键词作为标签\n" +
+            "3. 为内容拟一个简短标题（不超过30个字，不要加书名号）\n\n" +
             "预设分类：\n" +
             "{{category_tree}}\n\n" +
             "请严格按以下JSON格式返回，不要有任何其他文字：\n" +
-            "{\"category\":\"分类value值\",\"tags\":[\"标签1\",\"标签2\"]}\n\n" +
+            "{\"title\":\"建议标题\",\"category\":\"分类value值\",\"tags\":[\"标签1\",\"标签2\"]}\n\n" +
             "注意：\n" +
+            "- title 是简短标题，不超过30个字\n" +
             "- category 必须是上面预设分类中的 value 值\n" +
             "- tags 是关键词数组，3-8个，简洁精准\n" +
             "- 只返回JSON，不要有其他内容";
@@ -678,6 +685,17 @@ public class PromptConfigService {
             "- Note any contradictions between sources\n" +
             "\n" +
             "Return the answer in Markdown format.";
+
+    /** 默认剪藏全库问答 Prompt — 只依据检索到的剪藏片段作答并附编号引用 */
+    private static final String DEFAULT_CLIP_ASK_SYNTHESIS_PROMPT =
+            "你是一个个人剪藏库的问答助手。用户会提出一个问题，并提供若干条从其剪藏库中检索到的内容片段（每条以「来源N」编号）。\n" +
+            "\n" +
+            "回答规则：\n" +
+            "- 只能依据给出的内容片段作答，禁止编造片段中不存在的出处或事实；\n" +
+            "- 回答中用 [N]（N 为来源编号）标注引用，引用必须与片段内容真实对应；\n" +
+            "- 如果片段不足以回答该问题，明确回答「库里没有足够的内容回答这个问题」，不要硬编；\n" +
+            "- 回答简洁清楚，用中文，可用少量 Markdown 排版（列表、加粗）；\n" +
+            "- 只输出回答正文，不要输出前言或客套话。";
 
     /** 默认 Wiki 按需 Lint Prompt — 检测矛盾/过时/孤儿页/缺失页/缺失交叉引用 */
     private static final String DEFAULT_WIKI_LINT_PROMPT =

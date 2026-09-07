@@ -38,6 +38,27 @@
     </div>
 </div>
 
+<div id="ask-modal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 760px; max-height: 86vh;">
+        <div class="modal-header">
+            <h3>✨ 问我的剪藏库</h3>
+            <button class="modal-close" type="button" onclick="closeAskModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <label class="modal-label" for="ask-question">基于全库剪藏内容提问（最多 200 字），回答会附来源条目</label>
+            <textarea id="ask-question" class="modal-textarea compact-textarea" rows="2" maxlength="200" placeholder="例如：我之前收藏过哪些关于 Obsidian 的内容？"></textarea>
+            <div class="ask-answer" id="ask-answer" style="display: none;">
+                <div class="ask-answer-body markdown-content" id="ask-answer-body"></div>
+                <div class="ask-sources" id="ask-sources"></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" type="button" onclick="closeAskModal()">关闭</button>
+            <button class="btn-primary" type="button" id="ask-submit-btn" onclick="submitAskQuestion()">提问</button>
+        </div>
+    </div>
+</div>
+
 <div id="prompt-config-modal" class="modal" style="display: none;">
     <div class="modal-content" style="max-width: 800px;">
         <div class="modal-header">
@@ -323,6 +344,7 @@
         <div class="list-header">
             <h2>剪藏列表</h2>
             <div class="list-controls">
+                <button class="btn-secondary ask-library-btn" onclick="openAskModal()" title="基于全库剪藏内容提问，回答附来源">✨ 问我的剪藏库</button>
                 <select id="workflow-filter" class="workflow-filter">
                     <option value="">全部流程</option>
                     <option value="inbox">仅收件箱（待整理）</option>
