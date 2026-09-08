@@ -162,6 +162,16 @@ public class ClipContent {
     private String lastDispatchAt;
 
     /**
+     * 网页标注列表（插件采集打标，知识模块只读汇总）。
+     * <p>
+     * 一条剪藏下挂零到多条标注，字段约定见 {@link Annotation}；
+     * 历史条目 JSON 中无此字段时保持空列表（Jackson 反序列化不会覆盖
+     * 字段初始化值），不迁移、不补写，保证老库兼容。来源固定为浏览器插件。
+     * </p>
+     */
+    private List<Annotation> annotations = new ArrayList<>();
+
+    /**
      * 无参构造函数。
      * 自动设置创建时间（{@code createdAt}）为当前时间。
      */
@@ -460,5 +470,23 @@ public class ClipContent {
 
     public void setLastDispatchAt(String lastDispatchAt) {
         this.lastDispatchAt = lastDispatchAt;
+    }
+
+    /**
+     * 返回剪藏下的网页标注列表。
+     * <p>历史条目无此字段时返回空列表（字段初始化为空 ArrayList，
+     * JSON 中缺省不覆盖），永不返回 null，前端可安全遍历。</p>
+     *
+     * @return 标注列表（可能为空）
+     */
+    public List<Annotation> getAnnotations() {
+        if (annotations == null) {
+            annotations = new ArrayList<>();
+        }
+        return annotations;
+    }
+
+    public void setAnnotations(List<Annotation> annotations) {
+        this.annotations = annotations;
     }
 }

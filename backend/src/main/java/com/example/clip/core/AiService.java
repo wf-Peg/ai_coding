@@ -509,11 +509,17 @@ public class AiService {
             Map<String, Object> result_map = parseSimpleJson(responseStr);
             String category = (String) result_map.getOrDefault("category", "work");
             List<String> tags = (List<String>) result_map.getOrDefault("tags", List.of());
+            // 建议标题：旧版已保存的提示词可能不返回 title 字段，回退取原文首句
+            String title = (String) result_map.getOrDefault("title", "");
+            if (title == null || title.isBlank()) {
+                title = deriveFallbackTitle(content);
+            }
 
             if (!isValidCategory(category)) category = "work";
             if (tags.size() > 10) tags = tags.subList(0, 10);
 
             Map<String, Object> result = new LinkedHashMap<>();
+            result.put("title", title);
             result.put("category", category);
             result.put("tags", tags);
             return result;
@@ -521,10 +527,31 @@ public class AiService {
             // 调用失败时返回默认值
             logger.error("[AI] smartOrganize failed: {}", e.getMessage(), e);
             Map<String, Object> fallback = new LinkedHashMap<>();
+            fallback.put("title", deriveFallbackTitle(content));
             fallback.put("category", "work");
             fallback.put("tags", List.of());
             return fallback;
         }
+    }
+
+    /**
+     * 从剪藏原文派生回退标题：取首个非空行，压缩空白后截断到 30 字。
+     * <p>
+     * 仅用于 AI 建议标题缺失时的降级兜底，保证保存弹窗始终有可采纳的标题候选。
+     * </p>
+     *
+     * @param content 剪藏原文（可为 null）
+     * @return 回退标题（原文为空时返回空串）
+     */
+    public String deriveFallbackTitle(String content) {
+        if (content == null || content.isBlank()) {
+            return "";
+        }
+        String firstLine = content.trim().split("\\R", 2)[0].replaceAll("\\s+", " ").trim();
+        if (firstLine.isEmpty()) {
+            return "";
+        }
+        return firstLine.length() > 30 ? firstLine.substring(0, 30) : firstLine;
     }
 
     // ==================== 发散性总结 ====================
@@ -1012,6 +1039,38 @@ public class AiService {
         } catch (Exception e) {
             logger.error("[AI] synthesizeAnswer failed: {}", e.getMessage(), e);
             return "无法生成答案: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 剪藏全库问答：基于检索到的剪藏片段综合生成回答。
+     * <p>
+     * 与 Wiki 问答不同，本方法使用 {@link PromptConfigService#getClipAskSynthesisPrompt()}
+     * 作为系统提示词，要求只依据片段作答、以 [N] 编号标注引用来源、
+     * 内容不足时明确表示无法回答，强制使用强模型保证回答质量。
+     * </p>
+     *
+     * @param question     用户问题（已截断到 200 字内）
+     * @param pageContents 编号标签 → 剪藏片段文本映射（候选已限量）
+     * @return Markdown 回答；AI 调用失败时返回 null（调用方负责降级提示）
+     */
+    public String answerClipQuestion(String question, Map<String, String> pageContents) {
+        try {
+            String systemPrompt = promptConfigService.getClipAskSynthesisPrompt();
+            StringBuilder userMessage = new StringBuilder();
+            userMessage.append("Question: ").append(question != null ? question : "").append("\n\n");
+            userMessage.append("检索到的剪藏内容片段：\n\n");
+            if (pageContents != null && !pageContents.isEmpty()) {
+                for (Map.Entry<String, String> entry : pageContents.entrySet()) {
+                    userMessage.append("## ").append(entry.getKey()).append("\n")
+                            .append(entry.getValue() != null ? entry.getValue() : "").append("\n\n");
+                }
+            }
+            String answer = llmProvider.chatForTier(systemPrompt, userMessage.toString(), "strong");
+            return (answer == null || answer.isBlank()) ? null : answer;
+        } catch (Exception e) {
+            logger.error("[AI] answerClipQuestion failed: {}", e.getMessage(), e);
+            return null;
         }
     }
 

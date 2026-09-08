@@ -285,6 +285,39 @@
         return failed ? 'failed' : 'empty';
     }
 
+    /** 渲染剪藏下的网页标注区（插件采集打标，知识模块只读汇总）；无标注返回空串 */
+    function buildAnnotationsHtml(clip) {
+        const annotations = Array.isArray(clip.annotations) ? clip.annotations : [];
+        if (annotations.length === 0) {
+            return '';
+        }
+        const items = annotations.map((ann) => {
+            const color = ann.color || 'yellow';
+            const url = ann.sourceUrl || clip.sourceUrl || '';
+            const text = escapeHtml(ann.text || '');
+            const noteHtml = ann.note
+                ? `<div class="annotation-note">💬 ${escapeHtml(ann.note)}</div>`
+                : '';
+            const backHtml = url
+                ? `<a class="annotation-back" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" title="跳回原网页">↗ 回原文</a>`
+                : '';
+            const timeHtml = ann.createdAt
+                ? `<span class="annotation-time">${escapeHtml(ann.createdAt)}</span>`
+                : '';
+            return `
+                    <div class="annotation-item annotation-${escapeHtml(color)}">
+                        <div class="annotation-quote">“${text}”</div>
+                        ${noteHtml}
+                        <div class="annotation-meta">${backHtml}${timeHtml}</div>
+                    </div>`;
+        }).join('');
+        return `
+                <div class="content-section annotation-section">
+                    <h4>📝 网页标注（${annotations.length}）</h4>
+                    <div class="annotation-list">${items}</div>
+                </div>`;
+    }
+
     function createClipItem(clip, isSearch) {
         const clipItem = document.createElement('div');
         clipItem.className = 'clip-item';
@@ -404,6 +437,7 @@
                     </div>
                     ` : ''}
                     </div>
+                    ${buildAnnotationsHtml(clip)}
                     ${clip.myThoughts ? `
                     <div class="content-section" style="border-left: 3px solid #a855f7; background: linear-gradient(135deg, rgba(168,85,247,0.04), transparent);">
                         <h4 style="color: #a855f7;">💭 我的思考</h4>
@@ -925,5 +959,73 @@ img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ddd;pa
         a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
         showToast(`已导出 ${format.toUpperCase()}`);
+    }
+
+    // ==================== 全库问答 ====================
+    // 入口：剪藏列表「问我的剪藏库」按钮；后端 /api/clip/ask 检索 + 强模型综合回答并附来源
+
+    function openAskModal() {
+        document.getElementById('ask-modal').style.display = 'flex';
+        const q = document.getElementById('ask-question');
+        setTimeout(() => q.focus(), 50);
+    }
+
+    function closeAskModal() {
+        document.getElementById('ask-modal').style.display = 'none';
+    }
+
+    async function submitAskQuestion() {
+        const questionInput = document.getElementById('ask-question');
+        const question = (questionInput.value || '').trim();
+        const answerBox = document.getElementById('ask-answer');
+        const answerBody = document.getElementById('ask-answer-body');
+        const sourcesBox = document.getElementById('ask-sources');
+        const submitBtn = document.getElementById('ask-submit-btn');
+        if (!question) {
+            showToast('请输入问题');
+            return;
+        }
+        submitBtn.disabled = true;
+        submitBtn.textContent = '思考中...';
+        answerBox.style.display = 'none';
+        try {
+            const response = await axios.post(`${window.API_BASE_URL}/ask`, { question }, { timeout: 120000 });
+            const data = response.data || {};
+            const answerMarkdown = (data.answer || '').trim();
+            answerBody.innerHTML = answerMarkdown
+                ? window.MediaKit.render.renderMarkdown(answerMarkdown)
+                : '<p>（没有返回内容）</p>';
+
+            // 来源清单：回答中的 [N] 编号与此处一一对应，可点击打开原网页
+            const sources = Array.isArray(data.sources) ? data.sources : [];
+            const items = sources.map((src) => {
+                const index = src.index || '';
+                const title = escapeHtml(src.title || '未命名');
+                const createdAt = src.createdAt
+                    ? escapeHtml(String(src.createdAt).slice(0, 16).replace('T', ' '))
+                    : '';
+                const link = src.sourceUrl
+                    ? `<a class="ask-source-link" href="${escapeHtml(src.sourceUrl)}" target="_blank" rel="noopener noreferrer" title="打开原网页">↗</a>`
+                    : '';
+                return `
+                    <div class="ask-source-item">
+                        <span class="ask-source-index">[${index}]</span>
+                        <span class="ask-source-title">${title}</span>
+                        ${createdAt ? `<span class="ask-source-time">${createdAt}</span>` : ''}
+                        ${link}
+                    </div>`;
+            }).join('');
+            sourcesBox.innerHTML = sources.length > 0
+                ? `<div class="ask-sources-label">来源（${sources.length}）</div>${items}`
+                : '';
+            answerBox.style.display = 'block';
+        } catch (error) {
+            answerBody.textContent = '问答服务暂时不可用，问题已保留，请稍后重试';
+            sourcesBox.innerHTML = '';
+            answerBox.style.display = 'block';
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = '提问';
+        }
     }
 

@@ -1969,49 +1969,63 @@ function initDshAgentSection() {
   if (btnRefresh) btnRefresh.addEventListener('click', () => { refreshDshVersion(); showToast('已刷新版本信息'); });
 
   refreshDshVersion();
-  initSkinSection();
 }
 
 // ====== DSH 皮肤/主题：诊断 + 一键补齐（不自动联网，用户点击才执行） ======
 function initSkinSection() {
+  // 独立获取 api（不依赖外层闭包），避免 DSH Agent 其它区块异常连累皮肤区卡死。
+  const api = getElectronAPI();
   const desc = document.getElementById('dshSkinDesc');
   const result = document.getElementById('dshSkinResult');
   const btnCheck = document.getElementById('btnDshSkinCheck');
   const btnInstall = document.getElementById('btnDshSkinInstall');
-  if (!api.dshSkinStatus && !btnCheck && !btnInstall) return;
+
+  // IPC 未暴露（运行实例仍是旧 preload/主进程，未加载皮肤通道）时如实提示，绝不永久停留「检测中…」。
+  const notReady = () => {
+    if (desc) desc.textContent = '⚠️ 皮肤检测能力未加载（主进程未暴露 dsh-agent:skin-status）。请重启应用后再试。';
+    if (btnCheck) btnCheck.disabled = true;
+    if (btnInstall) btnInstall.disabled = true;
+  };
+  if (!(api && typeof api.dshSkinStatus === 'function')) { notReady(); return; }
+
+  // 兜底超时：即便主进程异常/卡住，UI 也不会永久停留「检测中…」。
+  const withTimeout = (p, ms) => new Promise((resolve) => {
+    const t = setTimeout(() => resolve(null), ms);
+    Promise.resolve(p).then((v) => { clearTimeout(t); resolve(v); })
+      .catch(() => { clearTimeout(t); resolve(null); });
+  });
 
   const render = (s) => {
-    if (desc && s) {
-      const parts = [];
-      parts.push(s.profileExists
-        ? (s.skinInstalled ? '✓ 皮肤 bundle 在位（@linxin666/dsh-web-ui-all）' : '⚠️ web profile 缺少皮肤 bundle（dsh-web-ui-all 缺失）')
-        : '⚠️ web profile 目录不存在（可能未启动过 web 界面）');
-      if (s.skinHome) parts.push('profile：' + s.skinHome);
-      parts.push('实例：' + (s.running ? '运行中' : '未运行'));
-      desc.textContent = parts.join(' · ');
-    }
+    if (!desc) return;
+    if (!s) { desc.textContent = '检测未返回结果（主进程通道超时或异常）'; return; }
+    const parts = [];
+    parts.push(s.profileExists
+      ? (s.skinInstalled ? '✓ 皮肤 bundle 在位（@linxin666/dsh-web-ui-all）' : '⚠️ web profile 缺少皮肤 bundle（dsh-web-ui-all 缺失）')
+      : '⚠️ web profile 目录不存在（可能未启动过 web 界面）');
+    if (s.skinHome) parts.push('profile：' + s.skinHome);
+    parts.push('实例：' + (s.running ? '运行中' : '未运行'));
+    if (s.message) parts.push(s.message);
+    desc.textContent = parts.join(' · ');
   };
+
   const loadStatus = () => {
-    if (!api.dshSkinStatus) return;
+    if (!(api && typeof api.dshSkinStatus === 'function')) { notReady(); return; }
     if (desc) desc.textContent = '检测中…';
-    api.dshSkinStatus().then(render).catch(() => { if (desc) desc.textContent = '检测失败（主进程未暴露 dsh-agent:skin-status）'; });
+    withTimeout(api.dshSkinStatus(), 5000).then(render);
   };
   if (btnCheck) btnCheck.addEventListener('click', () => { loadStatus(); showToast('已刷新皮肤状态'); });
 
   if (btnInstall) {
     btnInstall.addEventListener('click', () => {
-      if (!api.dshSkinInstall) { showToast('主进程未暴露皮肤补齐能力'); return; }
+      if (!(api && typeof api.dshSkinInstall === 'function')) { showToast('主进程未暴露皮肤补齐能力，请重启应用'); return; }
       if (result) { result.style.display = 'block'; result.textContent = '正在补齐…（可能需要联网拉取皮肤 bundle）'; }
       btnInstall.disabled = true;
-      api.dshSkinInstall().then((r) => {
+      withTimeout(api.dshSkinInstall(), 60000).then((r) => {
         if (result) {
           result.style.display = 'block';
-          result.textContent = (r && r.output) || (r && r.success ? '完成' : '无输出');
+          result.textContent = (r && r.output) ? r.output : (r && r.success ? '完成' : '补齐超时或无输出');
         }
         showToast((r && r.success) ? '皮肤补齐完成' : '皮肤补齐未完成，请查看下方输出');
-      }).catch(() => {
-        if (result) { result.style.display = 'block'; result.textContent = '补齐命令执行异常'; }
-        showToast('皮肤补齐异常');
       }).finally(() => { if (btnInstall) btnInstall.disabled = false; });
     });
   }
@@ -2021,7 +2035,8 @@ function initSkinSection() {
 
 // 页面就绪后初始化（settings.html 底部脚本调用时机）
 if (typeof getElectronAPI === 'function') {
-  initDshAgentSection();
+  try { initDshAgentSection(); } catch (e) { console.error('[settings] initDshAgentSection error:', e); }
+  initSkinSection();
 }
 
 // ====== 接收主框架消息：滚动到顶部 / 刷新 / 主题 ======

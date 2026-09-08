@@ -18,17 +18,38 @@ document.addEventListener('DOMContentLoaded', async () => {
   const openClipList = document.getElementById('openClipList');
   const openTopicList = document.getElementById('openTopicList');
   const openOptions = document.getElementById('openOptions');
+  // ==================== 保存体验三件套：标题建议 / 去重提示 / 智能选中 ====================
+  const titleInput = document.getElementById('title');
+  const aiSuggestBtn = document.getElementById('aiSuggestBtn');
+  const aiSuggestion = document.getElementById('aiSuggestion');
+  const aiTitleValue = document.getElementById('aiTitleValue');
+  const aiCategoryValue = document.getElementById('aiCategoryValue');
+  const aiTagsValue = document.getElementById('aiTagsValue');
+  const annoGroup = document.getElementById('annoGroup');
+  const annoSummary = document.getElementById('annoSummary');
+  const annoList = document.getElementById('annoList');
+  const scopeGroup = document.getElementById('scopeGroup');
+  const scopeSwitch = document.getElementById('scopeSwitch');
+  const dupHint = document.getElementById('dupHint');
 
   let currentTags = [];
   let currentCaptureData = {};
   let activeTabContext = null;
   const MAX_TAGS = 10;
 
+  // 标注流状态：本次随弹窗一起入库的高亮（可改想法/换色/移除）
+  let pendingAnnotations = [];
+  // 智能选中：可用的保存范围文本（packed=标注合集 / selection=选中原文 / fullpage=整页正文）
+  let scopeTexts = {};
+  let aiSuggestionData = null;
+  let dupCheckTimer = null;
+
   // 检查是否有待处理的剪藏数据
   const result = await chrome.storage.local.get('pendingClip');
   if (result.pendingClip) {
     currentCaptureData = result.pendingClip;
     fillFormWithData(result.pendingClip);
+    buildAnnotationUi(result.pendingClip);
     // 清除待处理数据
     await chrome.storage.local.remove('pendingClip');
   }
@@ -40,6 +61,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (tab) {
         activeTabContext = tab;
         sourceInput.value = tab.url || '';
+        titleInput.value = tab.title || '';
         // 尝试获取选中文本
         const [selectionResult] = await chrome.scripting.executeScript({
           target: { tabId: tab.id },
@@ -69,8 +91,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 标签输入事件
   tagInput.addEventListener('keydown', handleTagInput);
 
+  // ==================== 保存体验三件套事件 ====================
+  aiSuggestBtn.addEventListener('click', handleAiSuggest);
+  aiSuggestion.addEventListener('click', (e) => {
+    const btn = e.target.closest('.ai-adopt-btn');
+    if (btn) adoptSuggestion(btn.dataset.kind);
+  });
+  contentInput.addEventListener('input', () => {
+    setActiveScope('custom');
+    scheduleDupCheck();
+  });
+  sourceInput.addEventListener('input', scheduleDupCheck);
+
   // 初始状态
   handleAiTagsToggle();
+  // 打开弹窗即做一次去重预检（内容为空时后端约定返回 found=false）
+  scheduleDupCheck();
 
   // 处理表单提交
   async function handleSubmit(e) {
@@ -92,7 +128,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         content: content,
         source: sourceInput.value.trim(),
         sourceUrl: sourceInput.value.trim(),
-        title: currentCaptureData.title || activeTabContext?.title || '',
+        title: titleInput.value.trim() || currentCaptureData.title || activeTabContext?.title || '',
         siteName: currentCaptureData.siteName || inferSiteName(sourceInput.value.trim()),
         capturedAt: currentCaptureData.capturedAt || new Date().toISOString(),
         selectedText: currentCaptureData.selectedText || '',
@@ -104,7 +140,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         category: categorySelect.value,
         tags: aiTagsCheckbox.checked ? null : currentTags,
         useAiTags: typeSelect.value === 'store-only' ? false : aiTagsCheckbox.checked,
-        imageDataList: currentCaptureData.imageDataList || []
+        imageDataList: currentCaptureData.imageDataList || [],
+        // 网页标注随剪藏一并入库（保存弹窗编辑后的最终版本）
+        annotations: pendingAnnotations.map((ann) => ({
+          text: ann.text,
+          note: ann.note || '',
+          color: ann.color,
+          sourceUrl: ann.sourceUrl || sourceInput.value.trim(),
+          sourceTitle: ann.sourceTitle || activeTabContext?.title || ''
+        }))
       };
 
       const response = await chrome.runtime.sendMessage({
@@ -182,11 +226,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   function handleClear() {
     contentInput.value = '';
     sourceInput.value = '';
+    titleInput.value = '';
     typeSelect.value = 'ai-text';
     categorySelect.value = '';
     aiTagsCheckbox.checked = true;
     currentTags = [];
     currentCaptureData = {};
+    pendingAnnotations = [];
+    scopeTexts = {};
+    aiSuggestionData = null;
+    aiSuggestion.style.display = 'none';
+    annoGroup.style.display = 'none';
+    annoList.innerHTML = '';
+    annoSummary.textContent = '';
+    scopeGroup.style.display = 'none';
+    scopeSwitch.innerHTML = '';
+    hideDupHint();
+    // 清理动态添加的分类选项（保留原始预设）
+    Array.from(categorySelect.options).forEach((opt) => {
+      if (opt.dataset.temp) {
+        categorySelect.removeChild(opt);
+      }
+    });
     renderTags();
     handleAiTagsToggle();
     hideStatus();
@@ -260,6 +321,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (data.sourceUrl || data.source) sourceInput.value = data.sourceUrl || data.source;
     if (data.type) typeSelect.value = data.type;
     categorySelect.value = data.category || '';
+    if (data.title) titleInput.value = data.title;
     if (data.useAiTags !== undefined) aiTagsCheckbox.checked = data.useAiTags;
     
     handleAiTagsToggle();
@@ -336,6 +398,280 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (error) {
       return '';
     }
+  }
+
+  // ==================== 保存体验三件套实现 ====================
+
+  const ANN_COLORS = ['yellow', 'green', 'blue', 'purple'];
+
+  /** 构建标注预览与智能选中范围（pendingClip 标注流专用） */
+  function buildAnnotationUi(data) {
+    const annotations = Array.isArray(data.annotations) ? data.annotations : [];
+    scopeTexts = {
+      packed: (data.content || '').trim(),
+      selection: (data.selectedText || '').trim(),
+      fullpage: (data.pageContent || '').trim()
+    };
+
+    if (annotations.length > 0) {
+      pendingAnnotations = annotations.map((ann) => ({
+        text: ann.text || '',
+        note: ann.note || '',
+        color: ANN_COLORS.includes(ann.color) ? ann.color : 'yellow',
+        sourceUrl: ann.sourceUrl || data.sourceUrl || '',
+        sourceTitle: ann.sourceTitle || data.title || ''
+      }));
+      annoGroup.style.display = 'block';
+      renderAnnotations();
+    }
+
+    renderScopeSwitch();
+  }
+
+  /** 渲染标注预览列表：色点循环换色 + 想法可改 + 可移除 */
+  function renderAnnotations() {
+    annoSummary.textContent = `本次高亮 ${pendingAnnotations.length} 段 · 入库后可在剪藏详情回看并跳回原网页`;
+    annoList.innerHTML = '';
+    pendingAnnotations.forEach((ann, index) => {
+      const item = document.createElement('div');
+      item.className = 'anno-item';
+      item.dataset.index = index;
+
+      const dot = document.createElement('button');
+      dot.type = 'button';
+      dot.className = `anno-dot anno-dot-${ann.color}`;
+      dot.title = '点击切换颜色';
+      dot.addEventListener('click', () => {
+        ann.color = ANN_COLORS[(ANN_COLORS.indexOf(ann.color) + 1) % ANN_COLORS.length];
+        renderAnnotations();
+      });
+
+      const body = document.createElement('div');
+      body.className = 'anno-body';
+
+      const text = document.createElement('div');
+      text.className = 'anno-text';
+      text.textContent = ann.text.length > 60 ? ann.text.slice(0, 60) + '…' : ann.text;
+      text.title = ann.text;
+
+      const note = document.createElement('textarea');
+      note.className = 'anno-note';
+      note.placeholder = '补一句想法（可留空）';
+      note.maxLength = 1000;
+      note.value = ann.note;
+      note.addEventListener('input', () => {
+        ann.note = note.value;
+      });
+
+      body.appendChild(text);
+      body.appendChild(note);
+
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'anno-remove';
+      remove.title = '移除这条标注';
+      remove.textContent = '×';
+      remove.addEventListener('click', () => {
+        pendingAnnotations.splice(index, 1);
+        if (pendingAnnotations.length === 0) {
+          annoGroup.style.display = 'none';
+          annoList.innerHTML = '';
+          annoSummary.textContent = '';
+          if ((scopeTexts.packed || '').trim()) {
+            // 只剩整页正文时保留可保存范围
+            renderScopeSwitch();
+          }
+        } else {
+          renderAnnotations();
+        }
+      });
+
+      item.appendChild(dot);
+      item.appendChild(body);
+      item.appendChild(remove);
+      annoList.appendChild(item);
+    });
+  }
+
+  /** 渲染保存范围切换（智能选中：标注合集 / 选中原文 / 整页正文） */
+  function renderScopeSwitch() {
+    const options = [];
+    if (scopeTexts.packed) options.push({ mode: 'packed', label: '💬 标注合集（含想法）' });
+    if (scopeTexts.selection && scopeTexts.selection !== scopeTexts.packed) {
+      options.push({ mode: 'selection', label: '🔤 仅选中原文' });
+    }
+    if (scopeTexts.fullpage && scopeTexts.fullpage !== scopeTexts.selection) {
+      options.push({ mode: 'fullpage', label: '📄 整页正文' });
+    }
+    if (options.length <= 1) {
+      return;
+    }
+    scopeGroup.style.display = 'block';
+    scopeSwitch.innerHTML = '';
+    options.forEach((opt) => {
+      const label = document.createElement('label');
+      label.className = 'scope-option';
+      const radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.name = 'clipScope';
+      radio.value = opt.mode;
+      radio.addEventListener('change', () => {
+        if (radio.checked) {
+          setActiveScope(opt.mode);
+        }
+      });
+      const span = document.createElement('span');
+      span.textContent = opt.label;
+      label.appendChild(radio);
+      label.appendChild(span);
+      scopeSwitch.appendChild(label);
+    });
+    // 默认选中标注合集
+    const defaultRadio = scopeSwitch.querySelector('input[value="packed"]') || scopeSwitch.querySelector('input');
+    if (defaultRadio) {
+      setActiveScope(defaultRadio.value);
+    }
+  }
+
+  /** 切换保存范围；custom 表示用户已手改内容 */
+  function setActiveScope(mode) {
+    if (mode !== 'custom' && scopeTexts[mode]) {
+      contentInput.value = scopeTexts[mode];
+    }
+    const radios = scopeSwitch.querySelectorAll('input[name="clipScope"]');
+    radios.forEach((radio) => {
+      radio.checked = mode !== 'custom' && radio.value === mode;
+    });
+  }
+
+  /** AI 建议：调后端 /smart-organize 生成标题/分类/标签候选 */
+  async function handleAiSuggest() {
+    const content = contentInput.value.trim();
+    if (!content) {
+      showStatus('请先有内容再取建议', 'error');
+      return;
+    }
+    aiSuggestBtn.disabled = true;
+    aiSuggestBtn.textContent = '⏳';
+    try {
+      const resp = await chrome.runtime.sendMessage({
+        action: 'suggestMeta',
+        data: { content }
+      });
+      if (resp && resp.success && resp.data) {
+        aiSuggestionData = resp.data;
+        renderAiSuggestion();
+      } else {
+        showStatus('AI 建议失败，可手动填写', 'error');
+      }
+    } catch (error) {
+      showStatus('AI 建议失败，可手动填写', 'error');
+    } finally {
+      aiSuggestBtn.disabled = false;
+      aiSuggestBtn.textContent = '✨ AI 建议';
+    }
+  }
+
+  function renderAiSuggestion() {
+    if (!aiSuggestionData) {
+      return;
+    }
+    const d = aiSuggestionData;
+    const title = (d.title || '').trim();
+    const category = (d.category || '').trim();
+    const tags = Array.isArray(d.tags) ? d.tags.slice(0, 10) : [];
+
+    if (!title && !category && tags.length === 0) {
+      showStatus('AI 未返回有效建议', 'error');
+      return;
+    }
+
+    aiTitleValue.textContent = title || '—';
+    aiCategoryValue.textContent = category || '—';
+    aiTagsValue.textContent = tags.length > 0 ? tags.join('、') : '—';
+
+    aiSuggestion.querySelectorAll('.ai-adopt-btn').forEach((btn) => {
+      const kind = btn.dataset.kind;
+      const hasValue = kind === 'title' ? !!title : kind === 'category' ? !!category : tags.length > 0;
+      btn.disabled = !hasValue;
+    });
+    aiSuggestion.style.display = 'block';
+  }
+
+  /** 采纳 AI 建议：标题直接写入，分类写入下拉（缺项动态补），标签合并到手打列表 */
+  function adoptSuggestion(kind) {
+    if (!aiSuggestionData) {
+      return;
+    }
+    const d = aiSuggestionData;
+    if (kind === 'title') {
+      const title = (d.title || '').trim();
+      if (title) {
+        titleInput.value = title;
+      }
+    } else if (kind === 'category') {
+      const category = (d.category || '').trim();
+      if (category) {
+        let option = Array.from(categorySelect.options).find((opt) => opt.value === category);
+        if (!option) {
+          option = document.createElement('option');
+          option.value = category;
+          option.textContent = category;
+          option.dataset.temp = '1';
+          categorySelect.appendChild(option);
+        }
+        categorySelect.value = category;
+      }
+    } else if (kind === 'tags') {
+      const tags = Array.isArray(d.tags) ? d.tags : [];
+      if (tags.length > 0) {
+        aiTagsCheckbox.checked = false;
+        handleAiTagsToggle();
+        tags.forEach((tag) => {
+          if (currentTags.length >= MAX_TAGS) {
+            return;
+          }
+          if (!currentTags.includes(tag)) {
+            currentTags.push(tag);
+          }
+        });
+        renderTags();
+      }
+    }
+    showStatus('✅ 已采纳建议', 'success');
+  }
+
+  /** 去重预检（防抖 500ms）：内容 + 来源 URL 指纹统计已收藏次数 */
+  function scheduleDupCheck() {
+    clearTimeout(dupCheckTimer);
+    dupCheckTimer = setTimeout(runDupCheck, 500);
+  }
+
+  async function runDupCheck() {
+    const content = contentInput.value.trim();
+    const sourceUrl = sourceInput.value.trim();
+    hideDupHint();
+    if (!content) {
+      return;
+    }
+    try {
+      const resp = await chrome.runtime.sendMessage({
+        action: 'dupCheck',
+        data: { content, sourceUrl }
+      });
+      if (resp && resp.success && resp.found && resp.count > 0) {
+        dupHint.textContent = `⚠️ 已收藏过 ${resp.count} 次（本次为第 ${resp.count + 1} 次），保存将合并标注`;
+        dupHint.style.display = 'block';
+      }
+    } catch (error) {
+      // 后端不可达时静默降级，不阻塞保存
+    }
+  }
+
+  function hideDupHint() {
+    clearTimeout(dupCheckTimer);
+    dupHint.style.display = 'none';
+    dupHint.textContent = '';
   }
 
   function applyTheme(themeId) {

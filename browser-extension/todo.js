@@ -25,6 +25,11 @@
   const filterBtns = document.querySelectorAll('.filter-btn');
   const themeRegular = document.getElementById('themeRegular');
   const themeNotion = document.getElementById('themeNotion');
+  const fallbackNotice = document.getElementById('fallbackNotice');
+
+  function showFallbackNotice(show) {
+    if (fallbackNotice) fallbackNotice.style.display = show ? 'block' : 'none';
+  }
 
   // ── API ──
   const TODO_API_BASE_URL = 'http://127.0.0.1:8081/api/todo';
@@ -74,11 +79,14 @@
         }
         return todo;
       });
+      // 正常拉到数据时隐藏兜底提示
+      showFallbackNotice(false);
       renderTimeline();
       updateStats();
     } catch (error) {
       console.error('获取待办事项失败，使用模拟数据:', error);
-      // 使用模拟数据
+      // 兜底使用模拟数据，并通过顶部提示条区分「真实数据」与「示例数据」，避免掩盖连通性问题
+      showFallbackNotice(true);
       const now = Date.now();
       todos = [
         { id: now - 50000, title: '完成项目方案设计', priority: 'high', deadline: todayStr(), completed: false, createdAt: now - 50000, category: '工作' },

@@ -1,5 +1,6 @@
 package com.example.clip.dto;
 
+import com.example.clip.model.Annotation;
 import java.util.List;
 
 /**
@@ -110,6 +111,16 @@ public class ClipRequest {
 
     /** 来源工作台 ID（可选），创建内容后自动关联到该工作台 */
     private String workspaceId;
+
+    /**
+     * 网页标注列表（可选）。
+     * <p>
+     * 浏览器插件「摘录留痕」场景随剪藏一并提交：高亮原文、想法、颜色、
+     * 来源网页等按 {@link com.example.clip.model.Annotation} 结构打包。
+     * 后端原样落库（保存透传），不参与去重指纹计算。
+     * </p>
+     */
+    private List<Annotation> annotations;
 
     public String getContent() {
         return content;
@@ -327,6 +338,14 @@ public class ClipRequest {
 
     public void setWorkspaceId(String workspaceId) {
         this.workspaceId = workspaceId;
+    }
+
+    public List<Annotation> getAnnotations() {
+        return annotations;
+    }
+
+    public void setAnnotations(List<Annotation> annotations) {
+        this.annotations = annotations;
     }
 
     /**

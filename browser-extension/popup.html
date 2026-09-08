@@ -29,6 +29,43 @@
           </select>
         </div>
 
+        <div class="form-group" id="annoGroup" style="display: none;">
+          <label>网页标注</label>
+          <div class="anno-summary" id="annoSummary"></div>
+          <div class="anno-list" id="annoList"></div>
+        </div>
+
+        <div class="form-group" id="scopeGroup" style="display: none;">
+          <label>保存范围</label>
+          <div class="scope-switch" id="scopeSwitch"></div>
+          <div class="dup-hint" id="dupHint" style="display: none;"></div>
+        </div>
+
+        <div class="form-group">
+          <label for="title">标题</label>
+          <div class="title-row">
+            <input type="text" id="title" placeholder="AI 可建议标题，也可手改...">
+            <button type="button" class="btn-ai-suggest" id="aiSuggestBtn" title="按当前内容生成标题/分类/标签建议">✨ AI 建议</button>
+          </div>
+          <div class="ai-suggestion" id="aiSuggestion" style="display: none;">
+            <div class="ai-suggestion-item" data-kind="title">
+              <span class="ai-suggestion-label">标题</span>
+              <span class="ai-suggestion-value" id="aiTitleValue"></span>
+              <button type="button" class="ai-adopt-btn" data-kind="title">采纳</button>
+            </div>
+            <div class="ai-suggestion-item" data-kind="category">
+              <span class="ai-suggestion-label">分类</span>
+              <span class="ai-suggestion-value" id="aiCategoryValue"></span>
+              <button type="button" class="ai-adopt-btn" data-kind="category" >采纳</button>
+            </div>
+            <div class="ai-suggestion-item" data-kind="tags">
+              <span class="ai-suggestion-label">标签</span>
+              <span class="ai-suggestion-value" id="aiTagsValue"></span>
+              <button type="button" class="ai-adopt-btn" data-kind="tags">采纳</button>
+            </div>
+          </div>
+        </div>
+
         <div class="form-group">
           <label for="content">内容</label>
           <textarea id="content" placeholder="输入或粘贴要剪藏的内容..."></textarea>

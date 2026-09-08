@@ -6,6 +6,7 @@ import com.example.clip.dto.ClipEditRequest;
 import com.example.clip.dto.ClipRequest;
 import com.example.clip.dto.OrganizeClipRequest;
 import com.example.clip.dto.OrganizeInboxRequest;
+import com.example.clip.model.Annotation;
 import com.example.clip.model.ClipContent;
 import com.example.clip.utils.ImageUtils;
 import jakarta.annotation.PreDestroy;
@@ -24,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -329,6 +331,10 @@ public class ClipService {
         clipContent.setSourceFileName(request.getSourceFileName());
         clipContent.setSourceEncoding(request.getSourceEncoding());
         clipContent.setSourceLineEnding(request.getSourceLineEnding());
+        // 网页标注保存透传：插件「摘录留痕」场景随剪藏原样落库，不参与去重指纹
+        if (request.getAnnotations() != null) {
+            clipContent.setAnnotations(request.getAnnotations());
+        }
         // 覆盖摘要：若 request 显式传入 summary（非空且非空白），优先使用，避免 store-only 分支把 content 当 summary
         // 场景：agent 已整理好简短摘要，不需要后端 fallback 到原文
         if (request.getSummary() != null && !request.getSummary().trim().isEmpty()) {
@@ -1281,7 +1287,7 @@ public class ClipService {
     /**
      * 查找重复剪藏（内容 + 来源 URL 完全一致时视为重复）。
      * <p>
-     * 仅当 content 与 sourceUrl 均非空时参与去重；命中返回已有记录，未命中返回 null。
+     * 仅当 content 与 sourceUrl 均非空时参与去重；命中返回第一条已有记录，未命中返回 null。
      * 用于避免同一页面/同一文本被反复剪藏产生冗余数据。
      * </p>
      *
@@ -1289,19 +1295,77 @@ public class ClipService {
      * @return 已存在的重复剪藏；无重复返回 null
      */
     public ClipContent findDuplicate(ClipRequest request) {
-        if (request == null || request.getContent() == null || request.getContent().isBlank()
-                || request.getSourceUrl() == null || request.getSourceUrl().isBlank()) {
-            return null;
+        List<ClipContent> duplicates = findDuplicates(
+                request == null ? null : request.getContent(),
+                request == null ? null : request.getSourceUrl());
+        return duplicates.isEmpty() ? null : duplicates.get(0);
+    }
+
+    /**
+     * 按内容 + 来源 URL 指纹统计全库重复剪藏。
+     * <p>
+     * 供保存弹窗「第 N 次收藏」预检使用：与 {@link #findDuplicate(ClipRequest)}
+     * 同一指纹规则（content trim 相等 + sourceUrl 忽略大小写相等），
+     * content 或 sourceUrl 为空时不参与，返回空列表。结果按创建时间升序
+     * 保留全量记录，调用方取 size 即「已收藏次数」。
+     * </p>
+     *
+     * @param content   待检内容（可为 null）
+     * @param sourceUrl 来源 URL（可为 null）
+     * @return 匹配的已有剪藏列表（可能为空）
+     */
+    public List<ClipContent> findDuplicates(String content, String sourceUrl) {
+        if (content == null || content.isBlank() || sourceUrl == null || sourceUrl.isBlank()) {
+            return new ArrayList<>();
         }
-        String content = request.getContent().trim();
-        String url = request.getSourceUrl().trim();
+        String normalizedContent = content.trim();
+        String normalizedUrl = sourceUrl.trim();
+        List<ClipContent> matches = new ArrayList<>();
         for (ClipContent existing : storageService.getAllClips()) {
-            if (existing.getContent() != null && existing.getContent().trim().equals(content)
-                    && url.equalsIgnoreCase(existing.getSourceUrl() == null ? null : existing.getSourceUrl().trim())) {
-                return existing;
+            if (existing.getContent() != null && existing.getContent().trim().equals(normalizedContent)
+                    && normalizedUrl.equalsIgnoreCase(existing.getSourceUrl() == null ? null : existing.getSourceUrl().trim())) {
+                matches.add(existing);
             }
         }
-        return null;
+        return matches;
+    }
+
+    /**
+     * 按来源 URL 查询已入库的网页标注（插件页面恢复高亮用）。
+     * <p>
+     * 遍历全库，收集 sourceUrl 相等（忽略大小写、trim 后相等）的剪藏下的
+     * 全部标注，平铺为列表返回；带 clipId 便于前端定位所属条目。
+     * </p>
+     *
+     * @param sourceUrl 来源网页链接
+     * @return 标注信息列表（可能为空），元素含 id/text/note/color/createdAt/sourceTitle/clipId
+     */
+    public List<Map<String, Object>> getAnnotationsByUrl(String sourceUrl) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        if (sourceUrl == null || sourceUrl.isBlank()) {
+            return result;
+        }
+        String normalizedUrl = sourceUrl.trim();
+        for (ClipContent clip : storageService.getAllClips()) {
+            if (clip.getSourceUrl() == null || !clip.getSourceUrl().trim().equalsIgnoreCase(normalizedUrl)) {
+                continue;
+            }
+            if (clip.getAnnotations() == null || clip.getAnnotations().isEmpty()) {
+                continue;
+            }
+            for (Annotation annotation : clip.getAnnotations()) {
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("id", annotation.getId());
+                item.put("text", annotation.getText());
+                item.put("note", annotation.getNote());
+                item.put("color", annotation.getColor());
+                item.put("createdAt", annotation.getCreatedAt());
+                item.put("sourceTitle", annotation.getSourceTitle());
+                item.put("clipId", clip.getId());
+                result.add(item);
+            }
+        }
+        return result;
     }
 
     /**
