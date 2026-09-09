@@ -289,6 +289,33 @@
         }
         .shortcut-input:focus { border-color: var(--text); }
 
+        /* ── 编辑器功能快捷键清单 ── */
+        .es-row {
+          display: flex; align-items: center; justify-content: space-between;
+          gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border);
+        }
+        .es-row:last-child { border-bottom: none; }
+        .es-label { flex: 1; }
+        .es-name { font-size: 13px; font-weight: 500; color: var(--text); }
+        .es-default { font-size: 12px; color: var(--text-secondary); }
+        .es-control { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+        .es-input.shortcut-input {
+          width: 150px; padding: 5px 10px;
+          transition: border-color .15s ease, background .15s ease;
+        }
+        .es-input.recording { border-color: var(--text); background: var(--primary-light, rgba(74,158,158,.15)); }
+        .es-input.conflict { border-color: #e5484d; color: #e5484d; box-shadow: 0 0 0 1px rgba(229,72,77,.4); }
+        .es-reset-btn, .es-save-btn {
+          border: 1px solid var(--border); background: var(--surface); color: var(--text-secondary);
+          font-size: 12px; border-radius: 6px; padding: 5px 10px; cursor: pointer;
+        }
+        .es-reset-btn:hover, .es-save-btn:hover { color: var(--text); border-color: var(--text-secondary); }
+        #editorShortcutResetBtn {
+          border: 1px solid var(--border); background: var(--surface); color: var(--text-secondary);
+          font-size: 13px; border-radius: 6px; padding: 6px 14px; cursor: pointer;
+        }
+        #editorShortcutResetBtn:hover { color: var(--text); border-color: var(--text-secondary); }
+
         .setting-row {
           display: flex; align-items: center; justify-content: space-between;
           padding: 12px 0; border-bottom: 1px solid var(--border);
@@ -841,6 +868,25 @@
                     <input type="text" id="shortcutKey" class="shortcut-input" 
                            placeholder="Alt+X" onclick="startShortcutRecording()"
                            style="width:200px;text-align:center;" readonly>
+                </div>
+            </div>
+        </div>
+
+        <div class="section" id="editorShortcutSection">
+            <div class="section-title">
+                🎹 编辑器功能快捷键
+                <span class="section-badge immediate">即时生效</span>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">功能快捷键</div>
+                    <div class="setting-desc">点击右侧输入框录制新的组合键；改动即刻生效并同步到编辑器。重复组合会以红色标注。</div>
+                </div>
+            </div>
+            <div id="editorShortcutList"></div>
+            <div class="setting-row">
+                <div class="setting-control" style="justify-content:flex-end;">
+                    <button type="button" id="editorShortcutResetBtn" class="ghost-btn">恢复默认快捷键</button>
                 </div>
             </div>
         </div>
@@ -1538,7 +1584,8 @@
 
     <script src="js/logger.js"></script>
 <script src="js/scroll-restore.js"></script>
-<script src="js/settings.js"></script>
+<script src="js/editor-shortcuts.js"></script>
+    <script src="js/settings.js"></script>
     <script src="js/ui-common.js"></script>
     <script>
     /** 切换配置区块折叠/展开 */

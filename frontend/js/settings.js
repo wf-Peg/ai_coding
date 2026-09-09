@@ -942,6 +942,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadStartupMode();
   initUpdateUI();
   initMcpConnectCopy();
+  initEditorShortcutsSection();
 });
 
 // 外部 AI 助手接入（MCP）说明区的复制命令
@@ -2075,3 +2076,156 @@ window.addEventListener('message', (e) => {
     loadConfig();
   }
 });
+
+// ==================== 编辑器功能快捷键 ====================
+// 依赖 js/editor-shortcuts.js（window.EditorShortcuts）：action → 组合键，
+// 覆盖配置存 localStorage['editor_shortcuts_v1']，与编辑器页面共享，改动即时生效。
+
+let esRecordingInput = null; // 当前处于录制状态的输入框
+let esSectionBound = false;  // 事件监听是否已绑定（init 重跑时避免重复叠加）
+
+function initEditorShortcutsSection() {
+  const list = document.getElementById('editorShortcutList');
+  const resetBtn = document.getElementById('editorShortcutResetBtn');
+  if (!list || !window.EditorShortcuts) return;
+
+  const ES = window.EditorShortcuts;
+  const currentMap = ES.getAll();
+  syncGlobalSearchShortcut(); // 初始化时同步一次主进程菜单加速键
+
+  list.innerHTML = Object.keys(ES.DEFAULTS).map((action) => {
+    const def = ES.DEFAULTS[action];
+    const combo = currentMap[action] || '';
+    const isOverride = combo !== def.shortcut;
+    return `
+      <div class="es-row" data-action="${action}">
+        <div class="es-label">
+          <div class="es-name">${def.label}</div>
+          <div class="es-default">默认：${def.shortcut}${isOverride ? '（已自定义）' : ''}</div>
+        </div>
+        <div class="es-control">
+          <input type="text" class="es-input shortcut-input" value="${combo}"
+                 data-action="${action}" readonly
+                 placeholder="点击录制" title="点击后按下新的组合键">
+        </div>
+      </div>`;
+  }).join('');
+
+  // 事件绑定只需执行一次（initEditorShortcutsSection 会在录制提交/重置后重跑，监听器不可重复叠加）
+  if (!esSectionBound) {
+    esSectionBound = true;
+
+    // 点击输入框 → 进入录制态
+    list.addEventListener('click', (e) => {
+      const input = e.target.closest('.es-input');
+      if (!input) return;
+      startEsRecording(input);
+    });
+
+    // 失焦取消（不保存）
+    list.addEventListener('focusout', (e) => {
+      if (e.target.classList && e.target.classList.contains('es-input')) {
+        cancelEsRecording(e.target);
+      }
+    });
+
+    // 恢复默认
+    resetBtn.addEventListener('click', () => {
+      if (!confirm('确定恢复所有编辑器功能快捷键为默认值？')) return;
+      ES.reset();
+      syncGlobalSearchMenu();
+      initEditorShortcutsSection();
+      showToast('已恢复默认快捷键');
+    });
+  }
+
+  // 录制键：归一化组合、Esc 取消、Backspace/Delete 恢复默认（同名函数引用会被浏览器去重）
+  document.addEventListener('keydown', esRecordKeydown, true);
+
+  refreshEsConflicts();
+}
+
+function startEsRecording(input) {
+  if (esRecordingInput) cancelEsRecording(esRecordingInput);
+  esRecordingInput = input;
+  input.dataset.prevValue = input.value; // 取消时回显原值
+  input.classList.add('recording');
+  input.value = '';
+  input.placeholder = '请按下新组合键…';
+}
+
+// 取消录制：恢复原值，不保存
+function cancelEsRecording(input) {
+  if (esRecordingInput !== input) return;
+  esRecordingInput = null;
+  input.classList.remove('recording');
+  input.placeholder = '点击录制';
+  input.value = input.dataset.prevValue || '';
+}
+
+// 提交录制：组合键/清空（Backspace）按下即保存生效
+function commitEsRecording(input) {
+  if (esRecordingInput !== input) return;
+  esRecordingInput = null;
+  input.classList.remove('recording');
+  input.placeholder = '点击录制';
+
+  const action = input.dataset.action;
+  const combo = input.value.trim();
+  if (!combo) {
+    // 空值 = 恢复该 action 默认
+    window.EditorShortcuts.save(Object.assign(window.EditorShortcuts.getAll(), { [action]: undefined }));
+  } else {
+    if (!window.EditorShortcuts.parse(combo)) {
+      showToast('无效组合键');
+      initEditorShortcutsSection();
+      return;
+    }
+    const map = window.EditorShortcuts.getAll();
+    map[action] = combo;
+    window.EditorShortcuts.save(map);
+    showToast('快捷键已保存');
+  }
+  syncGlobalSearchMenu();
+  initEditorShortcutsSection();
+}
+
+function esRecordKeydown(e) {
+  if (!esRecordingInput) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const input = esRecordingInput;
+  const key = e.key;
+  if (key === 'Escape') {
+    cancelEsRecording(input);
+    return;
+  }
+  if (key === 'Backspace' || key === 'Delete') {
+    input.value = '';
+    commitEsRecording(input);
+    return;
+  }
+  const combo = window.EditorShortcuts.normalizeCombo(e);
+  if (!combo) return; // 无效按键（如裸字母、纯修饰键）忽略，继续录制
+  input.value = combo;
+  commitEsRecording(input);
+}
+
+// 冲突检测：生效组合重复的 action 标红
+function refreshEsConflicts() {
+  const ES = window.EditorShortcuts;
+  if (!ES) return;
+  const conflicts = ES.findConflicts(ES.getAll());
+  document.querySelectorAll('.es-input').forEach((input) => {
+    const combo = input.value.trim();
+    input.classList.toggle('conflict', !!combo && conflicts.indexOf(combo) >= 0);
+  });
+}
+
+// 全局搜索快捷键变更时，热更新主进程菜单 accelerator（iframe 焦点场景仍可唤起全局搜索）
+function syncGlobalSearchMenu() {
+  const api = getElectronAPI();
+  if (!api || typeof api.setGlobalSearchShortcut !== 'function') return;
+  const combo = window.EditorShortcuts ? window.EditorShortcuts.get('globalSearch') : 'Ctrl+Shift+F';
+  api.setGlobalSearchShortcut(combo).catch(() => {});
+}

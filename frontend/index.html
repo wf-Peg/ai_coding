@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="styles/ui-common.css">
     <script src="js/theme-core.js"></script>
     <script src="js/theme-bridge.js"></script>
+    <script src="js/editor-shortcuts.js"></script>
     <script>
         // 同步应用已保存主题，避免首次渲染白屏闪烁
         (function () { window.CutShelterThemeBridge.init({ root: document.documentElement }); })();
@@ -2434,7 +2435,7 @@
       openPanel();
     }
     document.addEventListener('keydown', (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+      if ((window.EditorShortcuts || {}).match ? EditorShortcuts.match(e, 'globalSearch') : ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'f')) {
         e.preventDefault();
         focusSearch();
       }
@@ -2444,13 +2445,15 @@
       window.electronAPI.onFocusGlobalSearch(focusSearch);
     }
 
-    // 平台自适应快捷键提示（macOS ⌘⇧F / Windows・Linux Ctrl Shift F）
+    // 平台自适应快捷键提示（默认 Ctrl+Shift+F，跟随用户配置；macOS 显示 ⌘⇧F）
     (function () {
       const isMac = navigator.platform && /Mac/i.test(navigator.platform);
+      const combo = window.EditorShortcuts ? EditorShortcuts.get('globalSearch') : 'Ctrl+Shift+F';
+      const pretty = isMac ? combo.replace(/Ctrl\+/gi, '⌘').replace(/Shift\+/gi, '⇧').replace(/Alt\+/gi, '⌥') : combo.split('+').join(' ');
       const kbd = document.querySelector('.gsearch-kbd');
       const searchWrap = document.querySelector('.gsearch-input-wrap');
-      if (kbd) kbd.textContent = isMac ? '⌘⇧F' : 'Ctrl Shift F';
-      if (searchWrap) searchWrap.title = isMac ? '全局搜索（⌘⇧F）' : '全局搜索（Ctrl Shift F）';
+      if (kbd) kbd.textContent = pretty;
+      if (searchWrap) searchWrap.title = '全局搜索（' + pretty + '）';
     })();
   })();
 

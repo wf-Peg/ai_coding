@@ -371,6 +371,11 @@ let mainWindow = null;
 /** 配置窗口引用（单例，同时只能打开一个） */
 let configWindow = null;
 
+/** 全局搜索（Global Search）菜单加速键；默认 CmdOrCtrl+Shift+F，可在设置中修改并经 IPC 热更新 */
+let globalSearchAccelerator = 'CmdOrCtrl+Shift+F';
+/** 防止全局搜索快捷键 IPC 处理器重复注册（createMainWindow 可能被重复调用） */
+let menuShortcutBound = false;
+
 /** 系统托盘引用 */
 let tray = null;
 
@@ -2342,10 +2347,11 @@ function createMainWindow(config) {
   mainWindow.on('unmaximize', () => mainWindow.webContents.send('window-maximized', false));
 
   // ===== 应用菜单栏 =====
+  function buildMenu() {
   const menuTemplate = [
     {
       label: 'Clip', submenu: [
-        { label: 'Global Search', accelerator: 'CmdOrCtrl+Shift+F', click: () => focusGlobalSearch() },
+        { label: 'Global Search', accelerator: globalSearchAccelerator, click: () => focusGlobalSearch() },
         { type: 'separator' },
         { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => showConfigWindow(config) },
         { type: 'separator' },
@@ -2396,6 +2402,19 @@ function createMainWindow(config) {
     }
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
+  }
+  buildMenu();
+
+  // 监听「全局搜索」快捷键配置变更（设置模块改进），热更新主进程菜单 accelerator，
+  // 从而在 iframe 焦点场景下仍能按用户自定义的组合唤起全局搜索。
+  if (!menuShortcutBound) {
+    menuShortcutBound = true;
+    ipcMain.handle('shortcut:set-global-search', (e, combo) => {
+      if (combo && typeof combo === 'string') globalSearchAccelerator = combo;
+      buildMenu();
+      return true;
+    });
+  }
 }
 
 // 聚焦全局搜索框（⌘/Ctrl+Shift+F 菜单加速键触发；若焦点在 iframe 内，页面 keydown 收不到，必须走主进程）

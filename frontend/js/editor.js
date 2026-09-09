@@ -133,6 +133,25 @@
       .replace(/Alt\+/gi, '⌥');
   }
 
+  // ── 功能快捷键注册表：action → 按钮，配置变更（设置页）后即时刷新 tooltip ──
+  var shortcutButtonRegistry = {};
+  function registerShortcutButton(action, btn, rawTitle) {
+    shortcutButtonRegistry[action] = { btn: btn, title: rawTitle };
+    syncShortcutTitle(action);
+  }
+  function syncShortcutTitle(action) {
+    var entry = shortcutButtonRegistry[action];
+    if (!entry || !entry.btn) return;
+    var combo = EditorShortcuts.get(action);
+    entry.btn.title = entry.title + (combo ? ' (' + platformShortcut(combo) + ')' : '');
+  }
+  function refreshAllShortcutTitles() {
+    Object.keys(shortcutButtonRegistry).forEach(syncShortcutTitle);
+  }
+  window.addEventListener('storage', function (ev) {
+    if (ev.key === EditorShortcuts.STORAGE_KEY) refreshAllShortcutTitles();
+  });
+
   function applyMascotPreference() {
     try {
       const config = JSON.parse(localStorage.getItem('cut_shelter_mascot_v1') || '{}');
@@ -4038,16 +4057,17 @@
   }
 
   // 文件树按钮（在状态栏右侧添加一个按钮）
-  var fileTreeBtn = createStatusBtn('文件', '📁', '文件浏览器', 'Ctrl+Shift+E');
+  var fileTreeBtn = createStatusBtn('文件', '📁', '文件浏览器', EditorShortcuts.get('fileTree'));
+  registerShortcutButton('fileTree', fileTreeBtn, '文件浏览器');
   fileTreeBtn.addEventListener('click', toggleFileTree);
   elements.runtimeStatus.parentNode.insertBefore(fileTreeBtn, elements.runtimeStatus);
 
   elements.closeFileTreeBtn.addEventListener('click', toggleFileTree);
   elements.selectDirBtn.addEventListener('click', selectFileTreeDirectory);
 
-  // Ctrl/Cmd+Shift+F 文件树快捷键
+  // 文件树快捷键（默认 Ctrl/Cmd+Shift+E，可在系统设置中修改）
   document.addEventListener('keydown', function(e) {
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'f' || e.key === 'F')) {
+    if (EditorShortcuts.match(e, 'fileTree')) {
       e.preventDefault();
       toggleFileTree();
     }
@@ -4363,9 +4383,18 @@
   }
 
   // 历史按钮（在状态栏）
-  var historyBtn = createStatusBtn('历史', '📋', '编辑历史', 'Ctrl+Shift+H');
+  var historyBtn = createStatusBtn('历史', '📋', '编辑历史', EditorShortcuts.get('history'));
+  registerShortcutButton('history', historyBtn, '编辑历史');
   historyBtn.addEventListener('click', toggleHistoryPanel);
   elements.runtimeStatus.parentNode.insertBefore(historyBtn, elements.runtimeStatus);
+
+  // 编辑历史快捷键（默认 Ctrl/Cmd+Shift+H，可在系统设置中修改）
+  document.addEventListener('keydown', function(e) {
+    if (EditorShortcuts.match(e, 'history')) {
+      e.preventDefault();
+      toggleHistoryPanel();
+    }
+  });
 
   elements.closeHistoryBtn.addEventListener('click', closeHistoryPanel);
   elements.undoHistoryBtn.addEventListener('click', function() {
@@ -4543,9 +4572,19 @@
   }
 
   // 最近打开按钮（状态栏，历史按钮旁）
-  var recentBtn = createStatusBtn('最近', '🕐', '最近打开的文件', 'Ctrl+Shift+R');
+  var recentBtn = createStatusBtn('最近', '🕐', '最近打开的文件', EditorShortcuts.get('recent'));
+  registerShortcutButton('recent', recentBtn, '最近打开的文件');
   recentBtn.addEventListener('click', toggleRecentPanel);
   elements.runtimeStatus.parentNode.insertBefore(recentBtn, historyBtn);
+
+  // 最近打开快捷键（默认 Ctrl/Cmd+Shift+N，可在系统设置中修改；
+  // 原 Ctrl/Cmd+Shift+R 与「强制刷新」冲突故让出）
+  document.addEventListener('keydown', function(e) {
+    if (EditorShortcuts.match(e, 'recent')) {
+      e.preventDefault();
+      toggleRecentPanel();
+    }
+  });
 
   elements.closeRecentBtn.addEventListener('click', closeRecentPanel);
   elements.clearRecentBtn.addEventListener('click', function() {
@@ -4729,9 +4768,19 @@
   }
 
   // 收藏按钮（状态栏）
-  var favBtn = createStatusBtn('收藏', '⭐', '常用文件收藏', 'Ctrl+Shift+F');
+  var favBtn = createStatusBtn('收藏', '⭐', '常用文件收藏', EditorShortcuts.get('favorite'));
+  registerShortcutButton('favorite', favBtn, '常用文件收藏');
   favBtn.addEventListener('click', toggleFavPanel);
   elements.runtimeStatus.parentNode.insertBefore(favBtn, recentBtn);
+
+  // 收藏快捷键（默认 Ctrl/Cmd+Shift+A，可在系统设置中修改；
+  // 原 Ctrl/Cmd+Shift+F 为全局搜索快捷键故让出）
+  document.addEventListener('keydown', function(e) {
+    if (EditorShortcuts.match(e, 'favorite')) {
+      e.preventDefault();
+      toggleFavPanel();
+    }
+  });
 
   // 常用文件面板事件绑定
   elements.closeFavBtn.addEventListener('click', closeFavPanel);
@@ -4956,16 +5005,17 @@
     // 添加快捷键和按钮
     var overviewBtn = document.createElement('button');
     overviewBtn.className = 'status-btn';
-    overviewBtn.title = '概览图 ' + platformShortcut('Ctrl+Shift+Y');
+    overviewBtn.title = '概览图 ' + platformShortcut(EditorShortcuts.get('overview'));
+    registerShortcutButton('overview', overviewBtn, '概览图');
     overviewBtn.textContent = '概览';
     overviewBtn.addEventListener('click', function() {
       toggleOverviewRuler();
     });
     elements.runtimeStatus.parentNode.insertBefore(overviewBtn, elements.runtimeStatus);
 
-    // Ctrl/Cmd+Shift+Y 切换概览（避免与大纲 Ctrl+Shift+O 冲突）
+    // Ctrl/Cmd+Shift+Y 切换概览（默认，可在系统设置中修改）
     document.addEventListener('keydown', function(e) {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'y' || e.key === 'Y')) {
+      if (EditorShortcuts.match(e, 'overview')) {
         e.preventDefault();
         toggleOverviewRuler();
       }
@@ -5881,13 +5931,14 @@
   });
 
   // 状态栏「反链」按钮（在文件树按钮旁）
-  var backlinksBtn = createStatusBtn('反链', '🔗', '双链反链面板', 'Ctrl+Shift+B');
+  var backlinksBtn = createStatusBtn('反链', '🔗', '双链反链面板', EditorShortcuts.get('backlinks'));
+  registerShortcutButton('backlinks', backlinksBtn, '双链反链面板');
   backlinksBtn.addEventListener('click', function() { toggleBacklinks(); });
   elements.runtimeStatus.parentNode.insertBefore(backlinksBtn, fileTreeBtn);
 
-  // Ctrl/Cmd+Shift+B 反链面板快捷键
+  // 反链面板快捷键（默认 Ctrl/Cmd+Shift+B，可在系统设置中修改）
   document.addEventListener('keydown', function(e) {
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'b' || e.key === 'B')) {
+    if (EditorShortcuts.match(e, 'backlinks')) {
       e.preventDefault();
       toggleBacklinks();
     }
@@ -6012,18 +6063,20 @@
   });
 
   elements.closeOutlineBtn.addEventListener('click', function() { toggleOutline(false); });
-  var outlineBtn = createStatusBtn('大纲', '☰', '文档大纲', 'Ctrl+Shift+D');
+  var outlineBtn = createStatusBtn('大纲', '☰', '文档大纲', EditorShortcuts.get('outline'));
+  registerShortcutButton('outline', outlineBtn, '文档大纲');
   outlineBtn.addEventListener('click', function() { toggleOutline(); });
   elements.runtimeStatus.parentNode.insertBefore(outlineBtn, elements.runtimeStatus);
 
   // 全局文件搜索按钮（底部状态栏右侧，Ctrl+Shift+O）
   // 注意：createStatusBtn 会自动拼接 "(shortcut)"，title 里不要再重复写快捷键，否则悬浮提示会出现两个快捷键
-  var quickSearchBtn = createStatusBtn('搜索', '🔍', '快速打开文件', 'Ctrl+Shift+O');
+  var quickSearchBtn = createStatusBtn('搜索', '🔍', '快速打开文件', EditorShortcuts.get('quickOpen'));
+  registerShortcutButton('quickOpen', quickSearchBtn, '快速打开文件');
   quickSearchBtn.addEventListener('click', function() { openQuickSwitcher(); });
   elements.runtimeStatus.parentNode.insertBefore(quickSearchBtn, elements.runtimeStatus);
 
   document.addEventListener('keydown', function(e) {
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'd' || e.key === 'D')) {
+    if (EditorShortcuts.match(e, 'outline')) {
       e.preventDefault();
       toggleOutline();
     }
@@ -6129,12 +6182,13 @@
   }
 
   elements.closeTagsBtn.addEventListener('click', function() { toggleTags(false); });
-  var tagsBtn = createStatusBtn('标签', '#', '文档标签', 'Ctrl+Shift+T');
+  var tagsBtn = createStatusBtn('标签', '#', '文档标签', EditorShortcuts.get('tags'));
+  registerShortcutButton('tags', tagsBtn, '文档标签');
   tagsBtn.addEventListener('click', function() { toggleTags(); });
   elements.runtimeStatus.parentNode.insertBefore(tagsBtn, elements.runtimeStatus);
 
   document.addEventListener('keydown', function(e) {
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 't' || e.key === 'T')) {
+    if (EditorShortcuts.match(e, 'tags')) {
       e.preventDefault();
       toggleTags();
     }
@@ -6159,12 +6213,12 @@
   // 注册核心命令
   registerCommand('new', '新建文件', '📄', function() { createNewTab(); }, 'Ctrl+T');
   registerCommand('open', '打开文件…', '📁', function() { openMainFile(); });
-  registerCommand('quick-open', '快速打开文件', '🔍', function() { openQuickSwitcher(); }, 'Ctrl+Shift+O');
+  registerCommand('quick-open', '快速打开文件', '🔍', function() { openQuickSwitcher(); }, EditorShortcuts.get('quickOpen'));
   registerCommand('save', '保存', '💾', function() { saveFile(false); }, 'Ctrl+S');
   registerCommand('save-as', '另存为…', '📋', function() { saveFile(true); }, 'Ctrl+Shift+S');
-  registerCommand('outline', '切换大纲面板', '☰', function() { toggleOutline(); }, 'Ctrl+Shift+D');
-  registerCommand('tags', '切换标签面板', '#', function() { toggleTags(); }, 'Ctrl+Shift+T');
-  registerCommand('backlinks', '切换反链面板', '🔗', function() { toggleBacklinks(); }, 'Ctrl+Shift+B');
+  registerCommand('outline', '切换大纲面板', '☰', function() { toggleOutline(); }, EditorShortcuts.get('outline'));
+  registerCommand('tags', '切换标签面板', '#', function() { toggleTags(); }, EditorShortcuts.get('tags'));
+  registerCommand('backlinks', '切换反链面板', '🔗', function() { toggleBacklinks(); }, EditorShortcuts.get('backlinks'));
   registerCommand('compare', '对比模式', '⇄', function() { toggleCompare(); });
   registerCommand('markdown', 'Markdown 预览', '👁', function() { toggleMarkdownPreview(); }, 'Ctrl+Shift+M');
   registerCommand('export-word', '导出 Word (.docx)', '📝', function() { exportToWord(); });
@@ -6427,9 +6481,9 @@
     if (quickOpenVisible && !elements.quickSwitcher.contains(e.target)) closeQuickSwitcher();
   });
 
-  // Ctrl/Cmd+Shift+O 唤起全局文件搜索（已让出 Ctrl+O 给「打开」）
+  // 唤起全局文件搜索（默认 Ctrl/Cmd+Shift+O，可在系统设置中修改；Ctrl+O 已让给「打开」）
   document.addEventListener('keydown', function(e) {
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && e.key === 'o') {
+    if (EditorShortcuts.match(e, 'quickOpen')) {
       e.preventDefault();
       if (quickOpenVisible) closeQuickSwitcher(); else openQuickSwitcher();
     }

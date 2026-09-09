@@ -257,6 +257,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onFocusGlobalSearch: (callback) => ipcRenderer.on('focus-global-search', () => callback()),
 
   /**
+   * 设置「全局搜索」菜单加速键（设置模块自定义快捷键后热更新主进程菜单）
+   * @param {string} combo - 形如 'Ctrl+Shift+F'
+   * @returns {Promise<boolean>}
+   */
+  setGlobalSearchShortcut: (combo) => ipcRenderer.invoke('shortcut:set-global-search', combo),
+
+  /**
    * 切换编辑器全屏模式（F11）
    * @param {boolean} enabled - true 进入全屏，false 退出全屏
    * @returns {Promise<{success: boolean}>}
