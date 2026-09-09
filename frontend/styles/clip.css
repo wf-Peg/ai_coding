@@ -1628,6 +1628,21 @@
             font-size: 1rem;
             line-height: 1.6;
             color: var(--text-secondary);
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+        .content-text img {
+            max-width: 100%;
+            height: auto;
+        }
+        .content-text pre {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .content-text table {
+            display: block;
+            max-width: 100%;
+            overflow-x: auto;
         }
 
         .ai-content {
@@ -2018,6 +2033,8 @@
         .content-text.truncated.expanded {
             display: block;
             -webkit-line-clamp: unset;
+            max-height: min(55vh, 560px);
+            overflow-y: auto;
         }
         .content-text.truncated.expanded::after {
             opacity: 0;
@@ -2026,15 +2043,10 @@
             margin: revert;
         }
 
-        /* 原文为 markdown 渲染的块级内容（p/pre/h/ul 等），浏览器默认外边距与 pre 不换行
-           会破坏 -webkit-line-clamp 的省略号显示；在截断预览态归零外边距并让代码块换行 */
+        /* 原文为 markdown 渲染的块级内容（p/pre/h/ul 等），浏览器默认外边距
+           会破坏 -webkit-line-clamp 的省略号显示；在截断预览态归零外边距 */
         .content-text.truncated > * {
             margin: 0;
-        }
-        .content-text.truncated pre,
-        .content-text.truncated pre code {
-            white-space: pre-wrap;
-            word-break: break-word;
         }
 
         .copy-btn {

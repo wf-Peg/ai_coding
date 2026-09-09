@@ -80,16 +80,6 @@
         });
     }
 
-    function copyToEditor(text, clipId) {
-        navigator.clipboard.writeText(text).then(() => {
-            showToast('已复制内容，正在打开编辑器...');
-            window.parent.postMessage({ type: 'openClipInNewTab', clipId }, '*');
-        }).catch(err => {
-            console.error('复制失败:', err);
-            showToast('复制失败，请手动复制');
-        });
-    }
-
     async function generateDivergentSummary(clipId) {
         const divergentSection = document.getElementById(`divergent-summary-${clipId}`);
         const divergentContent = document.getElementById(`divergent-content-${clipId}`);

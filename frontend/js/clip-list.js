@@ -247,6 +247,7 @@
           const detail = document.querySelector(`.clip-detail[data-clip-id="${id}"]`);
           if (detail) {
             detail.classList.add('expanded');
+            detail.querySelectorAll('.content-text.truncated').forEach(el => el.classList.add('expanded'));
             const btn = detail.closest('.clip-item')?.querySelector(`.expand-btn[data-clip-id="${id}"]`);
             if (btn) {
               btn.classList.add('expanded');
@@ -417,12 +418,6 @@
                     <div class="content-section">
                         <h4>原文</h4>
                         <div class="content-text truncated">${renderContent(originalContent, clip.id)}</div>
-                        <button class="copy-btn" onclick="copyToClipboard('${escapeJs(originalContent)}')">
-                            📋 复制原文
-                        </button>
-                        <button class="copy-btn" onclick="copyToEditor('${escapeJs(originalContent)}', ${clip.id})" title="复制内容到剪贴板并在编辑器中打开">
-                            📋 复制到编辑区打开
-                        </button>
                     ${clip.sourceUrl ? `
                     <div class="source-link" style="margin-top: 8px; display:flex; flex-direction:column; gap:4px;">
                         <span style="font-size:0.78rem;color:var(--text-secondary);word-break:break-all;">
@@ -648,7 +643,7 @@
         const contentTexts = detail.querySelectorAll('.content-text.truncated');
         if (detail.classList.contains('expanded')) {
             text.textContent = '收起';
-            contentTexts.forEach(el => el.classList.remove('truncated'));
+            contentTexts.forEach(el => el.classList.add('expanded'));
             const clipId = detail.dataset.clipId;
             if (clipId) {
                 renderLinkedKnowledge(parseInt(clipId));
@@ -656,7 +651,7 @@
             }
         } else {
             text.textContent = '展开';
-            contentTexts.forEach(el => el.classList.add('truncated'));
+            contentTexts.forEach(el => el.classList.remove('expanded'));
         }
     }
 
