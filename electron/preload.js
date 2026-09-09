@@ -251,7 +251,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onWindowMaximized: (callback) => ipcRenderer.on('window-maximized', (event, maximized) => callback(maximized)),
 
   /**
-   * 监听主进程请求聚焦全局搜索框（⌘/Ctrl+K 菜单加速键触发）
+   * 监听主进程请求聚焦全局搜索框（⌘/Ctrl+Shift+F 菜单加速键触发）
    * @param {Function} callback - 无参回调
    */
   onFocusGlobalSearch: (callback) => ipcRenderer.on('focus-global-search', () => callback()),

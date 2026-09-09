@@ -816,7 +816,7 @@
         <div class="gsearch-input-wrap">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
             <input type="text" id="globalSearchInput" placeholder="全局搜索" autocomplete="off" spellcheck="false" />
-            <kbd class="gsearch-kbd">⌘K</kbd>
+            <kbd class="gsearch-kbd">⌘⇧F</kbd>
         </div>
         <div class="gsearch-panel" id="globalSearchPanel"></div>
     </div>
@@ -2425,16 +2425,16 @@
       else if (e.key === 'ArrowUp') { e.preventDefault(); moveActive(-1); }
       else if (e.key === 'Enter') { e.preventDefault(); if (activeIndex >= 0) activateHits(activeIndex); else doSearch(); }
     });
-    // ⌘K / Ctrl+K：聚焦搜索框
+    // Ctrl+Shift+F / ⌘⇧F：聚焦搜索框
     // 注意：主界面主体为 iframe，焦点落在 iframe 内时父页面收不到 keydown，
-    // 因此主进程已通过菜单加速键（CmdOrCtrl+K）→ focus-global-search 事件兜底聚焦。
+    // 因此主进程已通过菜单加速键（CmdOrCtrl+Shift+F）→ focus-global-search 事件兜底聚焦。
     function focusSearch() {
       input.focus();
       input.select();
       openPanel();
     }
     document.addEventListener('keydown', (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
         e.preventDefault();
         focusSearch();
       }
@@ -2444,13 +2444,13 @@
       window.electronAPI.onFocusGlobalSearch(focusSearch);
     }
 
-    // 平台自适应快捷键提示（macOS ⌘K / Windows・Linux Ctrl K）
+    // 平台自适应快捷键提示（macOS ⌘⇧F / Windows・Linux Ctrl Shift F）
     (function () {
       const isMac = navigator.platform && /Mac/i.test(navigator.platform);
       const kbd = document.querySelector('.gsearch-kbd');
       const searchWrap = document.querySelector('.gsearch-input-wrap');
-      if (kbd) kbd.textContent = isMac ? '⌘K' : 'Ctrl K';
-      if (searchWrap) searchWrap.title = isMac ? '全局搜索（⌘K）' : '全局搜索（Ctrl K）';
+      if (kbd) kbd.textContent = isMac ? '⌘⇧F' : 'Ctrl Shift F';
+      if (searchWrap) searchWrap.title = isMac ? '全局搜索（⌘⇧F）' : '全局搜索（Ctrl Shift F）';
     })();
   })();
 

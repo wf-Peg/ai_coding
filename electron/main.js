@@ -2345,7 +2345,7 @@ function createMainWindow(config) {
   const menuTemplate = [
     {
       label: 'Clip', submenu: [
-        { label: 'Global Search', accelerator: 'CmdOrCtrl+K', click: () => focusGlobalSearch() },
+        { label: 'Global Search', accelerator: 'CmdOrCtrl+Shift+F', click: () => focusGlobalSearch() },
         { type: 'separator' },
         { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => showConfigWindow(config) },
         { type: 'separator' },
@@ -2398,7 +2398,7 @@ function createMainWindow(config) {
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
 }
 
-// 聚焦全局搜索框（⌘/Ctrl+K 菜单加速键触发；若焦点在 iframe 内，页面 keydown 收不到，必须走主进程）
+// 聚焦全局搜索框（⌘/Ctrl+Shift+F 菜单加速键触发；若焦点在 iframe 内，页面 keydown 收不到，必须走主进程）
 function focusGlobalSearch() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   if (mainWindow.isMinimized()) mainWindow.restore();
