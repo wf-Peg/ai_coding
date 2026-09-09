@@ -941,7 +941,26 @@ document.addEventListener('DOMContentLoaded', () => {
   loadScreenshotConfig();
   loadStartupMode();
   initUpdateUI();
+  initMcpConnectCopy();
 });
+
+// 外部 AI 助手接入（MCP）说明区的复制命令
+function initMcpConnectCopy() {
+  document.querySelectorAll('[data-copy-source]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const src = document.getElementById(btn.getAttribute('data-copy-source'));
+      if (!src) return;
+      const cmd = src.value || '';
+      const done = () => showToast('已复制 MCP 接入命令');
+      if (cmd && navigator.clipboard) {
+        navigator.clipboard.writeText(cmd).then(done).catch(() => {});
+      } else {
+        src.focus(); src.select();
+        try { document.execCommand('copy'); done(); } catch (_) {}
+      }
+    });
+  });
+}
 
 // ==================== 快捷键设置 ====================
 

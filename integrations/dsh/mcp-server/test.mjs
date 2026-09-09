@@ -41,7 +41,7 @@ try {
   const expected = [
     'clip_search', 'clip_list', 'clip_add', 'clip_delete', 'clip_categories',
     'todo_list', 'todo_add', 'todo_set_status', 'learning_plan_list',
-    'wiki_index', 'weekly_report_status', 'tools_hub_list', 'tools_hub_page',
+    'wiki_index', 'wiki_ask', 'weekly_report_status', 'tools_hub_list', 'tools_hub_page',
   ];
   for (const n of expected) check(`tool ${n}`, names.includes(n));
 
@@ -57,6 +57,9 @@ try {
 
   const idx = await client.callTool({ name: 'wiki_index', arguments: {} });
   check('wiki_index returns text content', idx.content && idx.content.length > 0);
+
+  const ask = await client.callTool({ name: 'wiki_ask', arguments: { question: '' } });
+  check('wiki_ask returns text content', ask.content && ask.content.length > 0);
 
   const wr = await client.callTool({ name: 'weekly_report_status', arguments: {} });
   check('weekly_report_status returns text content', wr.content && wr.content.length > 0);

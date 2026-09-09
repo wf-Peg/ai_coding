@@ -976,6 +976,61 @@
             </div>
         </div>
 
+        <div class="section" id="mcpConnectSection">
+            <div class="section-title">
+                🔌 外部 AI 助手接入（MCP）
+                <span class="section-badge immediate">即时生效</span>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">是什么</div>
+                    <div class="setting-desc">把剪藏知识库通过 MCP 开放给外部 AI 助手（Claude Code / Codex 等），可调用 <code>wiki_ask</code> 直接问答你的 Wiki——先编译再检索、带 [[引用]]，无需向量库。内置 DSH（牛马）已通过技能包自动接入，无需手动配置。</div>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">前提</div>
+                    <div class="setting-desc">① 剪藏后端正常运行（默认 <code>127.0.0.1:8081</code>）；② 将下方命令中的 <code>&lt;剪藏安装目录&gt;</code> 替换为剪藏实际安装路径。</div>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">Claude Code</div>
+                    <div class="setting-desc">注册为 MCP server 后，让 Claude 直接 <code>wiki_ask</code> 你的知识库。</div>
+                </div>
+                <div class="setting-control" style="flex:1;display:flex;gap:8px;align-items:center;">
+                    <input readonly id="mcpClaudeCmd" value='claude mcp add cut-shelter -- node "<剪藏安装目录>/integrations/dsh/mcp-server/server.mjs"' style="flex:1;font-family:ui-monospace,Consolas,monospace;font-size:12px;min-width:0;" />
+                    <button class="btn" data-copy-source="mcpClaudeCmd">复制</button>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">Codex CLI</div>
+                    <div class="setting-desc">同样注册为 MCP server，用法与 Claude 一致。</div>
+                </div>
+                <div class="setting-control" style="flex:1;display:flex;gap:8px;align-items:center;">
+                    <input readonly id="mcpCodexCmd" value='codex mcp add cut-shelter -- node "<剪藏安装目录>/integrations/dsh/mcp-server/server.mjs"' style="flex:1;font-family:ui-monospace,Consolas,monospace;font-size:12px;min-width:0;" />
+                    <button class="btn" data-copy-source="mcpCodexCmd">复制</button>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">其它 / 自定义后端</div>
+                    <div class="setting-desc">
+                        任何支持 stdio MCP 的客户端都指向同一入口 <code>integrations/dsh/mcp-server/server.mjs</code>，工具名 <code>wiki_ask</code>。
+                        后端非默认地址时注入环境变量：
+                        <code>CUTSHELTER_BASE_URL=http://你的地址:8081</code>；耗时请求可调大 <code>CUTSHELTER_TIMEOUT_MS</code>（默认 60000，建议 <code>120000</code>）。
+                    </div>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">自测（可选）</div>
+                    <div class="setting-desc">在剪藏目录终端执行 <code>node integrations/dsh/mcp-server/smoke-ask.mjs</code>，连接本 MCP 并真实调用一次 <code>wiki_ask</code>，打印答案。可加 <code>--question="你问的问题"</code> 或 <code>--include-clips</code>。</div>
+                </div>
+            </div>
+        </div>
+
         <div class="section save-section needs-attention" id="unifiedConfigSection">
             <div class="section-title">
                 🗂️ 应用配置

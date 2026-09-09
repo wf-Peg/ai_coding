@@ -224,6 +224,41 @@ server.registerTool('wiki_index', {
   return textResult('Wiki 索引：', content);
 });
 
+server.registerTool('wiki_ask', {
+  description:
+    '把知识库 Wiki 当作问答知识源做综合检索问答：index 目录定位相关页面 → 读取页面 → 大模型综合生成带 [[Wiki-Link]] 引用的 Markdown 答案。'
+    + '与 clip_search 不同，wiki_ask 不是简单关键词匹配，而是基于编译后的结构化 Wiki 做"选题读全文再综合"，适合语义类问题。'
+    + '可选把应用内剪藏 / 知识条目作为补充上下文一并纳入。',
+  inputSchema: {
+    question: z.string().describe('自然语言问题（必填）'),
+    includeClips: z.boolean().optional().describe('是否纳入应用内剪藏内容作为补充上下文，默认 false'),
+    includeKnowledge: z.boolean().optional().describe('是否纳入知识条目作为补充上下文，默认 false'),
+  },
+}, async ({ question, includeClips, includeKnowledge }) => {
+  const resp = await callApi('/api/wiki/query', {
+    method: 'POST',
+    body: {
+      question,
+      includeClips: includeClips ?? false,
+      includeKnowledge: includeKnowledge ?? false,
+    },
+  });
+  const answer = resp && resp.answer ? String(resp.answer) : '';
+  const pages = Array.isArray(resp && resp.relevantPages) ? resp.relevantPages.map(String) : [];
+  const supplement = resp && resp.knowledgeSupplement ? String(resp.knowledgeSupplement) : '';
+  const token = resp && resp.tokenEstimate != null ? resp.tokenEstimate : null;
+  const status = resp && resp.status ? String(resp.status) : '';
+  const message = resp && resp.message ? String(resp.message) : '';
+
+  let plain = `问题：${question}\n\n相关页面：${pages.length ? pages.join(', ') : '(无，Wiki 索引可能为空)'}`;
+  if (token != null) plain += `\nToken 估算：${token}`;
+  if (status && status !== 'success') plain += `\n状态：${status}（${message}）`;
+  plain += `\n\n${answer || '(未生成答案)'}`;
+  if (supplement) plain += `\n\n---\n知识补充：\n${supplement}`;
+
+  return textResult(plain, { status, relevantPages: pages, tokenEstimate: token });
+});
+
 server.registerTool('weekly_report_status', {
   description: '查询周报生成状态与存储路径（不触发生成）。',
   inputSchema: {},
