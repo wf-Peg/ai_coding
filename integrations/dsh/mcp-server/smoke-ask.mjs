@@ -33,11 +33,15 @@ function argValue(name, def) {
 const question = argValue('question', '知识库里主要沉淀了哪些方面的内容？');
 const includeClips = process.argv.includes('--include-clips');
 
+// wiki_ask 走真实 LLM 综合，耗时可能远超 MCP 客户端默认 60s 请求超时，
+// 故把 stdio 请求超时拉高到与整体熔断一致（略加余量）。
+const requestTimeoutMs = timeoutMs + 10000;
 const client = new Client({ name: 'cut-shelter-ask-smoke', version: '0.0.1' });
 const transport = new StdioClientTransport({
   command: process.execPath,
   args: [serverScript],
   env: { ...process.env, CUTSHELTER_BASE_URL: baseUrl },
+  requestTimeout: requestTimeoutMs,
 });
 
 function textOf(res) {

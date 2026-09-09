@@ -95,6 +95,9 @@ dist-dsh-offline/
 # DSH 运行期配置 / 存储 / 档案（本地生成，不提交）
 .dsh/
 
+# DSH 结构检查 / 调试提取目录（本地生成，不提交）
+.dsh-inspect/
+
 # 临时目录 / 构建临时产物
 .tmp/
 tmp/

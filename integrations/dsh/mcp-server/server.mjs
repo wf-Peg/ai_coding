@@ -255,6 +255,12 @@ server.registerTool('wiki_ask', {
   if (status && status !== 'success') plain += `\n状态：${status}（${message}）`;
   plain += `\n\n${answer || '(未生成答案)'}`;
   if (supplement) plain += `\n\n---\n知识补充：\n${supplement}`;
+  // 借鉴 KaaS ask 的 _with_sources_footer：正文末尾追加 Sources 列表，
+  // 让不解析结构化 relevantPages 的 agent 也能看到引用来源。
+  if (pages.length) {
+    const srcLines = pages.map((p) => `- ${p.startsWith('/') || p.startsWith('[[') ? p : '`' + p + '`'}`);
+    plain += `\n\nSources:\n${srcLines.join('\n')}`;
+  }
 
   return textResult(plain, { status, relevantPages: pages, tokenEstimate: token });
 });
