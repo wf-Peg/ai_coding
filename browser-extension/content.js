@@ -652,7 +652,9 @@ chrome.storage.local.get(['enableFloatingButton'], (result) => {
     }
 
     const selectionText = unsaved.map((s) => s.text).join('\n');
-    const content = unsaved.map((s) => (s.note ? `> ${s.text}\n\n${s.note}` : `> ${s.text}`)).join('\n\n');
+    // 剪藏正文用「网页摘录」（高亮原文逐段拼接），想法备注只放在结构化 annotations 中，
+    // 避免把备注再以 Markdown 引用拼进正文造成与标注字段重复（原数据流不合理）
+    const content = unsaved.map((s) => s.text).join('\n\n');
 
     try {
       const resp = await chrome.runtime.sendMessage({

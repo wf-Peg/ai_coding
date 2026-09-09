@@ -679,8 +679,9 @@ async function saveAnnotationsFlow(data, sendResponse) {
   try {
     const payload = {
       ...(data || {}),
-      type: 'ai-text',
-      useAiTags: true,
+      // 高亮摘录默认「仅存储」入库：核心保存链路不依赖 AI，稳定不出错；AI 标题/标签建议由弹窗按需触发
+      type: 'store-only',
+      useAiTags: false,
       captureMethod: 'highlight-toolbar',
       workflowStatus: DEFAULT_WORKFLOW_STATUS,
       category: '',
@@ -690,11 +691,23 @@ async function saveAnnotationsFlow(data, sendResponse) {
     await chrome.storage.local.set({ pendingClip: payload });
     let opened = false;
     try {
+      // 优先打开 action 弹窗（需用户手势，MV3 下受限）
       await chrome.action.openPopup();
       opened = true;
     } catch (error) {
-      // 无用户手势时 Chrome 可能拒绝自动打开弹窗，引导用户点击工具栏图标
-      console.warn('自动打开剪藏弹窗失败（可能缺少用户手势）:', error.message);
+      // 无手势或策略限制时 Chrome 会拒绝自动打开 action 弹窗，回退为打开独立弹窗窗口，保证有可见的保存入口
+      try {
+        await chrome.windows.create({
+          url: chrome.runtime.getURL('popup.html'),
+          type: 'popup',
+          width: 420,
+          height: 640,
+          focused: true
+        });
+        opened = true;
+      } catch (err2) {
+        console.warn('打开保存弹窗失败（请点击工具栏剪藏图标手动完成保存）:', err2.message);
+      }
     }
     sendResponse({ success: true, opened });
   } catch (error) {
