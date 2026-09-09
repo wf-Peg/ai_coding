@@ -487,6 +487,22 @@ public class ClipController {
     }
 
     /**
+     * 全库标注聚合（知识模块「标注透视」）
+     * <p>
+     * GET /api/clip/annotations/all
+     * <p>
+     * 把全库每条剪藏下挂的标注平铺为一张列表，按标注创建时间倒序返回，
+     * 每项含标注字段与所属剪藏字段（clipId/clipTitle/clipCategory/clipCreatedAt），
+     * 供知识模块透视页展示、筛选（前端本地）与跳转；无标注时返回空数组。
+     *
+     * @return 标注信息列表（可能为空）
+     */
+    @GetMapping("/annotations/all")
+    public ResponseEntity<List<Map<String, Object>>> getAllAnnotations() {
+        return ResponseEntity.ok(clipService.getAllAnnotations());
+    }
+
+    /**
      * 全库问答
      * <p>
      * POST /api/clip/ask 请求体 {"question": "..."}

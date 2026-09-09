@@ -23,6 +23,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -1354,18 +1355,67 @@ public class ClipService {
                 continue;
             }
             for (Annotation annotation : clip.getAnnotations()) {
-                Map<String, Object> item = new LinkedHashMap<>();
-                item.put("id", annotation.getId());
-                item.put("text", annotation.getText());
-                item.put("note", annotation.getNote());
-                item.put("color", annotation.getColor());
-                item.put("createdAt", annotation.getCreatedAt());
-                item.put("sourceTitle", annotation.getSourceTitle());
-                item.put("clipId", clip.getId());
-                result.add(item);
+                result.add(buildAnnotationItem(annotation, clip));
             }
         }
         return result;
+    }
+
+    /**
+     * 全库标注聚合（知识模块「标注透视」用）。
+     * <p>
+     * 遍历全库，把每条剪藏下挂的全部标注平铺为一张列表，每项除标注自身字段外
+     * 附带所属剪藏信息（clipId/clipTitle/clipCategory/clipCreatedAt），供透视页
+     * 展示与跳转。结果按标注创建时间倒序（新的在前）。
+     * </p>
+     * <p>
+     * 个人库量级全量遍历可接受；text/note 不截断，展示截断交给前端。
+     * </p>
+     *
+     * @return 标注信息列表（可能为空），元素含标注字段 + 所属剪藏字段
+     */
+    public List<Map<String, Object>> getAllAnnotations() {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (ClipContent clip : storageService.getAllClips()) {
+            if (clip.getAnnotations() == null || clip.getAnnotations().isEmpty()) {
+                continue;
+            }
+            for (Annotation annotation : clip.getAnnotations()) {
+                result.add(buildAnnotationItem(annotation, clip));
+            }
+        }
+        result.sort(Comparator.comparing(
+                (Map<String, Object> item) -> item.get("createdAt") == null ? "" : item.get("createdAt").toString(),
+                Comparator.reverseOrder()));
+        return result;
+    }
+
+    /**
+     * 把一条标注拍平为 Map（标注字段 + 所属剪藏字段）。
+     * <p>
+     * 供 {@link #getAnnotationsByUrl(String)} 与 {@link #getAllAnnotations()}
+     * 共用，保证两处返回结构一致；历史标注缺省字段以 null 落位，前端兜底显示。
+     * </p>
+     *
+     * @param annotation 标注对象（不可为 null）
+     * @param clip       所属剪藏条目（不可为 null）
+     * @return 拍平后的键值对
+     */
+    private Map<String, Object> buildAnnotationItem(Annotation annotation, ClipContent clip) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("id", annotation.getId());
+        item.put("text", annotation.getText());
+        item.put("note", annotation.getNote());
+        item.put("color", annotation.getColor());
+        item.put("sourceUrl", annotation.getSourceUrl());
+        item.put("sourceTitle", annotation.getSourceTitle());
+        item.put("createdAt", annotation.getCreatedAt());
+        item.put("updatedAt", annotation.getUpdatedAt());
+        item.put("clipId", clip.getId());
+        item.put("clipTitle", clip.getTitle());
+        item.put("clipCategory", clip.getCategory());
+        item.put("clipCreatedAt", clip.getCreatedAt());
+        return item;
     }
 
     /**

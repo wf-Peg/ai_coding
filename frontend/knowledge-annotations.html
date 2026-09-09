@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>标注透视</title>
+    <style>
+        :root {
+            --primary: var(--app-primary);
+            --primary-dark: var(--app-primary-hover);
+            --background: var(--app-bg);
+            --surface: var(--app-surface);
+            --text: var(--app-text);
+            --text-secondary: var(--app-text-secondary);
+            --text-muted: var(--app-text-muted);
+            --border: var(--app-border);
+            --radius: var(--app-radius);
+            --radius-sm: var(--app-radius-sm);
+            --shadow: var(--app-shadow-sm);
+            --transition: var(--app-duration-normal) var(--app-ease-smooth);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'IBM Plex Sans', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--background);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Nav */
+        .nav {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            flex-shrink: 0;
+        }
+        .nav .back-btn {
+            background: none;
+            border: 1px solid var(--border);
+            padding: 6px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            transition: var(--transition);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .nav .back-btn:hover { background: var(--border); }
+        .nav .title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            flex: 1;
+        }
+        .nav .nav-hint {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* Filter Bar */
+        .filter-bar {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .filter-label {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+        .color-chip {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
+            font-size: 0.7rem;
+            color: #fff;
+            flex-shrink: 0;
+        }
+        .color-chip:hover { transform: scale(1.1); }
+        .color-chip.active { border-color: var(--text); box-shadow: 0 0 0 2px var(--surface) inset, 0 0 6px rgba(0,0,0,0.25); }
+        .color-chip.c-all { background: var(--border); color: var(--text-secondary); width: auto; padding: 0 10px; border-radius: 13px; font-size: 0.75rem; }
+        .color-chip.c-yellow { background: #eab308; }
+        .color-chip.c-green { background: #22c55e; }
+        .color-chip.c-blue { background: #3b82f6; }
+        .color-chip.c-purple { background: #a855f7; }
+        select.filter-select {
+            padding: 6px 28px 6px 12px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            background: var(--surface);
+            color: var(--text);
+            font-size: 0.8rem;
+            cursor: pointer;
+            outline: none;
+            max-width: 220px;
+            transition: var(--transition);
+        }
+        select.filter-select:focus { border-color: var(--primary); }
+        .clear-filter-btn {
+            padding: 6px 14px;
+            border: 1px dashed var(--border);
+            border-radius: 20px;
+            background: none;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+        .clear-filter-btn:hover { border-color: var(--text-muted); color: var(--text); }
+
+        /* List Container */
+        .container {
+            flex: 1;
+            max-width: 860px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Loading / Error / Empty */
+        .state-box { text-align: center; padding: 72px 20px; color: var(--text-muted); }
+        .spinner {
+            width: 32px; height: 32px;
+            border: 3px solid var(--border); border-top-color: var(--primary);
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+            margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .state-icon { font-size: 3rem; margin-bottom: 12px; }
+        .state-title { font-size: 1.05rem; color: var(--text-secondary); margin-bottom: 8px; }
+        .state-desc { font-size: 0.85rem; }
+        .state-desc small { display: block; margin-top: 8px; opacity: 0.8; }
+        .retry-btn {
+            margin-top: 16px;
+            padding: 8px 22px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            background: var(--surface);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .retry-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .clear-empty-btn {
+            margin-top: 12px;
+            padding: 6px 18px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            background: var(--surface);
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .clear-empty-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+        /* Annotation Card */
+        .anno-list { display: flex; flex-direction: column; gap: 14px; }
+        .anno-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-left: 4px solid #eab308;
+            border-radius: var(--radius-sm);
+            padding: 16px 20px;
+            transition: var(--transition);
+        }
+        .anno-card:hover { box-shadow: var(--shadow); }
+        .anno-card.a-yellow { border-left-color: #eab308; }
+        .anno-card.a-green { border-left-color: #22c55e; }
+        .anno-card.a-blue { border-left-color: #3b82f6; }
+        .anno-card.a-purple { border-left-color: #a855f7; }
+
+        .anno-quote {
+            font-size: 0.95rem;
+            color: var(--text);
+            line-height: 1.7;
+            word-break: break-word;
+        }
+        .anno-quote.clamped {
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .quote-toggle {
+            background: none;
+            border: none;
+            color: var(--primary);
+            font-size: 0.78rem;
+            cursor: pointer;
+            padding: 2px 0;
+            margin-top: 4px;
+        }
+        .quote-toggle:hover { text-decoration: underline; }
+
+        .anno-note {
+            margin-top: 10px;
+            padding: 10px 14px;
+            background: var(--background);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            word-break: break-word;
+        }
+        .anno-note .note-label {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+        }
+        .note-toggle {
+            background: none;
+            border: none;
+            color: var(--primary);
+            font-size: 0.78rem;
+            cursor: pointer;
+            padding: 0;
+            margin-left: 8px;
+        }
+        .note-toggle:hover { text-decoration: underline; }
+
+        .anno-meta {
+            margin-top: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }
+        .anno-meta .src-title {
+            color: var(--text-secondary);
+            max-width: 280px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .anno-meta .clip-title {
+            max-width: 240px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .anno-meta .dot-sep { opacity: 0.5; }
+
+        .anno-actions {
+            margin-top: 12px;
+            display: flex;
+            gap: 10px;
+        }
+        .action-btn {
+            padding: 5px 16px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            background: var(--surface);
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .action-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .action-btn:disabled { opacity: 0.45; cursor: not-allowed; border-color: var(--border); color: var(--text-muted); }
+
+        /* Scrollbar — Obsidian 风格全局一致 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 999px; transition: background var(--app-duration-normal) ease; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
+        * { scrollbar-width: thin; scrollbar-color: var(--border-light) transparent; }
+
+        @media (max-width: 768px) {
+            .nav { padding: 10px 16px; }
+            .nav .nav-hint { display: none; }
+            .filter-bar { padding: 10px 16px; gap: 10px; }
+            .container { padding: 16px; }
+        }
+    </style>
+    <link rel="stylesheet" href="styles/design-tokens.css">
+    <link rel="stylesheet" href="styles/ui-common.css">
+    <script src="js/theme-core.js"></script>
+    <script src="js/theme-bridge.js"></script>
+    <script>(function(){var b=window.CutShelterThemeBridge;b.init({root:document.documentElement});b.listen();})();</script>
+</head>
+<body>
+    <nav class="nav">
+        <a href="knowledge.html" class="back-btn">← 返回</a>
+        <span class="title">📝 标注透视</span>
+        <span class="nav-hint" id="countHint">加载中...</span>
+    </nav>
+
+    <div class="filter-bar" id="filterBar">
+        <div class="filter-group" id="colorGroup">
+            <span class="filter-label">颜色</span>
+            <button class="color-chip c-all active" data-color="" title="全部颜色">全部</button>
+            <button class="color-chip c-yellow" data-color="yellow" title="黄色标注"></button>
+            <button class="color-chip c-green" data-color="green" title="绿色标注"></button>
+            <button class="color-chip c-blue" data-color="blue" title="蓝色标注"></button>
+            <button class="color-chip c-purple" data-color="purple" title="紫色标注"></button>
+        </div>
+        <div class="filter-group">
+            <span class="filter-label">来源</span>
+            <select class="filter-select" id="sourceSelect">
+                <option value="">全部来源</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <span class="filter-label">时间</span>
+            <select class="filter-select" id="timeSelect">
+                <option value="">全部时间</option>
+                <option value="7">近 7 天</option>
+                <option value="30">近 30 天</option>
+            </select>
+        </div>
+        <button class="clear-filter-btn" id="clearFilterBtn">✕ 清空筛选</button>
+    </div>
+
+    <div class="container" id="mainContainer">
+        <div class="state-box" id="loadingBox">
+            <div class="spinner"></div>
+            <p>加载标注中...</p>
+        </div>
+        <div class="state-box" id="errorBox" style="display:none;">
+            <div class="state-icon">⚠️</div>
+            <div class="state-title">标注加载失败</div>
+            <div class="state-desc">请检查后端服务是否正常</div>
+            <button class="retry-btn" id="retryBtn">重新加载</button>
+        </div>
+        <div class="state-box" id="emptyBox" style="display:none;">
+            <div class="state-icon">🖍️</div>
+            <div class="state-title">还没有标注</div>
+            <div class="state-desc" id="emptyDesc">去网页选中文字试试<small>在浏览器打开任意网页，选中文字即可高亮标注并随剪藏保存</small></div>
+        </div>
+        <div class="anno-list" id="annoList" style="display:none;"></div>
+        <div class="state-box" id="emptyFilterBox" style="display:none;">
+            <div class="state-icon">🔍</div>
+            <div class="state-title">当前筛选下没有标注</div>
+            <button class="clear-empty-btn" id="clearFilterBtn2">清空筛选</button>
+        </div>
+    </div>
+
+    <script src="knowledge-annotations.js"></script>
+    <script>
+      (function() {
+        const THEME_KEY = 'app_theme_v1';
+        const APPEARANCE_KEY = 'app_appearance_v1';
+        function getEffective() {
+          const app = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+          if (app === 'system') return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'notion';
+          return app;
+        }
+        function apply() {
+          const t = getEffective();
+          document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : (t === 'regular' ? 'regular' : 'notion'));
+        }
+        window.applyTheme = apply;
+        apply();
+        window.addEventListener('storage', function(e) {
+          if (e.key === THEME_KEY || e.key === APPEARANCE_KEY) apply();
+        });
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+          if ((localStorage.getItem(APPEARANCE_KEY) || 'notion') === 'system') apply();
+        });
+      })();
+    </script>
+</body>
+</html>

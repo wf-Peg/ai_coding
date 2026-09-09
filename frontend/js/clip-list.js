@@ -398,6 +398,7 @@
                         ${getSourceBadge(clip.source)}
                         <span class="category-badge">📁 ${categoryLabel}</span>
                         ${clip.myThoughts ? '<span class="category-badge thoughts-badge">💭 有思考</span>' : ''}
+                        ${Array.isArray(clip.annotations) && clip.annotations.length > 0 ? `<span class="category-badge anno-badge" title="该剪藏带 ${clip.annotations.length} 条网页标注，可在知识模块标注透视查看">📝 标 ${clip.annotations.length}</span>` : ''}
                         <span class="category-badge knowledge-badge" id="knowledge-badge-${clip.id}" style="display:none;"></span>
                     </div>
                     <div class="clip-actions">
@@ -675,6 +676,28 @@
                 trigger.classList.remove('expanded');
             }
         });
+    }
+
+    /** URL ?id= 直达：等列表渲染完成后自动展开对应剪藏详情（列表分页时自动点「加载更多」） */
+    async function openClipByIdDirect(clipId) {
+        const deadline = Date.now() + 8000;
+        while (Date.now() < deadline) {
+            const btn = document.querySelector(`.expand-btn[data-clip-id="${clipId}"]`);
+            if (btn) {
+                btn.scrollIntoView({ block: 'center' });
+                toggleDetail(btn);
+                return;
+            }
+            // 目标条目不在当前可见页时，逐页加载更多后继续查找
+            const loadMore = document.querySelector('.load-more-btn');
+            if (loadMore) {
+                loadMore.click();
+                await new Promise(resolve => setTimeout(resolve, 50));
+                continue;
+            }
+            await new Promise(resolve => setTimeout(resolve, 150));
+        }
+        showToast('未找到对应剪藏（可能已被删除）');
     }
 
     function toggleMoreActions(btn, event) {

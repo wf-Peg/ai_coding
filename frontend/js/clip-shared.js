@@ -570,6 +570,13 @@ var selectedClipIds = new Set();
         updateImageAreaVisibility(document.getElementById('type').value);
         loadDispatchTargets();
 
+        // 支持 clip.html?id=xxx 直达：知识模块标注透视「看详情」跳转用
+        const urlParams = new URLSearchParams(window.location.search);
+        const directClipId = urlParams.get('id');
+        if (directClipId && !isNaN(Number(directClipId))) {
+            openClipByIdDirect(Number(directClipId));
+        }
+
         const themeToggle = document.getElementById('themeToggle');
         if (themeToggle) {
             themeToggle.addEventListener('click', () => {

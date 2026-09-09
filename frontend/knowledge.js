@@ -133,6 +133,10 @@ document.addEventListener('DOMContentLoaded', () => {
     location.href = 'knowledge-graph.html';
   });
 
+  document.getElementById('annotationsBtn').addEventListener('click', () => {
+    location.href = 'knowledge-annotations.html';
+  });
+
   const searchInput = document.getElementById('searchInput');
   searchInput.addEventListener('input', () => {
     const keyword = searchInput.value.trim();
