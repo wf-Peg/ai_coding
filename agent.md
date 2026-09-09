@@ -23,6 +23,23 @@ frontend/    → 纯静态 HTML/CSS/JS，无构建工具
 electron/    → Electron 主进程
 ```
 
+## 代码索引（人 + AI 双通道）
+
+- **静态地图**：`CODE_INDEX.md` 提供全项目「文件 → 类/函数/方法/路由 + 起始行号」骨架，供人和 AI 快速定位。**生成物**，改代码后用 `npm run codeindex:gen` 重新生成。
+- **精确查询（推荐 AI 用）**：`codegraph` 已为本仓库建好本地索引，按需精确拿「定义/调用方/影响范围」，避免整文件读取、降低 token 消耗：
+  ```bash
+  npm run codeindex:status   # 索引状态
+  codegraph query "符号名"     # 符号定位（返回 文件:行号）
+  codegraph callers "符号"     # 谁调用了它
+  codegraph impact "符号"      # 改动影响范围
+  npm run codeindex:ui        # 浏览器图谱 127.0.0.1:4747
+  ```
+  索引为本地自动同步（fs.watch），代码变更后无需手动 rerun；索引库在 `.codegraph/`（已 gitignore）。
+- **MCP 接入（可选）**：`codegraph install` 自动接入 Claude Code / Cursor / Codex 等。TraeCode 未被官方自动支持，需手动在其 MCP 连接器新增 stdio 服务器（命令以 `codegraph install --print-config claude` 输出为准）：
+  ```json
+  { "mcpServers": { "codegraph": { "type": "stdio", "command": "codegraph", "args": ["serve", "--mcp"] } } }
+  ```
+
 ## 构建与运行
 
 ```bash

@@ -105,6 +105,9 @@ tmp/
 # AI 代理（superpowers）工作目录（本地生成，不提交）
 .superpowers/
 
+# CodeGraph 代码索引（本地生成，可 codegraph uninit 重建）
+.codegraph/
+
 # IPC 复现/调试临时目录（不提交）
 electron/repro-ipc/
 

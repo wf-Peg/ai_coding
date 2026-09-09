@@ -1,0 +1,24 @@
+{
+  "exclude": [
+    ".dsh/**",
+    ".dsh-inspect/**",
+    ".trae/**",
+    ".tmp/**",
+    ".tmp-self/**",
+    "clip-storage/**",
+    "TODO/**",
+    "jdk/**",
+    "jre/**",
+    "jre-slim/**",
+    "dist-electron/**",
+    "backend/target/**"
+  ],
+  "deprioritize": [
+    "docs/**",
+    "test/**",
+    "browser-extension/**",
+    "lite/**",
+    "scripts/**",
+    "integrations/dsh/**"
+  ]
+}
