@@ -122,6 +122,18 @@
     ::-webkit-scrollbar-thumb:hover { background: var(--obs-muted); }
     * { scrollbar-width: thin; scrollbar-color: var(--obs-border) transparent; }
 
+    /* ── Wiki 问答耗时面板 ── */
+    .wq-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 9px 10px; border: 1px solid var(--obs-border); border-radius: 8px; }
+    .wq-row + .wq-row { margin-top: 6px; }
+    .wq-q { overflow: hidden; flex: 1 1 220px; color: var(--obs-text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .wq-meta { color: var(--obs-muted); font-size: 10px; }
+    .wq-t { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+    .wq-total { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--obs-accent); white-space: nowrap; }
+    .wq-total-slow { color: var(--obs-warn); }
+    .wq-stage { color: var(--obs-muted); font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .wq-local { color: var(--obs-good); }
+    .wq-llm { color: var(--obs-accent); }
+
     /* ── 异常日志面板 ── */
     .exception-panel { margin-top: 16px; }
     .exception-stats { display: flex; gap: 12px; margin-bottom: 14px; }
@@ -189,6 +201,13 @@
         <section class="panel"><h2>事件趋势 <small>近 7 / 30 天</small></h2><div id="trendsSection"><div class="trends-stats"><div class="trend-stat"><span class="trend-stat-label">近 7 天</span><span class="trend-stat-value">-</span></div><div class="trend-stat"><span class="trend-stat-label">近 30 天</span><span class="trend-stat-value">-</span></div><div class="trend-stat"><span class="trend-stat-label">跳过行</span><span class="trend-stat-value">-</span></div></div></div><div id="trendChart7d"></div><div id="trendChart30d"></div><div class="panel-section"><div class="section-title">事件类型分布</div><div id="typeDistribution"></div></div><div class="panel-section"><div class="section-title">事件来源分布</div><div id="sourceDistribution"></div></div></section>
       </div>
     </div>
+
+    <!-- ── Wiki 问答耗时面板 ── -->
+    <section class="panel" id="wikiMetricsPanel" style="margin-top:16px;">
+      <h2>Wiki 问答耗时 <small>定位 / 综合 / 补充 各阶段毫秒数 · 最近 50 次 · 重启后清空</small></h2>
+      <div class="ws-summary" id="wikiMetricsSummary"><div class="empty">加载中…</div></div>
+      <div class="panel-section"><div class="section-title">最近查询（新 → 旧）</div><div id="wikiQueryList"></div></div>
+    </section>
 
     <!-- ── 异常日志面板 ── -->
     <section class="panel exception-panel" id="exceptionLogPanel">

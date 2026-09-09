@@ -80,8 +80,11 @@ public class WikiQueryController {
         String question = body != null ? (String) body.get("question") : null;
         boolean includeClips = body != null && Boolean.TRUE.equals(body.get("includeClips"));
         boolean includeKnowledge = body != null && Boolean.TRUE.equals(body.get("includeKnowledge"));
+        // 知识补充默认开启（保持 Web UI 原体验）；MCP wiki_ask 显式传 false 以提速
+        boolean includeSupplement = body == null || !Boolean.FALSE.equals(body.get("includeSupplement"));
         log.info("[WikiQuery] Query request received");
-        Map<String, Object> result = wikiQueryService.query(question, includeClips, includeKnowledge);
+        Map<String, Object> result =
+                wikiQueryService.query(question, includeClips, includeKnowledge, includeSupplement, null);
         return ResponseEntity.ok(result);
     }
 
@@ -100,8 +103,9 @@ public class WikiQueryController {
      */
     @GetMapping(value = "/query/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter queryStream(@RequestParam String question,
-                                  @RequestParam(defaultValue = "false") boolean includeClips,
-                                  @RequestParam(defaultValue = "false") boolean includeKnowledge) {
+                                   @RequestParam(defaultValue = "false") boolean includeClips,
+                                   @RequestParam(defaultValue = "false") boolean includeKnowledge,
+                                   @RequestParam(defaultValue = "true") boolean includeSupplement) {
         // 5 分钟超时
         SseEmitter emitter = new SseEmitter(300_000L);
         log.info("[WikiQuery] SSE stream request received");
@@ -133,7 +137,7 @@ public class WikiQueryController {
                         }
                     }
                 };
-                Map<String, Object> result = wikiQueryService.query(question, includeClips, includeKnowledge, callback);
+                Map<String, Object> result = wikiQueryService.query(question, includeClips, includeKnowledge, includeSupplement, callback);
                 SseEventBuilder complete = SseEmitter.event().name("complete").data(result);
                 emitter.send(complete);
                 emitter.complete();

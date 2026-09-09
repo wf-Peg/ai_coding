@@ -233,14 +233,17 @@ server.registerTool('wiki_ask', {
     question: z.string().describe('自然语言问题（必填）'),
     includeClips: z.boolean().optional().describe('是否纳入应用内剪藏内容作为补充上下文，默认 false'),
     includeKnowledge: z.boolean().optional().describe('是否纳入知识条目作为补充上下文，默认 false'),
+    includeSupplement: z.boolean().optional().describe(
+      '是否生成「知识补充」段。它是综合答案之后的第二次串行强模型调用，会显著增加耗时；默认 false 以提速，需要扩展知识时再开 true'),
   },
-}, async ({ question, includeClips, includeKnowledge }) => {
+}, async ({ question, includeClips, includeKnowledge, includeSupplement }) => {
   const resp = await callApi('/api/wiki/query', {
     method: 'POST',
     body: {
       question,
       includeClips: includeClips ?? false,
       includeKnowledge: includeKnowledge ?? false,
+      includeSupplement: includeSupplement ?? false,
     },
   });
   const answer = resp && resp.answer ? String(resp.answer) : '';

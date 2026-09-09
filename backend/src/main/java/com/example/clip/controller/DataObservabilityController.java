@@ -10,6 +10,7 @@ import com.example.clip.index.WorkspaceSuggestionService;
 import com.example.clip.service.AppConfigService;
 import com.example.clip.service.ExceptionLogService;
 import com.example.clip.service.FileStorageService;
+import com.example.clip.service.wiki.WikiQueryMetrics;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -42,13 +43,15 @@ public class DataObservabilityController {
     private final AppConfigService appConfigService;
     private final FileStorageService fileStorageService;
     private final ExceptionLogService exceptionLogService;
+    private final WikiQueryMetrics wikiQueryMetrics;
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     public DataObservabilityController(AppConfigService appConfigService, FileStorageService fileStorageService,
-                                       ExceptionLogService exceptionLogService) {
+                                       ExceptionLogService exceptionLogService, WikiQueryMetrics wikiQueryMetrics) {
         this.appConfigService = appConfigService;
         this.fileStorageService = fileStorageService;
         this.exceptionLogService = exceptionLogService;
+        this.wikiQueryMetrics = wikiQueryMetrics;
     }
 
     @GetMapping("/overview")
@@ -243,6 +246,23 @@ public class DataObservabilityController {
 
     private static long toLong(Object value) {
         return value instanceof Number ? ((Number) value).longValue() : 0L;
+    }
+
+    // ===== Wiki 问答耗时指标 =====
+
+    /**
+     * 获取 Wiki 问答的分阶段耗时指标快照。
+     * <p>
+     * 数据来自 {@link WikiQueryMetrics} 的内存环形缓冲（最近 50 次），
+     * 为运行时指标、重启后清空（与索引/事件等持久化统计不同）。
+     * </p>
+     * GET /api/data/wiki-query-metrics
+     */
+    @GetMapping("/wiki-query-metrics")
+    public ResponseEntity<Map<String, Object>> wikiQueryMetrics() {
+        Map<String, Object> result = new LinkedHashMap<>(wikiQueryMetrics.snapshot());
+        result.put("observedAt", LocalDateTime.now());
+        return ResponseEntity.ok(result);
     }
 
     // ===== 异常日志 API =====

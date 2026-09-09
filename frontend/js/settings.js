@@ -2091,7 +2091,7 @@ function initEditorShortcutsSection() {
 
   const ES = window.EditorShortcuts;
   const currentMap = ES.getAll();
-  syncGlobalSearchShortcut(); // 初始化时同步一次主进程菜单加速键
+  syncGlobalSearchMenu(); // 初始化时同步一次主进程菜单加速键
 
   list.innerHTML = Object.keys(ES.DEFAULTS).map((action) => {
     const def = ES.DEFAULTS[action];

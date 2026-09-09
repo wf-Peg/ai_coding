@@ -35,6 +35,9 @@
 | `question` | 是 | — | 自然语言问题 |
 | `includeClips` | 否 | false | 是否把应用内剪藏内容作为补充上下文纳入 |
 | `includeKnowledge` | 否 | false | 是否把知识条目作为补充上下文纳入 |
+| `includeSupplement` | 否 | false | 是否生成「知识补充」段（综合答案后的第二次串行强模型调用，显著增加耗时）。默认 false 以提速；需要扩展知识时开 true |
+
+> 性能说明：`includeSupplement=false`（默认）时后端跳过第二次强模型调用，单次问答只有一次强模型调用，比 Web UI（默认开补充）约快一次调用（实测 40-50%）。若外部 agent 仍遇到请求超时，配合 `CUTSHELTER_TIMEOUT_MS`（如 300000）与客户端 requestTimeout 使用。
 
 **出参（textResult 的文本 + JSON）**
 

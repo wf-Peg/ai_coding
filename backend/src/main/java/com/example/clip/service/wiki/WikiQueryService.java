@@ -59,6 +59,13 @@ public class WikiQueryService {
     /** 归档摘要截取长度 */
     private static final int ARCHIVE_SUMMARY_MAX_LEN = 50;
 
+    /** 单页正文进入大模型上下文的最大字符数（超限截断并附标注，借鉴 KaaS TRUNCATION_NOTE） */
+    private static final int WIKI_PAGE_MAX_CHARS = 8000;
+
+    /** 页面超预算被截断时的显式说明，避免模型把截断误判为缺失 */
+    private static final String TRUNCATION_NOTE =
+            "\n\n[注：本页超过检索预算，此处已截断；本段未出现的细节不代表原文没有。]";
+
     /** 页面查找顺序：entity → concept → synthesis → source */
     private static final List<String> PAGE_TYPE_LOOKUP_ORDER =
             List.of("entity", "concept", "synthesis", "source");
@@ -71,6 +78,7 @@ public class WikiQueryService {
     private final SearchService searchService;
     private final KnowledgeService knowledgeService;
     private final WikiLocalRetriever wikiLocalRetriever;
+    private final WikiQueryMetrics wikiQueryMetrics;
 
     /**
      * 构造器注入。
@@ -83,6 +91,7 @@ public class WikiQueryService {
      * @param searchService           剪藏检索（多数据源查询用）
      * @param knowledgeService        知识条目检索（多数据源查询用）
      * @param wikiLocalRetriever      本地拆词检索器（阶段 1 前置层）
+     * @param wikiQueryMetrics        查询耗时指标（供数据观测模块展示）
      */
     public WikiQueryService(AiService aiService,
                             WikiPageService wikiPageService,
@@ -91,7 +100,8 @@ public class WikiQueryService {
                             WikiConfig wikiConfig,
                             SearchService searchService,
                             KnowledgeService knowledgeService,
-                            WikiLocalRetriever wikiLocalRetriever) {
+                            WikiLocalRetriever wikiLocalRetriever,
+                            WikiQueryMetrics wikiQueryMetrics) {
         this.aiService = aiService;
         this.wikiPageService = wikiPageService;
         this.wikiIndexService = wikiIndexService;
@@ -100,6 +110,7 @@ public class WikiQueryService {
         this.searchService = searchService;
         this.knowledgeService = knowledgeService;
         this.wikiLocalRetriever = wikiLocalRetriever;
+        this.wikiQueryMetrics = wikiQueryMetrics;
     }
 
     /**
@@ -128,7 +139,7 @@ public class WikiQueryService {
      * @return 查询结果 Map：status / answer / relevantPages / tokenEstimate / message
      */
     public Map<String, Object> query(String question, boolean includeClips, boolean includeKnowledge) {
-        return query(question, includeClips, includeKnowledge, null);
+        return query(question, includeClips, includeKnowledge, true, null);
     }
 
     /**
@@ -147,6 +158,26 @@ public class WikiQueryService {
      */
     public Map<String, Object> query(String question, boolean includeClips, boolean includeKnowledge,
                                      ProgressCallback callback) {
+        return query(question, includeClips, includeKnowledge, true, callback);
+    }
+
+    /**
+     * 执行 Wiki 综合查询（带进度回调 + 知识补充开关）。
+     * <p>
+     * 完整实现。知识补充（{@link AiService#generateKnowledgeSupplement}）是第二次
+     * 串行的强模型调用、为整体耗时的最大可控项之一；{@code includeSupplement=false}
+     * 时跳过该调用（MCP wiki_ask 默认关闭以提速，Web UI 保持默认开启）。
+     * </p>
+     *
+     * @param question          用户问题
+     * @param includeClips      是否纳入应用内剪藏内容
+     * @param includeKnowledge  是否纳入知识条目内容
+     * @param includeSupplement 是否生成"知识补充"段（额外一次强模型调用）
+     * @param callback          进度回调；可为 null（此时不推送）
+     * @return 查询结果 Map：status / answer / relevantPages / tokenEstimate / message
+     */
+    public Map<String, Object> query(String question, boolean includeClips, boolean includeKnowledge,
+                                     boolean includeSupplement, ProgressCallback callback) {
         Map<String, Object> result = new LinkedHashMap<>();
         if (question == null || question.trim().isEmpty()) {
             result.put("status", "error");
@@ -157,6 +188,11 @@ public class WikiQueryService {
         // 确保 Wiki 目录结构存在
         wikiPageService.initWikiStructure();
 
+        long totalStart = System.currentTimeMillis();
+        long locateMs = -1;
+        long synthMs = -1;
+        long supplMs = -1;
+
         try {
             // 1. 读取 index.md
             notify(callback, "读取索引", "正在读取 Wiki 索引文件...");
@@ -166,27 +202,46 @@ public class WikiQueryService {
                 indexContent = "# Wiki Index\n\n(empty)";
             }
 
-            // 2. 定位相关页面：本地拆词检索优先，未命中降级 LLM
+            // 2. 定位相关页面：本地拆词检索（index 摘要 + 正文 grep 兜底）优先，未命中降级 LLM
             notify(callback, "定位页面", "正在定位相关页面（本地检索优先）...");
+            long stageStart = System.currentTimeMillis();
             List<String> relevantPageNames;
             boolean usedLocalRetrieval = false;
             if (wikiConfig != null && wikiConfig.isQueryLocalRetrievalEnabled()) {
-                List<String> localPages = wikiLocalRetriever.retrieve(question, indexContent,
-                        wikiConfig.getQueryLocalRetrievalTopK(),
-                        wikiConfig.getQueryLocalRetrievalMinHits());
+                int localTopK = wikiConfig.getQueryLocalRetrievalTopK();
+                int localMinHits = wikiConfig.getQueryLocalRetrievalMinHits();
+                List<String> localPages = new ArrayList<>(
+                        wikiLocalRetriever.retrieve(question, indexContent, localTopK, localMinHits));
+                if (localPages.size() < localTopK) {
+                    // 正文 grep 兜底：覆盖「知识点只在正文深处、目录摘要未体现」的 body-depth 召回缺口
+                    List<String> bodyPages = wikiLocalRetriever.retrieveBodyMatches(
+                            question, readAllPageBodies(),
+                            localTopK - localPages.size(), localMinHits);
+                    for (String pageName : bodyPages) {
+                        if (!localPages.contains(pageName)) {
+                            localPages.add(pageName);
+                            if (localPages.size() >= localTopK) {
+                                break;
+                            }
+                        }
+                    }
+                }
                 if (!localPages.isEmpty()) {
                     relevantPageNames = localPages;
                     usedLocalRetrieval = true;
-                    log.info("[WikiQuery] Local retrieval located {} pages (skip LLM stage-1)", localPages.size());
+                    log.info("[WikiQuery] Local retrieval (index+body) located {} pages in {} ms (skip LLM stage-1)",
+                            localPages.size(), System.currentTimeMillis() - stageStart);
                 } else {
                     notify(callback, "定位页面", "本地检索未命中，正在调用大模型挑选相关页面...");
                     relevantPageNames = aiService.locateRelevantPages(question, indexContent);
+                    log.info("[WikiQuery] LLM locate fallback used ({} ms)", System.currentTimeMillis() - stageStart);
                 }
             } else {
                 notify(callback, "定位页面", "正在调用大模型挑选相关页面...");
                 relevantPageNames = aiService.locateRelevantPages(question, indexContent);
             }
             log.info("[WikiQuery] Located {} relevant pages for question", relevantPageNames.size());
+            locateMs = System.currentTimeMillis() - stageStart;
             notifyData(callback, "relevantPages", relevantPageNames);
 
             // 3. 仅读取相关页面内容（非全量扫描）
@@ -204,6 +259,9 @@ public class WikiQueryService {
                 }
                 String content = wikiPageService.readPage(pagePath);
                 if (content != null) {
+                    if (content.length() > WIKI_PAGE_MAX_CHARS) {
+                        content = content.substring(0, WIKI_PAGE_MAX_CHARS) + TRUNCATION_NOTE;
+                    }
                     pageContents.put(trimmedName, content);
                     // 推送页面内容片段（前 200 字），供前端思维链展示
                     notifyData(callback, "pageContent",
@@ -278,15 +336,27 @@ public class WikiQueryService {
 
             // 4. 调用强模型综合答案
             notify(callback, "生成答案", "大模型正在综合 " + pageContents.size() + " 份内容生成答案...");
+            long synthStart = System.currentTimeMillis();
             String answer = aiService.synthesizeAnswer(question, pageContents);
+            synthMs = System.currentTimeMillis() - synthStart;
+            log.info("[WikiQuery] synthesizeAnswer used {} ms ({} pages, {} chars)",
+                    synthMs, pageContents.size(),
+                    pageContents.values().stream().mapToInt(String::length).sum());
 
-            // 4.1 调用大模型基于已有内容补充扩展知识
+            // 4.1 调用大模型基于已有内容补充扩展知识（第二次串行强模型调用，可按需跳过）
             String knowledgeSupplement = "";
-            notify(callback, "知识补充", "大模型正在结合自身知识补充扩展该问题...");
-            try {
-                knowledgeSupplement = aiService.generateKnowledgeSupplement(question, pageContents, answer);
-            } catch (Exception e) {
-                log.warn("[WikiQuery] Knowledge supplement failed: {}", e.getMessage());
+            if (includeSupplement) {
+                notify(callback, "知识补充", "大模型正在结合自身知识补充扩展该问题...");
+                long supplStart = System.currentTimeMillis();
+                try {
+                    knowledgeSupplement = aiService.generateKnowledgeSupplement(question, pageContents, answer);
+                    supplMs = System.currentTimeMillis() - supplStart;
+                    log.info("[WikiQuery] generateKnowledgeSupplement used {} ms", supplMs);
+                } catch (Exception e) {
+                    log.warn("[WikiQuery] Knowledge supplement failed: {}", e.getMessage());
+                }
+            } else {
+                log.info("[WikiQuery] Knowledge supplement skipped (includeSupplement=false)");
             }
 
             // 5. 估算 Token 消耗（粗略：字符数 / 4）
@@ -308,6 +378,8 @@ public class WikiQueryService {
             result.put("extraSources", extraSources);
             result.put("message", "Query completed: " + pageContents.size() + " pages used");
             notify(callback, "完成", "查询完成");
+            wikiQueryMetrics.record(question, System.currentTimeMillis() - totalStart,
+                    locateMs, synthMs, supplMs, usedLocalRetrieval, relevantPageNames.size());
             return result;
         } catch (Exception e) {
             log.error("[WikiQuery] Query failed: {}", e.getMessage(), e);
@@ -453,6 +525,31 @@ public class WikiQueryService {
             }
         }
         return null;
+    }
+
+    /**
+     * 读取全部 Wiki 页面正文（页面名 → 内容），供正文 grep 兜底检索使用。
+     * <p>
+     * 页面量级为个人知识库规模（数十至数百页 × 数 KB），全量读取为毫秒级。
+     * 个别页面读取失败时跳过，不影响整体。
+     * </p>
+     *
+     * @return 页面名（不含扩展名）→ 正文内容映射；读取失败返回空 Map
+     */
+    private Map<String, String> readAllPageBodies() {
+        Map<String, String> nameToBody = new LinkedHashMap<>();
+        try {
+            for (Path pagePath : wikiPageService.listAllPages()) {
+                String name = pagePath.getFileName().toString().replaceFirst("\\.md$", "");
+                String content = wikiPageService.readPage(pagePath);
+                if (content != null) {
+                    nameToBody.put(name, content);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("[WikiQuery] readAllPageBodies failed: {}", e.getMessage());
+        }
+        return nameToBody;
     }
 
     /**

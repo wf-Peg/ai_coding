@@ -131,6 +131,53 @@
     funnel.innerHTML = html;
   }
 
+  function renderWikiMetrics(metrics) {
+    var summary = $('wikiMetricsSummary');
+    var list = $('wikiQueryList');
+    if (!summary || !list) return;
+    var stats = metrics.stats || {};
+    var items;
+    if (Object.keys(stats).length) {
+      items = [
+        ['查询次数', metrics.count || 0],
+        ['平均总耗时', Math.round(stats.avgTotalMs || 0) + ' ms'],
+        ['本地定位命中率', (stats.localHitRate || 0) + '%'],
+        ['平均综合', Math.round(stats.avgSynthMs || 0) + ' ms'],
+        ['平均补充', Math.round(stats.avgSupplMs || 0) + ' ms']
+      ];
+    } else {
+      items = [
+        ['查询次数', 0],
+        ['平均总耗时', '-'],
+        ['本地定位命中率', '-'],
+        ['平均综合', '-'],
+        ['平均补充', '-']
+      ];
+    }
+    summary.innerHTML = items.map(function (item) {
+      return '<div class="ws-summary-item"><span class="ws-summary-label">' + item[0] + '</span><span class="ws-summary-value">' + item[1] + '</span></div>';
+    }).join('');
+
+    var recent = metrics.recent || [];
+    if (!recent.length) {
+      list.innerHTML = '<div class="empty">还没有 Wiki 问答记录，提问一次后显示。</div>';
+      return;
+    }
+    list.innerHTML = recent.map(function (r) {
+      var locateTag = r.usedLocal
+        ? '<span class="wq-local">本地</span>'
+        : '<span class="wq-llm">LLM</span>';
+      var supplText = r.supplMs >= 0 ? r.supplMs + 'ms' : '已跳过';
+      var slowClass = r.totalMs > 30000 ? ' wq-total-slow' : '';
+      return '<div class="wq-row">' +
+        '<div class="wq-q" title="' + escapeHtml(r.question || '') + '">' + escapeHtml(r.question || '-') +
+        ' <span class="wq-meta">(' + (r.pageCount || 0) + ' 页 · ' + locateTag + '定位 · ' + escapeHtml(r.time || '') + ')</span></div>' +
+        '<div class="wq-t"><span class="wq-total' + slowClass + '">' + (r.totalMs || 0) + ' ms</span>' +
+        '<span class="wq-stage">综合 ' + (r.synthMs || 0) + 'ms · 补充 ' + supplText + ' · 定位 ' + (r.locateMs || 0) + 'ms</span></div>' +
+        '</div>';
+    }).join('');
+  }
+
   function renderDiagnosis(diag) {
     var content = $('diagnosisContent');
     if (!content) return;
@@ -152,16 +199,18 @@
   async function load() {
     $('status').textContent = '读取中…';
     try {
-      var [overview, trends, wsStats, diag, suggestionStats] = await Promise.all([
+      var [overview, trends, wsStats, diag, suggestionStats, wikiMetrics] = await Promise.all([
         request('/overview'), request('/trends'),
         request('/workspace-stats'), request('/export-diagnosis'),
-        request('/workspace-suggestion-stats')
+        request('/workspace-suggestion-stats'),
+        request('/wiki-query-metrics')
       ]);
       renderStats(overview, trends);
       renderIndexes(overview);
       renderTrends(trends);
       renderWorkspaceStats(wsStats, suggestionStats);
       renderDiagnosis(diag);
+      renderWikiMetrics(wikiMetrics);
       $('status').textContent = '更新于 ' + formatTime(overview.observedAt);
     } catch (error) {
       $('status').textContent = error.message;

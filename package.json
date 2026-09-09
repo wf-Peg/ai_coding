@@ -13,6 +13,7 @@
     "test:editor-ai-integration": "node --test electron/editor-ai-integration.test.js",
     "test:editor-all": "node --test electron/editor-ai-chat-core.test.js electron/editor-ai-integration.test.js",
     "test:theme": "node --test electron/theme-core.test.js",
+    "test:editor-shortcuts": "node --test electron/editor-shortcuts.test.js",
     "postinstall": "electron-builder install-app-deps",
     "generate-icons": "node scripts/generate-icons.js",
     "codeindex:gen": "node scripts/generate-code-index.mjs",

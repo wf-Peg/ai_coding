@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -124,4 +125,58 @@ public class WikiLocalRetriever {
     }
 
     private record ScoredEntry(String pageName, int hits) {}
+
+    /**
+     * 正文兜底检索：对（页面名 → 正文）映射做 token 命中计数（grep 式，零依赖、无向量库）。
+     * <p>
+     * 目录摘要检索的补集：覆盖「知识点只在正文深处、标题摘要未体现」的 body-depth 召回缺口。
+     * 打分规则与 {@link #retrieve(String, String, int, int)} 一致（命中 token 数），
+     * 但正文信号弱于摘要，故门槛取 {@code max(1, minHits - 1)}，仍要求至少命中 1 个有效 token。
+     * 按命中数倒序取前 topK。供 {@code WikiQueryService} 在 index 检索不足时补齐候选。
+     * </p>
+     *
+     * @param question   用户问题
+     * @param nameToBody 页面名 → 正文内容映射
+     * @param topK       最多返回条数
+     * @param minHits    达标最小命中 token 数
+     * @return 达标页面名列表，按命中数倒序；无匹配返回空列表
+     */
+    public List<String> retrieveBodyMatches(String question, Map<String, String> nameToBody,
+                                            int topK, int minHits) {
+        List<String> queryTokens = tokenize(question);
+        if (queryTokens.isEmpty() || nameToBody == null || nameToBody.isEmpty()) {
+            return List.of();
+        }
+        int threshold = Math.max(1, minHits - 1);
+        List<ScoredEntry> scored = new ArrayList<>();
+        for (Map.Entry<String, String> entry : nameToBody.entrySet()) {
+            String haystack = (entry.getKey() + " "
+                    + (entry.getValue() != null ? entry.getValue() : "")).toLowerCase();
+            int hits = 0;
+            for (String token : queryTokens) {
+                if (token.length() < 2) {
+                    continue;
+                }
+                if (haystack.contains(token)) {
+                    hits++;
+                }
+            }
+            if (hits >= threshold) {
+                scored.add(new ScoredEntry(entry.getKey(), hits));
+            }
+        }
+        scored.sort(Comparator.comparingInt(ScoredEntry::hits).reversed());
+        List<String> result = new ArrayList<>();
+        for (ScoredEntry entry : scored) {
+            result.add(entry.pageName());
+            if (result.size() >= topK) {
+                break;
+            }
+        }
+        if (!result.isEmpty()) {
+            log.debug("[WikiLocalRetriever] Body matches retrieved {} pages (minHits={}, topK={})",
+                    result.size(), threshold, topK);
+        }
+        return result;
+    }
 }

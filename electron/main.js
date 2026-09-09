@@ -2410,7 +2410,11 @@ function createMainWindow(config) {
   if (!menuShortcutBound) {
     menuShortcutBound = true;
     ipcMain.handle('shortcut:set-global-search', (e, combo) => {
-      if (combo && typeof combo === 'string') globalSearchAccelerator = combo;
+      if (combo && typeof combo === 'string') {
+        // 前端存储为 'Ctrl+Shift+X'；Electron 菜单 accelerator 里 Ctrl 表示 Control 键，
+        // 需转为 CmdOrCtrl 以在 mac 上映射 Command、在 win/linux 上映射 Control（跨平台正确）。
+        globalSearchAccelerator = combo.replace(/(^|\+)Ctrl(?=\+)/g, '$1CmdOrCtrl');
+      }
       buildMenu();
       return true;
     });
