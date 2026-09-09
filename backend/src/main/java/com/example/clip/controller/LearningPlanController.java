@@ -375,6 +375,16 @@ public class LearningPlanController {
     }
 
     /**
+     * 批量反查引用多个剪藏的学习阶段（剪藏列表 N+1 优化）。
+     * GET /api/learning-plan/by-clips?clipIds=1,2,3
+     */
+    @GetMapping("/by-clips")
+    public ResponseEntity<Map<Long, List<Map<String, Object>>>> getPlansByClipIds(
+            @RequestParam("clipIds") List<Long> clipIds) {
+        return ResponseEntity.ok(learningPlanService.getPlansByClipIds(clipIds));
+    }
+
+    /**
      * 根据工作台规则筛选学习计划列表，委托给 {@link WorkspaceFilterUtils} 共享工具类。
      */
     private List<LearningPlan> filterByWorkspace(List<LearningPlan> items, String workspaceId) {

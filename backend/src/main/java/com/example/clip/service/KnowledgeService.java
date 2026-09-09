@@ -9,8 +9,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -197,6 +200,27 @@ public class KnowledgeService {
         return storageService.getAllKnowledge().stream()
                 .filter(k -> k.getSourceClipIds() != null && k.getSourceClipIds().contains(clipId))
                 .toList();
+    }
+
+    /**
+     * 批量查找多个来源剪藏 ID 关联的知识条目（一次全量扫描，消除 N+1）。
+     *
+     * @param clipIds 来源剪藏 ID 列表
+     * @return clipId -> 关联知识列表（仅包含有命中的 clipId；无命中不在 keys 中）
+     */
+    public Map<Long, List<Knowledge>> getKnowledgeByClipIds(List<Long> clipIds) {
+        Map<Long, List<Knowledge>> result = new HashMap<>();
+        if (clipIds == null || clipIds.isEmpty()) return result;
+        Set<Long> idSet = new HashSet<>(clipIds);
+        for (Knowledge k : storageService.getAllKnowledge()) {
+            if (k.getSourceClipIds() == null) continue;
+            for (Long cid : k.getSourceClipIds()) {
+                if (idSet.contains(cid)) {
+                    result.computeIfAbsent(cid, x -> new ArrayList<>()).add(k);
+                }
+            }
+        }
+        return result;
     }
 
     /**

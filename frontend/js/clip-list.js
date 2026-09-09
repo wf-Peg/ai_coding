@@ -129,6 +129,10 @@
                 showSkeleton(clipItemsContainer);
             }
 
+            // 列表每次全新加载时清空关联数据缓存，保证角标/反链一并刷新
+            linkedKnowledgeCache.clear();
+            planBacklinksCache.clear();
+
             // 重置选中状态
             selectedClipIds.clear();
             updateFloatBar();
@@ -226,8 +230,33 @@
             }
             const clipItem = createClipItem(clip, false);
             clipItemsContainer.appendChild(clipItem);
-            renderLinkedKnowledge(clip.id);
-            renderPlanBacklinks(clip.id);
+        });
+
+        // 批量预取关联数据（2 个请求替代 N×2），完成后由缓存驱动渲染
+        const shownIds = shown.filter(c => c && c.id != null).map(c => c.id);
+        batchLoadClipRelations(shownIds).finally(() => {
+            shown.forEach(clip => {
+                if (clip && clip.id != null) {
+                    renderLinkedKnowledge(clip.id);
+                    renderPlanBacklinks(clip.id);
+                }
+            });
+            // 恢复之前展开的剪藏详情（缓存已填充，零新增请求）
+            expandedIds.forEach(id => {
+                const detail = document.querySelector(`.clip-detail[data-clip-id="${id}"]`);
+                if (detail) {
+                    detail.classList.add('expanded');
+                    detail.querySelectorAll('.content-text.truncated').forEach(el => el.classList.add('expanded'));
+                    const btn = detail.closest('.clip-item')?.querySelector(`.expand-btn[data-clip-id="${id}"]`);
+                    if (btn) {
+                        btn.classList.add('expanded');
+                        const text = btn.querySelector('.text');
+                        if (text) text.textContent = '收起';
+                    }
+                    renderLinkedKnowledge(parseInt(id));
+                    renderPlanBacklinks(parseInt(id));
+                }
+            });
         });
 
         // 加载更多（客户端分页，保留现有筛选/排序逻辑）
@@ -241,23 +270,6 @@
             });
             clipItemsContainer.appendChild(loadMoreBtn);
         }
-
-        // 恢复之前展开的剪藏详情
-        expandedIds.forEach(id => {
-          const detail = document.querySelector(`.clip-detail[data-clip-id="${id}"]`);
-          if (detail) {
-            detail.classList.add('expanded');
-            detail.querySelectorAll('.content-text.truncated').forEach(el => el.classList.add('expanded'));
-            const btn = detail.closest('.clip-item')?.querySelector(`.expand-btn[data-clip-id="${id}"]`);
-            if (btn) {
-              btn.classList.add('expanded');
-              const text = btn.querySelector('.text');
-              if (text) text.textContent = '收起';
-            }
-            renderLinkedKnowledge(parseInt(id));
-            renderPlanBacklinks(parseInt(id));
-          }
-        });
 
         // 存在 pending 剪藏 → 2.5s 后自动轮询刷新（异步 AI 分析完成自动出现）
         if (clips.some(c => c.analysisStatus === 'pending')) {

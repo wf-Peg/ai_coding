@@ -419,42 +419,51 @@ function showToast(msg) {
   setTimeout(() => { t.style.animation = 'slideOut 0.3s ease-in forwards'; setTimeout(() => t.remove(), 300); }, 2000);
 }
 
+// ====== 关联数据批量缓存（N+1 → 每页 2 个批量请求）======
+var linkedKnowledgeCache = new Map(); // clipId(String) -> knowledgeList
+var planBacklinksCache = new Map();   // clipId(String) -> plans
+
+async function batchLoadClipRelations(clipIds) {
+    const ids = [...new Set((clipIds || []).filter(id => id != null).map(String))];
+    if (ids.length === 0) return;
+    const missingLinked = ids.filter(id => !linkedKnowledgeCache.has(id));
+    const missingPlans = ids.filter(id => !planBacklinksCache.has(id));
+    if (missingLinked.length > 0) {
+        try {
+            const res = await axios.get(`${KNOWLEDGE_API_BASE_URL}/by-clips`,
+                { params: { clipIds: missingLinked.join(',') } });
+            Object.entries(res.data || {}).forEach(([id, list]) =>
+                linkedKnowledgeCache.set(String(id), list || []));
+        } catch (e) { console.error('批量获取关联知识失败:', e); }
+    }
+    if (missingPlans.length > 0) {
+        try {
+            const res = await axios.get(`${API_ROOT}/learning-plan/by-clips`,
+                { params: { clipIds: missingPlans.join(',') } });
+            Object.entries(res.data || {}).forEach(([id, list]) =>
+                planBacklinksCache.set(String(id), list || []));
+        } catch (e) { console.error('批量获取学习计划反链失败:', e); }
+    }
+}
+
 // ====== 已关联知识 ======
 async function renderLinkedKnowledge(clipId) {
     const listEl = document.getElementById(`linkedKnowledgeList-${clipId}`);
     const noDataEl = document.getElementById(`noLinkedKnowledge-${clipId}`);
     if (!listEl || !noDataEl) return;
 
-    try {
-        const response = await axios.get(`${KNOWLEDGE_API_BASE_URL}/by-clip/${clipId}`);
-        const knowledgeList = response.data || [];
-
-        // 列表级「已关联知识」角标
-        const badge = document.getElementById(`knowledge-badge-${clipId}`);
-        if (badge) {
-            if (knowledgeList.length > 0) {
-                badge.textContent = `🧠 已关联 ${knowledgeList.length} 条知识`;
-                badge.style.display = '';
-            } else {
-                badge.style.display = 'none';
-            }
-        }
-
-        if (knowledgeList.length > 0) {
-            noDataEl.style.display = 'none';
-            listEl.style.display = 'block';
-            listEl.innerHTML = knowledgeList.map(k => {
-                const date = k.createdAt ? new Date(k.createdAt).toLocaleDateString('zh-CN') : '';
-                const summary = k.summary || '';
-                return `<div class="linked-knowledge-item">
-                    <div class="knowledge-title">
-                        <a href="knowledge-detail.html?id=${k.id}" target="_blank">${escapeHtml(k.title || '未命名知识')}</a>
-                    </div>
-                    ${summary ? `<div class="knowledge-summary">${escapeHtml(summary)}</div>` : ''}
-                    ${date ? `<div class="knowledge-date">${date}</div>` : ''}
-                </div>`;
-            }).join('');
-        } else {
+    // 先读缓存，未命中才单条请求并回填缓存（批量预取失败时兜底）
+    const key = String(clipId);
+    let knowledgeList = null;
+    if (linkedKnowledgeCache.has(key)) {
+        knowledgeList = linkedKnowledgeCache.get(key);
+    } else {
+        try {
+            const response = await axios.get(`${KNOWLEDGE_API_BASE_URL}/by-clip/${clipId}`);
+            knowledgeList = response.data || [];
+            linkedKnowledgeCache.set(key, knowledgeList);
+        } catch (error) {
+            console.error('获取已关联知识失败:', error);
             listEl.style.display = 'none';
             noDataEl.style.display = 'block';
             const btn = noDataEl.querySelector('.create-knowledge-action');
@@ -462,9 +471,36 @@ async function renderLinkedKnowledge(clipId) {
                 btn.classList.remove('loading');
                 btn.innerHTML = '创建知识条目';
             }
+            return;
         }
-    } catch (error) {
-        console.error('获取已关联知识失败:', error);
+    }
+
+    // 列表级「已关联知识」角标
+    const badge = document.getElementById(`knowledge-badge-${clipId}`);
+    if (badge) {
+        if (knowledgeList.length > 0) {
+            badge.textContent = `🧠 已关联 ${knowledgeList.length} 条知识`;
+            badge.style.display = '';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+
+    if (knowledgeList.length > 0) {
+        noDataEl.style.display = 'none';
+        listEl.style.display = 'block';
+        listEl.innerHTML = knowledgeList.map(k => {
+            const date = k.createdAt ? new Date(k.createdAt).toLocaleDateString('zh-CN') : '';
+            const summary = k.summary || '';
+            return `<div class="linked-knowledge-item">
+                <div class="knowledge-title">
+                    <a href="knowledge-detail.html?id=${k.id}" target="_blank">${escapeHtml(k.title || '未命名知识')}</a>
+                </div>
+                ${summary ? `<div class="knowledge-summary">${escapeHtml(summary)}</div>` : ''}
+                ${date ? `<div class="knowledge-date">${date}</div>` : ''}
+            </div>`;
+        }).join('');
+    } else {
         listEl.style.display = 'none';
         noDataEl.style.display = 'block';
         const btn = noDataEl.querySelector('.create-knowledge-action');
@@ -480,26 +516,37 @@ async function renderPlanBacklinks(clipId) {
     const section = document.getElementById(`planBacklinksSection-${clipId}`);
     const listEl = document.getElementById(`planBacklinksList-${clipId}`);
     if (!section || !listEl) return;
-    try {
-        const response = await axios.get(`${API_ROOT}/learning-plan/by-clip/${clipId}`);
-        const plans = response.data || [];
-        if (!plans || plans.length === 0) {
+
+    // 先读缓存，未命中才单条请求并回填缓存（批量预取失败时兜底）
+    const key = String(clipId);
+    let plans = null;
+    if (planBacklinksCache.has(key)) {
+        plans = planBacklinksCache.get(key);
+    } else {
+        try {
+            const response = await axios.get(`${API_ROOT}/learning-plan/by-clip/${clipId}`);
+            plans = response.data || [];
+            planBacklinksCache.set(key, plans);
+        } catch (e) {
+            console.error('获取学习计划引用失败:', e);
             section.style.display = 'none';
             return;
         }
-        section.style.display = '';
-        listEl.innerHTML = plans.map(p => `
-            <div class="linked-knowledge-item" style="cursor:pointer;">
-                <div class="knowledge-title">
-                    <a href="javascript:void(0)" onclick="openLearningPlanFromClip(${p.planId})">📘 ${escapeHtml(p.planTitle)}</a>
-                    <span style="font-size:0.72rem;color:var(--text-muted);">${(p.phases || []).map(ph => `阶段 ${ph.phaseNumber}`).join('、')}</span>
-                </div>
-            </div>
-        `).join('');
-    } catch (e) {
-        console.error('获取学习计划引用失败:', e);
-        section.style.display = 'none';
     }
+
+    if (!plans || plans.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+    section.style.display = '';
+    listEl.innerHTML = plans.map(p => `
+        <div class="linked-knowledge-item" style="cursor:pointer;">
+            <div class="knowledge-title">
+                <a href="javascript:void(0)" onclick="openLearningPlanFromClip(${p.planId})">📘 ${escapeHtml(p.planTitle)}</a>
+                <span style="font-size:0.72rem;color:var(--text-muted);">${(p.phases || []).map(ph => `阶段 ${ph.phaseNumber}`).join('、')}</span>
+            </div>
+        </div>
+    `).join('');
 }
 
 function openLearningPlanFromClip(planId) {
@@ -536,6 +583,8 @@ async function createKnowledgeFromClip(event, clipId) {
             sourceClipIds: [clip.id]
         };
         sessionStorage.setItem('synthesizedKnowledge', JSON.stringify(knowledgeDraft));
+        // 失效该剪藏的关联知识缓存，下次回列表展示最新角标
+        linkedKnowledgeCache.delete(String(clipId));
 
         showToast('正在跳转到知识编辑器...');
         // 通知父框架切换到知识模块并打开知识编辑器，保持应用头部导航栏

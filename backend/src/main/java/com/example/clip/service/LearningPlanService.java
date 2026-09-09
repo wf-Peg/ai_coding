@@ -424,6 +424,47 @@ public class LearningPlanService {
                 .toList());
     }
 
+    /**
+     * 批量反查引用多个剪藏的学习阶段（一次全量扫描，消除 N+1）。
+     * 结构与单条接口 collectPlanRefs 一致：同计划的多个命中阶段合并进同一 planRef 的 phases 数组。
+     *
+     * @param clipIds 剪藏 ID 列表
+     * @return clipId -> [{planId, planTitle, phases:[{phaseNumber, phaseTitle}]}]
+     */
+    public Map<Long, List<Map<String, Object>>> getPlansByClipIds(List<Long> clipIds) {
+        Map<Long, List<Map<String, Object>>> result = new HashMap<>();
+        if (clipIds == null || clipIds.isEmpty()) return result;
+        Set<Long> idSet = new HashSet<>(clipIds);
+        // clipId -> planId -> planRef（合并同计划多阶段）
+        Map<Long, Map<Long, Map<String, Object>>> planRefsByClip = new HashMap<>();
+        for (LearningPlan plan : fileStorageService.getAllLearningPlans()) {
+            if (plan.getId() == null) continue;
+            for (Phase phase : plan.getPhases()) {
+                if (phase.getSourceClipIds() == null) continue;
+                for (Long cid : phase.getSourceClipIds()) {
+                    if (!idSet.contains(cid)) continue;
+                    Map<Long, Map<String, Object>> byPlan =
+                            planRefsByClip.computeIfAbsent(cid, x -> new LinkedHashMap<>());
+                    Map<String, Object> planRef = byPlan.computeIfAbsent(plan.getId(), x -> {
+                        Map<String, Object> ref = new LinkedHashMap<>();
+                        ref.put("planId", plan.getId());
+                        ref.put("planTitle", plan.getTitle());
+                        ref.put("phases", new ArrayList<Map<String, Object>>());
+                        return ref;
+                    });
+                    Map<String, Object> phaseRef = new LinkedHashMap<>();
+                    phaseRef.put("phaseNumber", phase.getPhaseNumber());
+                    phaseRef.put("phaseTitle", phase.getTitle());
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> phases = (List<Map<String, Object>>) planRef.get("phases");
+                    phases.add(phaseRef);
+                }
+            }
+        }
+        planRefsByClip.forEach((cid, byPlan) -> result.put(cid, new ArrayList<>(byPlan.values())));
+        return result;
+    }
+
     private List<Map<String, Object>> collectPlanRefs(java.util.function.Function<LearningPlan, List<Phase>> matcher) {
         List<Map<String, Object>> result = new ArrayList<>();
         for (LearningPlan plan : fileStorageService.getAllLearningPlans()) {

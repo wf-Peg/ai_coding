@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -193,6 +194,24 @@ public class KnowledgeController {
     public ResponseEntity<List<KnowledgeResponse>> getKnowledgeByClipId(@PathVariable Long clipId) {
         List<Knowledge> knowledges = knowledgeService.getKnowledgeByClipId(clipId);
         return ResponseEntity.ok(knowledges.stream().map(this::toResponse).collect(Collectors.toList()));
+    }
+
+    /**
+     * 批量根据来源剪藏 ID 列表查找关联的知识条目（一次全量扫描，消除 N+1）。
+     * <p>
+     * GET /api/knowledge/by-clips?clipIds=1,2,3
+     *
+     * @param clipIds 来源剪藏 ID 列表（逗号分隔）
+     * @return clipId -> 关联知识列表（键顺序与请求 clipIds 顺序一致；无命中为 null 列表转成空后置值）
+     */
+    @GetMapping("/by-clips")
+    public ResponseEntity<Map<Long, List<KnowledgeResponse>>> getKnowledgeByClipIds(
+            @RequestParam("clipIds") List<Long> clipIds) {
+        Map<Long, List<Knowledge>> grouped = knowledgeService.getKnowledgeByClipIds(clipIds);
+        Map<Long, List<KnowledgeResponse>> resp = new LinkedHashMap<>();
+        clipIds.forEach(id -> resp.put(id,
+                grouped.getOrDefault(id, List.of()).stream().map(this::toResponse).toList()));
+        return ResponseEntity.ok(resp);
     }
 
     /**
