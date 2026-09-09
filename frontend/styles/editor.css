@@ -690,6 +690,18 @@ select {
   background: color-mix(in srgb, var(--app-primary) 16%, transparent) !important;
 }
 
+/* ── 双击选词的相同文本高亮（ACE highlightSelectedWord 动态标记） ── */
+.ace_editor .ace_marker-layer .ace_selected-word {
+  border: 1px solid color-mix(in srgb, var(--app-primary) 58%, transparent) !important;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--app-primary) 20%, transparent) !important;
+}
+
+html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
+  border: 1px solid color-mix(in srgb, var(--app-primary) 78%, transparent) !important;
+  background: color-mix(in srgb, var(--app-primary) 32%, transparent) !important;
+}
+
 .ace_marker-layer .sync-word-marker {
   position: absolute;
   border: 1px solid color-mix(in srgb, var(--app-primary) 70%, transparent);
