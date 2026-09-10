@@ -1207,6 +1207,126 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
   width: min(430px, 96vw);
 }
 
+/* 快捷键速查弹窗 */
+.shortcut-modal-card {
+  width: min(560px, 96vw);
+  max-height: 82vh;
+}
+
+.shortcut-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 2px;
+}
+
+.shortcut-group-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--app-text-secondary);
+  padding: 4px 2px 6px;
+}
+
+.shortcut-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  overflow: hidden;
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 10px;
+  font-size: 13px;
+  background: var(--app-surface);
+}
+
+.shortcut-row + .shortcut-row {
+  border-top: 1px solid var(--app-border);
+}
+
+.shortcut-row:nth-child(even) {
+  background: var(--app-surface-subtle);
+}
+
+.shortcut-name {
+  color: var(--app-text);
+}
+
+.shortcut-keys {
+  font-family: var(--app-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  color: var(--app-primary);
+  background: color-mix(in srgb, var(--app-primary) 12%, var(--app-surface));
+  border: 1px solid color-mix(in srgb, var(--app-primary) 35%, var(--app-border));
+  border-radius: 6px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+
+/* 高级设置：键盘模式快捷键说明操作条 */
+.mode-shortcut-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--app-surface) 72%, var(--app-bg));
+}
+
+.mode-shortcut-bar .mode-bar-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  font-size: 14px;
+  background: color-mix(in srgb, var(--app-primary) 16%, var(--app-surface));
+  color: var(--app-primary);
+}
+
+.mode-shortcut-bar .field-control {
+  width: auto;
+  min-width: 120px;
+}
+
+.mode-shortcut-bar .tool-btn {
+  padding: 4px 12px;
+}
+
+.mode-shortcut-hint {
+  font-size: 12px;
+  color: var(--app-text-secondary);
+  margin-left: auto;
+}
+
+/* 模式快捷键分组的强调标题 */
+.shortcut-modal-card #shortcutModeGroup {
+  border: 1px solid color-mix(in srgb, var(--app-primary) 30%, var(--app-border));
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+#shortcutModeGroupTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  padding: 7px 12px;
+  background: linear-gradient(135deg, var(--app-primary), color-mix(in srgb, var(--app-primary) 70%, #3b82f6));
+  border-radius: 0;
+  margin-bottom: 0;
+}
+
 .danger-action {
   color: var(--app-danger);
   border-color: color-mix(in srgb, var(--app-danger) 45%, var(--app-border));

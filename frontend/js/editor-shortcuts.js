@@ -163,6 +163,53 @@
     return Object.keys(dup);
   }
 
+  // ══════════════════════════════════════════════════════════
+  // 统一捕获分发：将功能 action → handler 注册，集中在捕获阶段分发。
+  // 捕获阶段(capture=true)在冒泡前拦截，焦点位于 ACE / 输入框 / 弹窗内
+  // 也能命中组合键，避免被编辑器或高层监听吞掉 keydown（"选中没法唤起"）。
+  // ══════════════════════════════════════════════════════════
+  var _handlers = {};
+  var _captureStarted = false;
+
+  /** 注册某 action 的唤起回调（幂等覆盖同名 action） */
+  function registerHandler(action, handler) {
+    if (typeof handler === 'function') {
+      _handlers[action] = handler;
+    } else {
+      delete _handlers[action];
+    }
+  }
+
+  /** 读取某 action 已注册回调（无则 undefined） */
+  function getHandler(action) {
+    return _handlers[action];
+  }
+
+  /** 某 action 是否已注册回调 */
+  function hasHandler(action) {
+    return typeof _handlers[action] === 'function';
+  }
+
+  /** 捕获阶段分发函数：遍历已注册 handler，命中则执行 */
+  function dispatchCapture(e) {
+    Object.keys(_handlers).forEach(function (action) {
+      if (e.defaultPrevented) return; // 已被更高优先级处理，跳过
+      // match 的第二个参数需传实际组合键（get(action)），不能传 action 名
+      if (match(e, get(action))) {
+        e.preventDefault();
+        e.stopImmediatePropagation(); // 完全消费该键，避免 ACE 自身的同键命令（如展开选区/重放宏）在编辑区内仍触发
+        try { _handlers[action](e); } catch (err) { /* 单 handler 异常不影响其它 */ }
+      }
+    });
+  }
+
+  /** 开启捕获阶段全局监听（幂等，只会绑定一次） */
+  function startCapture() {
+    if (_captureStarted) return;
+    _captureStarted = true;
+    window.addEventListener('keydown', dispatchCapture, true);
+  }
+
   window.EditorShortcuts = {
     DEFAULTS: DEFAULTS,
     STORAGE_KEY: STORAGE_KEY,
@@ -174,6 +221,11 @@
     save: save,
     reset: reset,
     normalizeCombo: normalizeCombo,
-    findConflicts: findConflicts
+    findConflicts: findConflicts,
+    registerHandler: registerHandler,
+    getHandler: getHandler,
+    hasHandler: hasHandler,
+    startCapture: startCapture,
+    dispatchCapture: dispatchCapture
   };
 })();

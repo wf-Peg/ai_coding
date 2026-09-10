@@ -94,6 +94,9 @@
     'manageDictionaryContextBtn', 'aiChatContextBtn', 'joinLineEndsContextBtn', 'formatContextBtn', 'toggleWordWrapContextBtn',
     'dictModal', 'dictSourceInput', 'dictTargetInput', 'dictAddBtn', 'dictList', 'dictLibList', 'dictTabMapping', 'dictTabLibrary',
     'wikilinkPickerModal', 'wikilinkPickerHint', 'wikilinkPickerList',
+    'shortcutModal', 'shortcutGroups', 'shortcutConfigurableList', 'shortcutFixedList', 'shortcutHelpBtn',
+    'shortcutModeGroup', 'shortcutModeGroupTitle', 'shortcutModeList',
+    'keyboardModeHelpSelect', 'keyboardModeHelpBtn',
     'aiChatSelectionHint', 'aiChatSelectionHintText', 'aiChatSelectionHintClear'
   ].map(id => [id, document.getElementById(id)]));
 
@@ -150,6 +153,10 @@
   }
   window.addEventListener('storage', function (ev) {
     if (ev.key === EditorShortcuts.STORAGE_KEY) refreshAllShortcutTitles();
+  });
+  // 设置页(settings iframe)改快捷键后经 index 主界面转发广播，实时刷新 tooltip 文案与组合键
+  window.addEventListener('message', function (ev) {
+    if (ev.data && ev.data.type === 'editor-shortcuts-changed') refreshAllShortcutTitles();
   });
 
   function applyMascotPreference() {
@@ -221,15 +228,9 @@
   const mainEditor = createEditor('mainEditor', false);
   const compareEditor = createEditor('compareEditor', true);
 
-  // 覆盖 ACE 默认的 Ctrl/Cmd+L（跳转到指定行），改为格式化当前内容
-  mainEditor.commands.addCommand({
-    name: 'formatContent',
-    bindKey: { win: 'Ctrl-L', mac: 'Command-L' },
-    exec: function() {
-      formatCurrentContent();
-    },
-    readOnly: false
-  });
+  // Ctrl/Cmd+G（跳转到行）与 Ctrl/Cmd+Shift+L（自动识别格式化）由窗口捕获阶段统一接管
+  //  （见下方 keydown 捕获处理器），保证编辑区内外焦点均能触发。
+  // 不再覆盖 ACE 内置命令，令其各自保留默认键位。
 
   // 搜索/替换快捷键（Ctrl+F / Ctrl+H）由 Ace 内置命令处理：
   // ace.js 核心已注册 find/replace 命令并调用 config.loadModule("ace/ext/searchbox")，
@@ -988,51 +989,7 @@
   }
 
   function formatCurrentContent() {
-    const target = getTargetRangeAndText();
-    if (target.text.length > MAX_TRANSFORM_LENGTH) {
-      showToast('格式化内容超过 5 MB，已阻止本次操作', true);
-      return;
-    }
-    const language = elements.languageSelect.value;
-    // 返回 null 表示语言不支持格式化；否则返回 {error, value}
-    const runFormatter = (text) => {
-      if (language === 'json') return { value: EditorCore.formatJson(text, false) };
-      if (language === 'xml') return { value: EditorCore.formatXml(text, false) };
-      if (language === 'sql') return { value: EditorCore.formatSql(text, 'sql') };
-      return null;
-    };
-    try {
-      const fmt = runFormatter(target.text);
-      if (!fmt) throw new Error('请选择 JSON、XML 或 SQL 模式');
-      mainEditor.session.replace(target.range, fmt.value);
-      showToast(`${target.selection ? '选区' : '全文'}格式化完成`);
-    } catch (error) {
-      // 兜底：格式化失败时先「删除每行末尾换行符」合并被客户端截断的多行，再尝试格式化，
-      // 减少用户一次手动「删除每行末换行符」的交互动作
-      let fallbackError = null;
-      const joined = target.text.replace(/\r\n|\r|\n/g, '');
-      if (joined.length !== target.text.length) {
-        try {
-          const fmt = runFormatter(joined);
-          if (fmt) {
-            const removed = target.text.length - joined.length;
-            mainEditor.session.replace(target.range, fmt.value);
-            showToast(`${target.selection ? '选区' : '全文'}格式化完成（已自动删除 ${removed} 个行末换行符后重试）`, false, 'info');
-            FrontendLogger.info('[Editor] Format fallback success', { language, selection: target.selection, removed });
-            return;
-          }
-          fallbackError = new Error('请选择 JSON、XML 或 SQL 模式');
-        } catch (err2) {
-          fallbackError = err2;
-        }
-      }
-      const detail = EditorCore.extractErrorLocation(fallbackError || error);
-      const hint = (joined.length === target.text.length)
-        ? '（内容不含可合并的行末换行符，请手动「删除每行末换行符」后重试）'
-        : '（已自动删除行末换行符后仍失败）';
-      showToast(`格式化失败${hint}：${detail.message}`, true);
-      FrontendLogger.warn('[Editor] Format failed', language, detail.message);
-    }
+    formatCurrentContentAuto();
   }
 
   /**
@@ -1207,13 +1164,15 @@
   function toggleMarkdownPreview(forceOpen) {
     const shouldOpen = forceOpen !== undefined ? forceOpen : elements.markdownPane.hidden;
     if (shouldOpen && isPaneOpen(elements.aiChatPane)) setAiChatPanelOpen(false);
-    elements.markdownPane.hidden = !shouldOpen;
-    elements.editorWorkspace.classList.toggle('markdown-preview', shouldOpen);
 
-    // 关闭预览时同步退出预览全屏态
+    // 关闭预览时需先退出预览全屏态：pane 一旦 hidden，toggleMarkdownFullscreen 的守卫会提前返回，导致
+    // markdown-fullscreen 类残留、main-pane 持续 display:none，画布变空白
     if (!shouldOpen && markdownFullscreen) {
       toggleMarkdownFullscreen(false);
     }
+
+    elements.markdownPane.hidden = !shouldOpen;
+    elements.editorWorkspace.classList.toggle('markdown-preview', shouldOpen);
 
     // 进入 Markdown 预览时退出对比模式
     if (shouldOpen && !elements.comparePane.hidden) {
@@ -2992,7 +2951,7 @@
   document.getElementById('saveFileBtn').addEventListener('click', () => saveFile(false));
   document.getElementById('saveAsBtn').addEventListener('click', () => saveFile(true));
   elements.tabNewBtn.addEventListener('click', createNewTab);
-  document.getElementById('formatBtn').addEventListener('click', formatCurrentContent);
+  document.getElementById('formatBtn').addEventListener('click', formatCurrentContentAuto);
   document.getElementById('transformBtn').addEventListener('click', openTransformPanel);
   document.getElementById('closeTransformBtn').addEventListener('click', closeTransformPanel);
   document.getElementById('applyTransformBtn').addEventListener('click', applyTransform);
@@ -3015,6 +2974,133 @@
   document.getElementById('terminalBtn').addEventListener('click', openTerminalInDir);
 
   // 在系统终端中打开当前文件所在目录（无则回退知识库根目录）
+  // ── 快捷键速查弹窗：可配置项读 EditorShortcuts 实际生效值，固定键静态展示 ──
+  var shortcutFixedRows = [
+    ['新建标签', 'Ctrl+T'], ['新建文件', 'Ctrl+N'], ['打开文件', 'Ctrl+O'],
+    ['跳转到行', 'Ctrl+G（不区分大小写）'], ['保存', 'Ctrl+S'], ['格式化(自动识别)', 'Ctrl+Shift+L'], ['转换面板', 'Ctrl+Shift+X'],
+    ['Markdown 预览', 'Ctrl+Shift+M'], ['编辑器设置', 'Ctrl+,'], ['全屏', 'F11'],
+    ['命令面板', 'Ctrl+P'], ['终端跟随目录', 'Alt+T'], ['撤销', 'Ctrl+Z'],
+    ['重做', 'Ctrl+Shift+Z'], ['字体放大', 'Ctrl+='], ['字体缩小', 'Ctrl+-'],
+    ['插入图片', 'Ctrl+Shift+I'], ['唤起浏览器控制台', 'Ctrl+F12'], ['双击选词同词高亮', '双击']
+  ].filter(function (row) { return row; });
+  function buildShortcutRows(rows) {
+    return rows.map(function (r) {
+      return '<div class="shortcut-row">'
+        + '<span class="shortcut-name">' + r[0] + '</span>'
+        + '<kbd class="shortcut-keys">' + platformShortcut(r[1]) + '</kbd>'
+        + '</div>';
+    }).join('');
+  }
+  // 键盘模式（Ace/Vim/Emacs/Sublime/VSCode）常用键位静态说明（仅查看，不可修改）
+  var MODE_SHORTCUTS = {
+    'Ace': [
+      ['新开标签', 'Ctrl+T'], ['保存', 'Ctrl+S'], ['撤销', 'Ctrl+Z'], ['重做', 'Ctrl+Shift+Z'],
+      ['查找', 'Ctrl+F'], ['替换', 'Ctrl+H'], ['跳转到行', 'Ctrl+G'], ['跳转行首', 'Ctrl+Home'], ['跳转行尾', 'Ctrl+End'],
+      ['多光标', 'Alt+Click'], ['选中下一个匹配', 'Ctrl+D'], ['缩进', 'Tab'], ['取消缩进', 'Shift+Tab'],
+      ['整行注释', 'Ctrl+/'], ['删除当前行', 'Ctrl+Shift+D'], ['向上复制行', 'Shift+Alt+↑'], ['移动行', 'Alt+↑/↓']
+    ],
+    'Vim': [
+      ['正常模式', 'Esc'], ['向左移动', 'h'], ['向下移动', 'j'], ['向上移动', 'k'], ['向右移动', 'l'],
+      ['光标前插入', 'i'], ['行尾追加', 'A'], ['下方新建行', 'o'], ['可视模式', 'v'], ['可视行', 'V'], ['可视块', 'Ctrl+V'],
+      ['删除行', 'dd'], ['复制行', 'yy'], ['粘贴', 'p'], ['撤销', 'u'], ['重做', 'Ctrl+R'],
+      ['保存', ':w'], ['退出', ':q'], ['保存并退出', ':wq'], ['查找', '/'], ['下一个匹配', 'n'],
+      ['上翻页', 'Ctrl+B'], ['下翻页', 'Ctrl+F'], ['跳转到顶部', 'gg'], ['跳转到底部', 'G'], ['行首', '^'], ['行尾', '$']
+    ],
+    'Emacs': [
+      ['前移光标', 'Ctrl+F'], ['后移光标', 'Ctrl+B'], ['下移', 'Ctrl+N'], ['上移', 'Ctrl+P'],
+      ['行首', 'Ctrl+A'], ['行尾', 'Ctrl+E'], ['删除到行尾', 'Ctrl+K'], ['剪切词/选区', 'Ctrl+W'],
+      ['复制选区', 'Alt+W'], ['粘贴', 'Ctrl+Y'], ['查找', 'Ctrl+S'], ['反向查找', 'Ctrl+R'], ['取消', 'Ctrl+G'],
+      ['保存', 'Ctrl+X Ctrl+S'], ['打开文件', 'Ctrl+X Ctrl+F'], ['切换缓冲区', 'Ctrl+X Ctrl+B']
+    ],
+    'Sublime': [
+      ['查找', 'Ctrl+F'], ['查找下一个', 'F3'], ['查找上一个', 'Shift+F3'], ['替换', 'Ctrl+H'], ['快速打开文件', 'Ctrl+P'],
+      ['选中单词', 'Ctrl+D'], ['拆分选择为多光标', 'Ctrl+Shift+L'], ['选择当前行', 'Ctrl+L'], ['跳转到行', 'Ctrl+G'],
+      ['缩进', 'Ctrl+]'], ['取消缩进', 'Ctrl+['], ['整行注释', 'Ctrl+/'], ['撤销', 'Ctrl+Z'], ['重做', 'Ctrl+Y']
+    ],
+    'VSCode': [
+      ['查找', 'Ctrl+F'], ['替换', 'Ctrl+H'], ['选中下一个匹配', 'Ctrl+D'], ['多光标', 'Alt+Click'],
+      ['跳转到行', 'Ctrl+G'], ['快速打开文件', 'Ctrl+P'], ['整行缩进', 'Ctrl+]'], ['取消缩进', 'Ctrl+['],
+      ['整行注释', 'Ctrl+/'], ['撤销', 'Ctrl+Z'], ['重做', 'Ctrl+Y'],
+      ['行复制', 'Shift+Alt+↓'], ['向上移动行', 'Alt+↑'], ['向下移动行', 'Alt+↓']
+    ],
+    'Ace': [
+      ['查找', 'Ctrl+F'], ['替换', 'Ctrl+H'], ['跳转到行', 'Ctrl+L'], ['选中下一个匹配', 'Alt+K'],
+      ['撤销', 'Ctrl+Z'], ['重做', 'Ctrl+Shift+Z'], ['缩进', 'Tab'], ['取消缩进', 'Shift+Tab'], ['整行注释', 'Ctrl+/']
+    ]
+  };
+  // Ace 模式的常用命令：从运行时 mainEditor.commands 取「真实」组合键，保证与模式对齐
+  // 三元组 [命令名, 中文名, 兜底组合键（运行时缺失时使用，已按 ACE 默认修正）]
+  var ACE_CMD_KEYS = [
+    ['find', '查找', 'Ctrl+F'],
+    ['replace', '替换', 'Ctrl+H'],
+    ['gotoline', '跳转到行', 'Ctrl+L'],
+    ['selectOrFindNext', '选中下一个匹配（多光标）', 'Alt+K'],
+    ['undo', '撤销', 'Ctrl+Z'],
+    ['redo', '重做', 'Ctrl+Shift+Z'],
+    ['togglecomment', '整行注释/取消', 'Ctrl+/'],
+    ['indent', '缩进', 'Tab'],
+    ['outdent', '取消缩进', 'Shift+Tab']
+  ];
+  function resolveAceModeRows() {
+    var rows = [];
+    ACE_CMD_KEYS.forEach(function (c) {
+      var binding = c[2]; // 兜底
+      try {
+        var cmds = mainEditor && mainEditor.commands;
+        var cmd = cmds && cmds.byName && cmds.byName[c[0]];
+        var bk = cmd && cmd.bindKey;
+        if (bk && typeof bk === 'object' && bk.win) binding = String(bk.win).split('|')[0].trim() || binding;
+        else if (bk && typeof bk === 'string' && bk) binding = String(bk).split('|')[0].trim() || binding;
+      } catch (e) { /* 保持兜底 */ }
+      rows.push([c[1], binding]);
+    });
+    return rows;
+  }
+  // shortcutMode 为 null 时打开默认「快捷键速查」，否则为模式名（仅展示该模式键位）
+  var shortcutMode = null;
+  var SHORTCUT_MODE_NOTE = '该键盘模式未内置实际按键处理器，以下键位仅为常用参照，不可修改、不确保全部生效。';
+  function renderShortcutHelp() {
+    if (!elements.shortcutConfigurableList || !elements.shortcutFixedList) return;
+    var isMode = shortcutMode && (MODE_SHORTCUTS[shortcutMode] || shortcutMode === 'Ace');
+    // 模式分组
+    if (isMode) {
+      var rows = shortcutMode === 'Ace' ? resolveAceModeRows() : MODE_SHORTCUTS[shortcutMode];
+      elements.shortcutModeGroupTitle.textContent = shortcutMode + ' 键盘模式快捷键（仅查看）';
+      elements.shortcutModeList.innerHTML = buildShortcutRows(rows);
+      var sub = document.getElementById('shortcutModalSub');
+      if (sub) {
+        sub.textContent = shortcutMode === 'Ace' ? '来自当前 ACE 运行时实际按键映射。' : SHORTCUT_MODE_NOTE;
+        sub.style.display = '';
+      }
+      elements.shortcutModeGroup.hidden = false;
+      elements.shortcutGroups.querySelectorAll('.shortcut-group#shortcutModeGroup ~ .shortcut-group').forEach(function (g) { g.hidden = true; });
+    } else {
+      elements.shortcutModeGroup.hidden = true;
+      elements.shortcutGroups.querySelectorAll('.shortcut-group#shortcutModeGroup ~ .shortcut-group').forEach(function (g) { g.hidden = false; });
+      var subEl = document.getElementById('shortcutModalSub');
+      if (subEl) subEl.textContent = '可在系统设置 → 编辑器快捷键 中修改可配置项';
+      var configRows = Object.keys(EditorShortcuts.DEFAULTS).map(function (action) {
+        return [EditorShortcuts.labelOf(action), EditorShortcuts.get(action)];
+      });
+      elements.shortcutConfigurableList.innerHTML = buildShortcutRows(configRows);
+      elements.shortcutFixedList.innerHTML = buildShortcutRows(shortcutFixedRows);
+    }
+  }
+  function openShortcutHelp(mode) {
+    shortcutMode = mode || null;
+    renderShortcutHelp();
+    openModal(elements.shortcutModal);
+  }
+  elements.shortcutHelpBtn.addEventListener('click', function () { openShortcutHelp(); });
+  elements.keyboardModeHelpBtn.addEventListener('click', function () {
+    openShortcutHelp(elements.keyboardModeHelpSelect.value);
+  });
+  elements.keyboardModeHelpSelect.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openShortcutHelp(elements.keyboardModeHelpSelect.value);
+    }
+  });
   function openTerminalInDir() {
     const api = getElectronAPI();
     if (!api || typeof api.openTerminal !== 'function') {
@@ -3161,6 +3247,84 @@
   if (imageInsertBtn) {
     imageInsertBtn.addEventListener('click', () => editorImageInput.click());
   }
+  // 快捷键 Ctrl+Shift+I 唤起图片插入（与工具栏按钮一致；窗口捕获阶段执行，
+  // 避免焦点在 ACE 编辑区时被其自身 keydown 处理吞掉导致弹不出文件选择器）
+  window.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && (e.key || '').toLowerCase() === 'i') {
+      const t = (e.target && e.target.tagName) || '';
+      // 仅跳过「非 ACE」的普通输入区。ACE 编辑区隐藏内容是 textarea，会被上面的正则误判，
+      // 导致焦点在编辑器内时 Ctrl+Shift+I 失效；因此这里需放行位于 .ace_editor 内的事件
+      const inAce = !!(e.target && e.target.closest && e.target.closest('.ace_editor'));
+      if (!inAce && /^(INPUT|TEXTAREA|SELECT)$/.test(t)) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (editorImageInput) editorImageInput.click();
+    }
+  }, true);
+  // 快捷键 Ctrl/Cmd+Shift+M 唤起 Markdown 预览（窗口捕获阶段优先，
+  // 避免与 ACE 默认的「括号跳转 jumpToMatching」冲突、在编辑区内只切预览）
+  window.addEventListener('keydown', function (e2) {
+    const mod = (e2.ctrlKey || e2.metaKey) && !e2.altKey;
+    if (mod && e2.shiftKey && (e2.key || '').toLowerCase() === 'm') {
+      const t = (e2.target && e2.target.tagName) || '';
+      if (/^(TEXTAREA)$/.test(t) && e2.target !== mainEditor.textInput.getElement()) return; // 其它文本域不拦截
+      e2.preventDefault();
+      e2.stopImmediatePropagation();
+      toggleMarkdownPreview();
+    }
+  }, true);
+  // 快捷键 Ctrl/Cmd+G（跳转到行，不区分大小写）与 Ctrl/Cmd+Shift+L（自动识别格式化）
+  // 统一在窗口捕获阶段接管，保证编辑区内焦点也能触发，不受 ACE 自身 keydown 处理顺序影响。
+  window.addEventListener('keydown', function (e3) {
+    const mod = (e3.ctrlKey || e3.metaKey) && !e3.altKey;
+    if (!mod) return;
+    const key = (e3.key || '').toLowerCase();
+    const isGotoLine = key === 'g' && !e3.shiftKey;       // Ctrl/Cmd+G → 跳转到行
+    const isFormat = key === 'l' && e3.shiftKey;           // Ctrl/Cmd+Shift+L → 自动识别格式化
+    if (!isGotoLine && !isFormat) return;
+    // 普通输入区不拦截；ACE 编辑区（.ace_editor）与跳转行输入框放行
+    const inAce = !!(e3.target && e3.target.closest && e3.target.closest('.ace_editor'));
+    const t = (e3.target && e3.target.tagName) || '';
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(t) && !inAce && e3.target.id !== 'gotoLineInput') return;
+    e3.preventDefault();
+    e3.stopImmediatePropagation();
+    if (isGotoLine) openGotoLineDialog();
+    else formatCurrentContentAuto();
+  }, true);
+
+  // —— 跳转到行弹窗 ——
+  function openGotoLineDialog() {
+    const modal = document.getElementById('gotoLineModal');
+    const input = document.getElementById('gotoLineInput');
+    if (!modal || !input) return;
+    const total = mainEditor.session.getLength() || 1;
+    input.min = 1;
+    input.max = total;
+    input.value = String((mainEditor.getCursorPosition().row || 0) + 1);
+    openModal(modal);
+    input.select();
+    input.focus();
+  }
+  function jumpToLineConfirmed() {
+    const modal = document.getElementById('gotoLineModal');
+    const input = document.getElementById('gotoLineInput');
+    if (!input || !modal) return;
+    const total = mainEditor.session.getLength() || 1;
+    const v = parseInt(input.value, 10);
+    if (isNaN(v) || v < 1) return;
+    mainEditor.gotoLine(Math.min(v, total), 0, true);
+    mainEditor.focus();
+    closeModal(modal);
+  }
+  const glInput = document.getElementById('gotoLineInput');
+  if (glInput) {
+    glInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); jumpToLineConfirmed(); }
+      else if (e.key === 'Escape') { closeModal(document.getElementById('gotoLineModal')); }
+    });
+  }
+  const glConfirmBtn = document.getElementById('gotoLineConfirmBtn');
+  if (glConfirmBtn) glConfirmBtn.addEventListener('click', jumpToLineConfirmed);
   if (editorImageInput) {
     editorImageInput.addEventListener('change', (e) => {
       handleEditorImageFiles(e.target.files);
@@ -3341,6 +3505,13 @@
     document.getElementById('settingsDesc').textContent =
       tabId === 'advanced' ? 'ACE 图形化设置面板，实时生效。' : '调整编辑器偏好设置。';
 
+    // 打开高级设置时，模式快捷键说明 select 默认当前键盘处理器（处理器未打包时恒为 Ace）
+    if (tabId === 'advanced' && elements.keyboardModeHelpSelect) {
+      if (!elements.keyboardModeHelpSelect.value || elements.keyboardModeHelpSelect.value === '') {
+        elements.keyboardModeHelpSelect.value = 'Ace';
+      }
+    }
+
     // 首次打开高级时渲染 ACE OptionPanel
     if (tabId === 'advanced' && !settingsTabRendered) {
       settingsTabRendered = true;
@@ -3414,15 +3585,6 @@
     } else if (modifier && event.key.toLowerCase() === 's') {
       event.preventDefault();
       saveFile(event.shiftKey);
-    } else if (modifier && event.key.toLowerCase() === 'l') {
-      // Ctrl/Cmd+L 格式化当前内容（JSON/SQL/XML 等）
-      // 焦点在 ACE 编辑器内时由编辑器命令处理，此处仅兜底处理焦点在编辑器外的情况
-      if (mainEditor.container.contains(event.target)) return;
-      event.preventDefault();
-      formatCurrentContent();
-    } else if (modifier && event.shiftKey && event.key.toLowerCase() === 'm') {
-      event.preventDefault();
-      toggleMarkdownPreview();
     } else if (modifier && (event.key === '=' || event.key === '+')) {
       // Ctrl+= 放大字体
       event.preventDefault();
@@ -3596,7 +3758,7 @@
 
   // Alt+T 在系统终端中打开当前文件所在目录
   document.addEventListener('keydown', function(e) {
-    if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.key === 't' || e.key === 'T')) {
+    if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.key || '').toLowerCase() === 't') {
       e.preventDefault();
       openTerminalInDir();
     }
@@ -4065,13 +4227,8 @@
   elements.closeFileTreeBtn.addEventListener('click', toggleFileTree);
   elements.selectDirBtn.addEventListener('click', selectFileTreeDirectory);
 
-  // 文件树快捷键（默认 Ctrl/Cmd+Shift+E，可在系统设置中修改）
-  document.addEventListener('keydown', function(e) {
-    if (EditorShortcuts.match(e, 'fileTree')) {
-      e.preventDefault();
-      toggleFileTree();
-    }
-  });
+  // 文件树快捷键（默认 Ctrl/Cmd+Shift+E，可在系统设置中修改）；由 EditorShortcuts 捕获阶段统一分发
+  EditorShortcuts.registerHandler('fileTree', function() { toggleFileTree(); });
 
   // ══════════════════════════════════════════════════════════
   // 6. Project & Workspace (项目与工作区管理)
@@ -4388,13 +4545,8 @@
   historyBtn.addEventListener('click', toggleHistoryPanel);
   elements.runtimeStatus.parentNode.insertBefore(historyBtn, elements.runtimeStatus);
 
-  // 编辑历史快捷键（默认 Ctrl/Cmd+Shift+H，可在系统设置中修改）
-  document.addEventListener('keydown', function(e) {
-    if (EditorShortcuts.match(e, 'history')) {
-      e.preventDefault();
-      toggleHistoryPanel();
-    }
-  });
+  // 编辑历史快捷键（默认 Ctrl/Cmd+Shift+H，可在系统设置中修改）；由 EditorShortcuts 捕获阶段统一分发
+  EditorShortcuts.registerHandler('history', function() { toggleHistoryPanel(); });
 
   elements.closeHistoryBtn.addEventListener('click', closeHistoryPanel);
   elements.undoHistoryBtn.addEventListener('click', function() {
@@ -4578,13 +4730,8 @@
   elements.runtimeStatus.parentNode.insertBefore(recentBtn, historyBtn);
 
   // 最近打开快捷键（默认 Ctrl/Cmd+Shift+N，可在系统设置中修改；
-  // 原 Ctrl/Cmd+Shift+R 与「强制刷新」冲突故让出）
-  document.addEventListener('keydown', function(e) {
-    if (EditorShortcuts.match(e, 'recent')) {
-      e.preventDefault();
-      toggleRecentPanel();
-    }
-  });
+  // 原 Ctrl/Cmd+Shift+R 与「强制刷新」冲突故让出；由 EditorShortcuts 捕获阶段统一分发
+  EditorShortcuts.registerHandler('recent', function() { toggleRecentPanel(); });
 
   elements.closeRecentBtn.addEventListener('click', closeRecentPanel);
   elements.clearRecentBtn.addEventListener('click', function() {
@@ -4774,13 +4921,8 @@
   elements.runtimeStatus.parentNode.insertBefore(favBtn, recentBtn);
 
   // 收藏快捷键（默认 Ctrl/Cmd+Shift+A，可在系统设置中修改；
-  // 原 Ctrl/Cmd+Shift+F 为全局搜索快捷键故让出）
-  document.addEventListener('keydown', function(e) {
-    if (EditorShortcuts.match(e, 'favorite')) {
-      e.preventDefault();
-      toggleFavPanel();
-    }
-  });
+  // 原 Ctrl/Cmd+Shift+F 为全局搜索快捷键故让出；由 EditorShortcuts 捕获阶段统一分发
+  EditorShortcuts.registerHandler('favorite', function() { toggleFavPanel(); });
 
   // 常用文件面板事件绑定
   elements.closeFavBtn.addEventListener('click', closeFavPanel);
@@ -5013,13 +5155,8 @@
     });
     elements.runtimeStatus.parentNode.insertBefore(overviewBtn, elements.runtimeStatus);
 
-    // Ctrl/Cmd+Shift+Y 切换概览（默认，可在系统设置中修改）
-    document.addEventListener('keydown', function(e) {
-      if (EditorShortcuts.match(e, 'overview')) {
-        e.preventDefault();
-        toggleOverviewRuler();
-      }
-    });
+    // Ctrl/Cmd+Shift+Y 切换概览（默认，可在系统设置中修改）；由 EditorShortcuts 捕获阶段统一分发
+    EditorShortcuts.registerHandler('overview', function() { toggleOverviewRuler(); });
   })();
 
   /* ─── 词典库 (DICT_LIB) ─── */
@@ -5936,13 +6073,8 @@
   backlinksBtn.addEventListener('click', function() { toggleBacklinks(); });
   elements.runtimeStatus.parentNode.insertBefore(backlinksBtn, fileTreeBtn);
 
-  // 反链面板快捷键（默认 Ctrl/Cmd+Shift+B，可在系统设置中修改）
-  document.addEventListener('keydown', function(e) {
-    if (EditorShortcuts.match(e, 'backlinks')) {
-      e.preventDefault();
-      toggleBacklinks();
-    }
-  });
+  // 反链面板快捷键（默认 Ctrl/Cmd+Shift+B，可在系统设置中修改）；由 EditorShortcuts 捕获阶段统一分发
+  EditorShortcuts.registerHandler('backlinks', function() { toggleBacklinks(); });
 
   // 初始化：同步双向链接 tab 初始显示态 + 构建双链索引 + 注册补全（延迟到编辑器就绪）
   switchLinkTab('backlinks');
@@ -6075,12 +6207,8 @@
   quickSearchBtn.addEventListener('click', function() { openQuickSwitcher(); });
   elements.runtimeStatus.parentNode.insertBefore(quickSearchBtn, elements.runtimeStatus);
 
-  document.addEventListener('keydown', function(e) {
-    if (EditorShortcuts.match(e, 'outline')) {
-      e.preventDefault();
-      toggleOutline();
-    }
-  });
+  // 大纲面板快捷键（默认 Ctrl/Cmd+Shift+D，可在系统设置中修改）；由 EditorShortcuts 捕获阶段统一分发
+  EditorShortcuts.registerHandler('outline', function() { toggleOutline(); });
 
   // ── 标签面板 ──
   var tagsVisible = false;
@@ -6187,12 +6315,8 @@
   tagsBtn.addEventListener('click', function() { toggleTags(); });
   elements.runtimeStatus.parentNode.insertBefore(tagsBtn, elements.runtimeStatus);
 
-  document.addEventListener('keydown', function(e) {
-    if (EditorShortcuts.match(e, 'tags')) {
-      e.preventDefault();
-      toggleTags();
-    }
-  });
+  // 标签面板快捷键（默认 Ctrl/Cmd+Shift+T，可在系统设置中修改）；由 EditorShortcuts 捕获阶段统一分发
+  EditorShortcuts.registerHandler('tags', function() { toggleTags(); });
 
   // ── 命令面板(Ctrl+P) ──
   var commandRegistry = [];
@@ -6303,7 +6427,8 @@
 
   // Ctrl/Cmd+P 唤起命令面板（排除 Shift/Alt，避免与其它 Ctrl+Shift 快捷键冲突）
   document.addEventListener('keydown', function(e) {
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key === 'p') {
+    const cmdP = (e.key || '').toLowerCase() === 'p';
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && cmdP) {
       e.preventDefault();
       if (quickOpenVisible) closeQuickSwitcher();
       if (paletteOpen) closeCommandPalette(); else openCommandPalette();
@@ -6481,13 +6606,13 @@
     if (quickOpenVisible && !elements.quickSwitcher.contains(e.target)) closeQuickSwitcher();
   });
 
-  // 唤起全局文件搜索（默认 Ctrl/Cmd+Shift+O，可在系统设置中修改；Ctrl+O 已让给「打开」）
-  document.addEventListener('keydown', function(e) {
-    if (EditorShortcuts.match(e, 'quickOpen')) {
-      e.preventDefault();
-      if (quickOpenVisible) closeQuickSwitcher(); else openQuickSwitcher();
-    }
+  // 唤起全局文件搜索（默认 Ctrl/Cmd+Shift+O，可在系统设置中修改；Ctrl+O 已让给「打开」）；由 EditorShortcuts 捕获阶段统一分发
+  EditorShortcuts.registerHandler('quickOpen', function() {
+    if (quickOpenVisible) closeQuickSwitcher(); else openQuickSwitcher();
   });
+
+  // 全部右下角抽屉快捷键已注册完毕，开启捕获阶段全局分发（幂等）
+  EditorShortcuts.startCapture();
 
   // ── 模板系统：列表/读取/插入/变量替换 ──
   function templateFormatDate(d) {

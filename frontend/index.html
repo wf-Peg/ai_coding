@@ -66,6 +66,8 @@
             font-size: 0.85rem;
             font-weight: 600;
             color: var(--text);
+            white-space: nowrap;
+            flex-shrink: 0;
             -webkit-app-region: no-drag;
         }
         .titlebar-brand svg {
@@ -86,6 +88,9 @@
             align-items: center;
             gap: 2px;
             height: 100%;
+            min-width: 0;
+            overflow: hidden;
+            flex: 0 1 auto;
             -webkit-app-region: no-drag;
         }
         .titlebar-nav .nav-btn {
@@ -103,6 +108,15 @@
             align-items: center;
             gap: 6px;
             position: relative;
+            flex: 0 1 auto;
+            min-width: 0;
+            white-space: nowrap;
+        }
+        .titlebar-nav .nav-btn .nav-label {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0;
         }
         .titlebar-nav .nav-btn:hover {
             color: var(--text);
@@ -128,6 +142,7 @@
         .titlebar-nav .nav-btn svg {
             width: 15px;
             height: 15px;
+            flex-shrink: 0;
         }
 
         /* 标题栏空白占位（拖拽已交给系统 app-region，仅保留 flex 占位） */
@@ -783,32 +798,32 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/>
             </svg>
-            编辑
+            <span class="nav-label">编辑</span>
         </button>
         <button class="nav-btn" data-view="workspace" title="工作台：工作区概览、规则筛选与产品概览">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M8 4v16"/>
             </svg>
-            工作台
+            <span class="nav-label">工作台</span>
         </button>
         <button class="nav-btn" data-view="clip" title="剪藏与待办：管理收集的内容与待办事项">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
                 <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
             </svg>
-            剪藏
+            <span class="nav-label">剪藏</span>
         </button>
         <button class="nav-btn" data-view="tools" title="工具模块：PDF 等各类小工具聚合">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"/>
             </svg>
-            工具
+            <span class="nav-label">工具</span>
         </button>
         <button class="nav-btn" data-view="settings" title="应用设置：调整偏好与全局配置">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
             </svg>
-            设置
+            <span class="nav-label">设置</span>
         </button>
     </nav>
     <div class="titlebar-spacer"></div>
@@ -996,6 +1011,10 @@
           renderView('editor');
           window.history.pushState({ view: 'editor' }, '', '/');
           sendPendingClipToEditor();
+        }
+        if (event.data && event.data.type === 'editor-shortcuts-changed') {
+          // 设置页改快捷键后转发给编辑器子页，刷新 tooltip 文案与组合键
+          try { editorFrame && editorFrame.contentWindow && editorFrame.contentWindow.postMessage({ type: 'editor-shortcuts-changed' }, '*'); } catch (e) {}
         }
         if (event.data && event.data.type === 'openClipInNewTab' && event.data.clipId) {
           if (event.data.sourceFilePath) {
@@ -1515,7 +1534,7 @@
           btn.className = 'nav-btn th-pinned';
           btn.dataset.view = it.view;
           btn.title = (it.label || def.label);
-          btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + def.svg + '</svg>' + (it.label || def.label);
+          btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + def.svg + '</svg><span class="nav-label">' + (it.label || def.label) + '</span>';
           btn.addEventListener('click', () => {
             renderView(it.view);
             if (window.history.pushState) window.history.pushState({ view: it.view }, '', '/' + it.view);

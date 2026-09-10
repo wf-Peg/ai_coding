@@ -40,7 +40,7 @@
           <option value="xml">XML</option>
           <option value="sql">SQL</option>
         </select>
-        <button class="tool-btn" id="formatBtn" title="格式化 Ctrl+L">格式化</button>
+        <button class="tool-btn" id="formatBtn" title="格式化（自动识别，JSON/SQL/XML）Ctrl+Shift+L">格式化</button>
         <button class="tool-btn" id="transformBtn">转换</button>
         <button class="tool-btn" id="compareBtn">对比</button>
         <button class="tool-btn icon-text-btn" id="imageInsertBtn" title="插入图片（支持粘贴/拖拽，Ctrl+Shift+I）">
@@ -254,6 +254,7 @@
         </svg>
         <span class="status-btn-label">终端</span>
       </button>
+      <button class="status-btn" id="shortcutHelpBtn" title="查看画布区全部快捷键">⌨️ 快捷键</button>
       <span id="runtimeStatus">浏览器模式</span>
     </footer>
   </main>
@@ -313,6 +314,23 @@
       <div class="panel-actions">
         <button class="tool-btn" id="reopenEncodingBtn">按此编码重新读取</button>
         <button class="tool-btn primary" id="setSaveEncodingBtn">设为保存编码</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="gotoLineModal">
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="gotoLineTitle">
+      <div class="panel-header">
+        <div>
+          <h2 id="gotoLineTitle">跳转到行</h2>
+          <p>输入行号后回车，光标将移动到该行（Ctrl/Cmd+G 唤起）。</p>
+        </div>
+        <button class="icon-close" data-close-modal="gotoLineModal" aria-label="关闭">×</button>
+      </div>
+      <label class="field-label" for="gotoLineInput">行号</label>
+      <input class="field-control" id="gotoLineInput" type="number" min="1" placeholder="例如：42" autocomplete="off">
+      <div class="panel-actions">
+        <button class="tool-btn primary" id="gotoLineConfirmBtn">跳转</button>
       </div>
     </section>
   </div>
@@ -413,6 +431,19 @@
       <!-- 高级设置（ACE 图形化设置面板） -->
       <div class="settings-tab-content" id="settingsAdvanced" hidden>
         <div id="aceSettingsContainer"></div>
+        <div class="mode-shortcut-bar">
+          <span class="mode-bar-icon" aria-hidden="true">⌨</span>
+          <label class="field-label" for="keyboardModeHelpSelect" style="margin:0;">键盘模式快捷键</label>
+          <select class="field-control" id="keyboardModeHelpSelect">
+            <option value="Ace">Ace</option>
+            <option value="Vim">Vim</option>
+            <option value="Emacs">Emacs</option>
+            <option value="Sublime">Sublime</option>
+            <option value="VSCode">VSCode</option>
+          </select>
+          <button class="tool-btn" id="keyboardModeHelpBtn">查看快捷键</button>
+          <span class="mode-shortcut-hint">仅查看，不可修改模式内快捷键</span>
+        </div>
       </div>
       <div class="panel-actions">
         <button class="tool-btn primary" data-close-modal="settingsModal">关闭</button>
@@ -538,6 +569,36 @@
       </div>
       <div class="panel-actions">
         <button class="tool-btn" data-close-modal="dictModal">关闭</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- 快捷键速查弹窗 -->
+  <div class="modal-backdrop" id="shortcutModal">
+    <section class="modal-card shortcut-modal-card" role="dialog" aria-modal="true" aria-labelledby="shortcutModalTitle">
+      <div class="panel-header">
+        <div>
+          <h2 id="shortcutModalTitle">快捷键速查</h2>
+          <p id="shortcutModalSub">可在系统设置 → 编辑器快捷键 中修改可配置项</p>
+        </div>
+        <button class="icon-close" data-close-modal="shortcutModal" aria-label="关闭">×</button>
+      </div>
+      <div class="shortcut-groups" id="shortcutGroups">
+        <div class="shortcut-group" id="shortcutModeGroup" hidden>
+          <div class="shortcut-group-title" id="shortcutModeGroupTitle"></div>
+          <div class="shortcut-table" id="shortcutModeList"></div>
+        </div>
+        <div class="shortcut-group">
+          <div class="shortcut-group-title">可配置快捷键</div>
+          <div class="shortcut-table" id="shortcutConfigurableList"></div>
+        </div>
+        <div class="shortcut-group">
+          <div class="shortcut-group-title">固定快捷键</div>
+          <div class="shortcut-table" id="shortcutFixedList"></div>
+        </div>
+      </div>
+      <div class="panel-actions">
+        <button class="tool-btn" data-close-modal="shortcutModal">关闭</button>
       </div>
     </section>
   </div>

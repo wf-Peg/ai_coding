@@ -93,3 +93,35 @@ test('normalizeCombo 规范输出与非法输入返回 null', () => {
   assert.equal(ES.normalizeCombo({ ctrlKey: true, shiftKey: true, altKey: false, key: 'f' }), 'Ctrl+Shift+F');
   assert.equal(ES.normalizeCombo({ ctrlKey: false, shiftKey: false, altKey: false, key: 'a' }), null); // 裸字母
 });
+
+test('捕获分发：按实际组合键命中并执行 handler（回归：误传 action 名导致永不触发）', () => {
+  store.clear();
+  let quickOpenCalls = 0;
+  ES.registerHandler('quickOpen', () => { quickOpenCalls += 1; });
+  // 快捷键：默认 Ctrl+Shift+O
+  const evt = { ctrlKey: true, shiftKey: true, altKey: false, key: 'O', preventDefault: () => {} };
+  ES.dispatchCapture(evt);
+  assert.equal(quickOpenCalls >= 1, true);
+  // 不匹配的键不应触发
+  const other = { ctrlKey: true, shiftKey: true, altKey: false, key: 'P', preventDefault: () => {} };
+  ES.dispatchCapture(other);
+  assert.equal(quickOpenCalls, 1);
+  // 已 defaultPrevented 时跳过
+  const prevented = { ctrlKey: true, shiftKey: true, altKey: false, key: 'O', preventDefault: () => {}, defaultPrevented: true };
+  ES.dispatchCapture(prevented);
+  assert.equal(quickOpenCalls, 1);
+  ES.registerHandler('quickOpen', null); // 清理
+});
+
+test('捕获分发：覆盖自定义组合键后同样按新键命中', () => {
+  store.clear();
+  const map = ES.getAll();
+  map.quickOpen = 'Ctrl+Shift+Q';
+  ES.save(map);
+  let calls = 0;
+  ES.registerHandler('quickOpen', () => { calls += 1; });
+  ES.dispatchCapture({ ctrlKey: true, shiftKey: true, altKey: false, key: 'Q', preventDefault: () => {} });
+  assert.equal(calls, 1);
+  ES.registerHandler('quickOpen', null);
+  ES.reset();
+});

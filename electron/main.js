@@ -2366,7 +2366,7 @@ function createMainWindow(config) {
     },
     {
       label: 'View', submenu: [
-        { role: 'reload' }, { role: 'toggleDevTools' }, { type: 'separator' },
+        { role: 'reload' }, { role: 'toggleDevTools', accelerator: 'CommandOrControl+F12' }, { type: 'separator' },
         { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { type: 'separator' },
         { role: 'togglefullscreen' }
       ]

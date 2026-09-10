@@ -2134,6 +2134,7 @@ function initEditorShortcutsSection() {
       if (!confirm('确定恢复所有编辑器功能快捷键为默认值？')) return;
       ES.reset();
       syncGlobalSearchMenu();
+      broadcastShortcutsChanged();
       initEditorShortcutsSection();
       showToast('已恢复默认快捷键');
     });
@@ -2175,6 +2176,7 @@ function commitEsRecording(input) {
   if (!combo) {
     // 空值 = 恢复该 action 默认
     window.EditorShortcuts.save(Object.assign(window.EditorShortcuts.getAll(), { [action]: undefined }));
+    broadcastShortcutsChanged();
   } else {
     if (!window.EditorShortcuts.parse(combo)) {
       showToast('无效组合键');
@@ -2184,6 +2186,7 @@ function commitEsRecording(input) {
     const map = window.EditorShortcuts.getAll();
     map[action] = combo;
     window.EditorShortcuts.save(map);
+    broadcastShortcutsChanged();
     showToast('快捷键已保存');
   }
   syncGlobalSearchMenu();
@@ -2228,4 +2231,15 @@ function syncGlobalSearchMenu() {
   if (!api || typeof api.setGlobalSearchShortcut !== 'function') return;
   const combo = window.EditorShortcuts ? window.EditorShortcuts.get('globalSearch') : 'Ctrl+Shift+F';
   api.setGlobalSearchShortcut(combo).catch(() => {});
+}
+
+// 面板快捷键变更后，通知 index 主界面向各子 iframe 广播更新 tooltip（同窗口 iframe 间 storage 事件不触发）
+function broadcastShortcutsChanged() {
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'editor-shortcuts-changed' }, '*');
+    } else {
+      window.dispatchEvent(new CustomEvent('editor-shortcuts-changed'));
+    }
+  } catch (e) { /* 忽略父窗口跨域等异常 */ }
 }
