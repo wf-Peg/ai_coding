@@ -72,6 +72,7 @@ public class PromptConfigService {
         normalized.setWikiQueryIndexPrompt(normalizeOrDefault(loaded.getWikiQueryIndexPrompt(), DEFAULT_WIKI_QUERY_INDEX_PROMPT));
         normalized.setWikiQuerySynthesisPrompt(normalizeOrDefault(loaded.getWikiQuerySynthesisPrompt(), DEFAULT_WIKI_QUERY_SYNTHESIS_PROMPT));
         normalized.setWikiLintPrompt(normalizeOrDefault(loaded.getWikiLintPrompt(), DEFAULT_WIKI_LINT_PROMPT));
+        normalized.setClipAskSynthesisPrompt(normalizeOrDefault(loaded.getClipAskSynthesisPrompt(), DEFAULT_CLIP_ASK_SYNTHESIS_PROMPT));
         return normalized;
     }
 
@@ -106,6 +107,7 @@ public class PromptConfigService {
         normalized.setWikiQueryIndexPrompt(normalizeOrDefault(config.getWikiQueryIndexPrompt(), existing.getWikiQueryIndexPrompt()));
         normalized.setWikiQuerySynthesisPrompt(normalizeOrDefault(config.getWikiQuerySynthesisPrompt(), existing.getWikiQuerySynthesisPrompt()));
         normalized.setWikiLintPrompt(normalizeOrDefault(config.getWikiLintPrompt(), existing.getWikiLintPrompt()));
+        normalized.setClipAskSynthesisPrompt(normalizeOrDefault(config.getClipAskSynthesisPrompt(), existing.getClipAskSynthesisPrompt()));
         validate(normalized);
         storageService.saveConfig(normalized);
         return normalized;
@@ -295,6 +297,7 @@ public class PromptConfigService {
         c.setWikiQueryIndexPrompt(DEFAULT_WIKI_QUERY_INDEX_PROMPT);
         c.setWikiQuerySynthesisPrompt(DEFAULT_WIKI_QUERY_SYNTHESIS_PROMPT);
         c.setWikiLintPrompt(DEFAULT_WIKI_LINT_PROMPT);
+        c.setClipAskSynthesisPrompt(DEFAULT_CLIP_ASK_SYNTHESIS_PROMPT);
         return c;
     }
 

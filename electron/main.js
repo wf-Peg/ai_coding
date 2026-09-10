@@ -1749,7 +1749,8 @@ function startFrontendServer(config) {
         const isAiStream = urlPath.startsWith('/api/ai/chat/stream');
         const isWikiQuery = urlPath.startsWith('/api/wiki/query');
         const isWikiLint = urlPath.startsWith('/api/wiki/lint');
-        const noTimeout = isAiStream || isWikiQuery || isWikiLint;
+        const isClipAskStream = urlPath.startsWith('/api/clip/ask/stream');
+        const noTimeout = isAiStream || isWikiQuery || isWikiLint || isClipAskStream;
         const proxyReq = http.request({
           hostname: '127.0.0.1',
           port: config.backendPort,
@@ -1759,7 +1760,7 @@ function startFrontendServer(config) {
           timeout: noTimeout ? 0 : 30000
         }, (proxyRes) => {
           const responseHeaders = { ...proxyRes.headers };
-          if (isAiStream) {
+          if (isAiStream || isClipAskStream) {
             responseHeaders['cache-control'] = 'no-cache, no-transform';
             responseHeaders.connection = 'keep-alive';
           }

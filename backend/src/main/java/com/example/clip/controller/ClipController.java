@@ -2,6 +2,9 @@ package com.example.clip.controller;
 
 import com.example.clip.config.PromptConfig;
 import com.example.clip.core.AiService;
+import com.example.clip.core.ChatMessage;
+import com.example.clip.core.ChatStreamHandle;
+import com.example.clip.core.ChatStreamListener;
 import com.example.clip.dto.ClipEditRequest;
 import com.example.clip.dto.ClipRequest;
 import com.example.clip.dto.ClipResponse;
@@ -26,9 +29,12 @@ import com.example.clip.util.WorkspaceFilterUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -37,6 +43,12 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -527,7 +539,123 @@ public class ClipController {
             question = question.substring(0, 200);
         }
 
-        // 1. 全库检索，取最相关候选（最多 8 条）
+        AskContext context = buildAskContext(question);
+        if (!context.hasCandidates()) {
+            return ResponseEntity.ok(Map.of(
+                    "status", "no_results",
+                    "answer", "库里没有找到与这个问题相关的内容，换个说法再试试。",
+                    "sources", List.of()));
+        }
+
+        // 强模型综合回答（失败保留问题并提示重试，不硬编）
+        String answer = aiService.answerClipQuestion(question, context.pageContents());
+        if (answer == null) {
+            log.warn("[API] /ask answer generation failed for question: {}", question);
+            return ResponseEntity.ok(Map.of(
+                    "status", "error",
+                    "answer", "AI 服务暂时不可用，问题已保留，请稍后重试。",
+                    "sources", context.sources()));
+        }
+        return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "answer", answer,
+                "sources", context.sources()));
+    }
+
+    /**
+     * 全库问答（流式）
+     * <p>
+     * POST /api/clip/ask/stream 请求体 {"question": "..."}
+     * <p>
+     * 与 {@link #askLibrary} 相同的检索流程，但回答通过 SSE 增量推送：
+     * 候选为空时发 {@code status(no_results)} 事件；有候选先发 {@code sources} 事件
+     * 供前端渲染来源，再逐个发 {@code delta} 增量，最后 {@code done}；
+     * 异常发 {@code error} 事件。心跳事件每 15s 推送一次防代理超时。
+     *
+     * @param body 包含 question 字段的 JSON 对象
+     * @return text/event-stream
+     */
+    @PostMapping(value = "/ask/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public ResponseEntity<SseEmitter> askLibraryStream(@RequestBody Map<String, String> body) {
+        String question = body == null ? "" : body.getOrDefault("question", "");
+        question = question == null ? "" : question.trim();
+        if (question.isEmpty()) {
+            throw new IllegalArgumentException("问题不能为空");
+        }
+        if (question.length() > 200) {
+            question = question.substring(0, 200);
+        }
+
+        final String safeQuestion = question;
+        SseEmitter emitter = new SseEmitter(STREAM_TIMEOUT_MS);
+        AskStreamLifecycle lifecycle = new AskStreamLifecycle(emitter);
+        ScheduledFuture<?> heartbeat = HEARTBEATS.scheduleAtFixedRate(
+                lifecycle::sendHeartbeat, 15, 15, TimeUnit.SECONDS);
+        lifecycle.setHeartbeat(heartbeat);
+
+        emitter.onCompletion(lifecycle::close);
+        emitter.onTimeout(() -> {
+            lifecycle.sendError("TIMEOUT", "AI 响应超时");
+            lifecycle.close();
+        });
+        emitter.onError(error -> lifecycle.close());
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                AskContext context = buildAskContext(safeQuestion);
+                if (!context.hasCandidates()) {
+                    lifecycle.send("status", Map.of(
+                            "status", "no_results",
+                            "answer", "库里没有找到与这个问题相关的内容，换个说法再试试。"));
+                    lifecycle.close();
+                    return;
+                }
+                lifecycle.send("sources", Map.of("sources", context.sources()));
+                ChatStreamHandle handle = aiService.streamClipAnswer(safeQuestion, context.pageContents(), lifecycle.listener());
+                lifecycle.setHandle(handle);
+            } catch (Exception error) {
+                lifecycle.sendError("PROVIDER_ERROR", error.getMessage());
+                lifecycle.close();
+            }
+        });
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.TEXT_EVENT_STREAM)
+                .body(emitter);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleBadRequest(IllegalArgumentException error) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("status", "error");
+        body.put("message", error.getMessage());
+        return ResponseEntity.badRequest().body(body);
+    }
+
+    /** 全库问答 SSE 超时时间（与编辑器 AI 对话一致） */
+    private static final long STREAM_TIMEOUT_MS = 120_000L;
+
+    /** 全库问答 SSE 心跳线程池 */
+    private static final ScheduledExecutorService HEARTBEATS =
+            Executors.newScheduledThreadPool(1, runnable -> {
+                Thread thread = new Thread(runnable, "clip-ask-heartbeat");
+                thread.setDaemon(true);
+                return thread;
+            });
+
+    /** 全库问答检索上下文：候选片段映射 + 来源清单 */
+    private record AskContext(Map<String, String> pageContents, List<Map<String, Object>> sources) {
+        boolean hasCandidates() {
+            return pageContents != null && !pageContents.isEmpty();
+        }
+    }
+
+    /**
+     * 全库问答公共检索逻辑：检索最相关候选（最多 8 条），
+     * 拼装编号片段（单条截断 4000 字防 token 超限）与来源清单。
+     * 检索失败时降级为空上下文。
+     */
+    private AskContext buildAskContext(String question) {
         List<ClipContent> candidates;
         try {
             candidates = searchService.search(question, 8);
@@ -536,16 +664,12 @@ public class ClipController {
             candidates = new ArrayList<>();
         }
         if (candidates == null || candidates.isEmpty()) {
-            return ResponseEntity.ok(Map.of(
-                    "status", "no_results",
-                    "answer", "库里没有找到与这个问题相关的内容，换个说法再试试。",
-                    "sources", List.of()));
+            return new AskContext(new LinkedHashMap<>(), new ArrayList<>());
         }
         if (candidates.size() > 8) {
             candidates = new ArrayList<>(candidates.subList(0, 8));
         }
 
-        // 2. 拼装编号片段与来源清单（单条片段截断防 token 超限）
         Map<String, String> pageContents = new LinkedHashMap<>();
         List<Map<String, Object>> sources = new ArrayList<>();
         int index = 1;
@@ -570,20 +694,84 @@ public class ClipController {
             sources.add(source);
             index++;
         }
+        return new AskContext(pageContents, sources);
+    }
 
-        // 3. 强模型综合回答（失败保留问题并提示重试，不硬编）
-        String answer = aiService.answerClipQuestion(question, pageContents);
-        if (answer == null) {
-            log.warn("[API] /ask answer generation failed for question: {}", question);
-            return ResponseEntity.ok(Map.of(
-                    "status", "error",
-                    "answer", "AI 服务暂时不可用，问题已保留，请稍后重试。",
-                    "sources", sources));
+    /**
+     * 全库问答 SSE 生命周期：发送事件、心跳与资源释放。
+     * 与 {@code AiChatController} 内部实现同构，独立维护以避免耦合。
+     */
+    private static final class AskStreamLifecycle {
+        private final SseEmitter emitter;
+        private final AtomicBoolean closed = new AtomicBoolean();
+        private volatile ChatStreamHandle handle;
+        private volatile ScheduledFuture<?> heartbeat;
+
+        private AskStreamLifecycle(SseEmitter emitter) {
+            this.emitter = emitter;
         }
-        return ResponseEntity.ok(Map.of(
-                "status", "success",
-                "answer", answer,
-                "sources", sources));
+
+        private ChatStreamListener listener() {
+            return new ChatStreamListener() {
+                @Override
+                public void onDelta(String content) {
+                    send("delta", Map.of("content", content));
+                }
+
+                @Override
+                public void onComplete() {
+                    send("done", Map.of());
+                    close();
+                }
+
+                @Override
+                public void onError(Throwable error) {
+                    sendError("PROVIDER_ERROR", error == null ? "AI 服务调用失败" : error.getMessage());
+                    close();
+                }
+            };
+        }
+
+        private synchronized void send(String event, Map<String, Object> data) {
+            if (closed.get()) return;
+            try {
+                emitter.send(SseEmitter.event().name(event).data(data));
+            } catch (IOException error) {
+                close();
+            }
+        }
+
+        private void sendHeartbeat() {
+            send("heartbeat", Map.of());
+        }
+
+        private void sendError(String code, String message) {
+            send("error", Map.of(
+                    "code", code,
+                    "message", message == null || message.isBlank() ? "AI 服务调用失败" : message));
+        }
+
+        private void setHandle(ChatStreamHandle value) {
+            this.handle = value;
+            if (closed.get() && value != null) value.cancel();
+        }
+
+        private void setHeartbeat(ScheduledFuture<?> value) {
+            this.heartbeat = value;
+        }
+
+        private void close() {
+            if (!closed.compareAndSet(false, true)) return;
+            ScheduledFuture<?> heartbeatTask = heartbeat;
+            if (heartbeatTask != null) heartbeatTask.cancel(false);
+            ChatStreamHandle streamHandle = handle;
+            if (streamHandle != null && !streamHandle.isCancelled()) streamHandle.cancel();
+            try {
+                emitter.complete();
+            } catch (Exception ignored) {
+                // 客户端已经断开时，complete 可能抛出异常；无需二次处理。
+            }
+        }
     }
 
     /**

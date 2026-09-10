@@ -992,7 +992,69 @@ img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ddd;pa
     }
 
     // ==================== 全库问答 ====================
-    // 入口：剪藏列表「问我的剪藏库」按钮；后端 /api/clip/ask 检索 + 强模型综合回答并附来源
+    // 入口：剪藏列表「问我的剪藏库」按钮；后端 /api/clip/ask/stream SSE 流式检索 + 回答
+
+    // 流式状态：用于跨函数（submitAskQuestion / closeAskModal）中止与增量渲染
+    let askStreamAbortController = null;
+    let askAnswerBuf = '';
+    let askRenderTimer = null;
+    let askStreamError = null;
+
+    /** 轻量 SSE 解析器（与 editor-ai-chat-core 同构，clip.html 未加载该模块故局部实现） */
+    class SseParser {
+        constructor(onEvent) {
+            this.buffer = '';
+            this.eventName = '';
+            this.dataLines = [];
+            this.onEvent = onEvent;
+        }
+
+        push(chunk) {
+            this.buffer += chunk || '';
+            let newline;
+            while ((newline = this.buffer.indexOf('\n')) >= 0) {
+                let line = this.buffer.slice(0, newline);
+                this.buffer = this.buffer.slice(newline + 1);
+                if (line.endsWith('\r')) line = line.slice(0, -1);
+                this.consumeLine(line);
+            }
+        }
+
+        finish() {
+            if (this.buffer) this.consumeLine(this.buffer);
+            this.buffer = '';
+            this.dispatch();
+        }
+
+        consumeLine(line) {
+            if (line === '') {
+                this.dispatch();
+            } else if (line.startsWith(':')) {
+                // 注释行，忽略
+            } else if (line.startsWith('event:')) {
+                this.eventName = line.slice(6).trim();
+            } else if (line.startsWith('data:')) {
+                this.dataLines.push(line.slice(5).trimStart());
+            }
+        }
+
+        dispatch() {
+            if (this.dataLines.length === 0) {
+                this.eventName = '';
+                return;
+            }
+            const data = this.dataLines.join('\n');
+            this.dataLines = [];
+            const event = { event: this.eventName || 'message', data: null, raw: data };
+            try {
+                event.data = JSON.parse(data);
+            } catch (e) {
+                event.data = data;
+            }
+            this.eventName = '';
+            if (this.onEvent) this.onEvent(event);
+        }
+    }
 
     function openAskModal() {
         document.getElementById('ask-modal').style.display = 'flex';
@@ -1001,7 +1063,56 @@ img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ddd;pa
     }
 
     function closeAskModal() {
+        if (askStreamAbortController) {
+            askStreamAbortController.abort();
+            askStreamAbortController = null;
+        }
+        const submitBtn = document.getElementById('ask-submit-btn');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = '提问';
+        }
         document.getElementById('ask-modal').style.display = 'none';
+    }
+
+    /** 渲染来源清单（sources 事件到达即展示，作为检索完成的进度反馈） */
+    function renderAskSources(sources) {
+        const sourcesBox = document.getElementById('ask-sources');
+        const items = (sources || []).map((src) => {
+            const index = src.index || '';
+            const title = escapeHtml(src.title || '未命名');
+            const createdAt = src.createdAt
+                ? escapeHtml(String(src.createdAt).slice(0, 16).replace('T', ' '))
+                : '';
+            const link = src.sourceUrl
+                ? `<a class="ask-source-link" href="${escapeHtml(src.sourceUrl)}" target="_blank" rel="noopener noreferrer" title="打开原网页">↗</a>`
+                : '';
+            return `
+                <div class="ask-source-item">
+                    <span class="ask-source-index">[${index}]</span>
+                    <span class="ask-source-title">${title}</span>
+                    ${createdAt ? `<span class="ask-source-time">${createdAt}</span>` : ''}
+                    ${link}
+                </div>`;
+        }).join('');
+        sourcesBox.innerHTML = items.length > 0
+            ? `<div class="ask-sources-label">来源（${items.length}）</div>${items}`
+            : '';
+    }
+
+    /** 防抖增量渲染 Markdown，避免每个 delta 都全量重渲染 */
+    function scheduleAskRender() {
+        clearTimeout(askRenderTimer);
+        askRenderTimer = setTimeout(flushAskRender, 120);
+    }
+
+    function flushAskRender() {
+        clearTimeout(askRenderTimer);
+        askRenderTimer = null;
+        const answerBody = document.getElementById('ask-answer-body');
+        answerBody.innerHTML = askAnswerBuf
+            ? window.MediaKit.render.renderMarkdown(askAnswerBuf)
+            : '';
     }
 
     async function submitAskQuestion() {
@@ -1015,45 +1126,77 @@ img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ddd;pa
             showToast('请输入问题');
             return;
         }
+
+        // 中止上一轮未完成的流
+        if (askStreamAbortController) askStreamAbortController.abort();
+        askStreamAbortController = null;
+
         submitBtn.disabled = true;
         submitBtn.textContent = '思考中...';
-        answerBox.style.display = 'none';
-        try {
-            const response = await axios.post(`${window.API_BASE_URL}/ask`, { question }, { timeout: 120000 });
-            const data = response.data || {};
-            const answerMarkdown = (data.answer || '').trim();
-            answerBody.innerHTML = answerMarkdown
-                ? window.MediaKit.render.renderMarkdown(answerMarkdown)
-                : '<p>（没有返回内容）</p>';
+        answerBox.style.display = 'block';
+        answerBody.innerHTML = '<p class="ask-streaming-placeholder">正在检索剪藏内容…</p>';
+        sourcesBox.innerHTML = '';
+        askAnswerBuf = '';
+        askStreamError = null;
+        let receivedContent = false;
 
-            // 来源清单：回答中的 [N] 编号与此处一一对应，可点击打开原网页
-            const sources = Array.isArray(data.sources) ? data.sources : [];
-            const items = sources.map((src) => {
-                const index = src.index || '';
-                const title = escapeHtml(src.title || '未命名');
-                const createdAt = src.createdAt
-                    ? escapeHtml(String(src.createdAt).slice(0, 16).replace('T', ' '))
-                    : '';
-                const link = src.sourceUrl
-                    ? `<a class="ask-source-link" href="${escapeHtml(src.sourceUrl)}" target="_blank" rel="noopener noreferrer" title="打开原网页">↗</a>`
-                    : '';
-                return `
-                    <div class="ask-source-item">
-                        <span class="ask-source-index">[${index}]</span>
-                        <span class="ask-source-title">${title}</span>
-                        ${createdAt ? `<span class="ask-source-time">${createdAt}</span>` : ''}
-                        ${link}
-                    </div>`;
-            }).join('');
-            sourcesBox.innerHTML = sources.length > 0
-                ? `<div class="ask-sources-label">来源（${sources.length}）</div>${items}`
-                : '';
-            answerBox.style.display = 'block';
+        const controller = new AbortController();
+        askStreamAbortController = controller;
+
+        try {
+            const response = await fetch(`${window.API_BASE_URL}/ask/stream`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+                body: JSON.stringify({ question }),
+                signal: controller.signal
+            });
+            if (!response.ok) throw new Error(`AI 服务返回 HTTP ${response.status}`);
+            if (!response.body) throw new Error('AI 服务未返回流式响应');
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            const parser = new SseParser((event) => {
+                if (event.event === 'sources' && event.data && Array.isArray(event.data.sources)) {
+                    renderAskSources(event.data.sources);
+                    answerBody.innerHTML = '<p class="ask-streaming-placeholder">正在组织回答…</p>';
+                } else if (event.event === 'delta' && event.data && event.data.content) {
+                    receivedContent = true;
+                    askAnswerBuf += event.data.content;
+                    scheduleAskRender();
+                } else if (event.event === 'status' && event.data && event.data.status === 'no_results') {
+                    receivedContent = true;
+                    answerBody.innerHTML = event.data.answer
+                        ? `<p>${escapeHtml(event.data.answer)}</p>`
+                        : '<p>（没有找到相关内容）</p>';
+                } else if (event.event === 'done') {
+                    receivedContent = true;
+                } else if (event.event === 'error') {
+                    askStreamError = event.data && event.data.message
+                        ? event.data.message : 'AI 服务调用失败';
+                }
+            });
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                parser.push(decoder.decode(value, { stream: true }));
+            }
+            parser.finish();
+
+            flushAskRender();
+            if (askStreamError) {
+                answerBody.innerHTML = `<p style="color: var(--error);">${escapeHtml(askStreamError)}</p>`;
+            } else if (!receivedContent && !askAnswerBuf) {
+                answerBody.innerHTML = '<p>（没有返回内容）</p>';
+            }
         } catch (error) {
-            answerBody.textContent = '问答服务暂时不可用，问题已保留，请稍后重试';
-            sourcesBox.innerHTML = '';
-            answerBox.style.display = 'block';
+            if (error && error.name === 'AbortError') {
+                // 用户主动关闭弹窗中止，静默处理
+            } else {
+                answerBody.innerHTML = '<p style="color: var(--error);">问答服务暂时不可用，请稍后重试</p>';
+            }
         } finally {
+            if (askStreamAbortController === controller) askStreamAbortController = null;
             submitBtn.disabled = false;
             submitBtn.textContent = '提问';
         }

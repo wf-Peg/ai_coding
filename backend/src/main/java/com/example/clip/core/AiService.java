@@ -1075,6 +1075,33 @@ public class AiService {
     }
 
     /**
+     * 剪藏全库问答（流式）：与 {@link #answerClipQuestion} 相同的消息拼装，
+     * 但通过 {@link LlmProvider#streamChat} 以默认模型流式返回增量内容。
+     * 供 {@code /api/clip/ask/stream} SSE 端点使用。
+     *
+     * @param question     用户问题
+     * @param pageContents 编号标签 → 剪藏片段文本映射
+     * @param listener     流式回调监听器
+     * @return 流式句柄（可取消）
+     */
+    public ChatStreamHandle streamClipAnswer(String question, Map<String, String> pageContents, ChatStreamListener listener) {
+        String systemPrompt = promptConfigService.getClipAskSynthesisPrompt();
+        StringBuilder userMessage = new StringBuilder();
+        userMessage.append("Question: ").append(question != null ? question : "").append("\n\n");
+        userMessage.append("检索到的剪藏内容片段：\n\n");
+        if (pageContents != null && !pageContents.isEmpty()) {
+            for (Map.Entry<String, String> entry : pageContents.entrySet()) {
+                userMessage.append("## ").append(entry.getKey()).append("\n")
+                        .append(entry.getValue() != null ? entry.getValue() : "").append("\n\n");
+            }
+        }
+        List<ChatMessage> messages = List.of(
+                new ChatMessage("system", systemPrompt),
+                new ChatMessage("user", userMessage.toString()));
+        return llmProvider.streamChat(messages, listener);
+    }
+
+    /**
      * 基于已有检索内容，调用大模型结合自身知识补充扩展该问题。
      * <p>
      * 该步骤用于在 Wiki 检索结果之外，补充大模型自身掌握的领域知识，
