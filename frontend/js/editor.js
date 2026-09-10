@@ -6226,7 +6226,13 @@
         + '<span class="outline-line">' + (item.isTitle ? '文首' : 'L' + (item.line + 1)) + '</span>';
       row.title = item.isTitle ? '文档标题' : '跳转到第 ' + (item.line + 1) + ' 行';
       row.addEventListener('click', function() {
-        goToLine(parseInt(this.dataset.line, 10));
+        // 全屏预览下编辑器隐藏，改为滚动 markdown 预览对应标题
+        if (elements.editorWorkspace.classList.contains('markdown-fullscreen')
+            && elements.editorWorkspace.classList.contains('markdown-preview')) {
+          jumpMarkdownHeading(idx);
+        } else {
+          goToLine(parseInt(this.dataset.line, 10));
+        }
         highlightOutlineRow(this);
       });
       list.appendChild(row);
@@ -6244,6 +6250,16 @@
     mainEditor.focus();
     // 滚动画布使目标行可见
     try { mainEditor.scrollToLine(line, true, true, function() {}); } catch (e) {}
+  }
+
+  // 全屏预览：定位 markdown-body 中第 nth 个标题（h1-h6）并滚动到可见。
+  // outlineData 不含标题项，且与渲染标题按文档顺序一一对应，故用序号而非行号匹配。
+  function jumpMarkdownHeading(idx) {
+    const headings = elements.markdownBody.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    // outlineData 第一项恒为文档标题(文首)，渲染无对应 heading，需偏移映射
+    const target = headings[idx - 1];
+    if (!target) return;
+    target.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }
 
   // 内容变化 → 防抖重建大纲 + 刷新标签（仅面板可见）
