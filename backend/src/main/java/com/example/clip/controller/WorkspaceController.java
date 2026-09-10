@@ -1135,11 +1135,13 @@ public class WorkspaceController {
     }
 
     /**
-     * DSH 会话成果自动归档（牛马记录）：把一轮会话文本提炼为四字段迭代记录并落库。
+     * 会话成果自动归档（牛马记录）：把一轮会话文本提炼为四字段迭代记录并落库。
      * <p>
      * POST /api/workspace/feature-points/iterations/ai-session
-     * Body: { conversation, project? }
+     * Body: { conversation, project?, source? }
      * <p>
+     * 由 DSH（默认 source=dsh-session）或 TraeCode（source=trae-session）触发；
+     * source 缺省时回落 dsh-session，保证 DSH 既有行为不变。
      * AI 提炼失败时不阻断：返回 200 与兜底四字段记录（标题「牛马记录」，
      * outcome 为会话文本截断），保证会话成果不丢失。
      */
@@ -1153,6 +1155,8 @@ public class WorkspaceController {
                 return ResponseEntity.badRequest().body(Map.of("error", "conversation 不能为空"));
             }
             String project = body.get("project") != null ? String.valueOf(body.get("project")) : "";
+            String source = body.get("source") != null ? String.valueOf(body.get("source")) : "dsh-session";
+            if (source.isBlank()) source = "dsh-session";
 
             Map<String, Object> fields = aiService.generateSessionArchive(conversation);
             if (fields == null) {
@@ -1173,7 +1177,7 @@ public class WorkspaceController {
             record.put("problem", fields.get("problem"));
             record.put("solution", fields.get("solution"));
             record.put("outcome", fields.get("outcome"));
-            record.put("source", "dsh-session");
+            record.put("source", source);
             record.put("status", "done");
             record.put("tags", List.of("AI会话"));
 

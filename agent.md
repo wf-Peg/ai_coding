@@ -175,15 +175,18 @@ TODO/
 产品概览的迭代记录由 **两路会话成果归档** 写入，共用后端 `POST /api/workspace/feature-points/iterations/ai-session`（后端用强模型提炼 title/problem/solution/outcome，落 `feature-point-iterations.json`，按 `source` 区分来源展示）：
 
 - **DSH**：`integrations/dsh/plugins/clip-capture` 插件在每回合结束（`turn/end`, reason=completed）自动聚合会话并归档（`source=dsh-session`）。
-- **TraeCode**：完成任务、验证通过、准备提交前，**必执行** `.trae/skills/trae-session-archive/SKILL.md` 归档收尾，把本会话提炼为 `conversation` 后调用同一接口并显式传 `source=trae-session`。
+- **TraeCode（提交推送自动）**：以提交推送收尾的任务，由 `.trae/skills/git-commit-workflow/SKILL.md` 在推送成功后**自动**调用归档链路，把本会话提炼为 `conversation` 并显式传 `source=trae-session`。
+- **TraeCode（暂不提交兜底）**：完成任务但暂不提交时，沿 `.trae/skills/trae-session-archive/SKILL.md` **手动**归档一次（`source=trae-session`）。该 skill 是 TraeCode 侧归档的**唯一事实来源**，提交自动归档与手动兜底共用同一套 endpoint / 字段 / source 约定。
 
 ### 归档链路
 
 ```
 Task 完成（编码/研发，验证通过）
-    ├── TraeCode：执行 trae-session-archive skill
-    │        → POST /api/workspace/feature-points/iterations/ai-session
-    │          { conversation, source: 'trae-session' }
+    ├── TraeCode · 提交推送收尾：git-commit-workflow
+    │        推送成功后 自动 → POST /api/workspace/feature-points/iterations/ai-session
+    │                      { conversation, source: 'trae-session' }
+    ├── TraeCode · 暂不提交：trae-session-archive（手动、共享规Ciform）
+    │                      → 同上接口（source=trae-session）
     └── DSH：clip-capture 插件 turn/end 自动聚合
              → 同上接口（source 缺省 = dsh-session）
                 ↓ 后端 AI 提炼四字段
@@ -198,6 +201,7 @@ Task 完成（编码/研发，验证通过）
 
 ### 相关技能
 
-- `.trae/skills/trae-session-archive/` — **主线**：TraeCode 任务完成后的归档收尾（`source=trae-session`）
+- `.trae/skills/git-commit-workflow/` — **主线（提交推送自动归档）**：推送成功后自动写迭代记录（`source=trae-session`），引用 `trae-session-archive` 为唯一事实来源。
+- `.trae/skills/trae-session-archive/` — **共享规Ciform + 手动兜底**：完成任务但暂不提交时的手动归档入口（`source=trae-session`）。
 - `.trae/skills/product-dev-archive/` — 遗留：写 `TODO/**/feature-points.json`（旧概览树，非主线）
 - `.trae/skills/product-dev-history-migrate/` — 遗留：存量 TODO 目录迁移补 feature-points.json
