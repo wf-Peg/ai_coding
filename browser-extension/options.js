@@ -12,7 +12,8 @@ const DEFAULT_CONFIG = {
   enableNotifications: true,
   successNotification: true,
   clipPageShortcut: 'Ctrl+Shift+S',
-  clipSelectionShortcut: 'Ctrl+Shift+D',
+  clipSelectionShortcut: 'Ctrl+Shift+V',
+  enableFloatingButton: false,
   contentSelectors: [
     'article',
     'main',
@@ -45,6 +46,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const enableHighlightToolbarCheckbox = document.getElementById('enableHighlightToolbar');
   const enableNotificationsCheckbox = document.getElementById('enableNotifications');
   const successNotificationCheckbox = document.getElementById('successNotification');
+  const enableFloatingButtonCheckbox = document.getElementById('enableFloatingButton');
   const clipPageShortcutInput = document.getElementById('clipPageShortcut');
   const clipSelectionShortcutInput = document.getElementById('clipSelectionShortcut');
   const selectorInput = document.getElementById('selectorInput');
@@ -86,6 +88,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       enableHighlightToolbarCheckbox.checked = config.enableHighlightToolbar;
       enableNotificationsCheckbox.checked = config.enableNotifications;
       successNotificationCheckbox.checked = config.successNotification;
+      enableFloatingButtonCheckbox.checked = config.enableFloatingButton;
       clipPageShortcutInput.value = config.clipPageShortcut;
       clipSelectionShortcutInput.value = config.clipSelectionShortcut;
       enableModelCleanupCheckbox.checked = config.enableModelCleanup;
@@ -116,6 +119,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     enableHighlightToolbarCheckbox.checked = DEFAULT_CONFIG.enableHighlightToolbar;
     enableNotificationsCheckbox.checked = DEFAULT_CONFIG.enableNotifications;
     successNotificationCheckbox.checked = DEFAULT_CONFIG.successNotification;
+    enableFloatingButtonCheckbox.checked = DEFAULT_CONFIG.enableFloatingButton;
     clipPageShortcutInput.value = DEFAULT_CONFIG.clipPageShortcut;
     clipSelectionShortcutInput.value = DEFAULT_CONFIG.clipSelectionShortcut;
     enableModelCleanupCheckbox.checked = DEFAULT_CONFIG.enableModelCleanup;
@@ -149,6 +153,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       enableHighlightToolbar: enableHighlightToolbarCheckbox.checked,
       enableNotifications: enableNotificationsCheckbox.checked,
       successNotification: successNotificationCheckbox.checked,
+      enableFloatingButton: enableFloatingButtonCheckbox.checked,
       clipPageShortcut: clipPageShortcutInput.value.trim() || DEFAULT_CONFIG.clipPageShortcut,
       clipSelectionShortcut: clipSelectionShortcutInput.value.trim() || DEFAULT_CONFIG.clipSelectionShortcut,
       contentSelectors: contentSelectors,

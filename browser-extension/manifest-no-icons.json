@@ -40,8 +40,8 @@
     },
     "clip-selection": {
       "suggested_key": {
-        "default": "Ctrl+Shift+D",
-        "mac": "Command+Shift+D"
+        "default": "Ctrl+Shift+V",
+        "mac": "Command+Shift+V"
       },
       "description": "剪藏选中内容"
     }

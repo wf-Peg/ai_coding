@@ -1,6 +1,7 @@
 // 弹出窗口脚本
 document.addEventListener('DOMContentLoaded', async () => {
-  applyTheme((await chrome.storage.local.get('uiTheme')).uiTheme);
+  const savedConfig = await chrome.storage.local.get(['uiTheme', 'defaultType', 'autoTags']);
+  applyTheme(savedConfig.uiTheme);
 
   const form = document.getElementById('clipForm');
   const contentInput = document.getElementById('content');
@@ -44,6 +45,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   let aiSuggestionData = null;
   let dupCheckTimer = null;
 
+  // 先加载分类树，供后续 pendingClip 填充分类时使用
+  await loadCategories();
+
   // 检查是否有待处理的剪藏数据
   const result = await chrome.storage.local.get('pendingClip');
   if (result.pendingClip) {
@@ -73,6 +77,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     } catch (error) {
       console.log('获取当前标签页失败:', error);
+    }
+
+    if (savedConfig.defaultType && Array.from(typeSelect.options).some((opt) => opt.value === savedConfig.defaultType)) {
+      typeSelect.value = savedConfig.defaultType;
+    }
+    if (savedConfig.autoTags === false) {
+      aiTagsCheckbox.checked = false;
     }
   }
 
@@ -365,9 +376,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     chrome.tabs.create({ url: chrome.runtime.getURL('index.html') });
   }
 
-  // 打开话题列表页面
+  // 打开话题列表页面（话题模块尚未实现，先做占位提示避免打开不存在的页面）
   function openTopicListPage() {
-    chrome.tabs.create({ url: chrome.runtime.getURL('topic.html') });
+    console.warn('话题列表页面尚未上线');
+    showStatus('话题功能暂未上线，敬请期待', 'error');
   }
 
   // HTML转义
@@ -677,5 +689,35 @@ document.addEventListener('DOMContentLoaded', async () => {
   function applyTheme(themeId) {
     const resolvedTheme = themeId === 'regular' ? 'regular' : 'notion';
     document.documentElement.setAttribute('data-theme', resolvedTheme);
+  }
+
+  // 从后端加载分类树，填充二级分类下拉（父分类用 optgroup、选中值为子分类）
+  async function loadCategories() {
+    try {
+      const resp = await chrome.runtime.sendMessage({ action: 'getCategories' });
+      if (!resp || !resp.success || !Array.isArray(resp.categories)) {
+        return;
+      }
+      resp.categories.forEach(cat => {
+        if (cat.children && cat.children.length > 0) {
+          const group = document.createElement('optgroup');
+          group.label = cat.label;
+          cat.children.forEach(child => {
+            const option = document.createElement('option');
+            option.value = child.value;
+            option.textContent = '  ' + child.label;
+            group.appendChild(option);
+          });
+          categorySelect.appendChild(group);
+        } else {
+          const option = document.createElement('option');
+          option.value = cat.value;
+          option.textContent = cat.label;
+          categorySelect.appendChild(option);
+        }
+      });
+    } catch (error) {
+      console.warn('加载分类失败，仅保留自动分类:', error);
+    }
   }
 });

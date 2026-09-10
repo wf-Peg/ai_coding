@@ -71,8 +71,6 @@
             <select id="defaultType">
               <option value="ai-text">AI文本整理</option>
               <option value="store-only">仅存储内容</option>
-              <option value="link-ai">链接AI解析</option>
-              <option value="doc-ai">文档AI解析</option>
             </select>
           </div>
 
@@ -96,6 +94,14 @@
               <label for="enableHighlightToolbar">启用网页标注工具条（选中文字出现多色高亮）</label>
             </div>
             <p class="help-text">开启后，在网页中选中文字会弹出标注工具条，支持4色高亮与想法笔记，保存后入库剪藏并回链原网页</p>
+          </div>
+
+          <div class="form-group">
+            <div class="checkbox-group">
+              <input type="checkbox" id="enableFloatingButton">
+              <label for="enableFloatingButton">显示网页浮动剪藏按钮</label>
+            </div>
+            <p class="help-text">开启后，在已加载的网页右下角显示悬浮剪藏按钮，点击可剪藏当前页面（需刷新页面后生效）</p>
           </div>
         </section>
 

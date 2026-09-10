@@ -60,12 +60,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         .then((result) => sendResponse(result))
         .catch((error) => sendResponse({ success: false, error: error.message }));
       return true;
+    case 'getCategories':
+      getCategories()
+        .then((result) => sendResponse(result))
+        .catch((error) => sendResponse({ success: false, categories: [], error: error.message }));
+      return true;
     default:
       sendResponse({ error: '未知操作' });
   }
 });
 
 function createContextMenus() {
+  chrome.contextMenus.removeAll(() => {
+    createContextMenusInner();
+  });
+}
+
+function createContextMenusInner() {
   chrome.contextMenus.create({
     id: 'clip-main',
     title: '智能剪藏',
@@ -324,36 +335,8 @@ async function clipImage(tab, imageUrl) {
 }
 
 async function clipToTopic(tab, info) {
-  await ensureTab(tab);
-  showNotification('正在准备话题内容...', 'info');
-
-  try {
-    const extraction = await requestCaptureData(tab.id, info.selectionText ? 'extractSelectionData' : 'extractPageData');
-    const content = info.selectionText || extraction.content || '';
-    const title = extraction.title || tab.title || '';
-
-    if (!content) {
-      throw createClassifiedError('extract_failed', '未提取到可用内容');
-    }
-
-    // 构建URL参数，打开话题编辑器
-    const params = new URLSearchParams();
-    params.set('fromClip', '1');
-    params.set('title', title);
-    params.set('content', content);
-    if (extraction.sourceUrl || tab.url) {
-      params.set('source', extraction.sourceUrl || tab.url);
-    }
-    if (extraction.myThoughts) {
-      params.set('myThoughts', extraction.myThoughts);
-    }
-
-    const editorUrl = chrome.runtime.getURL('topic-editor.html') + '?' + params.toString();
-    await chrome.tabs.create({ url: editorUrl });
-    showNotification('已打开话题编辑器', 'success');
-  } catch (error) {
-    handleCaptureError(error, '剪藏到话题失败');
-  }
+  // 「话题」模块尚未实现（后端 topic 意图已路由到 knowledge），先做占位提示避免打开不存在的页面
+  showNotification('话题功能暂未上线，敬请期待', 'info');
 }
 
 async function clipWithType(tab, type, preferSelection) {
@@ -753,6 +736,24 @@ async function suggestMeta(data) {
     return { success: true, data: result };
   } catch (error) {
     return { success: false, error: error.message || 'AI 建议失败' };
+  }
+}
+
+/** 拉取分类树（用于弹窗二级分类下拉） */
+async function getCategories() {
+  try {
+    const base = await resolveApiBase();
+    const resp = await fetch(`${base}/api/clip/categories`, {
+      signal: AbortSignal.timeout(8000)
+    });
+    if (!resp.ok) {
+      return { success: false, categories: [] };
+    }
+    const list = await resp.json();
+    return { success: true, categories: Array.isArray(list) ? list : [] };
+  } catch (error) {
+    console.warn('获取分类树失败（后端未连接时跳过）:', error.message);
+    return { success: false, categories: [] };
   }
 }
 
