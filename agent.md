@@ -26,19 +26,17 @@ electron/    → Electron 主进程
 ## 代码索引（人 + AI 双通道）
 
 - **静态地图**：`CODE_INDEX.md` 提供全项目「文件 → 类/函数/方法/路由 + 起始行号」骨架，供人和 AI 快速定位。**生成物**，改代码后用 `npm run codeindex:gen` 重新生成。
-- **精确查询（推荐 AI 用）**：`codegraph` 已为本仓库建好本地索引，按需精确拿「定义/调用方/影响范围」，避免整文件读取、降低 token 消耗：
+- **精确查询（推荐 AI 用，走 CLI 按需）**：`codegraph` 已为本仓库建好本地索引，按需精确拿「定义/调用方/影响范围」，避免整文件读取、降低 token 消耗：
   ```bash
-  npm run codeindex:status   # 索引状态
-  codegraph query "符号名"     # 符号定位（返回 文件:行号）
-  codegraph callers "符号"     # 谁调用了它
-  codegraph impact "符号"      # 改动影响范围
-  npm run codeindex:ui        # 浏览器图谱 127.0.0.1:4747
+  codegraph query "符号名"      # 紧凑：符号定位 → 文件:行号（优先用）
+  codegraph callers "符号"      # 紧凑：谁调用了它
+  codegraph impact "符号"       # 紧凑：改动影响范围
+  codegraph context "任务" --no-code --max-nodes 20  # 受限探索：默认省略源码大块+限节点
+  npm run codeindex:status     # 索引状态
   ```
+  ⚠️ **Token 预算**：`codegraph explore` / `context` 不带限制会一次性返回大量逐字源码（实测约 4K token/次）。仅在确需跨文件定位时用并务必带瘦身参数（`--no-code`、`--max-nodes` / `--max-files`）；启动阶段先走 `query`/`callers`/`impact` 这类紧凑查询，避免会话 Context 残留膨胀。
+- **不要启用 codegraph 的 MCP 服务器（`codegraph serve --mcp`）**：其工具 schema 会每轮注入系统上下文、且 explore 返回体大，会导致每次提问 token 明显上涨。需要索引时用上 CLI 按需调用即可（无 schema 常驻、返回受控）。
   索引为本地自动同步（fs.watch），代码变更后无需手动 rerun；索引库在 `.codegraph/`（已 gitignore）。
-- **MCP 接入（可选）**：`codegraph install` 自动接入 Claude Code / Cursor / Codex 等。TraeCode 未被官方自动支持，需手动在其 MCP 连接器新增 stdio 服务器（命令以 `codegraph install --print-config claude` 输出为准）：
-  ```json
-  { "mcpServers": { "codegraph": { "type": "stdio", "command": "codegraph", "args": ["serve", "--mcp"] } } }
-  ```
 
 ## 构建与运行
 
