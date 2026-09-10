@@ -710,6 +710,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     /** 图谱数据（对齐 /api/graph） */
     graph: (opts) => ipcRenderer.invoke('local-index:graph', { includeTypes: opts && opts.includeTypes }),
     /** 节点关系（出链 + 反链）：opts = { id } */
-    relations: (opts) => ipcRenderer.invoke('local-index:relations', { id: opts && opts.id })
+    relations: (opts) => ipcRenderer.invoke('local-index:relations', { id: opts && opts.id }),
+    /** 保存画布节点位置（无限画布布局层）：opts = { positions: [{id,x,y}] } */
+    saveLayout: (opts) => ipcRenderer.invoke('local-index:layout:save', { positions: opts && opts.positions })
   }
 });

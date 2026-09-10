@@ -4,10 +4,12 @@
  * v1：content / content_fts（仅 clip）。
  * v2：新增 relation 表（M3 图谱关系层），content.type 扩展支持
  *     knowledge / learning-plan 作为关系端点。
+ * v3：新增 canvas_layout 表（无限画布·布局层），存储节点手动画布坐标，
+ *     与语义 relation 表分离，避免关系全量重建时被清掉。
  * 后续扩展时新增版本迁移（schema_version+1），在 migrate() 里追加逻辑。
  */
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 // 建表 SQL（仅在 meta.schema_version 为空时执行 v1 建库）
 const SQL_V1 = `
@@ -59,6 +61,16 @@ CREATE INDEX IF NOT EXISTS idx_relation_to   ON relation(to_id);
 CREATE INDEX IF NOT EXISTS idx_relation_type ON relation(relation_type);
 `;
 
+// v3 增量：画布布局表（无限画布·布局层，与语义 relation 分离）
+const SQL_V3 = `
+CREATE TABLE IF NOT EXISTS canvas_layout (
+  node_id    TEXT PRIMARY KEY,
+  x          REAL NOT NULL,
+  y          REAL NOT NULL,
+  updated_at TEXT
+);
+`;
+
 /**
  * 执行建库/迁移。基于 meta.schema_version 判断。
  * v1：建 meta/content/content_fts。
@@ -73,15 +85,20 @@ function migrate(db) {
   const current = row ? parseInt(row.value, 10) : 0;
 
   if (current === 0) {
-    // 全新建库：跑全量 SQL（v1 基础表 + v2 relation 表）
+    // 全新建库：跑全量 SQL（v1 基础表 + v2 relation 表 + v3 画布布局表）
     db.exec(SQL_V1);
     db.exec(SQL_V2);
+    db.exec(SQL_V3);
     upsertMeta(db, 'schema_version', String(SCHEMA_VERSION));
     return;
   }
   if (current < 2) {
     // v1 → v2：新增 relation 表
     db.exec(SQL_V2);
+  }
+  if (current < 3) {
+    // v2 → v3：新增画布布局表
+    db.exec(SQL_V3);
     upsertMeta(db, 'schema_version', String(SCHEMA_VERSION));
     return;
   }

@@ -73,7 +73,7 @@
     const linkSet = new Set();
 
     nodes.forEach(function(n) {
-      nodeMap[n.id] = {
+      var node = {
         id: n.id,
         type: n.type || (String(n.id).indexOf('clip:') === 0 ? 'clip' : 'knowledge'),
         sourceId: n.sourceId,
@@ -84,7 +84,15 @@
         linkedCount: n.linkedCount || 0,
         sourceCount: n.sourceCount || 0
       };
-      allNodes.push(nodeMap[n.id]);
+      // 后端带回的画布坐标：预先钉住节点，实现位置持久化（拖到哪、下次还在哪）
+      if (typeof n.x === 'number' && typeof n.y === 'number' && isFinite(n.x) && isFinite(n.y)) {
+        node.x = n.x;
+        node.y = n.y;
+        node.fx = n.x;
+        node.fy = n.y;
+      }
+      nodeMap[n.id] = node;
+      allNodes.push(node);
     });
 
     links.forEach(function(link) {
@@ -130,7 +138,7 @@
       .attr('height', height);
 
     var zoom = d3.zoom()
-      .scaleExtent([0.1, 4])
+      .scaleExtent([0.05, 12])
       .on('zoom', function(event) {
         g.attr('transform', event.transform);
       });
@@ -225,6 +233,11 @@
         .attr('transform', function(d) { return 'translate(' + d.x + ',' + d.y + ')'; });
     });
 
+    simulation.on('end', function() {
+      // 自动布局稳定后写回位置，让首次布局也「记住」
+      persistPositionsDebounced();
+    });
+
     window.addEventListener('resize', function() {
       var w = container.clientWidth;
       var h = container.clientHeight;
@@ -317,9 +330,34 @@
       })
       .on('end', function(event, d) {
         if (!event.active) simulation.alphaTarget(0);
-        d.fx = null;
-        d.fy = null;
+        // 松手后保持当前位置（画布行为），并写回本地
+        d.fx = d.x;
+        d.fy = d.y;
+        persistPositionsDebounced();
       });
+  }
+
+  // ---- Position Persistence ----
+
+  var persistTimer = null;
+
+  function persistPositions() {
+    var bridge = window.electronAPI && window.electronAPI.localIndex;
+    if (!bridge || typeof bridge.saveLayout !== 'function') return;
+    var positions = [];
+    for (var i = 0; i < allNodes.length; i++) {
+      var n = allNodes[i];
+      if (typeof n.x !== 'number' || typeof n.y !== 'number') continue;
+      if (!isFinite(n.x) || !isFinite(n.y)) continue;
+      positions.push({ id: n.id, x: n.x, y: n.y });
+    }
+    if (!positions.length) return;
+    try { bridge.saveLayout({ positions: positions }); } catch (e) {}
+  }
+
+  function persistPositionsDebounced() {
+    if (persistTimer) clearTimeout(persistTimer);
+    persistTimer = setTimeout(persistPositions, 300);
   }
 
   // ---- Selection & Highlighting ----

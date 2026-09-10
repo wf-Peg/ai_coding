@@ -24,6 +24,7 @@ const localIndexService = require('./sqlite/index-service');
 const localSearch = require('./sqlite/search');
 const localGraph = require('./sqlite/graph');
 const localDb = require('./sqlite/db');
+const localCanvas = require('./sqlite/canvas-layout');
 // clip-storage 实时监听句柄（will-quit 时释放）
 let localIndexWatcher = null;
 
@@ -2940,8 +2941,25 @@ function setupIPC() {
     const includeTypes = (args && args.includeTypes)
       ? new Set(String(args.includeTypes).split(',').map((s) => s.trim()).filter(Boolean))
       : null;
-    const graph = localGraph.getGraph(localDb.getDatabase(), includeTypes);
+    const dbConn = localDb.getDatabase();
+    const graph = localGraph.getGraph(dbConn, includeTypes);
+    // 合并画布已保存坐标到节点，供前端钉住，实现位置持久化
+    const layout = localCanvas.positions(dbConn);
+    for (const node of graph.nodes) {
+      const p = layout.get(node.id);
+      if (p) { node.x = p.x; node.y = p.y; }
+    }
     return { success: true, nodes: graph.nodes, links: graph.links };
+  }));
+
+  /** 保存画布节点位置（无限画布布局层，属视觉缓存，不参与语义关系） */
+  ipcMain.handle('local-index:layout:save', localIndexGuard(async (_ev, args) => {
+    const positions = (args && args.positions) || [];
+    if (!Array.isArray(positions)) return { success: false, message: 'positions must be an array' };
+    const dbConn = localDb.getDatabase();
+    if (!dbConn) return { success: false, message: 'local index not ready' };
+    const saved = localCanvas.savePositions(dbConn, positions);
+    return { success: true, saved };
   }));
 
   /** 查询某节点的关系（出链 + 反链），供反链面板复用 */
