@@ -10,9 +10,9 @@
 | --- | ------------------------------ |
 | 后端  | Spring Boot 3.2.0, Java 17     |
 | 前端  | HTML5 + CSS3 + JS (ES6+)，无框架   |
-| AI  | DashScope SDK + DeepSeek API   |
+| AI  | DashScope SDK + DeepSeek API（deepseek-v4-flash/pro，见「LLM 提供者」分层） |
 | 存储  | 本地文件系统（JSON），无数据库              |
-| 桌面  | Electron 28+, electron-builder |
+| 桌面  | Electron 36+, electron-builder（Node >= 22） |
 | 构建  | Maven (后端) + npm (Electron)    |
 
 ## 目录结构
@@ -50,8 +50,8 @@ java -jar backend/target/clip-demo-0.0.1-SNAPSHOT.jar
 # 后端运行（开发）
 cd backend && mvn spring-boot:run
 
-# 前端开发
-npx serve frontend -l 3000
+# 前端开发（SPA，含路由 fallback）
+cd frontend && node server.js    # 端口 3001
 
 # 一键启动
 start.bat       # Windows
@@ -61,6 +61,14 @@ start.bat       # Windows
 build.bat       # Windows
 ./build.sh      # macOS/Linux
 ```
+
+## DSH（AI 干活）侧车
+
+- **内嵌位置**：Electron 主进程按需拉起 DSH Web sidecar（`integrations/dsh/`），供「AI 干活」面板 iframe 内嵌；启动/复用/退出逻辑在 `electron/main.js`。
+- **固定端口 3081**（`dshPort`），避免与用户手动启动的 DSH（默认 3080）冲突；若 3081 已有实例则直接复用，不重复拉起、退出时不杀用户进程。
+- **路径统一**：DSH 技能目录 / 侧车路径一律经 `resolveDshHome()` 解析，sidecar 启动、技能安装、技能查询共用同一目录。
+- **版本单一常量**：`DSH_VERSION` 唯一管理应用适配的 DSH 版本（升级助手告警 + 兜底 spec 同源）；DSH 不随应用自动升级，仅提供「升级助手」复制 npx 命令由用户手动执行。
+- **会话归档**：`integrations/dsh/plugins/clip-capture` 在回合结束（`turn/end`）自动归档，链路见「归档与产品概览迭代」。
 
 ## 代码约束
 
@@ -87,9 +95,13 @@ build.bat       # Windows
 ### LLM 提供者
 
 - 接口：`LlmProvider`（`core/` 包下）
-- 实现：`DashScopeLlmProvider`、`DeepSeekLlmProvider`
-- 路由：`RoutingLlmProvider` 按场景分发
+- 实现：`DashScopeLlmProvider`、`DeepSeekLlmProvider`（走 OpenAI 兼容层 `OpenAiCompatibleLlmProvider`）
+- 路由：`RoutingLlmProvider` 按场景分发，且按**档位**选模型
 - 配置：`ModelConfig` + `ModelConfigService` 支持运行时切换
+- **模型档位**：`simple` → `deepseek-v4-flash`；`strong` → `deepseek-v4-pro`。
+  - `simple`：剪藏处理、Wiki 页面定位、实体抽取、标签/摘要生成及绝大多数任务。
+  - `strong`：`synthesizeAnswer`、`detectContradiction`、`generateKnowledgeSupplement`、会话归档提炼（title/problem/solution/outcome）。
+  - 新 AI 任务按此分层选档，勿混用成本与质量。
 
 ## 约束规则
 
@@ -113,6 +125,7 @@ build.bat       # Windows
     - 说明要求：浓缩核心改动内容，30字以内，突出功能点而非技术细节
     - 重复提交合并：若同一功能多次提交注释，合并为一条（如"后端项目代码注释完善（多轮提交合并）"）
     - git 操作后立即执行，不可遗漏
+14. **提交推送走脚本**：commit+push 统一用 `scripts/git-push.ps1`；默认仅按 `-Paths` 提交**本次会话改动**文件，用户明说「提交全部」时用 `-All`；脚本自动追加 `commit_history.log` 并推送
 
 ## 需求开发流程
 
@@ -155,70 +168,36 @@ TODO/
 - 记录时机：每次 bug 修复完成后立即追加
 - 用途：后续可依据 bug 历史更新 agent.md 约束，避免同类问题重复出现
 
-## 产品开发归档
+## 归档与产品概览迭代
 
 ### 概述
 
-每次完成一个需求或子任务后，**必须自动执行** `product-dev-archive` skill，将需求的全流程数据按约定格式写入 `TODO/{需求中文概述}/` 目录。后端启动时扫描 TODO 目录，解析 `feature-points.json`，自动落库为剪藏和待办，通过产品开发工作台规则筛选展示。
+产品概览的迭代记录由 **两路会话成果归档** 写入，共用后端 `POST /api/workspace/feature-points/iterations/ai-session`（后端用强模型提炼 title/problem/solution/outcome，落 `feature-point-iterations.json`，按 `source` 区分来源展示）：
 
-### 核心链路
+- **DSH**：`integrations/dsh/plugins/clip-capture` 插件在每回合结束（`turn/end`, reason=completed）自动聚合会话并归档（`source=dsh-session`）。
+- **TraeCode**：完成任务、验证通过、准备提交前，**必执行** `.trae/skills/trae-session-archive/SKILL.md` 归档收尾，把本会话提炼为 `conversation` 后调用同一接口并显式传 `source=trae-session`。
 
-```
-Agent 完成编码任务
-    ↓ 自动调用 product-dev-archive skill
-写入 TODO/{需求中文概述}/
-    ├── feature-points.json     ← ★ 核心约定文件
-    ├── 01-需求分析.md          ← → 剪藏
-    ├── 02-设计文档.md          ← → 剪藏
-    ├── 03-实施任务.md          ← → 待办
-    └── 04-验收清单.md          ← → 待办
-    ↓ 后端启动时扫描
-自动落库到剪藏和待办模块
-    ↓
-产品开发工作台（规则: tag=product-dev）展示
-```
-
-### 归档时机
-
-- **每个子任务完成时**：增量归档当前子任务，追加 featurePoints、更新待办状态
-- **整个需求完成时**：归档完整需求，更新 phase 为 `completed`
-- **Bug 修复完成时**：在对应需求目录下追加修复记录
-
-### TODO 目录规范
+### 归档链路
 
 ```
-TODO/
-├── {需求中文概述}/                    # 子目录名即需求概述
-│   ├── feature-points.json          # ★ 核心约定文件（前后端共享解析规则）
-│   ├── 01-需求分析.md              # 原始需求、分析结论、会话摘要
-│   ├── 02-设计文档.md              # 技术方案、架构设计、接口定义
-│   ├── 03-实施任务.md              # 可拆分的子任务列表
-│   ├── 04-验收清单.md              # 验收项 checklist
-│   └── .imported                    # 导入标记文件（后端写入）
-├── bugs/
-│   └── bug-history.md
-└── ... (其他存量目录)
+Task 完成（编码/研发，验证通过）
+    ├── TraeCode：执行 trae-session-archive skill
+    │        → POST /api/workspace/feature-points/iterations/ai-session
+    │          { conversation, source: 'trae-session' }
+    └── DSH：clip-capture 插件 turn/end 自动聚合
+             → 同上接口（source 缺省 = dsh-session）
+                ↓ 后端 AI 提炼四字段
+        产品概览迭代记录（feature-point-iterations.json）
 ```
 
-### feature-points.json 核心结构
+### 旧链路现状（已弃用/遗留）
 
-详见 `.trae/skills/product-dev-archive/SKILL.md`，关键字段：
+- 后端 `TodoScannerService` 对 `TODO/**/feature-points.json` 的 **自动落库（剪藏/待办）已硬禁用**，不再扫描。
+- 产品概览页仍兼容展示既有 `feature-points.json` 旧树（`GET /api/workspace/feature-points`）。
+- `product-dev-archive` / `product-dev-history-migrate` 为**遗留 skill**：不再自动执行、不再作为归档主线；仅在有需维护既有 TODO 概览树、或对存量 TODO 目录做一次性 `feature-points.json` 迁移时手动使用。
 
-- `requirement`：需求元信息（title, tags, phase, createdAt, completedAt）
-- `featurePoints[]`：功能点列表，每个功能点含 id, name, layer, clips[], todos[]
-- `config`：落库配置（clipCategory, todoCategory, autoTag）
-- **所有 tags 必须包含 `"product-dev"`**
+### 相关技能
 
-### 归档约束
-
-1. **功能点拆分**：大需求按功能点拆分为多个 featurePoints，每个功能点独立产出剪藏和待办。id 格式 `fp-001`，按数字递增。
-2. **内容文件**：按类型写入对应 md 文件（01-需求分析、02-设计文档、03-实施任务、04-验收清单），文件内按功能点分章节。
-3. **剪藏**：做源内容存储，不做 AI 自动分析。`contentFile` 指向同目录 md 文件，`section` 可选指定章节。
-4. **待办**：使用计划模式，开发完成后标记 `status: "done"`。
-5. **标签预留**：`featurePoints[].tags` 为后续自动整合为知识做铺垫，本期不开发。
-6. **存量迁移**：首次使用时通过 `product-dev-history-migrate` skill 为存量 TODO 目录生成 `feature-points.json`。
-
-### 关联技能
-
-- `.trae/skills/product-dev-archive/` — 每次任务完成后自动执行的归档 skill
-- `.trae/skills/product-dev-history-migrate/` — 处理历史存量需求文档的迁移 skill
+- `.trae/skills/trae-session-archive/` — **主线**：TraeCode 任务完成后的归档收尾（`source=trae-session`）
+- `.trae/skills/product-dev-archive/` — 遗留：写 `TODO/**/feature-points.json`（旧概览树，非主线）
+- `.trae/skills/product-dev-history-migrate/` — 遗留：存量 TODO 目录迁移补 feature-points.json
