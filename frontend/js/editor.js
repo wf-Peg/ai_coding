@@ -1190,12 +1190,64 @@
     setTimeout(() => mainEditor.resize(), 0);
   }
 
-  // Markdown 预览全屏：预览独占整个工作区（编辑区/反链等面板临时隐藏）
+  // ── Markdown 预览全屏：浮动抽屉（反链/大纲/标签）横向拖动 ──
+  const FLOATING_DRAWER_IDS = ['backlinksPane', 'outlinePane', 'tagsPane'];
+
+  // 横向偏移（负数=向左移）写入 CSS 变量 --md-off；transform 仅在
+  // markdown-fullscreen 悬浮覆盖规则中引用该变量，退出全屏即归位，不影响其余布局
+  function resetFloatingDrawers() {
+    FLOATING_DRAWER_IDS.forEach(id => {
+      const pane = document.getElementById(id);
+      if (pane) pane.style.removeProperty('--md-off');
+    });
+  }
+
+  let floatingDrawerDragReady = false;
+  function ensureFloatingDrawerDrag() {
+    if (floatingDrawerDragReady) return;
+    floatingDrawerDragReady = true;
+    FLOATING_DRAWER_IDS.forEach(id => {
+      const pane = document.getElementById(id);
+      const header = pane && pane.querySelector('.filetree-header');
+      if (header) header.addEventListener('pointerdown', onFloatingDrawerDragStart);
+    });
+  }
+
+  function onFloatingDrawerDragStart(e) {
+    if (e.button !== 0) return;
+    // 头部按钮/tabs 保留点击行为，不触发拖动
+    if (e.target.closest('button, [role="tab"], a, input, select')) return;
+    const header = e.currentTarget;
+    const pane = header.closest('.editor-pane');
+    const ws = elements.editorWorkspace;
+    if (!pane || !ws.classList.contains('markdown-fullscreen')) return;
+    if (pane.getAttribute('aria-hidden') !== 'false') return;
+    const startX = e.clientX;
+    const startOff = parseFloat(pane.style.getPropertyValue('--md-off')) || 0;
+    // 允许拖到最左，左右各留 12px 边距，不拖出可视区
+    const minOff = Math.min(0, -(ws.getBoundingClientRect().width - pane.getBoundingClientRect().width - 24));
+    if (header.setPointerCapture) header.setPointerCapture(e.pointerId);
+    const onMove = (ev) => {
+      const off = Math.max(minOff, Math.min(0, startOff + (ev.clientX - startX)));
+      pane.style.setProperty('--md-off', off + 'px');
+    };
+    const onUp = () => {
+      header.removeEventListener('pointermove', onMove);
+      header.removeEventListener('pointerup', onUp);
+      header.removeEventListener('pointercancel', onUp);
+    };
+    header.addEventListener('pointermove', onMove);
+    header.addEventListener('pointerup', onUp);
+    header.addEventListener('pointercancel', onUp);
+  }
+
+  // Markdown 预览全屏：预览独占工作区（编辑区等隐藏），反链/大纲/标签可唤起为右侧悬浮层
   let markdownFullscreen = false;
   function toggleMarkdownFullscreen(forceOpen) {
     if (elements.markdownPane.hidden) return;
     markdownFullscreen = forceOpen !== undefined ? forceOpen : !markdownFullscreen;
     elements.editorWorkspace.classList.toggle('markdown-fullscreen', markdownFullscreen);
+    if (markdownFullscreen) ensureFloatingDrawerDrag(); else resetFloatingDrawers();
     if (elements.mdFullscreenBtn) {
       elements.mdFullscreenBtn.textContent = markdownFullscreen ? '退出全屏' : '⛶ 全屏';
       elements.mdFullscreenBtn.title = markdownFullscreen ? '退出预览全屏 (Esc)' : '预览全屏';
@@ -3831,10 +3883,16 @@
       e.preventDefault();
       toggleFullscreen();
     }
-    // Esc 退出 Markdown 预览全屏
+    // Esc：全屏悬浮抽屉开着时优先关抽屉，否则退出 Markdown 预览全屏
     if (e.key === 'Escape' && markdownFullscreen) {
       e.preventDefault();
-      toggleMarkdownFullscreen(false);
+      const closeFn = { backlinksPane: toggleBacklinks, outlinePane: toggleOutline, tagsPane: toggleTags };
+      const openDrawer = FLOATING_DRAWER_IDS.find(id => {
+        const pane = document.getElementById(id);
+        return pane && pane.getAttribute('aria-hidden') === 'false';
+      });
+      if (openDrawer && closeFn[openDrawer]) closeFn[openDrawer]();
+      else toggleMarkdownFullscreen(false);
     }
   });
 
@@ -5994,6 +6052,12 @@
   // 反链/知识库面板开关（与文件树/历史/最近/收藏抽屉互斥）
   var backlinksVisible = false;
   function toggleBacklinks(forceOpen) {
+    // 非全屏 Markdown 预览下禁用反链抽屉：此态网格已固定为 1fr 1fr 两列，打开只会
+    // 留下空白列（pane 被 display:none 压制）。仅 markdown-fullscreen 悬浮层允许唤醒。
+    if (elements.editorWorkspace.classList.contains('markdown-preview')
+        && !elements.editorWorkspace.classList.contains('markdown-fullscreen')) {
+      return;
+    }
     backlinksVisible = forceOpen !== undefined ? forceOpen : !backlinksVisible;
     elements.backlinksPane.setAttribute('aria-hidden', String(!backlinksVisible));
     elements.editorWorkspace.classList.toggle('show-backlinks', backlinksVisible);

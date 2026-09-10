@@ -414,9 +414,9 @@ select {
 /* 反链/大纲/标签抽屉默认通过 0fr 列折叠隐藏；markdown-preview 下网格变为
    1fr 1fr 两列，若不加隐藏会泄漏进第 1 列并盖住编辑区（z-index:1），
    导致左侧画布空白、预览关闭按钮失效。show-backlinks 场景由下方专用规则恢复。 */
-.editor-workspace.markdown-preview > .backlinks-pane,
-.editor-workspace.markdown-preview > .outline-pane,
-.editor-workspace.markdown-preview > .tags-pane {
+.editor-workspace.markdown-preview:not(.markdown-fullscreen) > .backlinks-pane,
+.editor-workspace.markdown-preview:not(.markdown-fullscreen) > .outline-pane,
+.editor-workspace.markdown-preview:not(.markdown-fullscreen) > .tags-pane {
   display: none !important;
 }
 .editor-workspace.comparing > .main-pane,
@@ -1641,25 +1641,6 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
-/* Markdown 预览 + 反链抽屉同开：左反链 / 编辑区 / 右侧预览 三列并存，
-   修复此前布局类冲突导致的编辑区行号错乱、预览挤压问题 */
-.editor-workspace.markdown-preview.show-backlinks {
-  grid-template-columns: 280px minmax(0, 1fr) minmax(0, 1fr);
-}
-.editor-workspace.markdown-preview.show-backlinks > .backlinks-pane {
-  display: flex;
-  grid-column: 1;
-  grid-row: 1;
-}
-.editor-workspace.markdown-preview.show-backlinks > .main-pane {
-  grid-column: 2;
-  grid-row: 1;
-}
-.editor-workspace.markdown-preview.show-backlinks > .markdown-pane {
-  grid-column: 3;
-  grid-row: 1;
-}
-
 /* ── Markdown 预览全屏：预览独占整个工作区（覆盖所有并排布局类） ── */
 .editor-workspace.markdown-preview.markdown-fullscreen,
 .editor-workspace.markdown-preview.markdown-fullscreen.show-backlinks,
@@ -1677,8 +1658,11 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
 .editor-workspace.markdown-fullscreen > .history-pane,
 .editor-workspace.markdown-fullscreen > .recent-pane,
 .editor-workspace.markdown-fullscreen > .fav-pane,
-.editor-workspace.markdown-fullscreen > .backlinks-pane,
-.editor-workspace.markdown-fullscreen > .ai-chat-pane {
+.editor-workspace.markdown-fullscreen > .ai-chat-pane,
+/* 反链/大纲/标签：全屏下默认隐藏，show-* 时由下方悬浮覆盖规则接管（成对显隐，避免 !important 对抗） */
+.editor-workspace.markdown-fullscreen:not(.show-backlinks) > .backlinks-pane,
+.editor-workspace.markdown-fullscreen:not(.show-outline) > .outline-pane,
+.editor-workspace.markdown-fullscreen:not(.show-tags) > .tags-pane {
   display: none !important;
 }
 .editor-workspace.markdown-fullscreen > .markdown-pane {
@@ -1686,6 +1670,61 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
   grid-row: 1;
   border-left: 0;
   border-top: 0;
+}
+
+/* ── Markdown 预览全屏：反链/大纲/标签以右侧悬浮覆盖层出现 ──
+   0.65 磨砂半透明（正文可透出）、宽度随视口 clamp 自适应、头部可横向拖动 */
+.editor-workspace.markdown-preview.markdown-fullscreen {
+  position: relative;
+}
+
+@keyframes md-float-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.editor-workspace.markdown-preview.markdown-fullscreen.show-backlinks > .backlinks-pane,
+.editor-workspace.markdown-preview.markdown-fullscreen.show-outline > .outline-pane,
+.editor-workspace.markdown-preview.markdown-fullscreen.show-tags > .tags-pane {
+  display: flex;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  bottom: 10px;
+  width: clamp(280px, 34vw, 460px);
+  z-index: 6;
+  margin: 0;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow-panel-left);
+  background: var(--app-surface-subtle);
+  background: color-mix(in srgb, var(--app-surface-subtle) 65%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  /* 横向拖动偏移：仅全屏悬浮态引用；退出全屏归位，不影响其余布局 */
+  transform: translateX(var(--md-off, 0px));
+  /* 打开仅淡入（opacity），transform 专属拖动，避免 slide-in 动画与拖动互相覆盖 */
+  animation: md-float-in var(--app-duration-panel) ease;
+}
+
+.editor-workspace.markdown-preview.markdown-fullscreen.show-backlinks > .backlinks-pane:hover,
+.editor-workspace.markdown-preview.markdown-fullscreen.show-outline > .outline-pane:hover,
+.editor-workspace.markdown-preview.markdown-fullscreen.show-tags > .tags-pane:hover {
+  background: color-mix(in srgb, var(--app-surface-subtle) 88%, transparent);
+}
+
+/* 头部作为横向拖动把手（按钮/tabs 仍可点击） */
+.editor-workspace.markdown-preview.markdown-fullscreen.show-backlinks > .backlinks-pane .filetree-header,
+.editor-workspace.markdown-preview.markdown-fullscreen.show-outline > .outline-pane .filetree-header,
+.editor-workspace.markdown-preview.markdown-fullscreen.show-tags > .tags-pane .filetree-header {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.editor-workspace.markdown-preview.markdown-fullscreen.show-backlinks > .backlinks-pane .filetree-header:active,
+.editor-workspace.markdown-preview.markdown-fullscreen.show-outline > .outline-pane .filetree-header:active,
+.editor-workspace.markdown-preview.markdown-fullscreen.show-tags > .tags-pane .filetree-header:active {
+  cursor: grabbing;
 }
 
 /* ── 抽屉面板隐藏机制：grid 0fr 收回 + 淡出（替代 hidden 属性，可过渡） ── */
