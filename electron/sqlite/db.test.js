@@ -24,10 +24,10 @@ test('node:sqlite 可用（Electron 36 / Node 22 内置）', () => {
   assert.ok(row && row.v, `sqlite_version 应为非空，实际=${row && row.v}`);
 });
 
-test('建库后 meta.schema_version 应为 3', () => {
+test('建库后 meta.schema_version 应为 4', () => {
   const { db } = makeDb();
   const row = db.prepare("SELECT value FROM meta WHERE key='schema_version'").get();
-  assert.strictEqual(row.value, '3');
+  assert.strictEqual(row.value, '4');
 });
 
 test('relation 表已创建（M3 v2）', () => {
@@ -44,6 +44,14 @@ test('canvas_layout 表已创建（无限画布 v3）', () => {
     "SELECT name FROM sqlite_master WHERE type='table' AND name='canvas_layout'"
   ).all();
   assert.strictEqual(tbl.length, 1);
+});
+
+test('canvas_node / canvas_edge 表已创建（画布可写节点与手动连线 v4）', () => {
+  const { db } = makeDb();
+  const names = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('canvas_node','canvas_edge')"
+  ).all().map((r) => r.name).sort();
+  assert.deepEqual(names, ['canvas_edge', 'canvas_node']);
 });
 
 test('content / content_fts 表已创建，可写入 FTS 关联', () => {

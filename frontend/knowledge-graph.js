@@ -21,12 +21,29 @@
   const viewButtons = document.querySelectorAll('.view-toggle .seg-btn');
   const syncBtn = document.getElementById('syncBtn');
 
+  const canvasMenu = document.getElementById('canvasMenu');
+  const nodeMenu = document.getElementById('nodeMenu');
+  const edgeMenu = document.getElementById('edgeMenu');
+  const canvasModalMask = document.getElementById('canvasModalMask');
+  const canvasModalTitle = document.getElementById('canvasModalTitle');
+  const canvasModalBody = document.getElementById('canvasModalBody');
+  const canvasModalOk = document.getElementById('canvasModalOk');
+  const canvasModalCancel = document.getElementById('canvasModalCancel');
+
   let allNodes = [];
   let allLinks = [];
   let nodeMap = {};
   let selectedNodeId = null;
   let currentView = 'all'; // 'all' | 'knowledge'
   let svg, g, simulation, linkElements, nodeElements, labelElements;
+
+  let currentTransform = d3.zoomIdentity;
+  let preservedTransform = d3.zoomIdentity;
+  let tempLink = null;
+  let linkSourceId = null;
+  let canvasModalCtx = null;
+  let pendingRefNodeId = null;
+  let panelLinkNodeUrl = null;
 
   // ---- Data Fetching ----
 
@@ -82,7 +99,9 @@
         category: n.category || '',
         tags: n.tags || [],
         linkedCount: n.linkedCount || 0,
-        sourceCount: n.sourceCount || 0
+        sourceCount: n.sourceCount || 0,
+        text: n.text,
+        canvas: !!n.canvas
       };
       // 后端带回的画布坐标：预先钉住节点，实现位置持久化（拖到哪、下次还在哪）
       if (typeof n.x === 'number' && typeof n.y === 'number' && isFinite(n.x) && isFinite(n.y)) {
@@ -105,7 +124,8 @@
         allLinks.push({
           source: sourceId,
           target: targetId,
-          type: link.type || (String(sourceId).indexOf('clip:') === 0 ? 'derived_from' : 'linked_to')
+          type: link.type || (String(sourceId).indexOf('clip:') === 0 ? 'derived_from' : 'linked_to'),
+          manualId: link.manualId
         });
       }
     });
@@ -140,6 +160,8 @@
     var zoom = d3.zoom()
       .scaleExtent([0.05, 12])
       .on('zoom', function(event) {
+        currentTransform = event.transform;
+        preservedTransform = event.transform;
         g.attr('transform', event.transform);
       });
 
@@ -151,7 +173,44 @@
       }
     });
 
+    // 空白画布右键：新建节点菜单
+    svg.on('contextmenu', function(event) {
+      if (event.target !== svg.node()) return;
+      event.preventDefault();
+      openCanvasMenu(event.clientX, event.clientY, screenToWorld(event));
+    });
+
+    // 图片缩略图圆角裁剪（固定尺寸 110x72）
+    svg.append('defs').append('clipPath')
+      .attr('id', 'canvasImgClip')
+      .append('rect')
+      .attr('x', -55).attr('y', -36).attr('width', 110).attr('height', 72).attr('rx', 8);
+
     g = svg.append('g');
+
+    // 连线模式下的临时虚线
+    tempLink = g.append('line')
+      .attr('class', 'temp-link')
+      .attr('display', 'none');
+
+    // 连线模式下跟随鼠标更新临时连线
+    svg.on('mousemove', function(event) {
+      if (!linkSourceId) { if (tempLink) tempLink.attr('display', 'none'); return; }
+      var src = nodeMap[linkSourceId];
+      if (!src) return;
+      var m = d3.pointer(event, container);
+      tempLink
+        .attr('x1', currentTransform.applyX(src.x))
+        .attr('y1', currentTransform.applyY(src.y))
+        .attr('x2', m[0])
+        .attr('y2', m[1])
+        .attr('display', null);
+    });
+
+    // 恢复上次视图（新建/删除节点后重绘不跳视角）
+    if (preservedTransform && (preservedTransform.k !== 1 || preservedTransform.x || preservedTransform.y)) {
+      svg.call(zoom.transform, preservedTransform);
+    }
 
     simulation = d3.forceSimulation(allNodes)
       .force('link', d3.forceLink(allLinks).id(function(d) { return d.id; }).distance(fnLinkDistance).strength(fnLinkStrength))
@@ -165,7 +224,10 @@
       .selectAll('line')
       .data(allLinks)
       .join('line')
-      .attr('class', function(d) { return 'link link-' + (d.type === 'derived_from' ? 'derived' : (d.type === 'plan_links' ? 'plan' : 'linked')); })
+      .attr('class', function(d) {
+        var suffix = d.type === 'derived_from' ? 'derived' : (d.type === 'plan_links' ? 'plan' : (d.type === 'manual' ? 'manual' : 'linked'));
+        return 'link link-' + suffix;
+      })
       .attr('stroke-dasharray', function(d) { return d.type === 'derived_from' ? '5 4' : null; });
 
     // Render nodes
@@ -180,7 +242,8 @@
     // Node shapes: clip = square, knowledge = circle, learning-plan = triangle
     var clipNodes = nodeElements.filter(function(d) { return isClip(d); });
     var planNodes = nodeElements.filter(function(d) { return isLearningPlan(d); });
-    var knoNodes = nodeElements.filter(function(d) { return !isClip(d) && !isLearningPlan(d); });
+    var knoNodes = nodeElements.filter(function(d) { return !isClip(d) && !isLearningPlan(d) && !isCanvas(d); });
+    var canvasNodes = nodeElements.filter(function(d) { return isCanvas(d); });
 
     clipNodes.append('rect')
       .attr('x', function(d) { return -getNodeRadius(d); })
@@ -198,15 +261,40 @@
       .attr('r', function(d) { return getNodeRadius(d); })
       .attr('fill', function(d) { return getNodeColor(d); });
 
-    // Node labels
-    labelElements = nodeElements.append('text')
+    // 画布可写节点：卡片式渲染（便签/链接/图片/引用）
+    renderCanvasNodes(canvasNodes);
+
+    // Node labels（画布节点文字已内嵌在卡片内，不再加下方标签）
+    labelElements = nodeElements.filter(function(d) { return !isCanvas(d); }).append('text')
       .text(function(d) { return truncate(d.title, 14); })
       .attr('dy', function(d) { return getNodeRadius(d) + 14; });
 
     // Node click
     nodeElements.on('click', function(event, d) {
       event.stopPropagation();
+      if (linkSourceId) { completeLink(String(d.id)); return; }
       selectNode(d);
+    });
+
+    // 双击编辑画布节点内容（便签/链接/图片）
+    nodeElements.on('dblclick', function(event, d) {
+      event.stopPropagation();
+      if (isCanvas(d) && d.type !== 'ref') openEditModal(d);
+    });
+
+    // 节点右键菜单
+    nodeElements.on('contextmenu', function(event, d) {
+      event.stopPropagation();
+      event.preventDefault();
+      openNodeMenu(event.clientX, event.clientY, d);
+    });
+
+    // 手动连线右键菜单（可删除）
+    linkElements.on('contextmenu', function(event, d) {
+      if (d.type !== 'manual' || !d.manualId) return;
+      event.stopPropagation();
+      event.preventDefault();
+      openEdgeMenu(event.clientX, event.clientY, d);
     });
 
     // Node hover
@@ -266,6 +354,52 @@
     return isClip(d) ? 'rect' : 'circle';
   }
 
+  function renderCanvasNodes(selection) {
+    selection.each(function(d) {
+      var gSel = d3.select(this);
+      var s = canvasCardSize(d);
+      var w = s.w, h = s.h, rx = 8, fill = getNodeColor(d);
+
+      gSel.append('rect')
+        .attr('x', -w / 2).attr('y', -h / 2)
+        .attr('width', w).attr('height', h)
+        .attr('rx', rx).attr('fill', fill);
+
+      if (d.type === 'image') {
+        // 兜底图标先画，图片加载成功会盖住它；失败则仍可见
+        gSel.append('text').attr('class', 'canvas-card-text').attr('y', 4).text('🖼');
+        if (d.text) {
+          gSel.append('image')
+            .attr('href', d.text)
+            .attr('x', -w / 2).attr('y', -h / 2)
+            .attr('width', w).attr('height', h)
+            .attr('preserveAspectRatio', 'xMidYMid slice')
+            .attr('clip-path', 'url(#canvasImgClip)');
+        }
+        return;
+      }
+
+      var label = '';
+      if (d.type === 'note') label = d.text || d.title || '便签';
+      else if (d.type === 'link') label = '🔗 ' + (d.title || d.text || '链接');
+      else label = d.title || '引用';
+
+      var lines = wrapLines(label, d.type === 'note' ? 12 : 13);
+      var textSel = gSel.append('text')
+        .attr('class', d.type === 'ref' ? 'canvas-card-text canvas-ref-text' : 'canvas-card-text');
+      var lineHeight = 13;
+      var startY = -((lines.length - 1) * lineHeight) / 2;
+      for (var i = 0; i < lines.length; i++) {
+        textSel.append('tspan').attr('x', 0).attr('y', startY + i * lineHeight).text(lines[i]);
+      }
+    });
+  }
+
+  function screenToWorld(event) {
+    var m = d3.pointer(event, container);
+    return currentTransform.invert(m);
+  }
+
   // ---- Node Helpers ----
 
   function isClip(d) {
@@ -274,6 +408,31 @@
 
   function isLearningPlan(d) {
     return d.type === 'learning-plan';
+  }
+
+  function isCanvas(d) {
+    return d.type === 'note' || d.type === 'link' || d.type === 'image' || d.type === 'ref';
+  }
+
+  function canvasCardSize(d) {
+    if (d.type === 'image') return { w: 110, h: 72 };
+    if (d.type === 'note') return { w: 108, h: 60 };
+    return { w: 108, h: 42 };
+  }
+
+  function wrapLines(text, maxChars) {
+    text = String(text == null ? '' : text).trim();
+    if (!text) return [];
+    var words = text.split(/\s+/);
+    var lines = [];
+    var cur = '';
+    for (var i = 0; i < words.length; i++) {
+      var candidate = cur ? cur + ' ' + words[i] : words[i];
+      if (candidate.length > maxChars && cur) { lines.push(cur); cur = words[i]; }
+      else cur = candidate;
+    }
+    if (cur) lines.push(cur);
+    return lines.slice(0, 3);
   }
 
   function getNodeRadius(d) {
@@ -286,6 +445,10 @@
   }
 
   function getNodeColor(d) {
+    if (d.type === 'note') return '#fbbf24';
+    if (d.type === 'link') return '#22d3ee';
+    if (d.type === 'image') return '#a78bfa';
+    if (d.type === 'ref') return '#14b8a6';
     if (isLearningPlan(d)) return '#22c55e';
     if (isClip(d)) return '#f59e0b';
     var degree = (d.linkedCount || 0) + (d.sourceCount || 0);
@@ -478,6 +641,12 @@
   // ---- Side Panel ----
 
   function showSidePanel(d) {
+    panelLinkNodeUrl = null;
+    panelDetailLink.style.display = 'block';
+    panelDetailLink.target = '';
+    panelDetailLink.removeAttribute('rel');
+    if (isCanvas(d)) { showCanvasPanel(d); return; }
+
     panelTitle.textContent = d.title;
     panelSummary.textContent = d.summary || '暂无摘要';
 
@@ -508,6 +677,38 @@
     sidePanel.classList.add('open');
   }
 
+  function showCanvasPanel(d) {
+    var names = { note: '便签', link: '链接', image: '图片', ref: '引用节点' };
+    panelTitle.textContent = names[d.type] || '画布节点';
+    if (d.type === 'link') {
+      panelMeta.textContent = '链接';
+      panelSummary.textContent = d.text || '（无链接地址，双击编辑）';
+      panelTags.innerHTML = '';
+      panelDetailLink.style.display = 'block';
+      panelDetailLink.textContent = '打开链接';
+      panelDetailLink.href = d.text || '#';
+      panelDetailLink.target = '_blank';
+      panelDetailLink.rel = 'noopener';
+      panelLinkNodeUrl = d.text || null;
+    } else if (d.type === 'image') {
+      panelMeta.textContent = '图片';
+      panelSummary.textContent = d.text ? '双击可更换图源' : '（无图源，双击可设置）';
+      panelTags.innerHTML = '';
+      panelDetailLink.style.display = 'none';
+    } else if (d.type === 'note') {
+      panelMeta.textContent = '便签';
+      panelSummary.textContent = d.text || '（空白便签，双击编辑）';
+      panelTags.innerHTML = '';
+      panelDetailLink.style.display = 'none';
+    } else {
+      panelMeta.textContent = '引用节点';
+      panelSummary.textContent = '引用于：' + (d.title || d.text || '未知节点');
+      panelTags.innerHTML = '';
+      panelDetailLink.style.display = 'none';
+    }
+    sidePanel.classList.add('open');
+  }
+
   function hideSidePanel() {
     sidePanel.classList.remove('open');
   }
@@ -535,7 +736,7 @@
     svg.selectAll('.node circle, .node rect, .node polygon')
       .attr('stroke', nodeStroke);
 
-    svg.selectAll('.node text')
+    svg.selectAll('.node text:not(.canvas-card-text)')
       .attr('fill', textColor);
   }
 
@@ -550,6 +751,185 @@
     var div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  // ---- Canvas Context Menu & Modal ----
+
+  function closeMenus() {
+    canvasMenu.style.display = 'none';
+    nodeMenu.style.display = 'none';
+    edgeMenu.style.display = 'none';
+  }
+
+  function positionMenu(menu, x, y) {
+    menu.style.display = 'flex';
+    menu.style.left = Math.min(x, window.innerWidth - 220) + 'px';
+    menu.style.top = Math.min(y, window.innerHeight - 200) + 'px';
+  }
+
+  function openCanvasMenu(x, y, pt) {
+    closeMenus();
+    positionMenu(canvasMenu, x, y);
+    canvasMenu._pt = pt || { x: 100, y: 100 };
+  }
+
+  function openNodeMenu(x, y, d) {
+    closeMenus();
+    positionMenu(nodeMenu, x, y);
+    nodeMenu._d = d;
+  }
+
+  function openEdgeMenu(x, y, d) {
+    closeMenus();
+    positionMenu(edgeMenu, x, y);
+    edgeMenu._d = d;
+  }
+
+  function closeModal() {
+    canvasModalMask.style.display = 'none';
+    canvasModalBody.innerHTML = '';
+    canvasModalCtx = null;
+    pendingRefNodeId = null;
+  }
+
+  function openCreateModal(kind, pt) {
+    closeMenus();
+    canvasModalCtx = { mode: 'create', kind: kind, x: pt.x, y: pt.y };
+    pendingRefNodeId = null;
+    var titles = { note: '新建便签', link: '新建链接', image: '新建图片', ref: '引用已有节点' };
+    canvasModalTitle.textContent = titles[kind] || '新建节点';
+
+    if (kind === 'ref') {
+      canvasModalBody.innerHTML =
+        '<div class="field-label">选择一个已有内容节点</div>' +
+        '<input id="refPickerSearch" placeholder="搜索标题 / 分类 / 标签..." style="margin-bottom:8px;">' +
+        '<div class="ref-picker-list" id="refPickerList"></div>';
+      renderRefPicker('');
+      var input = canvasModalBody.querySelector('#refPickerSearch');
+      input.addEventListener('input', function() { renderRefPicker(input.value); });
+      var list = canvasModalBody.querySelector('#refPickerList');
+      list.addEventListener('click', function(event) {
+        var item = event.target.closest('.ref-picker-item');
+        if (!item || !item.dataset.id) return;
+        pendingRefNodeId = item.dataset.id;
+        list.querySelectorAll('.ref-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+        item.classList.add('selected');
+      });
+      input.focus();
+    } else {
+      var field = (kind === 'note')
+        ? '<textarea id="canvasFieldValue" placeholder="写点什么..."></textarea>'
+        : '<input id="canvasFieldValue" type="text" placeholder="' + (kind === 'link' ? 'https://example.com' : '图片 URL') + '">';
+      canvasModalBody.innerHTML = field;
+      var el = canvasModalBody.querySelector('#canvasFieldValue');
+      if (el) el.focus();
+    }
+    canvasModalMask.style.display = 'flex';
+  }
+
+  function openEditModal(d) {
+    closeMenus();
+    canvasModalCtx = { mode: 'edit', kind: d.type, nodeId: d.id };
+    pendingRefNodeId = null;
+    var titles = { note: '编辑便签', link: '编辑链接', image: '编辑图片' };
+    canvasModalTitle.textContent = titles[d.type] || '编辑节点';
+    var field = (d.type === 'note')
+      ? '<textarea id="canvasFieldValue"></textarea>'
+      : '<input id="canvasFieldValue" type="text">';
+    canvasModalBody.innerHTML = field;
+    var el = canvasModalBody.querySelector('#canvasFieldValue');
+    if (el) { el.value = d.text || ''; el.focus(); }
+    canvasModalMask.style.display = 'flex';
+  }
+
+  function renderRefPicker(query) {
+    var list = canvasModalBody.querySelector('#refPickerList');
+    if (!list) return;
+    query = (query || '').toLowerCase();
+    var typeName = { clip: '剪藏', knowledge: '知识', 'learning-plan': '计划' };
+    var html = '';
+    for (var i = 0; i < allNodes.length; i++) {
+      var n = allNodes[i];
+      if (isCanvas(n)) continue;
+      var hay = ((n.title || '') + ' ' + (n.category || '') + ' ' + (n.tags || []).join(' ')).toLowerCase();
+      if (query && hay.indexOf(query) === -1) continue;
+      html += '<div class="ref-picker-item" data-id="' + n.id + '">' +
+        '<span class="rtitle">' + escapeHtml(n.title || n.id) + '</span>' +
+        '<span class="rtype">' + (typeName[n.type] || n.type) + '</span></div>';
+    }
+    list.innerHTML = html || '<div class="ref-picker-item"><span class="rtitle">无匹配节点</span></div>';
+  }
+
+  async function createCanvasNode(kind, text, title, x, y) {
+    var bridge = window.electronAPI && window.electronAPI.localIndex;
+    if (!bridge || typeof bridge.createCanvasNode !== 'function') return false;
+    try { await bridge.createCanvasNode({ kind: kind, text: text, title: title, x: x, y: y }); return true; }
+    catch (e) { return false; }
+  }
+
+  async function updateCanvasNode(id, text) {
+    var bridge = window.electronAPI && window.electronAPI.localIndex;
+    if (!bridge || typeof bridge.updateCanvasNode !== 'function') return;
+    try { await bridge.updateCanvasNode({ id: id, text: text }); } catch (e) {}
+  }
+
+  async function deleteCanvasNode(id) {
+    var bridge = window.electronAPI && window.electronAPI.localIndex;
+    if (!bridge || typeof bridge.deleteCanvasNode !== 'function') return;
+    try { await bridge.deleteCanvasNode({ id: id }); } catch (e) {}
+    await fetchData(currentView);
+  }
+
+  async function deleteCanvasEdge(id) {
+    var bridge = window.electronAPI && window.electronAPI.localIndex;
+    if (!bridge || typeof bridge.deleteCanvasEdge !== 'function') return;
+    try { await bridge.deleteCanvasEdge({ id: id }); } catch (e) {}
+    await fetchData(currentView);
+  }
+
+  async function commitModal() {
+    var ctx = canvasModalCtx;
+    if (!ctx) return;
+    if (ctx.mode === 'create') {
+      if (ctx.kind === 'ref') {
+        if (!pendingRefNodeId) { closeModal(); return; }
+        var target = nodeMap[pendingRefNodeId];
+        var refTitle = target ? (target.title || '') : '';
+        await createCanvasNode('ref', pendingRefNodeId, refTitle, ctx.x, ctx.y);
+      } else {
+        var field = canvasModalBody.querySelector('#canvasFieldValue');
+        var val = field ? field.value.trim() : '';
+        if ((ctx.kind === 'link' || ctx.kind === 'image') && !val) { closeModal(); return; }
+        await createCanvasNode(ctx.kind, val, '', ctx.x, ctx.y);
+      }
+    } else if (ctx.mode === 'edit') {
+      var editField = canvasModalBody.querySelector('#canvasFieldValue');
+      var editVal = editField ? editField.value : '';
+      await updateCanvasNode(ctx.nodeId, editVal);
+    }
+    closeModal();
+    await fetchData(currentView);
+  }
+
+  function startLink(sourceId) {
+    linkSourceId = sourceId;
+    nodeElements.classed('linking', function(n) { return String(n.id) === sourceId; });
+  }
+
+  function cancelLink() {
+    linkSourceId = null;
+    nodeElements.classed('linking', false);
+    if (tempLink) tempLink.attr('display', 'none');
+  }
+
+  async function completeLink(targetId) {
+    var fromId = linkSourceId;
+    cancelLink();
+    if (!fromId || fromId === targetId) return;
+    var bridge = window.electronAPI && window.electronAPI.localIndex;
+    if (!bridge || typeof bridge.createCanvasEdge !== 'function') return;
+    try { await bridge.createCanvasEdge({ fromId: fromId, toId: targetId }); } catch (e) {}
+    await fetchData(currentView);
   }
 
   // ---- Event Bindings ----
@@ -579,6 +959,13 @@
 
   if (panelDetailLink) {
     panelDetailLink.addEventListener('click', function(e) {
+      if (panelLinkNodeUrl) {
+        e.preventDefault();
+        var url = panelLinkNodeUrl;
+        panelLinkNodeUrl = null;
+        if (url && url.indexOf('http') === 0) window.open(url, '_blank');
+        return;
+      }
       var href = panelDetailLink.getAttribute('href') || '';
       if (href.indexOf('learning-plan.html') === 0) {
         e.preventDefault();
@@ -590,6 +977,58 @@
       }
     });
   }
+
+  // ---- Canvas menu / modal bindings ----
+
+  canvasMenu.querySelectorAll('button').forEach(function(btn) {
+    btn.addEventListener('click', function(event) {
+      event.stopPropagation();
+      var action = btn.dataset.action;
+      var pt = canvasMenu._pt || { x: 100, y: 100 };
+      closeMenus();
+      if (action === 'add-note') openCreateModal('note', pt);
+      if (action === 'add-link') openCreateModal('link', pt);
+      if (action === 'add-image') openCreateModal('image', pt);
+      if (action === 'add-ref') openCreateModal('ref', pt);
+    });
+  });
+
+  nodeMenu.querySelectorAll('button').forEach(function(btn) {
+    btn.addEventListener('click', function(event) {
+      event.stopPropagation();
+      var action = btn.dataset.action;
+      var d = nodeMenu._d;
+      closeMenus();
+      if (!d) return;
+      if (action === 'link-from') startLink(String(d.id));
+      else if (action === 'edit-node') openEditModal(d);
+      else if (action === 'delete-node') deleteCanvasNode(String(d.id));
+    });
+  });
+
+  edgeMenu.querySelectorAll('button').forEach(function(btn) {
+    btn.addEventListener('click', function(event) {
+      event.stopPropagation();
+      var d = edgeMenu._d;
+      closeMenus();
+      if (d && d.manualId) deleteCanvasEdge(d.manualId);
+    });
+  });
+
+  canvasModalOk.addEventListener('click', commitModal);
+  canvasModalCancel.addEventListener('click', closeModal);
+  canvasModalMask.addEventListener('click', function(event) {
+    if (event.target === canvasModalMask) closeModal();
+  });
+
+  // 点击空白处关闭右键菜单；Esc 关闭弹窗/取消连线/关闭菜单
+  document.addEventListener('click', function() { closeMenus(); });
+  document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape') return;
+    if (canvasModalMask.style.display === 'flex') { closeModal(); return; }
+    if (linkSourceId) { cancelLink(); return; }
+    closeMenus();
+  });
 
   // ---- Init ----
 

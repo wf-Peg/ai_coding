@@ -6,10 +6,12 @@
  *     knowledge / learning-plan 作为关系端点。
  * v3：新增 canvas_layout 表（无限画布·布局层），存储节点手动画布坐标，
  *     与语义 relation 表分离，避免关系全量重建时被清掉。
+ * v4：新增 canvas_node 表（画布可写节点：便签/链接/图片/引用）与
+ *     canvas_edge 表（手动连线），同属画布层，与语义 relation 分离。
  * 后续扩展时新增版本迁移（schema_version+1），在 migrate() 里追加逻辑。
  */
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 // 建表 SQL（仅在 meta.schema_version 为空时执行 v1 建库）
 const SQL_V1 = `
@@ -71,6 +73,28 @@ CREATE TABLE IF NOT EXISTS canvas_layout (
 );
 `;
 
+// v4 增量：画布可写节点 + 手动连线（无限画布·画布层，与语义 relation 分离）
+const SQL_V4 = `
+CREATE TABLE IF NOT EXISTS canvas_node (
+  id         TEXT PRIMARY KEY,
+  kind       TEXT NOT NULL,          -- note / link / image / ref
+  text       TEXT,                   -- note 正文 / link URL / image 图源 / ref 目标节点 id
+  title      TEXT,
+  created_at TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS canvas_edge (
+  id         TEXT PRIMARY KEY,
+  from_id    TEXT NOT NULL,
+  to_id      TEXT NOT NULL,
+  created_at TEXT,
+  UNIQUE(from_id, to_id)
+);
+CREATE INDEX IF NOT EXISTS idx_canvas_edge_from ON canvas_edge(from_id);
+CREATE INDEX IF NOT EXISTS idx_canvas_edge_to   ON canvas_edge(to_id);
+`;
+
 /**
  * 执行建库/迁移。基于 meta.schema_version 判断。
  * v1：建 meta/content/content_fts。
@@ -85,10 +109,11 @@ function migrate(db) {
   const current = row ? parseInt(row.value, 10) : 0;
 
   if (current === 0) {
-    // 全新建库：跑全量 SQL（v1 基础表 + v2 relation 表 + v3 画布布局表）
+    // 全新建库：跑全量 SQL（v1 基础表 + v2 relation 表 + v3 画布布局表 + v4 画布节点/连线表）
     db.exec(SQL_V1);
     db.exec(SQL_V2);
     db.exec(SQL_V3);
+    db.exec(SQL_V4);
     upsertMeta(db, 'schema_version', String(SCHEMA_VERSION));
     return;
   }
@@ -99,6 +124,12 @@ function migrate(db) {
   if (current < 3) {
     // v2 → v3：新增画布布局表
     db.exec(SQL_V3);
+    upsertMeta(db, 'schema_version', String(SCHEMA_VERSION));
+    return;
+  }
+  if (current < 4) {
+    // v3 → v4：新增画布可写节点 + 手动连线表
+    db.exec(SQL_V4);
     upsertMeta(db, 'schema_version', String(SCHEMA_VERSION));
     return;
   }

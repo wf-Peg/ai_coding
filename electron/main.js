@@ -25,6 +25,7 @@ const localSearch = require('./sqlite/search');
 const localGraph = require('./sqlite/graph');
 const localDb = require('./sqlite/db');
 const localCanvas = require('./sqlite/canvas-layout');
+const localCanvasNode = require('./sqlite/canvas-node');
 // clip-storage 实时监听句柄（will-quit 时释放）
 let localIndexWatcher = null;
 
@@ -2960,6 +2961,56 @@ function setupIPC() {
     if (!dbConn) return { success: false, message: 'local index not ready' };
     const saved = localCanvas.savePositions(dbConn, positions);
     return { success: true, saved };
+  }));
+
+  /** 新建画布可写节点（便签/链接/图片/引用） */
+  ipcMain.handle('local-index:canvas:create-node', localIndexGuard(async (_ev, args) => {
+    const { kind, text, title, x, y } = args || {};
+    if (!kind) return { success: false, message: 'kind is required' };
+    const dbConn = localDb.getDatabase();
+    if (!dbConn) return { success: false, message: 'local index not ready' };
+    const node = localCanvasNode.createNode(dbConn, { kind, text, title, x, y });
+    return { success: true, node };
+  }));
+
+  /** 更新画布可写节点内容 */
+  ipcMain.handle('local-index:canvas:update-node', localIndexGuard(async (_ev, args) => {
+    const { id, text, title } = args || {};
+    if (!id) return { success: false, message: 'id is required' };
+    const dbConn = localDb.getDatabase();
+    if (!dbConn) return { success: false, message: 'local index not ready' };
+    const updated = localCanvasNode.updateNode(dbConn, id, { text, title });
+    return { success: updated, message: updated ? undefined : 'node not found' };
+  }));
+
+  /** 删除画布可写节点（级联清理坐标与连线） */
+  ipcMain.handle('local-index:canvas:delete-node', localIndexGuard(async (_ev, args) => {
+    const { id } = args || {};
+    if (!id) return { success: false, message: 'id is required' };
+    const dbConn = localDb.getDatabase();
+    if (!dbConn) return { success: false, message: 'local index not ready' };
+    const deleted = localCanvasNode.deleteNode(dbConn, id);
+    return { success: deleted, message: deleted ? undefined : 'node not found' };
+  }));
+
+  /** 新建手动连线 */
+  ipcMain.handle('local-index:canvas:create-edge', localIndexGuard(async (_ev, args) => {
+    const { fromId, toId } = args || {};
+    if (!fromId || !toId) return { success: false, message: 'fromId and toId are required' };
+    const dbConn = localDb.getDatabase();
+    if (!dbConn) return { success: false, message: 'local index not ready' };
+    const edge = localCanvasNode.createEdge(dbConn, fromId, toId);
+    return edge ? { success: true, edge } : { success: false, message: 'invalid edge endpoints' };
+  }));
+
+  /** 删除手动连线 */
+  ipcMain.handle('local-index:canvas:delete-edge', localIndexGuard(async (_ev, args) => {
+    const { id } = args || {};
+    if (!id) return { success: false, message: 'id is required' };
+    const dbConn = localDb.getDatabase();
+    if (!dbConn) return { success: false, message: 'local index not ready' };
+    const deleted = localCanvasNode.deleteEdge(dbConn, id);
+    return { success: deleted, message: deleted ? undefined : 'edge not found' };
   }));
 
   /** 查询某节点的关系（出链 + 反链），供反链面板复用 */

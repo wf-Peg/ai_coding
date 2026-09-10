@@ -712,6 +712,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     /** 节点关系（出链 + 反链）：opts = { id } */
     relations: (opts) => ipcRenderer.invoke('local-index:relations', { id: opts && opts.id }),
     /** 保存画布节点位置（无限画布布局层）：opts = { positions: [{id,x,y}] } */
-    saveLayout: (opts) => ipcRenderer.invoke('local-index:layout:save', { positions: opts && opts.positions })
+    saveLayout: (opts) => ipcRenderer.invoke('local-index:layout:save', { positions: opts && opts.positions }),
+    /** 新建画布可写节点：opts = { kind, text, title, x, y } */
+    createCanvasNode: (opts) => ipcRenderer.invoke('local-index:canvas:create-node', opts || {}),
+    /** 更新画布可写节点内容：opts = { id, text, title } */
+    updateCanvasNode: (opts) => ipcRenderer.invoke('local-index:canvas:update-node', opts || {}),
+    /** 删除画布可写节点（级联清理坐标与连线）：opts = { id } */
+    deleteCanvasNode: (opts) => ipcRenderer.invoke('local-index:canvas:delete-node', opts || {}),
+    /** 新建手动连线：opts = { fromId, toId } */
+    createCanvasEdge: (opts) => ipcRenderer.invoke('local-index:canvas:create-edge', opts || {}),
+    /** 删除手动连线：opts = { id } */
+    deleteCanvasEdge: (opts) => ipcRenderer.invoke('local-index:canvas:delete-edge', opts || {})
   }
 });

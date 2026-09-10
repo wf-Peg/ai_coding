@@ -327,6 +327,105 @@
             box-shadow: 0 4px 12px rgba(63,140,255,0.3);
         }
 
+        /* Canvas context menu */
+        .canvas-menu {
+            position: fixed;
+            z-index: 300;
+            min-width: 180px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            box-shadow: var(--shadow-hover);
+            padding: 6px;
+            display: flex;
+            flex-direction: column;
+        }
+        .canvas-menu button {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            padding: 8px 12px;
+            border: none;
+            background: transparent;
+            color: var(--text);
+            font-size: 0.85rem;
+            text-align: left;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .canvas-menu button:hover { background: var(--border); }
+        .canvas-menu button.danger { color: #ef4444; }
+        .canvas-menu button.danger:hover { background: rgba(239,68,68,0.1); }
+        .canvas-menu .divider { height: 1px; background: var(--border); margin: 4px 6px; }
+
+        /* Canvas node shapes */
+        .node .canvas-card-text {
+            font-size: 11px;
+            fill: #1f2937;
+            text-anchor: middle;
+            pointer-events: none;
+            user-select: none;
+        }
+        .node .canvas-ref-text { fill: #ffffff; }
+        .link-manual { stroke: #a78bfa; stroke-opacity: 0.7; stroke-width: 1.6px; }
+        .link-manual.dimmed { stroke-opacity: 0.08; }
+        .node.linking rect, .node.linking circle, .node.linking polygon {
+            stroke: #ff9800 !important;
+            stroke-width: 3px !important;
+            stroke-dasharray: 4 3;
+        }
+        .temp-link { stroke: #ff9800; stroke-width: 1.6px; stroke-dasharray: 5 4; pointer-events: none; }
+
+        /* Canvas modal */
+        .canvas-modal-mask {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.35);
+            z-index: 400;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .canvas-modal {
+            width: 380px;
+            max-width: calc(100vw - 40px);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: var(--shadow-hover);
+            padding: 18px 20px;
+        }
+        .canvas-modal-title { font-size: 1rem; font-weight: 600; margin-bottom: 14px; }
+        .canvas-modal-body { margin-bottom: 16px; }
+        .canvas-modal-body input, .canvas-modal-body textarea {
+            width: 100%;
+            padding: 9px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--background);
+            color: var(--text);
+            font-size: 0.9rem;
+            font-family: inherit;
+            outline: none;
+            resize: none;
+        }
+        .canvas-modal-body input:focus, .canvas-modal-body textarea:focus { border-color: var(--primary); }
+        .canvas-modal-body textarea { min-height: 80px; line-height: 1.5; }
+        .canvas-modal-body .field-label { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; }
+        .ref-picker-list { max-height: 220px; overflow-y: auto; margin-top: 10px; border: 1px solid var(--border); border-radius: 8px; }
+        .ref-picker-item { padding: 8px 12px; cursor: pointer; font-size: 0.85rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; gap: 8px; }
+        .ref-picker-item:last-child { border-bottom: none; }
+        .ref-picker-item:hover, .ref-picker-item.selected { background: var(--border); }
+        .ref-picker-item .rtype { color: var(--text-muted); font-size: 0.72rem; flex-shrink: 0; }
+        .ref-picker-item .rtitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .canvas-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+        .modal-btn { padding: 7px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); cursor: pointer; font-size: 0.85rem; transition: var(--transition); }
+        .modal-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .modal-btn.ok { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .modal-btn.ok:hover { background: var(--primary-dark); }
+
         /* SVG Node & Link styles */
         .link {
             stroke: var(--link-color);
@@ -404,7 +503,7 @@
             </div>
             <button class="sync-btn" id="syncBtn">刷新关系</button>
         </div>
-        <span class="nav-hint">拖拽节点（位置自动保存）· 滚轮缩放 · 点击查看详情</span>
+        <span class="nav-hint">右键新建节点 · 节点右键连线 · 拖拽定位 · 双击编辑</span>
     </nav>
 
     <div class="graph-container" id="graphContainer">
@@ -421,9 +520,45 @@
             <div class="legend-item"><span class="dot clip-dot"></span>剪藏</div>
             <div class="legend-item"><span class="dot kno-dot"></span>知识</div>
             <div class="legend-item"><span class="tri"></span>学习计划</div>
+            <div class="legend-item"><span class="dot" style="background:#fbbf24;"></span>便签</div>
+            <div class="legend-item"><span class="dot" style="background:#22d3ee;"></span>链接</div>
+            <div class="legend-item"><span class="dot" style="background:#a78bfa;"></span>图片</div>
             <div class="legend-item"><span class="lmark derived-line"></span>来源</div>
             <div class="legend-item"><span class="lmark linked-line"></span>关联</div>
             <div class="legend-item"><span class="lmark plan-line"></span>计划关联</div>
+            <div class="legend-item"><span class="lmark" style="border-top-color:#a78bfa;"></span>手动连线</div>
+        </div>
+    </div>
+
+    <!-- 画布右键菜单（空白处） -->
+    <div class="canvas-menu" id="canvasMenu" style="display:none;">
+        <button data-action="add-note">📝 新建便签</button>
+        <button data-action="add-link">🔗 新建链接</button>
+        <button data-action="add-image">🖼️ 新建图片</button>
+        <div class="divider"></div>
+        <button data-action="add-ref">📌 引用已有节点</button>
+    </div>
+    <!-- 节点右键菜单 -->
+    <div class="canvas-menu" id="nodeMenu" style="display:none;">
+        <button data-action="link-from">🔗 从此节点连线</button>
+        <button data-action="edit-node">✏️ 编辑内容</button>
+        <div class="divider"></div>
+        <button data-action="delete-node" class="danger">🗑️ 删除节点</button>
+    </div>
+    <!-- 连线右键菜单 -->
+    <div class="canvas-menu" id="edgeMenu" style="display:none;">
+        <button data-action="delete-edge" class="danger">🗑️ 删除连线</button>
+    </div>
+
+    <!-- 画布节点 新建/编辑/引用 弹窗 -->
+    <div class="canvas-modal-mask" id="canvasModalMask" style="display:none;">
+        <div class="canvas-modal">
+            <div class="canvas-modal-title" id="canvasModalTitle"></div>
+            <div class="canvas-modal-body" id="canvasModalBody"></div>
+            <div class="canvas-modal-actions">
+                <button class="modal-btn" id="canvasModalCancel">取消</button>
+                <button class="modal-btn ok" id="canvasModalOk">确定</button>
+            </div>
         </div>
     </div>
 
