@@ -32,6 +32,14 @@
   const canvasModalBody = document.getElementById('canvasModalBody');
   const canvasModalOk = document.getElementById('canvasModalOk');
   const canvasModalCancel = document.getElementById('canvasModalCancel');
+  const layoutBtn = document.getElementById('layoutBtn');
+  const aiModalMask = document.getElementById('aiModalMask');
+  const aiModalTitle = document.getElementById('aiModalTitle');
+  const aiModalBody = document.getElementById('aiModalBody');
+  const aiModalClose = document.getElementById('aiModalClose');
+  const aiModalApply = document.getElementById('aiModalApply');
+
+  const API_AI_COMPLETE = 'http://127.0.0.1:8081/api/ai/complete';
 
   let allNodes = [];
   let allLinks = [];
@@ -1285,7 +1293,479 @@
     await fetchData(currentView);
   }
 
-  // ---- Event Bindings ----
+  // ---- 阶段四：AI 能力 ----
+
+  // 自动布局元数据缓存（避免重复计算）
+  let autoLayoutMeta = null;
+
+  // 解析 Mermaid 流程图（仅解析 flowchart：节点 + 边；不支持子图/形状高级语法）
+  function parseMermaidFlow(code) {
+    var text = String(code || '').replace(/```/g, '');
+    var lines = text.split('\n').map(function(l) { return l.trim(); });
+    var nodes = {};   // id -> {id, label}
+    var edges = [];   // {from, to}
+    var order = [];
+    var startIdx = -1;
+    for (var i = 0; i < lines.length; i++) {
+      if (/^flowchart\s+((TB|TD|BT|LR|RL))$/i.test(lines[i])) { startIdx = i + 1; break; }
+      if (/^graph\s+((TB|TD|BT|LR|RL))$/i.test(lines[i])) { startIdx = i + 1; break; }
+    }
+    if (startIdx < 0) {
+      for (var i = 0; i < lines.length; i++) {
+        if (lines[i] && !lines[i].startsWith('%%')) { startIdx = i; break; }
+      }
+    }
+    for (var k = startIdx; k < lines.length; k++) {
+      var line = lines[k];
+      if (!line || line.startsWith('%%') || line.indexOf('-->') === -1) continue;
+      line = line.replace(/;$/, '');
+      // 按箭头切分，得到有序节点 token 序列（忽略边上的文字/子图声明）
+      var arrowParts = line.split(/--[^>\-]*(?:>|--)/);
+      var tokens = [];
+      arrowParts.forEach(function(seg) {
+        var t = extractNodeToken(seg);
+        if (t) tokens.push(t);
+      });
+      for (var m = 0; m < tokens.length; m++) {
+        var nid = tokens[m];
+        var label = (nodes[nid] && nodes[nid].label) || nid;
+        if (!nodes[nid]) { nodes[nid] = { id: nid, label: label }; order.push(nid); }
+      }
+      for (var e = 0; e < tokens.length - 1; e++) {
+        edges.push({ from: label2(nodes, tokens[e]), to: label2(nodes, tokens[e + 1]) });
+      }
+    }
+    if (order.length === 0) return { nodes: [], edges: [] };
+    return {
+      nodes: order.map(function(id) { return nodes[id]; }),
+      edges: edges
+    };
+  }
+
+  function extractNodeToken(seg) {
+    seg = String(seg || '').trim();
+    if (!seg) return null;
+    // 去掉形状包裹：A["理解"]、A["理解", fn()]、A((提示)) → A
+    var m = seg.match(/^\s*([A-Za-z0-9_\-\u4e00-\u9fa5]+)(?:\s*[\[({]|$)/);
+    return m ? m[1] : null;
+  }
+
+  function label2(nodes, token) {
+    return (nodes[token] && nodes[token].label) || token;
+  }
+
+  // 收集 Graph 图层布局中心点（供导入节点定位）
+  function layoutOrigin() {
+    var w = container.clientWidth, h = container.clientHeight;
+    var c = currentTransform;
+    var cx = c.invertX(w / 2), cy = c.invertY(h / 2);
+    return { x: cx, y: cy };
+  }
+
+  async function callAiComplete(systemPrompt, userMessage) {
+    if (typeof fetch !== 'function' || typeof AbortController !== 'function') return null;
+    var ctrl = new AbortController();
+    var timer = setTimeout(function() { ctrl.abort(); }, 120000);
+    try {
+      var resp = await fetch(API_AI_COMPLETE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ systemPrompt: systemPrompt, userMessage: userMessage, tier: 'strong' }),
+        signal: ctrl.signal
+      });
+      var data = await resp.json();
+      return data || null;
+    } catch (e) {
+      return { success: false, code: 'NETWORK', message: '无法连接后端 AI 服务' };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // ---- 自动布局（确定性 D3 算法）----
+
+  function runAutoLayout() {
+    if (!allNodes || !allNodes.length) return;
+    closeMenus();
+    layoutBtn.classList.add('loading');
+    setTimeout(function() {
+      doAutoLayout();
+      layoutBtn.classList.remove('loading');
+    }, 30);
+  }
+
+  function doAutoLayout() {
+    if (!autoLayoutMeta || autoLayoutMeta.nodeIds !== etcIds(allNodes)) {
+      autoLayoutMeta = { nodeIds: etcIds(allNodes), svc: computeLayout(allNodes, allLinks) };
+    }
+    var svc = autoLayoutMeta.svc;
+    var w = container.clientWidth, h = container.clientHeight;
+    var c = currentTransform;
+    var cx = c.invertX(w / 2), cy = c.invertY(h / 2);
+    for (var i = 0; i < allNodes.length; i++) {
+      var n = allNodes[i];
+      if (!svc.pos || !svc.pos[n.id]) continue;
+      n.x = svc.pos[n.id][0] + cx - svc.cx;
+      n.y = svc.pos[n.id][1] + cy - svc.cy;
+      n.fx = n.x;
+      n.fy = n.y;
+    }
+    simulation.alpha(0.05).restart();
+    persistPositionsDebounced();
+  }
+
+  function etcIds(nodes) {
+    return nodes.map(function(n) { return n.id; }).sort().join(',');
+  }
+
+  // 计算确定性布局：优先分层（基于链接层级），孤立点/无明显层级退化为环形
+  function computeLayout(nodes, links) {
+    var byId = {};
+    nodes.forEach(function(n) { byId[n.id] = n; });
+    var adj = {};
+    nodes.forEach(function(n) { adj[n.id] = { in: 0, out: [], to: [] }; });
+    links.forEach(function(l) {
+      var s = typeof l.source === 'object' ? l.source.id : l.source;
+      var t = typeof l.target === 'object' ? l.target.id : l.target;
+      if (!adj[s] || !adj[t]) return;
+      adj[s].out.push(t);
+      adj[s].to.push(t);
+      adj[t].in++;
+    });
+
+    // Kahn 拓扑分层
+    var depth = {};
+    var queue = nodes.filter(function(n) { return adj[n.id].in === 0; }).map(function(n) { return n.id; });
+    var visited = {};
+    var layerOrder = [];
+    queue.forEach(function(id) { depth[id] = 0; visited[id] = 1; });
+    while (queue.length) {
+      var id = queue.shift();
+      layerOrder.push(id);
+      adj[id].to.forEach(function(nid) {
+        if (visited[nid]) return;
+        visited[nid] = 1;
+        depth[nid] = depth[id] + 1;
+        queue.push(nid);
+      });
+    }
+    // 循环残留（孤立 / 成环）放入 0 层
+    nodes.forEach(function(n) {
+      if (depth[n.id] === undefined) { depth[n.id] = 0; visited[n.id] = 1; layerOrder.push(n.id); }
+    });
+
+    var cols = {}, colArr = [];
+    layerOrder.forEach(function(id) {
+      var d = depth[id];
+      if (!cols[d]) { cols[d] = []; colArr.push(d); }
+      cols[d].push(id);
+    });
+    colArr.sort(function(a, b) { return a - b; });
+
+    var H = 120, V = 110;
+    var pos = {};
+    var maxW = colArr.length;
+    var maxH = 1;
+    colArr.forEach(function(d) {
+      maxH = Math.max(maxH, cols[d].length);
+      cols[d].forEach(function(id, idx) {
+        pos[id] = [
+          (d - (colArr.length - 1) / 2) * H,
+          (idx - (cols[d].length - 1) / 2) * V
+        ];
+      });
+    });
+
+    // 若高度为 1（连环式），改用环形；若图表重环，环形更稳
+    var usingRing = false;
+    if (colArr.reduce(function(a, d) { return a + cols[d].length; }, 0) === nodes.length && maxH === 1) {
+      usingRing = true;
+      pos = ringPositions(nodes);
+    } else if (hasCycle(adj, nodes)) {
+      usingRing = true;
+      pos = ringPositions(nodes);
+    }
+    // 计算质心用于居中
+    var sxs = 0, sys = 0, cnt = 0;
+    nodes.forEach(function(n) { if (pos[n.id]) { sxs += pos[n.id][0]; sys += pos[n.id][1]; cnt++; } });
+    return { pos: pos, cx: cnt ? sxs / cnt : 0, cy: cnt ? sys / cnt : 0, ring: usingRing };
+  }
+
+  function hasCycle(adj, nodes) {
+    var WHITE = 0, GRAY = 1, BLACK = 2, color = {};
+    nodes.forEach(function(n) { color[n.id] = WHITE; });
+    var found = false;
+    var dfs = function(id) {
+      color[id] = GRAY;
+      (adj[id].out || []).forEach(function(n) {
+        if (color[n] === GRAY) { found = true; return; }
+        if (color[n] === WHITE) dfs(n);
+      });
+      color[id] = BLACK;
+    };
+    nodes.forEach(function(n) { if (color[n.id] === WHITE) dfs(n.id); });
+    return found;
+  }
+
+  function ringPositions(nodes) {
+    var r = Math.max(100, 70 + nodes.length * 6);
+    var pos = {};
+    nodes.forEach(function(n, i) {
+      var a = (i / nodes.length) * Math.PI * 2 - Math.PI / 2;
+      pos[n.id] = [Math.cos(a) * r, Math.sin(a) * r];
+    });
+    return pos;
+  }
+
+  // ---- AI 流程：选节点 → 生成 Mermaid → 预览 → 导入 ----
+
+  function selectionContent(ids) {
+    var parts = [];
+    (ids || []).forEach(function(id) {
+      var n = nodeMap[id];
+      if (!n) return;
+      var label = n.title || (n.text || n.id);
+      var ext = n.summary ? (' —— ' + n.summary) : '';
+      parts.push((label || n.id) + ext);
+    });
+    return parts.join('\n');
+  }
+
+  function selectedIdsOr(d) {
+    if (selectedNodeIds && selectedNodeIds.size > 1) return Array.from(selectedNodeIds);
+    return [String((d && d.id) || selectedNodeId || '')];
+  }
+
+  async function generateFlowFromSelection() {
+    var ids = selectedIdsOr(nodeMenu._d);
+    if (!ids.length) return;
+    closeMenus();
+    var content = selectionContent(ids);
+    var sys = '你是一个表达力强的知识可视化助手。根据用户给出的若干知识节点（编号行），' +
+      '生成一个简洁的 Mermaid flowchart 流程图，把这些节点如何关联表达清楚。' +
+      '要求：仅输出 Mermaid 代码本身，不要任何解释或代码围栏标记；' +
+      '节点标签用中文且尽量简短；用 TD 方向；用 --> 表示关联。';
+    showAiBusy('正在生成流程图...');
+    var res = await callAiComplete(sys, content);
+    if (!res || !res.success) { showAiError(res); return; }
+    var flow = parseMermaidFlow(res.content);
+    if (!flow.nodes.length) { showAiError({ message: 'AI 未能解析出流程图节点，请重试' }); return; }
+    showAiFlowResult(res.content, flow);
+  }
+
+  async function expandNodesFromSelection() {
+    var ids = selectedIdsOr(nodeMenu._d);
+    if (!ids.length) return;
+    closeMenus();
+    var content = selectionContent(ids);
+    var sys = '你是知识拓展助手。根据用户给出的几个节点内容，联想「还缺什么关键节点、缺什么关键关系」。' +
+      '必须输出严格的 JSON（不要 markdown 围栏、不要解释）：' +
+      '{"nodes":[{"label":"补充分支A","note":"一句话说明"},...],"edges":[{"from":0,"to":1,"note":"关系说明"}]}。' +
+      'from/to 为节点数组下标，可用 0 表示待增补节点，或引用现有节点编号前的「原节点」。' +
+      '若 from/to 引用原节点，请用负序号-1、-2...依此类推（-1 表示第一个选中节点）。';
+    showAiBusy('AI 正在联想缺失节点...');
+    var res = await callAiComplete(sys, content);
+    if (!res || !res.success) { showAiError(res); return; }
+    var parsed = tryParseExpandJson(res.content);
+    if (!parsed || !parsed.nodes || !parsed.nodes.length) { showAiError({ message: 'AI 未能返回有效增补结果，请重试' }); return; }
+    showAiExpandResult(parsed);
+  }
+
+  function tryParseExpandJson(raw) {
+    var s = String(raw || '').trim();
+    var m = s.match(/\{[\s\S]*\}/);
+    if (m) s = m[0];
+    try { var obj = JSON.parse(s); return obj; } catch (e) {
+      try {
+        // 容错：去掉 ```json 围栏
+        s = s.replace(/```json/gi, '').replace(/```/g, '').trim();
+        return JSON.parse(s);
+      } catch (e2) { return null; }
+    }
+  }
+
+  // ---- AI 结果弹出展示 ----
+
+  function showAiBusy(text) {
+    aiModalTitle.textContent = 'AI';
+    aiModalBody.innerHTML = '<div class="ai-output-text">⏳ ' + escapeHtml(text) + '</div>';
+    aiModalApply.style.display = 'none';
+    aiModalApply._payload = null;
+    aiModalApply._mode = 'busy';
+    aiModalMask.style.display = 'flex';
+  }
+
+  function showAiError(res) {
+    var msg = (res && res.message) ? res.message : 'AI 调用失败';
+    aiModalTitle.textContent = 'AI';
+    aiModalBody.innerHTML = '<div class="ai-output-text" style="color:#ef4444;">⚠️ ' + escapeHtml(msg) + '</div>';
+    aiModalApply.style.display = 'none';
+    aiModalApply._payload = null;
+    aiModalApply._mode = null;
+    aiModalMask.style.display = 'flex';
+  }
+
+  function showAiFlowResult(code, flow) {
+    aiModalTitle.textContent = 'AI 生成的流程图';
+    aiModalBody.innerHTML =
+      '<div class="ai-result-box"><strong>概览：</strong>' + escapeHtml(flow.nodes.length + ' 个节点 · ' + flow.edges.length + ' 条连线') + '</div>' +
+      '<div class="mermaid-preview" id="aiMermaidPreview" style="display:none;"></div>' +
+      '<div class="ai-output-text ai-modal-code" id="aiMermaidCode">' + escapeHtml(code) + '</div>' +
+      '<div class="field-label" style="margin-top:6px;">提示：可「导入画布」，将流程图转为画布节点。</div>';
+    aiModalApply.style.display = 'inline-block';
+    aiModalApply._mode = 'flow';
+    aiModalApply._payload = flow;
+    aiModalMask.style.display = 'flex';
+    renderMermaidPreview(code);
+  }
+
+  function renderMermaidPreview(code) {
+    if (!window.mermaid) return;
+    try {
+      window.mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' });
+      var codeClean = String(code).replace(/```mermaid/gi, '').replace(/```/g, '').trim();
+      var target = document.getElementById('aiMermaidPreview');
+      window.mermaid.render('graph-ai-mmd', codeClean).then(function(res) {
+        if (!target) return;
+        target.innerHTML = res.svg;
+        target.style.display = 'block';
+        var codeEl = document.getElementById('aiMermaidCode');
+        if (codeEl) codeEl.style.display = 'none';
+      }).catch(function(e) {
+        // 渲染失败时保留源码展示
+        var codeEl = document.getElementById('aiMermaidCode');
+        if (codeEl) codeEl.style.display = '';
+      });
+    } catch (e) {}
+  }
+
+  function showAiExpandResult(parsed) {
+    var nodes = parsed.nodes || [], edges = parsed.edges || [];
+    aiModalTitle.textContent = 'AI 增补建议';
+    var li = nodes.map(function(nd, idx) {
+      return '<div class="ref-picker-item"><span class="rtitle">' + escapeHtml(nd.label || ('节点' + (idx + 1))) + '</span>' +
+        '<span class="rtype">' + escapeHtml(nd.note || '新增节点') + '</span></div>';
+    }).join('');
+    aiModalBody.innerHTML =
+      '<div class="ai-result-box"><strong>建议新增 ' + escapeHtml(String(nodes.length)) + ' 个节点、' + escapeHtml(String(edges.length)) + ' 条关联：</strong></div>' +
+      '<div class="ref-picker-list" style="max-height:280px;">' + (li || '<div class="ref-picker-item"><span class="rtitle">无建议</span></div>') + '</div>' +
+      '<div class="field-label" style="margin-top:8px;">确认后将以便签节点+手动连线形式加入画布。</div>';
+    aiModalApply.style.display = 'inline-block';
+    aiModalApply._mode = 'expand';
+    aiModalApply._payload = parsed;
+    aiModalMask.style.display = 'flex';
+  }
+
+  async function applyAiModalImport() {
+    var payload = aiModalApply._payload;
+    var mode = aiModalApply._mode;
+    if (!payload) return;
+    if (mode === 'flow') {
+      await importFlowToCanvas(payload);
+    } else if (mode === 'expand') {
+      await importExpandToCanvas(payload);
+    }
+    aiModalClose.click();
+    await fetchData(currentView);
+  }
+
+  // 把 Mermaid 流程节点作为画布便签节点 + 手动连线导入
+  async function importFlowToCanvas(flow) {
+    var origin = layoutOrigin();
+    var created = {};
+    for (var i = 0; i < flow.nodes.length; i++) {
+      var nd = flow.nodes[i];
+      var x = origin.x + (i - (flow.nodes.length - 1) / 2) * 130;
+      var y = origin.y - 100 + Math.floor(i / 5) * 110;
+      var ok = await createCanvasNode('note', nd.label || nd.id, '', x, y);
+      created[nd.id] = { ok: ok, label: nd.label || nd.id };
+      await sleepMs(40);
+    }
+    // 节点 id 由后端生成，需先刷新 nodeMap 再按标签匹配连线
+    await sleepMs(150);
+    await fetchData(currentView);
+    await connectFlowEdgesByLabel(created, flow.edges);
+  }
+
+  async function connectFlowEdgesByLabel(created, edges) {
+    // 等待 fetchData 后按 label 在 nodeMap 中匹配
+    for (var i = 0; i < edges.length; i++) {
+      var e = edges[i];
+      var from = findNodeByLabel(e.from);
+      var to = findNodeByLabel(e.to);
+      if (from && to && from.id !== to.id) {
+        var bridge = window.electronAPI && window.electronAPI.localIndex;
+        if (bridge && typeof bridge.createCanvasEdge === 'function') {
+          try { await bridge.createCanvasEdge({ fromId: String(from.id), toId: String(to.id) }); } catch (err) {}
+        }
+        await sleepMs(30);
+      }
+    }
+  }
+
+  function findNodeByLabel(target) {
+    var label = String(target == null ? '' : target);
+    for (var i = 0; i < allNodes.length; i++) {
+      var n = allNodes[i];
+      if (n.type !== 'note') continue;
+      if ((n.title || n.text || '') === label) return n;
+    }
+    return null;
+  }
+
+  async function importExpandToCanvas(parsed) {
+    var origin = layoutOrigin();
+    var ids = []; // 新节点所属本次增补
+    var createdLocal = [];
+    var nodes = parsed.nodes || [];
+    for (var i = 0; i < nodes.length; i++) {
+      var nd = nodes[i];
+      var x = origin.x + (i - (nodes.length - 1) / 2) * 130;
+      var y = origin.y - 100 + Math.floor(i / 5) * 110;
+      var ok = await createCanvasNode('note', nd.label || nd.note || '增补节点', '', x, y);
+      createdLocal.push({ ok: ok, label: nd.label || nd.note || '增补节点', pos: i });
+      ids.push(i);
+      await sleepMs(40);
+    }
+    await sleepMs(120);
+    await fetchData(currentView);
+    // 等 nodeMap 刷新后建立关系
+    var edges = parsed.edges || [];
+    for (var j = 0; j < edges.length; j++) {
+      var e = edges[j];
+      var fromNode = resolveExpandEndpoint(e.from, nodes, createdLocal);
+      var toNode = resolveExpandEndpoint(e.to, nodes, createdLocal);
+      if (fromNode && toNode && fromNode.id !== toNode.id) {
+        var bridge = window.electronAPI && window.electronAPI.localIndex;
+        if (bridge && typeof bridge.createCanvasEdge === 'function') {
+          try { await bridge.createCanvasEdge({ fromId: String(fromNode.id), toId: String(toNode.id) }); } catch (err) {}
+        }
+        await sleepMs(30);
+      }
+    }
+  }
+
+  function resolveExpandEndpoint(idx, nodes, createdLocal) {
+    var n = parseInt(idx, 10);
+    if (isFinite(n)) {
+      if (n >= 0) {
+        // 本次新增的第 n 个节点（需要在 nodeMap 里按 label 找）
+        var target = createdLocal[n];
+        if (target) return findNodeByLabel(target.label);
+        return null;
+      }
+      // 负序号 = 选中的原始节点（-1 → 第 1 个选中）
+      var sel = Array.from(selectedNodeIds);
+      var oid = sel[Math.abs(n + 1)];
+      if (oid) return nodeMap[oid] || null;
+      return null;
+    }
+    return null;
+  }
+
+  // ---- 工具 ----
+
+  function sleepMs(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
 
   if (searchInput) {
     searchInput.addEventListener('input', applySearch);
@@ -1359,6 +1839,8 @@
       if (!d) return;
       if (action === 'link-from') startLink(String(d.id));
       else if (action === 'edit-node') openEditModal(d);
+      else if (action === 'ai-flow') { generateFlowFromSelection(); }
+      else if (action === 'ai-expand') { expandNodesFromSelection(); }
       else if (action === 'delete-node') deleteCanvasNode(String(d.id));
     });
   });
@@ -1391,7 +1873,20 @@
   });
 
   if (snapBtn) snapBtn.addEventListener('click', toggleGridSnap);
+  if (layoutBtn) layoutBtn.addEventListener('click', runAutoLayout);
   initGridSnap();
+
+  // AI 结果弹窗绑定
+  if (aiModalClose) aiModalClose.addEventListener('click', function() {
+    aiModalMask.style.display = 'none';
+    aiModalApply.style.display = 'none';
+    aiModalApply._payload = null;
+    aiModalApply._mode = null;
+  });
+  if (aiModalApply) aiModalApply.addEventListener('click', applyAiModalImport);
+  if (aiModalMask) aiModalMask.addEventListener('click', function(event) {
+    if (event.target === aiModalMask && aiModalClose) aiModalClose.click();
+  });
 
   // 弹窗单行输入框回车 = 确认（textarea 保留换行）
   canvasModalBody.addEventListener('keydown', function(e) {
