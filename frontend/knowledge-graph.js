@@ -38,6 +38,8 @@
   const aiModalBody = document.getElementById('aiModalBody');
   const aiModalClose = document.getElementById('aiModalClose');
   const aiModalApply = document.getElementById('aiModalApply');
+  const minimapEl = document.getElementById('minimap');
+  const minimapSvg = document.getElementById('minimapSvg');
 
   const API_AI_COMPLETE = 'http://127.0.0.1:8081/api/ai/complete';
 
@@ -64,6 +66,7 @@
 
   let currentTransform = d3.zoomIdentity;
   let preservedTransform = d3.zoomIdentity;
+  let zoomBehavior = null;   // d3.zoom 实例（模块级保存，供小地图跳转）
   let tempLink = null;
   let linkSourceId = null;
   let canvasModalCtx = null;
@@ -182,7 +185,8 @@
   // ---- Graph Initialization ----
 
   function initGraph() {
-    var existing = container.querySelector('svg');
+    // 只移除主画布 SVG，保留小地图 SVG（minimap 也在 graphContainer 内，不可误删）
+    var existing = container.querySelector('svg:not(#minimapSvg)');
     if (existing) existing.remove();
 
     var width = container.clientWidth;
@@ -208,9 +212,11 @@
         currentTransform = event.transform;
         preservedTransform = event.transform;
         g.attr('transform', event.transform);
+        updateMinimapViewport();
       });
 
     svg.call(zoom);
+    zoomBehavior = zoom;
 
     svg.on('click', function(event) {
       if (event.target !== svg.node()) return;
@@ -394,11 +400,13 @@
 
       // 分组 frame 随成员节点位置实时更新
       updateGroupFrames();
+      updateMinimapViewport();
     });
 
     simulation.on('end', function() {
       // 自动布局稳定后写回位置，让首次布局也「记住」
       persistPositionsDebounced();
+      renderMinimap();
     });
 
     window.addEventListener('resize', function() {
@@ -422,6 +430,7 @@
 
     renderGroupFrames();
     applyThemeStyles();
+    renderMinimap();
   }
 
   function scaleShape(selection, d, factor) {
@@ -1293,7 +1302,164 @@
     await fetchData(currentView);
   }
 
-  // ---- 阶段四：AI 能力 ----
+  // ---- 小地图（Minimap）----
+
+  let minimapMeta = null;        // {scale, srcW, srcH, ...} 世界→小地图映射
+  let minimapViewportDrag = null;
+
+  // 显示/隐藏小地图：有多个节点时才展示
+  function updateMinimapVisibility() {
+    if (!minimapEl) return;
+    var show = allNodes && allNodes.length >= 2;
+    minimapEl.style.display = show ? 'flex' : 'none';
+  }
+
+  // 世界坐标边界（含画布节点卡片尺寸），供小地图缩放
+  function minimapBounds() {
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    allNodes.forEach(function(n) {
+      if (!isFinite(n.x) || !isFinite(n.y)) return;
+      var hw = nodeHalfW(n), hh = nodeHalfH(n);
+      minX = Math.min(minX, n.x - hw); maxX = Math.max(maxX, n.x + hw);
+      minY = Math.min(minY, n.y - hh); maxY = Math.max(maxY, n.y + hh);
+    });
+    if (minX === Infinity) return null;
+    var pad = 30;
+    return { x: minX - pad, y: minY - pad, w: (maxX - minX) + pad * 2, h: (maxY - minY) + pad * 2 };
+  }
+
+  function minimapSize() {
+    var rect = minimapSvg ? minimapSvg.getBoundingClientRect() : null;
+    var w = rect ? Math.max(rect.width, 40) : 180;
+    var h = rect ? Math.max(rect.height, 40) : 110;
+    return { w: w, h: h };
+  }
+
+  // 渲染小地图节点/连线 + 视口框
+  function renderMinimap() {
+    if (!minimapSvg || !minimapEl) return;
+    updateMinimapVisibility();
+    if (!minimapEl || minimapEl.style.display === 'none') return;
+    var b = minimapBounds();
+    if (!b) return;
+    var m = minimapSize();
+    var scale = Math.min(m.w / b.w, m.h / b.h);
+    var ox = (m.w - b.w * scale) / 2;
+    var oy = (m.h - b.h * scale) / 2;
+    minimapMeta = { scale: scale, bx: b.x, by: b.y, ox: ox, oy: oy, mw: m.w, mh: m.h };
+
+    var mmX = function(x) { return (x - minimapMeta.bx) * minimapMeta.scale + minimapMeta.ox; };
+    var mmY = function(y) { return (y - minimapMeta.by) * minimapMeta.scale + minimapMeta.oy; };
+
+    var svgSel = d3.select(minimapSvg);
+    svgSel.selectAll('*').remove();
+
+    // 连线
+    svgSel.append('g').selectAll('line').data(allLinks).join('line')
+      .attr('class', 'minimap-link')
+      .attr('x1', function(d) { return mmX(d.source.x); })
+      .attr('y1', function(d) { return mmY(d.source.y); })
+      .attr('x2', function(d) { return mmX(d.target.x); })
+      .attr('y2', function(d) { return mmY(d.target.y); });
+
+    // 节点（等比例小圆点）
+    svgSel.append('g').selectAll('circle').data(allNodes).join('circle')
+      .attr('class', function(n) {
+        var c = 'minimap-node';
+        if (n.type === 'clip') c += ' clip-node';
+        else if (n.type === 'note') c += ' note-node';
+        else if (n.type === 'link') c += ' link-node';
+        else if (n.type === 'image') c += ' image-node';
+        else if (n.type === 'learning-plan') c += ' plan-node';
+        return c;
+      })
+      .attr('cx', function(d) { return mmX(d.x); })
+      .attr('cy', function(d) { return mmY(d.y); })
+      .attr('r', function(d) { return Math.max(2, Math.min(nodeHalfW(d), nodeHalfH(d)) * minimapMeta.scale); });
+
+    // 视口框
+    svgSel.append('rect')
+      .attr('class', 'minimap-viewport')
+      .call(d3.drag()
+        .on('start', function() { minimapViewportDrag = true; d3.select(this).classed('dragging', true); })
+        .on('drag', function(event) { minimapJumpBy(event.x, event.y); })
+        .on('end', function() { minimapViewportDrag = false; d3.select(this).classed('dragging', false); })
+      );
+
+    // 点击小地图空白 = 直接跳转
+    svgSel.on('click', function(event) {
+      if (event.target !== this) return;
+      var pt = d3.pointer(event, minimapSvg);
+      minimapJumpTo(pt[0], pt[1]);
+    });
+
+    updateMinimapViewport();
+  }
+
+  // 根据当前 viewport 计算屏幕上可见的世界范围，更新小地图视口框
+  function updateMinimapViewport() {
+    if (!minimapMeta || !minimapSvg || !minimapEl) return;
+    if (minimapEl.style.display === 'none') return;
+    var svgW = container.clientWidth, svgH = container.clientHeight;
+    var c = currentTransform;
+    // 屏幕四角 → 世界坐标
+    var wTL = c.invert([0, 0]);
+    var wBR = c.invert([svgW, svgH]);
+    var mm = minimapMeta;
+    var mmX = function(x) { return (x - mm.bx) * mm.scale + mm.ox; };
+    var mmY = function(y) { return (y - mm.by) * mm.scale + mm.oy; };
+    var rect = d3.select(minimapSvg).select('rect.minimap-viewport');
+    if (rect.empty()) return;
+    rect
+      .attr('x', mmX(wTL[0]))
+      .attr('y', mmY(wTL[1]))
+      .attr('width', Math.max(10, (wBR[0] - wTL[0]) * mm.scale))
+      .attr('height', Math.max(10, (wBR[1] - wTL[1]) * mm.scale));
+  }
+
+  // 点击小地图某点 → 让该处居中并保持缩放
+  function minimapJumpTo(px, py) {
+    if (!minimapMeta || !zoomBehavior || !svg) return;
+    var mm = minimapMeta;
+    var wx = (px - mm.ox) / mm.scale + mm.bx;
+    var wy = (py - mm.oy) / mm.scale + mm.by;
+    centerWorldOn(wx, wy);
+  }
+
+  // 拖拽视口框（deltaX/deltaY 相对小地图）→ 平移
+  function minimapJumpBy(dx, dy) {
+    if (!minimapMeta || !zoomBehavior || !svg) return;
+    var mm = minimapMeta;
+    var dWorldX = dx / mm.scale;
+    var dWorldY = dy / mm.scale;
+    var c = currentTransform;
+    var cx = c.invertX(0) + dWorldX;
+    var cy = c.invertY(0) + dWorldY;
+    var k = c.k;
+    var tx = -cx * k;
+    var ty = -cy * k;
+    try {
+      svg.call(zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(k));
+      currentTransform = d3.zoomIdentity.translate(tx, ty).scale(k);
+      g.attr('transform', currentTransform);
+      updateMinimapViewport();
+    } catch (e) {}
+  }
+
+  // 让世界坐标 (wx,wy) 居中到视口
+  function centerWorldOn(wx, wy) {
+    var w = container.clientWidth, h = container.clientHeight;
+    var k = currentTransform.k;
+    var tx = -wx * k + w / 2;
+    var ty = -wy * k + h / 2;
+    currentTransform = d3.zoomIdentity.translate(tx, ty).scale(k);
+    preservedTransform = currentTransform;
+    try {
+      svg.call(zoomBehavior.transform, currentTransform);
+      g.attr('transform', currentTransform);
+      updateMinimapViewport();
+    } catch (e) {}
+  }
 
   // 自动布局元数据缓存（避免重复计算）
   let autoLayoutMeta = null;

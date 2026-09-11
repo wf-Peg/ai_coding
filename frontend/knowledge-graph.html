@@ -198,6 +198,49 @@
         .lmark.linked-line { border-top-color: var(--app-primary); }
         .lmark.plan-line { border-top-color: #22c55e; }
 
+        /* 小地图 */
+        .minimap {
+            position: absolute;
+            right: 16px;
+            bottom: 16px;
+            width: 200px;
+            height: 140px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            box-shadow: var(--shadow-hover);
+            z-index: 60;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .minimap .minimap-head {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            padding: 5px 10px;
+            border-bottom: 1px solid var(--border);
+        }
+        .minimap .minimap-svg {
+            flex: 1;
+            width: 100%;
+            height: calc(100% - 26px);
+            display: block;
+        }
+        .minimap-node { fill: var(--app-primary); }
+        .minimap-node.clip-node { fill: #f59e0b; }
+        .minimap-node.note-node { fill: #fbbf24; }
+        .minimap-node.link-node { fill: #22d3ee; }
+        .minimap-node.image-node { fill: #a78bfa; }
+        .minimap-node.plan-node { fill: #22c55e; }
+        .minimap-link { stroke: var(--app-border); stroke-width: 1; opacity: 0.6; }
+        .minimap-viewport {
+            fill: rgba(86, 156, 255, 0.12);
+            stroke: var(--primary);
+            stroke-width: 1.5;
+            cursor: grab;
+        }
+        .minimap-viewport.dragging { cursor: grabbing; }
+
         /* SVG Node shape by type */
         .node rect {
             stroke: var(--surface);
@@ -586,6 +629,12 @@
             <div class="legend-item"><span class="lmark linked-line"></span>关联</div>
             <div class="legend-item"><span class="lmark plan-line"></span>计划关联</div>
             <div class="legend-item"><span class="lmark" style="border-top-color:#a78bfa;"></span>手动连线</div>
+        </div>
+
+        <!-- 小地图：大画布快速定位 -->
+        <div class="minimap" id="minimap" style="display:none;">
+            <div class="minimap-head">定位</div>
+            <svg class="minimap-svg" id="minimapSvg"></svg>
         </div>
     </div>
 
