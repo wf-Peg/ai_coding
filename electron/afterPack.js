@@ -225,35 +225,42 @@ function fixPermissionsRecursive(dir) {
  * adhoc 签名才能被 launchd 拉起，且已签名的进程不得加载未签名库（否则 dyld 报
  * "Trying to load an unsigned library"）。因此【移除签名】会让 arm64 包彻底无法启动。
  *
- * 正确做法是对整包做【一致的 adhoc 重签名】：主程序、Electron Framework、嵌套
- * Helper、libffmpeg.dylib 等动态库，以及 extraResources 里的 JRE，全部补上新鲜
- * adhoc 签名。这样：
+ * 正确做法是对整个 .app 做【一致的 adhoc 重签名】。这里使用 codesign 的 --deep：
+ * 它会按「内层 → 外层」的正确顺序递归签名主程序、Electron Framework、嵌套 Helper、
+ * libffmpeg.dylib 等动态库。若逐文件签名（Electron Framework 二进制先于其内部的
+ * chrome_crashpad_handler 等子组件签名），会触发
+ * "code object is not signed at all / In subcomponent" 报错。
+ *
+ * 签名结果：
  *  - launchd 能正常拉起（不会出现 "Launchd job spawn failed" / 无法打开）；
  *  - 签名仍是非 Apple 的 adhoc（TeamIdentifier=not set），用户走「右键打开 /
  *    隐私与安全性允许」即可运行，与 x64 无签名产物行为一致。
+ *  - Resources 下的 JRE（Oracle 官方签名）不会被 --deep 覆盖，保持原签名运行。
  */
 function resignAdHoc(appPath) {
+  const infoPlist = path.join(appPath, 'Contents', 'Info.plist');
+
+  // 标准 .app 包：一次性 --deep 递归重签名，代码签名顺序由 codesign 内部保证
+  if (fs.existsSync(infoPlist)) {
+    codesignFile(appPath, { deep: true });
+    console.log('[afterPack] adhoc 重签名完成（--deep 整包）:', appPath);
+    return;
+  }
+
+  // 非标准目录（如测试夹具 / 仅含散装 Mach-O 的目录）：逐个签名叶子 Mach-O
   let signed = 0;
   walkMacExecutables(appPath, filePath => {
-    execFileSync('/usr/bin/codesign', ['--force', '--sign', '-', '--timestamp=none', filePath], { stdio: 'pipe' });
+    codesignFile(filePath);
     signed++;
   });
-
-  // 统一签名 Electron Framework 目录与整个 .app，确保嵌套库签名与主程序一致
-  const electronFramework = path.join(appPath, 'Contents', 'Frameworks', 'Electron Framework.framework');
-  if (fs.existsSync(electronFramework)) {
-    codesignFile(electronFramework);
-  }
-  // 仅当路径确实是 Mac 应用包（含 Info.plist）时才对 .app 本体签名
-  if (fs.existsSync(path.join(appPath, 'Contents', 'Info.plist'))) {
-    codesignFile(appPath);
-  }
-
-  console.log(`[afterPack] adhoc 重签名完成：已签名 ${signed} 个 Mach-O + 外层 .app`);
+  console.log(`[afterPack] adhoc 重签名完成：已签名 ${signed} 个 Mach-O`);
 }
 
-function codesignFile(filePath) {
-  execFileSync('/usr/bin/codesign', ['--force', '--sign', '-', '--timestamp=none', filePath], { stdio: 'pipe' });
+function codesignFile(filePath, options = {}) {
+  const args = ['--force'];
+  if (options.deep) args.push('--deep');
+  args.push('--sign', '-', '--timestamp=none', filePath);
+  execFileSync('/usr/bin/codesign', args, { stdio: 'pipe' });
 }
 
 function walkMacExecutables(dir, callback) {

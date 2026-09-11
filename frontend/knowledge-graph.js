@@ -24,6 +24,9 @@
   const canvasMenu = document.getElementById('canvasMenu');
   const nodeMenu = document.getElementById('nodeMenu');
   const edgeMenu = document.getElementById('edgeMenu');
+  const groupMenu = document.getElementById('groupMenu');
+  const groupAction = document.getElementById('groupAction');
+  const snapBtn = document.getElementById('snapBtn');
   const canvasModalMask = document.getElementById('canvasModalMask');
   const canvasModalTitle = document.getElementById('canvasModalTitle');
   const canvasModalBody = document.getElementById('canvasModalBody');
@@ -36,6 +39,20 @@
   let selectedNodeId = null;
   let currentView = 'all'; // 'all' | 'knowledge'
   let svg, g, simulation, linkElements, nodeElements, labelElements;
+
+  // ---- 阶段三：框选 / 多选 / 分组 / 网格吸附 ----
+  const GRID = 20;                       // 网格吸附间距
+  let selectedNodeIds = new Set();       // 当前选中节点 id 集合
+  let gridSnap = false;                  // 网格吸附开关
+  let spacePressed = false;              // 空格键状态（空格拖动 = 平移画布）
+  let boxSelect = null;                  // 框选状态 {rect, startX, startY, shift}
+  let allGroups = [];                    // 分组数据 {id,name,members[]}
+  let frameLayer = null;                // frame 图层元素选择器
+  let selectionLayer = null;            // 选择层（框选矩形）
+  let groupMove = null;                  // 分组整体拖动状态
+  let batchMove = null;                   // 多选批量拖动状态
+  let pendingGroup = null;               // 待确认的组成分组成员
+  let suppressSvgClick = false;          // 框选后抑制本次 svg click
 
   let currentTransform = d3.zoomIdentity;
   let preservedTransform = d3.zoomIdentity;
@@ -81,6 +98,17 @@
       return;
     }
     buildGraph(nodes, links);
+    loadGroups();
+  }
+
+  async function loadGroups() {
+    const bridge = window.electronAPI && window.electronAPI.localIndex;
+    if (!bridge || typeof bridge.listGroups !== 'function') return;
+    try {
+      const res = await bridge.listGroups();
+      if (res && res.success) { allGroups = res.groups || []; }
+    } catch (e) { allGroups = []; }
+    if (typeof renderGroupFrames === 'function') renderGroupFrames();
   }
 
   function buildGraph(nodes, links) {
@@ -159,6 +187,15 @@
 
     var zoom = d3.zoom()
       .scaleExtent([0.05, 12])
+      // 空白左键拖动留给「框选」；仅滚轮缩放 / 空格或中键拖动平移
+      .filter(function(event) {
+        var e = event.sourceEvent;
+        if (!e) return true;
+        if (e.type === 'wheel') return true;
+        if (e.type === 'mousemove' && spacePressed) return true;
+        if (e.type === 'mousedown' && (e.button === 1 || spacePressed)) return true;
+        return false;
+      })
       .on('zoom', function(event) {
         currentTransform = event.transform;
         preservedTransform = event.transform;
@@ -168,9 +205,20 @@
     svg.call(zoom);
 
     svg.on('click', function(event) {
-      if (event.target === svg.node()) {
-        resetSelection();
-      }
+      if (event.target !== svg.node()) return;
+      if (suppressSvgClick) { suppressSvgClick = false; return; }
+      resetSelection();
+    });
+
+    // 空格键：按住 + 拖动 = 平移画布
+    ['keydown', 'keyup'].forEach(function(type) {
+      window.addEventListener(type, function(e) {
+        var isDown = type === 'keydown';
+        if (e.key === ' ' || e.code === 'Space') {
+          spacePressed = isDown;
+          if (isDown) e.preventDefault();
+        }
+      });
     });
 
     // 空白画布右键：新建节点菜单
@@ -188,13 +236,17 @@
 
     g = svg.append('g');
 
+    // 分组 frame 图层（最底层，环绕成员节点）
+    frameLayer = g.append('g').attr('class', 'frames-layer');
+
     // 连线模式下的临时虚线
     tempLink = g.append('line')
       .attr('class', 'temp-link')
       .attr('display', 'none');
 
-    // 连线模式下跟随鼠标更新临时连线
+    // 空白拖动框选 / 连线模式跟随鼠标
     svg.on('mousemove', function(event) {
+      if (boxSelect) { updateBoxSelect(event); return; }
       if (!linkSourceId) { if (tempLink) tempLink.attr('display', 'none'); return; }
       var src = nodeMap[linkSourceId];
       if (!src) return;
@@ -273,6 +325,18 @@
     nodeElements.on('click', function(event, d) {
       event.stopPropagation();
       if (linkSourceId) { completeLink(String(d.id)); return; }
+      // Ctrl/Cmd + 点击：多选切换
+      if (event.ctrlKey || event.metaKey) {
+        if (selectedNodeIds.has(String(d.id))) {
+          selectedNodeIds.delete(String(d.id));
+          selectedNodeId = null;
+        } else {
+          selectedNodeIds.add(String(d.id));
+          selectedNodeId = String(d.id);
+        }
+        applySelectionHighlight();
+        return;
+      }
       selectNode(d);
     });
 
@@ -319,6 +383,9 @@
 
       nodeElements
         .attr('transform', function(d) { return 'translate(' + d.x + ',' + d.y + ')'; });
+
+      // 分组 frame 随成员节点位置实时更新
+      updateGroupFrames();
     });
 
     simulation.on('end', function() {
@@ -334,6 +401,18 @@
       simulation.alpha(0.3).restart();
     });
 
+    // 选择层（绘制框选矩形，置顶显示）
+    selectionLayer = g.append('g').attr('class', 'selection-layer');
+
+    // 空白左键拖动 = 框选
+    svg.on('mousedown', function(event) {
+      if (event.target !== svg.node()) return;
+      if (spacePressed || event.button !== 0) return;
+      event.preventDefault();
+      beginBoxSelect(event);
+    });
+
+    renderGroupFrames();
     applyThemeStyles();
   }
 
@@ -482,22 +561,58 @@
 
   function dragBehavior() {
     return d3.drag()
+      .filter(function() { return !spacePressed; })
       .on('start', function(event, d) {
         if (!event.active) simulation.alphaTarget(0.3).restart();
+        if (selectedNodeIds.size > 1 && selectedNodeIds.has(String(d.id))) {
+          // 批量移动：记录所有选中成员的起始坐标
+          startBatchMove(event);
+          return;
+        }
         d.fx = d.x;
         d.fy = d.y;
       })
       .on('drag', function(event, d) {
-        d.fx = event.x;
-        d.fy = event.y;
+        if (batchMove) { moveSelection(event); return; }
+        d.fx = snapVal(event.x);
+        d.fy = snapVal(event.y);
       })
       .on('end', function(event, d) {
         if (!event.active) simulation.alphaTarget(0);
+        if (batchMove) { endBatchMove(); }
+        else { d.fx = snapVal(d.x); d.fy = snapVal(d.y); }
         // 松手后保持当前位置（画布行为），并写回本地
-        d.fx = d.x;
-        d.fy = d.y;
         persistPositionsDebounced();
       });
+  }
+
+  function startBatchMove(event) {
+    batchMove = { nodes: [], startX: event.x, startY: event.y };
+    selectedNodeIds.forEach(function(id) {
+      var n = nodeMap[id];
+      if (!n) return;
+      n._sx = n.x; n._sy = n.y;
+      n.fx = n.x; n.fy = n.y;
+      batchMove.nodes.push(n);
+    });
+  }
+
+  function moveSelection(event) {
+    var dx = event.x - batchMove.startX;
+    var dy = event.y - batchMove.startY;
+    batchMove.nodes.forEach(function(n) {
+      n.fx = snapVal(n._sx + dx);
+      n.fy = snapVal(n._sy + dy);
+    });
+  }
+
+  function endBatchMove() {
+    batchMove = null;
+  }
+
+  function snapVal(v) {
+    if (!gridSnap) return v;
+    return Math.round(v / GRID) * GRID;
   }
 
   // ---- Position Persistence ----
@@ -527,6 +642,9 @@
 
   function selectNode(d) {
     selectedNodeId = String(d.id);
+    selectedNodeIds.clear();
+    selectedNodeIds.add(String(d.id));
+    applySelectionHighlight();
 
     var neighborIds = new Set();
     neighborIds.add(String(d.id));
@@ -547,25 +665,235 @@
       return !(neighborIds.has(sourceId) && neighborIds.has(targetId));
     });
 
-    nodeElements.select('circle, rect, polygon')
-      .attr('stroke', function(n) {
-        return String(n.id) === String(d.id) ? '#ff9800' : null;
-      })
-      .attr('stroke-width', function(n) {
-        return String(n.id) === String(d.id) ? 3 : 2;
-      });
-
     showSidePanel(d);
   }
 
   function resetSelection() {
     selectedNodeId = null;
+    selectedNodeIds.clear();
+    applySelectionHighlight();
     nodeElements.classed('dimmed', false);
     linkElements.classed('dimmed', false);
-    nodeElements.select('circle, rect, polygon')
-      .attr('stroke', null)
-      .attr('stroke-width', 2);
     hideSidePanel();
+  }
+
+  function applySelectionHighlight() {
+    if (!nodeElements) return;
+    nodeElements.classed('selected-node', function(n) {
+      return selectedNodeIds.has(String(n.id));
+    });
+  }
+
+  // ---- 框选（Box Select）----
+
+  function beginBoxSelect(event) {
+    var pt = currentTransform.invert(d3.pointer(event, container));
+    boxSelect = { startX: pt[0], startY: pt[1], shift: event.shiftKey || event.ctrlKey || event.metaKey };
+    if (!selectionLayer) return;
+    boxSelect.rect = selectionLayer.append('rect')
+      .attr('class', 'box-select-rect')
+      .attr('x', pt[0]).attr('y', pt[1]).attr('width', 0).attr('height', 0);
+
+    var up = function(e) {
+      window.removeEventListener('mouseup', up);
+      endBoxSelect();
+    };
+    window.addEventListener('mouseup', up);
+  }
+
+  function updateBoxSelect(event) {
+    if (!boxSelect || !boxSelect.rect) return;
+    var pt = currentTransform.invert(d3.pointer(event, container));
+    var x = Math.min(boxSelect.startX, pt[0]);
+    var y = Math.min(boxSelect.startY, pt[1]);
+    var w = Math.abs(pt[0] - boxSelect.startX);
+    var h = Math.abs(pt[1] - boxSelect.startY);
+    boxSelect.rect.attr('x', x).attr('y', y).attr('width', w).attr('height', h);
+
+    // 实时高亮命中节点
+    var sel = new Set();
+    for (var i = 0; i < allNodes.length; i++) {
+      var n = allNodes[i];
+      if (n.x >= x && n.x <= x + w && n.y >= y && n.y <= y + h) sel.add(String(n.id));
+    }
+    if (boxSelect.shift) {
+      nodeElements.classed('selected-node', function(n) {
+        return selectedNodeIds.has(String(n.id)) || sel.has(String(n.id));
+      });
+    } else {
+      nodeElements.classed('selected-node', function(n) { return sel.has(String(n.id)); });
+    }
+  }
+
+  function endBoxSelect() {
+    if (!boxSelect) return;
+    // 拖了一段距离就算「拖选」，抑制随后的 svg click 以免清空选择
+    if (boxSelect.rect) {
+      var w = parseFloat(boxSelect.rect.attr('width'));
+      var h = parseFloat(boxSelect.rect.attr('height'));
+      if (w > 5 || h > 5) suppressSvgClick = true;
+      boxSelect.rect.remove();
+    }
+    // 汇总最终选中集合
+    var sel2 = new Set();
+    nodeElements.each(function(n) {
+      if (d3.select(this).classed('selected-node')) sel2.add(String(n.id));
+    });
+    selectedNodeIds = sel2;
+    selectedNodeId = selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : null;
+    boxSelect = null;
+  }
+
+  // ---- 分组 frame ----
+
+  function renderGroupFrames() {
+    if (!frameLayer) return;
+    frameLayer.selectAll('*').remove();
+    frameLayer.selectAll('g.group-frame')
+      .data(allGroups, function(d) { return d.id; })
+      .join('g')
+      .attr('class', 'group-frame')
+      .each(function(gd) {
+        var s = d3.select(this);
+        s.append('rect').attr('class', 'group-frame-rect');
+        s.append('text').attr('class', 'group-frame-title')
+          .text(gd.name || '分组')
+          .on('contextmenu', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            openGroupMenu(e.clientX, e.clientY, gd);
+          })
+          .call(groupDragBehavior());
+      });
+    updateGroupFrames();
+  }
+
+  function updateGroupFrames() {
+    if (!frameLayer) return;
+    frameLayer.selectAll('g.group-frame').each(function(gd) {
+      var b = frameBounds(gd);
+      var s = d3.select(this);
+      s.select('rect.group-frame-rect')
+        .attr('x', b.x).attr('y', b.y)
+        .attr('width', Math.max(b.w, 1)).attr('height', Math.max(b.h, 1));
+      s.select('text.group-frame-title')
+        .attr('x', b.x + 8).attr('y', b.y + 12).text(gd.name || '分组');
+    });
+  }
+
+  function frameBounds(gd) {
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, none = true;
+    (gd.members || []).forEach(function(id) {
+      var n = nodeMap[id];
+      if (!n || !isFinite(n.x) || !isFinite(n.y)) return;
+      none = false;
+      var hw = nodeHalfW(n), hh = nodeHalfH(n);
+      minX = Math.min(minX, n.x - hw); maxX = Math.max(maxX, n.x + hw);
+      minY = Math.min(minY, n.y - hh); maxY = Math.max(maxY, n.y + hh);
+    });
+    if (none) return { x: 0, y: 0, w: 60, h: 40 };
+    var pad = 20;
+    var x = minX - pad, y = minY - pad;
+    return { x: x, y: y, w: maxX - minX + pad * 2, h: maxY - minY + pad * 2, nx: x, ny: y };
+  }
+
+  function nodeHalfW(n) {
+    if (isCanvas(n)) return canvasCardSize(n).w / 2;
+    return getNodeRadius(n);
+  }
+
+  function nodeHalfH(n) {
+    if (isCanvas(n)) return canvasCardSize(n).h / 2;
+    return getNodeRadius(n);
+  }
+
+  function groupDragBehavior() {
+    return d3.drag()
+      .filter(function() { return !spacePressed; })
+      .on('start', function(event, gd) {
+        if (!event.active) simulation.alphaTarget(0.15).restart();
+        groupMove = { startX: event.x, startY: event.y, members: [] };
+        (gd.members || []).forEach(function(id) {
+          var n = nodeMap[id];
+          if (!n) return;
+          n._sx = n.x; n._sy = n.y;
+          n.fx = n.x; n.fy = n.y;
+          groupMove.members.push(n);
+        });
+      })
+      .on('drag', function(event) {
+        if (!groupMove) return;
+        var dx = event.x - groupMove.startX;
+        var dy = event.y - groupMove.startY;
+        groupMove.members.forEach(function(n) {
+          n.fx = snapVal(n._sx + dx);
+          n.fy = snapVal(n._sy + dy);
+        });
+      })
+      .on('end', function(event) {
+        if (!event.active) simulation.alphaTarget(0);
+        if (groupMove && groupMove.members.length) persistPositionsDebounced();
+        groupMove = null;
+      });
+  }
+
+  function getGroupOfNode(nodeId) {
+    for (var i = 0; i < allGroups.length; i++) {
+      if (allGroups[i].members && allGroups[i].members.indexOf(nodeId) !== -1) return allGroups[i];
+    }
+    return null;
+  }
+
+  // ---- 分组创建 / 命名弹窗 ----
+
+  async function createGroupNamed(name) {
+    var bridge = window.electronAPI && window.electronAPI.localIndex;
+    if (!bridge || typeof bridge.createGroup !== 'function') return;
+    try {
+      await bridge.createGroup({ name: name, memberIds: Array.from(selectedNodeIds) });
+    } catch (e) {}
+    await loadGroups();
+  }
+
+  async function renameGroupId(id, name) {
+    var bridge = window.electronAPI && window.electronAPI.localIndex;
+    if (!bridge || typeof bridge.renameGroup !== 'function') return;
+    try { await bridge.renameGroup({ id: id, name: name }); } catch (e) {}
+    await loadGroups();
+  }
+
+  async function dissolveGroupId(id) {
+    var bridge = window.electronAPI && window.electronAPI.localIndex;
+    if (!bridge || typeof bridge.dissolveGroup !== 'function') return;
+    try { await bridge.dissolveGroup({ id: id }); } catch (e) {}
+    await loadGroups();
+  }
+
+  function openGroupNameModal(context) {
+    closeMenus();
+    pendingGroup = context; // { mode:'create' } 或 { mode:'rename', id, current }
+    canvasModalCtx = null;
+    canvasModalTitle.textContent = context.mode === 'rename' ? '重命名分组' : '创建分组';
+    var val = context.mode === 'rename' ? (context.current || '') : '';
+    canvasModalBody.innerHTML = '<input id="groupNameField" placeholder="分组名称（回车确认）" value="' + escapeHtml(val) + '">';
+    canvasModalMask.style.display = 'flex';
+    var el = canvasModalBody.querySelector('#groupNameField');
+    if (el) { el.focus(); el.select(); }
+  }
+
+  // ---- 网格吸附开关 ----
+
+  function toggleGridSnap() {
+    gridSnap = !gridSnap;
+    if (snapBtn) snapBtn.classList.toggle('active', gridSnap);
+    try { localStorage.setItem('kg_grid_snap', gridSnap ? '1' : '0'); } catch (e) {}
+  }
+
+  function initGridSnap() {
+    var saved = '0';
+    try { saved = localStorage.getItem('kg_grid_snap') || '0'; } catch (e) {}
+    gridSnap = saved === '1';
+    if (snapBtn) snapBtn.classList.toggle('active', gridSnap);
   }
 
   // ---- Search ----
@@ -759,6 +1087,7 @@
     canvasMenu.style.display = 'none';
     nodeMenu.style.display = 'none';
     edgeMenu.style.display = 'none';
+    groupMenu.style.display = 'none';
   }
 
   function positionMenu(menu, x, y) {
@@ -775,6 +1104,9 @@
 
   function openNodeMenu(x, y, d) {
     closeMenus();
+    if (groupAction) {
+      groupAction.style.display = (selectedNodeIds.size > 1) ? 'flex' : 'none';
+    }
     positionMenu(nodeMenu, x, y);
     nodeMenu._d = d;
   }
@@ -785,11 +1117,18 @@
     edgeMenu._d = d;
   }
 
+  function openGroupMenu(x, y, gd) {
+    closeMenus();
+    positionMenu(groupMenu, x, y);
+    groupMenu._g = gd;
+  }
+
   function closeModal() {
     canvasModalMask.style.display = 'none';
     canvasModalBody.innerHTML = '';
     canvasModalCtx = null;
     pendingRefNodeId = null;
+    pendingGroup = null;
   }
 
   function openCreateModal(kind, pt) {
@@ -888,6 +1227,20 @@
   }
 
   async function commitModal() {
+    // 分组创建 / 重命名
+    if (pendingGroup) {
+      var gnameField = canvasModalBody.querySelector('#groupNameField');
+      var gname = gnameField ? gnameField.value.trim() : '';
+      if (pendingGroup.mode === 'rename') {
+        await renameGroupId(pendingGroup.id, gname || '分组');
+      } else {
+        if (selectedNodeIds.size < 1) { closeModal(); return; }
+        await createGroupNamed(gname || '分组');
+      }
+      closeModal();
+      return;
+    }
+
     var ctx = canvasModalCtx;
     if (!ctx) return;
     if (ctx.mode === 'create') {
@@ -999,6 +1352,10 @@
       var action = btn.dataset.action;
       var d = nodeMenu._d;
       closeMenus();
+      if (action === 'group') {
+        if (selectedNodeIds.size > 1) openGroupNameModal({ mode: 'create' });
+        return;
+      }
       if (!d) return;
       if (action === 'link-from') startLink(String(d.id));
       else if (action === 'edit-node') openEditModal(d);
@@ -1015,14 +1372,39 @@
     });
   });
 
+  groupMenu.querySelectorAll('button').forEach(function(btn) {
+    btn.addEventListener('click', function(event) {
+      event.stopPropagation();
+      var action = btn.dataset.action;
+      var gd = groupMenu._g;
+      closeMenus();
+      if (!gd) return;
+      if (action === 'rename-group') openGroupNameModal({ mode: 'rename', id: gd.id, current: gd.name || '' });
+      else if (action === 'dissolve-group') dissolveGroupId(gd.id);
+    });
+  });
+
   canvasModalOk.addEventListener('click', commitModal);
   canvasModalCancel.addEventListener('click', closeModal);
   canvasModalMask.addEventListener('click', function(event) {
     if (event.target === canvasModalMask) closeModal();
   });
 
-  // 点击空白处关闭右键菜单；Esc 关闭弹窗/取消连线/关闭菜单
+  if (snapBtn) snapBtn.addEventListener('click', toggleGridSnap);
+  initGridSnap();
+
+  // 弹窗单行输入框回车 = 确认（textarea 保留换行）
+  canvasModalBody.addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter') return;
+    if (e.target && e.target.tagName === 'TEXTAREA') return;
+    commitModal();
+  });
+
+  // 点击空白处关闭右键菜单；Esc 关闭弹窗/取消连线/关闭菜单/取消空格平移标记
   document.addEventListener('click', function() { closeMenus(); });
+  document.addEventListener('keyup', function(e) {
+    if (e.key === ' ' || e.code === 'Space') spacePressed = false;
+  });
   document.addEventListener('keydown', function(e) {
     if (e.key !== 'Escape') return;
     if (canvasModalMask.style.display === 'flex') { closeModal(); return; }
@@ -1033,6 +1415,7 @@
   // ---- Init ----
 
   document.addEventListener('DOMContentLoaded', function() {
+    initGridSnap();
     fetchData('all');
   });
 

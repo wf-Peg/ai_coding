@@ -26,6 +26,7 @@ const localGraph = require('./sqlite/graph');
 const localDb = require('./sqlite/db');
 const localCanvas = require('./sqlite/canvas-layout');
 const localCanvasNode = require('./sqlite/canvas-node');
+const localCanvasGroup = require('./sqlite/canvas-group');
 // clip-storage 实时监听句柄（will-quit 时释放）
 let localIndexWatcher = null;
 
@@ -3011,6 +3012,42 @@ function setupIPC() {
     if (!dbConn) return { success: false, message: 'local index not ready' };
     const deleted = localCanvasNode.deleteEdge(dbConn, id);
     return { success: deleted, message: deleted ? undefined : 'edge not found' };
+  }));
+
+  /** 读取全部画布分组（含成员） */
+  ipcMain.handle('local-index:canvas:list-groups', localIndexGuard(async () => {
+    const dbConn = localDb.getDatabase();
+    if (!dbConn) return { success: false, message: 'local index not ready' };
+    return { success: true, groups: localCanvasGroup.listGroups(dbConn) };
+  }));
+
+  /** 新建画布分组 */
+  ipcMain.handle('local-index:canvas:create-group', localIndexGuard(async (_ev, args) => {
+    const { name, memberIds } = args || {};
+    const dbConn = localDb.getDatabase();
+    if (!dbConn) return { success: false, message: 'local index not ready' };
+    const group = localCanvasGroup.createGroup(dbConn, { name, memberIds });
+    return group ? { success: true, group } : { success: false, message: 'empty member list' };
+  }));
+
+  /** 重命名画布分组 */
+  ipcMain.handle('local-index:canvas:rename-group', localIndexGuard(async (_ev, args) => {
+    const { id, name } = args || {};
+    if (!id) return { success: false, message: 'id is required' };
+    const dbConn = localDb.getDatabase();
+    if (!dbConn) return { success: false, message: 'local index not ready' };
+    const renamed = localCanvasGroup.renameGroup(dbConn, id, name);
+    return { success: renamed, message: renamed ? undefined : 'group not found' };
+  }));
+
+  /** 解散画布分组（拆 frame，保留节点与坐标） */
+  ipcMain.handle('local-index:canvas:dissolve-group', localIndexGuard(async (_ev, args) => {
+    const { id } = args || {};
+    if (!id) return { success: false, message: 'id is required' };
+    const dbConn = localDb.getDatabase();
+    if (!dbConn) return { success: false, message: 'local index not ready' };
+    const dissolved = localCanvasGroup.dissolveGroup(dbConn, id);
+    return { success: dissolved, message: dissolved ? undefined : 'group not found' };
   }));
 
   /** 查询某节点的关系（出链 + 反链），供反链面板复用 */

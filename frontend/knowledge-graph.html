@@ -121,7 +121,53 @@
             transition: var(--transition);
         }
         .sync-btn:hover { border-color: var(--primary); color: var(--primary); }
-        .sync-btn.loading { opacity: 0.6; pointer-events: none; }
+.sync-btn.loading { opacity: 0.6; pointer-events: none; }
+.sync-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* 分组 frame */
+.group-frame-rect {
+    fill: var(--app-primary-soft);
+    fill-opacity: 0.18;
+    stroke: var(--primary);
+    stroke-opacity: 0.55;
+    stroke-width: 1.4px;
+    stroke-dasharray: 6 4;
+    pointer-events: none;
+}
+.group-frame-title {
+    font-size: 11px;
+    fill: var(--primary);
+    font-weight: 600;
+    text-anchor: start;
+    user-select: none;
+    cursor: grab;
+    paint-order: stroke;
+    stroke: var(--surface);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+}
+.group-frame.selected-frame .group-frame-rect {
+    stroke-opacity: 1;
+    fill-opacity: 0.3;
+}
+
+/* 框选矩形 */
+.box-select-rect {
+    fill: var(--primary);
+    fill-opacity: 0.08;
+    stroke: var(--primary);
+    stroke-dasharray: 5 4;
+    stroke-width: 1.2px;
+    pointer-events: none;
+}
+
+/* 选中节点高亮（框选/多选） */
+.node.selected-node rect,
+.node.selected-node circle,
+.node.selected-node polygon {
+    stroke: #ff9800 !important;
+    stroke-width: 3px !important;
+}
 
         /* Legend */
         .legend {
@@ -501,9 +547,10 @@
                 <button class="seg-btn active" data-view="all">知识+剪藏</button>
                 <button class="seg-btn" data-view="knowledge">仅知识</button>
             </div>
+            <button class="sync-btn" id="snapBtn" title="拖动对齐网格（可开关）">格子吸附</button>
             <button class="sync-btn" id="syncBtn">刷新关系</button>
         </div>
-        <span class="nav-hint">右键新建节点 · 节点右键连线 · 拖拽定位 · 双击编辑</span>
+        <span class="nav-hint">右键新建 · 空白拖动框选 · 空格拖动平移 · 拖拽定位 · 双击编辑</span>
     </nav>
 
     <div class="graph-container" id="graphContainer">
@@ -543,11 +590,18 @@
         <button data-action="link-from">🔗 从此节点连线</button>
         <button data-action="edit-node">✏️ 编辑内容</button>
         <div class="divider"></div>
+        <button data-action="group" id="groupAction" style="display:none;">📦 组成分组</button>
         <button data-action="delete-node" class="danger">🗑️ 删除节点</button>
     </div>
     <!-- 连线右键菜单 -->
     <div class="canvas-menu" id="edgeMenu" style="display:none;">
         <button data-action="delete-edge" class="danger">🗑️ 删除连线</button>
+    </div>
+    <!-- 分组 frame 右键菜单 -->
+    <div class="canvas-menu" id="groupMenu" style="display:none;">
+        <button data-action="rename-group">✏️ 重命名分组</button>
+        <div class="divider"></div>
+        <button data-action="dissolve-group" class="danger">💠 解散分组</button>
     </div>
 
     <!-- 画布节点 新建/编辑/引用 弹窗 -->

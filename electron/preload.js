@@ -722,6 +722,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     /** 新建手动连线：opts = { fromId, toId } */
     createCanvasEdge: (opts) => ipcRenderer.invoke('local-index:canvas:create-edge', opts || {}),
     /** 删除手动连线：opts = { id } */
-    deleteCanvasEdge: (opts) => ipcRenderer.invoke('local-index:canvas:delete-edge', opts || {})
+    deleteCanvasEdge: (opts) => ipcRenderer.invoke('local-index:canvas:delete-edge', opts || {}),
+    /** 读取全部分组（含成员） */
+    listGroups: () => ipcRenderer.invoke('local-index:canvas:list-groups'),
+    /** 新建分组：opts = { name, memberIds } */
+    createGroup: (opts) => ipcRenderer.invoke('local-index:canvas:create-group', opts || {}),
+    /** 重命名分组：opts = { id, name } */
+    renameGroup: (opts) => ipcRenderer.invoke('local-index:canvas:rename-group', opts || {}),
+    /** 解散分组（拆 frame）：opts = { id } */
+    dissolveGroup: (opts) => ipcRenderer.invoke('local-index:canvas:dissolve-group', opts || {})
   }
 });
