@@ -27,8 +27,11 @@ const localDb = require('./sqlite/db');
 const localCanvas = require('./sqlite/canvas-layout');
 const localCanvasNode = require('./sqlite/canvas-node');
 const localCanvasGroup = require('./sqlite/canvas-group');
+const { initCanvasSync } = require('./canvas-sync');
 // clip-storage 实时监听句柄（will-quit 时释放）
 let localIndexWatcher = null;
+// 无限画布·后端同步器（索引就绪后初始化）
+let canvasSync = null;
 
 // 更新管理器（自动更新 + 手动检查）
 const updateManager = require('./update-manager');
@@ -2966,6 +2969,7 @@ function setupIPC() {
     const dbConn = localDb.getDatabase();
     if (!dbConn) return { success: false, message: 'local index not ready' };
     const saved = localCanvas.savePositions(dbConn, positions);
+    if (canvasSync && saved > 0) canvasSync.schedulePush();
     return { success: true, saved };
   }));
 
@@ -2976,6 +2980,7 @@ function setupIPC() {
     const dbConn = localDb.getDatabase();
     if (!dbConn) return { success: false, message: 'local index not ready' };
     const node = localCanvasNode.createNode(dbConn, { kind, text, title, x, y });
+    if (canvasSync) canvasSync.schedulePush();
     return { success: true, node };
   }));
 
@@ -2986,6 +2991,7 @@ function setupIPC() {
     const dbConn = localDb.getDatabase();
     if (!dbConn) return { success: false, message: 'local index not ready' };
     const updated = localCanvasNode.updateNode(dbConn, id, { text, title });
+    if (canvasSync && updated) canvasSync.schedulePush();
     return { success: updated, message: updated ? undefined : 'node not found' };
   }));
 
@@ -2996,6 +3002,7 @@ function setupIPC() {
     const dbConn = localDb.getDatabase();
     if (!dbConn) return { success: false, message: 'local index not ready' };
     const deleted = localCanvasNode.deleteNode(dbConn, id);
+    if (canvasSync && deleted) canvasSync.schedulePush();
     return { success: deleted, message: deleted ? undefined : 'node not found' };
   }));
 
@@ -3006,6 +3013,7 @@ function setupIPC() {
     const dbConn = localDb.getDatabase();
     if (!dbConn) return { success: false, message: 'local index not ready' };
     const edge = localCanvasNode.createEdge(dbConn, fromId, toId);
+    if (canvasSync && edge) canvasSync.schedulePush();
     return edge ? { success: true, edge } : { success: false, message: 'invalid edge endpoints' };
   }));
 
@@ -3016,6 +3024,7 @@ function setupIPC() {
     const dbConn = localDb.getDatabase();
     if (!dbConn) return { success: false, message: 'local index not ready' };
     const deleted = localCanvasNode.deleteEdge(dbConn, id);
+    if (canvasSync && deleted) canvasSync.schedulePush();
     return { success: deleted, message: deleted ? undefined : 'edge not found' };
   }));
 
@@ -3032,6 +3041,7 @@ function setupIPC() {
     const dbConn = localDb.getDatabase();
     if (!dbConn) return { success: false, message: 'local index not ready' };
     const group = localCanvasGroup.createGroup(dbConn, { name, memberIds });
+    if (canvasSync && group) canvasSync.schedulePush();
     return group ? { success: true, group } : { success: false, message: 'empty member list' };
   }));
 
@@ -3042,6 +3052,7 @@ function setupIPC() {
     const dbConn = localDb.getDatabase();
     if (!dbConn) return { success: false, message: 'local index not ready' };
     const renamed = localCanvasGroup.renameGroup(dbConn, id, name);
+    if (canvasSync && renamed) canvasSync.schedulePush();
     return { success: renamed, message: renamed ? undefined : 'group not found' };
   }));
 
@@ -3052,7 +3063,15 @@ function setupIPC() {
     const dbConn = localDb.getDatabase();
     if (!dbConn) return { success: false, message: 'local index not ready' };
     const dissolved = localCanvasGroup.dissolveGroup(dbConn, id);
+    if (canvasSync && dissolved) canvasSync.schedulePush();
     return { success: dissolved, message: dissolved ? undefined : 'group not found' };
+  }));
+
+  /** 触发无限画布同步：拉取后端最新快照（前端进入知识模块时调用） */
+  ipcMain.handle('local-index:canvas:sync', localIndexGuard(async () => {
+    if (!canvasSync) return { success: false, message: 'canvas sync not ready' };
+    const res = await canvasSync.pullSnapshot().catch((e) => ({ success: false, message: e.message }));
+    return res;
   }));
 
   /** 查询某节点的关系（出链 + 反链），供反链面板复用 */
@@ -4979,6 +4998,19 @@ app.whenReady().then(async () => {
       } else if (localIndexWatcher) {
         log.warn('[local-index watcher] not started:', localIndexWatcher.reason);
       }
+    }
+    // 初始化无限画布后端同步器，并启动时拉取一次最新快照（失败不阻塞）
+    try {
+      canvasSync = initCanvasSync({
+        dbConn: () => localDb.getDatabase(),
+        baseUrl: `http://127.0.0.1:${_config.backendPort || 8081}`,
+        log: log
+      });
+      if (canvasSync) {
+        setTimeout(() => { canvasSync.pullSnapshot().catch(() => {}); }, 1500);
+      }
+    } catch (e) {
+      log.warn('[canvas-sync] init skipped:', e.message);
     }
     // 启动索引库周期维护（6h optimize / 24h VACUUM），退出时跟随 close 停止
     localIndexService.startMaintenance();

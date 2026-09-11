@@ -2144,7 +2144,14 @@
 
   document.addEventListener('DOMContentLoaded', function() {
     initGridSnap();
-    fetchData('all');
+    // 进图即拉后端最新画布快照（后端更新则恢复，本地更新则反向推送，失败不阻塞）
+    var bridge = window.electronAPI && window.electronAPI.localIndex;
+    var preSync = (bridge && typeof bridge.canvasSync === 'function')
+      ? bridge.canvasSync().catch(function() { return {}; })
+      : Promise.resolve({});
+    Promise.resolve(preSync).then(function() {
+      fetchData('all');
+    });
   });
 
   // ---- PostMessage listener for parent frame ----

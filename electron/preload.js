@@ -730,6 +730,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     /** 重命名分组：opts = { id, name } */
     renameGroup: (opts) => ipcRenderer.invoke('local-index:canvas:rename-group', opts || {}),
     /** 解散分组（拆 frame）：opts = { id } */
-    dissolveGroup: (opts) => ipcRenderer.invoke('local-index:canvas:dissolve-group', opts || {})
+    dissolveGroup: (opts) => ipcRenderer.invoke('local-index:canvas:dissolve-group', opts || {}),
+    /** 触发无限画布后端同步（进图时拉取最新快照） */
+    canvasSync: () => ipcRenderer.invoke('local-index:canvas:sync')
   }
 });
