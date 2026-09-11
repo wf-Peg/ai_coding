@@ -1853,6 +1853,9 @@ function stopFrontendServer() {
  */
 function showMainWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
+  // 托盘淡出路径会把窗口 opacity 降到 0（见 fadeOutWindow），唤起前必须复位，
+  // 否则窗口显示为透明/黑块（macOS/Windows 上表现为"无法恢复主窗口"）。
+  try { if (mainWindow.getOpacity() !== 1) mainWindow.setOpacity(1); } catch (e) {}
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
@@ -2025,6 +2028,8 @@ async function showCloseDialog(win) {
     maximizable: false,
     show: false,
     transparent: true,
+    // 显式透明背景：避免合成器把无内容的透明窗口画成黑块（CSS 动画期间出现黑色残影）
+    backgroundColor: '#00000000',
     webPreferences: {
       nodeIntegration: false,   // 安全：禁用 Node.js 集成
       contextIsolation: true,   // 安全：启用上下文隔离
@@ -2049,8 +2054,8 @@ async function showCloseDialog(win) {
     box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 16px 48px rgba(0,0,0,0.5);
     display: flex; flex-direction: column;
     overflow: hidden;
-    /* 入场动画：淡入 + 上浮缩放，提升弹出丝滑感 */
-    animation: cardIn .22s ease-out;
+    /* 入场动画：淡入 + 上浮缩放（时长/曲线与全局皮肤 --app-duration-normal、--app-ease-smooth 对齐） */
+    animation: cardIn .2s cubic-bezier(.22,1,.36,1);
   }
   @keyframes cardIn {
     from { opacity: 0; transform: translateY(6px) scale(.97); }
@@ -2126,7 +2131,7 @@ async function showCloseDialog(win) {
       </svg>
       关闭 CutShelter
     </div>
-    <button class="close-btn" onclick="window.close()" title="取消">
+    <button class="close-btn" onclick="cancel()" title="取消">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
         <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
       </svg>
@@ -2145,20 +2150,14 @@ async function showCloseDialog(win) {
   </div>
 </div>
 <script>
-  function fadeOut(done) {
-    const card = document.querySelector('.card');
-    // 播放退场：淡出 + 轻微缩放，再回调收尾，避免"啪"一下消失
-    card.style.transition = 'opacity .16s ease-in, transform .16s ease-in';
-    card.style.opacity = '0';
-    card.style.transform = 'scale(.98)';
-    setTimeout(done, 160);
-  }
+  // 退场淡出交由主进程用窗口级 setOpacity（原生 GPU alpha）完成：透明窗口内做 CSS opacity
+  // 动画，内容淡到全透明时合成器会把窗口画成黑块（关闭时残留黑色残影），原生窗口淡出可规避。
   function choose(action) {
     const remember = document.getElementById('remember').checked;
-    fadeOut(() => {
-      window.dialogApi.choose(action, remember);
-      window.close();
-    });
+    window.dialogApi.choose(action, remember);
+  }
+  function cancel() {
+    window.dialogApi.cancel();
   }
 </script>
 </body></html>`;
@@ -2193,6 +2192,11 @@ async function showCloseDialog(win) {
   closeDialog.webContents.on('ipc-message', (event, channel, ...args) => {
     if (channel === 'close-dialog-result') {
       dialogResult = args[0];
+      // 收到选择后用窗口级 setOpacity 原生淡出再关闭（与主窗口退场一致），
+      // 避免透明窗口内 CSS 动画造成的黑色残影。
+      fadeOutWindow(closeDialog, 200, () => { if (!closeDialog.isDestroyed()) closeDialog.close(); });
+    } else if (channel === 'close-dialog-cancel') {
+      fadeOutWindow(closeDialog, 200, () => { if (!closeDialog.isDestroyed()) closeDialog.close(); });
     }
   });
 
@@ -4457,10 +4461,17 @@ function stopClipboardPolling() {
   }
 }
 
-function closeClipboardToast() {
+function closeClipboardToast(fade) {
   if (clipboardDismissTimer) { clearTimeout(clipboardDismissTimer); clipboardDismissTimer = null; }
   if (clipboardToastWin && !clipboardToastWin.isDestroyed()) {
-    try { clipboardToastWin.destroy(); } catch (e) {}
+    const w = clipboardToastWin;
+    // 用户主动关闭/超时自动收起：窗口级 setOpacity 原生淡出再销毁（透明窗口 CSS 淡出会残留黑色残影）；
+    // 替换/退出路径保持立即销毁，避免与下一个 toast 重叠。
+    if (fade && process.platform !== 'linux') {
+      try { fadeOutWindow(w, 200, () => { if (!w.isDestroyed()) w.destroy(); }); } catch (e) {}
+    } else {
+      try { w.destroy(); } catch (e) {}
+    }
   }
   clipboardToastWin = null;
 }
@@ -4493,6 +4504,10 @@ function showClipboardToast(content) {
       skipTaskbar: true,
       resizable: false,
       transparent: true,
+      // 显式透明背景 + 关闭系统阴影（卡片自带 CSS box-shadow）：
+      // 避免透明窗口动画/合成时被画成黑块，产生黑色残影
+      backgroundColor: '#00000000',
+      hasShadow: false,
       focusable: true,          // 需要按钮可点击交互
       show: false,
       webPreferences: {
@@ -4525,7 +4540,7 @@ function showClipboardToast(content) {
     flex-direction: column;
     padding: 16px 18px;
     position: relative;
-    animation: slideIn .4s cubic-bezier(.16,1,.3,1);
+    animation: slideIn .3s cubic-bezier(.16,1,.3,1);
   }
   @keyframes slideIn { from { transform: translateX(420px); opacity: 0; } to { transform: none; opacity: 1; } }
   .head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
@@ -4581,7 +4596,7 @@ function showClipboardToast(content) {
       clipboardToastWin = null;
     });
     // 15s 未操作自动关闭
-    clipboardDismissTimer = setTimeout(closeClipboardToast, CLIPBOARD_TOAST_LIFETIME_MS);
+    clipboardDismissTimer = setTimeout(() => closeClipboardToast(true), CLIPBOARD_TOAST_LIFETIME_MS);
   } catch (e) {
     log.warn('[ClipboardAssistant] toast error:', e.message);
   }
@@ -4616,10 +4631,10 @@ async function uploadImageDataUrl(base, dataUrl) {
   throw new Error('上传图片失败: 未返回路径');
 }
 
-// 记录当前气泡里的内容为剪藏；图片先上传再入库。
+// 记录当前气泡里的内容为剪藏（默认"存储原文 + 收件箱"模式）；图片先上传再入库。
 ipcMain.handle('clipboard-toast:record', async () => {
   const c = pendingClipboard;
-  closeClipboardToast();
+  closeClipboardToast(true); // 记录后原生淡出收起
   if (!c) return { success: false, message: '无待确认内容' };
   try {
     const cfg = loadConfig();
@@ -4627,11 +4642,14 @@ ipcMain.handle('clipboard-toast:record', async () => {
     const plain = c.text ? String(c.text).replace(/\s+/g, ' ').trim() : '';
     let payload;
     if (c.type === 'text') {
+      // type=store-only → 后端自动设为 workflowStatus=inbox（收件箱）并按"存储原文"保留 content；
+      // useAiTags=false 避免触发 AI 加工，仅存原文待整理。
       payload = {
         content: c.text,
         title: (String(c.text).split('\n')[0] || '').trim().slice(0, 60) || '剪贴板内容',
-        summary: plain.slice(0, 60),
-        type: 'text',
+        summary: plain.slice(0, 120),
+        type: 'store-only',
+        workflowStatus: 'inbox',
         source: 'clipboard',
         useAiTags: false,
       };
@@ -4647,16 +4665,41 @@ ipcMain.handle('clipboard-toast:record', async () => {
       };
     }
     const data = await httpPostJson(base + '/api/clip/add', payload);
-    log.info('[ClipboardAssistant] recorded:', (data && (data.id || data.status)) || 'ok');
+    const id = data && (data.id != null ? data.id : data.clipId);
+    log.info('[ClipboardAssistant] recorded:', id != null ? '#' + id : 'ok');
+    const clipIdText = id != null ? ' #' + id : '';
+    notifyClipboardResult('已记录到剪藏', '已存入收件箱，待整理' + clipIdText);
     return { success: true, data };
   } catch (e) {
-    log.warn('[ClipboardAssistant] record failed:', e.message);
-    return { success: false, message: e.message };
+    const msg = formatClipboardRecordError(e);
+    log.warn('[ClipboardAssistant] record failed:', msg);
+    notifyClipboardResult('记录失败', msg);
+    return { success: false, message: msg };
   }
 });
 
-ipcMain.handle('clipboard-toast:ignore', () => { closeClipboardToast(); return { success: true }; });
-ipcMain.handle('clipboard-toast:close', () => { closeClipboardToast(); return { success: true }; });
+/** 将剪贴板记录结果以可读 toast 呈现（含"后端未启动"等明确失败原因）。 */
+function notifyClipboardResult(title, body) {
+  try { showNotification(title, body); } catch (e) { log.warn('[ClipboardAssistant] notify error:', e.message); }
+}
+
+/** 把底层异常转成对用户友好的提示（区分后端未启动/权限拒绝/其他）。 */
+function formatClipboardRecordError(e) {
+  const raw = (e && e.message) ? String(e.message) : '未知错误';
+  if (/\b(ECONNREFUSED|ECONNRESET|ENOTFOUND|ENONET|EAI_AGAIN|fetch failed|network error|Timeout|timed out|net::)/i.test(raw)) {
+    return '未连接到剪藏服务：请先启动应用/后端再记录';
+  }
+  if (/\bHTTP 40[13]\b|\bHTTP 403\b|forbidden|unauthori[sz]ed/i.test(raw)) {
+    return '剪藏服务拒绝访问（权限或凭证问题）：' + raw;
+  }
+  if (/\bHTTP 4\d{2}\b|\bHTTP 5\d{2}\b/.test(raw)) {
+    return '剪藏服务响应异常：' + raw;
+  }
+  return '记录失败：' + raw;
+}
+
+ipcMain.handle('clipboard-toast:ignore', () => { closeClipboardToast(true); return { success: true }; });
+ipcMain.handle('clipboard-toast:close', () => { closeClipboardToast(true); return { success: true }; });
 // 渲染进程可用 API：读取当前剪贴板富内容（供手动预览）
 ipcMain.handle('read-clipboard:rich', () => {
   const c = readClipboardRich();
@@ -4897,11 +4940,16 @@ function showNotification(title, body) {
       minimizable: false,
       maximizable: false,
       transparent: true,
+      // 显式透明背景 + 关闭系统阴影（卡片自带 CSS box-shadow）：
+      // 透明窗口在动画/合成时默认背景易被画成黑块，产生关闭时的黑色残影
+      backgroundColor: '#00000000',
+      hasShadow: false,
       focusable: false,
       show: false,
       webPreferences: {
         nodeIntegration: false,
-        contextIsolation: true
+        contextIsolation: true,
+        preload: path.join(__dirname, 'toast-preload.js')
       }
     });
 
@@ -4931,7 +4979,7 @@ function showNotification(title, body) {
     display: flex;
     overflow: hidden;
     position: relative;
-    animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .accent-bar {
     width: 4px;
@@ -5010,12 +5058,6 @@ function showNotification(title, body) {
     from { transform: translateX(420px) scale(0.95); opacity: 0; }
     to { transform: translateX(0) scale(1); opacity: 1; }
   }
-  .card.closing {
-    animation: slideOut 0.3s cubic-bezier(0.4, 0, 1, 1) forwards;
-  }
-  @keyframes slideOut {
-    to { transform: translateX(420px); opacity: 0; }
-  }
 </style>
 </head>
 <body>
@@ -5036,16 +5078,24 @@ function showNotification(title, body) {
     </div>
   </div>
   <script>
+    // 退场淡出由主进程用窗口级 setOpacity 完成（toastAPI.dismiss → toast-dismiss），
+    // 透明窗口内 CSS opacity 动画在 macOS 合成器上会留下黑色残影，故不在此播放退场动画。
     document.getElementById('closeBtn').addEventListener('click', function() {
-      var card = document.getElementById('card');
-      card.classList.add('closing');
-      setTimeout(function() { window.close(); }, 300);
+      if (window.toastAPI && window.toastAPI.dismiss) window.toastAPI.dismiss();
+      else window.close();
     });
   </script>
 </body>
 </html>`;
 
     toastWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+
+    // 关闭按钮 → toast-dismiss：用窗口级 setOpacity 原生淡出后关闭，避免黑色残影
+    toastWin.webContents.on('ipc-message', (event, channel) => {
+      if (channel === 'toast-dismiss') {
+        fadeOutWindow(toastWin, 200, () => { if (!toastWin.isDestroyed()) toastWin.close(); });
+      }
+    });
 
     // 登记到全局存活列表，退出时统一强制销毁
     toastWindows.push(toastWin);
