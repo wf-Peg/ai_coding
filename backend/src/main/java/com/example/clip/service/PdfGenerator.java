@@ -114,6 +114,41 @@ public class PdfGenerator {
     }
 
     /**
+     * 将 Markdown 转换为 PDF 字节数组，并内联图片。
+     * <p>
+     * 与 {@link #generateFromMarkdown(String)} 一致，但会把 markdown 中形如
+     * <code>![标题](图片名)</code> 的内嵌图片（前端将 Mermaid 渲染为 base64 dataURL），
+     * 替换为对应的 data: URI 后渲染。images 为空或未命中时回退到纯 markdown 路径。
+     * </p>
+     */
+    public byte[] generateFromMarkdown(String markdown, Map<String, String> images) throws IOException {
+        String rawHtml = htmlRenderer.render(markdownParser.parse(markdown));
+        if (images != null && !images.isEmpty()) {
+            rawHtml = inlineImages(rawHtml, images);
+        }
+        return renderHtmlToPdf(wrapHtmlDocument(rawHtml));
+    }
+
+    /**
+     * 将 HTML 中 <code>src="{图片名}"</code> 的引用替换为 images 中对应的内联 data: URI。
+     * <p>
+     * 前端 Mermaid 渲染出的 base64 已是完整 data:image/...;base64 字符串，直接替换即可，
+     * 未在 images 中命中的引用保持不变（由 openhtmltopdf 兜底，查不到则忽略）。
+     * </p>
+     */
+    private String inlineImages(String html, Map<String, String> images) {
+        for (Map.Entry<String, String> e : images.entrySet()) {
+            String name = e.getKey();
+            String data = e.getValue();
+            if (name == null || data == null || data.isEmpty()) continue;
+            // 双引号与单引号两种 src 写法都覆盖
+            html = html.replace("src=\"" + name + "\"", "src=\"" + data + "\"");
+            html = html.replace("src='" + name + "'", "src='" + data + "'");
+        }
+        return html;
+    }
+
+    /**
      * 将 HTML 字符串转换为 PDF 字节数组。
      */
     public byte[] generate(String rawHtml) throws IOException {

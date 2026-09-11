@@ -1173,6 +1173,7 @@
 
     elements.markdownPane.hidden = !shouldOpen;
     elements.editorWorkspace.classList.toggle('markdown-preview', shouldOpen);
+    elements.markdownBtn.classList.toggle('active', shouldOpen);
 
     // 进入 Markdown 预览时退出对比模式
     if (shouldOpen && !elements.comparePane.hidden) {
@@ -1287,6 +1288,7 @@
     elements.compareToolbar.classList.toggle('is-open', shouldOpen);
     elements.compareToolbar.setAttribute('aria-hidden', String(!shouldOpen));
     elements.editorWorkspace.classList.toggle('comparing', shouldOpen);
+    elements.compareBtn.classList.toggle('active', shouldOpen);
     // 进入对比模式时退出 Markdown 预览
     if (shouldOpen && !elements.markdownPane.hidden) {
       toggleMarkdownPreview(false);
@@ -2843,7 +2845,11 @@
         hasBodyContent: !!(clip.bodyContent && clip.bodyContent.trim())
       };
       // 优先显示源文件正文（Web Clipper 文档），否则显示 content（可能为 wiki-link）
-      const editorContent = (clip.bodyContent && clip.bodyContent.trim()) ? clip.bodyContent : (clip.content || '');
+      let editorContent = (clip.bodyContent && clip.bodyContent.trim()) ? clip.bodyContent : (clip.content || '');
+      // 插件剪藏偶发正文为空（纯 JS/稀疏页抓取），回退到选中文本/摘要，避免编辑器空白
+      if (!editorContent.trim() && clip.selectedText && clip.selectedText.trim()) editorContent = clip.selectedText;
+      if (!editorContent.trim() && clip.summary && clip.summary.trim()) editorContent = clip.summary;
+      if (!editorContent.trim()) editorContent = `（该剪藏无正文内容，ID: ${clip.id}）`;
       const format = clip.contentFormat || EditorCore.detectLanguage(clip.sourceFileName || clip.title, editorContent);
       setEditorContent(editorContent, {
         fileName: clip.sourceFileName || `${clip.title || `clip-${clip.id}`}.${format === 'text' ? 'txt' : (format === 'markdown' ? 'md' : format)}`,
@@ -2892,7 +2898,11 @@
         hasBodyContent: !!(clip.bodyContent && clip.bodyContent.trim())
       };
       // 优先显示源文件正文（Web Clipper 文档），否则显示 content（可能为 wiki-link）
-      const editorContent = (clip.bodyContent && clip.bodyContent.trim()) ? clip.bodyContent : (clip.content || '');
+      let editorContent = (clip.bodyContent && clip.bodyContent.trim()) ? clip.bodyContent : (clip.content || '');
+      // 插件剪藏偶发正文为空（纯 JS/稀疏页抓取），回退到选中文本/摘要，避免编辑器空白
+      if (!editorContent.trim() && clip.selectedText && clip.selectedText.trim()) editorContent = clip.selectedText;
+      if (!editorContent.trim() && clip.summary && clip.summary.trim()) editorContent = clip.summary;
+      if (!editorContent.trim()) editorContent = `（该剪藏无正文内容，ID: ${clip.id}）`;
       const format = clip.contentFormat || EditorCore.detectLanguage(clip.sourceFileName || clip.title, editorContent);
       setEditorContent(editorContent, {
         fileName: clip.sourceFileName || `${clip.title || `clip-${clip.id}`}.${format === 'text' ? 'txt' : (format === 'markdown' ? 'md' : format)}`,
@@ -3020,7 +3030,36 @@
   document.getElementById('compareBtn').addEventListener('click', () => toggleCompare());
   document.getElementById('closeCompareBtn').addEventListener('click', () => toggleCompare(false));
   document.getElementById('markdownBtn').addEventListener('click', () => toggleMarkdownPreview());
-  document.getElementById('exportWordBtn').addEventListener('click', exportToWord);
+  // ── 导出下拉菜单（图标 + 二级选项：Markdown / PDF / Word）──
+  var exportBtn = document.getElementById('exportBtn');
+  var exportMenu = document.getElementById('exportMenu');
+  function setExportMenu(open) {
+    if (!exportMenu) return;
+    exportMenu.hidden = !open;
+    exportBtn && exportBtn.classList.toggle('active', open);
+  }
+  function toggleExportMenu() { setExportMenu(!exportMenu.hidden); }
+  exportBtn && exportBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    toggleExportMenu();
+  });
+  // 点击菜单项后关闭；点击外部区域关闭
+  document.addEventListener('click', function (e) {
+    var wrap = exportBtn && exportBtn.closest('.toolbar-export');
+    if (!wrap || !wrap.contains(e.target)) setExportMenu(false);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && exportMenu && !exportMenu.hidden) setExportMenu(false);
+  });
+  document.getElementById('exportMarkdownBtn').addEventListener('click', function (e) {
+    e.stopPropagation(); setExportMenu(false); exportToMarkdown();
+  });
+  document.getElementById('exportWordLegacyBtn').addEventListener('click', function (e) {
+    e.stopPropagation(); setExportMenu(false); exportToWord();
+  });
+  document.getElementById('exportPdfBtn').addEventListener('click', function (e) {
+    e.stopPropagation(); setExportMenu(false); exportToPdf();
+  });
   elements.closeMarkdownBtn.addEventListener('click', () => toggleMarkdownPreview(false));
   elements.mdFullscreenBtn.addEventListener('click', () => toggleMarkdownFullscreen());
   document.getElementById('terminalBtn').addEventListener('click', openTerminalInDir);
@@ -3169,15 +3208,29 @@
       });
   }
 
-  // 导出 Markdown 为 Word：Mermaid → PNG → 后端 POI 生成 .docx（FP-9）
-  async function exportToWord() {
+  // 导出 Markdown：直接下载原文 .md（客户端处理，无需后端）
+  function exportToMarkdown() {
     const text = mainEditor.getValue();
     if (!text || !text.trim()) { showToast('暂无内容可导出', true); return; }
+    const base = (getCurrentFileName() || '导出文档').replace(/\.[^.]+$/, '') + '.md';
+    const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+    const anchor = document.createElement('a');
+    anchor.href = URL.createObjectURL(blob);
+    anchor.download = base;
+    document.body.appendChild(anchor);
+    anchor.click();
+    setTimeout(() => { URL.revokeObjectURL(anchor.href); anchor.remove(); }, 1000);
+    showToast('已导出 ' + base, false, 'success');
+  }
+
+  // 导出共用管线：提取正文并将 ```mermaid 渲染为 base64 PNG，替换为图片引用
+  async function prepareExportContent() {
+    const text = mainEditor.getValue();
+    if (!text || !text.trim()) { showToast('暂无内容可导出', true); return null; }
 
     let markdown = text;
     const images = {};
 
-    // 1. 提取 ```mermaid 代码块，渲染为高分辨率 PNG 并替换为图片引用
     const mermaidBlocks = [];
     const mermaidRe = /```mermaid\s*\n([\s\S]*?)```/gi;
     let m;
@@ -3221,15 +3274,24 @@
         }
       }
     }
+    return { markdown, images };
+  }
 
-    // 2. 调用后端生成 .docx 并触发下载
-    const filename = (getCurrentFileName() || '导出文档').replace(/\.[^.]+$/, '') + '.docx';
-    // 从 API 基地址提取 origin（协议+主机+端口），拼接后端导出接口，
-    // 不依赖 /api/clip 后缀，避免后缀变动导致 URL 拼接失败（Bug 修复）
+  // 从 API 基地址提取 origin（协议+主机+端口），拼接后端导出接口（不依赖 /api/clip 后缀）
+  function getBackendOrigin() {
     let origin = '';
     try { origin = new URL(window.API_BASE_URL || 'http://127.0.0.1:8081').origin; }
     catch (e) { origin = 'http://127.0.0.1:8081'; }
-    const exportUrl = origin + '/api/editor/export-word';
+    return origin;
+  }
+
+  // 导出 Word：Mermaid → PNG → 后端 POI 生成 .docx（FP-9）
+  async function exportToWord() {
+    const payload = await prepareExportContent();
+    if (!payload) return;
+    const { markdown, images } = payload;
+    const filename = (getCurrentFileName() || '导出文档').replace(/\.[^.]+$/, '') + '.docx';
+    const exportUrl = getBackendOrigin() + '/api/editor/export-word';
     try {
       showToast('正在生成 Word…', false, 'info');
       const resp = await fetch(exportUrl, {
@@ -3252,11 +3314,50 @@
       setTimeout(() => { URL.revokeObjectURL(anchor.href); anchor.remove(); }, 1000);
       showToast('已导出 ' + filename, false, 'success');
     } catch (err) {
-      // 网络错误分类提示，便于定位是后端未启动还是接口地址问题
       const detail = err && err.message ? err.message : String(err);
       let hint;
       if (/Failed to fetch|NetworkError|TYPE_ERROR|name resolution/i.test(detail)) {
         hint = '网络请求失败，请确认后端服务（8081）已启动且 /api/editor/export-word 可访问（地址：' + exportUrl + '）';
+      } else {
+        hint = '导出失败：' + detail;
+      }
+      showToast(hint, true);
+    }
+  }
+
+  // 导出 PDF：Mermaid → PNG → 后端 OpenHTMLtoPDF 渲染 .pdf
+  async function exportToPdf() {
+    const payload = await prepareExportContent();
+    if (!payload) return;
+    const { markdown, images } = payload;
+    const filename = (getCurrentFileName() || '导出文档').replace(/\.[^.]+$/, '') + '.pdf';
+    const exportUrl = getBackendOrigin() + '/api/editor/export-pdf';
+    try {
+      showToast('正在生成 PDF…', false, 'info');
+      const resp = await fetch(exportUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markdown, images, filename })
+      });
+      if (!resp.ok) {
+        let msg = 'PDF 导出失败';
+        try { const j = await resp.json(); msg = j.error || msg; } catch (e) { /* 忽略 */ }
+        showToast(msg, true);
+        return;
+      }
+      const blob = await resp.blob();
+      const anchor = document.createElement('a');
+      anchor.href = URL.createObjectURL(blob);
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      setTimeout(() => { URL.revokeObjectURL(anchor.href); anchor.remove(); }, 1000);
+      showToast('已导出 ' + filename, false, 'success');
+    } catch (err) {
+      const detail = err && err.message ? err.message : String(err);
+      let hint;
+      if (/Failed to fetch|NetworkError|TYPE_ERROR|name resolution/i.test(detail)) {
+        hint = '网络请求失败，请确认后端服务（8081）已启动且 /api/editor/export-pdf 可访问（地址：' + exportUrl + '）';
       } else {
         hint = '导出失败：' + detail;
       }
@@ -3870,7 +3971,7 @@
       }
     }
 
-    elements.fullscreenBtn.textContent = isFullscreen ? '退出全屏' : '全屏';
+    elements.fullscreenBtn.classList.toggle('active', isFullscreen);
     setTimeout(function() { mainEditor.resize(); }, 100);
   }
 
@@ -3901,7 +4002,7 @@
     if (!document.fullscreenElement && isFullscreen) {
       isFullscreen = false;
       document.querySelector('.editor-app').classList.remove('fullscreen');
-      elements.fullscreenBtn.textContent = '全屏';
+      elements.fullscreenBtn.classList.remove('active');
     }
   });
 
@@ -6425,7 +6526,9 @@
   registerCommand('backlinks', '切换反链面板', '🔗', function() { toggleBacklinks(); }, EditorShortcuts.get('backlinks'));
   registerCommand('compare', '对比模式', '⇄', function() { toggleCompare(); });
   registerCommand('markdown', 'Markdown 预览', '👁', function() { toggleMarkdownPreview(); }, 'Ctrl+Shift+M');
-  registerCommand('export-word', '导出 Word (.docx)', '📝', function() { exportToWord(); });
+  registerCommand('export-markdown', '导出为 Markdown (.md)', '📃', function() { exportToMarkdown(); });
+  registerCommand('export-word', '导出为 Word (.docx)', '📝', function() { exportToWord(); });
+  registerCommand('export-pdf', '导出为 PDF (.pdf)', '📄', function() { exportToPdf(); });
   registerCommand('settings', '编辑器设置', '⚙', function() { openSettingsModal(); }, 'Ctrl+,');
 
   var paletteOpen = false;

@@ -94,6 +94,76 @@ select {
   padding: 0 9px;
 }
 
+/* 纯图标按钮（NoteGen 极简风格）：方形等宽，悬浮提示承载说明 */
+.tool-btn.icon-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.tool-btn.icon-btn .btn-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: block;
+}
+
+/* 工具栏逻辑分组竖向分隔线 */
+.toolbar-sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 2px;
+  background: var(--app-border);
+}
+
+/* 导出下拉（图标 + 二级菜单） */
+.toolbar-export {
+  position: relative;
+  display: inline-flex;
+}
+.toolbar-export-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 190px;
+  padding: 6px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow-md);
+}
+.toolbar-export-menu .toolbar-sep {
+  height: 1px;
+  width: auto;
+  margin: 5px 2px;
+}
+.toolbar-export-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  border: none;
+  background: none;
+  color: var(--app-text);
+  border-radius: var(--app-radius-sm);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+.toolbar-export-item:hover {
+  background: var(--app-surface-hover);
+}
+
+/* 模式激活态（对比 / Markdown 预览 / 全屏） */
+.tool-btn.active {
+  color: var(--app-primary);
+  border-color: var(--app-primary);
+  background: var(--app-primary-soft);
+}
+
 .tool-btn .btn-icon {
   flex-shrink: 0;
   display: block;
