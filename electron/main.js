@@ -2603,6 +2603,9 @@ function setupIPC() {
       const nextConfig = { ...loadConfig(), ...newConfig };
       saveConfig(nextConfig);
       applyAutoStartSetting(nextConfig.autoStart);
+      // 剪贴板即时助手开关：随配置热更新（默认开）
+      clipboardAssistantEnabled = !(nextConfig.clipboardAssistant && nextConfig.clipboardAssistant.enabled === false);
+      if (clipboardAssistantEnabled) { startClipboardPolling(); } else { stopClipboardPolling(); closeClipboardToast(); }
       // 同步 model-config.json 到 ~/.cut-shelter/config/，确保后端 AppConfigService 迁移时能读到 API Key
       syncModelConfigJson(nextConfig);
       // 同步更新 application.yml，确保重启后 storagePath 等配置生效
@@ -3188,7 +3191,7 @@ function setupIPC() {
   }
 
   function getEditorExtension(language) {
-    return ({ json: 'json', xml: 'xml', sql: 'sql', text: 'txt' })[language] || 'txt';
+    return ({ json: 'json', xml: 'xml', sql: 'sql', markdown: 'md', text: 'txt' })[language] || 'txt';
   }
 
   function buildEditorFileName(fileName, language) {
@@ -4363,6 +4366,298 @@ function loadShortcutFromConfig() {
 // 剪贴板读取
 ipcMain.handle('read-clipboard', () => clipboard.readText());
 
+// ═══════════════════════════════════════════════════════════
+// 剪贴板即时助手（借鉴 NoteGen）
+// 后台轮询系统剪贴板，检测到新复制内容（文本/图片）时弹出置顶气泡，
+// 提供 [记录到剪藏][忽略]。记录文本直接 POST /api/clip/add；
+// 图片先经 /api/media/upload 获得相对路径，再作为图片剪藏入库。
+// 开关：config.clipboardAssistant.enabled（默认开，可在设置页扩展接入）。
+// ═══════════════════════════════════════════════════════════
+let clipboardAssistantEnabled = true;      // 剪贴板助手开关
+let clipboardPollTimer = null;             // 轮询句柄
+let lastClipboardKey = null;               // 上次已提示内容签名（去重）
+let lastClipboardPromptAt = 0;             // 上次提示时间戳（冷却）
+let pendingClipboard = null;               // 当前气泡待确认的剪贴内容
+let clipboardToastWin = null;              // 当前气泡窗
+let clipboardDismissTimer = null;          // 气泡自动关闭定时器
+const CLIPBOARD_POLL_MS = 1500;
+const CLIPBOARD_COOLDOWN_MS = 10000;
+const CLIPBOARD_TOAST_LIFETIME_MS = 15000;
+
+/** 剪贴板内容签名：文本取去空白后的内容；图片取尺寸+字节数。用于去重。 */
+function clipboardSignature(content) {
+  if (!content) return null;
+  if (content.type === 'text') {
+    if (!content.text || !String(content.text).trim()) return null;
+    return 't:' + String(content.text).replace(/\s+/g, '').slice(0, 2000);
+  }
+  if (content.type === 'image' && content._image) {
+    const sz = content._image.getSize();
+    const raw = content._image.toPNG();
+    return 'i:' + sz.width + 'x' + sz.height + ':' + (raw ? raw.length : 0);
+  }
+  return null;
+}
+
+/** 读取剪贴板富内容：优先文本，其次图片（附带缩略用的 dataURL）。 */
+function readClipboardRich() {
+  const text = clipboard.readText();
+  if (text && text.trim()) {
+    return { type: 'text', text: String(text) };
+  }
+  const image = clipboard.readImage();
+  if (image && !image.isEmpty()) {
+    const sz = image.getSize();
+    const raw = image.toPNG();
+    return {
+      type: 'image',
+      text: '',
+      imageDataUrl: 'data:image/png;base64,' + (raw ? raw.toString('base64') : ''),
+      imageWidth: sz.width,
+      imageHeight: sz.height,
+      _image: image,
+    };
+  }
+  return null;
+}
+
+/** 轮询主逻辑：检测到新内容且非冷却期 → 弹气泡。 */
+function pollClipboard() {
+  try {
+    const content = readClipboardRich();
+    const key = clipboardSignature(content);
+    if (!key) return;
+    if (key === lastClipboardKey) return;                       // 同内容不重复
+    const now = Date.now();
+    if (now - lastClipboardPromptAt < CLIPBOARD_COOLDOWN_MS) return; // 冷却
+    lastClipboardKey = key;
+    lastClipboardPromptAt = now;
+    showClipboardToast(content);
+  } catch (e) {
+    log.warn('[ClipboardAssistant] poll error:', e.message);
+  }
+}
+
+function startClipboardPolling() {
+  stopClipboardPolling();
+  clipboardPollTimer = setInterval(pollClipboard, CLIPBOARD_POLL_MS);
+}
+
+function stopClipboardPolling() {
+  if (clipboardPollTimer) {
+    clearInterval(clipboardPollTimer);
+    clipboardPollTimer = null;
+  }
+}
+
+function closeClipboardToast() {
+  if (clipboardDismissTimer) { clearTimeout(clipboardDismissTimer); clipboardDismissTimer = null; }
+  if (clipboardToastWin && !clipboardToastWin.isDestroyed()) {
+    try { clipboardToastWin.destroy(); } catch (e) {}
+  }
+  clipboardToastWin = null;
+}
+
+function escHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/** 展示剪贴板气泡窗（置顶、可交互、随 cleanupOnQuit 统一销毁）。 */
+function showClipboardToast(content) {
+  try {
+    closeClipboardToast();
+    pendingClipboard = content;
+    const { screen } = require('electron');
+    const display = screen.getPrimaryDisplay();
+    const { width, height } = display.workAreaSize;
+    const toastWidth = 380;
+    const toastHeight = content.type === 'image' ? 240 : 178;
+    const margin = 24;
+
+    clipboardToastWin = new BrowserWindow({
+      width: toastWidth,
+      height: toastHeight,
+      x: width - toastWidth - margin,
+      y: height - toastHeight - margin,
+      frame: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      resizable: false,
+      transparent: true,
+      focusable: true,          // 需要按钮可点击交互
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js'),
+      },
+    });
+    toastWindows.push(clipboardToastWin);
+
+    const preview = content.type === 'image'
+      ? `<img class="thumb" src="${content.imageDataUrl || ''}" alt="剪贴板图片">`
+      : `<div class="preview-text">${escHtml(content.text).replace(/\n/g, '<br>')}</div>`;
+
+    const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+  body { background: transparent; height: 100vh; overflow: hidden; font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+  .card {
+    background: linear-gradient(135deg, rgba(38, 38, 46, 0.97), rgba(22, 22, 28, 0.97));
+    backdrop-filter: blur(20px);
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.09);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 18px;
+    position: relative;
+    animation: slideIn .4s cubic-bezier(.16,1,.3,1);
+  }
+  @keyframes slideIn { from { transform: translateX(420px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .head-title { font-size: 12px; font-weight: 600; color: #569cff; letter-spacing: .5px; flex: 1; }
+  .close-btn { width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: rgba(255,255,255,.35); }
+  .close-btn:hover { background: rgba(255,255,255,.1); color: rgba(255,255,255,.85); }
+  .close-btn svg { width: 11px; height: 11px; stroke: currentColor; stroke-width: 2.4; }
+  .preview { flex: 1; min-height: 0; overflow: hidden; }
+  .preview-text { font-size: 13px; line-height: 1.5; color: rgba(255,255,255,.92); max-height: 84px; overflow: hidden; }
+  img.thumb { max-width: 100%; max-height: 96px; border-radius: 8px; object-fit: contain; }
+  .actions { display: flex; gap: 10px; margin-top: 14px; }
+  .btn { flex: 1; height: 34px; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
+  .btn.primary { background: #569cff; color: #fff; font-weight: 600; }
+  .btn.primary:hover { background: #4a8cf0; }
+  .btn.ghost { background: rgba(255,255,255,.08); color: rgba(255,255,255,.72); }
+  .btn.ghost:hover { background: rgba(255,255,255,.14); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="head">
+      <div class="head-title">剪贴板 · 已复制${content.type === 'image' ? '图片' : '内容'}</div>
+      <div class="close-btn" id="closeBtn"><svg viewBox="0 0 24 24" fill="none"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></div>
+    </div>
+    <div class="preview">${preview}</div>
+    <div class="actions">
+      <button class="btn ghost" id="ignoreBtn">忽略</button>
+      <button class="btn primary" id="recordBtn">记录到剪藏</button>
+    </div>
+  </div>
+  <script>
+    var api = window.electronAPI && window.electronAPI.clipboardToast;
+    function dismiss() { if (api && api.ignore) api.ignore(); }
+    document.getElementById('closeBtn').addEventListener('click', dismiss);
+    document.getElementById('ignoreBtn').addEventListener('click', dismiss);
+    document.getElementById('recordBtn').addEventListener('click', function () {
+      if (api && api.record) api.record();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') dismiss();
+    });
+  </script>
+</body>
+</html>`;
+
+    clipboardToastWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    clipboardToastWin.once('ready-to-show', () => {
+      clipboardToastWin.show();
+      log.info('[ClipboardAssistant] toast shown');
+    });
+    clipboardToastWin.on('closed', () => {
+      toastWindows = toastWindows.filter(w => w !== clipboardToastWin);
+      clipboardToastWin = null;
+    });
+    // 15s 未操作自动关闭
+    clipboardDismissTimer = setTimeout(closeClipboardToast, CLIPBOARD_TOAST_LIFETIME_MS);
+  } catch (e) {
+    log.warn('[ClipboardAssistant] toast error:', e.message);
+  }
+}
+
+/** JSON POST 到后端（本地回环）。 */
+async function httpPostJson(url, body) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + text.slice(0, 300));
+  try { return JSON.parse(text); } catch (e) { return text; }
+}
+
+/** 上传剪贴板图片（multipart field=file），返回相对路径。 */
+async function uploadImageDataUrl(base, dataUrl) {
+  const m = /^data:image\/(png|jpeg|gif|webp);base64,(.+)$/.exec(dataUrl || '');
+  if (!m) throw new Error('不支持的图片格式');
+  const mime = 'image/' + m[1];
+  const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
+  const buf = Buffer.from(m[2], 'base64');
+  const form = new FormData();
+  form.append('file', new Blob([buf], { type: mime }), 'clipboard.' + ext);
+  const res = await fetch(base + '/api/media/upload', { method: 'POST', body: form });
+  const text = await res.text();
+  if (!res.ok) throw new Error('上传图片失败 HTTP ' + res.status + ': ' + text.slice(0, 300));
+  const data = JSON.parse(text);
+  if (data && data.path) return data.path;
+  throw new Error('上传图片失败: 未返回路径');
+}
+
+// 记录当前气泡里的内容为剪藏；图片先上传再入库。
+ipcMain.handle('clipboard-toast:record', async () => {
+  const c = pendingClipboard;
+  closeClipboardToast();
+  if (!c) return { success: false, message: '无待确认内容' };
+  try {
+    const cfg = loadConfig();
+    const base = 'http://127.0.0.1:' + (cfg.backendPort || 8081);
+    const plain = c.text ? String(c.text).replace(/\s+/g, ' ').trim() : '';
+    let payload;
+    if (c.type === 'text') {
+      payload = {
+        content: c.text,
+        title: (String(c.text).split('\n')[0] || '').trim().slice(0, 60) || '剪贴板内容',
+        summary: plain.slice(0, 60),
+        type: 'text',
+        source: 'clipboard',
+        useAiTags: false,
+      };
+    } else {
+      const path = await uploadImageDataUrl(base, c.imageDataUrl);
+      payload = {
+        content: '剪贴板图片',
+        title: '剪贴板图片 ' + new Date().toLocaleString(),
+        type: 'image',
+        source: 'clipboard',
+        imagePaths: [path],
+        useAiTags: false,
+      };
+    }
+    const data = await httpPostJson(base + '/api/clip/add', payload);
+    log.info('[ClipboardAssistant] recorded:', (data && (data.id || data.status)) || 'ok');
+    return { success: true, data };
+  } catch (e) {
+    log.warn('[ClipboardAssistant] record failed:', e.message);
+    return { success: false, message: e.message };
+  }
+});
+
+ipcMain.handle('clipboard-toast:ignore', () => { closeClipboardToast(); return { success: true }; });
+ipcMain.handle('clipboard-toast:close', () => { closeClipboardToast(); return { success: true }; });
+// 渲染进程可用 API：读取当前剪贴板富内容（供手动预览）
+ipcMain.handle('read-clipboard:rich', () => {
+  const c = readClipboardRich();
+  // 不把 _image / 大 base64 全量暴露给外部窗口，仅给触发窗口临时用
+  if (c && c.type === 'image') { delete c._image; }
+  return c;
+});
+
 // 在文件管理器中显示
 ipcMain.handle('show-item-in-folder', async (event, filePath) => {
   if (!filePath || typeof filePath !== 'string') return;
@@ -4949,6 +5244,14 @@ app.whenReady().then(async () => {
   startStartupWatchdog();
 
   setupIPC();
+
+  // 剪贴板即时助手：读取开关（默认开）并启动后台轮询
+  try {
+    const cfg = loadConfig();
+    clipboardAssistantEnabled = !(cfg.clipboardAssistant && cfg.clipboardAssistant.enabled === false);
+  } catch (e) { }
+  if (clipboardAssistantEnabled) startClipboardPolling();
+
   stepLadder('ipc.after');
 
   // 启动即清浏览器 HTTP 缓存：避免前端页面（设置页等）加载到旧版 JS/静态资源，
@@ -4997,6 +5300,21 @@ app.whenReady().then(async () => {
         log.info('[local-index watcher] started watching clip-storage');
       } else if (localIndexWatcher) {
         log.warn('[local-index watcher] not started:', localIndexWatcher.reason);
+      }
+      // 监听 md 库（clip-organized / vault / editor 等一级内容目录）：保存即增量刷新 vault 索引，
+      // 让全局搜索能搜到最新笔记。句柄存函数作用域，进程退出自然释放。
+      try {
+        const mdWatcher =
+          localIndexService.startMarkdownWatcher(_config.storagePath, (d) => {
+            log.info(`[local-index md watcher] rescan done: added=${d.added}, count=${d.count}`);
+          });
+        if (mdWatcher && mdWatcher.started) {
+          log.info('[local-index md watcher] started watching markdown roots');
+        } else if (mdWatcher) {
+          log.warn('[local-index md watcher] not started:', String(mdWatcher.reason || mdWatcher.roots || ''));
+        }
+      } catch (e) {
+        log.warn('[local-index md watcher] init skipped:', e.message);
       }
     }
     // 初始化无限画布后端同步器，并启动时拉取一次最新快照（失败不阻塞）
@@ -5350,6 +5668,8 @@ app.on('before-quit', () => {
   // 任何退出入口（Cmd+Q / 扩展坞 / 菜单）都强制清理临时工具窗口，确保 quit 不被阻塞
   try { screenshotService.cleanupOnQuit(); } catch (e) {}
   try { destroyTransientToasts(); } catch (e) {}
+  stopClipboardPolling();
+  closeClipboardToast();
   stopReminderScheduler();
   // 统一走 beginShutdown 幂等出口，避免与 quitApp/will-quit 重复 stop
   beginShutdown();

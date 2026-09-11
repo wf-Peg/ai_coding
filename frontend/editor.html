@@ -228,6 +228,10 @@
             <button class="inline-btn" id="closeOutlineBtn">关闭</button>
           </div>
         </div>
+        <div class="outline-search-wrap">
+          <input class="outline-search" id="outlineSearchInput" type="text"
+                 placeholder="搜索标题…" autocomplete="off" spellcheck="false">
+        </div>
         <div class="outline-list" id="outlineList"></div>
       </div>
       <div class="editor-pane tags-pane" id="tagsPane" aria-hidden="true">
@@ -242,6 +246,16 @@
       <div class="editor-pane main-pane" id="mainPane">
         <div id="mainEditor" class="ace-host" aria-label="文本编辑器"></div>
         <div id="overviewRuler" class="overview-ruler" aria-hidden="true"></div>
+        <div class="start-writing" id="startWritingGuide" role="button" tabindex="0" aria-label="直接开始写作，点击或输入任意内容进入编辑" hidden>
+          <div class="start-writing-inner">
+            <svg class="start-writing-icon" viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
+            </svg>
+            <div class="start-writing-title">直接开始写作</div>
+            <div class="start-writing-hint">输入 <span class="start-writing-kbd">/</span> 唤起命令菜单，插入标题、图片、链接等内容</div>
+          </div>
+        </div>
         <button class="ai-pet-button canvas-float" id="aiPetBtn" type="button" title="打开Pet" aria-label="打开Pet">
           <svg class="ai-pet-svg" viewBox="0 0 64 64" aria-hidden="true">
             <ellipse class="ai-pet-glow" cx="32" cy="50" rx="14" ry="4" fill="var(--mascot-color,var(--app-primary))" opacity=".2"></ellipse>
@@ -343,6 +357,7 @@
         <span class="status-btn-label">终端</span>
       </button>
       <button class="status-btn" id="shortcutHelpBtn" title="查看画布区全部快捷键">⌨️ 快捷键</button>
+      <span class="status-sep" aria-hidden="true"></span>
       <span id="runtimeStatus">浏览器模式</span>
     </footer>
   </main>
@@ -568,7 +583,7 @@
 
   <input id="browserFileInput" type="file" hidden accept=".txt,.md,.json,.xml,.sql,.csv,.log,.yaml,.yml,.ini,.conf">
 
-  <!-- 命令面板（Ctrl+P） -->
+  <!-- 命令面板（Ctrl/Cmd+P 或 Ctrl/Cmd+K 唤起） -->
   <div class="command-palette" id="commandPalette" hidden aria-hidden="true">
     <div class="command-palette-input-wrap">
       <span class="command-palette-prompt">›</span>
@@ -590,33 +605,87 @@
 
   <div class="editor-context-menu" id="editorContextMenu" hidden role="menu">
     <!-- ─── 编辑操作 ─── -->
-    <button type="button" data-context-action="copy" role="menuitem">📋 复制</button>
-    <button type="button" data-context-action="cut" role="menuitem">✂️ 剪切</button>
-    <button type="button" data-context-action="paste" role="menuitem">📄 粘贴</button>
-    <button type="button" data-context-action="selectAll" role="menuitem">🔍 全选</button>
-    <button type="button" data-context-action="joinLineEnds" role="menuitem" id="joinLineEndsContextBtn" title="删除每行末尾换行符，将被截断的行合并为整行">⛓ 删除每行末换行符</button>
-    <button type="button" data-context-action="format" role="menuitem" id="formatContextBtn" title="自动识别 JSON/XML/SQL 并格式化，忽略右上角文本类型">🧹 格式化（自动识别）</button>
-    <button type="button" data-context-action="toggleWordWrap" role="menuitem" id="toggleWordWrapContextBtn" title="切换软换行：对超出窗口宽度的内容自动换行排版">📏 自动换行</button>
+    <button type="button" data-context-action="copy" role="menuitem">
+      <svg class="ctx-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 8V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/><rect x="4" y="10" width="12" height="10" rx="2"/></svg>
+      <span class="ctx-label">复制</span>
+    </button>
+    <button type="button" data-context-action="cut" role="menuitem">
+      <svg class="ctx-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+      <span class="ctx-label">剪切</span>
+    </button>
+    <button type="button" data-context-action="paste" role="menuitem">
+      <svg class="ctx-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+      <span class="ctx-label">粘贴</span>
+    </button>
+    <button type="button" data-context-action="selectAll" role="menuitem">
+      <svg class="ctx-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 4v16"/><path d="M15 4v16"/><path d="M4 9h16"/><path d="M4 15h16"/></svg>
+      <span class="ctx-label">全选</span>
+    </button>
+    <button type="button" data-context-action="joinLineEnds" role="menuitem" id="joinLineEndsContextBtn" title="删除每行末尾换行符，将被截断的行合并为整行">
+      <svg class="ctx-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h11"/><path d="M3 12h11"/><path d="M3 18h7"/><path d="m14 15 3 3 3-3"/><path d="M17 18V6"/></svg>
+      <span class="ctx-label">删除每行末换行符</span>
+    </button>
+    <button type="button" data-context-action="format" role="menuitem" id="formatContextBtn" title="自动识别 JSON/XML/SQL 并格式化，忽略右上角文本类型">
+      <svg class="ctx-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+      <span class="ctx-label">格式化（自动识别）</span>
+    </button>
+    <button type="button" data-context-action="toggleWordWrap" role="menuitem" id="toggleWordWrapContextBtn" title="切换软换行：对超出窗口宽度的内容自动换行排版">
+      <svg class="ctx-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" x2="15" y1="6" y2="6"/><line x1="3" x2="12" y1="12" y2="12"/><line x1="3" x2="12" y1="18" y2="18"/><path d="M15 6h6"/><path d="M18 18h3"/><path d="M15 12h6v6h-6"/></svg>
+      <span class="ctx-label">自动换行</span>
+    </button>
     <div class="editor-context-divider"></div>
 
     <!-- ─── AI 功能 ─── -->
-    <button type="button" data-context-action="aiSearch" role="menuitem" id="aiSearchContextBtn">🔎 AI 搜索选中内容</button>
-    <button type="button" data-context-action="smartIngest" role="menuitem" id="smartIngestContextBtn">📥 智能入库</button>
-    <button type="button" data-context-action="aiImportPassword" role="menuitem" id="aiImportPasswordContextBtn">🔑 AI 识别导入密码</button>
-    <button type="button" data-context-action="aiContextAnalysis" role="menuitem" id="aiContextAnalysisContextBtn">🧠 AI 分析上下文</button>
+    <button type="button" data-context-action="aiSearch" role="menuitem" id="aiSearchContextBtn">
+      <svg class="ctx-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>
+      <span class="ctx-label">AI 搜索选中内容</span>
+    </button>
+    <button type="button" data-context-action="smartIngest" role="menuitem" id="smartIngestContextBtn">
+      <svg class="ctx-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+      <span class="ctx-label">智能入库</span>
+    </button>
+    <button type="button" data-context-action="aiImportPassword" role="menuitem" id="aiImportPasswordContextBtn">
+      <svg class="ctx-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 18v3c0 .6.4 1 1 1h4v-3h3v-3h2l1.4-1.4a6.5 6.5 0 1 0-4-4Z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg>
+      <span class="ctx-label">AI 识别导入密码</span>
+    </button>
+    <button type="button" data-context-action="aiContextAnalysis" role="menuitem" id="aiContextAnalysisContextBtn">
+      <svg class="ctx-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/><path d="M12 5v14"/></svg>
+      <span class="ctx-label">AI 分析上下文</span>
+    </button>
     <div class="editor-context-divider"></div>
 
     <!-- ─── 翻译功能 ─── -->
-    <button type="button" data-context-action="offlineTranslate" role="menuitem" id="offlineTranslateContextBtn">📖 离线翻译</button>
-    <button type="button" data-context-action="onlineTranslate" role="menuitem" id="onlineTranslateContextBtn">🌐 在线翻译</button>
-    <button type="button" data-context-action="addCustomMapping" role="menuitem" id="addCustomMappingContextBtn">📝 添加自定义词典</button>
-    <button type="button" data-context-action="addToDictLib" role="menuitem" id="addToDictLibContextBtn">📚 添加词典库</button>
+    <button type="button" data-context-action="offlineTranslate" role="menuitem" id="offlineTranslateContextBtn">
+      <svg class="ctx-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+      <span class="ctx-label">离线翻译</span>
+    </button>
+    <button type="button" data-context-action="onlineTranslate" role="menuitem" id="onlineTranslateContextBtn">
+      <svg class="ctx-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>
+      <span class="ctx-label">在线翻译</span>
+    </button>
+    <button type="button" data-context-action="addCustomMapping" role="menuitem" id="addCustomMappingContextBtn">
+      <svg class="ctx-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
+      <span class="ctx-label">添加自定义词典</span>
+    </button>
+    <button type="button" data-context-action="addToDictLib" role="menuitem" id="addToDictLibContextBtn">
+      <svg class="ctx-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 6 4 14"/><path d="M12 6v14"/><path d="M8 8v12"/><path d="M4 4v16"/></svg>
+      <span class="ctx-label">添加词典库</span>
+    </button>
     <div class="editor-context-divider"></div>
 
     <!-- ─── 词典管理 ─── -->
-    <button type="button" data-context-action="manageDictionary" role="menuitem" id="manageDictionaryContextBtn">📚 管理词典</button>
+    <button type="button" data-context-action="manageDictionary" role="menuitem" id="manageDictionaryContextBtn">
+      <svg class="ctx-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" x2="21" y1="6" y2="6"/><line x1="3" x2="21" y1="12" y2="12"/><line x1="3" x2="21" y1="18" y2="18"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="7" cy="18" r="2"/></svg>
+      <span class="ctx-label">管理词典</span>
+    </button>
   </div>
   <div class="editor-context-menu" id="tabContextMenu" hidden role="menu"></div>
+
+  <!-- 斜杠命令菜单（输入 / 唤起） -->
+  <div class="slash-menu" id="slashMenu" hidden role="dialog" aria-label="命令菜单">
+    <div class="slash-menu-list" id="slashMenuList"></div>
+    <div class="slash-menu-hint">↑↓ 导航 · Enter 插入 · Esc 关闭</div>
+  </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <div class="modal-backdrop" id="dictModal">
@@ -715,6 +784,7 @@
   <script src="libs/mermaid.min.js"></script>
   <script src="js/media-render.js"></script>
   <script src="js/media-uploader.js"></script>
+  <script src="libs/turndown.min.js"></script>
   <script src="libs/ace/ace.js"></script>
   <script>
     // 桥接全局 define/require：ace.js 为 noconflict 构建（define/require 挂在 ace 命名空间），

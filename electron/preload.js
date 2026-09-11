@@ -610,6 +610,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ===================== 剪贴板 & 快捷键 =====================
 
   readClipboard: () => ipcRenderer.invoke('read-clipboard'),
+
+  // 剪贴板即时助手：读取富内容（文本/图片）供渲染进程预览
+  readClipboardRich: () => ipcRenderer.invoke('read-clipboard:rich'),
+
+  // 剪贴板气泡窗交互：记录到剪藏 / 忽略 / 关闭
+  clipboardToast: {
+    record: () => ipcRenderer.invoke('clipboard-toast:record'),
+    ignore: () => ipcRenderer.invoke('clipboard-toast:ignore'),
+    close: () => ipcRenderer.invoke('clipboard-toast:close'),
+  },
+
   getShortcutConfig: () => ipcRenderer.invoke('get-shortcut-config'),
   setShortcutConfig: (config) => ipcRenderer.invoke('set-shortcut-config', config),
 

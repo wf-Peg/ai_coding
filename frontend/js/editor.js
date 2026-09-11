@@ -87,7 +87,7 @@
     'autosaveStatus', 'historyCount', 'historyList', 'closeHistoryBtn',
     'undoHistoryBtn', 'redoHistoryBtn', 'clearHistoryBtn', 'mainPane', 'historyPane', 'recentPane',
     'recentList', 'closeRecentBtn', 'clearRecentBtn', 'favPane', 'favList', 'closeFavBtn', 'clearFavBtn',
-    'backlinksPane', 'backlinksList', 'backlinksTarget', 'backlinksCount', 'backlinksPaneTitle', 'saveToVaultBtn', 'closeBacklinksBtn', 'tabBacklinks', 'tabOutgoing', 'tabBacklinksCount', 'tabOutgoingCount', 'outgoingList', 'outlinePane', 'outlineList', 'closeOutlineBtn', 'tagsPane', 'tagsList', 'closeTagsBtn', 'commandPalette', 'commandPaletteInput', 'commandPaletteList', 'quickSwitcher', 'quickSwitcherInput', 'quickSwitcherList', 'aiChatPane', 'aiChatMessages', 'aiChatInput',
+    'backlinksPane', 'backlinksList', 'backlinksTarget', 'backlinksCount', 'backlinksPaneTitle', 'saveToVaultBtn', 'closeBacklinksBtn', 'tabBacklinks', 'tabOutgoing', 'tabBacklinksCount', 'tabOutgoingCount', 'outgoingList', 'outlinePane', 'outlineList', 'outlineSearchInput', 'closeOutlineBtn', 'tagsPane', 'tagsList', 'closeTagsBtn', 'commandPalette', 'commandPaletteInput', 'commandPaletteList', 'quickSwitcher', 'quickSwitcherInput', 'quickSwitcherList', 'aiChatPane', 'aiChatMessages', 'aiChatInput',
     'aiChatSendBtn', 'aiChatStopBtn', 'aiChatClearBtn', 'aiChatCloseBtn', 'aiChatStatus',
     'aiChatResizeHandle', 'aiPetBtn', 'editorContextMenu', 'aiSearchContextBtn', 'smartIngestContextBtn', 'aiImportPasswordContextBtn',
     'offlineTranslateContextBtn', 'onlineTranslateContextBtn', 'addCustomMappingContextBtn', 'addToDictLibContextBtn', 'aiContextAnalysisContextBtn',
@@ -97,7 +97,8 @@
     'shortcutModal', 'shortcutGroups', 'shortcutConfigurableList', 'shortcutFixedList', 'shortcutHelpBtn',
     'shortcutModeGroup', 'shortcutModeGroupTitle', 'shortcutModeList',
     'keyboardModeHelpSelect', 'keyboardModeHelpBtn',
-    'aiChatSelectionHint', 'aiChatSelectionHintText', 'aiChatSelectionHintClear'
+    'aiChatSelectionHint', 'aiChatSelectionHintText', 'aiChatSelectionHintClear',
+    'slashMenu', 'slashMenuList', 'startWritingGuide'
   ].map(id => [id, document.getElementById(id)]));
 
   /**
@@ -424,6 +425,7 @@
     state.suppressChange = true;
     mainEditor.setValue(state.content || '', -1);
     state.suppressChange = false;
+    updateStartWritingGuide();
 
     // 恢复光标和滚动位置
     mainEditor.gotoLine(state.cursorRow + 1, state.cursorColumn, false);
@@ -501,6 +503,7 @@
     state.suppressChange = true;
     mainEditor.setValue(state.content || '', -1);
     state.suppressChange = false;
+    updateStartWritingGuide();
     mainEditor.gotoLine(state.cursorRow + 1, state.cursorColumn, false);
     mainEditor.session.setScrollTop(state.scrollTop);
     setLanguage(state.language);
@@ -754,9 +757,35 @@
     state.browserBytes = options.browserBytes || null;
     setLanguage(options.language || EditorCore.detectLanguage(state.fileName, text));
     setModified(false);
+    updateStartWritingGuide();
     mainEditor.focus();
     // 载入新文件后刷新双向链接面板（当前激活 tab；面板可见时生效）
     scheduleBacklinksRefresh();
+  }
+
+  /**
+   * P1 直接开始写作：根据当前文档是否为空切换居中引导层显隐。
+   * 对比 / Markdown 预览 / 全屏等模式下不显示，避免遮挡。
+   */
+  function updateStartWritingGuide() {
+    const guide = elements.startWritingGuide;
+    if (!guide) return;
+    const isEmpty = !(state.content || '').trim();
+    const busyMode = !elements.comparePane.hidden || !elements.markdownPane.hidden;
+    guide.hidden = !(isEmpty && !busyMode);
+    if (guide.hidden) {
+      guide.setAttribute('aria-hidden', 'true');
+    } else {
+      guide.removeAttribute('aria-hidden');
+    }
+  }
+
+  // 引导层可见时：点击 / 任意输入立即进入写作
+  function hideStartWritingGuide() {
+    const guide = elements.startWritingGuide;
+    if (!guide || guide.hidden) return;
+    guide.hidden = true;
+    guide.setAttribute('aria-hidden', 'true');
   }
 
   function setLanguage(language) {
@@ -1174,6 +1203,7 @@
     elements.markdownPane.hidden = !shouldOpen;
     elements.editorWorkspace.classList.toggle('markdown-preview', shouldOpen);
     elements.markdownBtn.classList.toggle('active', shouldOpen);
+    updateStartWritingGuide();
 
     // 进入 Markdown 预览时退出对比模式
     if (shouldOpen && !elements.comparePane.hidden) {
@@ -1289,6 +1319,7 @@
     elements.compareToolbar.setAttribute('aria-hidden', String(!shouldOpen));
     elements.editorWorkspace.classList.toggle('comparing', shouldOpen);
     elements.compareBtn.classList.toggle('active', shouldOpen);
+    updateStartWritingGuide();
     // 进入对比模式时退出 Markdown 预览
     if (shouldOpen && !elements.markdownPane.hidden) {
       toggleMarkdownPreview(false);
@@ -1916,17 +1947,66 @@
     });
     elements.editorContextMenu.hidden = false;
     const menu = elements.editorContextMenu;
-    const left = Math.min(event.clientX, window.innerWidth - menu.offsetWidth - 8);
-    const top = Math.min(event.clientY, window.innerHeight - menu.offsetHeight - 8);
-    menu.style.left = `${Math.max(8, left)}px`;
-    menu.style.top = `${Math.max(8, top)}px`;
+    const mw = menu.offsetWidth;
+    const mh = menu.offsetHeight;
+    const gap = 8;
+    const spaceRight = window.innerWidth - event.clientX - gap;
+    const spaceLeft = event.clientX - gap;
+    const spaceBelow = window.innerHeight - event.clientY - gap;
+    const spaceAbove = event.clientY - gap;
+    // 优先按鼠标位置放置；空间不足时向上/左翻转，仍不足则贴边钳制
+    let left = event.clientX;
+    if (mw > spaceRight) left = (spaceLeft >= mw) ? event.clientX - mw : window.innerWidth - mw - gap;
+    let top = event.clientY;
+    if (mh > spaceBelow) top = (spaceAbove >= mh) ? event.clientY - mh : window.innerHeight - mh - gap;
+    menu.style.left = Math.max(gap, Math.min(left, window.innerWidth - mw - gap)) + 'px';
+    menu.style.top = Math.max(gap, Math.min(top, window.innerHeight - mh - gap)) + 'px';
     menu.dataset.selectedText = selectedText;
+    focusContextMenu(null);
   }
 
   function closeEditorContextMenu() {
     elements.editorContextMenu.hidden = true;
     delete elements.editorContextMenu.dataset.selectedText;
   }
+
+  // 右键菜单键盘导航：↑↓ 高亮、Enter 执行、Esc 关闭
+  var contextMenuFocusIndex = -1;
+
+  function focusContextMenu(index) {
+    const items = elements.editorContextMenu.querySelectorAll('button[data-context-action]:not([hidden])');
+    items.forEach(btn => btn.classList.remove('focused'));
+    contextMenuFocusIndex = -1;
+    if (index === null || !items.length) return;
+    if (index < 0) index = items.length - 1;
+    if (index >= items.length) index = 0;
+    items[index].classList.add('focused');
+    contextMenuFocusIndex = index;
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (elements.editorContextMenu.hidden) return;
+    const items = elements.editorContextMenu.querySelectorAll('button[data-context-action]:not([hidden])');
+    if (!items.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); focusContextMenu(contextMenuFocusIndex + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); focusContextMenu(contextMenuFocusIndex - 1); }
+    else if (e.key === 'Enter') {
+      if (contextMenuFocusIndex >= 0 && items[contextMenuFocusIndex]) {
+        e.preventDefault();
+        items[contextMenuFocusIndex].click();
+      }
+    }
+    else if (e.key === 'Escape') { closeEditorContextMenu(); }
+  });
+
+  // 鼠标移入同步高亮
+  elements.editorContextMenu.addEventListener('mouseover', function(e) {
+    const btn = e.target.closest('button[data-context-action]');
+    if (!btn || btn.hidden) return;
+    const items = elements.editorContextMenu.querySelectorAll('button[data-context-action]:not([hidden])');
+    focusContextMenu(Array.prototype.indexOf.call(items, btn));
+  });
+  elements.editorContextMenu.addEventListener('mouseleave', function() { focusContextMenu(null); });
 
   function executeEditorContextAction(action) {
     const selectedText = elements.editorContextMenu.dataset.selectedText || '';
@@ -2077,8 +2157,9 @@
   // 同步右键菜单勾选状态与文字（☑/☐）
   function toggleWordWrapContextSync() {
     if (!elements.toggleWordWrapContextBtn || !mainEditor) return;
-    elements.toggleWordWrapContextBtn.textContent =
-      (mainEditor.getOption('wrap') !== 'off' ? '☑' : '☐') + ' 自动换行';
+    const label = elements.toggleWordWrapContextBtn.querySelector('.ctx-label');
+    if (label) label.textContent =
+      (mainEditor.getOption('wrap') !== 'off' ? '☑ 自动换行' : '☐ 自动换行');
   }
 
   /**
@@ -2319,6 +2400,240 @@
       if (event.key === 'Escape') closeEditorContextMenu();
     });
     window.addEventListener('blur', closeEditorContextMenu);
+
+    // ── 斜杠命令菜单（输入 / 唤起）：行首输入 "/" 弹出插入/格式化命令菜单 ──
+    var slashMenuOpen = false;
+    var slashQuery = '';
+    var slashIndex = -1;
+    var slashDebounce = null;
+
+    function svgSlashIcon(paths) {
+      return '<svg class="ctx-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths + '</svg>';
+    }
+    var SLASH_ICON = {
+      h1: '<span class="ctx-icon head-mark">H1</span>',
+      h2: '<span class="ctx-icon head-mark">H2</span>',
+      h3: '<span class="ctx-icon head-mark">H3</span>',
+      image: svgSlashIcon('<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>'),
+      link: svgSlashIcon('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>'),
+      code: svgSlashIcon('<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>'),
+      table: svgSlashIcon('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/>'),
+      quote: svgSlashIcon('<path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/><path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/>'),
+      todo: svgSlashIcon('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="m9 12 2 2 4-4"/>'),
+      divider: svgSlashIcon('<line x1="4" x2="20" y1="12" y2="12"/><path d="M7 7h10"/><path d="M7 17h10"/>'),
+      ai: svgSlashIcon('<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>'),
+      aiPolish: svgSlashIcon('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/>')
+    };
+
+    var SLASH_ITEMS = [
+      { group: '标题', items: [
+        { id: 'h1', title: '一级标题', keywords: 'heading 标题 h1', icon: 'h1', insert: '# ' },
+        { id: 'h2', title: '二级标题', keywords: 'heading 标题 h2', icon: 'h2', insert: '## ' },
+        { id: 'h3', title: '三级标题', keywords: 'heading 标题 h3', icon: 'h3', insert: '### ' }
+      ]},
+      { group: '插入', items: [
+        { id: 'image', title: '插入图片', keywords: 'image 图片 插图', icon: 'image', insert: '![]()' },
+        { id: 'link', title: '插入链接', keywords: 'link 链接 url', icon: 'link', insert: '[]()' },
+        { id: 'code', title: '代码块', keywords: 'code 代码 block', icon: 'code', insert: '```\n\n```' },
+        { id: 'table', title: '插入表格', keywords: 'table 表格', icon: 'table', insert: '| 列1 | 列2 |\n| --- | --- |\n|  |  |' },
+        { id: 'quote', title: '引用', keywords: 'quote 引用 blockquote', icon: 'quote', insert: '> ' },
+        { id: 'todo', title: '待办事项', keywords: 'todo 待办 task', icon: 'todo', insert: '- [ ] ' },
+        { id: 'divider', title: '分隔线', keywords: 'hr divider 分割线', icon: 'divider', insert: '\n---\n' }
+      ]},
+      { group: 'AI', items: [
+        { id: 'ai-continue', title: 'AI 续写', keywords: 'ai continue 续写 继续', icon: 'ai', ai: 'continue' },
+        { id: 'ai-polish', title: 'AI 润色', keywords: 'ai polish 润色 改写', icon: 'aiPolish', ai: 'polish' }
+      ]}
+    ];
+
+    function renderSlashMenu() {
+      const listEl = elements.slashMenuList;
+      listEl.innerHTML = '';
+      const q = slashQuery.toLowerCase();
+      let matched = false;
+      SLASH_ITEMS.forEach(function(group) {
+        const groupItems = group.items.filter(function(it) {
+          if (!q) return true;
+          if (it.title.toLowerCase().indexOf(q) !== -1) return true;
+          return it.keywords && it.keywords.toLowerCase().indexOf(q) !== -1;
+        });
+        if (!groupItems.length) return;
+        matched = true;
+        const title = document.createElement('div');
+        title.className = 'slash-group-title';
+        title.textContent = group.group;
+        listEl.appendChild(title);
+        groupItems.forEach(function(it) {
+          const row = document.createElement('button');
+          row.type = 'button';
+          row.className = 'slash-item';
+          row.dataset.id = it.id;
+          row.innerHTML = SLASH_ICON[it.icon] + '<span class="ctx-label">' + it.title + '</span>';
+          row.addEventListener('click', function() { executeSlashItem(it); });
+          listEl.appendChild(row);
+        });
+      });
+      if (!matched) {
+        const empty = document.createElement('div');
+        empty.className = 'slash-menu-empty';
+        empty.textContent = '无匹配命令';
+        listEl.appendChild(empty);
+      }
+      focusSlashItem(null);
+    }
+
+    function focusSlashItem(index) {
+      const items = elements.slashMenuList.querySelectorAll('.slash-item');
+      items.forEach(btn => btn.classList.remove('focused'));
+      slashIndex = -1;
+      if (index === null || !items.length) return;
+      if (index < 0) index = items.length - 1;
+      if (index >= items.length) index = 0;
+      items[index].classList.add('focused');
+      slashIndex = index;
+      if (items[index].scrollIntoView) items[index].scrollIntoView({ block: 'nearest' });
+    }
+
+    function slashShouldOpen() {
+      const cur = mainEditor.getCursorPosition();
+      const line = mainEditor.session.getLine(cur.row);
+      const before = line.slice(0, cur.column);
+      // 行首或空白之后的 "/" 触发（避免 http:// 等 URL、a/b 路径误触发）
+      const m = /(^|\s)\/(.*)$/.exec(before);
+      if (m) { slashQuery = m[2].replace(/^\s+/, ''); return true; }
+      return false;
+    }
+
+    function openSlashMenu() {
+      slashMenuOpen = true;
+      renderSlashMenu();
+      elements.slashMenu.hidden = false;
+      elements.slashMenu.setAttribute('aria-hidden', 'false');
+      positionSlashMenu();
+    }
+
+    function closeSlashMenu() {
+      slashMenuOpen = false;
+      slashQuery = '';
+      elements.slashMenu.hidden = true;
+      elements.slashMenu.setAttribute('aria-hidden', 'true');
+    }
+
+    function positionSlashMenu() {
+      const menu = elements.slashMenu;
+      const pos = mainEditor.getCursorPosition();
+      const pix = mainEditor.renderer.$cursorLayer.getPixelPosition(pos, true);
+      // getPixelPosition 只返回 {left, top}，不含 height；行高取 renderer.lineHeight
+      const lineHeight = mainEditor.renderer.lineHeight || 16;
+      const rect = mainEditor.container.getBoundingClientRect();
+      const x = rect.left + pix.left;
+      const y = rect.top + pix.top + lineHeight + 6;
+      const mw = menu.offsetWidth;
+      const mh = menu.offsetHeight;
+      const gap = 8;
+      let left = x;
+      if (mw > window.innerWidth - x - gap) left = Math.max(gap, window.innerWidth - mw - gap);
+      let top = y;
+      if (mh > window.innerHeight - y - gap) {
+        const above = y - lineHeight - 12 - mh;
+        top = Math.max(gap, above >= gap ? above : y - mh - gap);
+      }
+      menu.style.left = left + 'px';
+      menu.style.top = top + 'px';
+    }
+
+    function executeSlashItem(item) {
+      if (item.ai) {
+        closeSlashMenu();
+        const sel = mainEditor.getSelectedText();
+        const text = (sel && sel.trim()) ? sel : mainEditor.getValue();
+        const prompt = item.ai === 'continue'
+          ? '请基于以下内容继续续写，保持原有语气与风格，直接输出续写部分：\n\n' + text
+          : '请润色以下文本，保持原意，直接输出润色结果：\n\n' + text;
+        sendAiMessage(prompt);
+        return;
+      }
+      const cur = mainEditor.getCursorPosition();
+      const line = mainEditor.session.getLine(cur.row);
+      const before = line.slice(0, cur.column);
+      // 与触发条件一致：仅删除 "/"（含其前一个空白），保留前文
+      const m = /(^|\s)\//.exec(before);
+      const startCol = m ? m.index + m[0].length - 1 : cur.column;
+      const range = new Range(cur.row, startCol, cur.row, cur.column);
+      closeSlashMenu();
+      mainEditor.session.replace(range, item.insert);
+      mainEditor.focus();
+    }
+
+    // 输入监听：行首 "/" 唤起、继续输入过滤、移出条件关闭
+    mainEditor.session.on('change', function() {
+      clearTimeout(slashDebounce);
+      slashDebounce = setTimeout(function() {
+        if (slashShouldOpen()) {
+          if (!slashMenuOpen) openSlashMenu();
+          else { renderSlashMenu(); positionSlashMenu(); }
+        } else if (slashMenuOpen) {
+          closeSlashMenu();
+        }
+      }, 120);
+    });
+    // 光标移出斜杠触发条件（如移动到 "/" 之前或其它行）自动关闭
+    mainEditor.selection.on('changeCursor', function() {
+      if (slashMenuOpen && !slashShouldOpen()) closeSlashMenu();
+    });
+
+    document.addEventListener('keydown', function(e) {
+      if (!slashMenuOpen) return;
+      const items = elements.slashMenuList.querySelectorAll('.slash-item');
+      if (e.key === 'ArrowDown') { e.preventDefault(); focusSlashItem(slashIndex + 1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); focusSlashItem(slashIndex - 1); }
+      else if (e.key === 'Enter') {
+        if (slashIndex >= 0 && items[slashIndex]) {
+          e.preventDefault();
+          items[slashIndex].click();
+        }
+      }
+      else if (e.key === 'Escape') { e.preventDefault(); closeSlashMenu(); mainEditor.focus(); }
+    });
+    document.addEventListener('mousedown', function(e) {
+      if (slashMenuOpen && !elements.slashMenu.contains(e.target)) closeSlashMenu();
+    });
+
+    // ── P1 直接开始写作：空文档引导层点击 / 任意输入即进入写作 ──
+    elements.startWritingGuide.addEventListener('click', function() {
+      hideStartWritingGuide();
+      mainEditor.focus();
+    });
+    elements.startWritingGuide.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        hideStartWritingGuide();
+        mainEditor.focus();
+      }
+    });
+    // 引导层可见时：可打印字符保留首个输入；其余按键（回车/方向等）仅隐藏并聚焦
+    document.addEventListener('keydown', function(e) {
+      const guide = elements.startWritingGuide;
+      if (!guide || guide.hidden) return;
+      const tag = e.target && e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.key === 'Escape') { hideStartWritingGuide(); mainEditor.focus(); return; }
+      if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        hideStartWritingGuide();
+        mainEditor.focus();
+        mainEditor.insert(e.key);
+        return;
+      }
+      hideStartWritingGuide();
+      mainEditor.focus();
+    });
+    // 文档一旦非空（粘贴/拖入/程序写入等）自动隐藏引导层
+    mainEditor.session.on('change', function() {
+      if (!elements.startWritingGuide.hidden && mainEditor.getValue().trim()) {
+        hideStartWritingGuide();
+      }
+    });
 
     // 选中提示条清除按钮
     if (elements.aiChatSelectionHintClear) {
@@ -3038,7 +3353,7 @@
     exportMenu.hidden = !open;
     exportBtn && exportBtn.classList.toggle('active', open);
   }
-  function toggleExportMenu() { setExportMenu(!exportMenu.hidden); }
+  function toggleExportMenu() { setExportMenu(exportMenu.hidden); }
   exportBtn && exportBtn.addEventListener('click', function (e) {
     e.stopPropagation();
     toggleExportMenu();
@@ -3070,7 +3385,7 @@
     ['新建标签', 'Ctrl+T'], ['新建文件', 'Ctrl+N'], ['打开文件', 'Ctrl+O'],
     ['跳转到行', 'Ctrl+G（不区分大小写）'], ['保存', 'Ctrl+S'], ['格式化(自动识别)', 'Ctrl+Shift+L'], ['转换面板', 'Ctrl+Shift+X'],
     ['Markdown 预览', 'Ctrl+Shift+M'], ['编辑器设置', 'Ctrl+,'], ['全屏', 'F11'],
-    ['命令面板', 'Ctrl+P'], ['终端跟随目录', 'Alt+T'], ['撤销', 'Ctrl+Z'],
+    ['命令面板', 'Ctrl+P / Ctrl+K'], ['终端跟随目录', 'Alt+T'], ['撤销', 'Ctrl+Z'],
     ['重做', 'Ctrl+Shift+Z'], ['字体放大', 'Ctrl+='], ['字体缩小', 'Ctrl+-'],
     ['插入图片', 'Ctrl+Shift+I'], ['唤起浏览器控制台', 'Ctrl+F12'], ['双击选词同词高亮', '双击']
   ].filter(function (row) { return row; });
@@ -3484,23 +3799,46 @@
       e.target.value = '';
     });
   }
-  // Ace 编辑区粘贴图片拦截（Ctrl+V 图片 → 上传，而非粘贴文本）
+  // Ace 编辑区粘贴处理（Ctrl+V）：
+  //  ① 图片 → 上传（而非粘贴文本）
+  //  ② 富文本(HTML) → 用 turndown 转成干净的 Markdown 再插入光标（借鉴 NoteGen）
+  //  ③ 纯文本 → 交给 ACE 默认粘贴
   if (mainEditor && mainEditor.container) {
     mainEditor.container.addEventListener('paste', (e) => {
+      const cd = e.clipboardData;
+      if (!cd) return;
+      // ① 图片粘贴 → 上传
       const files = [];
-      if (e.clipboardData && e.clipboardData.items) {
-        for (let i = 0; i < e.clipboardData.items.length; i++) {
-          const item = e.clipboardData.items[i];
-          if (item.kind === 'file' && item.type && item.type.startsWith('image/')) {
-            const file = item.getAsFile();
-            if (file) files.push(file);
-          }
+      for (let i = 0; i < cd.items.length; i++) {
+        const item = cd.items[i];
+        if (item.kind === 'file' && item.type && item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) files.push(file);
         }
       }
       if (files.length) {
         e.preventDefault();
         handleEditorImageFiles(files);
+        return;
       }
+      // ② 富文本粘贴 → Markdown（仅当转换结果与纯文本确有差异时才接管）
+      if (typeof TurndownService !== 'undefined') {
+        const html = cd.getData('text/html');
+        if (html && /<[a-z][\s\S]*>/.test(html)) {
+          try {
+            const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
+            const md = (turndown.turndown(html) || '').replace(/^\n+|\n+$/g, '');
+            const plain = (cd.getData('text/plain') || '').trim();
+            if (md && md !== plain) {
+              e.preventDefault();
+              mainEditor.session.insert(mainEditor.getCursorPosition(), md);
+            }
+          } catch (err) {
+            console.warn('[Paste] HTML→MD 转换失败，回退纯文本粘贴:', err);
+          }
+        }
+      }
+      // ③ 纯文本：不做处理，走 ACE 默认粘贴
     });
   }
   document.getElementById('compareClipboardBtn').addEventListener('click', loadCompareFromClipboard);
@@ -3801,6 +4139,7 @@
     state.suppressChange = true;
     mainEditor.setValue(state.content || '', -1);
     state.suppressChange = false;
+    updateStartWritingGuide();
     mainEditor.gotoLine(state.cursorRow + 1, state.cursorColumn, false);
     mainEditor.session.setScrollTop(state.scrollTop);
     mainEditor.session.setScrollLeft(state.scrollLeft);
@@ -4447,6 +4786,7 @@
       state.suppressChange = true;
       mainEditor.setValue(state.content || '', -1);
       state.suppressChange = false;
+      updateStartWritingGuide();
       mainEditor.gotoLine(state.cursorRow + 1, state.cursorColumn, false);
       mainEditor.session.setScrollTop(state.scrollTop);
       setLanguage(state.language);
@@ -4886,7 +5226,7 @@
   var recentBtn = createStatusBtn('最近', '🕐', '最近打开的文件', EditorShortcuts.get('recent'));
   registerShortcutButton('recent', recentBtn, '最近打开的文件');
   recentBtn.addEventListener('click', toggleRecentPanel);
-  elements.runtimeStatus.parentNode.insertBefore(recentBtn, historyBtn);
+  elements.runtimeStatus.parentNode.insertBefore(recentBtn, elements.runtimeStatus);
 
   // 最近打开快捷键（默认 Ctrl/Cmd+Shift+N，可在系统设置中修改；
   // 原 Ctrl/Cmd+Shift+R 与「强制刷新」冲突故让出；由 EditorShortcuts 捕获阶段统一分发
@@ -5077,7 +5417,7 @@
   var favBtn = createStatusBtn('收藏', '⭐', '常用文件收藏', EditorShortcuts.get('favorite'));
   registerShortcutButton('favorite', favBtn, '常用文件收藏');
   favBtn.addEventListener('click', toggleFavPanel);
-  elements.runtimeStatus.parentNode.insertBefore(favBtn, recentBtn);
+  elements.runtimeStatus.parentNode.insertBefore(favBtn, elements.runtimeStatus);
 
   // 收藏快捷键（默认 Ctrl/Cmd+Shift+A，可在系统设置中修改；
   // 原 Ctrl/Cmd+Shift+F 为全局搜索快捷键故让出；由 EditorShortcuts 捕获阶段统一分发
@@ -5210,7 +5550,6 @@
     function toggleOverviewRuler(show) {
       rulerVisible = show !== undefined ? show : !rulerVisible;
       rulerEl.setAttribute('aria-hidden', String(!rulerVisible));
-      if (overviewBtn) overviewBtn.classList.toggle('active', rulerVisible);
       if (rulerVisible) {
         setTimeout(function() {
           updateRulerSize();
@@ -5302,17 +5641,6 @@
         if (rulerVisible) setTimeout(renderOverview, 100);
       }
     });
-
-    // 添加快捷键和按钮
-    var overviewBtn = document.createElement('button');
-    overviewBtn.className = 'status-btn';
-    overviewBtn.title = '概览图 ' + platformShortcut(EditorShortcuts.get('overview'));
-    registerShortcutButton('overview', overviewBtn, '概览图');
-    overviewBtn.textContent = '概览';
-    overviewBtn.addEventListener('click', function() {
-      toggleOverviewRuler();
-    });
-    elements.runtimeStatus.parentNode.insertBefore(overviewBtn, elements.runtimeStatus);
 
     // Ctrl/Cmd+Shift+Y 切换概览（默认，可在系统设置中修改）；由 EditorShortcuts 捕获阶段统一分发
     EditorShortcuts.registerHandler('overview', function() { toggleOverviewRuler(); });
@@ -6236,7 +6564,7 @@
   var backlinksBtn = createStatusBtn('反链', '🔗', '双链反链面板', EditorShortcuts.get('backlinks'));
   registerShortcutButton('backlinks', backlinksBtn, '双链反链面板');
   backlinksBtn.addEventListener('click', function() { toggleBacklinks(); });
-  elements.runtimeStatus.parentNode.insertBefore(backlinksBtn, fileTreeBtn);
+  elements.runtimeStatus.parentNode.insertBefore(backlinksBtn, elements.runtimeStatus);
 
   // 反链面板快捷键（默认 Ctrl/Cmd+Shift+B，可在系统设置中修改）；由 EditorShortcuts 捕获阶段统一分发
   EditorShortcuts.registerHandler('backlinks', function() { toggleBacklinks(); });
@@ -6288,8 +6616,18 @@
     if (outlineVisible) {
       closeOtherLeftPanes('show-outline');
       buildOutline();
+    } else {
+      // 关闭时清空搜索词，避免下次打开残留过滤
+      clearOutlineSearch();
     }
     setTimeout(function() { mainEditor.resize(); }, 250);
+  }
+
+  // 清空大纲搜索输入并重渲（关闭面板时调用）
+  function clearOutlineSearch() {
+    if (elements.outlineSearchInput && elements.outlineSearchInput.value) {
+      elements.outlineSearchInput.value = '';
+    }
   }
 
   // 解析 Markdown 标题：行首 0-3 空格 + 1-6 个 #，兼容 `# 标题` 与 `#标题`（Obsidian）
@@ -6310,19 +6648,31 @@
 
   function renderOutline() {
     var list = elements.outlineList;
-    if (!outlineData.length) {
-      list.innerHTML = '<div class="outline-empty">暂无标题</div>';
+    // 大纲搜索：按标题文本过滤（文档标题始终保留）
+    var filter = (elements.outlineSearchInput && elements.outlineSearchInput.value || '').trim().toLowerCase();
+    var renderList = outlineData;
+    if (filter) {
+      renderList = outlineData.filter(function(item) {
+        return item.isTitle || item.text.toLowerCase().indexOf(filter) !== -1;
+      });
+    }
+    if (!renderList.length) {
+      list.innerHTML = '<div class="outline-empty">' + (filter ? '未找到匹配的标题' : '暂无标题') + '</div>';
       return;
     }
     list.innerHTML = '';
-    outlineData.forEach(function(item, idx) {
+    renderList.forEach(function(item) {
+      var origIdx = outlineData.indexOf(item);
       var row = document.createElement('div');
       row.className = 'outline-item' + (item.isTitle ? ' outline-title' : '');
       row.style.paddingLeft = (item.level - 1) * 16 + 'px';
       row.dataset.line = String(item.line);
+      row.dataset.level = String(item.level);
+      row.dataset.idx = String(origIdx);
+      // 标题层级用 H1/H2/H3 徽章（非原生 # 号）标识，文本按层级以标题字号渲染
       row.innerHTML = (item.isTitle
           ? '<span class="outline-marker outline-marker-title">◉</span>'
-          : '<span class="outline-marker">' + ('#'.repeat(item.level)) + '</span>')
+          : '<span class="outline-marker outline-marker-level">H' + item.level + '</span>')
         + '<span class="outline-label">' + escapeHtml(item.text) + '</span>'
         + '<span class="outline-line">' + (item.isTitle ? '文首' : 'L' + (item.line + 1)) + '</span>';
       row.title = item.isTitle ? '文档标题' : '跳转到第 ' + (item.line + 1) + ' 行';
@@ -6330,7 +6680,7 @@
         // 全屏预览下编辑器隐藏，改为滚动 markdown 预览对应标题
         if (elements.editorWorkspace.classList.contains('markdown-fullscreen')
             && elements.editorWorkspace.classList.contains('markdown-preview')) {
-          jumpMarkdownHeading(idx);
+          jumpMarkdownHeading(parseInt(this.dataset.idx, 10));
         } else {
           goToLine(parseInt(this.dataset.line, 10));
         }
@@ -6376,6 +6726,20 @@
   });
 
   elements.closeOutlineBtn.addEventListener('click', function() { toggleOutline(false); });
+
+  // 大纲搜索框：输入即过滤
+  if (elements.outlineSearchInput) {
+    elements.outlineSearchInput.addEventListener('input', function() {
+      if (outlineVisible) renderOutline();
+    });
+    // Esc 清空搜索词
+    elements.outlineSearchInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        if (this.value) { this.value = ''; if (outlineVisible) renderOutline(); }
+        else elements.outlineSearchInput.blur();
+      }
+    });
+  }
   var outlineBtn = createStatusBtn('大纲', '☰', '文档大纲', EditorShortcuts.get('outline'));
   registerShortcutButton('outline', outlineBtn, '文档大纲');
   outlineBtn.addEventListener('click', function() { toggleOutline(); });
@@ -6386,7 +6750,12 @@
   var quickSearchBtn = createStatusBtn('搜索', '🔍', '快速打开文件', EditorShortcuts.get('quickOpen'));
   registerShortcutButton('quickOpen', quickSearchBtn, '快速打开文件');
   quickSearchBtn.addEventListener('click', function() { openQuickSwitcher(); });
-  elements.runtimeStatus.parentNode.insertBefore(quickSearchBtn, elements.runtimeStatus);
+  // 「搜索」归入内容导航组，插在「反链」前并加分组分隔符
+  var navSep = document.createElement('span');
+  navSep.className = 'status-sep';
+  navSep.setAttribute('aria-hidden', 'true');
+  elements.runtimeStatus.parentNode.insertBefore(navSep, backlinksBtn);
+  elements.runtimeStatus.parentNode.insertBefore(quickSearchBtn, backlinksBtn);
 
   // 大纲面板快捷键（默认 Ctrl/Cmd+Shift+D，可在系统设置中修改）；由 EditorShortcuts 捕获阶段统一分发
   EditorShortcuts.registerHandler('outline', function() { toggleOutline(); });
@@ -6608,10 +6977,11 @@
     if (paletteOpen && !elements.commandPalette.contains(e.target)) closeCommandPalette();
   });
 
-  // Ctrl/Cmd+P 唤起命令面板（排除 Shift/Alt，避免与其它 Ctrl+Shift 快捷键冲突）
+  // Ctrl/Cmd+P / Ctrl/Cmd+K 唤起命令面板（排除 Shift/Alt，避免与其它 Ctrl+Shift 快捷键冲突）
   document.addEventListener('keydown', function(e) {
-    const cmdP = (e.key || '').toLowerCase() === 'p';
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && cmdP) {
+    const key = (e.key || '').toLowerCase();
+    const isTrigger = key === 'p' || key === 'k';
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && isTrigger) {
       e.preventDefault();
       if (quickOpenVisible) closeQuickSwitcher();
       if (paletteOpen) closeCommandPalette(); else openCommandPalette();
