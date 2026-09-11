@@ -4440,6 +4440,13 @@ function pollClipboard() {
 
 function startClipboardPolling() {
   stopClipboardPolling();
+  // 启动即"预置"当前剪贴板签名：避免把启动前就已复制的内容误判弹窗，
+  // 且让首次轮询处于 10s 冷却内，仅对启动之后的新复制内容弹气泡。
+  try {
+    const c = readClipboardRich();
+    const key = clipboardSignature(c);
+    if (key) { lastClipboardKey = key; lastClipboardPromptAt = Date.now(); }
+  } catch (e) { log.warn('[ClipboardAssistant] prime error:', e.message); }
   clipboardPollTimer = setInterval(pollClipboard, CLIPBOARD_POLL_MS);
 }
 
