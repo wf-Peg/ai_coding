@@ -72,6 +72,7 @@
   let canvasModalCtx = null;
   let pendingRefNodeId = null;
   let panelLinkNodeUrl = null;
+  let panelDetailClipId = null;      // 剪藏节点详情「前往剪藏模块」→ 用编辑器打开原文时携带的 clipId
 
   // ---- Data Fetching ----
 
@@ -99,17 +100,37 @@
         nodes = data.nodes; links = data.links || [];
       } catch (error) {
         console.error('获取图谱数据失败:', error);
+        clearGraphCanvas();
         showEmpty('加载失败', '请检查后端服务或本地索引是否正常');
         return;
       }
     }
 
     if (!nodes || nodes.length === 0) {
+      clearGraphCanvas();
       showEmpty('暂无图谱数据', '请先创建剪藏或知识条目并建立关联');
       return;
     }
     buildGraph(nodes, links);
     loadGroups();
+  }
+
+  // 清空主画布（切换视图图层时先移除旧 SVG/布局，避免与空态或新图层重叠）
+  function clearGraphCanvas() {
+    if (simulation) { simulation.stop(); simulation = null; }
+    try { if (svg && svg.node) svg.selectAll('*').remove(); } catch (e) {}
+    if (container) {
+      var existing = container.querySelector('svg:not(#minimapSvg)');
+      if (existing) existing.remove();
+    }
+    allNodes = [];
+    allLinks = [];
+    frameLayer = null;
+    selectionLayer = null;
+    tempLink = null;
+    linkSourceId = null;
+    if (typeof renderGroupFrames === 'function') { try { renderGroupFrames(); } catch (e) {} }
+    if (typeof renderMinimap === 'function') { try { renderMinimap(); } catch (e) {} }
   }
 
   async function loadGroups() {
@@ -235,9 +256,9 @@
       });
     });
 
-    // 空白画布右键：新建节点菜单
+    // 空白画布右键：新建节点菜单（松判定：点中空白即弹，节点/连线等交互元素不受影响）
     svg.on('contextmenu', function(event) {
-      if (event.target !== svg.node()) return;
+      if (!isCanvasBackground(event)) return;
       event.preventDefault();
       openCanvasMenu(event.clientX, event.clientY, screenToWorld(event));
     });
@@ -497,6 +518,18 @@
   }
 
   // ---- Node Helpers ----
+
+  // 判断右键/左键点击是否落在“画布空白”（非节点/连线/便签等交互元素）
+  function isCanvasBackground(event) {
+    var t = event ? event.target : null;
+    if (!t) return false;
+    if (t === svg.node()) return true;
+    // 允许 SVG 内不承载交互的壳元素（zoom g、各类 layer、defs 等）
+    if (t instanceof SVGElement) {
+      if (!t.closest('.node, .temp-link, line.link, .frame-title, .frame-handle')) return true;
+    }
+    return false;
+  }
 
   function isClip(d) {
     return d.type === 'clip';
@@ -904,6 +937,8 @@
     gridSnap = !gridSnap;
     if (snapBtn) snapBtn.classList.toggle('active', gridSnap);
     try { localStorage.setItem('kg_grid_snap', gridSnap ? '1' : '0'); } catch (e) {}
+    // 即时反馈：说明生效语义（吸附发生在拖动节点时）
+    showMiniToast(gridSnap ? '已开启格子吸附：拖动节点将对齐 20px 网格' : '已关闭格子吸附');
   }
 
   function initGridSnap() {
@@ -987,6 +1022,7 @@
 
   function showSidePanel(d) {
     panelLinkNodeUrl = null;
+    panelDetailClipId = null;
     panelDetailLink.style.display = 'block';
     panelDetailLink.target = '';
     panelDetailLink.removeAttribute('rel');
@@ -1012,7 +1048,10 @@
       panelDetailLink.textContent = '前往学习计划';
       panelDetailLink.href = 'learning-plan.html?planId=' + encodeURIComponent(d.sourceId != null ? d.sourceId : d.id);
     } else if (isClip(d)) {
-      panelDetailLink.textContent = '前往剪藏模块';
+      // 剪藏节点：源头数字 id 优先（本地索引 sourceId），否则从节点 id 中解析
+      var clipNumId = d.sourceId != null ? d.sourceId : (function() { var m = String(d.id).match(/\d+$/); return m ? parseInt(m[1]) : null; })();
+      panelDetailClipId = clipNumId != null ? clipNumId : null;
+      panelDetailLink.textContent = panelDetailClipId != null ? '在编辑器中打开原文' : '前往剪藏模块';
       panelDetailLink.href = 'clip.html';
     } else {
       panelDetailLink.textContent = '查看详情';
@@ -1933,6 +1972,24 @@
 
   function sleepMs(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
 
+  // 轻量自包含 toast（不依赖 ui-common.js，用于操作即时反馈）
+  function showMiniToast(message) {
+    try {
+      var old = document.querySelector('#kgMiniToast');
+      if (old) old.remove();
+      var t = document.createElement('div');
+      t.id = 'kgMiniToast';
+      t.textContent = message;
+      t.style.cssText = 'position:fixed;left:50%;bottom:88px;transform:translateX(-50%);' +
+        'background:var(--surface);color:var(--text);border:1px solid var(--border);' +
+        'padding:8px 16px;border-radius:20px;font-size:0.85rem;z-index:200;' +
+        'box-shadow:0 6px 24px rgba(0,0,0,0.18);opacity:0;transition:opacity .25s;';
+      document.body.appendChild(t);
+      requestAnimationFrame(function() { t.style.opacity = '1'; });
+      setTimeout(function() { t.style.opacity = '0'; setTimeout(function() { t.remove(); }, 300); }, 2200);
+    } catch (e) {}
+  }
+
   if (searchInput) {
     searchInput.addEventListener('input', applySearch);
     searchInput.addEventListener('keydown', function(e) {
@@ -1966,6 +2023,16 @@
         return;
       }
       var href = panelDetailLink.getAttribute('href') || '';
+      // 剪藏节点：改为在编辑器打开原文（不整页跳转 clip.html，避免 iframe 污染与回退变剪藏页）
+      if (href.indexOf('clip.html') === 0 && panelDetailClipId != null) {
+        e.preventDefault();
+        var cid = panelDetailClipId;
+        panelDetailClipId = null;
+        if (window.parent && window.parent.postMessage) {
+          window.parent.postMessage({ type: 'openClipInNewTab', clipId: cid }, '*');
+        }
+        return;
+      }
       if (href.indexOf('learning-plan.html') === 0) {
         e.preventDefault();
         var m = href.match(/planId=(\d+)/);

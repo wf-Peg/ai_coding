@@ -30,6 +30,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -61,6 +62,16 @@ public class FileStorageService {
     private final Path storagePath;
     /** 全局 ID 生成器，使用 AtomicLong 保证线程安全 */
     private final AtomicLong idGenerator = new AtomicLong(1);
+    /**
+     * 剪藏 sourceUrl 内存索引（id -> 归一化 sourceUrl）。
+     * <p>
+     * 用于 {@link ClipService#findDuplicates} 的轻量判重快速路径，避免每次请求都
+     * {@link #getAllClips()} 全量遍历磁盘反序列化。启动时随 {@link #initIdGenerator}
+     * 重建，并在 saveClip/replaceClip/deleteClip 落盘时同步维护；仅作为"加速路径"，
+     * 未命中时不会误判（去重查询会基于此缩小候选后仍比对内容指纹）。
+     * </p>
+     */
+    private final ConcurrentHashMap<Long, String> sourceUrlIndex = new ConcurrentHashMap<>();
     /** 日期格式化器，用于生成文件名（如 260414） */
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyMMdd");
 
@@ -141,6 +152,8 @@ public class FileStorageService {
             for (Path path : jsonFiles) {
                 List<ClipContent> clips = readClipArrayFromFile(path);
                 for (ClipContent clip : clips) {
+                    // 顺带重建 sourceUrl 内存索引，保证进程重启后索引与磁盘一致
+                    indexClipSourceUrl(clip);
                     if (clip.getId() != null && clip.getId() > maxId) {
                         maxId = clip.getId();
                     }
@@ -452,6 +465,8 @@ public class FileStorageService {
      * @param clip 剪藏内容对象
      * @return 保存后的剪藏内容；若失败返回 null
      */
+    // 一致性说明：saveClip 使用方法级 synchronized，保证并发下 read-modify-write 原子性（避免覆盖丢失）。
+    // 此处刻意不改写/锁（如去锁化、细粒度锁），因为涉及跨文件全量扫描的一致性，优先保证数据正确。
     public synchronized ClipContent saveClip(ClipContent clip) {
         try {
             if (clip.getId() == null) {
@@ -490,11 +505,56 @@ public class FileStorageService {
             }
 
             writeClipArrayToFile(filePath, clips);
+            // 同步维护 sourceUrl 内存索引（新增或更新）
+            indexClipSourceUrl(clip);
             return clip;
         } catch (Exception e) {
             log.error("[FileStorageService] saveClip 失败: id={}, category={}", clip == null ? null : clip.getId(), clip == null ? null : clip.getCategory(), e);
             return null;
         }
+    }
+
+    /**
+     * 维护 sourceUrl 内存索引：sourceUrl 非空则记录归一化值，否则移除（占位一致性）。
+     * <p>
+     * 仅维护 id -> sourceUrl，供 {@link #findClipIdsBySourceUrl} 快速收敛候选 id；
+     * sourceUrl 为空/空白时不入索引，保证后续内容比对仍基于磁盘全量判断。
+     * </p>
+     */
+    private void indexClipSourceUrl(ClipContent clip) {
+        if (clip == null || clip.getId() == null) {
+            return;
+        }
+        if (clip.getSourceUrl() == null || clip.getSourceUrl().isBlank()) {
+            sourceUrlIndex.remove(clip.getId());
+        } else {
+            sourceUrlIndex.put(clip.getId(), clip.getSourceUrl().trim());
+        }
+    }
+
+    /**
+     * 基于 sourceUrl 内存索引返回匹配的剪藏 ID 列表（忽略大小写、trim 后相等）。
+     * <p>
+     * 供 {@link ClipService#findDuplicates} 快速收敛候选，替代全量 {@link #getAllClips()}
+     * 磁盘遍历。反序列化交给调用方按命中 id 二次确认内容指纹，兼顾性能与一致性。
+     * </p>
+     *
+     * @param sourceUrl 来源 URL（非空参与匹配）
+     * @return 匹配的剪藏 ID 列表（可能为空）
+     */
+    public List<Long> findClipIdsBySourceUrl(String sourceUrl) {
+        List<Long> ids = new ArrayList<>();
+        if (sourceUrl == null || sourceUrl.isBlank()) {
+            return ids;
+        }
+        String normalizedUrl = sourceUrl.trim();
+        for (Map.Entry<Long, String> entry : sourceUrlIndex.entrySet()) {
+            String value = entry.getValue();
+            if (value != null && value.equalsIgnoreCase(normalizedUrl)) {
+                ids.add(entry.getKey());
+            }
+        }
+        return ids;
     }
 
     /**
@@ -583,6 +643,8 @@ public class FileStorageService {
      *
      * @param id 要删除的剪藏 ID
      */
+    // 一致性说明：deleteClip 的方法级 synchronized 与 saveClip/replaceClip 互斥，避免并发写同一 JSON 文件。
+    // 为优先保证一致性，保留该全局写锁，不贸然重构为细粒度锁。
     public synchronized void deleteClip(Long id) {
         try {
             List<Path> jsonFiles = getAllJsonFiles();
@@ -606,6 +668,8 @@ public class FileStorageService {
                     break; // 找到并删除后停止遍历
                 }
             }
+            // 同步清除 sourceUrl 内存索引
+            sourceUrlIndex.remove(id);
         } catch (IOException e) {
             log.error("[FileStorageService] deleteClip 失败: id={}", id, e);
         }
@@ -623,6 +687,8 @@ public class FileStorageService {
      * @param clip 更新后的剪藏内容（必须包含有效 ID）
      * @return 保存后的剪藏内容
      */
+    // 一致性说明：replaceClip 的方法级 synchronized 与 saveClip/deleteClip 互斥，保证跨分类移动时的原子性。
+    // 全局写锁的一致性优先于并发吞吐，故保留现状（仅注释说明，不改锁语义）。
     public synchronized ClipContent replaceClip(ClipContent clip) {
         if (clip == null || clip.getId() == null) {
             return saveClip(clip);

@@ -207,7 +207,27 @@ var selectedClipIds = new Set();
             return [];
         }
 
-        return { search, searchAll, fetchGraph, relations };
+        /**
+         * 剪藏列表（等价 GET /api/clip/list）。
+         * 本地索引策略：local-index:list-by-type IPC（ContentRef 反序列化，避免后端全量 Files.walk+Jackson 反序列化）；
+         * REST 兜底：/api/clip/list。本地索引由 watcher 增量同步，新剪藏约 800ms 内入库，属可接受的异步一致。
+         * @param {number} [limit] 返回条数上限
+         * @returns {Promise<Array<Object>>} ClipContent 数组
+         */
+        async function listClips(limit) {
+            const bridge = window.electronAPI && window.electronAPI.localIndex;
+            if (bridge && typeof bridge.listByType === 'function') {
+                const res = await bridge.listByType('clip', limit || 2000);
+                if (res && res.success && Array.isArray(res.data)) return res.data;
+                if (res && res.success && Array.isArray(res.list)) return res.list;
+                if (res && res.success && Array.isArray(res.results)) return res.results;
+                throw new Error((res && res.message) || '本地索引列表不可用');
+            }
+            const response = await axios.get(`${API_BASE_URL}/list`);
+            return response.data;
+        }
+
+        return { search, searchAll, fetchGraph, relations, listClips };
     })();
 
     // ── 离线/断网模式处理 ──

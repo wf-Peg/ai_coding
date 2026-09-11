@@ -69,6 +69,21 @@
         el.classList.toggle('expanded');
     });
 
+    // 剪藏「来源(地址)」点击：统一走 window.open + 系统浏览器，规避 iframe 内 target=_blank 被吞导致的无响应
+    document.addEventListener('click', (e) => {
+        const link = e.target.closest('.src-open-link');
+        if (!link) return;
+        e.preventDefault();
+        const raw = link.getAttribute('data-url') || link.getAttribute('href') || '';
+        let url = raw.trim().replace(/^"/, '').replace(/"$/, '');
+        // 归一化：缺 scheme 时补 https，避免 Electron openExternal 的正则不匹配而静默 deny
+        if (url && !/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url)) {
+            url = 'https://' + url;
+        }
+        if (!url) { showToast('该剪藏没有来源地址'); return; }
+        window.open(url, '_blank', 'noopener');
+    });
+
     document.getElementById('search-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const query = document.getElementById('search-query').value;
@@ -139,17 +154,31 @@
 
             const workflowFilter = document.getElementById('workflow-filter');
             const workflowStatus = workflowFilter ? workflowFilter.value : '';
-            let url = `${API_BASE_URL}/list`;
-            const params = new URLSearchParams();
             const wsId = localStorage.getItem('active_workspace_id');
+            // 数据源选择：本地索引 IPC 优先（快），工作台过滤与不可用时回退 REST
+            let clips;
             if (wsId) {
-                params.set('workspaceId', wsId);
+                // 工作台成员过滤走 REST（本地索引不承载 workspace 过滤），保持一致性
+                const res = await axios.get(`${API_BASE_URL}/list`, { params: { workspaceId: wsId } });
+                clips = res.data;
+            } else if (window.apiClient && typeof window.apiClient.listClips === 'function') {
+                try {
+                    const local = await window.apiClient.listClips();
+                    if (Array.isArray(local) && local.length > 0) {
+                        clips = local;
+                    } else {
+                        const res = await axios.get(`${API_BASE_URL}/list`);
+                        clips = res.data;
+                    }
+                } catch (e) {
+                    const res = await axios.get(`${API_BASE_URL}/list`);
+                    clips = res.data;
+                }
+            } else {
+                const res = await axios.get(`${API_BASE_URL}/list`);
+                clips = res.data;
             }
-            const paramsStr = params.toString();
-            if (paramsStr) url += '?' + paramsStr;
-            const response = await axios.get(url);
             if (seq !== fetchSeq) return; // 已有更新的请求，丢弃本次过期结果
-            let clips = response.data;
 
             if (workflowStatus) {
                 clips = clips.filter(clip => resolveWorkflowStatus(clip) === workflowStatus);
@@ -224,13 +253,15 @@
         }
 
         const shown = clips.slice(0, visibleClipCount);
+        const fragment = document.createDocumentFragment();
         shown.forEach(clip => {
             if (clip && clip.id != null) {
                 clipCache.set(String(clip.id), clip);
             }
             const clipItem = createClipItem(clip, false);
-            clipItemsContainer.appendChild(clipItem);
+            fragment.appendChild(clipItem);
         });
+        clipItemsContainer.appendChild(fragment);
 
         // 批量预取关联数据（2 个请求替代 N×2），完成后由缓存驱动渲染
         const shownIds = shown.filter(c => c && c.id != null).map(c => c.id);
@@ -434,7 +465,7 @@
                     ${clip.sourceUrl ? `
                     <div class="source-link" style="margin-top: 8px; display:flex; flex-direction:column; gap:4px;">
                         <span style="font-size:0.78rem;color:var(--text-secondary);word-break:break-all;">
-                            来源: <a href="${escapeHtml(clip.sourceUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--primary);">${escapeHtml(clip.sourceUrl)}</a>
+                            来源: <a class="src-open-link" href="${escapeHtml(clip.sourceUrl)}" data-url="${escapeHtml(clip.sourceUrl)}" style="color:var(--primary);">${escapeHtml(clip.sourceUrl)}</a>
                         </span>
                     </div>
                     ` : ''}

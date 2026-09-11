@@ -174,6 +174,26 @@ public class ClipService {
     public ClipContent saveClip(String content, String type, String source, String category,
                                 String fileData, String fileName, List<ClipRequest.ImageData> imageDataList,
                                 List<String> imagePaths) {
+        ClipContent clipContent = buildClipContent(
+                content, type, source, category, fileData, fileName, imageDataList, imagePaths);
+        // 单次落盘：处理逻辑（图片、类型分发、analysisStatus）在 buildClipContent 中完成后统一次写盘
+        return storageService.saveClip(clipContent);
+    }
+
+    /**
+     * 构建并加工剪藏对象（不落盘）。
+     * <p>
+     * 抽取出 {@link #saveClip(String, String, String, String, String, String, List, List)}
+     * 内部"组装 + 加工"的通用逻辑，供 8-参 saveClip 与
+     * {@link #saveClip(ClipRequest)} 复用。两者在拿到本方法返回的对象后各自负责一次落盘，
+     * 从而避免 {@code saveClip(ClipRequest)} 重复写盘，同时不改变 8-参 saveClip 的外部行为。
+     * </p>
+     *
+     * @return 加工完成（尚未落盘）的剪藏对象；调用方需自行 saveClip 持久化
+     */
+    private ClipContent buildClipContent(String content, String type, String source, String category,
+                                         String fileData, String fileName,
+                                         List<ClipRequest.ImageData> imageDataList, List<String> imagePaths) {
         // 内容长度限制：防止超大请求导致内存与 AI token 超限
         if (content != null && content.length() > MAX_CONTENT_LENGTH) {
             throw new IllegalArgumentException("剪藏内容过长（超过 " + MAX_CONTENT_LENGTH + " 字符），请精简后重试");
@@ -282,8 +302,7 @@ public class ClipService {
                 break;
         }
 
-        ClipContent savedClip = storageService.saveClip(clipContent);
-        return savedClip;
+        return clipContent;
     }
 
     /**
@@ -305,7 +324,9 @@ public class ClipService {
         String effectiveType = normalizeType(request.getType(), workflowStatus);
         // 优先使用 sourceUrl，其次使用 source
         String normalizedSource = firstNonBlank(request.getSourceUrl(), request.getSource());
-        ClipContent clipContent = saveClip(
+        // 先加工对象（图片/类型分发/analysisStatus），再合并结构化元数据，最终一次落盘，
+        // 避免"处理落盘一次 + 元数据落盘一次"的双写（旧实现会在 build 内部与末尾各写一次）
+        ClipContent clipContent = buildClipContent(
                 request.getContent(),
                 effectiveType,
                 normalizedSource,
@@ -342,6 +363,7 @@ public class ClipService {
             clipContent.setSummary(request.getSummary());
         }
 
+        // 单次落盘：元数据已合并到同一对象
         return storageService.saveClip(clipContent);
     }
 
@@ -1321,9 +1343,18 @@ public class ClipService {
         }
         String normalizedContent = content.trim();
         String normalizedUrl = sourceUrl.trim();
+
+        // 性能优化：用内存 sourceUrl 索引快速收敛候选 id，替代每次全量 getAllClips() 磁盘遍历。
+        // 索引未命中（该 sourceUrl 无记录）直接判定无重复；命中再按 id 读盘校验内容指纹，
+        // 保证与旧全量扫描语义一致且避免反序列化全库。
+        List<Long> candidateIds = storageService.findClipIdsBySourceUrl(normalizedUrl);
+        if (candidateIds.isEmpty()) {
+            return new ArrayList<>();
+        }
         List<ClipContent> matches = new ArrayList<>();
-        for (ClipContent existing : storageService.getAllClips()) {
-            if (existing.getContent() != null && existing.getContent().trim().equals(normalizedContent)
+        for (Long id : candidateIds) {
+            ClipContent existing = storageService.getClipById(id.toString());
+            if (existing != null && existing.getContent() != null && existing.getContent().trim().equals(normalizedContent)
                     && normalizedUrl.equalsIgnoreCase(existing.getSourceUrl() == null ? null : existing.getSourceUrl().trim())) {
                 matches.add(existing);
             }
@@ -1431,10 +1462,29 @@ public class ClipService {
         if (clipId == null) {
             return;
         }
+        // 无法避免的兜底路径：调用方未持有已加载对象时，仍需按 id 读盘判定 analysisStatus。
         ClipContent clip = storageService.getClipById(clipId.toString());
-        if (clip != null && ANALYSIS_PENDING.equals(clip.getAnalysisStatus())) {
-            aiExecutor.submit(() -> processClipAsync(clipId));
-            logger.info("[ClipService] 已提交异步 AI 分析: clipId={}", clipId);
+        triggerAsyncAnalysis(clip);
+    }
+
+    /**
+     * 触发异步 AI 分析（幂等）——使用已获取的剪藏对象。
+     * <p>
+     * 调用方若已持有刚保存/加载的 {@link ClipContent}（该对象自带 analysisStatus），
+     * 应优先调用本重载，避免 {@link #triggerAsyncAnalysis(Long)} 内再走一次全库
+     * {@code getClipById} 扫描。仅在 analysisStatus=pending 时提交异步分析；
+     * store-only 等 analysisStatus=empty 分支无需分析直接返回。
+     * </p>
+     *
+     * @param clip 已落盘并携带 analysisStatus 的剪藏对象；null 则直接返回
+     */
+    public void triggerAsyncAnalysis(ClipContent clip) {
+        if (clip == null || clip.getId() == null) {
+            return;
+        }
+        if (ANALYSIS_PENDING.equals(clip.getAnalysisStatus())) {
+            aiExecutor.submit(() -> processClipAsync(clip.getId()));
+            logger.info("[ClipService] 已提交异步 AI 分析: clipId={}", clip.getId());
         }
     }
 

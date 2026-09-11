@@ -2261,8 +2261,13 @@ function createMainWindow(config) {
 
   // 拦截新窗口打开：外部链接用系统默认浏览器打开，其余拒绝
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:\/\//.test(url)) {
-      shell.openExternal(url);
+    let target = String(url || '');
+    // 归一化：缺 scheme 时补 https，避免正则不匹配而静默 deny（如剪藏 sourceUrl 存成裸域名/www.）
+    if (target && !/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(target)) {
+      target = 'https://' + target;
+    }
+    if (/^https?:\/\//.test(target)) {
+      shell.openExternal(target);
     }
     return { action: 'deny' };
   });

@@ -210,7 +210,8 @@ public class ClipController {
         }
 
         // 异步触发 AI 分析（pending 状态），保存立即返回
-        clipService.triggerAsyncAnalysis(clip.getId());
+        // 传入刚保存的 clip 对象，复用其 analysisStatus，避免 triggerAsyncAnalysis(Long) 再全库扫描一次
+        clipService.triggerAsyncAnalysis(clip);
 
         return ResponseEntity.ok(new ClipResponse(clip.getId(), "success"));
     }
