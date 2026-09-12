@@ -3,6 +3,39 @@
 // 由 clip.html 内联脚本按功能拆分生成（经典 script 顺序加载）
 // ============================================================
 
+/**
+ * 归一化剪藏创建时间，兼容多种来源格式：
+ * - LocalDateTime 数组 [y, m, d, h, mi, s, ns]（Jackson WRITE_DATES_AS_TIMESTAMPS
+ *   默认把 LocalDateTime 序列化为数组，剪藏 JSON 落盘即此格式）
+ * - ISO 字符串 "2026-09-12T10:26:41" / "2026-09-12 10:26:41"
+ * - 毫秒时间戳（number 或纯数字字符串）
+ * 解析失败返回 null，由调用方兜底显示占位符。
+ */
+function parseClipCreatedAt(value) {
+    if (value === null || value === undefined || value === '') return null;
+    if (Array.isArray(value)) {
+        const [y, m, d, h, mi, s] = value;
+        if (!y || !m) return null;
+        return new Date(y, (m - 1), (d || 1), (h || 0), (mi || 0), (s || 0));
+    }
+    if (typeof value === 'number') return isNaN(value) ? null : new Date(value);
+    if (typeof value === 'string' && /^\d+$/.test(value.trim())) return new Date(Number(value.trim()));
+    const date = new Date(value);
+    return isNaN(date.getTime()) ? null : date;
+}
+
+/** 取剪藏的可信创建时间（createdAt 优先，缺省回退 capturedAt），失败返回 null。 */
+function getClipCreatedDate(clip) {
+    return (clip && (parseClipCreatedAt(clip.createdAt) || parseClipCreatedAt(clip.capturedAt))) || null;
+}
+
+/** 本地时区格式化：YYYY-MM-DD HH:mm（避免 toISOString 把本地时间转成 UTC）。 */
+function formatClipDateTime(date) {
+    if (!date || isNaN(date.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
     function clearSearch() {
         document.getElementById('search-query').value = '';
         document.getElementById('search-category').value = '';
@@ -193,7 +226,10 @@
                 return true;
             });
 
-            filteredClips.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            // 归一化 createdAt 后按创建时间排序（最新的在前），兼容 LocalDateTime 数组格式
+            filteredClips.sort((a, b) =>
+                (getClipCreatedDate(b)?.getTime() || 0) - (getClipCreatedDate(a)?.getTime() || 0)
+            );
             renderClipList(filteredClips);
             CutShelterScroll.restore('clip');
         } catch (error) {
@@ -367,13 +403,16 @@
         clipItem.className = 'clip-item';
         const normalizedWorkflow = resolveWorkflowStatus(clip);
 
-        const createdAt = new Date(clip.createdAt).toLocaleString('zh-CN', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
+        const createdDate = getClipCreatedDate(clip);
+        const createdAt = createdDate
+            ? createdDate.toLocaleString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            })
+            : '未知时间';
 
         const categoryLabel = normalizedWorkflow === 'inbox'
             ? '收件箱（待整理）'
@@ -986,9 +1025,11 @@
     function exportClipAs(clip, format) {
         const rawTitle = clip.title || clip.category || '剪藏';
         const safeTitle = rawTitle.replace(/[\\/:*?"<>|]/g, '_').slice(0, 40);
-        const date = (clip.createdAt || '').slice(0, 10) || new Date().toISOString().slice(0, 10);
+        const createdDate = getClipCreatedDate(clip);
+        const createdText = createdDate ? formatClipDateTime(createdDate) : '';
+        const date = createdText ? createdText.slice(0, 10) : new Date().toISOString().slice(0, 10);
 
-        const meta = `# ${rawTitle}\n\n> 来源: ${clip.source || ''}${clip.sourceUrl ? ' | ' + clip.sourceUrl : ''}\n> 分类: ${clip.category || ''} | 标签: ${(clip.tags || []).join(', ')}\n> 时间: ${clip.createdAt || ''}\n\n---\n\n`;
+        const meta = `# ${rawTitle}\n\n> 来源: ${clip.source || ''}${clip.sourceUrl ? ' | ' + clip.sourceUrl : ''}\n> 分类: ${clip.category || ''} | 标签: ${(clip.tags || []).join(', ')}\n> 时间: ${createdText || clip.capturedAt || ''}\n\n---\n\n`;
         const body = clip.bodyContent || clip.content || '';
         const stripMd = s => String(s).replace(/[#>*`_~[\](!)<>|]/g, '').replace(/\n{3,}/g, '\n\n');
 
@@ -1112,9 +1153,8 @@ img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ddd;pa
         const items = (sources || []).map((src) => {
             const index = src.index || '';
             const title = escapeHtml(src.title || '未命名');
-            const createdAt = src.createdAt
-                ? escapeHtml(String(src.createdAt).slice(0, 16).replace('T', ' '))
-                : '';
+            const srcDate = getClipCreatedDate(src);
+            const createdAt = srcDate ? escapeHtml(formatClipDateTime(srcDate)) : '';
             const link = src.sourceUrl
                 ? `<a class="ask-source-link" href="${escapeHtml(src.sourceUrl)}" target="_blank" rel="noopener noreferrer" title="打开原网页">↗</a>`
                 : '';

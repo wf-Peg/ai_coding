@@ -9,7 +9,8 @@
   body {
     background: #17181c; color: #e5e7eb; display: flex; flex-direction: column;
     font-family: "IBM Plex Sans", "Noto Sans SC", "Microsoft YaHei", sans-serif;
-    animation: winIn 0.16s ease;
+    /* 时长/曲线与全局皮肤 --app-duration-fast、--app-ease-smooth 对齐 */
+    animation: winIn 0.12s cubic-bezier(.22,1,.36,1);
   }
   @keyframes winIn {
     from { opacity: 0; transform: scale(0.97); }

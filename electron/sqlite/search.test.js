@@ -121,5 +121,5 @@ test('M4.1 searchAll 空查询/空库守卫', () => {
   assert.deepEqual(search.searchAll(null), []);
 
   assert.ok(Array.isArray(search.SEARCHABLE_TYPES));
-  assert.deepEqual(search.SEARCHABLE_TYPES, ['clip', 'knowledge', 'learning-plan']);
+  assert.deepEqual(search.SEARCHABLE_TYPES, ['clip', 'knowledge', 'learning-plan', 'vault']);
 });

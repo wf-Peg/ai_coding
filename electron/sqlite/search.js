@@ -89,7 +89,7 @@ function ftsMatchExpr(q) {
 // ── 全库统一搜索（M4）：跨 clip / knowledge / learning-plan 全部实体 ──
 
 /** 允许参与全库检索的实体类型。 */
-const SEARCHABLE_TYPES = ['clip', 'knowledge', 'learning-plan'];
+const SEARCHABLE_TYPES = ['clip', 'knowledge', 'learning-plan', 'vault'];
 
 /**
  * 全库统一搜索：跨全部实体类型命中，返回统一类型化命中结构。
@@ -163,7 +163,9 @@ function toHit(row, entity) {
     type,
     id: row.id || (type + ':' + entity.id),
     title: String(title || bodyFallback(entity) || '未命名').slice(0, 120),
-    snippet: String(snippet || '').slice(0, 200)
+    snippet: String(snippet || '').slice(0, 200),
+    // vault/md 命中附带源文件路径，供前端「在编辑器中打开」定位文件
+    filePath: entity.filePath || null
   };
 }
 

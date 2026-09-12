@@ -8,5 +8,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('dialogApi', {
   /** 通知主进程用户选择（tray / quit），并带上「记住选择」标记。 */
-  choose: (action, remember) => ipcRenderer.send('close-dialog-result', { action, remember })
+  choose: (action, remember) => ipcRenderer.send('close-dialog-result', { action, remember }),
+  /** 取消（点 X 关闭）：由主进程做窗口级原生淡出后关闭，避免透明窗口关闭残留黑色残影。 */
+  cancel: () => ipcRenderer.send('close-dialog-cancel')
 });

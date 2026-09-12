@@ -275,6 +275,15 @@
             </g>
           </svg>
         </button>
+        <div class="ai-pet-quick-menu" id="aiPetQuickMenu" hidden role="menu" aria-label="Pet 快捷操作">
+          <button type="button" class="ai-pet-quick-item" data-act="explain" role="menuitem"><span class="ctx-icon">💡</span>解释</button>
+          <button type="button" class="ai-pet-quick-item" data-act="polish" role="menuitem"><span class="ctx-icon">✨</span>润色</button>
+          <button type="button" class="ai-pet-quick-item" data-act="translate" role="menuitem"><span class="ctx-icon">🌐</span>翻译成英文</button>
+          <button type="button" class="ai-pet-quick-item" data-act="summarize" role="menuitem"><span class="ctx-icon">📋</span>总结要点</button>
+          <div class="ctx-menu-divider"></div>
+          <button type="button" class="ai-pet-quick-item" data-act="search" role="menuitem"><span class="ctx-icon">🔍</span>AI 搜索</button>
+        </div>
+        <div class="ai-pet-bubble" id="aiPetBubble" aria-live="polite"></div>
       </div>
       <div class="editor-pane markdown-pane" id="markdownPane" hidden>
         <div class="markdown-header">
@@ -294,9 +303,19 @@
         <div class="ai-chat-resize-handle" id="aiChatResizeHandle" role="separator" aria-orientation="vertical" aria-label="调整 AI 面板宽度"></div>
         <header class="ai-chat-header">
           <div class="ai-chat-heading">
-            <span class="ai-chat-model-badge">AI</span>
-            <span class="ai-chat-title">Pet 助手</span>
-            <span class="ai-chat-status" id="aiChatStatus">就绪</span>
+            <span class="ai-chat-avatar" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12a8 8 0 0 1-8.5 8 9.6 9.6 0 0 1-4.5-1.4L3 20l1.8-3.9A8.5 8.5 0 1 1 21 12z"></path>
+                <path d="M8.5 12h.01M12 12h.01M15.5 12h.01"></path>
+              </svg>
+            </span>
+            <span class="ai-chat-heading-text">
+              <span class="ai-chat-title">Pet 助手</span>
+              <span class="ai-chat-status" id="aiChatStatus">
+                <span class="ai-chat-status-dot" aria-hidden="true"></span>
+                <span class="ai-chat-status-text">就绪</span>
+              </span>
+            </span>
           </div>
           <div class="ai-chat-actions">
             <button class="ai-chat-context-btn" id="aiChatContextBtn" title="读取编辑器上下文发送给AI">
@@ -324,7 +343,7 @@
         <div class="ai-chat-composer">
           <textarea id="aiChatInput" rows="3" placeholder="输入问题，Enter 发送，Shift+Enter 换行"></textarea>
           <div class="ai-chat-composer-footer">
-            <span class="ai-chat-hint">上下文仅保存在当前标签</span>
+            <span class="ai-chat-hint"><svg class="ai-chat-hint-icon" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>上下文仅保存在当前标签</span>
             <button class="tool-btn primary" id="aiChatSendBtn">发送</button>
             <button class="tool-btn danger-action" id="aiChatStopBtn" hidden>停止</button>
           </div>

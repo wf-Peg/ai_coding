@@ -2,6 +2,7 @@ package com.example.clip.index;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import java.io.IOException;
@@ -12,7 +13,10 @@ import java.util.List;
 
 public class RelationIndexService {
     private final Path indexPath;
-    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .registerModule(new JavaTimeModule())
+            // LocalDateTime 以 ISO 字符串落盘（而非 [y,m,d,...] 数组），避免下游原生 new Date(数组) 解析失败
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
     public RelationIndexService(Path indexPath) { this.indexPath = indexPath; }
 

@@ -11,6 +11,7 @@
  */
 
 const db = require('./db');
+const fs = require('fs');
 const indexer = require('./indexer');
 const scanner = require('./scanner');
 const relationBuilder = require('./relation-builder');
@@ -47,6 +48,46 @@ function indexEntities(dbConn, storagePath) {
   indexer.pruneMissing(dbConn, byType['learning-plan'], 'learning-plan');
   // 关系表重建（含遗留 relation-index.json 合并，唯一迁移承载）
   return relationBuilder.buildRelations(dbConn, records, storagePath);
+}
+
+/**
+ * 扫描并索引 md 库（type='vault'），供全量（initLocalIndex）/ 增量（rescan）复用。
+ * 以「本次扫描留下的 id 集合」prune 已消失的 vault 记录。
+ *
+ * @param {import('node:sqlite').DatabaseSync} dbConn
+ * @param {string} storagePath config.storagePath
+ * @returns {{added:number, scannedCount:number}}
+ */
+function indexMarkdown(dbConn, storagePath) {
+  const records = scanner.scanMarkdown(storagePath);
+  const scannedIds = new Set();
+  let added = 0;
+  for (const { filePath, mtime } of records) {
+    const id = indexer.vaultId(filePath);
+    scannedIds.add(id);
+    if (indexer.upsertMarkdown(dbConn, filePath, mtime)) added++;
+  }
+  indexer.pruneMissing(dbConn, scannedIds, 'vault');
+  return { added, scannedCount: records.length };
+}
+
+/**
+ * 仅增量重扫 md 库（type='vault'）：轻量，供编辑器保存/文件变化时快速刷新 vault 索引。
+ * @param {string} storagePath
+ * @returns {{added:number, count:number}}
+ */
+function rescanMarkdown(storagePath) {
+  const dbConn = db.openDatabase(storagePath);
+  dbConn.exec('BEGIN');
+  try {
+    const { added } = indexMarkdown(dbConn, storagePath);
+    dbConn.exec('COMMIT');
+    indexer.rebuildFts(dbConn);
+    return { added, count: indexer.count(dbConn) };
+  } catch (e) {
+    dbConn.exec('ROLLBACK');
+    throw e;
+  }
 }
 
 /**
@@ -97,6 +138,8 @@ function initLocalIndex(storagePath, opts = {}) {
     }
     // 实体（knowledge/learning-plan）索引 + 关系表重建（内含遗留 index 合并）
     indexEntities(dbConn, storagePath);
+    // md 库（编辑器/知识库 .md）索引，type='vault'
+    indexMarkdown(dbConn, storagePath);
   });
 
   const newGeneration = generation + 1;
@@ -149,6 +192,8 @@ function rescan(storagePath) {
     removed = indexer.pruneMissing(dbConn, scannedIds);
     // 实体（knowledge/learning-plan）增量索引 + 关系表重建（含遗留 index 合并）
     indexEntities(dbConn, storagePath);
+    // md 库（编辑器/知识库 .md）增量索引，type='vault'
+    indexMarkdown(dbConn, storagePath);
   });
 
   // FTS 统一重建，规避 external content 表在 WAL 下行级删除/写入的 CORRUPT
@@ -172,6 +217,51 @@ function startWatcher(storagePath, onDelta) {
     }
   };
   return watcher.startWatching(storagePath, handle);
+}
+
+/**
+ * 启动 md 库实时监听：编辑器保存/新建/删除 .md 后，防抖触发一次轻量 rescanMarkdown，
+ * 让全局搜索（vault 命中）跟上最新笔记。app 退出由进程结束释放文件句柄。
+ * @param {string} storagePath config.storagePath
+ * @param {(delta:{added:number,count:number})=>void} [onDelta]
+ * @returns {{started:boolean, roots:string[], stop?:Function, reason?:string}}
+ */
+function startMarkdownWatcher(storagePath, onDelta) {
+  const roots = scanner.discoverMarkdownRoots(storagePath).filter((r) => {
+    try { return fs.existsSync(r) && fs.statSync(r).isDirectory(); } catch (e) { return false; }
+  });
+  if (!roots.length) return { started: false, roots, reason: 'no markdown roots' };
+
+  const watchers = [];
+  let timer = null;
+  const debounced = () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      try {
+        const d = rescanMarkdown(storagePath);
+        if (onDelta) onDelta(d);
+      } catch (e) {
+        console.error('[local-index md watcher] rescan error:', e && e.message);
+      }
+    }, 800);
+  };
+  for (const root of roots) {
+    try {
+      watchers.push({ w: fs.watch(root, { recursive: true }, debounced) });
+    } catch (e) {
+      try { watchers.push({ w: fs.watch(root, debounced) }); } catch (e2) { /* 跳过不可监听根 */ }
+    }
+  }
+  return {
+    started: watchers.length > 0,
+    roots,
+    stop() {
+      if (timer) { clearTimeout(timer); timer = null; }
+      for (const x of watchers) { try { x.w.close(); } catch (e) { /* ignore */ } }
+      watchers.length = 0;
+    }
+  };
 }
 
 /**
@@ -243,4 +333,4 @@ function listByType(type = 'clip', limit = 200) {
   }).filter((x) => x != null);
 }
 
-module.exports = { initLocalIndex, rebuild, status, listByType, rescan, startWatcher, startMaintenance, stopMaintenance, close };
+module.exports = { initLocalIndex, rebuild, status, listByType, rescan, rescanMarkdown, startWatcher, startMarkdownWatcher, startMaintenance, stopMaintenance, close };

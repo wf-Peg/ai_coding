@@ -5,7 +5,7 @@
  * 以 file_path + mtime 判定，mtime 未变则跳过写入（幂等）。
  */
 
-const { extractBodyPlain, extractEntityBodyPlain } = require('./scanner');
+const { extractBodyPlain, extractEntityBodyPlain, readMarkdownFile } = require('./scanner');
 
 /** 全局唯一 id：'clip:' + source_id。 */
 function clipId(clip) {
@@ -129,6 +129,64 @@ function upsertEntity(db, entity, type, filePath, mtime) {
   return true;
 }
 
+/** md 文件全局唯一 id：'vault:' + 绝对路径（文件即实体，路径稳定）。 */
+function vaultId(filePath) {
+  return 'vault:' + filePath;
+}
+
+/**
+ * upsert 一条 md 文件到 content（type='vault'），作为全局搜索的笔记命中节点。
+ * 与 upsertClip 同语义：同 id 且 mtime 一致则跳过。
+ * content_ref 存 {title, filePath, bodyContent}，供前端展示标题/摘要并打开目标文件。
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} filePath md 文件绝对路径
+ * @param {string} mtime
+ * @returns {boolean} true=已写入，false=命中缓存跳过
+ */
+function upsertMarkdown(db, filePath, mtime) {
+  const id = vaultId(filePath);
+  // 增量跳过：同 id 且 mtime 一致
+  const existing = db.prepare('SELECT mtime FROM content WHERE id = ?').get(id);
+  if (existing && existing.mtime === mtime) return false;
+
+  const parsed = readMarkdownFile(filePath);
+  if (!parsed) return false;
+  const now = new Date().toISOString();
+  const contentRef = JSON.stringify({
+    type: 'vault',
+    title: parsed.title,
+    filePath,
+    bodyContent: parsed.body.slice(0, 2000)
+  });
+  const p = {
+    id,
+    type: 'vault',
+    source_id: null,
+    title: parsed.title,
+    summary: null,
+    category: null,
+    tags: null,
+    body_plain: parsed.body,
+    content_ref: contentRef,
+    mtime,
+    file_path: filePath,
+    created_at: now,
+    updated_at: now
+  };
+  const stmt = db.prepare(`
+    INSERT INTO content (id, type, source_id, title, summary, category, tags, body_plain, content_ref, mtime, file_path, created_at, updated_at)
+    VALUES (@id, @type, @source_id, @title, @summary, @category, @tags, @body_plain, @content_ref, @mtime, @file_path, @created_at, @updated_at)
+    ON CONFLICT(id) DO UPDATE SET
+      type=excluded.type, source_id=excluded.source_id, title=excluded.title,
+      summary=excluded.summary, category=excluded.category, tags=excluded.tags,
+      body_plain=excluded.body_plain, content_ref=excluded.content_ref,
+      mtime=excluded.mtime, file_path=excluded.file_path, updated_at=excluded.updated_at
+  `);
+  stmt.run(p);
+  return true;
+}
+
 /**
  * 用 FTS5 'rebuild' 指令从 content 主表重建 content_fts。
  * 适用于全量重建/批量写入后。规避 external content 表逐行 DELETE 的 CORRUPT 问题。
@@ -186,4 +244,4 @@ function count(db) {
   return row ? row.c : 0;
 }
 
-module.exports = { upsertClip, upsertEntity, deleteClip, clearAll, count, clipId, entityId, rebuildFts, pruneMissing };
+module.exports = { upsertClip, upsertEntity, upsertMarkdown, vaultId, deleteClip, clearAll, count, clipId, entityId, rebuildFts, pruneMissing };

@@ -2,6 +2,7 @@ package com.example.clip.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +38,8 @@ public class CanvasStateService {
     public CanvasStateService(FileStorageService storageService) {
         this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new JavaTimeModule());
+        // LocalDateTime 以 ISO 字符串落盘（而非 [y,m,d,...] 数组），避免下游原生 new Date(数组) 解析失败
+        this.objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         this.graphDir = storageService.getStoragePath().resolve("graph");
     }
 

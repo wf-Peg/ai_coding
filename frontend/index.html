@@ -1642,6 +1642,40 @@
         editorFrame.contentWindow.postMessage({ action: 'editorPing' }, '*');
       });
 
+      // ===== 编辑器输入兜底：焦点落在父窗口时，把字符/菜单导航键转发进编辑器 iframe =====
+      // 主界面是「主窗口 + 各模块 iframe」架构，键盘事件只落到当前聚焦的 document。
+      // 用户点击过工具栏/标签栏/状态栏/后端按钮后，焦点停留在父窗口，直接输入 "/" 等字符
+      // 不会进入编辑器（斜杠菜单无法唤起）。此监听在编辑器视图可见时兜底：
+      // 可打印字符注入编辑器；斜杠菜单打开时 ↑↓/Enter/Esc 也转发，保证菜单键盘操作可用。
+      // 焦点在编辑器 iframe 内时，keydown 事件不会冒泡到父 document，因此不会重复注入。
+      let editorSlashMenuOpen = false;
+      window.addEventListener('message', event => {
+        const data = event.data || {};
+        if (data.type === 'slashMenuState') {
+          editorSlashMenuOpen = !!data.open;
+        }
+      });
+      document.addEventListener('keydown', function (e) {
+        if (currentView !== 'editor') return;
+        const editorPanel = viewMap.editor;
+        if (!editorPanel || editorPanel.classList.contains('view-panel-hidden')) return;
+        if (!editorReady || !editorFrame || !editorFrame.contentWindow) return;
+        const tag = e.target && e.target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        // 斜杠菜单打开时：转发菜单导航/确认/关闭键
+        if (editorSlashMenuOpen && ['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].indexOf(e.key) !== -1) {
+          e.preventDefault();
+          editorFrame.contentWindow.postMessage({ action: 'editorKeyDown', key: e.key }, '*');
+          return;
+        }
+        // 单字符可打印键注入编辑器（覆盖 "/" 斜杠菜单触发与普通打字）
+        if (e.key.length === 1) {
+          e.preventDefault();
+          editorFrame.contentWindow.postMessage({ action: 'editorInsertChar', char: e.key }, '*');
+        }
+      });
+
       // 截图工具：OCR 结果 → 编辑器新标签打开（主进程 IPC 事件）
       if (window.electronAPI && window.electronAPI.onScreenshotOpenInEditor) {
         window.electronAPI.onScreenshotOpenInEditor((data) => {

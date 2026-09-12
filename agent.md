@@ -127,6 +127,20 @@ build.bat       # Windows
     - git 操作后立即执行，不可遗漏
 14. **提交推送走脚本**：commit+push 统一用 `scripts/git-push.ps1`；默认仅按 `-Paths` 提交**本次会话改动**文件，用户明说「提交全部」时用 `-All`；脚本自动追加 `commit_history.log` 并推送
 
+## Electron iframe 焦点与键盘事件（高频踩坑）
+
+主界面为「主窗口 + 各模块 iframe」架构（index.html 嵌入 editor.html 等），键盘事件只落在**当前拥有焦点的 document**：
+
+1. **父窗口不拦截普通字符，问题是焦点不在 iframe**：主进程/父页面只拦截全局快捷键（⌘⇧F 等）。若用户输入 "/" 等字符无反应，先怀疑焦点在父窗口（全局搜索框、Pet 输入框、工具栏按钮），而非父窗口 keydown 拦截。
+2. **任何初始化/切换流程后必须显式恢复 iframe 焦点**：iframe 内脚本调用 `mainEditor.focus()` 才会把焦点拉回编辑器。缺失时输入落入父窗口，斜杠菜单等依赖编辑器焦点的快捷键全部失效。以下场景都要补：
+   - iframe 初始化完成后（异步恢复缓存/渲染之后，不能放在 promise 之前）
+   - 视图从其他模块切回编辑器时（`visibilitychange` → `visible` 分支）
+   - 关闭浮层/面板/弹窗后
+3. **视图切换用 `visibility:hidden` 而非 `display:none`**（避免 iframe 重载丢状态），切回时 `visibilitychange` 会触发，是恢复焦点的可靠挂点；`display:none` 不会触发该事件。
+4. **覆盖层（如空文档"直接开始写作"引导层）可见时，document 级 keydown 监听器处理可打印字符要谨慎**：焦点若在编辑器，ACE 已在捕获阶段处理字符（`e.defaultPrevented` 为 true），冒泡到 document 的兜底分支必须检查 `e.defaultPrevented`，否则会重复插入字符导致斜杠触发条件被污染。
+5. **iframe 内禁用 Cmd+R/Ctrl+R**（editor.js 已注册 preventDefault），浏览器刷新在 Electron 中无意义且会丢编辑器状态。
+6. 排查手段：用 a11y 树（Computer Use）确认键盘焦点元素；输入 "/" 后观察编辑器 val 是否出现 "/" 字符——没有则焦点不在编辑器。
+
 ## 需求开发流程
 
 ### TODO/ 目录规范

@@ -88,6 +88,9 @@ public class FileStorageService {
         this.objectMapper = new ObjectMapper();
         // 注册 JavaTimeModule 以支持 LocalDateTime 等 Java 8 时间类型的序列化
         this.objectMapper.registerModule(new JavaTimeModule());
+        // 关闭 WRITE_DATES_AS_TIMESTAMPS：LocalDateTime 以 ISO 字符串（如 2026-09-12T10:26:41）落盘，
+        // 而非 [y,m,d,h,mi,s,ns] 数组。否则前端 new Date(数组) 得到 Invalid Date，列表时间渲染失败。
+        this.objectMapper.configure(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
         // 忽略 JSON 中未知的属性，避免反序列化时因新增字段导致失败
         this.objectMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         this.storagePath = Paths.get(storagePath);

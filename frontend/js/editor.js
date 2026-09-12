@@ -56,6 +56,8 @@
   let state = null;
   let activeAiRequest = null;
   let petIdleTimer = null;
+  let petBubbleTimer = null;
+  let petQuickMenuOpen = false;
   const AI_CHAT_WIDTH_KEY = 'editor_ai_chat_width_v1';
 
   // 跨标签共享状态（对比、转换等）
@@ -98,7 +100,8 @@
     'shortcutModeGroup', 'shortcutModeGroupTitle', 'shortcutModeList',
     'keyboardModeHelpSelect', 'keyboardModeHelpBtn',
     'aiChatSelectionHint', 'aiChatSelectionHintText', 'aiChatSelectionHintClear',
-    'slashMenu', 'slashMenuList', 'startWritingGuide'
+    'slashMenu', 'slashMenuList', 'startWritingGuide',
+    'aiPetQuickMenu', 'aiPetBubble'
   ].map(id => [id, document.getElementById(id)]));
 
   /**
@@ -1367,6 +1370,8 @@
     }
     // 根据状态切换对应的动作图片（thinking→think, happy→celebrate, sleeping→sleep）
     updatePetActionImage(nextState);
+    // 状态气泡联动（thinking→正在想，idle→低频问候）
+    updatePetBubbleState(nextState);
   }
 
   function updatePetActionImage(state) {
@@ -1393,6 +1398,115 @@
         img.src = charUploads[action] || (config.iconId ? `assets/mascot/${config.iconId}/${action}.png` : img.src);
       }
     } catch (_) {}
+  }
+  // ── Pet 快捷操作（Quick-menu）与在场气泡 ──
+  // 复用统一发送入口 sendAiMessage；快捷操作基于当前选区/光标行文本触发。
+
+  const PET_GREETINGS = [
+    '需要我帮你看看这段吗？',
+    '想让我解释、润色还是翻译？',
+    '有拿不准的地方，问我就行',
+    '选中一段文字，我能帮你总结要点'
+  ];
+
+  function openPetQuickMenu() {
+    if (!elements.aiPetQuickMenu || petQuickMenuOpen) return;
+    petQuickMenuOpen = true;
+    const rect = elements.aiPetBtn.getBoundingClientRect();
+    const menu = elements.aiPetQuickMenu;
+    menu.hidden = false;
+    const menuW = menu.offsetWidth || 160;
+    const menuH = menu.offsetHeight || 220;
+    let left = rect.left + rect.width / 2 - menuW / 2;
+    let top = rect.top - menuH - 10;
+    if (left < 8) left = 8;
+    if (left + menuW > window.innerWidth - 8) left = window.innerWidth - menuW - 8;
+    if (top < 8) top = rect.bottom + 10; // 上方放不下时翻转到下方
+    menu.style.left = Math.round(left) + 'px';
+    menu.style.top = Math.round(top) + 'px';
+  }
+
+  function closePetQuickMenu() {
+    if (!elements.aiPetQuickMenu) return;
+    petQuickMenuOpen = false;
+    elements.aiPetQuickMenu.hidden = true;
+  }
+
+  // 目标文本：优先选区，无选区取光标所在行；都没有返回空串
+  function getPetTargetText() {
+    const selectedText = mainEditor.getSelectedText();
+    if (selectedText && selectedText.trim()) return selectedText.trim().slice(0, 2000);
+    const cursor = mainEditor.getCursorPosition();
+    const row = Math.max(0, cursor.row || 0);
+    const line = mainEditor.session.getLine(row);
+    if (line && line.trim()) return line.trim().slice(0, 2000);
+    return '';
+  }
+
+  function executePetQuickAction(action) {
+    closePetQuickMenu();
+    const target = getPetTargetText();
+    if (!target) {
+      showToast('没有可分析的内容，请在编辑器中先选中或定位文本', true);
+      return;
+    }
+    const prompts = {
+      explain: '请通俗解释以下内容：',
+      polish: '请润色以下文本，保持原意：',
+      translate: '请把以下内容翻译成英文：',
+      summarize: '请用要点概括以下内容：',
+      search: '一句话描述以下内容：'
+    };
+    const prefix = prompts[action] || '请分析以下内容：';
+    sendAiMessage(prefix + target);
+  }
+
+  function showPetBubble(text) {
+    if (!elements.aiPetBubble || !elements.aiPetBtn) return;
+    elements.aiPetBubble.textContent = text;
+    const rect = elements.aiPetBtn.getBoundingClientRect();
+    const bubble = elements.aiPetBubble;
+    bubble.hidden = false;
+    const bubW = bubble.offsetWidth || 0;
+    const bubH = bubble.offsetHeight || 24;
+    let left = rect.left + rect.width / 2 - bubW / 2;
+    let top = rect.top - bubH - 10;
+    if (left < 8) left = 8;
+    if (left + bubW > window.innerWidth - 8) left = window.innerWidth - bubW - 8;
+    if (top < 8) top = rect.bottom + 10; // 上方放不下时翻转到下方
+    bubble.style.left = Math.round(left) + 'px';
+    bubble.style.top = Math.round(top) + 'px';
+  }
+
+  function hidePetBubble() {
+    if (!elements.aiPetBubble) return;
+    elements.aiPetBubble.hidden = true;
+  }
+
+  function scheduleIdleGreeting() {
+    clearTimeout(petBubbleTimer);
+    petBubbleTimer = setTimeout(function() {
+      if (petQuickMenuOpen) { scheduleIdleGreeting(); return; }
+      if (elements.aiPetBubble && elements.aiPetBubble.hidden === false) { scheduleIdleGreeting(); return; }
+      const randomGreet = PET_GREETINGS[Math.floor(Math.random() * PET_GREETINGS.length)];
+      showPetBubble(randomGreet);
+      clearTimeout(petBubbleTimer);
+      petBubbleTimer = setTimeout(function() {
+        hidePetBubble();
+        scheduleIdleGreeting();
+      }, 3500);
+    }, 25000);
+  }
+
+  function updatePetBubbleState(state) {
+    clearTimeout(petBubbleTimer);
+    if (state === 'thinking') {
+      showPetBubble('正在想…');
+    } else if (state === 'happy' || state === 'error' || state === 'sleeping') {
+      hidePetBubble();
+    } else {
+      scheduleIdleGreeting(); // idle：低频问候
+    }
   }
   setPetState('idle');
 
@@ -1562,8 +1676,9 @@
       });
     }
     const status = chat.status === 'streaming' ? '思考中…' : chat.status === 'error' ? '发生错误' : '就绪';
-    elements.aiChatStatus.textContent = status;
     elements.aiChatStatus.className = `ai-chat-status ${chat.status}`;
+    const statusTextEl = elements.aiChatStatus.querySelector('.ai-chat-status-text');
+    if (statusTextEl) statusTextEl.textContent = status;
     const busy = Boolean(chat.activeRequestId);
     elements.aiChatSendBtn.hidden = busy;
     elements.aiChatStopBtn.hidden = !busy;
@@ -2362,7 +2477,31 @@
 
   function initializeAiChat() {
     setAiChatWidth(getAiChatWidth(), false);
-    elements.aiPetBtn.addEventListener('click', toggleAiChatPanel);
+    // 悬停宠物唤起快捷操作菜单；点击仍切换 AI 对话面板（同时收起菜单）
+    elements.aiPetBtn.addEventListener('mouseenter', openPetQuickMenu);
+    elements.aiPetBtn.addEventListener('click', function() {
+      closePetQuickMenu();
+      toggleAiChatPanel();
+    });
+    // 快捷操作项
+    if (elements.aiPetQuickMenu) {
+      elements.aiPetQuickMenu.addEventListener('click', function(event) {
+        const item = event.target && event.target.closest('.ai-pet-quick-item');
+        if (!item) return;
+        executePetQuickAction(item.getAttribute('data-act'));
+      });
+    }
+    // 点击菜单外 / 滚轮 / Esc 关闭快捷菜单
+    document.addEventListener('mousedown', function(event) {
+      if (!petQuickMenuOpen) return;
+      if (elements.aiPetQuickMenu.contains(event.target)) return;
+      if (elements.aiPetBtn && elements.aiPetBtn.contains(event.target)) return;
+      closePetQuickMenu();
+    });
+    document.addEventListener('wheel', function() { closePetQuickMenu(); }, { passive: true });
+    document.addEventListener('keydown', function(event) {
+      if (event.key === 'Escape') closePetQuickMenu();
+    });
     elements.aiChatCloseBtn.addEventListener('click', () => setAiChatPanelOpen(false));
     elements.aiChatClearBtn.addEventListener('click', () => {
       cancelAiRequest();
@@ -2510,6 +2649,7 @@
       elements.slashMenu.hidden = false;
       elements.slashMenu.setAttribute('aria-hidden', 'false');
       positionSlashMenu();
+      reportSlashMenuState(true);
     }
 
     function closeSlashMenu() {
@@ -2517,6 +2657,13 @@
       slashQuery = '';
       elements.slashMenu.hidden = true;
       elements.slashMenu.setAttribute('aria-hidden', 'true');
+      reportSlashMenuState(false);
+    }
+
+    // 向父窗口上报菜单开关状态：父窗口据此决定是否把 ↑↓/Enter/Esc 等导航键转发进编辑器
+    // （焦点落在父窗口时，编辑器收不到 keydown，菜单键盘操作全靠这条通道兜底）
+    function reportSlashMenuState(open) {
+      try { window.parent.postMessage({ type: 'slashMenuState', open: !!open }, '*'); } catch (e) {}
     }
 
     function positionSlashMenu() {
@@ -2582,19 +2729,38 @@
       if (slashMenuOpen && !slashShouldOpen()) closeSlashMenu();
     });
 
-    document.addEventListener('keydown', function(e) {
-      if (!slashMenuOpen) return;
+    // 菜单键盘操作：↑↓ 高亮循环、Enter 执行、Esc 关闭。返回 true 表示按键已被菜单消费。
+    // 既由编辑器内 keydown 调用，也由父窗口转发（焦点落在父窗口时）经 editorKeyDown 消息调用。
+    function handleSlashMenuKey(e) {
+      if (!slashMenuOpen) return false;
       const items = elements.slashMenuList.querySelectorAll('.slash-item');
-      if (e.key === 'ArrowDown') { e.preventDefault(); focusSlashItem(slashIndex + 1); }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); focusSlashItem(slashIndex - 1); }
-      else if (e.key === 'Enter') {
+      if (e.key === 'ArrowDown') { e.preventDefault(); focusSlashItem(slashIndex + 1); return true; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); focusSlashItem(slashIndex - 1); return true; }
+      if (e.key === 'Enter') {
         if (slashIndex >= 0 && items[slashIndex]) {
           e.preventDefault();
           items[slashIndex].click();
+          return true;
         }
+        return false;
       }
-      else if (e.key === 'Escape') { e.preventDefault(); closeSlashMenu(); mainEditor.focus(); }
-    });
+      if (e.key === 'Escape') { e.preventDefault(); closeSlashMenu(); mainEditor.focus(); return true; }
+      return false;
+    }
+
+    // 暴露给顶层消息处理：焦点落在父窗口时，父窗口转发的 editorKeyDown 消息经此进入菜单逻辑
+    // （handleSlashMenuKey 是 initializeAiChat 的内部函数，顶层 message 监听器无法直接访问）
+    window.__slashMenuKeyHandler = function (key) {
+      handleSlashMenuKey({ key: key, preventDefault: function() {} });
+    };
+
+    // 菜单打开时用捕获阶段接管导航/确认/关闭键：若走冒泡阶段，ACE 会先处理方向键移动光标，
+    // 触发 changeCursor → slashShouldOpen 失败 → 菜单被提前关闭，↑↓ 导航失效
+    document.addEventListener('keydown', function(e) {
+      if (!slashMenuOpen) return;
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter' && e.key !== 'Escape') return;
+      if (handleSlashMenuKey(e)) e.stopPropagation();
+    }, true);
     document.addEventListener('mousedown', function(e) {
       if (slashMenuOpen && !elements.slashMenu.contains(e.target)) closeSlashMenu();
     });
@@ -4187,6 +4353,18 @@
       if (state.clipId) loadClip(state.clipId);
     } else if (data.action === 'focusEditor') {
       mainEditor.focus();
+    } else if (data.action === 'editorInsertChar') {
+      // 父窗口兜底转发：焦点落在父窗口（点击工具栏/标签栏等）时，可打印字符经此注入编辑器。
+      // 触发链与直接输入一致：insert → session change → 斜杠菜单条件检查
+      hideStartWritingGuide();
+      mainEditor.focus();
+      mainEditor.insert(data.char);
+    } else if (data.action === 'editorKeyDown') {
+      // 父窗口转发：斜杠菜单打开且焦点在父窗口时，↑↓/Enter/Esc 等导航键经此进入菜单逻辑
+      mainEditor.focus();
+      if (typeof window.__slashMenuKeyHandler === 'function') {
+        window.__slashMenuKeyHandler(data.key);
+      }
     } else if (data.type === 'openFileData') {
       // 系统右键菜单「用编辑器打开」→ 父页面读取文件后传入数据，在新标签页打开
       openFileDataInNewTab(data.fileData);
@@ -4202,7 +4380,12 @@
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   // 页面（iframe）切回可见时强制重绘主题，修复切换页面后 ACE 背景色/高亮错乱的问题（Bug 修复）
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') applyTheme();
+    if (document.visibilityState === 'visible') {
+      applyTheme();
+      // 切回编辑视图时把焦点还给编辑器：否则输入 "/" 等字符会落入父窗口，
+      // 斜杠命令菜单等依赖编辑器焦点的快捷键无法唤起
+      mainEditor.focus();
+    }
   });
 
   elements.runtimeStatus.textContent = getElectronAPI() ? '桌面模式' : '浏览器模式';
@@ -4224,6 +4407,9 @@
       renderTabBar();
       renderAiChat();
     }
+    // 确保键盘焦点落在编辑器内：否则初次启动（空白引导层可见）时输入 "/" 等字符
+    // 会落入父窗口而非 ACE 编辑器，斜杠命令菜单等快捷键均无法唤起
+    mainEditor.focus();
   })();
 
   updateCursorStatus();

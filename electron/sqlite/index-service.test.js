@@ -76,3 +76,36 @@ test('rescan 删除整个文件后清除索引', () => {
   assert.equal(r.removed, 1); // 清掉 id1
   assert.equal(r.count, 0);
 });
+
+// 顺序放最后：新建 md 内容目录会改变根签名并持久化，避免影响前面的精确计数断言。
+test('md 库 → vault 索引 → searchAll 命中', () => {
+  // 用真实内容库目录名（clip-organized / obsidian-vault），验证它们不被 clip 排除语义误杀
+  const contentDir = path.join(root, 'clip-organized', 'notes');
+  fs.mkdirSync(contentDir, { recursive: true });
+  fs.writeFileSync(path.join(contentDir, '西湖.md'), '# 西湖\n杭州西湖美如画。', 'utf-8');
+  fs.writeFileSync(
+    path.join(contentDir, 'study.md'),
+    '---\ntitle: 学习计划草案\n---\n每天学习一小时。',
+    'utf-8'
+  );
+  fs.mkdirSync(path.join(root, 'clip-storage', '分类A'), { recursive: true });
+
+  const r = svc.initLocalIndex(root);
+  assert.equal(r.ready, true);
+  // 前面的 clip 已被删除，此时仅 2 条 md 入库
+  const total = svc.status().count;
+  assert.ok(total >= 1, '应有 vault 索引');
+  assert.equal(search.search('西湖').length, 1);
+
+  const hits = search.searchAll('西湖');
+  assert.ok(hits.length >= 1, 'vault 命中应至少 1 条');
+  const vaultHit = hits.find((h) => h.type === 'vault');
+  assert.ok(vaultHit, '应包含 type=vault 命中');
+  assert.equal(vaultHit.title, '西湖');
+  assert.ok(vaultHit.filePath && vaultHit.filePath.indexOf('西湖.md') !== -1, '应附带源文件路径');
+
+  // frontmatter title 生效
+  const planHits = search.searchAll('学习计划');
+  const planHit = planHits.find((h) => h.type === 'vault' && h.title === '学习计划草案');
+  assert.ok(planHit, 'frontmatter title 应成为命中标题');
+});

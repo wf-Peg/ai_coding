@@ -250,6 +250,114 @@ function extractEntityBodyPlain(entity, type) {
   return parts.filter((p) => p != null && String(p).trim() !== '').join('\n');
 }
 
+// ── Markdown 库（编辑器/知识库 .md）扫描：供全局搜索收录 ──
+
+/** 仅收录编辑器可打开的笔记型 Markdown，避免 txt/json/csv 等噪音。 */
+const MD_EXT_RE = /\.(md|markdown|mdown)$/i;
+
+/**
+ * md 库扫描排除的一级目录：运行时/构建/依赖/系统及原始存档。
+ * 注意：clip-organized / obsidian-vault / vault / notes 等用户内容库需被收录，
+ * 因此不能复用「只收 clip」的 EXCLUDED_DIR_NAMES（那里会排除这些 md 库）。
+ */
+const MD_EXCLUDED_DIR_NAMES = new Set([
+  'clip-storage', 'tmp', '.tmp', '.trash', '.git', '.obsidian', '.dsh', '.index',
+  'node_modules', 'jre', 'jre-slim', 'dist-electron', 'dist-dsh-offline', 'dist', 'build', 'out',
+  'backend', 'frontend', 'electron', 'scripts', 'test', 'docs',
+  'integrations', 'browser-extension', 'TODO', 'weekly-report', 'weeklyReport', 'jlink-target'
+]);
+
+/** 大文件正文读取上限（字节）：超过只取头部供全文检索，防止巨文拖慢索引建库。 */
+const MD_BODY_MAX_BYTES = 2 * 1024 * 1024;
+
+/**
+ * 发现 md 库一级根目录：storagePath 下排除系统/运行时目录后的子目录。
+ * @param {string} storagePath config.storagePath（Clip_Bed 父目录）
+ * @returns {string[]} 存在的 md 模块根目录
+ */
+function discoverMarkdownRoots(storagePath) {
+  const roots = [];
+  if (!storagePath || !fs.existsSync(storagePath)) return roots;
+  let entries;
+  try { entries = fs.readdirSync(storagePath, { withFileTypes: true }); }
+  catch (e) { return roots; }
+  for (const ent of entries) {
+    if (!ent.isDirectory()) continue;
+    if (MD_EXCLUDED_DIR_NAMES.has(ent.name)) continue;
+    roots.push(path.join(storagePath, ent.name));
+  }
+  return roots;
+}
+
+/**
+ * 递归遍历 md 根目录内的 .md 文件，回调每个文件绝对路径。
+ * 跳过隐藏目录（.obsidian/.tmp 等）与 MD 排除目录。
+ * 注意：不能用 clip 的 isExcludedPath 判断——它会把 clip-organized/vault 等
+ * 内容库目录一并排除，导致 md 记录收不到。这里仅排除根级配置文件。
+ * @param {string} root
+ * @param {(filePath:string)=>void} onFile
+ */
+function addMarkdownTree(root, onFile) {
+  let entries;
+  try { entries = fs.readdirSync(root, { withFileTypes: true }); }
+  catch (e) { return; }
+  for (const ent of entries) {
+    const full = path.join(root, ent.name);
+    if (ent.isDirectory()) {
+      if (ent.name.startsWith('.') || MD_EXCLUDED_DIR_NAMES.has(ent.name)) continue;
+      addMarkdownTree(full, onFile);
+    } else if (ent.isFile() && MD_EXT_RE.test(ent.name) && !EXCLUDED_FILE_NAMES.has(ent.name)) {
+      onFile(full);
+    }
+  }
+}
+
+/**
+ * 扫描 md 库，返回可索引记录。
+ * @param {string} storagePath
+ * @returns {Array<{filePath:string, mtime:string}>}
+ */
+function scanMarkdown(storagePath) {
+  const roots = discoverMarkdownRoots(storagePath);
+  const results = [];
+  for (const root of roots) {
+    addMarkdownTree(root, (filePath) => {
+      let mtime = '';
+      try { mtime = fs.statSync(filePath).mtimeMs.toString(); } catch (e) { /* ignore */ }
+      results.push({ filePath, mtime });
+    });
+  }
+  return results;
+}
+
+/**
+ * 读取 md 文件：剥离 YAML frontmatter，返回 { title, body }。
+ * title 优先取其 frontmatter.title，否则用 basename（去扩展名）。
+ * 大文件截断只保留头部，避免巨文拖慢索引与检索。
+ * @param {string} filePath
+ * @returns {{title:string, body:string}|null}
+ */
+function readMarkdownFile(filePath) {
+  let text = '';
+  try { text = fs.readFileSync(filePath, 'utf-8'); } catch (e) { return null; }
+  if (!text) text = '';
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1); // 去 BOM
+  if (Buffer.byteLength(text, 'utf-8') > MD_BODY_MAX_BYTES) {
+    text = text.slice(0, 1024 * 1024);
+  }
+  let title = path.basename(filePath).replace(/\.[^.]+$/, '');
+  if (text.startsWith('---')) {
+    const end = text.indexOf('\n---', 3);
+    if (end !== -1) {
+      const fm = text.slice(3, end);
+      const m = fm.match(/^title\s*:\s*(.+)$/m);
+      if (m && m[1].trim()) title = m[1].trim().replace(/^["']|["']$/g, '');
+      text = text.slice(end + 4);
+    }
+  }
+  return { title, body: text };
+}
+
 /**
  * 计算数据目录的轻量「变更签名」：仅做目录遍历 + stat 取每个可索引候选文件的最新 mtime，
  * 不读取文件内容、不 JSON.parse（成本远低于 scanClips 的全量读取）。
@@ -288,6 +396,14 @@ function getStorageSignature(storagePath) {
       if (fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory()) addTree(dirPath);
     }
   }
+  // md 库：统计 .md 文件数量与最新 mtime（对应 scanMarkdown），
+  // 否则 md 变化不会触发启动全量重建，导致索引与文件不一致。
+  for (const root of discoverMarkdownRoots(storagePath)) {
+    addMarkdownTree(root, (f) => {
+      fileCount++;
+      try { const m = fs.statSync(f).mtimeMs; if (m > maxMtime) maxMtime = m; } catch (e) { /* ignore */ }
+    });
+  }
   return `${fileCount}:${maxMtime}`;
 }
 
@@ -295,5 +411,6 @@ module.exports = {
   scanClips, parseClipFile, extractBodyPlain, isExcludedPath,
   resolveClipStoragePath, resolveBasePath, candidateRoots,
   scanEntities, parseEntityFile, extractEntityBodyPlain, ENTITY_DIRS,
-  getStorageSignature
+  getStorageSignature,
+  MD_EXT_RE, MD_EXCLUDED_DIR_NAMES, discoverMarkdownRoots, scanMarkdown, readMarkdownFile
 };
