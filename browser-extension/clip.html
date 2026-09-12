@@ -1705,6 +1705,75 @@
     @keyframes extSlideIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
     @keyframes extSlideOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(30px); } }
 
+    /* ── 全局轻提示 Toast（贴合主题 primary 蓝色系，去除硬编码色值）── */
+    .ext-toast {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        max-width: 360px;
+        padding: 10px 18px 10px 14px;
+        background: var(--surface, #ffffff);
+        color: var(--text, #1f2937);
+        border: 1px solid var(--border, #e5e7eb);
+        border-radius: var(--radius, 8px);
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 1.5;
+        z-index: 9999;
+        box-shadow: var(--shadow-hover, 0 10px 15px -3px rgba(0,0,0,0.1));
+        animation: extSlideIn 0.3s ease-out;
+    }
+    /* 图标由 CSS ::before 承载，避免 JS textContent 重置导致丢失 */
+    .ext-toast::before {
+        content: '';
+        flex: 0 0 auto;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1;
+    }
+    .ext-toast--success { border-color: var(--primary, #3f8cff); }
+    .ext-toast--success::before {
+        content: '✓';
+        color: #ffffff;
+        background: var(--primary, #3f8cff);
+    }
+    .ext-toast--error { border-color: var(--error, #ef4444); }
+    .ext-toast--error::before {
+        content: '✕';
+        color: #ffffff;
+        background: var(--error, #ef4444);
+    }
+    .ext-toast--info { border-color: var(--border, #e5e7eb); }
+    .ext-toast--info::before {
+        content: 'ℹ';
+        font-size: 13px;
+        color: #ffffff;
+        background: var(--primary, #3f8cff);
+    }
+
+    /* ── 错误提示（showError），贴合主题红色语义 + 统一圆角/阴影 ── */
+    .error-close-btn {
+        margin-top: 12px;
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: white;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        transition: background 0.3s ease;
+    }
+    .error-close-btn:hover { background: rgba(255, 255, 255, 0.35); }
+
     /* ── 图文一体缩略条（与主页面 clip.html 同一套 class，D-L 同步）── */
     .image-preview-item {
         position: relative;
@@ -1881,11 +1950,11 @@
         </div>
     </header>
 
-    <div id="notification-bar" style="position: fixed; top: 0; left: 0; right: 0; background: linear-gradient(135deg, var(--primary), var(--accent)); color: white; padding: 16px 24px; z-index: 2000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+    <div id="notification-bar" style="position: fixed; top: 0; left: 0; right: 0; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white; padding: 16px 24px; z-index: 2000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
         <div style="display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto;">
             <span id="notification-message" style="font-weight: 600;">内容整理完成！</span>
             <div style="display: flex; gap: 12px;">
-                <button id="open-folder-btn" style="background: white; color: var(--primary); border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.3s ease;">
+                <button id="open-folder-btn" style="background: white; color: var(--primary-dark); border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.3s ease;">
                     📂 打开存储目录
                 </button>
                 <button id="close-notification-btn" style="background: transparent; color: white; border: 2px solid white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 600;">

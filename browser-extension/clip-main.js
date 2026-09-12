@@ -608,10 +608,10 @@ function escapeJs(text) {
 
 function copyToClipboard(text) {
     navigator.clipboard.writeText(text).then(() => {
-        showToast('已复制到剪贴板！');
+        showToast('已复制到剪贴板！', 'success');
     }).catch(err => {
         console.error('复制失败:', err);
-        showToast('复制失败，请手动复制');
+        showToast('复制失败，请手动复制', 'error');
     });
 }
 
@@ -1068,13 +1068,13 @@ async function generateWeeklyReport() {
     }
 }
 
-function showToast(msg) {
+function showToast(msg, type = 'info') {
   const existing = document.querySelector('.ext-toast');
   if (existing) existing.remove();
   const t = document.createElement('div');
-  t.className = 'ext-toast';
+  t.className = 'ext-toast ext-toast--' + type;
   t.textContent = msg;
-  t.style.cssText = 'position:fixed;top:20px;right:20px;background:var(--card,#1e1e1e);color:var(--fg,#d4d4d4);padding:10px 20px;border-radius:10px;border:1px solid var(--border,#3e3e3e);z-index:9999;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,0.3);animation:extSlideIn 0.3s ease-out;';
+  // 图标由 CSS ::before 承载，样式类基于主题变量（见 clip.html .ext-toast）
   document.body.appendChild(t);
   setTimeout(() => { t.style.animation = 'extSlideOut 0.3s ease-in forwards'; setTimeout(() => t.remove(), 300); }, 2000);
 }
@@ -1162,17 +1162,17 @@ function hideLoading() {
 
 // 错误提示函数
 function showError(title, message) {
-    // 创建错误提示
+    // 创建错误提示（对齐主题：红色语义 + 统一圆角/阴影，见 clip.html .error-close-btn）
     const errorDiv = document.createElement('div');
     errorDiv.style.cssText = `
             position: fixed;
             top: 20px;
             right: 20px;
-            background: rgba(239, 68, 68, 0.95);
+            background: var(--error, #ef4444);
             color: white;
             padding: 16px 24px;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow-hover);
+            border-radius: var(--radius, 8px);
+            box-shadow: var(--shadow-hover, 0 10px 15px -3px rgba(0,0,0,0.1));
             z-index: 3000;
             animation: slideIn 0.3s ease-out;
             max-width: 400px;
@@ -1184,17 +1184,7 @@ function showError(title, message) {
                 <div style="flex: 1;">
                     <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 600;">${title}</h4>
                     <p style="margin: 0; font-size: 0.95rem; opacity: 0.9;">${message}</p>
-                    <button class="error-close-btn" style="
-                        margin-top: 12px;
-                        background: rgba(255, 255, 255, 0.2);
-                        border: none;
-                        color: white;
-                        padding: 6px 12px;
-                        border-radius: 4px;
-                        cursor: pointer;
-                        font-size: 0.85rem;
-                        transition: background 0.3s ease;
-                    ">关闭</button>
+                    <button class="error-close-btn">关闭</button>
                 </div>
             </div>
         `;
