@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tools Hub - CutShelter</title>
+<title>工具中心 - 碎碎记</title>
 <link rel="stylesheet" href="styles/design-tokens.css">
 <link rel="stylesheet" href="styles/ui-common.css">
 <link rel="stylesheet" href="styles/tools.css">
@@ -33,7 +33,7 @@
       <div class="th-status-dot off" id="agentInstallDot" style="margin-left:auto;font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--app-border);">未安装</div>
     </div>
     <div id="agentInstallHint" style="font-size:13px;line-height:1.7;color:var(--app-text-secondary);margin-bottom:12px;"></div>
-    <div style="font-size:12.5px;color:var(--app-text-secondary);margin-bottom:6px;">牛马依赖 DeepSeek Harness（DSH）。CutShelter 不再代为联网安装，请你在终端自助执行以下命令（免安装，首次会下载依赖）：</div>
+    <div style="font-size:12.5px;color:var(--app-text-secondary);margin-bottom:6px;">牛马依赖 DeepSeek Harness（DSH）。碎碎记不再代为联网安装，请你在终端自助执行以下命令（免安装，首次会下载依赖）：</div>
     <div style="display:flex;gap:8px;margin-bottom:14px;">
       <input id="agentInstallCmd" readonly value="npx @deepseek-ai/dsh web" style="flex:1;padding:9px 12px;border-radius:8px;border:1px solid var(--app-border);background:var(--app-bg);color:var(--app-text);font-family:monospace;font-size:12px;outline:none;" />
       <button id="agentCopyCmd" style="padding:0 12px;border-radius:8px;border:1px solid var(--app-border);background:transparent;color:var(--app-text);cursor:pointer;font-size:12px;white-space:nowrap;">复制命令</button>
@@ -86,11 +86,24 @@
       <span class="th-overlay-title" id="overlayTitle">工具</span>
     </div>
     <div class="th-overlay-actions">
+      <button class="th-btn th-btn-ghost-sm" id="openExternalBtn" title="在浏览器中打开" style="display:none">🌐 外部打开</button>
       <button class="th-btn th-btn-ghost-sm" id="viewPromptBtn" title="查看开发提示词">📋 提示词</button>
       <button class="th-btn th-btn-ghost-sm" id="overlayCloseBtn" title="返回工具列表">✕</button>
     </div>
   </div>
   <iframe class="th-overlay-frame" id="toolFrame"></iframe>
+  <!-- 兜底面板：目标网站禁止内嵌预览时展示（克隆为缓存页面 / 外部打开） -->
+  <div class="th-live-block" id="liveBlockPanel" style="display:none">
+    <div class="th-live-block-card">
+      <div class="th-live-block-icon">🚫</div>
+      <div class="th-live-block-title">目标网站禁止内嵌预览</div>
+      <div class="th-live-block-desc" id="liveBlockDesc">该网站设置了 X-Frame-Options / CSP，不允许在应用内直接内嵌。建议「克隆核心内容」，网站停止服务后仍可离线查看。</div>
+      <div class="th-live-block-actions">
+        <button class="th-btn th-btn-primary" id="liveCloneBtn">💾 克隆核心内容（离线可看）</button>
+        <button class="th-btn th-btn-ghost" id="liveOpenBtn">🌐 外部打开</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- 提示词 Modal -->
@@ -117,7 +130,32 @@
       <button class="th-btn th-btn-ghost-sm" id="importModalClose">✕</button>
     </div>
     <div class="th-modal-body">
+      <div class="th-import-type-tabs">
+        <button type="button" class="th-type-tab active" data-type="html">📄 HTML 文件</button>
+        <button type="button" class="th-type-tab" data-type="url">🌐 网站地址</button>
+      </div>
       <div class="th-form">
+        <!-- 入口：HTML 文件 -->
+        <div id="htmlFields">
+          <label>HTML 文件 *</label>
+          <div class="th-file-zone" id="fileZone">
+            <span>点击选择或拖拽 HTML 文件</span>
+            <span class="th-file-name" id="fileName"></span>
+          </div>
+        </div>
+        <!-- 入口：网站地址（灵感橱窗） -->
+        <div id="urlFields" style="display:none">
+          <div class="th-type-tip">收藏一个产品灵感网站：点击自适应渲染；支持「克隆核心内容」，网站停止服务后仍可离线阅读正文。</div>
+          <label>网站地址 *</label>
+          <input type="text" id="importUrl" placeholder="https://example.com" class="th-input" autocomplete="off">
+          <div class="th-probe-hint" id="probeHint"></div>
+          <label class="th-check-row">
+            <input type="checkbox" id="importClone" checked>
+            <span>💾 克隆核心内容（仅正文+图片，离线可看）</span>
+          </label>
+          <div class="th-type-tip th-title-pick" id="titlePick" style="display:none">已自动从页面标题填充名称，可手动修改</div>
+        </div>
+
         <label>名称 *</label>
         <input type="text" id="importName" placeholder="如：JSON 格式化" class="th-input">
         <label>分类</label>
@@ -126,11 +164,6 @@
         <input type="text" id="importDesc" placeholder="一句话描述工具功能" class="th-input">
         <label>开发提示词</label>
         <textarea id="importPrompt" placeholder="描述该工具的开发需求，方便日后复用" class="th-textarea"></textarea>
-        <label>HTML 文件 *</label>
-        <div class="th-file-zone" id="fileZone">
-          <span>点击选择或拖拽 HTML 文件</span>
-          <span class="th-file-name" id="fileName"></span>
-        </div>
       </div>
     </div>
     <div class="th-modal-footer">

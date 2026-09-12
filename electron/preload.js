@@ -70,6 +70,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   openConfigFolder: () => ipcRenderer.invoke('open-config-folder'),
 
+  /**
+   * 打开「数据文件存储路径」（config.storagePath，剪藏/整理/周报数据所在目录）
+   * @returns {Promise<{success: boolean, dataDir?: string, message?: string}>}
+   * 用于设置页面「数据与隐私」区块，与 openConfigFolder（配置文件目录）区分口径
+   */
+  openDataFolder: () => ipcRenderer.invoke('open-data-folder'),
+
   // ===================== 文件/目录选择 =====================
 
   /**
@@ -757,5 +764,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     dissolveGroup: (opts) => ipcRenderer.invoke('local-index:canvas:dissolve-group', opts || {}),
     /** 触发无限画布后端同步（进图时拉取最新快照） */
     canvasSync: () => ipcRenderer.invoke('local-index:canvas:sync')
-  }
+  },
+
+  // ===================== 工具模块：灵感橱窗（URL 工具） =====================
+
+  /** 克隆网站为离线缓存页面：payload = { url, toolId, settleMs? }（完整网页，savePage HTMLComplete） */
+  cloneUrlPage: (payload) => ipcRenderer.invoke('tools:clone-url-page', payload),
+
+  /** 克隆「核心内容快照」：payload = { url, toolId, settleMs? }，保存正文+内联图片单文件 */
+  snapshotCorePage: (payload) => ipcRenderer.invoke('tools:snapshot-core-page', payload),
+
+  /** 评估目标页核心内容（不写盘）：payload = { url, settleMs? }，返回标题与正文统计 */
+  evaluateCorePage: (payload) => ipcRenderer.invoke('tools:evaluate-core-page', payload),
+
+  /** 清理指定工具缓存目录 */
+  removeToolCache: (toolId) => ipcRenderer.invoke('tools:remove-tool-cache', toolId),
+
+  /** 在系统默认浏览器打开外部链接 */
+  openExternal: (url) => ipcRenderer.invoke('tools:open-external', { url })
 });

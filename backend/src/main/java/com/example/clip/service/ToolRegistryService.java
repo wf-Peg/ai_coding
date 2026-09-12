@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -45,6 +46,12 @@ public class ToolRegistryService {
 
     /** 工具存储根目录（相对用户主目录） */
     private static final String TOOLS_DIR = ".cut-shelter/tools";
+
+    /** URL 工具「克隆为缓存页面」根目录（相对用户主目录），与 Electron 主进程约定一致 */
+    private static final String TOOLS_CACHE_DIR = ".cut-shelter/tools-cache";
+
+    /** 缓存页入口文件名（Electron savePage HTMLComplete 输出） */
+    private static final String CACHE_ENTRY_FILE = "index.html";
 
     /** 注册表文件名 */
     private static final String REGISTRY_FILE = "registry.json";
@@ -279,6 +286,10 @@ public class ToolRegistryService {
             if (!t.containsKey("enabled")) {
                 t.put("enabled", true);
             }
+            if (!t.containsKey("type")) {
+                // 旧记录缺省视为自包含 HTML 工具
+                t.put("type", "html");
+            }
         }
         return tools;
     }
@@ -358,7 +369,7 @@ public class ToolRegistryService {
     }
 
     /**
-     * 导入一个新工具：写入 HTML 页面并登记元数据。
+     * 导入一个新工具（自包含 HTML 文件入口）。
      *
      * @param name        工具名称
      * @param category    分类
@@ -388,10 +399,52 @@ public class ToolRegistryService {
         tool.put("description", description != null ? description : "");
         tool.put("keywords", new ArrayList<String>());
         tool.put("file", fileName);
+        tool.put("type", "html");
         tool.put("prompt", prompt != null ? prompt : "");
         tool.put("builtin", false);
         tool.put("createdAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        persistTool(tool);
+        log.info("[ToolRegistry] Imported tool: {} ({})", name, id);
+        return tool;
+    }
 
+    /**
+     * 导入一个新工具（网站地址入口，灵感橱窗）。
+     * <p>仅登记元数据（type=url / url / embeddable），页面内容由 Electron 主进程
+     * savePage 克隆到 {@code ~/.cut-shelter/tools-cache/&lt;id&gt;/}。</p>
+     *
+     * @param name        工具名称
+     * @param category    分类
+     * @param description 一句话描述
+     * @param prompt      开发需求提示词
+     * @param url         目标网站地址（http/https）
+     * @param embeddable  探测的内嵌可用性（null 时保守视为可内嵌）
+     * @return 新工具元数据
+     */
+    public Map<String, Object> importToolWithUrl(String name, String category, String description,
+                                                 String prompt, String url, Boolean embeddable) {
+        String id = "tool-" + UUID.randomUUID().toString().substring(0, 8);
+
+        Map<String, Object> tool = new LinkedHashMap<>();
+        tool.put("id", id);
+        tool.put("name", name != null ? name : "未命名工具");
+        tool.put("icon", "🌐");
+        tool.put("category", category != null && !category.isEmpty() ? category : "其他");
+        tool.put("description", description != null ? description : "");
+        tool.put("keywords", new ArrayList<String>());
+        tool.put("type", "url");
+        tool.put("url", url);
+        tool.put("embeddable", embeddable != null ? embeddable : Boolean.TRUE);
+        tool.put("prompt", prompt != null ? prompt : "");
+        tool.put("builtin", false);
+        tool.put("createdAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        persistTool(tool);
+        log.info("[ToolRegistry] Imported url tool: {} ({})", name, id);
+        return tool;
+    }
+
+    /** 将工具元数据追加写入注册表并持久化。 */
+    private void persistTool(Map<String, Object> tool) {
         Map<String, Object> registry = loadRegistry();
         Object toolsObj = registry.get("tools");
         List<Map<String, Object>> tools;
@@ -403,9 +456,131 @@ public class ToolRegistryService {
         }
         tools.add(tool);
         saveRegistry(registry);
+    }
 
-        log.info("[ToolRegistry] Imported tool: {} ({})", name, id);
-        return tool;
+    /**
+     * 获取工具缓存根目录 {@code ~/.cut-shelter/tools-cache}（不存在则创建）。
+     */
+    private Path getToolsCacheRoot() {
+        String userHome = System.getProperty("user.home");
+        if (userHome == null || userHome.isEmpty()) {
+            userHome = ".";
+        }
+        Path dir = Paths.get(userHome, TOOLS_CACHE_DIR);
+        try {
+            Files.createDirectories(dir);
+        } catch (IOException e) {
+            log.warn("[ToolRegistry] Failed to create tools-cache dir: {}", e.getMessage());
+        }
+        return dir;
+    }
+
+    /**
+     * 解析工具缓存目录中的文件路径（含路径穿越防护）。
+     * <p>path 与 id 拼接后 normalize，必须落在 {@code tools-cache/&lt;id&gt;} 内且为常规文件，否则返回 null。</p>
+     *
+     * @param toolId       工具 id
+     * @param relativePath 相对缓存目录的路径（如 {@code index.html} 或 {@code snapshot_files/logo.png}）
+     * @return 合法的文件路径；非法/越界/不存在返回 null
+     */
+    public Path resolveCachePath(String toolId, String relativePath) {
+        if (toolId == null || toolId.isEmpty() || relativePath == null) {
+            return null;
+        }
+        Path root = getToolsCacheRoot().resolve(toolId).normalize();
+        Path resolved = root.resolve(relativePath).normalize();
+        if (!resolved.startsWith(root)) {
+            log.warn("[ToolRegistry] Cache path traversal blocked: {}/{}", toolId, relativePath);
+            return null;
+        }
+        return Files.isRegularFile(resolved) ? resolved : null;
+    }
+
+    /**
+     * 判断工具是否已存在缓存入口（index.html）。
+     *
+     * @param toolId 工具 id
+     * @return 是否存在缓存
+     */
+    public boolean isToolCached(String toolId) {
+        Path entry = resolveCachePath(toolId, CACHE_ENTRY_FILE);
+        return entry != null;
+    }
+
+    /**
+     * 读取工具缓存入口 index.html（自动注入全局主题桥脚本）。
+     *
+     * @param toolId 工具 id
+     * @return HTML 内容；缓存不存在返回 null
+     */
+    public String getToolCacheEntry(String toolId) {
+        Path entry = resolveCachePath(toolId, CACHE_ENTRY_FILE);
+        if (entry == null) {
+            return null;
+        }
+        try {
+            return injectThemeBridge(Files.readString(entry, StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            log.warn("[ToolRegistry] Failed to read cache entry {}: {}", toolId, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 更新工具缓存状态（克隆结果写回）。
+     *
+     * @param id       工具 id
+     * @param cached   是否已缓存
+     * @param cachedAt 缓存时间（yyyy-MM-dd HH:mm:ss），cached=false 时忽略
+     * @return 更新后的工具元数据；工具不存在返回 null
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> updateToolCache(String id, boolean cached, String cachedAt) {
+        Map<String, Object> registry = loadRegistry();
+        Object toolsObj = registry.get("tools");
+        List<Map<String, Object>> tools = toolsObj instanceof List
+                ? (List<Map<String, Object>>) toolsObj : new ArrayList<>();
+        for (Map<String, Object> t : tools) {
+            if (id.equals(t.get("id"))) {
+                t.put("cached", cached);
+                if (cached) {
+                    t.put("cachedAt", cachedAt != null ? cachedAt
+                            : LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+                } else {
+                    t.remove("cachedAt");
+                }
+                registry.put("tools", tools);
+                saveRegistry(registry);
+                log.info("[ToolRegistry] Update tool cache: {} cached={}", id, cached);
+                return t;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 更新工具内嵌可用性（重新探测结果写回）。
+     *
+     * @param id        工具 id
+     * @param embeddable 是否可内嵌
+     * @return 更新后的工具元数据；工具不存在返回 null
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> updateToolEmbeddable(String id, boolean embeddable) {
+        Map<String, Object> registry = loadRegistry();
+        Object toolsObj = registry.get("tools");
+        List<Map<String, Object>> tools = toolsObj instanceof List
+                ? (List<Map<String, Object>>) toolsObj : new ArrayList<>();
+        for (Map<String, Object> t : tools) {
+            if (id.equals(t.get("id"))) {
+                t.put("embeddable", embeddable);
+                registry.put("tools", tools);
+                saveRegistry(registry);
+                log.info("[ToolRegistry] Update tool embeddable: {} embeddable={}", id, embeddable);
+                return t;
+            }
+        }
+        return null;
     }
 
     /**
@@ -446,10 +621,33 @@ public class ToolRegistryService {
                 log.warn("[ToolRegistry] Failed to delete tool page {}: {}", file, e.getMessage());
             }
         }
+        // 清理克隆缓存目录（仅限 tools-cache 根内）
+        Path cacheDir = getToolsCacheRoot().resolve(id).normalize();
+        if (cacheDir.startsWith(getToolsCacheRoot())) {
+            deleteRecursively(cacheDir);
+        }
         tools.remove(target);
         saveRegistry(registry);
         log.info("[ToolRegistry] Deleted tool: {}", id);
         return true;
+    }
+
+    /** 递归删除目录（不存在时静默跳过）。 */
+    private void deleteRecursively(Path dir) {
+        if (!Files.exists(dir)) {
+            return;
+        }
+        try (java.util.stream.Stream<Path> walk = Files.walk(dir)) {
+            walk.sorted(Comparator.reverseOrder()).forEach(p -> {
+                try {
+                    Files.deleteIfExists(p);
+                } catch (IOException e) {
+                    log.warn("[ToolRegistry] Failed to delete {}: {}", p, e.getMessage());
+                }
+            });
+        } catch (IOException e) {
+            log.warn("[ToolRegistry] Failed to walk dir {}: {}", dir, e.getMessage());
+        }
     }
 
     /**

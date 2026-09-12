@@ -131,7 +131,7 @@ if (process.platform === 'win32') {
     const shortcutOptions = {
       target: process.execPath,
       args: '',
-      description: 'CutShelter - AI 驱动的剪藏与内容整理工具',
+      description: '碎碎记（CutShelter）- AI 驱动的剪藏与内容整理工具',
       icon: process.execPath,
       iconIndex: 0
     };
@@ -1921,7 +1921,7 @@ function createTray() {
   }
 
   tray = new Tray(trayIcon);
-  tray.setToolTip('CutShelter');
+  tray.setToolTip('碎碎记');
 
   // 右键菜单
   const contextMenu = Menu.buildFromTemplate([
@@ -2156,7 +2156,7 @@ async function showCloseDialog(win) {
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
       </svg>
-      关闭 CutShelter
+      关闭碎碎记
     </div>
     <button class="close-btn" onclick="cancel()" title="取消">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
@@ -2165,7 +2165,7 @@ async function showCloseDialog(win) {
     </button>
   </div>
   <div class="body">
-    <p>是否<strong>退出</strong> CutShelter，还是<strong>最小化</strong>到系统托盘继续在后台运行？</p>
+    <p>是否<strong>退出</strong>碎碎记，还是<strong>最小化</strong>到系统托盘继续在后台运行？</p>
     <div class="checkbox-row">
       <input type="checkbox" id="remember">
       <label for="remember">记住我的选择，下次不再询问</label>
@@ -2265,7 +2265,7 @@ function createMainWindow(config) {
   mainWindow = new BrowserWindow({
     width: 1200, height: 800,
     minWidth: 900, minHeight: 600,
-    title: 'Clip',
+    title: '碎碎记',
     // macOS：系统原生标题栏，红黄绿交通灯以 hiddenInset 内嵌于左上，前端作为拖拽区。
     // Windows：隐藏标题栏 + 系统 Overlay 按钮（最小化/最大化/关闭），前端作拖拽区（Aero Snap 由系统接管）。
     titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
@@ -2411,7 +2411,7 @@ function createMainWindow(config) {
     },
     {
       label: 'View', submenu: [
-        { role: 'reload' }, { role: 'toggleDevTools', accelerator: 'CommandOrControl+F12' }, { type: 'separator' },
+        { role: 'toggleDevTools', accelerator: 'CommandOrControl+F12' }, { type: 'separator' },
         { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { type: 'separator' },
         { role: 'togglefullscreen' }
       ]
@@ -2438,7 +2438,7 @@ function createMainWindow(config) {
             const ver = updateManager.getCurrentVersion();
             dialog.showMessageBox(mainWindow, {
               type: 'info', title: 'About',
-              message: 'CutShelter - Information Retrieval System',
+              message: '碎碎记（CutShelter）- 信息检索与知识管理',
               detail: `Version: ${ver}\nSpring Boot + Electron\nDashScope AI`
             });
           }
@@ -2497,7 +2497,7 @@ function showConfigWindow(config) {
     width: 560, height: 700,
     resizable: false,
     frame: false,
-    title: 'Clip - Settings',
+    title: '碎碎记 - 设置',
     icon: path.join(__dirname, 'app-icon.png'),
     parent: mainWindow,      // 设置父窗口，随父窗口一起关闭
     webPreferences: {
@@ -3221,6 +3221,216 @@ function setupIPC() {
       }
     }
     return { success: true, renamed, errors };
+  });
+
+  // ===== 工具模块：灵感橱窗（URL 工具 克隆缓存页面 / 外部打开 / 清理缓存）=====
+  // 缓存根目录与后端 ToolRegistryService 约定一致：~/.cut-shelter/tools-cache
+  function toolsCacheBase() {
+    return path.join(os.homedir(), '.cut-shelter', 'tools-cache');
+  }
+
+  // 归一化 URL：缺 scheme 补 https://，非 http(s) 返回 null
+  function normalizeHttpUrl(raw) {
+    let u = String(raw || '').trim();
+    if (!u) return null;
+    if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(u)) u = 'https://' + u;
+    if (!/^https?:\/\/.+/.test(u)) return null;
+    return u;
+  }
+
+  // 递归删除目录（含内容）
+  function rmRecursive(dir) {
+    if (!fs.existsSync(dir)) return;
+    for (const entry of fs.readdirSync(dir)) {
+      const full = path.join(dir, entry);
+      if (fs.statSync(full).isDirectory()) rmRecursive(full);
+      else fs.rmSync(full, { force: true });
+    }
+    fs.rmdirSync(dir);
+  }
+
+  // 克隆指定 URL 为离线缓存页面：隐藏窗口加载 → webContents.savePage(HTMLComplete)
+  ipcMain.handle('tools:clone-url-page', async (event, payload) => {
+    const { url, toolId } = payload || {};
+    const target = normalizeHttpUrl(url);
+    if (!target) return { ok: false, error: '无效的网站地址（需 http/https）' };
+    if (!/^[\w-]+$/.test(String(toolId || ''))) return { ok: false, error: '无效的工具 id' };
+    const settleMs = Math.min(Math.max(parseInt(payload.settleMs, 10) || 3000, 0), 30000);
+
+    const cacheRoot = toolsCacheBase();
+    const cacheDir = path.join(cacheRoot, toolId);
+    if (!cacheDir.startsWith(cacheRoot)) return { ok: false, error: '非法缓存路径' };
+    fs.mkdirSync(cacheDir, { recursive: true });
+
+    let win = null;
+    try {
+      win = new BrowserWindow({
+        width: 1280, height: 900,
+        show: false,
+        paintWhenInitiallyHidden: false,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true
+        }
+      });
+      const LOAD_TIMEOUT = 25000; // 加载兜底：部分站点资源/拖尾较多，永不触发 did-finish-load
+      const LOADED = 'loaded';
+      let loadFailed = false;
+      const loadDone = new Promise((resolve) => {
+        win.webContents.once('did-finish-load', () => resolve(LOADED));
+        win.webContents.on('did-fail-load', (e, code, desc, validatedURL) => {
+          // 目标主帧加载失败即中止（重定向后的最终 URL 不等 target，交给超时兜底）
+          if (validatedURL === target) { loadFailed = true; resolve(false); }
+        });
+        win.loadURL(target).catch(() => { loadFailed = true; resolve(false); });
+        setTimeout(() => resolve('timeout'), LOAD_TIMEOUT);
+      });
+      const loaded = await loadDone;
+      if (loaded === false) {
+        win.destroy();
+        return { ok: false, error: loadFailed ? '页面加载失败' : '页面加载失败，请稍后重试或检查网络' };
+      }
+      // 稳定等待（懒加载/图片渲染），随后保存当前渲染状态
+      await new Promise(r => setTimeout(r, settleMs));
+      const savePath = path.join(cacheDir, 'index.html');
+      const saveRace = Promise.race([
+        win.webContents.savePage(savePath, 'HTMLComplete').then(() => ({ ok: true })),
+        new Promise(resolve => setTimeout(() => resolve({ ok: false, error: '克隆超时（60s），请稍后重试或检查网络' }), 60000))
+      ]);
+      const saved = await saveRace;
+      if (!saved.ok) {
+        win.destroy();
+        return saved;
+      }
+      if (!fs.existsSync(savePath)) {
+        win.destroy();
+        return { ok: false, error: '未生成缓存文件' };
+      }
+      const title = win.getTitle();
+      win.destroy();
+      return { ok: true, entry: 'index.html', title };
+    } catch (e) {
+      try { if (win && !win.isDestroyed()) win.destroy(); } catch (_) { /* ignore */ }
+      return { ok: false, error: '克隆失败: ' + (e.message || e) };
+    }
+  });
+
+  // ===== 灵感橱窗：核心内容快照（正文提取 / 评估 / 单文件内联） =====
+  // 隐藏窗口加载目标页（25s 加载兜底），供快照/评估复用
+  function openHiddenPage(url) {
+    const win = new BrowserWindow({
+      width: 1280, height: 900,
+      show: false,
+      paintWhenInitiallyHidden: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+    const LOADED = 'loaded';
+    let loadFailed = false;
+    const loadDone = new Promise((resolve) => {
+      win.webContents.once('did-finish-load', () => resolve(LOADED));
+      win.webContents.on('did-fail-load', (e, code, desc, validatedURL) => {
+        // 主帧加载失败即中止（重定向后的最终 URL 不等 target，交给超时兜底）
+        if (validatedURL === url) { loadFailed = true; resolve(false); }
+      });
+      win.loadURL(url).catch(() => { loadFailed = true; resolve(false); });
+      setTimeout(() => resolve('timeout'), 25000);
+    });
+    return { win, loadDone, isLoadFailed: () => loadFailed };
+  }
+
+  // 在目标页执行「核心内容提取」脚本，返回 { result?, error?, win? }（调用方负责 destroy win）
+  async function runCoreSnapshot(url, settleMs) {
+    if (!normalizeHttpUrl(url)) return { error: '无效的网站地址（需 http/https）' };
+    let win = null;
+    try {
+      win = openHiddenPage(url);
+      const loaded = await win.loadDone;
+      if (loaded === false) return { error: '页面加载失败，请稍后重试或检查网络', win };
+      // 稳定等待懒加载/图片渲染后提取正文
+      await new Promise(r => setTimeout(r, settleMs));
+      const script = require('./tools-core-snapshot');
+      const result = await win.webContents.executeJavaScript(script, true);
+      return { result, win };
+    } catch (e) {
+      return { error: '内容提取失败: ' + (e.message || e), win };
+    }
+  }
+
+  /**
+   * 克隆「核心内容快照」：只保存正文 + 内联图片的单文件 index.html，
+   * 移除脚本/广告/导航/评论等噪音，替代全量 savePage（离线核心可看、体积小）。
+   */
+  ipcMain.handle('tools:snapshot-core-page', async (event, payload) => {
+    const { url, toolId } = payload || {};
+    const target = normalizeHttpUrl(url);
+    if (!target) return { ok: false, error: '无效的网站地址（需 http/https）' };
+    if (!/^[\w-]+$/.test(String(toolId || ''))) return { ok: false, error: '无效的工具 id' };
+    const settleMs = Math.min(Math.max(parseInt(payload.settleMs, 10) || 3000, 0), 30000);
+
+    const cacheRoot = toolsCacheBase();
+    const cacheDir = path.join(cacheRoot, toolId);
+    if (!cacheDir.startsWith(cacheRoot)) return { ok: false, error: '非法缓存路径' };
+    fs.mkdirSync(cacheDir, { recursive: true });
+
+    const { result, error, win } = await runCoreSnapshot(target, settleMs);
+    try {
+      if (error) return { ok: false, error };
+      if (!result || result.error || !result.html) {
+        return { ok: false, error: (result && result.error) || '页面未发现可读正文内容' };
+      }
+      // 清理旧产物（如之前完整克隆的 index_files），只保留新单文件快照
+      fs.readdirSync(cacheDir).forEach(name => {
+        if (name !== 'index.html') fs.rmSync(path.join(cacheDir, name), { recursive: true, force: true });
+      });
+      fs.writeFileSync(path.join(cacheDir, 'index.html'), result.html, 'utf8');
+      const title = result.title || (win ? win.getTitle() : '') || '';
+      return { ok: true, entry: 'index.html', title, stats: result.stats || {} };
+    } finally {
+      try { if (win && !win.isDestroyed()) win.destroy(); } catch (_) { /* ignore */ }
+    }
+  });
+
+  /**
+   * 评估目标页的核心内容（不写盘）：返回标题与正文统计，供克隆前确认。
+   */
+  ipcMain.handle('tools:evaluate-core-page', async (event, payload) => {
+    const target = normalizeHttpUrl((payload && payload.url) || '');
+    if (!target) return { ok: false, error: '无效的网站地址（需 http/https）' };
+    const settleMs = Math.min(Math.max(parseInt(payload.settleMs, 10) || 1000, 0), 30000);
+    const { result, error, win } = await runCoreSnapshot(target, settleMs);
+    try {
+      if (error) return { ok: false, error };
+      if (!result || (result.error && !result.stats)) {
+        return { ok: false, error: (result && result.error) || '页面未发现可读正文内容' };
+      }
+      return { ok: true, title: result.title || '', stats: result.stats || {} };
+    } finally {
+      try { if (win && !win.isDestroyed()) win.destroy(); } catch (_) { /* ignore */ }
+    }
+  });
+
+  // 清理指定工具缓存目录（越界防护：仅允许 tools-cache 根内）
+  ipcMain.handle('tools:remove-tool-cache', async (event, toolId) => {
+    const cacheRoot = toolsCacheBase();
+    const cacheDir = path.resolve(cacheRoot, String(toolId || ''));
+    if (cacheDir === cacheRoot || !cacheDir.startsWith(cacheRoot)) return { ok: false, error: '非法缓存路径' };
+    try {
+      rmRecursive(cacheDir);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  });
+
+  // 在系统默认浏览器打开外部链接
+  ipcMain.handle('tools:open-external', async (event, payload) => {
+    const target = normalizeHttpUrl((payload && payload.url) || '');
+    if (!target) return { ok: false, error: '无效的网址' };
+    shell.openExternal(target);
+    return { ok: true };
   });
 
   // ===== 轻量文本编辑器文件能力 =====
@@ -4084,6 +4294,28 @@ function setupIPC() {
     }
   });
 
+  // 打开「数据文件存储路径」（config.storagePath，Clip_Bed 父目录）。
+  // 与 open-config-folder 区分口径：前者是剪藏/整理/周报数据所在，后者是 config.json 等配置文件所在。
+  ipcMain.handle('open-data-folder', async () => {
+    try {
+      const config = loadConfig();
+      const dataDir = (config && config.storagePath) || APP_DIR;
+      if (!dataDir) {
+        return { success: false, message: '数据存储路径未配置' };
+      }
+      if (!fs.existsSync(dataDir)) {
+        return { success: false, message: `数据目录不存在：${dataDir}` };
+      }
+      const error = await shell.openPath(dataDir);
+      if (error) {
+        return { success: false, message: `打开数据目录失败: ${error}` };
+      }
+      return { success: true, dataDir };
+    } catch (e) {
+      return { success: false, message: e.message };
+    }
+  });
+
   // 检查后端是否可用
   ipcMain.handle('check-backend', async (event, port) => await checkPort(port));
 
@@ -4901,7 +5133,7 @@ async function checkForUpdates(silent = true) {
         });
       }
       // 系统通知，确保用户看到新版本提示
-      showNotification('发现新版本', `CutShelter v${result.latestVersion} 已可用，请到「设置 → 软件更新」查看并更新`);
+      showNotification('发现新版本', `碎碎记 v${result.latestVersion} 已可用，请到「设置 → 软件更新」查看并更新`);
     }
     return {
       hasUpdate: true,
@@ -5563,7 +5795,7 @@ app.whenReady().then(async () => {
     mainWindow = new BrowserWindow({
       width: 560, height: 700, resizable: false,
       frame: false,
-      title: 'Clip - Setup',
+      title: '碎碎记 - 初始设置',
       icon: path.join(__dirname, 'app-icon.png'),
       webPreferences: {
         nodeIntegration: false,
@@ -5779,7 +6011,7 @@ app.whenReady().then(async () => {
       // 启动失败时降级到配置窗口，允许用户修改配置
       mainWindow = new BrowserWindow({
         width: 560, height: 700, resizable: false,
-        title: 'Clip - Settings',
+        title: '碎碎记 - 设置',
         icon: path.join(__dirname, 'app-icon.png'),
         webPreferences: {
           nodeIntegration: false,

@@ -55,6 +55,39 @@
   let activeCategory = '全部';
   let searchTerm = '';
   let currentPromptId = null;
+  // 灵感橱窗：URL 工具
+  let importType = 'html';       // html | url（导入入口类型）
+  let importEmbeddable = null;   // 内嵌探测结果（Boolean | null）
+  let currentTool = null;        // 当前打开的 URL 工具（兜底面板/头部按钮用）
+  function getElectronApi() {
+    return (window.parent && window.parent.electronAPI) || window.electronAPI || null;
+  }
+  function isUrlTool(t) { return !!(t && t.type === 'url'); }
+  function normalizeUrlInput(raw) {
+    let u = String(raw || '').trim();
+    if (!u) return null;
+    if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(u)) u = 'https://' + u;
+    if (!/^https?:\/\/\S+/.test(u)) return null;
+    return u;
+  }
+  // 系统默认浏览器打开外部链接（桌面端走 IPC，浏览器模式 window.open）
+  function openExternal(url) {
+    if (!url) return;
+    const api = getElectronApi();
+    if (api && api.openExternal) { api.openExternal(url); }
+    else { try { window.open(url, '_blank'); } catch (e) { showToast('无法打开外部链接', 3000); } }
+  }
+  // 重新检测 URL 工具内嵌可用性并写回注册表
+  async function reProbeTool(t) {
+    if (!t || !isUrlTool(t)) return;
+    try {
+      const res = await fetch(API_BASE + '/api/tools/' + t.id + '/probe', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) { showToast((data && data.error) || '检测失败', 4000); return; }
+      showToast(data.embeddable === false ? '🚫 该网站禁止内嵌预览' : '✅ 该网站支持内嵌预览', 3000);
+      loadTools();
+    } catch (e) { showToast('检测失败: ' + e.message, 4000); }
+  }
 
   // ── 系统工具（Electron 主进程能力，不走后端注册表）──
   const SYSTEM_SCREENSHOT = {
@@ -264,6 +297,11 @@
         <div class="th-card-name">${escapeHtml(t.name)}</div>
         <div class="th-card-desc">${escapeHtml(t.description || '')}</div>
         <div class="th-card-footer">
+          ${isUrlTool(t)
+            ? (t.cached
+              ? '<span class="th-card-badge th-badge-cache" title="已克隆为缓存页面，离线可看（' + escapeHtml(t.cachedAt || '') + '）">📥 已缓存</span>'
+              : '<span class="th-card-badge th-badge-url" title="网站地址工具">🌐 在线</span>')
+            : ''}
           <span class="th-card-badge">${escapeHtml(t.category || '其他')}</span>
           <div class="th-card-actions">
             <span class="th-drag-handle" title="拖拽排序">⠿</span>
@@ -401,12 +439,75 @@
     if (t.system) { openSystemTool(t); return; }
     $('overlayTitle').textContent = (t.icon || '🧰') + ' ' + t.name;
     currentPromptId = t.id;
+    currentTool = isUrlTool(t) ? t : null;
     const frame = $('toolFrame');
     // 页面加载完成后补发当前主题，确保工具内主题跟随全局
-    frame.onload = () => forwardThemeToTool();
-    frame.src = API_BASE + '/api/tools/' + t.id + '/page';
+    frame.onload = () => { forwardThemeToTool(); };
+    if (isUrlTool(t)) {
+      $('openExternalBtn').style.display = '';
+      if (t.cached) {
+        // 已缓存：一律走本地缓存页，可靠且离线可看
+        showLiveBlock(false);
+        frame.src = API_BASE + '/api/tools/' + t.id + '/cache/index.html';
+      } else if (t.embeddable !== false) {
+        // 探测允许（或未知）→ iframe 直连
+        showLiveBlock(false);
+        frame.src = t.url;
+      } else {
+        // 禁止内嵌 → 兜底面板
+        frame.src = '';
+        showLiveBlock(true, t);
+      }
+    } else {
+      $('openExternalBtn').style.display = 'none';
+      showLiveBlock(false);
+      frame.src = API_BASE + '/api/tools/' + t.id + '/page';
+    }
     $('overlay').classList.add('show');
   }
+
+  // 兜底面板显隐（网站禁止内嵌预览时）
+  function showLiveBlock(show, t) {
+    const panel = $('liveBlockPanel');
+    const frame = $('toolFrame');
+    if (show) {
+      frame.style.display = 'none';
+      if (t && t.blockReason) {
+        $('liveBlockDesc').textContent = t.blockReason + '。建议「克隆核心内容」，网站停止服务后仍可离线阅读正文。';
+      } else {
+        $('liveBlockDesc').textContent = '该网站设置了 X-Frame-Options / CSP，不允许在应用内直接内嵌。建议「克隆核心内容」，网站停止服务后仍可离线阅读正文。';
+      }
+      panel.style.display = 'flex';
+    } else {
+      panel.style.display = 'none';
+      frame.style.display = '';
+    }
+  }
+
+  // 兜底面板按钮：克隆核心内容 / 外部打开（对应 currentTool）
+  $('liveCloneBtn').addEventListener('click', async () => {
+    if (!currentTool) return;
+    $('liveCloneBtn').disabled = true;
+    $('liveCloneBtn').textContent = '克隆中…';
+    const ok = await snapshotCoreFor(currentTool, { silent: false });
+    $('liveCloneBtn').disabled = false;
+    $('liveCloneBtn').textContent = '💾 克隆核心内容（离线可看）';
+    if (ok) {
+      loadTools();
+      // 克隆成功：直接切到缓存页渲染
+      $('toolFrame').src = API_BASE + '/api/tools/' + currentTool.id + '/cache/index.html';
+      showLiveBlock(false);
+    }
+  });
+  $('liveOpenBtn').addEventListener('click', () => {
+    if (!currentTool) return;
+    openExternal(currentTool.url);
+  });
+  // overlay 头部「🌐 外部打开」（URL 工具常驻）
+  $('openExternalBtn').addEventListener('click', () => {
+    if (!currentTool) return;
+    openExternal(currentTool.url);
+  });
 
   // ── 打开顶层模块子工具：通知主框架(main)切换到对应视图 ──
   function openModule(t) {
@@ -514,7 +615,11 @@
     $('overlay').classList.remove('show');
     const frame = $('toolFrame');
     frame.src = '';
+    frame.style.display = '';
+    $('liveBlockPanel').style.display = 'none';
+    $('openExternalBtn').style.display = 'none';
     currentPromptId = null;
+    currentTool = null;
   }
 
   // 系统工具配置面板（截图工具：快捷键/OCR 下载/高级开关，可交互）
@@ -714,6 +819,38 @@
       viewP.addEventListener('click', () => { closeMenu(); viewPrompt(t.id); });
       menuEl.appendChild(viewP);
 
+      // URL 工具（灵感橱窗）：克隆核心内容 / 完整网页 / 外部打开 / 重新检测内嵌状态
+      if (isUrlTool(t)) {
+        const urlDivider = document.createElement('div');
+        urlDivider.className = 'th-menu-divider';
+        menuEl.appendChild(urlDivider);
+        const clone = document.createElement('button');
+        clone.className = 'th-menu-item';
+        clone.textContent = t.cached ? '🧠 重新克隆核心内容' : '🧠 克隆核心内容（离线可看）';
+        clone.addEventListener('click', () => { closeMenu(); cloneCoreWithEval(t); });
+        menuEl.appendChild(clone);
+        const full = document.createElement('button');
+        full.className = 'th-menu-item';
+        full.textContent = '⬇ 克隆完整网页（原样）';
+        full.addEventListener('click', () => {
+          closeMenu();
+          confirmAction('将「' + t.name + '」完整网页克隆为本地缓存？\n体积较大，建议优先使用「克隆核心内容」。', () => {
+            cloneFullCacheFor(t).then(ok => { if (ok) loadTools(); });
+          });
+        });
+        menuEl.appendChild(full);
+        const ext = document.createElement('button');
+        ext.className = 'th-menu-item';
+        ext.textContent = '🌐 外部打开';
+        ext.addEventListener('click', () => { closeMenu(); openExternal(t.url); });
+        menuEl.appendChild(ext);
+        const reprobe = document.createElement('button');
+        reprobe.className = 'th-menu-item';
+        reprobe.textContent = '🔄 重新检测内嵌状态';
+        reprobe.addEventListener('click', () => { closeMenu(); reProbeTool(t); });
+        menuEl.appendChild(reprobe);
+      }
+
       // 禁用 / 启用（内置工具同样支持）
       const enabled = t.enabled !== false;
       const toggle = document.createElement('button');
@@ -873,6 +1010,16 @@
 
   // ── Delete tool ──
   async function deleteTool(id) {
+    // URL 工具：删除前先尽力清理本地缓存目录（后端 deleteTool 也会清理，双保险）
+    const del = tools.find(x => x.id === id);
+    if (del && isUrlTool(del)) {
+      const api = getElectronApi();
+      if (api && api.removeToolCache) {
+        api.removeToolCache(id).then(r => {
+          if (r && r.ok === false) showToast('缓存清理失败：' + r.error, 3500);
+        }).catch(() => {});
+      }
+    }
     try {
       const res = await fetch(API_BASE + '/api/tools/' + id, { method: 'DELETE' });
       const data = await res.json();
@@ -883,9 +1030,34 @@
     }
   }
 
-  // ── Import tool ──
-  $('importToolBtn').addEventListener('click', () => { $('importModal').style.display = 'flex'; $('importMsg').textContent = ''; });
+  // ── Import tool (HTML 文件 / 网站地址 双入口) ──
+  $('importToolBtn').addEventListener('click', () => {
+    switchImportType('html');
+    $('importModal').style.display = 'flex';
+    $('importMsg').textContent = '';
+  });
   $('importModalClose').addEventListener('click', () => $('importModal').style.display = 'none');
+
+  // 入口类型切换
+  document.querySelectorAll('.th-type-tab').forEach(tab => {
+    tab.addEventListener('click', () => switchImportType(tab.dataset.type));
+  });
+  function switchImportType(type) {
+    importType = type === 'url' ? 'url' : 'html';
+    document.querySelectorAll('.th-type-tab').forEach(t =>
+      t.classList.toggle('active', t.dataset.type === importType));
+    $('htmlFields').style.display = importType === 'html' ? '' : 'none';
+    $('urlFields').style.display = importType === 'url' ? '' : 'none';
+    $('titlePick').style.display = 'none';
+    importEmbeddable = null;
+    const hint = $('probeHint');
+    hint.textContent = '';
+    hint.className = 'th-probe-hint';
+    if (importType === 'url') {
+      const u = $('importUrl').value.trim();
+      if (u) scheduleProbe(u);
+    }
+  }
 
   let importFile = null;
   const fileZone = $('fileZone');
@@ -904,23 +1076,175 @@
     if (f && /\.html?$/i.test(f.name)) { importFile = f; $('fileName').textContent = f.name; }
   });
 
+  // ── URL 入口：内嵌可用性探测（输入去抖自动触发，导入前写回 embeddable）──
+  let probeTimer = null;
+  $('importUrl').addEventListener('input', () => {
+    $('titlePick').style.display = 'none';
+    importEmbeddable = null;
+    clearTimeout(probeTimer);
+    const u = $('importUrl').value.trim();
+    if (!u) { $('probeHint').textContent = ''; return; }
+    probeTimer = setTimeout(() => scheduleProbe(u), 600);
+  });
+  function scheduleProbe(raw) {
+    const u = normalizeUrlInput(raw);
+    if (!u) return;
+    setProbeHint('正在检测内嵌可用性…', 'checking');
+    fetch(API_BASE + '/api/tools/probe?url=' + encodeURIComponent(u))
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) { setProbeHint('⚠️ ' + data.error, 'warn'); return; }
+        importEmbeddable = data.embeddable === false ? false : true;
+        if (data.embeddable === false) {
+          setProbeHint('🚫 该网站禁止内嵌预览，导入后建议克隆为缓存页面（离线可看）', 'warn');
+        } else if (data.status === 0) {
+          setProbeHint('⚠️ 探测失败，导入后将尝试直接内嵌', 'warn');
+        } else {
+          setProbeHint('✅ 该网站支持在内嵌预览', 'ok');
+        }
+        // 用页面标题自动填名（名称为空时）
+        if (data.title && !$('importName').value.trim()) {
+          $('importName').value = data.title;
+          $('titlePick').style.display = '';
+        }
+      })
+      .catch(() => setProbeHint('⚠️ 探测失败，导入后将尝试直接内嵌', 'warn'));
+  }
+  function setProbeHint(text, kind) {
+    const el = $('probeHint');
+    el.textContent = text;
+    el.className = 'th-probe-hint' + (kind ? ' ' + kind : '');
+  }
+
+  // ── 克隆 URL 工具为离线缓存页面 ──
+  // 主路径：核心内容快照（只存正文+内联图片的单文件，小体积离线可看）
+  // 高级选项：完整网页（Electron savePage HTMLComplete）
+  function fmtKb(kb) {
+    kb = Number(kb) || 0;
+    return kb >= 1024 ? (kb / 1024).toFixed(1) + ' MB' : Math.round(kb) + ' KB';
+  }
+  // 克隆成功后 PATCH 落库并刷新本地元数据
+  async function markCacheDone(t, opts) {
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const cachedAt = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate()) +
+      ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+    await fetch(API_BASE + '/api/tools/' + t.id + '/cache', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cached: true, cachedAt })
+    }).catch(() => {});
+    t.cached = true;
+    t.cachedAt = cachedAt;
+    if (!opts.silent) showToast(opts.toast || '已克隆为缓存页面（离线可看）', 3200);
+  }
+  // 核心内容快照克隆（主路径）
+  async function snapshotCoreFor(t, opts) {
+    opts = opts || {};
+    const api = getElectronApi();
+    const url = t.url || t._url;
+    if (!api || !api.snapshotCorePage || !url) {
+      // 旧环境降级：无核心快照能力时退回完整克隆
+      return cloneFullCacheFor(t, opts);
+    }
+    try {
+      const res = await api.snapshotCorePage({ url, toolId: t.id, settleMs: 3000 });
+      if (!res || !res.ok) {
+        showToast('克隆核心内容失败：' + ((res && res.error) || '未知错误'), 4500);
+        return false;
+      }
+      const st = res.stats || {};
+      const sum = '正文约 ' + (st.chars || 0) + ' 字 / 图片 ' + (st.imgCount || 0) + ' 张 / 快照约 ' + fmtKb(st.totalKb || 0);
+      await markCacheDone(t, { silent: opts.silent, toast: '已克隆核心内容：' + sum });
+      return true;
+    } catch (e) {
+      showToast('克隆核心内容失败：' + e.message, 4500);
+      return false;
+    }
+  }
+  // 完整网页克隆（高级选项，savePage HTMLComplete）
+  async function cloneFullCacheFor(t, opts) {
+    opts = opts || {};
+    const api = getElectronApi();
+    const url = t.url || t._url;
+    if (!api || !api.cloneUrlPage || !url) {
+      showToast('克隆需要桌面端（Electron）支持', 3500);
+      return false;
+    }
+    try {
+      const res = await api.cloneUrlPage({ url, toolId: t.id, settleMs: 3000 });
+      if (!res || !res.ok) {
+        showToast('完整克隆失败：' + ((res && res.error) || '未知错误'), 4500);
+        return false;
+      }
+      await markCacheDone(t, { silent: opts.silent, toast: '已克隆完整网页（原样保留，离线可看）' });
+      return true;
+    } catch (e) {
+      showToast('完整克隆失败：' + e.message, 4500);
+      return false;
+    }
+  }
+  // 兼容旧引用：默认走核心快照
+  function cloneCacheFor(t, opts) { return snapshotCoreFor(t, opts); }
+  // 菜单主路径：先评估核心内容（不写盘），确认后再克隆
+  async function cloneCoreWithEval(t) {
+    const api = getElectronApi();
+    if (!api || !api.evaluateCorePage) {
+      confirmAction('将「' + t.name + '」克隆为离线缓存页面（核心内容，离线可看）？', () => {
+        snapshotCoreFor(t).then(ok => { if (ok) loadTools(); });
+      });
+      return;
+    }
+    showToast('正在评估页面核心内容…', 3000);
+    const ev = await api.evaluateCorePage({ url: t.url, settleMs: 1000 }).catch(() => null);
+    if (!ev || !ev.ok) {
+      showToast('内容评估失败：' + ((ev && ev.error) || '未知错误'), 4500);
+      return;
+    }
+    const st = ev.stats || {};
+    confirmAction(
+      '「' + t.name + '」' +
+      '\n标题：' + (ev.title || t.name) +
+      '\n正文约 ' + (st.chars || 0) + ' 字，图片 ' + (st.imgCount || 0) + ' 张' +
+      '\n快照约 ' + fmtKb(st.totalKb || 0) + '（仅保留核心内容，不含广告/脚本/导航）' +
+      '\n\n确认克隆为离线缓存页面？',
+      () => { snapshotCoreFor(t).then(ok => { if (ok) loadTools(); }); }
+    );
+  }
+
   $('importConfirmBtn').addEventListener('click', async () => {
     const name = $('importName').value.trim();
     if (!name) { $('importMsg').textContent = '请填写工具名称'; return; }
-    if (!importFile) { $('importMsg').textContent = '请选择 HTML 文件'; return; }
-    const fd = new FormData();
-    fd.append('html', importFile);
-    fd.append('name', name);
-    fd.append('category', $('importCategory').value.trim());
-    fd.append('description', $('importDesc').value.trim());
-    fd.append('prompt', $('importPrompt').value.trim());
     const btn = $('importConfirmBtn');
     btn.disabled = true;
     btn.textContent = '导入中…';
     try {
+      const fd = new FormData();
+      fd.append('name', name);
+      fd.append('category', $('importCategory').value.trim());
+      fd.append('description', $('importDesc').value.trim());
+      fd.append('prompt', $('importPrompt').value.trim());
+      if (importType === 'url') {
+        const url = normalizeUrlInput($('importUrl').value);
+        if (!url) { $('importMsg').textContent = '请输入有效的网站地址（http/https）'; return; }
+        $('importUrl').value = url;
+        fd.append('type', 'url');
+        fd.append('url', url);
+        if (typeof importEmbeddable === 'boolean') fd.append('embeddable', String(importEmbeddable));
+      } else {
+        if (!importFile) { $('importMsg').textContent = '请选择 HTML 文件'; return; }
+        fd.append('type', 'html');
+        fd.append('html', importFile);
+      }
       const res = await fetch(API_BASE + '/api/tools', { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) { $('importMsg').textContent = data.error || '导入失败'; return; }
+      const tool = data;
+      // URL 工具：勾选克隆且桌面端 → 立即克隆核心内容快照（成功后 toast 展示评估统计）
+      if (importType === 'url' && $('importClone').checked) {
+        const payload = { _url: tool.url || url };
+        await cloneCacheFor(Object.assign({}, tool, payload), { silent: false });
+      }
       resetImportForm();
       $('importModal').style.display = 'none';
       loadTools();
@@ -936,6 +1260,9 @@
     $('importName').value = ''; $('importCategory').value = '';
     $('importDesc').value = ''; $('importPrompt').value = '';
     $('fileName').textContent = ''; importFile = null;
+    $('importUrl').value = '';
+    importEmbeddable = null;
+    switchImportType('html');
   }
 
   // ── Search ──
