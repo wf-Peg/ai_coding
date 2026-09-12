@@ -10,6 +10,7 @@
     var KNOWLEDGE_API_BASE_URL = 'http://127.0.0.1:8081/api/knowledge';
     var GIT_API_BASE_URL = 'http://127.0.0.1:8081/api/git';
     var SYNC_API_BASE_URL = 'http://127.0.0.1:8081/api/sync';
+    var SYNC_PROVIDER_API_BASE_URL = 'http://127.0.0.1:8081/api/sync-provider';
     var fetchSeq = 0;
     var currentTags = [];
     var MAX_TAGS = 10;
@@ -125,6 +126,7 @@ var selectedClipIds = new Set();
     // 暴露到 window：const 顶层声明不挂 window，media-uploader.js 等共享 helper 依赖 window.API_ROOT
     window.API_BASE_URL = API_BASE_URL;
     window.API_ROOT = API_ROOT;
+    window.SYNC_PROVIDER_API_BASE_URL = SYNC_PROVIDER_API_BASE_URL;
 
     // ── API 契约层（M4）──
     // 统一封装数据访问：优先走 SQLite 本地索引 IPC（window.electronAPI.localIndex），

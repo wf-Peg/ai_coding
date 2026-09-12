@@ -27,6 +27,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -60,6 +61,10 @@ public class FileStorageService {
     private final ObjectMapper objectMapper;
     /** 存储根目录路径 */
     private final Path storagePath;
+    /** 日报总结存储目录路径（clip.organized-storage.path，与 storagePath 同级） */
+    private final Path organizedStoragePath;
+    /** 周报存储目录路径（clip.clip-weekly-report.path，与 storagePath 同级） */
+    private final Path weeklyReportPath;
     /** 全局 ID 生成器，使用 AtomicLong 保证线程安全 */
     private final AtomicLong idGenerator = new AtomicLong(1);
     /**
@@ -83,8 +88,12 @@ public class FileStorageService {
      * </p>
      *
      * @param storagePath 存储根目录路径（从配置读取，默认 ./clip-storage）
+     * @param organizedStoragePath 日报总结存储目录路径（从配置读取，默认 ./clip-organized）
+     * @param weeklyReportPath     周报存储目录路径（从配置读取，默认 ./weeklyReport）
      */
-    public FileStorageService(@Value("${clip.storage.path:./clip-storage}") String storagePath) {
+    public FileStorageService(@Value("${clip.storage.path:./clip-storage}") String storagePath,
+                              @Value("${clip.organized-storage.path:./clip-organized}") String organizedStoragePath,
+                              @Value("${clip.clip-weekly-report.path:./weeklyReport}") String weeklyReportPath) {
         this.objectMapper = new ObjectMapper();
         // 注册 JavaTimeModule 以支持 LocalDateTime 等 Java 8 时间类型的序列化
         this.objectMapper.registerModule(new JavaTimeModule());
@@ -94,6 +103,8 @@ public class FileStorageService {
         // 忽略 JSON 中未知的属性，避免反序列化时因新增字段导致失败
         this.objectMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         this.storagePath = Paths.get(storagePath);
+        this.organizedStoragePath = Paths.get(organizedStoragePath);
+        this.weeklyReportPath = Paths.get(weeklyReportPath);
         initStorage();
         initIdGenerator();
     }
@@ -1212,6 +1223,39 @@ public class FileStorageService {
      */
     public Path getStoragePath() {
         return storagePath;
+    }
+
+    /**
+     * 返回同步范围内关键子目录清单。
+     * <p>
+     * 供「同步状态」面板展示同步范围说明：剪藏数据（clip-storage）、日报总结（clip-organized）、
+     * 周报文件（weeklyReport）、临时文件（tmp，位于 storagePath 下）。
+     * 仅返回存在配置项（路径非空）的目录，逐项包含 {@code name / path / exists}。
+     * </p>
+     *
+     * @return 子目录清单
+     */
+    public List<Map<String, Object>> getSyncDirs() {
+        List<Map<String, Object>> dirs = new ArrayList<>();
+        addSyncDir(dirs, "clip-storage", storagePath);
+        addSyncDir(dirs, "clip-organized", organizedStoragePath);
+        addSyncDir(dirs, "weeklyReport", weeklyReportPath);
+        if (storagePath != null) {
+            addSyncDir(dirs, "tmp", storagePath.resolve("tmp"));
+        }
+        return dirs;
+    }
+
+    /** 追加一个同步范围目录项（路径为空则跳过）。 */
+    private void addSyncDir(List<Map<String, Object>> dirs, String name, Path path) {
+        if (path == null) {
+            return;
+        }
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("name", name);
+        item.put("path", path.toString());
+        item.put("exists", Files.exists(path));
+        dirs.add(item);
     }
 
     // ==================== LearningPlan 存储 ====================

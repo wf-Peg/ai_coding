@@ -188,6 +188,7 @@
                 <button class="toggle-btn main-btn" id="sync-btn" onclick="syncGit()">
                     <span class="toggle-text">🔄 同步仓库</span>
                 </button>
+                <button class="icon-btn" type="button" id="sync-info-btn" title="同步说明与状态" onclick="toggleSyncPanel()">ℹ️</button>
             </div>
             <div class="action-split-group">
                 <button class="icon-btn" type="button" title="配置整理Prompt" onclick="openPromptConfigModal('daily')">⚙️</button>
@@ -226,6 +227,17 @@
     </header>
 
     <div id="git-sync-result" class="git-sync-result"></div>
+
+    <!-- 同步状态面板：同步方案 + 连接状态 + 同步范围说明（含各存储路径） -->
+    <div id="sync-status-panel" class="sync-status-panel" hidden>
+        <div class="sync-panel-head">
+            <strong class="sync-panel-title">同步状态</strong>
+            <button class="sync-panel-close" type="button" title="关闭" onclick="toggleSyncPanel()">&times;</button>
+        </div>
+        <div id="sync-panel-body" class="sync-panel-body">
+            <div class="sync-panel-loading">加载同步状态中...</div>
+        </div>
+    </div>
 
     <div id="notification-bar" style="position: fixed; top: 0; left: 0; right: 0; background: linear-gradient(135deg, var(--primary), var(--accent)); color: white; padding: 16px 24px; z-index: 2000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
         <div style="display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto;">

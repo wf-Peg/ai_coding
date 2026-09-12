@@ -85,6 +85,8 @@
                 syncBtn.innerHTML = '<span class="toggle-text">🔄 同步仓库</span>';
                 syncBtn.disabled = false;
                 renderGitSyncResult(response.data || { ok: true, steps: [] });
+                // 同步完成后刷新同步状态面板（最近同步时间等实时更新）
+                loadSyncStatusPanel();
                 showNotification((response.data?.ok) ? '同步完成' : '同步过程中出现问题，详见同步详情');
             })
             .catch(error => {
@@ -210,6 +212,172 @@
         // 隐藏配置弹窗
         document.getElementById('git-config-modal').style.display = 'none';
     }
+
+// ====== 同步状态面板（同步方案 + 连接状态 + 同步范围说明） ======
+// 方案 fields 渲染器注册表（预留）：type -> renderFields(fields)。当前仅 Git；
+// 未来新增同步方案时，在此补充对应 type 的处理即可，面板主框架无需改动。
+var SYNCPROVIDER_RENDERERS = {};
+
+function toggleSyncPanel() {
+    // 切换同步状态面板显隐；每次展开都刷新，保证状态实时
+    const panel = document.getElementById('sync-status-panel');
+    if (!panel) return;
+    if (panel.hidden) {
+        panel.hidden = false;
+        loadSyncStatusPanel();
+    } else {
+        panel.hidden = true;
+    }
+}
+
+// 预取可用同步方案列表（provider 动态发现，未来新增方案自动出现）
+function loadProviders() {
+    return axios.get(`${SYNC_PROVIDER_API_BASE_URL}/providers`)
+        .then(resp => (resp.data || []))
+        .catch(err => { console.error('Load sync providers failed:', err); return []; });
+}
+
+// 加载并渲染同步状态面板主体
+function loadSyncStatusPanel() {
+    const body = document.getElementById('sync-panel-body');
+    if (!body) return;
+    // 并行拉取方案列表 + Git 方案状态
+    Promise.all([
+        loadProviders(),
+        axios.get(`${SYNC_PROVIDER_API_BASE_URL}/git/status`)
+    ])
+    .then(([providers, statusResp]) => {
+        renderSyncPanel(statusResp.data || {}, providers);
+    })
+    .catch(err => {
+        body.innerHTML = '';
+        body.appendChild(emptyRow('获取同步状态失败，请稍后重试。'));
+        console.error('Load sync status failed:', err);
+    });
+}
+
+// 渲染同步状态面板：方案 + 连接状态 + 仓库信息 + 同步范围说明
+function renderSyncPanel(status, providers) {
+    const body = document.getElementById('sync-panel-body');
+    if (!body) return;
+    body.innerHTML = '';
+
+    // ---- 同步方案 ----
+    const scheme = document.createElement('div');
+    scheme.className = 'sync-panel-card';
+    scheme.innerHTML = '<div class="sync-panel-card-title">同步方案</div>';
+    const schemeRow = document.createElement('div');
+    schemeRow.className = 'sync-scheme-row';
+    const badge = document.createElement('span');
+    badge.className = 'sync-provider-badge';
+    badge.textContent = status.displayName || '未指定';
+    schemeRow.appendChild(badge);
+    if (providers && providers.length) {
+        const hint = document.createElement('span');
+        hint.className = 'sync-scheme-hint';
+        hint.textContent = '更多方案即将支持';
+        schemeRow.appendChild(hint);
+    }
+    scheme.appendChild(schemeRow);
+    body.appendChild(scheme);
+
+    // ---- 连接状态 ----
+    const conn = document.createElement('div');
+    conn.className = 'sync-panel-card';
+    conn.innerHTML = '<div class="sync-panel-card-title">连接状态</div>';
+    const statBadge = document.createElement('span');
+    let statText = '仅本地提交（未配置远程）';
+    if (!status.ready) {
+        statText = '仓库尚未初始化（缺少 .git）';
+        statBadge.className = 'sync-stat-badge warn';
+    } else if (status.configured) {
+        statText = '已配置远程仓库';
+        statBadge.className = 'sync-stat-badge ok';
+    } else {
+        statBadge.className = 'sync-stat-badge info';
+    }
+    statBadge.textContent = statText;
+    conn.appendChild(statBadge);
+    if (status.ready) {
+        conn.appendChild(fieldRow('最近同步时间', status.lastSyncAt ? status.lastSyncAt : '暂无提交记录'));
+    }
+    body.appendChild(conn);
+
+    // ---- 仓库信息（Git fields） ----
+    const f = status.fields || {};
+    if (f.workingDir || f.remoteUrl || f.branch) {
+        const repo = document.createElement('div');
+        repo.className = 'sync-panel-card';
+        repo.innerHTML = '<div class="sync-panel-card-title">仓库信息</div>';
+        if (f.workingDir) repo.appendChild(fieldRow('工作目录', f.workingDir));
+        if (f.remoteUrl) repo.appendChild(fieldRow('远程仓库', f.remoteUrl));
+        if (f.branch) repo.appendChild(fieldRow('分支', f.branch));
+        body.appendChild(repo);
+    }
+
+    // ---- 同步范围说明（各存储路径） ----
+    const scope = document.createElement('div');
+    scope.className = 'sync-panel-card';
+    scope.innerHTML = '<div class="sync-panel-card-title">同步范围说明</div>';
+    const dirs = Array.isArray(f.dirs) ? f.dirs : [];
+    if (dirs.length === 0) {
+        scope.appendChild(emptyRow('未获取到同步目录信息。'));
+    } else {
+        const dirDesc = {
+            'clip-storage': '剪藏数据（JSON）',
+            'clip-organized': '日报总结',
+            'weeklyReport': '周报文件',
+            'tmp': '临时文件（异常日志/草稿，程序运行产物，通常无需手动编辑）'
+        };
+        dirs.forEach(d => {
+            const row = document.createElement('div');
+            row.className = 'sync-dir-row';
+            const name = document.createElement('div');
+            name.className = 'sync-dir-name';
+            name.textContent = (d.name || '') + (dirDesc[d.name] ? ' · ' + dirDesc[d.name] : '');
+            const path = document.createElement('div');
+            path.className = 'sync-dir-path';
+            path.textContent = d.path || '';
+            row.appendChild(name);
+            row.appendChild(path);
+            scope.appendChild(row);
+        });
+        const note = document.createElement('div');
+        note.className = 'sync-scope-note';
+        note.textContent = '以上目录均位于同步仓库内，点击「同步仓库」会整体提交并推送。';
+        scope.appendChild(note);
+    }
+    body.appendChild(scope);
+}
+
+// 生成一行「标签: 值」
+function fieldRow(label, value) {
+    const row = document.createElement('div');
+    row.className = 'sync-field-row';
+    const l = document.createElement('span');
+    l.className = 'sync-field-label';
+    l.textContent = label;
+    const v = document.createElement('span');
+    v.className = 'sync-field-value';
+    v.textContent = value;
+    row.appendChild(l);
+    row.appendChild(v);
+    return row;
+}
+
+// 生成空态/降级提示
+function emptyRow(text) {
+    const d = document.createElement('div');
+    d.className = 'sync-panel-empty';
+    d.textContent = text;
+    return d;
+}
+
+// 页面加载后预取同步状态（数据缓存，不主动弹窗）
+document.addEventListener('DOMContentLoaded', () => {
+    loadProviders();
+    loadSyncStatusPanel();
+});
 
     function loadGitConfig() {
         // 加载当前Git配置

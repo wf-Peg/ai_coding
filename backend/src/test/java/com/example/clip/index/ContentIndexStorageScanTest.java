@@ -30,7 +30,7 @@ class ContentIndexStorageScanTest {
         todo.setId(3L);
         LearningPlan plan = new LearningPlan();
         plan.setId(4L);
-        FileStorageService storage = new FileStorageService(tempDir.toString()) {
+        FileStorageService storage = new FileStorageService(tempDir.toString(), tempDir.toString(), tempDir.toString()) {
             @Override public List<ClipContent> getAllClips() { return List.of(clip); }
             @Override public List<Knowledge> getAllKnowledge() { return List.of(knowledge); }
             @Override public List<TodoContent> getAllTodos() { return List.of(todo); }
@@ -51,7 +51,7 @@ class ContentIndexStorageScanTest {
     @Test
     void rebuildFromStorageIgnoresNullImagesAndBlankIds() {
         // 空存储不报错，且不产生索引
-        FileStorageService emptyStorage = new FileStorageService(tempDir.resolve("empty").toString());
+        FileStorageService emptyStorage = new FileStorageService(tempDir.resolve("empty").toString(), tempDir.resolve("empty-organized").toString(), tempDir.resolve("empty-weekly").toString());
         ContentIndexService index = new ContentIndexService(tempDir.resolve("empty-index.json"));
         index.rebuildFromStorage(emptyStorage);
         assertEquals(0, index.readAll().size());
@@ -62,7 +62,7 @@ class ContentIndexStorageScanTest {
         ClipContent b = new ClipContent();
         b.setId(1L);
         b.setCreatedAt(java.time.LocalDateTime.of(2026, 1, 2, 0, 0));
-        FileStorageService storage = new FileStorageService(tempDir.toString()) {
+        FileStorageService storage = new FileStorageService(tempDir.toString(), tempDir.toString(), tempDir.toString()) {
             @Override public List<ClipContent> getAllClips() { return List.of(a, b); }
             @Override public List<Knowledge> getAllKnowledge() { return List.of(); }
             @Override public List<TodoContent> getAllTodos() { return List.of(); }

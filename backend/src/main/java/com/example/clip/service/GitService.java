@@ -10,6 +10,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -253,6 +254,30 @@ public class GitService {
         String output = (String) out.get("output");
         if (output == null || output.trim().isEmpty()) return 0;
         return output.split("\n").length;
+    }
+
+    /**
+     * 获取仓库最近一次提交时间（本地 git log -1 --format=%ci）。
+     * <p>
+     * 供「同步状态」面板显示最近同步时间。仓库未初始化（无 .git）或尚无提交、命令失败时返回 null。
+     * </p>
+     *
+     * @param directory Git 仓库目录
+     * @return 最近提交时间字符串（如 2026-09-12 10:00:00 +0800）；无提交或未初始化时为 null
+     */
+    public String getLastCommitDate(Path directory) {
+        if (directory == null || !Files.exists(directory.resolve(".git"))) {
+            return null;
+        }
+        Map<String, Object> out = run(directory, "git", "log", "-1", "--format=%ci");
+        if (((Number) out.getOrDefault("code", -1)).intValue() != 0) {
+            return null;
+        }
+        String output = (String) out.get("output");
+        if (output == null || output.trim().isEmpty()) {
+            return null;
+        }
+        return output.trim();
     }
 
     /** 取命令输出的最后一行（用作简短消息/错误原因）。 */

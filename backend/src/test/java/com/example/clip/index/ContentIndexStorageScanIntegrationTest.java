@@ -27,7 +27,7 @@ class ContentIndexStorageScanIntegrationTest {
 
     @Test
     void rebuildFromRealStorageCoversAllFourContentTypes() {
-        FileStorageService storage = new FileStorageService(tempDir.resolve("storage").toString());
+        FileStorageService storage = new FileStorageService(tempDir.resolve("storage").toString(), tempDir.resolve("storage-organized").toString(), tempDir.resolve("storage-weekly").toString());
 
         ClipContent clip = new ClipContent();
         clip.setTitle("剪藏标题");
