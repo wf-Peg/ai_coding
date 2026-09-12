@@ -356,37 +356,14 @@
       .text(function(d) { return truncate(d.title, 14); })
       .attr('dy', function(d) { return getNodeRadius(d) + 14; });
 
-    // Node click
-    nodeElements.on('click', function(event, d) {
-      event.stopPropagation();
-      if (linkSourceId) { completeLink(String(d.id)); return; }
-      // Ctrl/Cmd + 点击：多选切换
-      if (event.ctrlKey || event.metaKey) {
-        if (selectedNodeIds.has(String(d.id))) {
-          selectedNodeIds.delete(String(d.id));
-          selectedNodeId = null;
-        } else {
-          selectedNodeIds.add(String(d.id));
-          selectedNodeId = String(d.id);
-        }
-        applySelectionHighlight();
-        return;
-      }
-      selectNode(d);
-    });
+    // Node click（复用具名处理器，供差分插入的单节点再绑定）
+    nodeElements.on('click', onNodeClick);
 
     // 双击编辑画布节点内容（便签/链接/图片）
-    nodeElements.on('dblclick', function(event, d) {
-      event.stopPropagation();
-      if (isCanvas(d) && d.type !== 'ref') openEditModal(d);
-    });
+    nodeElements.on('dblclick', onNodeDblClick);
 
     // 节点右键菜单
-    nodeElements.on('contextmenu', function(event, d) {
-      event.stopPropagation();
-      event.preventDefault();
-      openNodeMenu(event.clientX, event.clientY, d);
-    });
+    nodeElements.on('contextmenu', onNodeContextMenu);
 
     // 手动连线右键菜单（可删除）
     linkElements.on('contextmenu', function(event, d) {
@@ -397,17 +374,7 @@
     });
 
     // Node hover
-    nodeElements.on('mouseenter', function(event, d) {
-      var sel = d3.select(this).select(shapeSelector(d));
-      sel.transition().duration(150)
-        .call(scaleShape, d, 1.15);
-    }).on('mouseleave', function(event, d) {
-      if (selectedNodeId !== String(d.id)) {
-        var sel = d3.select(this).select(shapeSelector(d));
-        sel.transition().duration(150)
-          .call(scaleShape, d, 1);
-      }
-    });
+    nodeElements.on('mouseenter', onNodeEnter).on('mouseleave', onNodeLeave);
 
     simulation.on('tick', function() {
       linkElements
@@ -471,45 +438,130 @@
     return isClip(d) ? 'rect' : 'circle';
   }
 
+  // 绘制单张画布卡片（便签/链接/图片/引用），批量渲染与单节点差分插入共用
+  function renderCanvasCard(gSel, d) {
+    var s = canvasCardSize(d);
+    var w = s.w, h = s.h, rx = 8, fill = getNodeColor(d);
+
+    gSel.append('rect')
+      .attr('x', -w / 2).attr('y', -h / 2)
+      .attr('width', w).attr('height', h)
+      .attr('rx', rx).attr('fill', fill);
+
+    if (d.type === 'image') {
+      // 兜底图标先画，图片加载成功会盖住它；失败则仍可见
+      gSel.append('text').attr('class', 'canvas-card-text').attr('y', 4).text('🖼');
+      if (d.text) {
+        gSel.append('image')
+          .attr('href', d.text)
+          .attr('x', -w / 2).attr('y', -h / 2)
+          .attr('width', w).attr('height', h)
+          .attr('preserveAspectRatio', 'xMidYMid slice')
+          .attr('clip-path', 'url(#canvasImgClip)');
+      }
+      return;
+    }
+
+    var label = '';
+    if (d.type === 'note') label = d.text || d.title || '便签';
+    else if (d.type === 'link') label = '🔗 ' + (d.title || d.text || '链接');
+    else label = d.title || '引用';
+
+    var lines = wrapLines(label, d.type === 'note' ? 12 : 13);
+    var textSel = gSel.append('text')
+      .attr('class', d.type === 'ref' ? 'canvas-card-text canvas-ref-text' : 'canvas-card-text');
+    var lineHeight = 13;
+    var startY = -((lines.length - 1) * lineHeight) / 2;
+    for (var i = 0; i < lines.length; i++) {
+      textSel.append('tspan').attr('x', 0).attr('y', startY + i * lineHeight).text(lines[i]);
+    }
+  }
+
   function renderCanvasNodes(selection) {
     selection.each(function(d) {
-      var gSel = d3.select(this);
-      var s = canvasCardSize(d);
-      var w = s.w, h = s.h, rx = 8, fill = getNodeColor(d);
-
-      gSel.append('rect')
-        .attr('x', -w / 2).attr('y', -h / 2)
-        .attr('width', w).attr('height', h)
-        .attr('rx', rx).attr('fill', fill);
-
-      if (d.type === 'image') {
-        // 兜底图标先画，图片加载成功会盖住它；失败则仍可见
-        gSel.append('text').attr('class', 'canvas-card-text').attr('y', 4).text('🖼');
-        if (d.text) {
-          gSel.append('image')
-            .attr('href', d.text)
-            .attr('x', -w / 2).attr('y', -h / 2)
-            .attr('width', w).attr('height', h)
-            .attr('preserveAspectRatio', 'xMidYMid slice')
-            .attr('clip-path', 'url(#canvasImgClip)');
-        }
-        return;
-      }
-
-      var label = '';
-      if (d.type === 'note') label = d.text || d.title || '便签';
-      else if (d.type === 'link') label = '🔗 ' + (d.title || d.text || '链接');
-      else label = d.title || '引用';
-
-      var lines = wrapLines(label, d.type === 'note' ? 12 : 13);
-      var textSel = gSel.append('text')
-        .attr('class', d.type === 'ref' ? 'canvas-card-text canvas-ref-text' : 'canvas-card-text');
-      var lineHeight = 13;
-      var startY = -((lines.length - 1) * lineHeight) / 2;
-      for (var i = 0; i < lines.length; i++) {
-        textSel.append('tspan').attr('x', 0).attr('y', startY + i * lineHeight).text(lines[i]);
-      }
+      renderCanvasCard(d3.select(this), d);
     });
+  }
+
+  // 节点交互处理器（抽成具名函数：整图批量 join 与单节点差分插入共用，避免重复绑定）
+  function onNodeClick(event, d) {
+    event.stopPropagation();
+    if (linkSourceId) { completeLink(String(d.id)); return; }
+    // Ctrl/Cmd + 点击：多选切换
+    if (event.ctrlKey || event.metaKey) {
+      if (selectedNodeIds.has(String(d.id))) {
+        selectedNodeIds.delete(String(d.id));
+        selectedNodeId = null;
+      } else {
+        selectedNodeIds.add(String(d.id));
+        selectedNodeId = String(d.id);
+      }
+      applySelectionHighlight();
+      return;
+    }
+    selectNode(d);
+  }
+
+  function onNodeDblClick(event, d) {
+    event.stopPropagation();
+    if (isCanvas(d) && d.type !== 'ref') openEditModal(d);
+  }
+
+  function onNodeContextMenu(event, d) {
+    event.stopPropagation();
+    event.preventDefault();
+    openNodeMenu(event.clientX, event.clientY, d);
+  }
+
+  function onNodeEnter(event, d) {
+    var sel = d3.select(this).select(shapeSelector(d));
+    sel.transition().duration(150).call(scaleShape, d, 1.15);
+  }
+
+  function onNodeLeave(event, d) {
+    if (selectedNodeId !== String(d.id)) {
+      var sel = d3.select(this).select(shapeSelector(d));
+      sel.transition().duration(150).call(scaleShape, d, 1);
+    }
+  }
+
+  // 思路 A：新建画布节点走「差分插入」——不整图重建，避免 force 重排与视角偏移。
+  function insertCanvasNodeLocally(created) {
+    if (!created || !created.id) return;
+    if (nodeMap[created.id]) { applySelectionHighlight(); return; }
+    var x = Number.isFinite(created.x) ? created.x : 0;
+    var y = Number.isFinite(created.y) ? created.y : 0;
+    var node = {
+      id: created.id,
+      type: created.kind || 'note',
+      title: created.title || (created.text ? String(created.text).slice(0, 40) : '便签'),
+      text: created.text,
+      canvas: true,
+      x: x, y: y,
+      fx: x, fy: y // 钉死坐标，force 不再挪动
+    };
+    nodeMap[node.id] = node;
+    allNodes.push(node);
+    if (simulation) simulation.nodes(allNodes);
+
+    var nodesGroup = g.select('.nodes');
+    var gNode = nodesGroup.append('g').attr('class', 'node').datum(node);
+    renderCanvasCard(gNode, node);
+    gNode.attr('transform', 'translate(' + x + ',' + y + ')');
+    gNode.call(dragBehavior)
+      .on('click', onNodeClick)
+      .on('dblclick', onNodeDblClick)
+      .on('contextmenu', onNodeContextMenu)
+      .on('mouseenter', onNodeEnter)
+      .on('mouseleave', onNodeLeave);
+
+    // 新节点是动态 append 的，不在 render() 生成的 nodeElements 选区里；
+    // 重建选区以纳入新节点（DOM 保留 __data__），让选中/高亮/连线态能作用于它
+    nodeElements = nodesGroup.selectAll('g');
+
+    selectedNodeIds.add(String(node.id));
+    selectedNodeId = String(node.id);
+    applySelectionHighlight();
   }
 
   function screenToWorld(event) {
@@ -1257,9 +1309,17 @@
 
   async function createCanvasNode(kind, text, title, x, y) {
     var bridge = window.electronAPI && window.electronAPI.localIndex;
-    if (!bridge || typeof bridge.createCanvasNode !== 'function') return false;
-    try { await bridge.createCanvasNode({ kind: kind, text: text, title: title, x: x, y: y }); return true; }
-    catch (e) { return false; }
+    if (bridge && typeof bridge.createCanvasNode === 'function') {
+      try {
+        var created = await bridge.createCanvasNode({ kind: kind, text: text, title: title, x: x, y: y });
+        return (created && created.id) ? created : null;
+      } catch (e) { return null; }
+    }
+    // 无 Electron bridge（如浏览器调试）时：生成本地临时节点兜底，仍能在画布画出并拖动
+    return {
+      id: 'temp:' + Date.now() + ':' + Math.floor(Math.random() * 1e6),
+      kind: kind, text: text, title: title, x: x, y: y
+    };
   }
 
   async function updateCanvasNode(id, text) {
@@ -1299,17 +1359,18 @@
 
     var ctx = canvasModalCtx;
     if (!ctx) return;
+    var createdNode = null;
     if (ctx.mode === 'create') {
       if (ctx.kind === 'ref') {
         if (!pendingRefNodeId) { closeModal(); return; }
         var target = nodeMap[pendingRefNodeId];
         var refTitle = target ? (target.title || '') : '';
-        await createCanvasNode('ref', pendingRefNodeId, refTitle, ctx.x, ctx.y);
+        createdNode = await createCanvasNode('ref', pendingRefNodeId, refTitle, ctx.x, ctx.y);
       } else {
         var field = canvasModalBody.querySelector('#canvasFieldValue');
         var val = field ? field.value.trim() : '';
         if ((ctx.kind === 'link' || ctx.kind === 'image') && !val) { closeModal(); return; }
-        await createCanvasNode(ctx.kind, val, '', ctx.x, ctx.y);
+        createdNode = await createCanvasNode(ctx.kind, val, '', ctx.x, ctx.y);
       }
     } else if (ctx.mode === 'edit') {
       var editField = canvasModalBody.querySelector('#canvasFieldValue');
@@ -1317,7 +1378,14 @@
       await updateCanvasNode(ctx.nodeId, editVal);
     }
     closeModal();
-    await fetchData(currentView);
+    // 思路 A：新建走差分插入（不整图重建，避免 force 重排/视角偏移）；
+    // Electron 桥创建成功或浏览器临时节点均走此路径；创建被拒/异常才整体刷新兜底
+    if (ctx.mode === 'create' && createdNode && createdNode.id) {
+      // 节点坐标已由 bridge.createCanvasNode 落库 canvas_layout，此处纯前端差分插入即可
+      insertCanvasNodeLocally(createdNode);
+    } else {
+      await fetchData(currentView);
+    }
   }
 
   function startLink(sourceId) {
