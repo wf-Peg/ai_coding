@@ -23,7 +23,7 @@
     "codeindex:ui": "codegraph ui",
     "codeindex:explore": "codegraph explore",
     "build:dsh-offline": "node scripts/build-dsh-offline.mjs",
-    "prebuild": "node scripts/generate-icons.js && node scripts/prebuild-clean.js && node scripts/prebuild-integrations.mjs",
+    "prebuild": "node scripts/generate-icons.js && node scripts/prebuild-clean.js && node scripts/build-dsh-offline.mjs && node scripts/prebuild-integrations.mjs",
     "download-jre": "bash scripts/download-jre.sh",
     "download-jre:all": "bash scripts/download-jre.sh all",
     "download-jre:win": "scripts\\download-jre.bat",
@@ -105,6 +105,13 @@
         "filter": [
           "**/*",
           "!**/node_modules/.cache/**"
+        ]
+      },
+      {
+        "from": "dist-dsh-offline",
+        "to": "dsh-offline",
+        "filter": [
+          "node_modules/**/*"
         ]
       }
     ],

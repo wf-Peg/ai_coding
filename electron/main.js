@@ -1182,11 +1182,48 @@ async function getDshInstallCommand(force = false) {
 }
 
 /**
+ * 动态解析真实的 npm 缓存目录（`npm config get cache`），npx 的包缓存位于 `<cache>/_npx`。
+ * 修复（恢复历史优化）：用户自定义 Node 安装/缓存路径时（如 D:\develop\...\node_cache），
+ * 硬编码 %LOCALAPPDATA%\npm-cache 扫不到 npx 缓存里的 dsh，导致误报"未安装"。
+ * @returns {Promise<string>} 缓存目录（可能为空字符串）
+ */
+let npmCacheDirPromise = null;
+function resolveNpmCacheDir() {
+  if (npmCacheDirPromise) return npmCacheDirPromise;
+  npmCacheDirPromise = new Promise((resolve) => {
+    // npm 会给子进程注入 npm_config_cache，优先直接使用，避免 spawn 开销
+    if (process.env.npm_config_cache && process.env.npm_config_cache.trim()) {
+      resolve(process.env.npm_config_cache.trim());
+      return;
+    }
+    const nodeDir = findNodeDir();
+    const npmBin = nodeDir ? path.join(nodeDir, process.platform === 'win32' ? 'npm.cmd' : 'npm') : 'npm';
+    execAsync(`"${npmBin}" config get cache`, { timeout: 5000 }).then(({ stdout }) => {
+      resolve(String(stdout || '').trim());
+    }).catch(() => resolve(''));
+  });
+  return npmCacheDirPromise;
+}
+
+/** 汇总所有可能的 npx 缓存根目录（硬编码兜底 + 动态解析的真实 cache 目录） */
+async function resolveNpxRoots() {
+  const roots = new Set([
+    path.join(process.env.LOCALAPPDATA || '', 'npm-cache', '_npx'),
+    path.join(os.homedir(), 'AppData', 'Local', 'npm-cache', '_npx'),
+    path.join(os.homedir(), '.npm', '_npx'),
+    path.join(process.env.APPDATA || '', 'npm-cache', '_npx'),
+  ]);
+  const cache = await resolveNpmCacheDir();
+  if (cache) roots.add(path.join(cache, '_npx'));
+  return [...roots];
+}
+
+/**
  * 解析 dsh CLI 入口。
  * 返回 { mode: 'node', node, script }（node 运行 dsh bin.js）或 { mode: 'missing', file: 'npx' }。
  * 优先级：配置 dshBinPath（目录或 bin.js）→ 环境变量 DSH_BIN → 内置 node_modules → npx 缓存。
  */
-function resolveDshBin(config) {
+async function resolveDshBin(config) {
   const tryNodeScript = (p) => (p && fs.existsSync(p)) ? { mode: 'node', node: findNodeExe(), script: p } : null;
   const candidates = [
     config && config.dshBinPath ? config.dshBinPath : '',
@@ -1200,20 +1237,15 @@ function resolveDshBin(config) {
     if (hit) return hit;
   }
   // npx 缓存扫描（用户可能通过 npx @deepseek-ai/dsh web 运行过，缓存里已有 dsh）
-  const npxRoots = [
-    path.join(process.env.LOCALAPPDATA || '', 'npm-cache', '_npx'),
-    path.join(os.homedir(), 'AppData', 'Local', 'npm-cache', '_npx'),
-    path.join(os.homedir(), '.npm', '_npx'),
-    path.join(process.env.APPDATA || '', 'npm-cache', '_npx'),
-  ];
+  const npxRoots = await resolveNpxRoots();
   for (const root of npxRoots) {
     if (!fs.existsSync(root)) continue;
     let dirs = [];
     try { dirs = fs.readdirSync(root); } catch (e) { continue; }
     for (const d of dirs) {
       const p = path.join(root, d, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
-      const hit = tryNodeScript(p);
-      if (hit) return hit;
+      // npx 缓存命中标记为 mode:'npx'，便于 persistDshBinIfNpx 将落盘路径固化到配置（下次秒起、免 npx）
+      if (fs.existsSync(p)) return { mode: 'npx', node: findNodeExe(), script: p };
     }
   }
   return { mode: 'missing', file: 'npx' };
@@ -1335,17 +1367,12 @@ function buildDshFailMessage(recentTail) {
 }
 
 /** 启动成功后若走的是 npx 路径，把已落盘的 dsh 缓存路径固化到配置（下次秒起、免 npx） */
-function persistDshBinIfNpx(bin, config) {
+async function persistDshBinIfNpx(bin, config) {
   if (bin.mode !== 'npx') return;
   try {
+    const roots = await resolveNpxRoots();
     const cached = (function find() {
-      const npxRoots = [
-        path.join(process.env.LOCALAPPDATA || '', 'npm-cache', '_npx'),
-        path.join(os.homedir(), 'AppData', 'Local', 'npm-cache', '_npx'),
-        path.join(os.homedir(), '.npm', '_npx'),
-        path.join(process.env.APPDATA || '', 'npm-cache', '_npx'),
-      ];
-      for (const root of npxRoots) {
+      for (const root of roots) {
         if (!fs.existsSync(root)) continue;
         for (const d of fs.readdirSync(root)) {
           const p = path.join(root, d, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
@@ -1385,7 +1412,7 @@ async function startDshAgent(config) {
     let src = rt.ok ? 'runtime' : null;
     if (!ver) {
       try {
-        const disk = detectDshVersion(resolveDshBin(config), config);
+        const disk = detectDshVersion(await resolveDshBin(config), config);
         if (disk && disk.version) { ver = disk.version; src = disk.source; }
       } catch (e) { /* 磁盘解析失败则保持未知 */ }
     }
@@ -1417,7 +1444,7 @@ async function startDshAgent(config) {
   }
 
   // 3) 解析 dsh CLI：未安装本地 dsh 时不再自动联网安装，改为提示用户自助安装并检测解锁
-  const bin = resolveDshBin(config);
+  const bin = await resolveDshBin(config);
   log.info(`[DSH Agent] resolved dsh bin: mode=${bin.mode}${bin.script ? ' script=' + bin.script : ''}`);
   // 未装本地 dsh（mode missing/npx）：CutShelter 不代联网安装，仅广播 need-install 供前端展示说明+重试
   if (bin.mode === 'missing' || bin.mode === 'npx') {
@@ -1539,7 +1566,7 @@ async function startDshAgent(config) {
         ? `DeepSeek Harness 安装并启动成功（端口 ${port}），下次将直接使用本地缓存${det.version ? ' · v' + det.version : ''}`
         : `DeepSeek Harness 已就绪（端口 ${port}）${det.version ? ' · v' + det.version : ''}`,
         { dshVersion: det.version, dshMismatch: detMismatch });
-      persistDshBinIfNpx(bin, config);
+      await persistDshBinIfNpx(bin, config);
       return { success: true, reused: false, port, version: det.version, source: det.source };
     }
     const now = Date.now();
@@ -2699,11 +2726,11 @@ function setupIPC() {
         const rt = await fetchRuntimeDshVersion(port);
         if (rt.ok) { version = rt.version; source = 'runtime'; }
         else {
-          const disk = detectDshVersion(resolveDshBin(config), config);
+          const disk = detectDshVersion(await resolveDshBin(config), config);
           version = disk.version; source = disk.source;
         }
       } else {
-        const disk = detectDshVersion(resolveDshBin(config), config);
+        const disk = detectDshVersion(await resolveDshBin(config), config);
         version = disk.version; source = disk.source;
       }
       dshVersionState = { version, source, at: Date.now() };
@@ -2887,7 +2914,7 @@ function setupIPC() {
     let nodeExe = 'node';
     let binScript = null;
     try {
-      const bin = resolveDshBin(config);
+      const bin = await resolveDshBin(config);
       if (bin && bin.mode === 'node' && bin.script) { binScript = bin.script; }
       if (bin && bin.node) nodeExe = bin.node;
     } catch (e) { /* 解析失败则走内置兜底 */ }
@@ -4509,11 +4536,35 @@ function escHtml(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+/**
+ * 从主窗口读取当前生效主题（notion/regular/dark）以对齐全局主色。
+ * 读取失败时默认 notion（浅色）主色，避免错配。
+ * @returns {Promise<'notion'|'regular'|'dark'>}
+ */
+async function resolveAppTheme() {
+  let appearance = 'notion';
+  try {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isLoading()) {
+      const dataTheme = await mainWindow.webContents.executeJavaScript(
+        'document.documentElement.getAttribute("data-theme") || "notion"'
+      );
+      if (dataTheme === 'regular' || dataTheme === 'dark' || dataTheme === 'notion') {
+        appearance = dataTheme;
+      }
+    }
+  } catch (e) {
+    // 主窗口未就绪或无主窗口时，落回默认浅色主色
+  }
+  return appearance;
+}
+
 /** 展示剪贴板气泡窗（置顶、可交互、随 cleanupOnQuit 统一销毁）。 */
-function showClipboardToast(content) {
+async function showClipboardToast(content) {
   try {
     closeClipboardToast();
     pendingClipboard = content;
+    const appearance = await resolveAppTheme();
+    const isDark = appearance === 'dark';
     const { screen } = require('electron');
     const display = screen.getPrimaryDisplay();
     const { width, height } = display.workAreaSize;
@@ -4554,14 +4605,28 @@ function showClipboardToast(content) {
 <head>
 <meta charset="utf-8">
 <style>
+  :root {
+    --primary: ${isDark ? '#61a6ff' : '#2383e2'};
+    --primary-hover: ${isDark ? '#7bb5ff' : '#1f76c9'};
+    --card-bg: ${isDark ? 'linear-gradient(135deg, rgba(40,40,48,0.97), rgba(26,26,32,0.97))'
+                        : 'linear-gradient(135deg, #ffffff, #fbfbfa)'};
+    --card-border: ${isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)'};
+    --fg-preview: ${isDark ? 'rgba(255,255,255,0.92)' : 'rgba(15,17,21,0.85)'};
+    --close-color: ${isDark ? 'rgba(255,255,255,0.35)' : 'rgba(15,23,42,0.42)'};
+    --close-hover-bg: ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'};
+    --close-hover-color: ${isDark ? 'rgba(255,255,255,0.85)' : 'rgba(15,23,42,0.85)'};
+    --btn-ghost-bg: ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'};
+    --btn-ghost-color: ${isDark ? 'rgba(255,255,255,0.72)' : 'rgba(15,23,42,0.72)'};
+    --btn-ghost-hover: ${isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.09)'};
+  }
   * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
   body { background: transparent; height: 100vh; overflow: hidden; font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
   .card {
-    background: linear-gradient(135deg, rgba(38, 38, 46, 0.97), rgba(22, 22, 28, 0.97));
+    background: var(--card-bg);
     backdrop-filter: blur(20px);
     border-radius: 16px;
-    border: 1px solid rgba(255,255,255,0.09);
-    box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+    border: 1px solid var(--card-border);
+    box-shadow: 0 16px 48px rgba(0,0,0,${isDark ? '.5' : '.24'});
     height: 100%;
     display: flex;
     flex-direction: column;
@@ -4571,19 +4636,19 @@ function showClipboardToast(content) {
   }
   @keyframes slideIn { from { transform: translateX(420px); opacity: 0; } to { transform: none; opacity: 1; } }
   .head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-  .head-title { font-size: 12px; font-weight: 600; color: #569cff; letter-spacing: .5px; flex: 1; }
-  .close-btn { width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: rgba(255,255,255,.35); }
-  .close-btn:hover { background: rgba(255,255,255,.1); color: rgba(255,255,255,.85); }
+  .head-title { font-size: 12px; font-weight: 600; color: var(--primary); letter-spacing: .5px; flex: 1; }
+  .close-btn { width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--close-color); }
+  .close-btn:hover { background: var(--close-hover-bg); color: var(--close-hover-color); }
   .close-btn svg { width: 11px; height: 11px; stroke: currentColor; stroke-width: 2.4; }
   .preview { flex: 1; min-height: 0; overflow: hidden; }
-  .preview-text { font-size: 13px; line-height: 1.5; color: rgba(255,255,255,.92); max-height: 84px; overflow: hidden; }
+  .preview-text { font-size: 13px; line-height: 1.5; color: var(--fg-preview); max-height: 84px; overflow: hidden; }
   img.thumb { max-width: 100%; max-height: 96px; border-radius: 8px; object-fit: contain; }
   .actions { display: flex; gap: 10px; margin-top: 14px; }
   .btn { flex: 1; height: 34px; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
-  .btn.primary { background: #569cff; color: #fff; font-weight: 600; }
-  .btn.primary:hover { background: #4a8cf0; }
-  .btn.ghost { background: rgba(255,255,255,.08); color: rgba(255,255,255,.72); }
-  .btn.ghost:hover { background: rgba(255,255,255,.14); }
+  .btn.primary { background: var(--primary); color: #fff; font-weight: 600; }
+  .btn.primary:hover { background: var(--primary-hover); }
+  .btn.ghost { background: var(--btn-ghost-bg); color: var(--btn-ghost-color); }
+  .btn.ghost:hover { background: var(--btn-ghost-hover); }
 </style>
 </head>
 <body>
