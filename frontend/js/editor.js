@@ -5,7 +5,8 @@
   window.API_BASE_URL = API_BASE_URL; // 暴露给 media-uploader.js（const 不挂 window）
   const AI_CHAT_API_URL = API_BASE_URL.replace(/\/api\/clip$/, '/api/ai/chat/stream');
   const MAX_TRANSFORM_LENGTH = 5 * 1024 * 1024;
-  const LANGUAGE_EXTENSIONS = { json: 'json', xml: 'xml', sql: 'sql', text: 'txt', markdown: 'md' };
+  const LANGUAGE_EXTENSIONS = { json: 'json', xml: 'xml', sql: 'sql', text: 'txt', markdown: 'md',
+    javascript: 'js', python: 'py', yaml: 'yml', css: 'css', html: 'html' };
   const THEME_STORAGE_KEY = 'app_theme_v1';
   const APPEARANCE_KEY = 'app_appearance_v1';
   const Range = ace.require('ace/range').Range;
@@ -63,6 +64,8 @@
   // 跨标签共享状态（对比、转换等）
   const sharedState = {
     compareToken: null,
+    // 对比内容来源：'snapshot'（当前文档自动快照）| 'clipboard' | 'file' | null（未初始化）
+    compareSource: null,
     diffMarkers: { main: [], compare: [] },
     diffWordMarkers: { main: [], compare: [] },
     syncMarkers: { main: [], compare: [] },
@@ -78,8 +81,9 @@
     'tabBar', 'tabNewBtn',
     'documentName', 'documentPath', 'modifiedDot', 'clipSourceBadge', 'languageSelect',
     'encodingLabel', 'encodingConfidence', 'lineEndingSelect', 'cursorStatus',
-    'selectionStatus', 'matchStatus', 'runtimeStatus', 'compareToolbar', 'comparePane',
+    'selectionStatus', 'multiCursorStatus', 'matchStatus', 'runtimeStatus', 'compareToolbar', 'comparePane',
     'editorWorkspace', 'compareFileName', 'diffCounter', 'markdownPane', 'markdownBody', 'mdFullscreenBtn', 'closeMarkdownBtn', 'markdownBtn', 'compareBtn', 'transformPanel',
+    'breadcrumbBar',
     'transformOperation', 'transformPreview', 'encodingModal', 'encodingSelect',
     'encodingNote', 'clipModal', 'clipModalTitle', 'clipScopeDescription', 'discardModal',
     'clipTitleInput', 'clipModeSelect', 'clipCategorySelect', 'clipTagsInput',
@@ -218,6 +222,23 @@
     return window.electronAPI || (window.parent && window.parent.electronAPI);
   }
 
+  /**
+   * 功能开关统一读取（Phase 1 导航效率）。
+   * editor-features.js 在脚本末尾引入，此处一律惰性读取，未加载或未定义时按关处理，
+   * 保证默认行为与改造前一致（不影响现有功能）。
+   */
+  function featureOn(name) {
+    return !!(window.EditorFeatures && typeof window.EditorFeatures.isOn === 'function' && window.EditorFeatures.isOn(name));
+  }
+
+  // 功能开关模块就绪后刷新依赖 UI（面包屑等初始渲染早于 editor-features.js 引入）
+  window.addEventListener('editor-features-ready', function() {
+    try {
+      renderBreadcrumb();
+      updateCursorStatus();
+    } catch (e) { /* 忽略，不影响现有功能 */ }
+  });
+
   ace.config.set('basePath', 'libs/ace');
   ace.config.set('modePath', 'libs/ace');
   ace.config.set('themePath', 'libs/ace');
@@ -232,6 +253,22 @@
 
   const mainEditor = createEditor('mainEditor', false);
   const compareEditor = createEditor('compareEditor', true);
+  // Phase 2：worker 错误标注（JSON/XML）
+  setupErrorMarkers(mainEditor);
+
+  // 替换（replace）快捷键由 Ace 默认 Ctrl+H 改为 Ctrl+R（Command+R，macOS）
+  (function rebindAceReplaceShortcut() {
+    var cmds = mainEditor && mainEditor.commands;
+    var replaceCmd = cmds && cmds.byName && cmds.byName['replace'];
+    if (!replaceCmd) return;
+    try { cmds.removeCommand(replaceCmd); } catch (e) { /* 忽略 */ }
+    replaceCmd.bindKey = {
+      win: 'Ctrl-R',
+      mac: 'Command-R',
+      sender: 'editor'
+    };
+    try { cmds.addCommand(replaceCmd, true); } catch (e) { /* 忽略 */ }
+  })();
 
   // Ctrl/Cmd+G（跳转到行）与 Ctrl/Cmd+Shift+L（自动识别格式化）由窗口捕获阶段统一接管
   //  （见下方 keydown 捕获处理器），保证编辑区内外焦点均能触发。
@@ -363,6 +400,83 @@
     return editor;
   }
 
+  // Phase 2：worker 错误标注（JSON/XML 语法错误 → gutter 红点 + 状态栏计数 + 点击跳转）。
+  // 独立挂载，不改动 createEditor 默认选项；无 worker 或模式不支持时静默无效果。
+  function setupErrorMarkers(editor) {
+    if (!editor || editor.__errMarkersSetup) return;
+    editor.__errMarkersSetup = true;
+    var session = editor.session;
+    var decoratedRows = {}; // 已加装饰的行号 → true，用于增量清理
+    session.on('changeAnnotation', function() {
+      if (!featureOn('errorMarkers')) return;
+      var anns = session.getAnnotations() || [];
+      var errors = anns.filter(function(a) { return a.type === 'error'; });
+      var rowsToDeco = {};
+      errors.forEach(function(a) {
+        if (a.row !== undefined) rowsToDeco[a.row] = true;
+      });
+      // 清理不再有错误的旧装饰，保留仍需要的（见下方顺序：先删旧再加重，避免残留）
+      Object.keys(decoratedRows).forEach(function(row) {
+        if (!rowsToDeco[row]) {
+          session.removeGutterDecoration(Number(row), 'ace_worker_error');
+          delete decoratedRows[row];
+        }
+      });
+      // 追加新的错误装饰
+      Object.keys(rowsToDeco).forEach(function(row) {
+        if (!decoratedRows[row]) {
+          session.addGutterDecoration(Number(row), 'ace_worker_error');
+          decoratedRows[row] = true;
+        }
+      });
+      updateErrorMarkerStatus();
+    });
+    // 行号点击跳转到错误（由 gutter 点击触发）
+    editor.renderer.on('gutterClick', function(e) {
+      if (!featureOn('errorMarkers')) return;
+      openErrorAtRow(e.getDocumentPosition().row);
+    });
+  }
+
+  // gutter 红点 → 点击定位到错误
+  function openErrorAtRow(row) {
+    var errors = (mainEditor.session.getAnnotations() || [])
+      .filter(function(a) { return a.type === 'error' && (a.row === row || a.row === row - 1 || a.row === row + 1); });
+    if (!errors.length) return;
+    var err = errors[0];
+    mainEditor.gotoLine(err.row + 1, err.column || 0, true);
+    mainEditor.focus();
+    showToast('语法错误：' + (err.text || '解析失败'));
+  }
+
+  // 状态栏错误计数（仅在有错误时显示，布局不受影响）
+  var errStatusEl = null;
+  function updateErrorMarkerStatus() {
+    if (!featureOn('errorMarkers')) return;
+    var session = mainEditor.session;
+    var count = (session.getAnnotations() || []).filter(function(a) { return a.type === 'error'; }).length;
+    if (!errStatusEl) {
+      errStatusEl = document.createElement('span');
+      errStatusEl.id = 'errorMarkerStatus';
+      errStatusEl.style.cssText = 'color:var(--app-danger, #e5484d);cursor:pointer';
+      errStatusEl.title = '点击跳转到第一处语法错误';
+      errStatusEl.addEventListener('click', function() {
+        var anns = mainEditor.session.getAnnotations() || [];
+        var first = anns.filter(function(a) { return a.type === 'error'; })[0];
+        if (first) mainEditor.gotoLine(first.row + 1, first.column || 0, true);
+      });
+      (elements.runtimeStatus && elements.runtimeStatus.parentNode)
+        ? elements.runtimeStatus.parentNode.insertBefore(errStatusEl, elements.runtimeStatus)
+        : null;
+    }
+    if (count > 0) {
+      errStatusEl.textContent = '✕ ' + count;
+      errStatusEl.hidden = false;
+    } else {
+      errStatusEl.hidden = true;
+    }
+  }
+
   /**
    * 应用主题到编辑器页面与 ACE 编辑器。
    * @param {string|null} parentTheme 父窗口通过 message 传回的主题值（dark / notion / regular 等），
@@ -421,6 +535,7 @@
     if (index === activeTabIndex || index < 0 || index >= tabs.length) return;
     if (activeAiRequest) cancelAiRequest();
     saveActiveTabSnapshot();
+    recordEditorPositionHistory(); // Phase 1：切换前记录当前编辑位置
     activeTabIndex = index;
     state = tabs[activeTabIndex];
     ensureAiChatState(state);
@@ -519,8 +634,13 @@
 
   /**
    * 渲染标签栏 DOM
+   * Phase 3：开关开启时走增量渲染（仅更新变更项，复用 DOM），关闭时沿用原全量重建逻辑。
    */
   function renderTabBar() {
+    if (featureOn('tabBarIncremental') && typeof renderTabBarIncremental === 'function') {
+      renderTabBarIncremental();
+      return;
+    }
     const tabBar = elements.tabBar;
     // 移除旧标签项和 spacer
     tabBar.querySelectorAll('.tab-item, .tab-bar-spacer').forEach(el => el.remove());
@@ -603,6 +723,132 @@
     spacer.className = 'tab-bar-spacer';
     spacer.addEventListener('dblclick', createNewTab);
     tabBar.insertBefore(spacer, elements.tabNewBtn);
+  }
+
+  /**
+   * Phase 3：标签栏增量渲染——尽量复用既有 DOM，只对变动的标签做新建/更新/移除。
+   * 与原 renderTabBar 并行存在，由开关切换；行为校验失败时可一键回退到原逻辑。
+   */
+  function renderTabBarIncremental() {
+    const tabBar = elements.tabBar;
+    // 按 data-tab-index 建立现有 tab-item 映射
+    const existing = {};
+    tabBar.querySelectorAll('.tab-item').forEach(el => {
+      const idx = parseInt(el.dataset.tabIndex, 10);
+      if (!isNaN(idx)) existing[idx] = el;
+    });
+
+    // 1) 移除已不存在的标签
+    const keep = {};
+    tabs.forEach((tab, index) => { keep[index] = true; });
+    Object.keys(existing).forEach(idx => {
+      if (!keep[idx]) livingRemoveTabEl(existing[Number(idx)]);
+    });
+
+    // 2) 逐个同步（新建或更新 class/标题/圆点/文案；拖拽/右键等在创建时静默绑定一次）
+    tabs.forEach((tab, index) => {
+      let el = existing[index];
+      if (!el) {
+        el = buildTabElCore(tab, index);
+        tabBar.insertBefore(el, findInsertPoint(tabBar, index));
+      } else {
+        updateTabEl(el, tab, index);
+      }
+      el.dataset.tabIndex = index;
+    });
+
+    // 3) 同步 spacer 位置（始终在新建按钮前）
+    let spacer = tabBar.querySelector(':scope > .tab-bar-spacer');
+    if (!spacer) {
+      spacer = document.createElement('div');
+      spacer.className = 'tab-bar-spacer';
+      spacer.addEventListener('dblclick', createNewTab);
+    }
+    if (!spacer.parentNode) tabBar.insertBefore(spacer, elements.tabNewBtn);
+    else if (spacer !== tabBar.querySelector(':scope > .tab-bar-spacer')) spacer.remove();
+    // spacer 放回末尾（新建按钮前）
+    tabBar.insertBefore(spacer, elements.tabNewBtn);
+  }
+
+  // 移除标签（复用原 close 视觉行为：移除 DOM）
+  function livingRemoveTabEl(el) { if (el && el.parentNode) el.parentNode.removeChild(el); }
+
+  // 新建单个标签 DOM（仅初始绑定一次；等价于原逻辑的构建部分）
+  function buildTabElCore(tab, index) {
+    const el = document.createElement('div');
+    el.className = 'tab-item' + (index === activeTabIndex ? ' active' : '');
+    el.dataset.tabIndex = String(index);
+    const dot = document.createElement('span');
+    const label = document.createElement('span');
+    const closeBtn = document.createElement('button');
+    dot.className = 'tab-dot' + (tab.modified ? ' active' : '');
+    label.className = 'tab-label';
+    closeBtn.className = 'tab-close-btn';
+    closeBtn.innerHTML = '&times;';
+    // 事件只绑定一次
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeTab(parseInt(el.dataset.tabIndex, 10));
+    });
+    el.appendChild(dot);
+    el.appendChild(label);
+    el.appendChild(closeBtn);
+    // 拖拽排序（与全量版一致）
+    el.draggable = true;
+    el.addEventListener('dragstart', function(e) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(parseInt(el.dataset.tabIndex, 10)));
+      setTimeout(function() { el.classList.add('tab-dragging'); }, 0);
+    });
+    el.addEventListener('dragend', function() {
+      el.classList.remove('tab-dragging');
+      elements.tabBar.querySelectorAll('.tab-item').forEach(function(x) { x.classList.remove('tab-drop-target'); });
+    });
+    el.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      elements.tabBar.querySelectorAll('.tab-item').forEach(function(x) { x.classList.remove('tab-drop-target'); });
+      el.classList.add('tab-drop-target');
+    });
+    el.addEventListener('drop', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      el.classList.remove('tab-drop-target');
+      elements.tabBar.querySelectorAll('.tab-item').forEach(function(x) { x.classList.remove('tab-dragging', 'tab-drop-target'); });
+      const src = parseInt(e.dataTransfer.getData('text/plain'), 10);
+      const dst = parseInt(el.dataset.tabIndex, 10);
+      if (isNaN(src) || isNaN(dst) || src === dst) return;
+      const item = tabs.splice(src, 1)[0];
+      tabs.splice(dst, 0, item);
+      if (src < activeTabIndex && dst >= activeTabIndex) activeTabIndex--;
+      else if (src > activeTabIndex && dst <= activeTabIndex) activeTabIndex++;
+      else if (src === activeTabIndex) activeTabIndex = dst;
+      renderTabBar();
+    });
+    el.addEventListener('click', () => switchToTab(parseInt(el.dataset.tabIndex, 10)));
+    el.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); showTabContextMenu(e, parseInt(el.dataset.tabIndex, 10)); });
+    // 同步静态内容（调用同一 update 逻辑，保证新建也有正确名字/圆点）
+    updateTabEl(el, tab, index);
+    return el;
+  }
+
+  // 增量更新单个标签的静态内容（标题/圆点/激活态）
+  function updateTabEl(el, tab, index) {
+    el.className = 'tab-item' + (index === activeTabIndex ? ' active' : '');
+    el.title = tab.displayPath || tab.fileName;
+    const dot = el.querySelector('.tab-dot');
+    if (dot) dot.className = 'tab-dot' + (tab.modified ? ' active' : '');
+    const label = el.querySelector('.tab-label');
+    if (label && label.textContent !== tab.fileName) label.textContent = tab.fileName;
+  }
+
+  // 在正确位置插入新标签：排在已有索引之前、新建按钮之前
+  function findInsertPoint(tabBar, index) {
+    const items = tabBar.querySelectorAll('.tab-item');
+    for (let i = 0; i < items.length; i++) {
+      const idx = parseInt(items[i].dataset.tabIndex, 10);
+      if (!isNaN(idx) && idx > index) return items[i];
+    }
+    return elements.tabNewBtn;
   }
 
   // 标签栏右键菜单
@@ -732,6 +978,177 @@
     elements.encodingConfidence.textContent = state.encodingConfidence ? ` · ${state.encodingConfidence}` : '';
     elements.lineEndingSelect.value = state.lineEnding;
     document.title = `${state.modified ? '● ' : ''}${state.fileName} - 轻编辑`;
+    renderBreadcrumb();
+  }
+
+  /**
+   * 面包屑导航（Phase 1）：按当前文档路径分段渲染，目录段可点击回退定位到文件树，
+   * 文件段显示文件名。featureOn('breadcrumbBar') 关闭时保持 hidden，零布局影响。
+   */
+  function renderBreadcrumb() {
+    const bar = elements.breadcrumbBar;
+    if (!bar) return;
+    const app = document.querySelector('.editor-app');
+    if (!featureOn('breadcrumbBar')) {
+      bar.hidden = true;
+      bar.classList.remove('breadcrumb-visible');
+      bar.innerHTML = '';
+      if (app) app.classList.remove('breadcrumb-on');
+      return;
+    }
+    bar.hidden = false;
+    bar.classList.add('breadcrumb-visible');
+    if (app) app.classList.add('breadcrumb-on');
+    bar.innerHTML = '';
+    const filePath = state && (state.displayPath || '');
+    // 无保存路径时仅显示「未命名文档」
+    if (!filePath) {
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'breadcrumb-file';
+      nameSpan.textContent = state && state.fileName ? state.fileName : '未命名文档';
+      bar.appendChild(nameSpan);
+      return;
+    }
+    const parts = filePath.split(/[/\\]+/).filter(Boolean);
+    if (!parts.length) return;
+    // 目录段：从根开始逐级累加，点击可在文件树中打开对应目录
+    let acc = '';
+    for (let i = 0; i < parts.length - 1; i++) {
+      acc = acc ? acc + '/' + parts[i] : parts[i];
+      const seg = document.createElement('span');
+      seg.className = 'breadcrumb-seg';
+      seg.textContent = parts[i];
+      seg.title = '在文件树中打开 ' + acc;
+      seg.addEventListener('click', function () {
+        openBreadcrumbDir(acc);
+      });
+      bar.appendChild(seg);
+      const sep = document.createElement('span');
+      sep.className = 'breadcrumb-sep';
+      sep.textContent = '›';
+      bar.appendChild(sep);
+    }
+    const file = document.createElement('span');
+    file.className = 'breadcrumb-file';
+    file.textContent = parts[parts.length - 1];
+    file.title = filePath;
+    bar.appendChild(file);
+  }
+
+  // 点击面包屑目录段：定位到文件树对应目录（开关关闭时无副作用）
+  function openBreadcrumbDir(dirPath) {
+    if (!featureOn('breadcrumbBar')) return;
+    const api = getElectronAPI();
+    if (!api || typeof api.listDirectory !== 'function') return;
+    // 打开文件树面板并切换到目标目录
+    if (typeof toggleFileTree === 'function' && !fileTreeOpen) toggleFileTree();
+    fileTreeDir = dirPath;
+    loadDirectory(dirPath);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // Phase 1：近期编辑位置记忆（Alt+- / Alt+Shift+- 前后跳转）
+  // 独立于现有标签快照；仅记录 (fileKey,row,column)，上限 50 条。
+  // ══════════════════════════════════════════════════════════
+  const POS_HISTORY_KEY = 'editor_pos_history_v1';
+  const POS_HISTORY_MAX = 50;
+  let posHistory = loadPosHistory();
+  let posHistoryIndex = -1;
+
+  function loadPosHistory() {
+    try {
+      const arr = JSON.parse(localStorage.getItem(POS_HISTORY_KEY) || '[]');
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+  }
+
+  function persistPosHistory() {
+    try { localStorage.setItem(POS_HISTORY_KEY, JSON.stringify(posHistory)); } catch (e) { /* 忽略 */ }
+  }
+
+  /** 当前编辑位置的文件键（桌面文件路径优先，未保存用文件名） */
+  function currentPosFileKey() {
+    if (state && state.displayPath) return 'path:' + state.displayPath;
+    if (state && state.fileName) return 'name:' + state.fileName;
+    return 'untitled';
+  }
+
+  /**
+   * 记录当前编辑位置（追加去重，指针移到末尾）。
+   * 仅在 featureOn('editorPosHistory') 时生效；未开启时零副作用。
+   */
+  function recordEditorPositionHistory() {
+    if (!featureOn('editorPosHistory') || !state) return;
+    const pos = { key: currentPosFileKey(), row: state.cursorRow, column: state.cursorColumn };
+    // 与最近一条相同则跳过，避免连续切换造成重复
+    const last = posHistory[posHistory.length - 1];
+    if (last && last.key === pos.key && last.row === pos.row && last.column === pos.column) return;
+    posHistory.push(pos);
+    if (posHistory.length > POS_HISTORY_MAX) posHistory.splice(0, posHistory.length - POS_HISTORY_MAX);
+    posHistoryIndex = posHistory.length - 1;
+    persistPosHistory();
+  }
+
+  /** 回到上一编辑位置（跨文件时经 openFileByPath 打开并定位） */
+  async function jumpPosHistoryBack() {
+    if (!featureOn('editorPosHistory')) return;
+    if (posHistoryIndex < 0) posHistoryIndex = posHistory.length;
+    if (posHistoryIndex <= 0) { showToast('没有更早的编辑位置'); return; }
+    const target = posHistory[posHistoryIndex - 1];
+    await gotoPosHistoryEntry(target);
+    posHistoryIndex -= 1;
+  }
+
+  /** 前进到下一编辑位置 */
+  async function jumpPosHistoryForward() {
+    if (!featureOn('editorPosHistory')) return;
+    if (posHistoryIndex >= posHistory.length - 1) { showToast('没有更新的编辑位置'); return; }
+    const target = posHistory[posHistoryIndex + 1];
+    await gotoPosHistoryEntry(target);
+    posHistoryIndex += 1;
+  }
+
+  /** 定位到历史条目：同文件直接 gotoLine，异文件走 openFileByPath（若可用） */
+  async function gotoPosHistoryEntry(target) {
+    if (!target) return;
+    const sameFile = target.key === currentPosFileKey();
+    if (sameFile) {
+      mainEditor.gotoLine(target.row + 1, target.column, true);
+      mainEditor.focus();
+      return;
+    }
+    // 异文件：只有带真实路径的历史才可重新打开（桌面模式）
+    if (target.key.indexOf('path:') === 0) {
+      const api = getElectronAPI();
+      if (api && typeof api.openFileByPath === 'function') {
+        try {
+          const filePath = target.key.slice(5);
+          const result = await api.openFileByPath(filePath);
+          if (result && !result.canceled) {
+            saveActiveTabSnapshot();
+            const newTab = createTabState();
+            tabs.push(newTab);
+            activeTabIndex = tabs.length - 1;
+            state = tabs[activeTabIndex];
+            setEditorContent(result.text, {
+              fileToken: result.fileToken,
+              fileName: result.fileName,
+              displayPath: result.displayPath,
+              encoding: result.encoding,
+              encodingConfidence: result.encodingConfidence,
+              lineEnding: result.lineEnding,
+              expectedMtimeMs: result.mtimeMs
+            });
+            renderTabBar();
+            mainEditor.gotoLine(target.row + 1, target.column, true);
+          }
+        } catch (e) {
+          showToast('打开历史位置文件失败', true);
+        }
+        return;
+      }
+    }
+    showToast('该历史位置的文件不可用（浏览器模式或无路径）', true);
   }
 
   function setModified(modified) {
@@ -763,8 +1180,38 @@
     setModified(false);
     updateStartWritingGuide();
     mainEditor.focus();
+    applyLargeFileMode(text);
     // 载入新文件后刷新双向链接面板（当前激活 tab；面板可见时生效）
     scheduleBacklinksRefresh();
+  }
+
+  // Phase 3：大文件降级策略——按内容字节数调整编辑器选项。
+  // 阈值与开关双条件：≤2MB 或开关关闭时行为与改造前完全一致；>5MB 额外关闭换行与选中词同步。
+  function applyLargeFileMode(text) {
+    if (!featureOn('largeFileDegrade')) return;
+    const bytes = new TextEncoder().encode(text || '').length;
+    const isLarge2M = bytes > 2 * 1024 * 1024;
+    const isLarge5M = bytes > 5 * 1024 * 1024;
+    // >2MB：关闭 worker（降低 tokenize/校验开销；语法模式与普通高亮保留，ACE 高亮本身不依赖 worker）
+    try {
+      mainEditor.setOption('useWorker', !isLarge2M);
+      compareEditor.setOption('useWorker', !isLarge2M);
+    } catch (e) { /* 忽略 */ }
+    // >5MB：关闭自动换行与选中词同步高亮
+    if (isLarge5M) {
+      mainEditor.setOption('wrap', 'off');
+      compareEditor.setOption('wrap', 'off');
+      mainEditor.setOption('highlightSelectedWord', false);
+      compareEditor.setOption('highlightSelectedWord', false);
+    } else if (state && state.__degraded5M) {
+      // 曾降级过大文件，现在切回小文件 → 恢复原默认（wrap off / highlightSelectedWord true）
+      mainEditor.setOption('wrap', 'off');
+      compareEditor.setOption('wrap', 'off');
+      mainEditor.setOption('highlightSelectedWord', true);
+      compareEditor.setOption('highlightSelectedWord', true);
+    }
+    state.__degraded5M = !!isLarge5M;
+    if (isLarge2M) showToast('已进入轻量模式：超大文件已降低高亮/换行开销');
   }
 
   /**
@@ -793,10 +1240,25 @@
   }
 
   function setLanguage(language) {
-    const normalized = ['json', 'xml', 'sql', 'markdown'].includes(language) ? language : 'text';
+    // 支持的模式：原 5 种 + Phase 2 新增（javascript/python/yaml/css/html）
+    const SUPPORTED_MODES = ['json', 'xml', 'sql', 'markdown', 'javascript', 'python', 'yaml', 'css', 'html'];
+    // 公司内已有行为：未知语言回落到 text；保持默认与改造前一致
+    const normalized = SUPPORTED_MODES.includes(language) ? language : 'text';
     elements.languageSelect.value = normalized;
     mainEditor.session.setMode(`ace/mode/${normalized}`);
     compareEditor.session.setMode(`ace/mode/${normalized}`);
+    // 标记当前语言模式，供 CSS 精确作用域（如仅 Markdown 围栏灰化，不波及 JSON/SQL 等代码模式的 token 原色）
+    mainEditor.container.setAttribute('data-mode', normalized);
+    compareEditor.container.setAttribute('data-mode', normalized);
+    // Phase 2：括号配对/自动闭合——仅对新增的代码模式显式开启（原有 5 种模式行为不变）
+    if (featureOn('bracketPairs') && ['javascript', 'python', 'yaml', 'css', 'html'].includes(normalized)) {
+      try {
+        if (mainEditor.session.setBehavioursEnabled) mainEditor.session.setBehavioursEnabled(true);
+        if (compareEditor.session.setBehavioursEnabled) compareEditor.session.setBehavioursEnabled(true);
+        mainEditor.setOption('bracketMatching', true);
+        compareEditor.setOption('bracketMatching', true);
+      } catch (e) { /* 忽略：环境不支持时不改变行为 */ }
+    }
     updateStatusBar();
   }
 
@@ -885,6 +1347,7 @@
     if (state.browserPurpose === 'compare') {
       compareEditor.setValue(text, -1);
       elements.compareFileName.textContent = file.name;
+      sharedState.compareSource = 'file';
       updateDiff();
       return;
     }
@@ -1193,6 +1656,7 @@
    * 切换 Markdown 预览模式
    */
   let markdownRenderTimer = null;
+  let mdPreviewLastHash = ''; // Phase 3：预览重绘去重（内容未变不重绘）
 
   function toggleMarkdownPreview(forceOpen) {
     const shouldOpen = forceOpen !== undefined ? forceOpen : elements.markdownPane.hidden;
@@ -1297,6 +1761,11 @@
 
   function renderMarkdownPreview() {
     const text = mainEditor.getValue();
+    // Phase 3：内容未变化时不重绘（等值输入/切换标签经过时避免无谓 innerHTML 重建）
+    if (featureOn('mdPreviewDiff') && typeof mdPreviewLastHash === 'string') {
+      if (mdPreviewLastHash === text) return;
+    }
+    mdPreviewLastHash = text;
     if (!text.trim()) {
       elements.markdownBody.innerHTML = '<p style="color:var(--app-text-muted);padding:2em 0;text-align:center;">暂无内容</p>';
       return;
@@ -1328,9 +1797,15 @@
     if (shouldOpen && !elements.markdownPane.hidden) {
       toggleMarkdownPreview(false);
     }
-    if (shouldOpen && !compareEditor.getValue()) {
-      compareEditor.setValue(mainEditor.getValue(), -1);
-      elements.compareFileName.textContent = '当前文档快照';
+    // 打开时同步对比内容：若对比区为空，或上次内容只是自动快照（用户未手动载入剪贴板/文件），
+    // 则刷新为当前文档快照，避免复用陈旧快照把整个文档误判为差异、出现整屏红绿底色块（Bug 修复）。
+    if (shouldOpen) {
+      const manualTarget = sharedState.compareSource === 'clipboard' || sharedState.compareSource === 'file';
+      if (!compareEditor.getValue() || !manualTarget) {
+        compareEditor.setValue(mainEditor.getValue(), -1);
+        elements.compareFileName.textContent = '当前文档快照';
+        sharedState.compareSource = 'snapshot';
+      }
     }
     if (!shouldOpen) {
       clearMarkers(mainEditor, sharedState.diffMarkers.main);
@@ -2241,6 +2716,12 @@
       toggleWordWrap();
       return;
     }
+    // 对比视图：打开/切换对比面板（当前文档对比右侧内容）
+    if (action === 'compare') {
+      toggleCompare();
+      mainEditor.focus();
+      return;
+    }
     mainEditor.focus();
     const command = action === 'selectAll' ? 'selectall' : action;
     try {
@@ -2925,6 +3406,7 @@
       }
       compareEditor.setValue(text || '', -1);
       elements.compareFileName.textContent = '剪贴板';
+      sharedState.compareSource = 'clipboard';
       updateDiff();
     } catch (error) {
       handleError('读取剪贴板失败', error);
@@ -2939,6 +3421,7 @@
         sharedState.compareToken = result.fileToken;
         compareEditor.setValue(result.text, -1);
         elements.compareFileName.textContent = result.fileName;
+        sharedState.compareSource = 'file';
         updateDiff();
       } catch (error) {
         handleError('载入对比文件失败', error);
@@ -3138,10 +3621,40 @@
     elements.cursorStatus.textContent = `行 ${position.row + 1}，列 ${position.column + 1}`;
     elements.selectionStatus.textContent = `${selection.length} 字符`;
     if (!selection) elements.matchStatus.textContent = '未选择词语';
+    // Phase 1：多光标状态指示（仅多光标时显示，其余情况保持隐藏，不影响状态栏布局）
+    if (featureOn('multiCursor')) {
+      ensureAceMultiSelect();
+      const ranges = mainEditor.selection.getAllRanges && mainEditor.selection.getAllRanges();
+      const count = ranges && ranges.length > 1 ? ranges.length : 0;
+      if (elements.multiCursorStatus) {
+        if (count > 1) {
+          elements.multiCursorStatus.hidden = false;
+          elements.multiCursorStatus.textContent = `${count} 个光标`;
+        } else {
+          elements.multiCursorStatus.hidden = true;
+        }
+      }
+    }
+  }
+
+  // 确保 ACE 多选（multi_select）模块已加载并启用（独立函数，不修改 createEditor 默认选项）
+  let aceMultiSelectEnsured = false;
+  function ensureAceMultiSelect() {
+    if (aceMultiSelectEnsured || !mainEditor) return;
+    try {
+      ace.require('ace/multi_select');
+      // 对已存在的编辑器实例显式开启（模块 defineOptions 已把 enableMultiselect 置为默认 true，
+      // 显式设置保证本实例生效，且不改动 createEditor 的默认选项值）
+      mainEditor.setOption('enableMultiselect', true);
+      aceMultiSelectEnsured = true;
+    } catch (e) {
+      // 模块缺失时静默降级为单光标，不影响其它功能
+    }
   }
 
   function updateStatusBar() {
-    const langMap = { text: '纯文本', json: 'JSON', xml: 'XML', sql: 'SQL', markdown: 'Markdown' };
+    const langMap = { text: '纯文本', json: 'JSON', xml: 'XML', sql: 'SQL', markdown: 'Markdown',
+      javascript: 'JavaScript', python: 'Python', yaml: 'YAML', css: 'CSS', html: 'HTML' };
     const lang = elements.languageSelect.value;
     elements.statusLang.textContent = langMap[lang] || lang;
     const tabSize = mainEditor.session.getTabSize();
@@ -3395,6 +3908,8 @@
       updateDocumentIdentity();
       renderTabBar();
       showToast(`已打开剪藏 #${clip.id}`);
+      // 写入「来自收件箱」最近分组（写作侧一键回看）
+      recordRecentFile(`剪藏 #${clip.id}`, clip.title || clip.sourceFileName || `剪藏 #${clip.id}`, { source: 'clip', clipId: clip.id });
     } catch (error) {
       handleError('打开剪藏失败', error);
     }
@@ -3449,6 +3964,9 @@
       renderTabBar();
       renderAiChat();
       mainEditor.focus();
+      showToast(`已打开剪藏 #${clip.id}`);
+      // 写入「来自收件箱」最近分组（写作侧一键回看）
+      recordRecentFile(`剪藏 #${clip.id}`, clip.title || clip.sourceFileName || `剪藏 #${clip.id}`, { source: 'clip', clipId: clip.id });
       showToast(`已在新标签打开剪藏 #${clip.id}`);
     } catch (error) {
       handleError('在新标签打开剪藏失败', error);
@@ -3582,6 +4100,31 @@
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && exportMenu && !exportMenu.hidden) setExportMenu(false);
   });
+  // ── 更多工具溢出菜单（低频动作收纳） ──
+  var moreBtn = document.getElementById('moreBtn');
+  var moreMenu = document.getElementById('moreMenu');
+  function setMoreMenu(open) {
+    if (!moreMenu) return;
+    moreMenu.hidden = !open;
+    moreBtn && moreBtn.classList.toggle('active', open);
+  }
+  function toggleMoreMenu() { setMoreMenu(moreMenu.hidden); }
+  moreBtn && moreBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    setExportMenu(false);   // 互斥：展开更多时收起导出菜单
+    toggleMoreMenu();
+  });
+  document.addEventListener('click', function (e) {
+    var wrap = moreBtn && moreBtn.closest('.toolbar-more');
+    if (!wrap || !wrap.contains(e.target)) setMoreMenu(false);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && moreMenu && !moreMenu.hidden) setMoreMenu(false);
+  });
+  // 点击任一菜单项后自动收起
+  moreMenu && moreMenu.addEventListener('click', function (e) {
+    if (e.target.closest('.toolbar-more-item')) setMoreMenu(false);
+  });
   document.getElementById('exportMarkdownBtn').addEventListener('click', function (e) {
     e.stopPropagation(); setExportMenu(false); exportToMarkdown();
   });
@@ -3647,6 +4190,7 @@
     ],
     'Ace': [
       ['查找', 'Ctrl+F'], ['替换', 'Ctrl+H'], ['跳转到行', 'Ctrl+L'], ['选中下一个匹配', 'Alt+K'],
+      ['多光标（Alt+Click 追加）', 'Alt+Click'], ['拆分选区为多光标', 'Ctrl+Shift+L'],
       ['撤销', 'Ctrl+Z'], ['重做', 'Ctrl+Shift+Z'], ['缩进', 'Tab'], ['取消缩进', 'Shift+Tab'], ['整行注释', 'Ctrl+/']
     ]
   };
@@ -3654,7 +4198,7 @@
   // 三元组 [命令名, 中文名, 兜底组合键（运行时缺失时使用，已按 ACE 默认修正）]
   var ACE_CMD_KEYS = [
     ['find', '查找', 'Ctrl+F'],
-    ['replace', '替换', 'Ctrl+H'],
+    ['replace', '替换', 'Ctrl+R'],
     ['gotoline', '跳转到行', 'Ctrl+L'],
     ['selectOrFindNext', '选中下一个匹配（多光标）', 'Alt+K'],
     ['undo', '撤销', 'Ctrl+Z'],
@@ -4019,6 +4563,11 @@
   //  ① 图片 → 上传（而非粘贴文本）
   //  ② 富文本(HTML) → 用 turndown 转成干净的 Markdown 再插入光标（借鉴 NoteGen）
   //  ③ 纯文本 → 交给 ACE 默认粘贴
+  // 注意：必须用 capture 阶段 + stopPropagation 提前接管。ACE 自身的 paste 处理器绑定在隐藏
+  //  textarea（.ace_text-input）上，位于 target 阶段；真实 Cmd+V 的事件目标正是该 textarea，
+  //  若本处理器只在冒泡阶段执行，ACE 已先插入 text/plain，随后本处再插入 Markdown，
+  //  会导致同一内容被插入两遍（纯文本 + 带标记的 Markdown），粘贴区出现重复内容且
+  //  Markdown 标记被渲染成彩色/高亮，表现为"字体/背景颜色错乱"（Bug 修复）。
   if (mainEditor && mainEditor.container) {
     mainEditor.container.addEventListener('paste', (e) => {
       const cd = e.clipboardData;
@@ -4034,6 +4583,7 @@
       }
       if (files.length) {
         e.preventDefault();
+        e.stopPropagation();
         handleEditorImageFiles(files);
         return;
       }
@@ -4047,6 +4597,7 @@
             const plain = (cd.getData('text/plain') || '').trim();
             if (md && md !== plain) {
               e.preventDefault();
+              e.stopPropagation();
               mainEditor.session.insert(mainEditor.getCursorPosition(), md);
             }
           } catch (err) {
@@ -4055,7 +4606,7 @@
         }
       }
       // ③ 纯文本：不做处理，走 ACE 默认粘贴
-    });
+    }, { capture: true });
   }
   document.getElementById('compareClipboardBtn').addEventListener('click', loadCompareFromClipboard);
   document.getElementById('compareFileBtn').addEventListener('click', loadCompareFromFile);
@@ -4492,6 +5043,14 @@
     }
   });
 
+  // Phase 1：近期编辑位置前后跳转（Alt+- / Alt+Shift+-；避开 View 菜单 zoomOut 占用的 Ctrl+-）
+  document.addEventListener('keydown', function(e) {
+    if (!e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.key !== '-' && e.key !== '_') return;
+    e.preventDefault();
+    if (e.shiftKey) jumpPosHistoryForward(); else jumpPosHistoryBack();
+  });
+
   // ══════════════════════════════════════════════════════════
   // 1. ACE Settings Menu (图形化设置菜单)
   // ══════════════════════════════════════════════════════════
@@ -4589,6 +5148,9 @@
   var lastSavedContent = '';
   var autosaveEnabled = true;
   var autosaveBlurHandler = null;
+  // Phase 3：防抖自动保存状态
+  var autosaveChangeHandler = null;
+  var autosaveDebounceTimer = null;
 
   function triggerAutosave() {
     if (!autosaveEnabled) return;
@@ -4694,6 +5256,18 @@
       autosaveBlurHandler = function onBlur() { triggerAutosave(); };
       document.addEventListener('blur', autosaveBlurHandler);
     }
+    // Phase 3：防抖自动保存——编辑停止 2s 后触发保存（阈值与开关双条件，
+    // 未开启时沿用原 10s 固定间隔；triggerAutosave 本身语义不变）
+    if (featureOn('autosaveDebounce') && !autosaveChangeHandler) {
+      autosaveChangeHandler = function onChange() {
+        if (autosaveDebounceTimer) clearTimeout(autosaveDebounceTimer);
+        autosaveDebounceTimer = setTimeout(function() {
+          autosaveDebounceTimer = null;
+          triggerAutosave();
+        }, 2000);
+      };
+      mainEditor.session.on('change', autosaveChangeHandler);
+    }
     updateAutosaveUI();
   }
 
@@ -4726,7 +5300,22 @@
 
   // 定期保存编辑器缓存（IPC invoke 是异步的，beforeunload 同步事件中
   // 请求可能来不及送达主进程，因此改为定时落盘，每 30 秒一次）
-  setInterval(function() { saveEditorCache(); }, 30000);
+  // Phase 3：仅在有变更时保存缓存（开关关闭时维持原固定频率行为）
+  var stateDirty = false;
+  function markStateDirty() { stateDirty = true; }
+  function consumeStateDirty() {
+    var d = stateDirty;
+    stateDirty = false;
+    return d;
+  }
+  (function trackEditorDirty() {
+    mainEditor.session.on('change', markStateDirty);
+    document.addEventListener('blur', markStateDirty);
+  })();
+  setInterval(function() {
+    if (featureOn('dirtyCacheGate') && !consumeStateDirty()) return;
+    saveEditorCache();
+  }, 30000);
 
   // ══════════════════════════════════════════════════════════
   // 5. File Tree (文件树侧边栏)
@@ -5039,7 +5628,10 @@
   }
 
   // 定期保存工作区
-  setInterval(saveWorkspace, 60000); // 每分钟保存一次
+  setInterval(function() {
+    if (featureOn('dirtyCacheGate') && !consumeStateDirty()) return;
+    saveWorkspace();
+  }, 60000); // 每分钟保存一次
 
   // 在关闭前保存工作区
   window.addEventListener('beforeunload', function() {
@@ -5333,10 +5925,17 @@
     }
   }
 
-  function recordRecentFile(filePath, fileName) {
+  function recordRecentFile(filePath, fileName, opts) {
     if (!filePath) return;
+    opts = opts || {};
     let list = getRecentFiles().filter(item => item.path !== filePath);
-    list.unshift({ path: filePath, name: fileName || filePath.split(/[\\/]/).pop() || filePath, time: Date.now() });
+    list.unshift({
+      path: filePath,
+      name: fileName || filePath.split(/[\\/]/).pop() || filePath,
+      time: Date.now(),
+      source: opts.source || '',
+      clipId: opts.clipId != null ? opts.clipId : null
+    });
     list = list.slice(0, MAX_RECENT_FILES);
     try {
       localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(list));
@@ -5361,28 +5960,63 @@
       elements.recentList.innerHTML = '<div class="history-item" style="cursor:default;color:var(--app-text-muted);">暂无最近打开的文件</div>';
       return;
     }
-    list.forEach(item => {
-      const el = document.createElement('div');
-      el.className = 'recent-item';
-      const nameLine = document.createElement('div');
-      nameLine.className = 'recent-name';
-      nameLine.textContent = item.name;
-      const metaLine = document.createElement('div');
-      metaLine.className = 'recent-meta';
-      metaLine.textContent = item.path + ' · ' + formatRecentTime(item.time);
-      el.appendChild(nameLine);
-      el.appendChild(metaLine);
-      el.title = item.path;
-      el.addEventListener('click', function() {
+    // 分组：来自收件箱的剪藏置顶，其余为最近打开
+    const clips = list.filter(item => item.source === 'clip');
+    const others = list.filter(item => item.source !== 'clip');
+    const appendGroup = (title, items) => {
+      if (!items || items.length === 0) return;
+      const group = document.createElement('div');
+      group.className = 'recent-group';
+      const head = document.createElement('div');
+      head.className = 'recent-group-title';
+      head.textContent = title;
+      group.appendChild(head);
+      items.forEach(item => group.appendChild(buildRecentItem(item)));
+      elements.recentList.appendChild(group);
+    };
+    appendGroup('来自收件箱', clips);
+    appendGroup('最近打开', others);
+  }
+
+  function buildRecentItem(item) {
+    const el = document.createElement('div');
+    el.className = 'recent-item' + (item.source === 'clip' ? ' recent-clip-item' : '');
+    const nameLine = document.createElement('div');
+    nameLine.className = 'recent-name';
+    const nameText = document.createElement('span');
+    nameText.textContent = item.name;
+    nameLine.appendChild(nameText);
+    if (item.source === 'clip') {
+      const badge = document.createElement('span');
+      badge.className = 'recent-clip-badge';
+      badge.textContent = '收件箱';
+      nameLine.appendChild(badge);
+    }
+    const metaLine = document.createElement('div');
+    metaLine.className = 'recent-meta';
+    metaLine.textContent = item.path + ' · ' + formatRecentTime(item.time);
+    el.appendChild(nameLine);
+    el.appendChild(metaLine);
+    el.title = item.path;
+    el.addEventListener('click', function () {
+      if (item.source === 'clip' && item.clipId != null) {
+        openRecentClip(item.clipId);
+      } else {
         openRecentFile(item.path);
-      });
-      el.addEventListener('contextmenu', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        showRecentContextMenu(e, item);
-      });
-      elements.recentList.appendChild(el);
+      }
     });
+    el.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      showRecentContextMenu(e, item);
+    });
+    return el;
+  }
+
+  /** 从收件箱剪藏分组重新打开该剪藏 */
+  function openRecentClip(clipId) {
+    closeRecentPanel();
+    loadClipInNewTab(clipId);
   }
 
   async function openRecentFile(filePath) {
@@ -6284,12 +6918,66 @@
     }
   }
 
+  /**
+   * 注册语言关键字补全（Phase 2 代码智能，opt-in）。
+   * 独立于词典 completer，仅按当前语言模式提供关键字候选；
+   * 开关关闭时不注册，现有补全行为不受影响。
+   */
+  var KEYWORD_LISTS = {
+    json: ['true', 'false', 'null'],
+    sql: ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'FROM', 'WHERE', 'ORDER', 'GROUP', 'BY', 'HAVING', 'LIMIT', 'JOIN', 'LEFT', 'RIGHT', 'INNER', 'OUTER', 'ON', 'AS', 'AND', 'OR', 'NOT', 'NULL', 'CREATE', 'TABLE', 'INDEX', 'ALTER', 'DROP', 'VALUES', 'SET', 'INTO', 'PRIMARY', 'KEY', 'FOREIGN', 'REFERENCES', 'DISTINCT', 'COUNT', 'SUM', 'AVG', 'MIN', 'MAX'],
+    xml: ['xml', 'version', 'encoding', 'xsl:stylesheet', 'template', 'match', 'select', 'value-of'],
+    sqlAndMore: ['BEGIN', 'COMMIT', 'ROLLBACK', 'TRANSACTION', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END']
+  };
+  var registeredKeywordCompleter = null;
+
+  function registerKeywordCompleter() {
+    if (!featureOn('keywordCompleter')) return;
+    if (!mainEditor) return;
+    var langTools = null;
+    try { langTools = ace.require('ace/ext/language_tools'); } catch (e) { return; }
+    if (!langTools) return;
+
+    // 移除旧的 completer（如果有），保持幂等
+    if (registeredKeywordCompleter) {
+      var completersOld = mainEditor.completers || [];
+      var idxOld = completersOld.indexOf(registeredKeywordCompleter);
+      if (idxOld !== -1) completersOld.splice(idxOld, 1);
+    }
+
+    var completer = {
+      identifierRegexps: [/[A-Za-z_]/],
+      getCompletions: function(editor, session, pos, prefix, callback) {
+        if (!prefix || prefix.length === 0) { callback(null, []); return; }
+        var modeParts = (session.getMode() || {}).$id || '';
+        var modeName = (modeParts.split('/').pop() || '').toLowerCase();
+        var words = KEYWORD_LISTS[modeName] || [];
+        if (modeName === 'sql') words = words.concat(KEYWORD_LISTS.sqlAndMore);
+        var prefixLower = prefix.toLowerCase();
+        var results = [];
+        words.forEach(function(w) {
+          // 小写单词按前缀匹配（SQL 关键字给原样大写）；其它按前缀匹配，命中即提示
+          if (w.toLowerCase().indexOf(prefixLower) === 0) {
+            results.push({ caption: w, value: w, meta: '关键字', score: 900 });
+          }
+        });
+        callback(null, results.slice(0, 50));
+      }
+    };
+
+    registeredKeywordCompleter = completer;
+    if (langTools.addCompleter) langTools.addCompleter(completer);
+    else if (mainEditor.completers) mainEditor.completers.push(completer);
+  }
+
   // 初始化：加载词典 + 注册 completer + 设置弹窗
   loadDictLib();
   loadUserDict();
   setupDictModal();
   // 延迟注册 completer（等待编辑器完全初始化）
   setTimeout(registerDictCompleter, 500);
+  // Phase 2：语言关键字补全（开关开启时注册，与词典 completer 相互独立）
+  setTimeout(registerKeywordCompleter, 600);
 
   // ══════════════════════════════════════════════════════════
   // FP-1 / FP-6 Obsidian 双链（wikilink）支持
@@ -6922,8 +7610,55 @@
         }
         highlightOutlineRow(this);
       });
+      // Phase 1：大纲 hover 悬浮提示（仅大纲增强开关开启时，展示行号 + 该行内容预览）
+      if (featureOn('outlineEnhance')) {
+        row.addEventListener('mouseenter', function() { showOutlineHoverTip(this); });
+        row.addEventListener('mousemove', function(e) { moveOutlineHoverTip(e); });
+        row.addEventListener('mouseleave', hideOutlineHoverTip);
+      }
       list.appendChild(row);
     });
+  }
+
+  // Phase 1：大纲 hover 悬浮提示实现（独立元素，关闭开关即不创建/不显示）
+  var outlineTipEl = null;
+  function ensureOutlineTipEl() {
+    if (outlineTipEl) return outlineTipEl;
+    outlineTipEl = document.createElement('div');
+    outlineTipEl.className = 'outline-hover-tip';
+    outlineTipEl.hidden = true;
+    (elements.outlinePane || document.body).appendChild(outlineTipEl);
+    return outlineTipEl;
+  }
+  function showOutlineHoverTip(row) {
+    if (!featureOn('outlineEnhance')) return;
+    var tip = ensureOutlineTipEl();
+    tip.hidden = false;
+    var line = parseInt(row.dataset.line, 10);
+    var preview = '';
+    try {
+      var raw = mainEditor.session.getLine(line);
+      preview = (raw || '').replace(/^#+\s*/, '').trim().slice(0, 60);
+    } catch (e) { /* 读取失败不展示预览 */ }
+    tip.innerHTML = '';
+    var lineSpan = document.createElement('span');
+    lineSpan.className = 'outline-hover-line';
+    lineSpan.textContent = String(line + 1);
+    tip.appendChild(lineSpan);
+    if (preview) {
+      var textSpan = document.createElement('span');
+      textSpan.className = 'outline-hover-text';
+      textSpan.textContent = preview;
+      tip.appendChild(textSpan);
+    }
+  }
+  function moveOutlineHoverTip(e) {
+    if (!featureOn('outlineEnhance') || !outlineTipEl || outlineTipEl.hidden) return;
+    outlineTipEl.style.left = (e.clientX + 10) + 'px';
+    outlineTipEl.style.top = (e.clientY + 12) + 'px';
+  }
+  function hideOutlineHoverTip() {
+    if (outlineTipEl) { outlineTipEl.hidden = true; }
   }
 
   function highlightOutlineRow(row) {
@@ -7110,6 +7845,62 @@
     commandRegistry.push({ id: id, name: name, icon: icon, handler: handler, shortcut: shortcut || '' });
   }
 
+  // Phase 2：包裹选区——弹出字符选择（纯 DOM 确认框，兼容 Electron contextIsolation）
+  function openWrapSelectionPicker() {
+    if (!featureOn('bracketPairs')) return;
+    var sel = mainEditor.getSelectedText();
+    if (!sel) { showToast('请先选中要包裹的文本', true); return; }
+    if (document.getElementById('wrapSelPicker')) return; // 防重复
+    var overlay = document.createElement('div');
+    overlay.id = 'wrapSelPicker';
+    overlay.className = 'modal-backdrop';
+    overlay.style.cssText = 'display:flex;align-items:center;justify-content:center;z-index:10000';
+
+    var chars = ['(', ')', '[', ']', '{', '}', '"', '\'', '`'];
+    var dialog = document.createElement('div');
+    dialog.className = 'modal-card';
+    dialog.style.cssText = 'width:320px;padding:16px';
+    dialog.innerHTML = '<div class="panel-header" style="margin-bottom:10px"><div><h2>包裹选区</h2>'
+      + '<p style="font-size:12px;color:var(--app-text-muted);margin-top:4px">选择包围字符，将当前选区包裹起来</p></div></div>'
+      + '<div class="wrap-chars" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>'
+      + '<div class="panel-actions" style="justify-content:flex-end"><button class="tool-btn" data-x>取消</button></div>';
+
+    var wrapBox = dialog.querySelector('.wrap-chars');
+    chars.forEach(function(ch) {
+      var b = document.createElement('button');
+      b.className = 'tool-btn';
+      b.textContent = ch;
+      b.style.cssText = 'min-width:36px';
+      b.addEventListener('click', function() {
+        wrapSelectionWith(ch);
+        closeWrapPicker();
+      });
+      wrapBox.appendChild(b);
+    });
+
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    function closeWrapPicker() {
+      var el = document.getElementById('wrapSelPicker');
+      if (el) el.parentNode.removeChild(el);
+    }
+    overlay.addEventListener('mousedown', function(e) { if (e.target === overlay) closeWrapPicker(); });
+    dialog.querySelector('[data-x]').addEventListener('click', closeWrapPicker);
+  }
+
+  function wrapSelectionWith(ch) {
+    var sel = mainEditor.getSelectedText();
+    if (!sel) return;
+    var pairs = { '(': ')', '[': ']', '{': '}', '"': '"', '\'': '\'', '`': '`' };
+    var closeChar = pairs[ch] || ch;
+    var range = mainEditor.getSelectionRange();
+    // 若选区已包含包围字符则不重复包裹
+    if (sel.length >= 2 && sel[0] === ch && sel[sel.length - 1] === closeChar) return;
+    mainEditor.session.replace(range, ch + sel + closeChar);
+    mainEditor.focus();
+  }
+
   // 设置弹窗统一入口（从设置按钮事件中提取）
   function openSettingsModal() {
     switchSettingsTab('basic');
@@ -7135,6 +7926,9 @@
   registerCommand('export-word', '导出为 Word (.docx)', '📝', function() { exportToWord(); });
   registerCommand('export-pdf', '导出为 PDF (.pdf)', '📄', function() { exportToPdf(); });
   registerCommand('settings', '编辑器设置', '⚙', function() { openSettingsModal(); }, 'Ctrl+,');
+  registerCommand('pos-back', '返回上一编辑位置', '↶', function() { jumpPosHistoryBack(); }, 'Alt+-');
+  registerCommand('pos-forward', '前进到下一编辑位置', '↷', function() { jumpPosHistoryForward(); }, 'Alt+Shift+-');
+  registerCommand('wrap-selection', '包裹选区 ( \' [ { ` " )', '⤾', function() { openWrapSelectionPicker(); });
 
   var paletteOpen = false;
   var paletteIndex = 0;
@@ -7159,13 +7953,44 @@
     mainEditor.focus();
   }
 
+  // ── 命令使用次数（Phase 1 命令面板增强：空查询按最近使用优先）──
+  var CMD_USAGE_KEY = 'editor_cmd_usage_v1';
+  function readCommandUsage() {
+    try { return JSON.parse(localStorage.getItem(CMD_USAGE_KEY) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function recordCommandUsage(id) {
+    if (!id) return;
+    var usage = readCommandUsage();
+    usage[id] = (usage[id] || 0) + 1;
+    localStorage.setItem(CMD_USAGE_KEY, JSON.stringify(usage));
+  }
+
   function renderCommandList(query) {
     var q = (query || '').trim().toLowerCase();
     // 数据源按模式区分：template 模式下过滤模板条目，command 模式过滤命令注册表
     var source = paletteMode === 'template' ? paletteTemplateEntries : commandRegistry;
-    paletteFiltered = q
-      ? source.filter(function(c) { return c.name.toLowerCase().indexOf(q) !== -1 || c.id.toLowerCase().indexOf(q) !== -1; })
-      : source.slice();
+    if (featureOn('cmdPaletteEnhanced')) {
+      // 增强路径：空查询按使用次数降序（最近优先），非空查询按 fuzzyScore 打分排序。
+      // fuzzyScore 在同 IIFE 内先声明后使用（函数声明提升），此处可直接调用。
+      if (!q) {
+        var usage = readCommandUsage();
+        paletteFiltered = source.slice().sort(function (a, b) {
+          var ub = usage[b.id] || 0, ua = usage[a.id] || 0;
+          return ub - ua;
+        });
+      } else {
+        paletteFiltered = source.map(function (c) {
+          return { score: fuzzyScore(q, c.name), cmd: c };
+        }).filter(function (x) { return x.score >= 0; })
+          .sort(function (a, b) { return b.score - a.score; })
+          .map(function (x) { return x.cmd; });
+      }
+    } else {
+      // 原路径（开关关闭时与改造前完全一致）
+      paletteFiltered = q
+        ? source.filter(function(c) { return c.name.toLowerCase().indexOf(q) !== -1 || c.id.toLowerCase().indexOf(q) !== -1; })
+        : source.slice();
+    }
     var list = elements.commandPaletteList;
     list.innerHTML = '';
     if (!paletteFiltered.length) {
@@ -7173,7 +7998,11 @@
       return;
     }
     paletteIndex = Math.min(paletteIndex, paletteFiltered.length - 1);
-    paletteFiltered.forEach(function(c, i) {
+    // Phase 3：DocumentFragment 批量构造 + 条数上限，避免频繁整表重建
+    var LIMIT = 50;
+    var visible = paletteFiltered.slice(0, LIMIT);
+    var frag = document.createDocumentFragment();
+    visible.forEach(function(c, i) {
       var item = document.createElement('div');
       item.className = 'command-palette-item' + (i === paletteIndex ? ' active' : '');
       item.innerHTML = '<span class="command-palette-item-icon">' + c.icon + '</span>'
@@ -7181,8 +8010,9 @@
         + (c.shortcut ? '<span class="command-palette-item-shortcut">' + platformShortcut(c.shortcut) + '</span>' : '');
       item.addEventListener('mousedown', function(ev) { ev.preventDefault(); executeCommand(i); });
       item.addEventListener('mouseenter', function() { setPaletteIndex(i); });
-      list.appendChild(item);
+      frag.appendChild(item);
     });
+    list.appendChild(frag);
   }
 
   function setPaletteIndex(i) {
@@ -7196,6 +8026,7 @@
   function executeCommand(i) {
     var cmd = paletteFiltered[i];
     if (!cmd) return;
+    recordCommandUsage(cmd.id);
     closeCommandPalette();
     try { cmd.handler(); } catch (e) { showToast('命令执行失败：' + e.message, true); }
   }

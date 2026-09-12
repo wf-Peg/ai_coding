@@ -42,7 +42,7 @@ select {
   z-index: 20;
   min-height: 58px;
   display: grid;
-  grid-template-columns: auto minmax(180px, 1fr) auto;
+  grid-template-columns: auto minmax(120px, 1fr) auto;
   align-items: center;
   gap: 14px;
   padding: 8px 12px;
@@ -159,6 +159,47 @@ select {
   background: var(--app-surface-hover);
 }
 
+/* 更多工具溢出菜单（图标 + 二级菜单，低频动作收纳） */
+.toolbar-more {
+  position: relative;
+  display: inline-flex;
+}
+.toolbar-more-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 170px;
+  padding: 6px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow-md);
+}
+.toolbar-more-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  border: none;
+  background: none;
+  color: var(--app-text);
+  border-radius: var(--app-radius-sm);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.toolbar-more-item .btn-icon {
+  flex-shrink: 0;
+  color: var(--app-text-secondary);
+}
+.toolbar-more-item:hover {
+  background: var(--app-surface-hover);
+}
+
 /* 模式激活态（对比 / Markdown 预览 / 全屏） */
 .tool-btn.active {
   color: var(--app-primary);
@@ -196,19 +237,23 @@ select {
 }
 
 .document-identity {
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 2px;
 }
 
 .document-title-line {
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 7px;
   font-size: 13px;
+  flex-wrap: nowrap;
 }
 
 .document-title-line strong,
@@ -218,8 +263,21 @@ select {
   white-space: nowrap;
 }
 
-.document-path {
+/* 长文档名兜底：单行省略、绝不换行（小窗口下中间列被压缩也保持单行） */
+.document-title-line strong {
+  flex: 1 1 auto;
+  min-width: 0;
   max-width: 100%;
+}
+.document-title-line .source-badge {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.document-path {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   color: var(--app-text-muted);
   font-size: 10px;
   cursor: pointer;
@@ -265,7 +323,7 @@ select {
   font-size: 12px;
 }
 
-/* 标签栏容器 */
+/* 单个标签间的加号按钮等保持原状 */
 .tab-bar {
   grid-row: 2;
   display: flex;
@@ -277,6 +335,54 @@ select {
   overflow-y: hidden;
   scrollbar-width: thin;
   min-height: 32px;
+}
+
+/* 面包屑导航栏（Phase 1，默认 hidden = display:none；开启时占用 grid 第 3 行，
+   后续行整体下移一行，由 .breadcrumb-on 统一管理，避免影响其它行布局） */
+.breadcrumb-bar {
+  grid-row: 3;
+  display: none;
+  align-items: center;
+  gap: 4px;
+  min-height: 26px;
+  padding: 2px 12px;
+  font-size: 11px;
+  color: var(--app-text-secondary);
+  background: var(--app-surface-subtle);
+  border-bottom: 1px solid var(--app-border);
+  white-space: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.breadcrumb-bar.breadcrumb-visible { display: flex; }
+
+.editor-app.breadcrumb-on .breadcrumb-bar { grid-row: 3; }
+.editor-app.breadcrumb-on .compare-toolbar { grid-row: 4; }
+.editor-app.breadcrumb-on .editor-workspace { grid-row: 5; }
+.editor-app.breadcrumb-on .editor-statusbar { grid-row: 6; }
+.editor-app.breadcrumb-on { grid-template-rows: auto auto auto auto minmax(0, 1fr) 27px; }
+
+.breadcrumb-seg {
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 4px;
+  color: var(--app-text-secondary);
+  transition: background var(--app-duration-fast), color var(--app-duration-fast);
+}
+.breadcrumb-seg:hover {
+  background: var(--app-surface-hover);
+  color: var(--app-text);
+}
+.breadcrumb-sep {
+  color: var(--app-text-muted);
+  margin: 0 1px;
+  user-select: none;
+}
+.breadcrumb-file {
+  color: var(--app-text);
+  font-weight: 600;
+  padding: 1px 4px;
 }
 
 /* 单个标签 */
@@ -744,14 +850,16 @@ select {
   font-family: var(--app-font-mono) !important;
 }
 
+/* 差异行级底色：跟随主题变量 --app-success/--app-danger（明暗主题各自取值），
+   避免硬编码浅色主题 RGB 在深色下呈现暗沉浑浊的"背景颜色错乱"（Bug 修复）。 */
 .ace_marker-layer .diff-added-line {
   position: absolute;
-  background: rgba(35, 139, 99, 0.16);
+  background: color-mix(in srgb, var(--app-success) 16%, transparent);
 }
 
 .ace_marker-layer .diff-removed-line {
   position: absolute;
-  background: rgba(209, 67, 67, 0.14);
+  background: color-mix(in srgb, var(--app-danger) 14%, transparent);
 }
 
 /* 增强编辑器选中文本高亮 */
@@ -782,21 +890,21 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-primary) 10%, transparent);
 }
 
-/* ── 词级差异对比高亮（在行级底色之上再叠加词级标记） ── */
+/* ── 词级差异对比高亮（在行级底色之上再叠加词级标记）── */
 .ace_marker-layer .diff-word-removed {
   position: absolute;
-  background: rgba(209, 67, 67, 0.35);
+  background: color-mix(in srgb, var(--app-danger) 35%, transparent);
   border-radius: 2px;
-  border-left: 1px solid rgba(209, 67, 67, 0.5);
-  border-right: 1px solid rgba(209, 67, 67, 0.5);
+  border-left: 1px solid color-mix(in srgb, var(--app-danger) 50%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--app-danger) 50%, transparent);
 }
 
 .ace_marker-layer .diff-word-added {
   position: absolute;
-  background: rgba(35, 139, 99, 0.35);
+  background: color-mix(in srgb, var(--app-success) 35%, transparent);
   border-radius: 2px;
-  border-left: 1px solid rgba(35, 139, 99, 0.5);
-  border-right: 1px solid rgba(35, 139, 99, 0.5);
+  border-left: 1px solid color-mix(in srgb, var(--app-success) 50%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--app-success) 50%, transparent);
 }
 
 /* ── Markdown 语法高亮（配合 ace/mode/markdown）──
@@ -811,13 +919,23 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
 .ace_editor .ace_markup.ace_quote { color: var(--app-text-muted) !important; }
 .ace_editor .ace_markup.ace_list { color: var(--app-primary) !important; }
 .ace_editor .ace_markup.ace_table { color: var(--app-text-secondary) !important; }
-.ace_editor .ace_markup.ace_raw {
+/* 行内代码 `code`：主色字 + 淡主色底，保持轻量点缀 */
+.ace_editor .ace_markup.ace_raw.ace_inline {
   color: var(--app-primary) !important;
   background: color-mix(in srgb, var(--app-primary) 12%, transparent);
   border-radius: 2px;
 }
-.ace_editor .ace_support.ace_function,
-.ace_editor .ace_constant.ace_language { color: var(--app-text-muted) !important; }
+/* 围栏代码块整段：不再整块套用主色底/主色字（深色主题下大片蓝色块易被误认为"背景颜色错乱"），
+   改为中性次级字色 + 极淡表面底，跟随明暗主题自适应（Bug 修复）。 */
+.ace_editor .ace_markup.ace_raw:not(.ace_inline) {
+  color: var(--app-text-secondary) !important;
+  background: color-mix(in srgb, var(--app-surface-subtle) 55%, transparent);
+}
+/* 仅 Markdown 模式的围栏/语言标签/分割线保持灰化（editor.js setLanguage 在容器上标记 data-mode）。
+   其余代码模式（JSON/SQL/XML/JS 等）交由 ACE 主题原色渲染，
+   避免 true/null、函数名等 token 被全局强制灰色造成"字体颜色错乱"（Bug 修复）。 */
+.ace_editor[data-mode="markdown"] .ace_support.ace_function,
+.ace_editor[data-mode="markdown"] .ace_constant.ace_language { color: var(--app-text-muted) !important; }
 
 .editor-statusbar {
   grid-row: 5;
@@ -1477,13 +1595,9 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
 }
 
 @media (max-width: 980px) {
+  /* 工具栏始终三列同行：中间文档区让位压缩（标题单行省略），右侧动作列不换行 */
   .editor-toolbar {
-    grid-template-columns: auto minmax(120px, 1fr);
-  }
-
-  .toolbar-main-actions {
-    grid-column: 1 / -1;
-    justify-content: flex-end;
+    grid-template-columns: auto minmax(0, 1fr) auto;
   }
 
   .compare-toolbar {
@@ -2628,6 +2742,52 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
   text-overflow: ellipsis;
 }
 
+/* ── 最近打开：来自收件箱分组 ── */
+.recent-group + .recent-group {
+  margin-top: 6px;
+  border-top: 1px solid var(--app-border);
+  padding-top: 6px;
+}
+.recent-group-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--app-text-muted);
+}
+.recent-group-title::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--app-primary);
+}
+.recent-item .recent-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.recent-item .recent-name > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recent-clip-badge {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--app-primary);
+  background: var(--app-primary-soft);
+  border-radius: 4px;
+  padding: 1px 6px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
 /* ── 面板列表项 hover：左侧主色指示条滑出 ── */
 .filetree-item,
 .recent-item {
@@ -3370,12 +3530,12 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
 }
 
 .diff-content .diff-added {
-  background: rgba(35, 139, 99, 0.12);
+  background: color-mix(in srgb, var(--app-success) 12%, transparent);
   text-decoration: none;
 }
 
 .diff-content .diff-removed {
-  background: rgba(209, 67, 67, 0.1);
+  background: color-mix(in srgb, var(--app-danger) 10%, transparent);
   text-decoration: line-through;
 }
 
@@ -4225,4 +4385,54 @@ a.wikilink.wikilink-missing:hover {
 .quick-switcher-item.active .quick-switcher-hit {
   background: rgba(255, 255, 255, .35);
   color: #fff;
+}
+
+/* Phase 1：大纲 hover 悬浮提示（默认不显示，由 JS 开关控制） */
+.outline-hover-tip {
+  position: fixed;
+  z-index: 400;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--app-surface-raised, var(--app-surface));
+  border: 1px solid var(--app-border);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--app-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.outline-hover-line {
+  flex: none;
+  font-weight: 600;
+  color: var(--app-text);
+  padding-right: 6px;
+  border-right: 1px solid var(--app-border);
+}
+.outline-hover-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--app-text-secondary);
+}
+
+/* Phase 2：worker 语法错误 gutter 红点（JSON/XML） */
+.ace_gutter-cell.ace_worker_error {
+  position: relative;
+}
+.ace_gutter-cell.ace_worker_error::after {
+  content: '✕';
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--app-danger, #e5484d);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
 }
