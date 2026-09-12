@@ -3083,6 +3083,103 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
   background: var(--app-danger-soft);
 }
 
+/* ── 模板管理弹窗 ── */
+.template-modal-card {
+  width: min(540px, 94vw);
+  max-height: 82vh;
+  overflow-y: auto;
+}
+
+.template-modal-card .field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.template-content {
+  min-height: 180px;
+  resize: vertical;
+  font-family: var(--app-font-mono, monospace);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.template-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.template-actions .tool-btn {
+  flex: 0 0 auto;
+}
+
+.template-list {
+  flex: 1;
+  min-height: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface-subtle);
+}
+
+.template-empty {
+  padding: 24px 12px;
+  color: var(--app-text-muted);
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.template-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--app-border);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--app-duration-fast) ease;
+}
+
+.template-item:hover {
+  background: var(--app-surface-hover);
+}
+
+.template-item:last-child {
+  border-bottom: 0;
+}
+
+.template-item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.template-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.template-item-actions .tool-btn {
+  padding: 2px 8px;
+  font-size: 11px;
+  line-height: 20px;
+}
+
+.template-item-actions .tool-btn.danger-confirm {
+  color: var(--app-danger);
+  border-color: var(--app-danger);
+  background: var(--app-danger-soft);
+}
+
 /* ── 双链同名目标选择弹窗 ── */
 .wikilink-picker-card {
   width: min(460px, 94vw);

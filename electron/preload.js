@@ -257,6 +257,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onFocusGlobalSearch: (callback) => ipcRenderer.on('focus-global-search', () => callback()),
 
   /**
+   * 监听主进程请求打开全局命令面板（⌘/Ctrl+K 菜单加速键触发）
+   * @param {Function} callback - 无参回调
+   */
+  onFocusGlobalCmdPalette: (callback) => ipcRenderer.on('focus-global-cmd-palette', () => callback()),
+
+  /**
    * 设置「全局搜索」菜单加速键（设置模块自定义快捷键后热更新主进程菜单）
    * @param {string} combo - 形如 'Ctrl+Shift+F'
    * @returns {Promise<boolean>}
@@ -378,6 +384,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * @returns {Promise<{success: boolean, filePath?: string, message?: string}>}
    */
   saveTemplate: (payload) => ipcRenderer.invoke('editor-save-template', payload),
+
+  /**
+   * 删除模板。
+   * @param {string} name - 模板文件名
+   * @returns {Promise<{success: boolean, message?: string}>}
+   */
+  deleteTemplate: (name) => ipcRenderer.invoke('editor-delete-template', name),
 
   /**
    * 扫描知识库各模块，找出引用当前文件的来源（过滤自引用，就近优先排序）。

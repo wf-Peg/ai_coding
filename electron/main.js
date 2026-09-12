@@ -2367,6 +2367,8 @@ function createMainWindow(config) {
   const menuTemplate = [
     {
       label: 'Clip', submenu: [
+        { label: 'Command Palette', accelerator: 'CmdOrCtrl+K', click: () => focusGlobalCmdPalette() },
+        { type: 'separator' },
         { label: 'Global Search', accelerator: globalSearchAccelerator, click: () => focusGlobalSearch() },
         { type: 'separator' },
         { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => showConfigWindow(config) },
@@ -2444,6 +2446,15 @@ function focusGlobalSearch() {
   if (!mainWindow.isVisible()) mainWindow.show();
   mainWindow.focus();
   mainWindow.webContents.send('focus-global-search');
+}
+
+// 打开全局命令面板（⌘/Ctrl+K 菜单加速键触发；逻辑同 focusGlobalSearch，走主进程兜底）
+function focusGlobalCmdPalette() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  if (!mainWindow.isVisible()) mainWindow.show();
+  mainWindow.focus();
+  mainWindow.webContents.send('focus-global-cmd-palette');
 }
 
 /**
@@ -3899,6 +3910,22 @@ function setupIPC() {
       fs.writeFileSync(filePath, payload?.content || '', 'utf-8');
       log.info('[EditorTemplate] saved', filePath);
       return { success: true, filePath };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  // 删除模板
+  ipcMain.handle('editor-delete-template', async (event, name) => {
+    try {
+      const safe = String(name || '').replace(/[\\/:*?"<>|]/g, '_');
+      if (!safe) throw new Error('模板名无效');
+      const dir = resolveTemplatesDir();
+      const filePath = path.join(dir, safe);
+      if (!filePath.startsWith(dir) || !fs.existsSync(filePath)) throw new Error('模板不存在：' + name);
+      fs.unlinkSync(filePath);
+      log.info('[EditorTemplate] deleted', filePath);
+      return { success: true };
     } catch (err) {
       return { success: false, message: err.message };
     }

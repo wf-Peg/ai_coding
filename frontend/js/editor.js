@@ -95,6 +95,7 @@
     'offlineTranslateContextBtn', 'onlineTranslateContextBtn', 'addCustomMappingContextBtn', 'addToDictLibContextBtn', 'aiContextAnalysisContextBtn',
     'manageDictionaryContextBtn', 'aiChatContextBtn', 'joinLineEndsContextBtn', 'formatContextBtn', 'toggleWordWrapContextBtn',
     'dictModal', 'dictSourceInput', 'dictTargetInput', 'dictAddBtn', 'dictList', 'dictLibList', 'dictTabMapping', 'dictTabLibrary',
+    'templateModal', 'templateNameInput', 'templateContentInput', 'templateSaveBtn', 'templateEditCancelBtn', 'templateList',
     'wikilinkPickerModal', 'wikilinkPickerHint', 'wikilinkPickerList',
     'shortcutModal', 'shortcutGroups', 'shortcutConfigurableList', 'shortcutFixedList', 'shortcutHelpBtn',
     'shortcutModeGroup', 'shortcutModeGroupTitle', 'shortcutModeList',
@@ -2545,6 +2546,7 @@
     var slashQuery = '';
     var slashIndex = -1;
     var slashDebounce = null;
+    var slashTemplates = null;   // 斜杠菜单模板缓存（异步加载，null=未加载）
 
     function svgSlashIcon(paths) {
       return '<svg class="ctx-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths + '</svg>';
@@ -2561,7 +2563,8 @@
       todo: svgSlashIcon('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="m9 12 2 2 4-4"/>'),
       divider: svgSlashIcon('<line x1="4" x2="20" y1="12" y2="12"/><path d="M7 7h10"/><path d="M7 17h10"/>'),
       ai: svgSlashIcon('<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>'),
-      aiPolish: svgSlashIcon('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/>')
+      aiPolish: svgSlashIcon('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/>'),
+      template: svgSlashIcon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="13" x2="16" y2="13"/><line x1="8" y1="13" x2="9" y2="13"/><line x1="12" y1="17" x2="16" y2="17"/><line x1="8" y1="17" x2="9" y2="17"/>')
     };
 
     var SLASH_ITEMS = [
@@ -2612,6 +2615,27 @@
           listEl.appendChild(row);
         });
       });
+      // 动态「模板」分组：模板异步加载后增量渲染
+      const tplItems = (slashTemplates || []).filter(function(t) {
+        if (!q) return true;
+        return t.name.toLowerCase().indexOf(q) !== -1;
+      });
+      if (tplItems.length) {
+        matched = true;
+        const title = document.createElement('div');
+        title.className = 'slash-group-title';
+        title.textContent = '模板';
+        listEl.appendChild(title);
+        tplItems.forEach(function(t) {
+          const row = document.createElement('button');
+          row.type = 'button';
+          row.className = 'slash-item';
+          row.dataset.id = 'tpl-' + t.name;
+          row.innerHTML = SLASH_ICON.template + '<span class="ctx-label">' + t.name + '</span>';
+          row.addEventListener('click', function() { executeSlashItem({ id: 'tpl-' + t.name, title: t.name, icon: 'template', templateName: t.name }); });
+          listEl.appendChild(row);
+        });
+      }
       if (!matched) {
         const empty = document.createElement('div');
         empty.className = 'slash-menu-empty';
@@ -2650,6 +2674,19 @@
       elements.slashMenu.setAttribute('aria-hidden', 'false');
       positionSlashMenu();
       reportSlashMenuState(true);
+      loadSlashTemplates();
+    }
+
+    // 异步加载模板列表，成功后若菜单仍打开则增量补渲染「模板」分组
+    function loadSlashTemplates() {
+      var api = getElectronAPI();
+      if (!api || !api.listTemplates) return;
+      api.listTemplates().then(function(result) {
+        slashTemplates = (result && result.success && result.templates) || [];
+        if (slashMenuOpen) { renderSlashMenu(); positionSlashMenu(); }
+      }).catch(function() {
+        slashTemplates = [];
+      });
     }
 
     function closeSlashMenu() {
@@ -2698,6 +2735,19 @@
           ? '请基于以下内容继续续写，保持原有语气与风格，直接输出续写部分：\n\n' + text
           : '请润色以下文本，保持原意，直接输出润色结果：\n\n' + text;
         sendAiMessage(prompt);
+        return;
+      }
+      if (item.templateName) {
+        // 模板插入：先删除 "/" 前缀，再异步读取内容插入
+        const cur = mainEditor.getCursorPosition();
+        const line = mainEditor.session.getLine(cur.row);
+        const before = line.slice(0, cur.column);
+        const m = /(^|\s)\//.exec(before);
+        const startCol = m ? m.index + m[0].length - 1 : cur.column;
+        const range = new Range(cur.row, startCol, cur.row, cur.column);
+        closeSlashMenu();
+        mainEditor.session.replace(range, '');
+        insertTemplateByName(item.templateName);
         return;
       }
       const cur = mainEditor.getCursorPosition();
@@ -7091,6 +7141,7 @@
   var paletteFiltered = [];
 
   function openCommandPalette() {
+    paletteMode = 'command';
     paletteOpen = true;
     paletteIndex = 0;
     elements.commandPalette.hidden = false;
@@ -7101,6 +7152,7 @@
   }
 
   function closeCommandPalette() {
+    paletteMode = 'command';
     paletteOpen = false;
     elements.commandPalette.hidden = true;
     elements.commandPalette.setAttribute('aria-hidden', 'true');
@@ -7109,9 +7161,11 @@
 
   function renderCommandList(query) {
     var q = (query || '').trim().toLowerCase();
+    // 数据源按模式区分：template 模式下过滤模板条目，command 模式过滤命令注册表
+    var source = paletteMode === 'template' ? paletteTemplateEntries : commandRegistry;
     paletteFiltered = q
-      ? commandRegistry.filter(function(c) { return c.name.toLowerCase().indexOf(q) !== -1 || c.id.toLowerCase().indexOf(q) !== -1; })
-      : commandRegistry.slice();
+      ? source.filter(function(c) { return c.name.toLowerCase().indexOf(q) !== -1 || c.id.toLowerCase().indexOf(q) !== -1; })
+      : source.slice();
     var list = elements.commandPaletteList;
     list.innerHTML = '';
     if (!paletteFiltered.length) {
@@ -7364,25 +7418,43 @@
     return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
       + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
   }
-  function replaceTemplateVars(content) {
+  function replaceTemplateVars(content, author) {
     var vars = {
       '{{date}}': templateFormatDate(new Date()),
       '{{now}}': templateNow(),
       '{{title}}': getCurrentFileName().replace(/\.[^.]+$/, ''),
-      '{{author}}': ''
+      '{{author}}': author || ''
     };
     return Object.keys(vars).reduce(function(s, k) { return s.split(k).join(vars[k]); }, content);
   }
 
-  async function insertTemplateByName(name) {
+  // 模板数据统一加载入口：规范化主进程返回的 {success, templates} 契约
+  function loadTemplateList() {
     var api = getElectronAPI();
-    if (!api || !api.listTemplates) { showToast('模板功能仅桌面模式可用', true); return; }
+    if (!api || !api.listTemplates) return Promise.reject(new Error('模板功能仅桌面模式可用'));
+    return api.listTemplates().then(function(result) {
+      if (!result || !result.success) throw new Error((result && result.message) || '模板加载失败');
+      return (result.templates || []).slice();
+    });
+  }
+
+  async function insertTemplateByName(name) {
     try {
-      var list = await api.listTemplates();
-      var tpl = (list || []).find(function(t) { return t.name === name; });
+      var list = await loadTemplateList();
+      var tpl = list.find(function(t) { return t.name === name; });
       if (!tpl) { showToast('未找到模板：' + name, true); return; }
-      var content = await api.readTemplate(tpl.name);
-      var resolved = replaceTemplateVars(content || '');
+      var api = getElectronAPI();
+      var result = await api.readTemplate(tpl.name);
+      if (!result || !result.success) throw new Error((result && result.message) || '读取模板失败');
+      // {{author}} 从配置读取（config.json 手填 author/authorName），无则替换为空
+      var author = '';
+      try {
+        if (api && api.getConfig) {
+          var cfg = await api.getConfig();
+          author = (cfg && (cfg.author || cfg.authorName)) || '';
+        }
+      } catch (e) { /* 配置读取失败时 author 保持空 */ }
+      var resolved = replaceTemplateVars(result.content || '', author);
       mainEditor.session.insert(mainEditor.getCursorPosition(), resolved);
       mainEditor.focus();
       showToast('已插入模板 ' + name);
@@ -7391,46 +7463,145 @@
     }
   }
 
-  // 模板命令面板入口（命令面板 markdown 模板自动注册）
+  // 模板命令面板入口（命令面板 + 斜杠菜单双入口）
   registerCommand('template', '插入模板…', '📌', function() { openTemplatePicker(); });
+  registerCommand('manage-templates', '管理模板…', '🗂', function() { openTemplateManager(); });
+
+  var paletteMode = 'command';        // command | template：决定命令面板过滤数据源
+  var paletteTemplateEntries = [];
 
   function openTemplatePicker() {
-    var api = getElectronAPI();
-    if (!api || !api.listTemplates) { showToast('模板功能仅桌面模式可用', true); return; }
-    api.listTemplates().then(function(list) {
-      var names = (list || []).map(function(t) { return t.name; });
-      if (!names.length) { showToast('暂无模板，请在知识库 templates 目录创建', true); return; }
-      // 复用命令面板做模板选择
-      paletteOpen = true;
-      paletteFiltered = names.map(function(n) {
-        return { id: 'tpl-' + n, name: n, icon: '📌', handler: function() { insertTemplateByName(n); } };
+    loadTemplateList().then(function(list) {
+      if (!list.length) { showToast('暂无模板，请在模板管理中新建', true); return; }
+      paletteTemplateEntries = list.map(function(t) {
+        return { id: 'tpl-' + t.name, name: t.name, icon: '📌', handler: function() { insertTemplateByName(t.name); } };
       });
+      paletteMode = 'template';
+      paletteOpen = true;
       paletteIndex = 0;
       elements.commandPalette.hidden = false;
       elements.commandPalette.setAttribute('aria-hidden', 'false');
-      renderTemplateList(names);
+      renderCommandList('');
       elements.commandPaletteInput.value = '';
       elements.commandPaletteInput.focus();
     }).catch(function(err) { showToast('模板加载失败：' + err.message, true); });
   }
 
-  function renderTemplateList(names) {
-    var list = elements.commandPaletteList;
-    list.innerHTML = '';
-    names.forEach(function(n, i) {
-      var item = document.createElement('div');
-      item.className = 'command-palette-item' + (i === paletteIndex ? ' active' : '');
-      item.innerHTML = '<span class="command-palette-item-icon">📌</span><span class="command-palette-item-name">' + escapeHtml(n) + '</span>';
-      item.addEventListener('mousedown', function(ev) { ev.preventDefault(); executeTemplate(i); });
-      item.addEventListener('mouseenter', function() { paletteIndex = i; setPaletteIndex(i); });
-      list.appendChild(item);
-    });
+  // ── 模板管理弹窗（新建/编辑/删除）──
+  var templateEditing = null;          // 正在编辑的模板名（null=新建）
+  var templateDeletePending = null;    // 两段式删除确认中的模板名
+  var templateDeleteTimer = null;
+
+  function openTemplateManager() {
+    resetTemplateForm();
+    renderTemplateManagerList();
+    openModal(elements.templateModal);
   }
-  function executeTemplate(i) {
-    var item = paletteFiltered[i];
-    closeCommandPalette();
-    if (item) item.handler();
+
+  function closeTemplateManager() {
+    clearTimeout(templateDeleteTimer);
+    templateDeletePending = null;
+    closeModal(elements.templateModal);
+    resetTemplateForm();
   }
+
+  function resetTemplateForm() {
+    templateEditing = null;
+    elements.templateNameInput.value = '';
+    elements.templateContentInput.value = '';
+    elements.templateEditCancelBtn.hidden = true;
+  }
+
+  function renderTemplateManagerList() {
+    var container = elements.templateList;
+    container.innerHTML = '';
+    loadTemplateList().then(function(list) {
+      if (!list.length) {
+        container.innerHTML = '<div class="template-empty">暂无模板，请在下方新建</div>';
+        return;
+      }
+      list.forEach(function(t) {
+        var row = document.createElement('div');
+        row.className = 'template-item';
+        row.innerHTML = '<span class="template-item-name">' + escapeHtml(t.name) + '</span>'
+          + '<span class="template-item-actions">'
+          + '<button type="button" class="tool-btn" data-tpl-edit="' + escapeHtml(t.name) + '">编辑</button>'
+          + '<button type="button" class="tool-btn danger-action" data-tpl-delete="' + escapeHtml(t.name) + '">删除</button>'
+          + '</span>';
+        row.addEventListener('click', function(ev) {
+          if (ev.target.closest('[data-tpl-edit]')) { editTemplateInManager(t.name); return; }
+          if (ev.target.closest('[data-tpl-delete]')) { deleteTemplateInManager(t.name, ev.target.closest('[data-tpl-delete]')); return; }
+          // 点击行本身：关闭弹窗并直接插入
+          closeTemplateManager();
+          insertTemplateByName(t.name);
+        });
+        container.appendChild(row);
+      });
+    }).catch(function(err) { container.innerHTML = '<div class="template-empty">' + escapeHtml(err.message) + '</div>'; });
+  }
+
+  function editTemplateInManager(name) {
+    var api = getElectronAPI();
+    api.readTemplate(name).then(function(result) {
+      if (!result || !result.success) { showToast((result && result.message) || '读取模板失败', true); return; }
+      templateEditing = name;
+      elements.templateNameInput.value = name;
+      elements.templateContentInput.value = result.content || '';
+      elements.templateEditCancelBtn.hidden = false;
+      elements.templateContentInput.focus();
+    }).catch(function(err) { showToast('读取模板失败：' + err.message, true); });
+  }
+
+  function saveTemplateFromForm() {
+    var raw = (elements.templateNameInput.value || '').trim();
+    var content = elements.templateContentInput.value;
+    if (!raw) { showToast('请输入模板名称', true); return; }
+    var name = /\.(md|txt)$/i.test(raw) ? raw : raw + '.md';
+    var api = getElectronAPI();
+    api.saveTemplate({ name: name, content: content }).then(function(result) {
+      if (!result || !result.success) { showToast((result && result.message) || '保存模板失败', true); return; }
+      showToast(templateEditing ? '已更新模板 ' + name : '已新建模板 ' + name);
+      resetTemplateForm();
+      renderTemplateManagerList();
+    }).catch(function(err) { showToast('保存模板失败：' + err.message, true); });
+  }
+
+  function deleteTemplateInManager(name, btn) {
+    if (templateDeletePending === name) {
+      // 第二段：确认删除
+      clearTimeout(templateDeleteTimer);
+      templateDeletePending = null;
+      var api = getElectronAPI();
+      api.deleteTemplate(name).then(function(result) {
+        if (!result || !result.success) { showToast((result && result.message) || '删除模板失败', true); return; }
+        showToast('已删除模板 ' + name);
+        if (templateEditing === name) resetTemplateForm();
+        renderTemplateManagerList();
+      }).catch(function(err) { showToast('删除模板失败：' + err.message, true); });
+      return;
+    }
+    // 第一段：进入待确认状态（3 秒内再点才执行）
+    clearTimeout(templateDeleteTimer);
+    templateDeletePending = name;
+    btn.textContent = '确认删除';
+    btn.classList.add('danger-confirm');
+    templateDeleteTimer = setTimeout(function() {
+      templateDeletePending = null;
+      renderTemplateManagerList();
+    }, 3000);
+  }
+
+  elements.templateSaveBtn.addEventListener('click', saveTemplateFromForm);
+  elements.templateEditCancelBtn.addEventListener('click', resetTemplateForm);
+  elements.templateModal.addEventListener('click', function(e) {
+    if (e.target === elements.templateModal) closeTemplateManager();
+  });
+  elements.templateModal.querySelectorAll('[data-close-modal="templateModal"]').forEach(function(el) {
+    el.addEventListener('click', closeTemplateManager);
+  });
+  document.addEventListener('keydown', function(e) {
+    if (elements.templateModal.classList.contains('is-visible') && e.key === 'Escape') closeTemplateManager();
+  });
 
   window.parent.postMessage({ type: 'editorReady' }, '*');
 

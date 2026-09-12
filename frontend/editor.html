@@ -749,6 +749,40 @@
     </section>
   </div>
 
+  <!-- 模板管理弹窗 -->
+  <div class="modal-backdrop" id="templateModal">
+    <section class="modal-card template-modal-card" role="dialog" aria-modal="true" aria-labelledby="templateModalTitle">
+      <div class="panel-header">
+        <div>
+          <h2 id="templateModalTitle">模板管理</h2>
+          <p>管理「插入模板」使用的 Markdown 模板，存储于知识库 templates 目录</p>
+        </div>
+        <button class="icon-close" data-close-modal="templateModal" aria-label="关闭">×</button>
+      </div>
+      <div class="template-editor">
+        <label class="field-group wide">
+          <span class="field-label">模板名称</span>
+          <input class="field-control" id="templateNameInput" placeholder="例如：会议记录" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="field-group wide">
+          <span class="field-label">模板内容</span>
+          <textarea class="field-control template-content" id="templateContentInput" placeholder="支持变量：{{date}} {{now}} {{title}} {{author}}"></textarea>
+        </label>
+        <div class="template-actions">
+          <button class="tool-btn primary" id="templateSaveBtn">保存模板</button>
+          <button class="tool-btn" id="templateEditCancelBtn" hidden>取消编辑</button>
+        </div>
+      </div>
+      <div class="dict-tab-header">
+        <span class="dict-tab-hint">已有模板（点击可直接插入）</span>
+      </div>
+      <div class="template-list" id="templateList"></div>
+      <div class="panel-actions">
+        <button class="tool-btn" data-close-modal="templateModal">关闭</button>
+      </div>
+    </section>
+  </div>
+
   <!-- 快捷键速查弹窗 -->
   <div class="modal-backdrop" id="shortcutModal">
     <section class="modal-card shortcut-modal-card" role="dialog" aria-modal="true" aria-labelledby="shortcutModalTitle">
