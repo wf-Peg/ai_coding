@@ -129,6 +129,22 @@ var selectedClipIds = new Set();
     window.API_ROOT = API_ROOT;
     window.SYNC_PROVIDER_API_BASE_URL = SYNC_PROVIDER_API_BASE_URL;
 
+    // 弹窗关闭动效：先加 .closing 播放淡出，动画结束后再真正隐藏（贴合 --app-duration-normal）。
+    // 供各 close*Modal 统一调用，避免各处直接置 display:none 让弹窗"啪"地消失。
+    window.closeModalWithAnim = function (elm) {
+        if (!elm) return;
+        if (elm.classList.contains('closing')) return;
+        elm.classList.add('closing');
+        var dur = 200;
+        try {
+            dur = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--app-duration-normal'), 10) || 200;
+        } catch (e) { /* 保持默认 200ms */ }
+        setTimeout(function () {
+            elm.style.display = 'none';
+            elm.classList.remove('closing');
+        }, dur);
+    };
+
     // ── API 契约层（M4）──
     // 统一封装数据访问：优先走 SQLite 本地索引 IPC（window.electronAPI.localIndex），
     // 不可用/失败时回退后端 REST（axios）。前端消费方只需调用 window.apiClient.xxx，无感知数据源切换。

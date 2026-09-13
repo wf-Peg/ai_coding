@@ -380,6 +380,28 @@ svg { display: block; }
 .footer-note { font-size: 12.5px; color: var(--app-text-muted); margin-left: auto; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .footer-ver { font-family: var(--font-mono); font-size: 12px; color: var(--app-text-muted); border: 1px solid var(--app-border); border-radius: 5px; padding: 2px 8px; }
 
+/* ============ 下载 ============ */
+.dl-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.dl-card {
+  display: flex; flex-direction: column; align-items: stretch; gap: 10px;
+  background: var(--app-surface); border: 1px solid var(--app-border); border-radius: var(--app-radius-lg);
+  padding: 22px 20px;
+  transition: transform var(--app-duration-normal) var(--app-ease-smooth), box-shadow var(--app-duration-normal) var(--app-ease-smooth), border-color var(--app-duration-normal) var(--app-ease-smooth);
+}
+.dl-card:hover { transform: translateY(-3px); box-shadow: var(--app-shadow-md); border-color: var(--app-border-strong); }
+.dl-icon {
+  width: 38px; height: 38px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--app-primary-soft); color: var(--app-primary); margin-bottom: 2px;
+}
+.dl-icon svg { width: 19px; height: 19px; }
+.dl-title { font-size: 15.5px; font-weight: 650; }
+.dl-desc { font-size: 13px; color: var(--app-text-secondary); margin-top: -4px; line-height: 1.6; }
+.dl-btn { justify-content: center; }
+.dl-steps { font-size: 12px; color: var(--app-text-muted); line-height: 1.6; }
+.dl-steps code { font-family: var(--font-mono); font-size: 11.5px; background: var(--app-surface-hover); border: 1px solid var(--app-border); border-radius: 4px; padding: 1px 5px; color: var(--app-text); }
+.dl-ver { font-family: var(--font-mono); font-size: 12px; color: var(--app-text-muted); margin-top: auto; padding-top: 6px; }
+
 /* ============ 响应式 ============ */
 @media (max-width: 960px) {
   .hero-inner { grid-template-columns: 1fr; gap: 40px; }
@@ -389,6 +411,7 @@ svg { display: block; }
   .clip-types { grid-template-columns: repeat(2, 1fr); }
   .trust-cards { grid-template-columns: 1fr; }
   .exp-mocks { grid-template-columns: 1fr; }
+  .dl-grid { grid-template-columns: repeat(2, 1fr); }
   .exp-frame iframe { height: 560px; }
 }
 @media (max-width: 640px) {
@@ -397,6 +420,7 @@ svg { display: block; }
   .hero h1 { font-size: 32px; }
   .features { grid-template-columns: 1fr; }
   .workflow { grid-template-columns: 1fr; }
+  .dl-grid { grid-template-columns: 1fr; }
   .doc-grid { grid-template-columns: 1fr; }
   .clip-types { grid-template-columns: 1fr; }
   .doc-sec { padding: 26px 22px; }
@@ -420,6 +444,7 @@ svg { display: block; }
     </a>
     <div class="nav-links">
       <a href="#experience">产品体验</a>
+      <a href="#download">下载</a>
       <a href="#features">功能</a>
       <a href="#workflow">工作流</a>
       <a href="#docs">使用文档</a>
@@ -438,7 +463,11 @@ svg { display: block; }
       <p class="hero-slogan">捕捉灵感，智能整理，构建你的个人知识库</p>
       <p class="hero-desc">一款本地优先的剪藏与知识管理桌面应用。随时截图、粘贴、插图、收藏链接，先进收件箱，再一键 AI 整理为笔记——数据以纯文本 Markdown 保存在你自己的电脑里。</p>
       <div class="hero-cta">
-        <a class="btn btn-primary" href="#quickstart">
+        <a class="btn btn-primary" href="#download">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          立即下载
+        </a>
+        <a class="btn btn-ghost" href="#quickstart">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
           快速上手
         </a>
@@ -504,6 +533,53 @@ svg { display: block; }
     </div>
   </div>
 </header>
+
+<!-- ============ 下载 ============ -->
+<section class="section" id="download" style="padding-top: 40px;">
+  <div class="container">
+    <div class="sec-head reveal">
+      <span class="sec-kicker">Download</span>
+      <h2 class="sec-title">下载</h2>
+      <p class="sec-desc">桌面客户端与浏览器插件均托管于 GitHub Release，以下按钮会自动指向当前最新稳定版安装包。</p>
+    </div>
+
+    <div class="dl-grid">
+      <!-- Windows -->
+      <div class="dl-card reveal">
+        <div class="dl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 3v18"/></svg></div>
+        <h3 class="dl-title">Windows</h3>
+        <p class="dl-desc">安装版向导式安装；另有便携版，解压即用、无需安装。</p>
+        <a class="btn btn-primary dl-btn" data-dl="setup" href="https://github.com/wf-Peg/ai_coding/releases/latest" target="_blank" rel="noopener">下载 Windows 安装版</a>
+        <a class="btn btn-ghost dl-btn" data-dl="portable" href="https://github.com/wf-Peg/ai_coding/releases/latest" target="_blank" rel="noopener">便携版（免安装）</a>
+        <div class="dl-ver">v—</div>
+      </div>
+
+      <!-- macOS -->
+      <div class="dl-card reveal">
+        <div class="dl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a8 8 0 0 0-8 8v6a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1H5a6 6 0 0 1 7-5.9zM12 5a8 8 0 0 1 8 8v6a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a6 6 0 0 0-7-5.9z"/></svg></div>
+        <h3 class="dl-title">macOS</h3>
+        <p class="dl-desc">按芯片架构选择对应的 .dmg 安装包。</p>
+        <a class="btn btn-primary dl-btn" data-dl="mac-arm" href="https://github.com/wf-Peg/ai_coding/releases/latest" target="_blank" rel="noopener">Apple 芯片（M 系列）</a>
+        <a class="btn btn-ghost dl-btn" data-dl="mac-x64" href="https://github.com/wf-Peg/ai_coding/releases/latest" target="_blank" rel="noopener">Intel</a>
+        <div class="dl-ver">v—</div>
+      </div>
+
+      <!-- 浏览器插件 -->
+      <div class="dl-card reveal">
+        <div class="dl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3h4v4h4v4h4V3h-3V0H10v3z"/><path d="M3 14h4v4h4v4H3v-3H0v-5h3z"/><rect x="14" y="14" width="4" height="4" rx="1"/></svg></div>
+        <h3 class="dl-title">浏览器插件</h3>
+        <p class="dl-desc">Web Clipper，网页内容一键进收件箱，稍后统一整理。</p>
+        <a class="btn btn-primary dl-btn" data-dl="clipper" href="https://github.com/wf-Peg/ai_coding/releases/latest" target="_blank" rel="noopener">下载 Web Clipper (.zip)</a>
+        <div class="dl-steps">安装：Chrome / Edge 打开 <code>chrome://extensions</code>，开启「开发者模式」→「加载已解压的扩展程序」，解压本 zip 后选择其目录。</div>
+        <div class="dl-ver">v—</div>
+      </div>
+    </div>
+
+    <div class="doc-note" style="margin-top:22px;">
+      <strong>关于下载：</strong>全部安装包托管于 GitHub Releases，点击即开始下载；若自动跳转失败，请前往 <a href="https://github.com/wf-Peg/ai_coding/releases/latest" target="_blank" rel="noopener">GitHub Releases 页面</a> 手动选择对应文件。插件需配合桌面端使用，请在插件设置中配置 API 地址（默认 <code>http://127.0.0.1:8081</code>）。
+    </div>
+  </div>
+</section>
 
 <!-- ============ 产品体验 ============ -->
 <section class="section" id="experience" style="padding-top: 40px;">
@@ -927,7 +1003,7 @@ svg { display: block; }
       碎碎记 · CutShelter
     </span>
     <span class="footer-note">
-      <span>官网为离线页面，双击即可打开；交互体验见上方「在线体验」</span>
+      <span>本地优先 · 数据 100% 属于你</span>
       <span class="footer-ver">v1.0.16</span>
     </span>
   </div>
@@ -953,6 +1029,61 @@ svg { display: block; }
     });
   }, { threshold: 0.08 });
   document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+})();
+
+(function () {
+  // 下载区：从 GitHub 最新 Release 动态解析各安装包 / 插件 zip 的直链
+  var REPO = 'wf-Peg/ai_coding';
+  var DOWNLOAD_BASE = 'https://github.com/' + REPO + '/releases/download/';
+  var LATEST_PAGE = 'https://github.com/' + REPO + '/releases/latest';
+  var FALLBACK_VER = '前往 Releases 查看';
+  // data-dl -> 资产文件名匹配
+  var RE = {
+    setup:     /CutShelter-Setup-.*\.exe$/i,
+    portable:  /CutShelter-portable-.*win-x64\.exe$/i,
+    'mac-arm': /CutShelter-.*arm64\.dmg$/i,
+    'mac-x64': /CutShelter-.*x64\.dmg$/i,
+    clipper:   /CutShelter-webclipper-.*\.zip$/i
+  };
+
+  function setFallback() {
+    document.querySelectorAll('.dl-btn').forEach(function (b) {
+      b.setAttribute('href', LATEST_PAGE);
+    });
+    document.querySelectorAll('.dl-ver').forEach(function (v) {
+      v.textContent = FALLBACK_VER;
+    });
+  }
+
+  try {
+    fetch('https://api.github.com/repos/' + REPO + '/releases/latest', {
+      headers: { Accept: 'application/vnd.github+json' }
+    })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (rel) {
+        var tag = rel.tag_name || '';
+        var ver = tag.replace(/^v/i, '');
+        var assets = rel.assets || [];
+        assets.forEach(function (asset) {
+          var name = asset.name || '';
+          Object.keys(RE).forEach(function (key) {
+            if (!RE[key].test(name)) return;
+            var btn = document.querySelector('.dl-btn[data-dl="' + key + '"]');
+            if (btn) btn.setAttribute('href', DOWNLOAD_BASE + tag + '/' + encodeURIComponent(name));
+          });
+        });
+        if (ver) {
+          document.querySelectorAll('.dl-ver').forEach(function (v) {
+            v.textContent = '最新 v' + ver;
+          });
+        } else {
+          setFallback();
+        }
+      })
+      .catch(setFallback);
+  } catch (e) {
+    setFallback();
+  }
 })();
 </script>
 </body>

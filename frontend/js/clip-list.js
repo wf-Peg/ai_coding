@@ -1259,7 +1259,7 @@ img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ddd;pa
             submitBtn.disabled = false;
             submitBtn.textContent = '提问';
         }
-        document.getElementById('ask-modal').style.display = 'none';
+        closeModalWithAnim(document.getElementById('ask-modal'));
     }
 
     /** 渲染来源清单（sources 事件到达即展示，作为检索完成的进度反馈） */

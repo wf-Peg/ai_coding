@@ -232,7 +232,7 @@
 
     function closeGitConfigModal() {
         // 隐藏配置弹窗
-        document.getElementById('git-config-modal').style.display = 'none';
+        closeModalWithAnim(document.getElementById('git-config-modal'));
     }
 
 // ====== 同步状态面板（同步方案 + 连接状态 + 同步范围说明） ======

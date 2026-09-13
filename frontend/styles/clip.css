@@ -61,7 +61,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.5);
+            background: var(--app-scrim);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -78,7 +78,7 @@
             display: flex;
             flex-direction: column;
             box-shadow: var(--shadow-hover);
-            animation: slideIn var(--app-duration-slow) ease-out;
+            animation: slideIn var(--app-duration-panel) var(--app-ease-out-expo);
         }
 
         .modal-header {
@@ -165,7 +165,7 @@
 
         header {
             margin-bottom: 16px;
-            animation: fadeInDown 0.8s ease-out;
+            animation: fadeInDown var(--app-duration-normal) var(--app-ease-smooth);
             position: relative;
             text-align: left;
         }
@@ -356,7 +356,7 @@
         .action-row .wc-pill.wc-syncing .sync-dot {
             background: var(--app-primary);
             box-shadow: 0 0 0 3px var(--app-primary-soft);
-            animation: wcSyncPulse 0.9s ease-in-out infinite;
+            animation: wcSyncPulse calc(var(--app-duration-slow) * 3) var(--app-ease-in-out-expo) infinite;
         }
 
         .action-row .wc-pill .wc-pill-text {
@@ -423,7 +423,7 @@
         }
         .git-sync-result.visible {
             display: block;
-            animation: slideIn var(--app-duration-slow) ease-out;
+            animation: slideIn var(--app-duration-panel) var(--app-ease-out-expo);
         }
         .git-sync-result .sync-card {
             border: 1px solid var(--border);
@@ -963,7 +963,7 @@
             border-radius: var(--radius);
             box-shadow: var(--shadow);
             margin-bottom: 40px;
-            animation: fadeInUp 0.8s ease-out var(--app-duration-normal) both;
+            animation: fadeInUp var(--app-duration-slow) var(--app-ease-smooth) var(--app-duration-normal) both;
         }
 
         .clip-form h2 {
@@ -1129,7 +1129,7 @@
             top: 0; left: -120%;
             width: 60%; height: 100%;
             background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
-            transition: left 0.7s ease;
+            transition: left var(--app-duration-normal) var(--app-ease-smooth);
             pointer-events: none;
         }
 
@@ -1154,7 +1154,7 @@
         }
 
         .clip-list {
-            animation: fadeInUp 0.8s ease-out var(--app-duration-slow) both;
+            animation: fadeInUp var(--app-duration-slow) var(--app-ease-smooth) var(--app-duration-slow) both;
         }
 
         .list-header {
@@ -1217,7 +1217,7 @@
             border: 2px solid var(--border);
             background: transparent;
             cursor: pointer;
-            transition: all var(--app-duration-slow) cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all var(--app-duration-slow) var(--app-ease-sharp);
             position: relative;
             display: inline-flex;
             align-items: center;
@@ -1227,14 +1227,14 @@
         .clip-checkbox + .check-visual:hover {
             opacity: 0.8;
             border-color: var(--primary);
-            background: rgba(86, 156, 255, 0.08);
+            background: color-mix(in srgb, var(--app-primary) 8%, transparent);
             transform: scale(1.08);
         }
         .clip-checkbox:checked + .check-visual {
             opacity: 1;
             border-color: var(--primary);
             background: var(--primary);
-            box-shadow: 0 0 0 4px rgba(86, 156, 255, 0.15), 0 2px 12px rgba(86, 156, 255, 0.3);
+            box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-primary) 15%, transparent), 0 2px 12px color-mix(in srgb, var(--app-primary) 30%, transparent);
             transform: scale(1);
         }
         .clip-checkbox:checked + .check-visual::after {
@@ -1245,7 +1245,7 @@
             border: solid #fff;
             border-width: 0 2.5px 2.5px 0;
             transform: rotate(45deg) translateY(-1px);
-            animation: checkPop var(--app-duration-panel) cubic-bezier(0.4, 0, 0.2, 1);
+            animation: checkPop var(--app-duration-panel) var(--app-ease-sharp);
         }
         @keyframes checkPop {
             0% { transform: rotate(45deg) translateY(-1px) scale(0); }
@@ -1280,16 +1280,16 @@
             box-shadow: none;
         }
         html[data-theme="dark"] .clip-checkbox + .check-visual {
-            border-color: #555;
+            border-color: var(--app-border-strong);
         }
         html[data-theme="dark"] .clip-checkbox + .check-visual:hover {
             border-color: var(--primary-light);
-            background: rgba(86, 156, 255, 0.12);
+            background: color-mix(in srgb, var(--app-primary) 12%, transparent);
         }
         html[data-theme="dark"] .clip-checkbox:checked + .check-visual {
             border-color: var(--primary);
             background: var(--primary);
-            box-shadow: 0 0 0 4px rgba(86, 156, 255, 0.2), 0 2px 12px rgba(86, 156, 255, 0.25);
+            box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-primary) 20%, transparent), 0 2px 12px color-mix(in srgb, var(--app-primary) 25%, transparent);
         }
 
         /* ── 浮动操作栏（玻璃质感） ── */
@@ -1311,7 +1311,7 @@
             z-index: 999;
             opacity: 0;
             pointer-events: none;
-            transition: all var(--app-duration-slow) cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all var(--app-duration-slow) var(--app-ease-sharp);
             font-family: inherit;
         }
         .float-bar.visible {
@@ -1359,14 +1359,14 @@
             cursor: pointer;
             font-size: 0.85rem;
             font-weight: 600;
-            transition: all var(--app-duration-normal) ease;
+            transition: all var(--app-duration-normal) var(--app-ease-smooth);
             font-family: inherit;
             white-space: nowrap;
         }
         .float-bar .float-bar-btn:hover:not(:disabled) {
             background: var(--primary-dark);
             transform: translateY(-1px);
-            box-shadow: 0 4px 16px rgba(86, 156, 255, 0.35);
+            box-shadow: 0 4px 16px color-mix(in srgb, var(--app-primary) 35%, transparent);
         }
         /* 批量删除：危险色 hover */
         .float-bar .float-bar-btn.danger:hover:not(:disabled) {
@@ -1399,7 +1399,7 @@
             font-weight: 500;
             padding: 6px 12px;
             border-radius: 8px;
-            transition: all var(--app-duration-normal) ease;
+            transition: all var(--app-duration-normal) var(--app-ease-smooth);
             font-family: inherit;
         }
         .float-bar .float-bar-cancel:hover {
@@ -1420,7 +1420,7 @@
             border: 2px solid rgba(255,255,255,0.3);
             border-top-color: #fff;
             border-radius: 50%;
-            animation: floatBarSpin 0.6s linear infinite;
+            animation: floatBarSpin calc(var(--app-duration-panel) * 2) linear infinite;
         }
 
         html[data-theme="dark"] .float-bar {
@@ -1480,7 +1480,7 @@
             text-overflow: ellipsis;
         }
         .workflow-select-value.bump {
-            animation: valueSwitchIn 0.24s var(--app-ease-smooth);
+            animation: valueSwitchIn var(--app-duration-panel) var(--app-ease-smooth);
         }
         @keyframes valueSwitchIn {
             from { opacity: 0.15; transform: translateX(6px); }
@@ -1633,7 +1633,7 @@
 
         /* 列表切换过渡 · 单次入场：新列表自右侧平滑滑入（完整淡入 + 交错入场），不做独立退场，体感为一次连贯刷新 */
         .clip-items.switching {
-            animation: clipListIn 0.4s var(--app-ease-smooth);
+            animation: clipListIn calc(var(--app-duration-slow) * 1.33) var(--app-ease-smooth);
         }
         @keyframes clipListIn {
             from { opacity: 0; transform: translateX(20px) scale(0.994); }
@@ -1648,8 +1648,8 @@
             animation: clipGroupHeadIn var(--app-duration-normal) var(--app-ease-smooth) both;
         }
         .clip-items.item-entrance .clip-item {
-            animation: clipItemIn 0.36s var(--app-ease-smooth) both;
-            animation-delay: calc(var(--i, 0) * 36ms);
+            animation: clipItemIn calc(var(--app-duration-slow) * 1.2) var(--app-ease-smooth) both;
+            animation-delay: calc(var(--i, 0) * var(--app-duration-normal) * 0.18);
         }
         @keyframes clipItemIn {
             from { opacity: 0; transform: translateY(10px); }
@@ -1666,7 +1666,7 @@
 
         /* 计数徽章：柔和浮现（与抽屉动画同缓动，去弹跳过冲） */
         .clip-count.pop {
-            animation: countPop 0.28s var(--app-ease-smooth);
+            animation: countPop var(--app-duration-panel) var(--app-ease-smooth);
         }
         @keyframes countPop {
             from { opacity: 0.2; transform: scale(0.9); }
@@ -1728,7 +1728,7 @@
             color: var(--text-secondary);
             font-size: 0.82rem;
             font-weight: 600;
-            transition: background var(--app-duration-fast) ease;
+            transition: background var(--app-duration-fast) var(--app-ease-smooth);
             user-select: none;
         }
         .clip-group-head:hover {
@@ -1770,7 +1770,8 @@
             padding: 14px 14px 14px 12px;
             border-radius: 12px;
             box-shadow: none;
-            transition: background var(--app-duration-normal) var(--app-ease-smooth), border-color var(--app-duration-normal) var(--app-ease-smooth);
+            transition: background var(--app-duration-normal) var(--app-ease-smooth), border-color var(--app-duration-normal) var(--app-ease-smooth),
+            opacity var(--app-duration-panel) var(--app-ease-smooth), transform var(--app-duration-panel) var(--app-ease-smooth);
             border: 1px solid transparent;
         }
 
@@ -2159,7 +2160,7 @@
             color: var(--text-secondary);
             font-size: 0.78rem;
             cursor: pointer;
-            transition: all var(--app-duration-normal) ease;
+            transition: all var(--app-duration-normal) var(--app-ease-smooth);
             white-space: nowrap;
             box-shadow: none;
             min-width: auto;
@@ -2200,7 +2201,7 @@
         .clip-detail {
             margin-top: 20px;
             display: none;
-            animation: slideDown var(--app-duration-slow) ease-out;
+            animation: slideDown var(--app-duration-slow) var(--app-ease-out-expo);
         }
 
         .clip-detail.expanded {
@@ -2403,7 +2404,7 @@
             font-size: 0.85rem;
             font-weight: 500;
             cursor: pointer;
-            transition: all var(--app-duration-panel) ease;
+            transition: all var(--app-duration-panel) var(--app-ease-smooth);
             box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
             letter-spacing: 0.3px;
         }
@@ -2430,7 +2431,7 @@
             border: 2px solid rgba(255,255,255,0.3);
             border-top: 2px solid white;
             border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+            animation: spin calc(var(--app-duration-slow) * 3) linear infinite;
             display: inline-block;
         }
 
@@ -2477,7 +2478,7 @@
             font-size: 0.85rem;
             font-weight: 500;
             cursor: pointer;
-            transition: all var(--app-duration-panel) ease;
+            transition: all var(--app-duration-panel) var(--app-ease-smooth);
             box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
             letter-spacing: 0.3px;
         }
@@ -2710,7 +2711,7 @@
             font-size: 1rem;
             font-weight: 600;
             border: 1px solid var(--success);
-            animation: slideIn 0.5s ease-out;
+            animation: slideIn calc(var(--app-duration-slow) * 1.5) var(--app-ease-out-expo);
             display: flex;
             align-items: center;
             gap: 12px;
@@ -2726,7 +2727,7 @@
             text-align: center;
             padding: 80px 20px;
             color: var(--text-secondary);
-            animation: fadeIn 0.8s ease-out;
+            animation: fadeIn var(--app-duration-slow) var(--app-ease-smooth);
             background: var(--surface);
             border-radius: var(--radius);
             border: 2px dashed var(--border);
@@ -2880,7 +2881,7 @@
             font-family: inherit;
             user-select: none;
             cursor: pointer;
-            transition: all var(--app-duration-normal) ease;
+            transition: all var(--app-duration-normal) var(--app-ease-smooth);
         }
         .image-upload-btn:hover {
             border-color: var(--primary);
@@ -3111,7 +3112,7 @@
         .image-preview-item .preview-progress {
             height: 100%;
             background: var(--primary);
-            transition: width var(--app-duration-normal) ease;
+            transition: width var(--app-duration-normal) var(--app-ease-smooth);
         }
         /* 失败遮罩 */
         .image-preview-item .preview-status.error {
@@ -3142,7 +3143,7 @@
             justify-content: center;
             cursor: pointer;
             padding: 0;
-            transition: background var(--app-duration-fast) ease;
+            transition: background var(--app-duration-fast) var(--app-ease-smooth);
         }
         .image-preview-item .preview-remove svg {
             display: block;
@@ -3626,7 +3627,7 @@
             border: 3px solid var(--border-light);
             border-top-color: var(--primary, #4a9e9e);
             border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+            animation: spin calc(var(--app-duration-slow) * 3) linear infinite;
         }
 
         /* 剪藏列表骨架屏（加载占位） */
@@ -3642,7 +3643,7 @@
             border-radius: 999px;
             background: linear-gradient(90deg, var(--border-light) 25%, var(--border) 50%, var(--border-light) 75%);
             background-size: 200% 100%;
-            animation: skeletonShimmer 1.4s ease-in-out infinite;
+            animation: skeletonShimmer calc(var(--app-duration-slow) * 5) var(--app-ease-in-out-expo) infinite;
             margin-bottom: 10px;
         }
         .skeleton-line.short { width: 40%; }
@@ -3689,7 +3690,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.5);
+            background: var(--app-scrim);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -3704,7 +3705,7 @@
             box-shadow: var(--shadow-hover);
             text-align: center;
             max-width: 400px;
-            animation: slideIn var(--app-duration-slow) ease-out;
+            animation: slideIn var(--app-duration-panel) var(--app-ease-out-expo);
         }
 
         .loading-spinner {
@@ -3713,7 +3714,7 @@
             border: 4px solid var(--border);
             border-top: 4px solid var(--primary);
             border-radius: 50%;
-            animation: spin 1s linear infinite;
+            animation: spin calc(var(--app-duration-slow) * 3.5) linear infinite;
             margin: 0 auto 16px;
         }
 
@@ -3745,7 +3746,7 @@
             border: 2px solid rgba(255, 255, 255, 0.5);
             border-top: 2px solid white;
             border-radius: 50%;
-            animation: spin 1s linear infinite;
+            animation: spin calc(var(--app-duration-slow) * 3.5) linear infinite;
             transform: translateY(-50%);
         }
 
@@ -3983,7 +3984,7 @@
         ::-webkit-scrollbar-thumb {
             background: var(--border-light);
             border-radius: 999px;
-            transition: background var(--app-duration-normal) ease;
+            transition: background var(--app-duration-normal) var(--app-ease-smooth);
         }
         ::-webkit-scrollbar-thumb:hover {
             background: var(--fg-muted);
@@ -4025,7 +4026,7 @@
     border-radius: 10px;
     padding: 10px 14px;
     background: var(--surface);
-    transition: box-shadow 0.15s ease;
+    transition: box-shadow var(--app-duration-fast) var(--app-ease-smooth);
 }
 
 .annotation-item:hover {
@@ -4146,7 +4147,7 @@
     justify-content: flex-end;
     align-items: stretch;
     background: rgba(15, 23, 42, 0.32);
-    animation: askPanelFade var(--app-duration-fast) ease;
+    animation: askPanelFade var(--app-duration-fast) var(--app-ease-smooth);
 }
 @keyframes askPanelFade {
     from { opacity: 0; }
@@ -4176,7 +4177,7 @@
     justify-content: flex-end;
     align-items: stretch;
     background: rgba(0, 0, 0, 0.28);
-    animation: askPanelFade var(--app-duration-fast) ease;
+    animation: askPanelFade var(--app-duration-fast) var(--app-ease-smooth);
 }
 .modal-drawer-mode .modal-content {
     width: 460px !important;
@@ -4265,7 +4266,7 @@
     background: transparent;
     cursor: pointer;
     flex-shrink: 0;
-    transition: background var(--app-duration-fast) ease;
+    transition: background var(--app-duration-fast) var(--app-ease-smooth);
 }
 .ask-source-organize:hover {
     background: color-mix(in srgb, var(--app-primary) 10%, transparent);
@@ -4289,7 +4290,7 @@
     border: none;
     color: #fff;
     box-shadow: 0 4px 12px color-mix(in srgb, var(--app-primary) 35%, transparent);
-    transition: filter var(--app-duration-fast) ease, box-shadow var(--app-duration-fast) ease, transform var(--app-duration-fast) var(--app-ease-smooth);
+    transition: filter var(--app-duration-fast) var(--app-ease-smooth), box-shadow var(--app-duration-fast) var(--app-ease-smooth), transform var(--app-duration-fast) var(--app-ease-smooth);
 }
 #ask-submit-btn:hover {
     filter: brightness(1.06);
@@ -4510,7 +4511,7 @@
     border-radius: var(--radius);
     padding: 10px 6px;
     text-align: center;
-    transition: border-color var(--app-duration-fast) ease;
+    transition: border-color var(--app-duration-fast) var(--app-ease-smooth);
 }
 .daily-week-item:hover {
     border-color: var(--border-light);
@@ -4561,7 +4562,7 @@
     width: 100%;
     margin-top: 14px;
     justify-content: center;
-    transition: transform var(--app-duration-fast) var(--app-ease-smooth), box-shadow var(--app-duration-fast) ease;
+    transition: transform var(--app-duration-fast) var(--app-ease-smooth), box-shadow var(--app-duration-fast) var(--app-ease-smooth);
 }
 .daily-export-btn:hover {
     transform: translateY(-1px);
@@ -4597,7 +4598,7 @@
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
-    transition: background var(--app-duration-fast) ease;
+    transition: background var(--app-duration-fast) var(--app-ease-smooth);
 }
 .clip-toast-undo-btn:hover {
     background: var(--primary-light);
@@ -4632,4 +4633,41 @@
 .clip-status-badge.status-store {
     color: var(--text-secondary);
     background: var(--surface-hover);
+}
+
+/* ===== 弹窗关闭动效（配合 JS closeModalWithAnim，贴合 --app-duration-normal / --app-ease-smooth） ===== */
+.modal.closing {
+    background: transparent;
+}
+.modal.closing .modal-content {
+    animation: modalFadeOut var(--app-duration-normal) var(--app-ease-smooth);
+}
+@keyframes modalFadeOut {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(6px); }
+}
+
+/* ===== 键盘焦点可访问：仅键盘唤醒时显示焦点环（贴 --app-primary） ===== */
+.clip-item:focus-visible,
+.clip-item .check-area:focus-visible,
+.float-bar-btn:focus-visible,
+.float-bar-cancel:focus-visible,
+.ask-btn:focus-visible,
+.workflow-select-trigger:focus-visible,
+.modal-close:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--app-primary) 60%, transparent);
+    outline-offset: 2px;
+}
+
+/* ===== 减少动效偏好：原则上关闭/弱化动画，保留可读性与可操作性 ===== */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-delay: 0ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
 }

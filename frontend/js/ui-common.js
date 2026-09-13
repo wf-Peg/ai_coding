@@ -74,7 +74,7 @@
         el.remove();
         repositionToasts(r);
       }
-      el.style.transition = 'opacity .2s ease, transform .2s ease';
+      el.style.transition = 'opacity var(--app-duration-normal) var(--app-ease-smooth), transform var(--app-duration-normal) var(--app-ease-smooth)';
       el.style.opacity = '0';
       setTimeout(finish, 220);
     }

@@ -172,7 +172,7 @@
     }
 
     function closeConfirmModal() {
-        document.getElementById('confirm-modal').style.display = 'none';
+        closeModalWithAnim(document.getElementById('confirm-modal'));
         confirmActionCallback = null;
     }
 
@@ -213,7 +213,7 @@
     }
 
     function closePromptConfigModal() {
-        document.getElementById('prompt-config-modal').style.display = 'none';
+        closeModalWithAnim(document.getElementById('prompt-config-modal'));
     }
 
     async function savePromptConfig() {
@@ -311,10 +311,15 @@
             return;
         }
         item.classList.add('clip-item-removing');
+        // 动画时长对齐 --app-duration-panel：读取 CSS 令牌，避免与样式里的移除过渡时长脱节
+        var removeAnim = 250;
+        try {
+            removeAnim = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--app-duration-panel'), 10) || 250;
+        } catch (e) { /* 保持默认 250ms */ }
         setTimeout(function () {
             item.remove();
             if (onDone) onDone();
-        }, 240);
+        }, removeAnim);
     }
 
     /** 撤销删除：用缓存的原数据重新入库（POST /add，后端去重时视为已恢复） */
@@ -444,7 +449,7 @@
     }
 
     function closeOrganizeActionModal() {
-        document.getElementById('organize-action-modal').style.display = 'none';
+        closeModalWithAnim(document.getElementById('organize-action-modal'));
     }
 
     function toggleOrganizeManualFields() {
@@ -647,7 +652,7 @@
     }
 
     function closeFeedbackModal() {
-        document.getElementById('feedback-modal').style.display = 'none';
+        closeModalWithAnim(document.getElementById('feedback-modal'));
     }
 
     function copyFeedbackPath() {
@@ -780,7 +785,7 @@
     }
 
     function closeDailyReview() {
-        document.getElementById('daily-review-modal').style.display = 'none';
+        closeModalWithAnim(document.getElementById('daily-review-modal'));
     }
 
     function renderDailyReview() {

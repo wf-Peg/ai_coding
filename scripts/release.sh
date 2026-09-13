@@ -29,7 +29,7 @@ log_ok()   { echo -e "${GREEN}  ✓${NC} $1"; }
 log_warn() { echo -e "${YELLOW}  ⚠${NC} $1"; }
 log_err()  { echo -e "${RED}  ✗${NC} $1"; }
 
-TOTAL_STEPS=9
+TOTAL_STEPS=10
 TAG=""
 REPO="wf-Peg/ai_coding"
 DIST_DIR="dist-electron"
@@ -237,9 +237,16 @@ else
 fi
 
 # ============================================================
-# 8. 验证产物
+# 8. 打包浏览器插件（Web Clipper zip，随 Release 发布供下载）
 # ============================================================
-log_step 8 "验证构建产物"
+log_step 8 "打包浏览器插件"
+
+node scripts/package-extension.js 2>&1 | sed 's/^/  /' || log_warn "插件打包失败，插件 zip 将缺失"
+
+# ============================================================
+# 9. 验证产物
+# ============================================================
+log_step 9 "验证构建产物"
 
 HAS_ARTIFACTS=false
 for f in "$DIST_DIR"/*.exe "$DIST_DIR"/*.dmg "$DIST_DIR"/*.AppImage "$DIST_DIR"/*.zip "$DIST_DIR"/*.sha256; do
@@ -255,9 +262,9 @@ if [ "$HAS_ARTIFACTS" = false ]; then
 fi
 
 # ============================================================
-# 9. 推送代码 + 创建 Release
+# 10. 推送代码 + 创建 Release
 # ============================================================
-log_step 9 "推送代码并创建 GitHub Release"
+log_step 10 "推送代码并创建 GitHub Release"
 
 git push origin "$(git branch --show-current)" 2>&1 | tail -1
 log_ok "代码已推送"

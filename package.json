@@ -51,6 +51,8 @@
     "test:workspace": "node scripts/smoke-workspace.js",
     "test:frontend-split": "node scripts/smoke-clip.js && node scripts/smoke-workspace.js",
     "test:build": "node scripts/test-build.js && node --test electron/afterPack.test.js",
+    "package:extension": "node scripts/package-extension.js",
+    "deploy:site": "npx wrangler pages deploy website --project-name=cutshelter --branch=main",
     "diag:win": "powershell -ExecutionPolicy Bypass -File scripts\\diagnose-windows.ps1",
     "release": "bash scripts/release.sh",
     "release:win": "scripts\\release.bat"

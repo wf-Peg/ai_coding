@@ -5209,12 +5209,16 @@ async function showClipboardToast(content) {
     --btn-ghost-bg: ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'};
     --btn-ghost-color: ${isDark ? 'rgba(255,255,255,0.72)' : 'rgba(15,23,42,0.72)'};
     --btn-ghost-hover: ${isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.09)'};
+    /* 主题令牌（对齐 frontend/styles/design-tokens.css） */
+    --app-duration-panel: 250ms;
+    --app-ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
   }
   * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
   body { background: transparent; height: 100vh; overflow: hidden; font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
   .card {
     background: var(--card-bg);
-    backdrop-filter: blur(20px);
+    /* 不用 backdrop-filter：透明窗口 + 圆角卡片时，圆角外侧透明区会被合成器按不存在的
+       背景采样出灰色模糊边（四角灰弧伪影）。去掉后四角保持真透明，仅靠卡片自身柔影分层。 */
     border-radius: 16px;
     border: 1px solid var(--card-border);
     box-shadow: 0 16px 48px rgba(0,0,0,${isDark ? '.5' : '.24'});
@@ -5223,7 +5227,8 @@ async function showClipboardToast(content) {
     flex-direction: column;
     padding: 16px 18px;
     position: relative;
-    animation: slideIn .3s cubic-bezier(.16,1,.3,1);
+    /* 时长/曲线贴合主题令牌：--app-duration-panel + --app-ease-smooth */
+    animation: slideIn var(--app-duration-panel) var(--app-ease-smooth);
   }
   @keyframes slideIn { from { transform: translateX(420px); opacity: 0; } to { transform: none; opacity: 1; } }
   .head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
@@ -5567,12 +5572,15 @@ function buildClipboardHistoryHtml(isDark) {
     --item-hover: ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'};
     --divider: ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'};
     --danger: #e5484d;
+    /* 主题令牌（对齐 frontend/styles/design-tokens.css） */
+    --app-duration-panel: 250ms;
+    --app-ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
   }
   * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
   body { background: transparent; height: 100vh; overflow: hidden; font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
   .card {
     background: var(--card-bg);
-    backdrop-filter: blur(20px);
+    /* 透明窗口 + 圆角卡片不用 backdrop-filter，否则圆角外侧透明区被合成器采样成灰色模糊边 */
     border-radius: 16px;
     border: 1px solid var(--card-border);
     box-shadow: 0 16px 48px rgba(0,0,0,${isDark ? '.5' : '.24'});
@@ -5580,7 +5588,7 @@ function buildClipboardHistoryHtml(isDark) {
     display: flex;
     flex-direction: column;
     padding: 16px 18px;
-    animation: slideIn .25s cubic-bezier(.16,1,.3,1);
+    animation: slideIn var(--app-duration-panel) var(--app-ease-smooth);
   }
   @keyframes slideIn { from { transform: translateX(340px); opacity: 0; } to { transform: none; opacity: 1; } }
   .head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
@@ -5953,6 +5961,14 @@ function showNotification(title, body) {
 <meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+  :root {
+    /* 主题令牌（对齐 frontend/styles/design-tokens.css） */
+    --app-duration-panel: 250ms;
+    --app-ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+    /* 待办提醒强调色：与 design-tokens 的 --app-reminder-accent（亮/暗）同源 */
+    --app-reminder-accent: #f0a030;
+    --app-reminder-accent-2: #ff6b3a;
+  }
   * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
   body {
     background: transparent;
@@ -5962,7 +5978,7 @@ function showNotification(title, body) {
   }
   .card {
     background: linear-gradient(135deg, rgba(28, 28, 34, 0.97), rgba(20, 20, 26, 0.97));
-    backdrop-filter: blur(20px);
+    /* 透明窗口 + 圆角卡片不用 backdrop-filter，否则圆角外侧透明区被合成器采样成灰色模糊边 */
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.03);
@@ -5970,11 +5986,11 @@ function showNotification(title, body) {
     display: flex;
     overflow: hidden;
     position: relative;
-    animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: slideIn var(--app-duration-panel) var(--app-ease-smooth);
   }
   .accent-bar {
     width: 4px;
-    background: linear-gradient(180deg, #f0a030, #ff6b3a);
+    background: linear-gradient(180deg, var(--app-reminder-accent), var(--app-reminder-accent-2));
     flex-shrink: 0;
   }
   .content {
