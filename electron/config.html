@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CutShelter - 设置</title>
+  <title>碎碎记 - 设置</title>
   <style>
     /* ===== 全局重置与基础样式 ===== */
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -164,7 +164,7 @@
   <div class="titlebar">
     <div class="titlebar-drag">
       <span class="titlebar-icon">⚙️</span>
-      <span class="titlebar-title" id="headerTitle">CutShelter - 设置</span>
+      <span class="titlebar-title" id="headerTitle">碎碎记 - 设置</span>
     </div>
     <button class="titlebar-close" id="titlebarClose" title="关闭">✕</button>
   </div>
@@ -304,7 +304,7 @@
       api.onFirstRun(function() {
         isFirstRun = true;
         document.getElementById('firstRunNotice').style.display = 'block';
-        document.getElementById('headerTitle').textContent = 'CutShelter - 初始设置';
+        document.getElementById('headerTitle').textContent = '碎碎记 - 初始设置';
         // 首次运行时没有已运行的服务，因此不需要退出按钮
         document.getElementById('btnQuit').style.display = 'none';
       });

@@ -713,6 +713,32 @@
         @media (max-width: 520px) {
             .theme-card-grid { grid-template-columns: repeat(2, 1fr); }
         }
+        /* ===== 数据与隐私 ===== */
+        .privacy-hero {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 18px;
+            border: 1px solid var(--app-primary-strong, rgba(35,131,226,0.28));
+            border-radius: 12px;
+            background: linear-gradient(120deg, var(--app-primary-soft, rgba(35,131,226,0.10)), transparent 70%);
+            margin-bottom: 14px;
+        }
+        .privacy-hero-text { flex: 1; min-width: 0; font-size: 13px; line-height: 1.6; color: var(--text-secondary); }
+        .privacy-hero-actions { flex-shrink: 0; }
+        .privacy-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+        .privacy-point {
+            padding: 12px 14px;
+            border: 1px solid var(--app-border, var(--border));
+            border-radius: 10px;
+            background: var(--surface);
+        }
+        .privacy-point-title { font-size: 13px; font-weight: 600; color: var(--text); }
+        .privacy-point-desc { font-size: 12px; color: var(--text-secondary); margin-top: 3px; line-height: 1.5; }
+        @media (max-width: 720px) {
+            .privacy-grid { grid-template-columns: 1fr; }
+            .privacy-hero { flex-direction: column; align-items: stretch; }
+        }
     </style>
 </head>
 <body>
@@ -723,12 +749,13 @@
                 <a class="settings-nav-item" data-target="group-general"><span class="nav-icon">⚙️</span>通用</a>
                 <a class="settings-nav-item" data-target="group-shortcuts"><span class="nav-icon">⌨️</span>快捷操作</a>
                 <a class="settings-nav-item" data-target="group-ai"><span class="nav-icon">🤖</span>AI 与集成</a>
+                <a class="settings-nav-item" data-target="group-data"><span class="nav-icon">🔒</span>数据与隐私</a>
                 <a class="settings-nav-item" data-target="group-system"><span class="nav-icon">🛠️</span>系统</a>
             </nav>
         </aside>
         <main class="settings-main">
             <h1 class="page-title">功能设置</h1>
-            <p class="page-subtitle">个性化 CutShelter 的外观、快捷操作与 AI 集成。</p>
+            <p class="page-subtitle">个性化碎碎记（CutShelter）的外观、快捷操作与 AI 集成。</p>
 
             <section class="settings-group" id="group-appearance">
                 <div class="settings-group-title"><span class="group-icon">🎨</span>个性化</div>
@@ -792,7 +819,7 @@
             <div class="setting-row">
                 <div class="setting-label">
                     <div class="setting-title">开机自动启动</div>
-                    <div class="setting-desc">登录系统后自动启动 CutShelter，并在后台保持运行</div>
+                    <div class="setting-desc">登录系统后自动启动碎碎记，并在后台保持运行</div>
                 </div>
                 <div class="setting-control">
                     <label class="toggle-switch">
@@ -1201,15 +1228,15 @@
                 </div>
             </div>
 
-            <!-- Pet图标配置 -->
+            <!-- 小记图标配置 -->
             <div class="config-subsection mascot-config-section">
                 <div class="config-subsection-title collapsible" onclick="toggleSection(this)">
                     <span class="toggle-icon collapsed">▼</span>
-                    AI宠物图标
+                    小记图标
                 </div>
                 <div class="subsection-body collapsed">
                     <div class="mascot-config-card">
-                        <div class="mascot-preview" id="mascotPreview" aria-label="Pet预览">
+                        <div class="mascot-preview" id="mascotPreview" aria-label="小记预览">
                             <div class="mascot-preview-dino"></div>
                             <span id="mascotActionLabel">奔跑中</span>
                         </div>
@@ -1486,6 +1513,63 @@
                 <button class="btn btn-primary" id="saveBtn" onclick="saveConfig()">保存所有配置</button>
             </div>
         </div>
+            </section>
+
+            <section class="settings-group" id="group-data">
+                <div class="settings-group-title"><span class="group-icon">🔒</span>数据与隐私</div>
+
+                <div class="section" id="privacySection">
+                    <div class="section-title">你的数据，100% 属于你</div>
+                    <div class="privacy-hero">
+                        <div class="privacy-hero-text">
+                            所有内容以纯文本文件（Markdown / JSON）存储在本机，不绑定任何云端账号，随时可用任何工具打开、迁移。
+                        </div>
+                        <div class="privacy-hero-actions">
+                            <button class="btn btn-primary" onclick="openDataFolder()">打开存储目录</button>
+                        </div>
+                    </div>
+                    <div class="privacy-grid">
+                        <div class="privacy-point">
+                            <div class="privacy-point-title">本地优先</div>
+                            <div class="privacy-point-desc">数据只落在你自己的磁盘，不留云端</div>
+                        </div>
+                        <div class="privacy-point">
+                            <div class="privacy-point-title">纯文本可读</div>
+                            <div class="privacy-point-desc">任何编辑器都能打开，不锁格式</div>
+                        </div>
+                        <div class="privacy-point">
+                            <div class="privacy-point-title">一键带走</div>
+                            <div class="privacy-point-desc">换软件也不怕数据丢失</div>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-label">
+                            <div class="setting-title">数据文件路径</div>
+                            <div class="setting-desc" id="privacyStoragePath">读取自存储根目录配置</div>
+                        </div>
+                        <div class="setting-control">
+                            <button class="btn btn-outline" onclick="openDataFolder()" style="font-size:0.85rem;padding:6px 16px;">打开</button>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-label">
+                            <div class="setting-title">配置文件路径</div>
+                            <div class="setting-desc">config.json / model-config.json 所在（不含数据）</div>
+                        </div>
+                        <div class="setting-control">
+                            <span style="font-size:0.85rem;color:var(--text-secondary);" id="privacyConfigPath">—</span>
+                        </div>
+                    </div>
+                    <div class="setting-row" style="border-bottom: none;">
+                        <div class="setting-label">
+                            <div class="setting-title">数据格式</div>
+                            <div class="setting-desc">剪藏与整理内容均为纯文本 Markdown / JSON，检索索引为本地 SQLite</div>
+                        </div>
+                        <div class="setting-control">
+                            <span style="font-size:0.85rem;color:var(--text-secondary);">纯文本</span>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <section class="settings-group" id="group-system">

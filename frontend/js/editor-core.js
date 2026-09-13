@@ -13,7 +13,20 @@
     md: 'markdown',
     mdown: 'markdown',
     markdown: 'markdown',
-    csv: 'text'
+    csv: 'text',
+    // Phase 2：新增语言模式（与 libs/ace 新增 mode-*.js 对应）
+    js: 'javascript',
+    mjs: 'javascript',
+    cjs: 'javascript',
+    jsx: 'javascript',
+    ts: 'javascript',
+    py: 'python',
+    python: 'python',
+    yaml: 'yaml',
+    yml: 'yaml',
+    css: 'css',
+    html: 'html',
+    htm: 'html'
   };
 
   function detectLanguage(fileName, text) {

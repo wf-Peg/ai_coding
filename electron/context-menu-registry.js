@@ -102,7 +102,7 @@ async function registerOpenWith(exe) {
   const appKey = `${USER_CLASSES_ROOT}\\Applications\\CutShelter.exe`;
   let ok = true;
   // FriendlyAppName：打开方式对话框中的显示名
-  if (!await runReg(['add', appKey, '/v', 'FriendlyAppName', '/t', 'REG_SZ', '/d', 'CutShelter 剪藏', '/f'])) ok = false;
+  if (!await runReg(['add', appKey, '/v', 'FriendlyAppName', '/t', 'REG_SZ', '/d', '碎碎记 剪藏', '/f'])) ok = false;
   // shell\open\command：双击文件（默认打开方式）时执行的命令
   if (!await runReg(['add', `${appKey}\\shell\\open\\command`, '/ve', '/t', 'REG_SZ', '/d', `${exe} "%1"`, '/f'])) ok = false;
   if (ok) console.log('[ContextMenu] "打开方式"注册成功（Applications\\CutShelter.exe）');

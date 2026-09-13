@@ -184,6 +184,9 @@ async function loadConfig() {
     document.getElementById('storagePath').value = rootPath;
     currentStoragePath = rootPath;
     updateDerivedPaths(rootPath);
+    // 数据与隐私：同步展示存储位置
+    const privacyPathEl = document.getElementById('privacyStoragePath');
+    if (privacyPathEl) privacyPathEl.textContent = rootPath || '读取自存储根目录配置';
 
     // 本地配置文件路径（Electron config.json + 后端 app-config.json）
     loadElectronConfigPath();
@@ -312,13 +315,13 @@ function renderMascotPreview(action, color = MASCOT_COLORS[3]) {
 function getMascotIconHtml(config, action) {
   const a = action || config.action || 'run';
   if (config.iconType === 'preset-images') {
-    return `<img src="${buildMascotImageUrl(config.iconId, a)}" alt="Pet图标" class="mascot-preview-img">`;
+    return `<img src="${buildMascotImageUrl(config.iconId, a)}" alt="小记图标" class="mascot-preview-img">`;
   }
   if (config.iconType === 'upload') {
     const url = getCharUploads(config, config.iconId)[a];
-    if (url) return `<img src="${url}" alt="自定义Pet图标" class="mascot-preview-img">`;
+    if (url) return `<img src="${url}" alt="自定义小记图标" class="mascot-preview-img">`;
     // 如果当前动作没有上传图片，尝试用预设图兜底
-    return `<img src="${buildMascotImageUrl(config.iconId, a)}" alt="Pet图标" class="mascot-preview-img">`;
+    return `<img src="${buildMascotImageUrl(config.iconId, a)}" alt="小记图标" class="mascot-preview-img">`;
   }
   // 旧版 preset 兼容
   return config.iconSvg || buildMascotSvg(config.iconId);
@@ -344,7 +347,7 @@ function applyMascotConfig(next) {
   }
   renderMascotPreview(next.action, next.color);
   renderMascotUploadList();
-  showToast('Pet图标已应用');
+  showToast('小记图标已应用');
 }
 
 function handleMascotPreset(event) {
@@ -488,20 +491,20 @@ function renderHistoryIcon(item) {
     const charUploads = getCharUploads(item, item.iconId || 'luoxiaohei');
     const url = charUploads[item.action || 'run'];
     if (url) {
-      return `<img src="${url}" alt="历史Pet图标">`;
+      return `<img src="${url}" alt="历史小记图标">`;
     }
     // 兜底：显示第一个有图片的动作
     const urls = Object.values(charUploads).filter(Boolean);
     if (urls.length > 0) {
-      return `<img src="${urls[0]}" alt="历史Pet图标">`;
+      return `<img src="${urls[0]}" alt="历史小记图标">`;
     }
   }
   if (item.iconType === 'upload' && item.iconDataUrl) {
-    return `<img src="${item.iconDataUrl}" alt="历史Pet图标">`;
+    return `<img src="${item.iconDataUrl}" alt="历史小记图标">`;
   }
   // 使用预设图片
   if (item.iconId && MASCOT_PRESETS.some(p => p.id === item.iconId)) {
-    return `<img src="${buildMascotImageUrl(item.iconId, item.action || 'run')}" alt="历史Pet图标">`;
+    return `<img src="${buildMascotImageUrl(item.iconId, item.action || 'run')}" alt="历史小记图标">`;
   }
   return item.iconSvg || buildMascotSvg(item.iconId || 'turtle-green');
 }
@@ -1172,7 +1175,7 @@ async function initUpdateUI() {
     document.getElementById('frequencyGroup').style.display = 'none';
     const statusEl = document.getElementById('updateStatus');
     statusEl.style.display = 'block';
-    document.getElementById('updateMessage').textContent = '需要桌面客户端支持，请使用 CutShelter 桌面应用';
+    document.getElementById('updateMessage').textContent = '需要桌面客户端支持，请使用碎碎记（CutShelter）桌面应用';
     document.getElementById('updateMessage').className = 'update-available';
     return;
   }
@@ -1552,6 +1555,8 @@ async function loadElectronConfigPath() {
     const result = await api.getConfigPath();
     if (result.success && result.configPath) {
       input.value = result.configPath;
+      const privacyCfg = document.getElementById('privacyConfigPath');
+      if (privacyCfg) privacyCfg.textContent = result.configPath;
     } else {
       input.value = '获取配置路径失败';
     }
@@ -1649,6 +1654,26 @@ async function browseDirectory(inputId) {
     }
   } else {
     showToast('目录浏览仅在桌面客户端中可用，请手动输入路径');
+  }
+}
+
+// 数据与隐私：打开「数据文件存储路径」（剪藏/整理/周报数据所在目录，与配置文件目录区分口径）
+function openDataFolder() {
+  const api = getElectronAPI();
+  if (api && api.openDataFolder) {
+    api.openDataFolder().then(function (res) {
+      if (res && res.success === false) {
+        showToast('打开数据目录失败：' + (res.message || '未知错误'));
+      }
+    }).catch(function (e) {
+      showToast('打开数据目录失败：' + (e && e.message ? e.message : String(e)));
+    });
+  } else {
+    // 非 Electron 环境降级：直接提示用户路径
+    const el = document.getElementById('storagePath');
+    const path = el && el.value ? el.value : '';
+    if (path) showToast('请在文件管理器中打开：' + path);
+    else showToast('请在桌面客户端中打开存储目录');
   }
 }
 
