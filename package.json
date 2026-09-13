@@ -1,7 +1,7 @@
 {
   "name": "clip-demo",
   "version": "1.0.13",
-  "description": "CutShelter - Information Retrieval & Clip System",
+  "description": "碎碎记（CutShelter）- 剪藏与知识管理",
   "main": "electron/main.js",
   "engines": {
     "node": ">=22"
@@ -14,6 +14,9 @@
     "test:editor-all": "node --test electron/editor-ai-chat-core.test.js electron/editor-ai-integration.test.js",
     "test:theme": "node --test electron/theme-core.test.js",
     "test:editor-shortcuts": "node --test electron/editor-shortcuts.test.js",
+    "test:editor-pure": "node --test electron/editor-pure.test.js",
+    "test:ace-jump": "node --test electron/ace-jump.test.js",
+    "test:editor-nav": "node --test electron/editor-pure.test.js electron/ace-jump.test.js",
     "postinstall": "electron-builder install-app-deps",
     "generate-icons": "node scripts/generate-icons.js",
     "codeindex:gen": "node scripts/generate-code-index.mjs",
@@ -195,78 +198,78 @@
       "fileAssociations": [
         {
           "ext": "txt",
-          "name": "CutShelter 文本编辑器",
-          "description": "用 CutShelter 编辑器打开文本文件",
+          "name": "碎碎记 文本编辑器",
+          "description": "用碎碎记编辑器打开文本文件",
           "role": "Editor"
         },
         {
           "ext": "md",
-          "name": "CutShelter Markdown 编辑器",
+          "name": "碎碎记 Markdown 编辑器",
           "role": "Editor"
         },
         {
           "ext": "json",
-          "name": "CutShelter JSON 编辑器",
+          "name": "碎碎记 JSON 编辑器",
           "role": "Editor"
         },
         {
           "ext": "xml",
-          "name": "CutShelter XML 编辑器",
+          "name": "碎碎记 XML 编辑器",
           "role": "Editor"
         },
         {
           "ext": "sql",
-          "name": "CutShelter SQL 编辑器",
+          "name": "碎碎记 SQL 编辑器",
           "role": "Editor"
         },
         {
           "ext": "yml",
-          "name": "CutShelter YAML 编辑器",
+          "name": "碎碎记 YAML 编辑器",
           "role": "Editor"
         },
         {
           "ext": "yaml",
-          "name": "CutShelter YAML 编辑器",
+          "name": "碎碎记 YAML 编辑器",
           "role": "Editor"
         },
         {
           "ext": "ini",
-          "name": "CutShelter 配置文件编辑器",
+          "name": "碎碎记 配置文件编辑器",
           "role": "Editor"
         },
         {
           "ext": "conf",
-          "name": "CutShelter 配置文件编辑器",
+          "name": "碎碎记 配置文件编辑器",
           "role": "Editor"
         },
         {
           "ext": "log",
-          "name": "CutShelter 日志查看器",
+          "name": "碎碎记 日志查看器",
           "role": "Editor"
         },
         {
           "ext": "csv",
-          "name": "CutShelter CSV 查看器",
+          "name": "碎碎记 CSV 查看器",
           "role": "Editor"
         },
         {
           "ext": "js",
-          "name": "CutShelter JavaScript 编辑器",
+          "name": "碎碎记 JavaScript 编辑器",
           "role": "Editor"
         },
         {
           "ext": "py",
-          "name": "CutShelter Python 编辑器",
+          "name": "碎碎记 Python 编辑器",
           "role": "Editor"
         },
         {
           "ext": "html",
-          "name": "CutShelter HTML 编辑器",
+          "name": "碎碎记 HTML 编辑器",
           "role": "Editor"
         },
         {
           "ext": "css",
-          "name": "CutShelter CSS 编辑器",
+          "name": "碎碎记 CSS 编辑器",
           "role": "Editor"
         }
       ],

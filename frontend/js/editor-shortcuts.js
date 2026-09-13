@@ -33,7 +33,8 @@
     history:      { label: '编辑历史', shortcut: 'Ctrl+Shift+H' },
     recent:       { label: '最近打开文件', shortcut: 'Ctrl+Shift+N' },
     favorite:     { label: '常用文件收藏', shortcut: 'Ctrl+Shift+A' },
-    overview:     { label: '内容概览', shortcut: 'Ctrl+Shift+Y' }
+    overview:     { label: '内容概览', shortcut: 'Ctrl+Shift+Y' },
+    aceJump:      { label: 'AceJump 跳跃导航', shortcut: 'Ctrl+;' }
   };
 
   /** 读取本地覆盖配置（已清洗，仅保留合法 action） */

@@ -1954,11 +1954,11 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
 .history-pane[aria-hidden="false"],
 .recent-pane[aria-hidden="false"],
 .backlinks-pane[aria-hidden="false"] {
-  animation: pane-slide-in var(--app-duration-panel) cubic-bezier(0.22, 1, 0.36, 1);
+  animation: pane-slide-in var(--app-duration-panel) var(--app-ease-smooth);
 }
 
 .ai-chat-pane[aria-hidden="false"] {
-  animation: pane-slide-in-right var(--app-duration-panel) cubic-bezier(0.22, 1, 0.36, 1);
+  animation: pane-slide-in-right var(--app-duration-panel) var(--app-ease-smooth);
 }
 
 @keyframes pane-slide-in {
@@ -2019,12 +2019,18 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  color: var(--app-primary);
-  background: var(--app-primary-soft);
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--app-primary), var(--app-primary-hover));
   flex-shrink: 0;
+  box-shadow:
+    0 3px 12px color-mix(in srgb, var(--app-primary) 30%, transparent),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.ai-chat-avatar svg {
+  opacity: 0.95;
 }
 
 .ai-chat-heading-text {
@@ -4435,4 +4441,46 @@ a.wikilink.wikilink-missing:hover {
   font-size: 10px;
   font-weight: 700;
   line-height: 1;
+}
+
+/* ═══ AceJump 跳跃模式标签 ─────────────────────────────── */
+/* 覆盖层挂在 .ace-host（editor.container）下，绝对定位、不拦截点击 */
+.ace-jump-overlay .ace-jump-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  background: var(--app-primary, #2383e2);
+  color: #fff;
+  font-family: var(--app-font-mono, monospace);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  opacity: 0;
+  z-index: 1001;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+  animation: ace-jump-pop 0.1s ease-out forwards;
+}
+
+/* 两阶段码的第二层字母：更亮标识当前组内候选项 */
+.ace-jump-overlay .ace-jump-label-active {
+  background: var(--app-primary-hover, #1f76c9);
+  outline: 1px solid color-mix(in srgb, var(--app-primary) 45%, #fff);
+}
+
+@keyframes ace-jump-pop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
 }

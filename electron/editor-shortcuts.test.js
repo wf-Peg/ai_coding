@@ -99,15 +99,15 @@ test('捕获分发：按实际组合键命中并执行 handler（回归：误传
   let quickOpenCalls = 0;
   ES.registerHandler('quickOpen', () => { quickOpenCalls += 1; });
   // 快捷键：默认 Ctrl+Shift+O
-  const evt = { ctrlKey: true, shiftKey: true, altKey: false, key: 'O', preventDefault: () => {} };
+  const evt = { ctrlKey: true, shiftKey: true, altKey: false, key: 'O', preventDefault: () => {}, stopImmediatePropagation: () => {} };
   ES.dispatchCapture(evt);
   assert.equal(quickOpenCalls >= 1, true);
   // 不匹配的键不应触发
-  const other = { ctrlKey: true, shiftKey: true, altKey: false, key: 'P', preventDefault: () => {} };
+  const other = { ctrlKey: true, shiftKey: true, altKey: false, key: 'P', preventDefault: () => {}, stopImmediatePropagation: () => {} };
   ES.dispatchCapture(other);
   assert.equal(quickOpenCalls, 1);
   // 已 defaultPrevented 时跳过
-  const prevented = { ctrlKey: true, shiftKey: true, altKey: false, key: 'O', preventDefault: () => {}, defaultPrevented: true };
+  const prevented = { ctrlKey: true, shiftKey: true, altKey: false, key: 'O', preventDefault: () => {}, stopImmediatePropagation: () => {}, defaultPrevented: true };
   ES.dispatchCapture(prevented);
   assert.equal(quickOpenCalls, 1);
   ES.registerHandler('quickOpen', null); // 清理
@@ -120,7 +120,7 @@ test('捕获分发：覆盖自定义组合键后同样按新键命中', () => {
   ES.save(map);
   let calls = 0;
   ES.registerHandler('quickOpen', () => { calls += 1; });
-  ES.dispatchCapture({ ctrlKey: true, shiftKey: true, altKey: false, key: 'Q', preventDefault: () => {} });
+  ES.dispatchCapture({ ctrlKey: true, shiftKey: true, altKey: false, key: 'Q', preventDefault: () => {}, stopImmediatePropagation: () => {} });
   assert.equal(calls, 1);
   ES.registerHandler('quickOpen', null);
   ES.reset();

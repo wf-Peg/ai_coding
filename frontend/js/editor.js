@@ -177,26 +177,26 @@
       // 构建图片 HTML
       let iconHtml = null;
       if (config.iconType === 'preset-images' && config.iconId) {
-        iconHtml = `<img class="ai-pet-image" src="assets/mascot/${config.iconId}/${action}.png" alt="Pet">`;
+        iconHtml = `<img class="ai-pet-image" src="assets/mascot/${config.iconId}/${action}.png" alt="小记">`;
       } else if (config.iconType === 'upload' && config.iconDataUrls) {
         const uploads = config.iconDataUrls;
         const isLegacy = Object.keys(uploads).some(k => ['run', 'wave', 'jump', 'think', 'sleep', 'celebrate'].includes(k));
         const charUploads = isLegacy ? uploads : (uploads[config.iconId] || {});
         const url = charUploads[action];
         if (url) {
-          iconHtml = `<img class="ai-pet-image" src="${url}" alt="Pet">`;
+          iconHtml = `<img class="ai-pet-image" src="${url}" alt="小记">`;
         } else if (config.iconId) {
           // 如果当前动作没有上传图片，用预设图兜底
-          iconHtml = `<img class="ai-pet-image" src="assets/mascot/${config.iconId}/${action}.png" alt="Pet">`;
+          iconHtml = `<img class="ai-pet-image" src="assets/mascot/${config.iconId}/${action}.png" alt="小记">`;
         }
       } else if (config.iconType === 'upload' && config.iconDataUrl) {
         // 旧版兼容
-        iconHtml = `<img class="ai-pet-image" src="${config.iconDataUrl}" alt="Pet">`;
+        iconHtml = `<img class="ai-pet-image" src="${config.iconDataUrl}" alt="小记">`;
       }
       if (iconHtml) elements.aiPetBtn.innerHTML = iconHtml;
       else if (config.iconSvg) elements.aiPetBtn.innerHTML = config.iconSvg.replace('<svg ', '<svg class="ai-pet-svg" ');
       else elements.aiPetBtn.innerHTML = '<svg class="ai-pet-svg" viewBox="0 0 64 64" aria-hidden="true"><ellipse class="ai-pet-glow" cx="32" cy="50" rx="14" ry="4" fill="var(--mascot-color,var(--app-primary))" opacity=".2"></ellipse><g class="ai-pet-figure"><circle cx="32" cy="28" r="18" fill="var(--mascot-color,var(--app-primary))" fill-opacity=".85" stroke="var(--mascot-color,var(--app-primary))" stroke-width="2.5"></circle></g><g class="ai-pet-face"><circle cx="23" cy="25" r="5" fill="#fff" stroke="none"></circle><circle cx="41" cy="25" r="5" fill="#fff" stroke="none"></circle><circle class="ai-pet-eye" cx="23" cy="25" r="3" fill="#2d3748" stroke="none"></circle><circle class="ai-pet-eye" cx="41" cy="25" r="3" fill="#2d3748" stroke="none"></circle><circle class="ai-pet-eye-highlight" cx="22" cy="23.5" r="1.5" fill="#fff" stroke="none"></circle><circle class="ai-pet-eye-highlight" cx="40" cy="23.5" r="1.5" fill="#fff" stroke="none"></circle><ellipse class="ai-pet-blush" cx="18" cy="31" rx="4" ry="2.5" fill="#ff8a9e" opacity=".5" stroke="none"></ellipse><ellipse class="ai-pet-blush" cx="46" cy="31" rx="4" ry="2.5" fill="#ff8a9e" opacity=".5" stroke="none"></ellipse><path d="M27 34c2 2 6 2 8 0" fill="none" stroke="#2d3748" stroke-width="2" stroke-linecap="round"></path></g></svg>';
-      elements.aiPetBtn.title = `打开Pet · ${({ run: '奔跑', wave: '挥手', jump: '跳跃', think: '思考', sleep: '打盹', celebrate: '庆祝' })[action] || '奔跑'}`;
+      elements.aiPetBtn.title = `打开小记 · ${({ run: '奔跑', wave: '挥手', jump: '跳跃', think: '思考', sleep: '打盹', celebrate: '庆祝' })[action] || '奔跑'}`;
     } catch (_) {
       elements.aiPetBtn.dataset.action = 'wave';
     }
@@ -1250,13 +1250,12 @@
     // 标记当前语言模式，供 CSS 精确作用域（如仅 Markdown 围栏灰化，不波及 JSON/SQL 等代码模式的 token 原色）
     mainEditor.container.setAttribute('data-mode', normalized);
     compareEditor.container.setAttribute('data-mode', normalized);
-    // Phase 2：括号配对/自动闭合——仅对新增的代码模式显式开启（原有 5 种模式行为不变）
+    // Phase 2：括号配对/自动闭合——仅对新增的代码模式显式开启 behaviours
+    // （ACE 括号高亮/匹配为 session 内置行为，无需也无可用的 setOption，仅声明不使用会产生告警）
     if (featureOn('bracketPairs') && ['javascript', 'python', 'yaml', 'css', 'html'].includes(normalized)) {
       try {
         if (mainEditor.session.setBehavioursEnabled) mainEditor.session.setBehavioursEnabled(true);
         if (compareEditor.session.setBehavioursEnabled) compareEditor.session.setBehavioursEnabled(true);
-        mainEditor.setOption('bracketMatching', true);
-        compareEditor.setOption('bracketMatching', true);
       } catch (e) { /* 忽略：环境不支持时不改变行为 */ }
     }
     updateStatusBar();
@@ -1839,7 +1838,7 @@
     if (!elements.aiPetBtn) return;
     elements.aiPetBtn.classList.remove('thinking', 'happy', 'error', 'sleeping');
     if (nextState !== 'idle') elements.aiPetBtn.classList.add(nextState);
-    elements.aiPetBtn.title = nextState === 'thinking' ? 'Pet正在奔跑回答' : nextState === 'sleeping' ? 'Pet正在打盹，点击唤醒' : '打开Pet';
+    elements.aiPetBtn.title = nextState === 'thinking' ? '小记正在思考回答' : nextState === 'sleeping' ? '小记正在打盹，点击唤醒' : '打开小记';
     clearTimeout(petIdleTimer);
     if (nextState === 'idle') {
       petIdleTimer = setTimeout(() => setPetState('sleeping'), 2 * 60 * 1000);
@@ -6761,7 +6760,11 @@
   }
 
   /** 转义 HTML 特殊字符 */
+  // Phase 4-1：已抽取到 editor-pure.js（EditorPure），此处优先委托，缺失时回退原实现。
   function escapeHtml(str) {
+    if (window.EditorPure && typeof window.EditorPure.escapeHtml === 'function') {
+      return window.EditorPure.escapeHtml(str);
+    }
     var div = document.createElement('div');
     div.appendChild(document.createTextNode(str));
     return div.innerHTML;
@@ -7585,6 +7588,8 @@
       return;
     }
     list.innerHTML = '';
+    // Phase 3：DocumentFragment 批量构造，避免逐项 append 触发布局
+    var outlineFrag = document.createDocumentFragment();
     renderList.forEach(function(item) {
       var origIdx = outlineData.indexOf(item);
       var row = document.createElement('div');
@@ -7616,8 +7621,9 @@
         row.addEventListener('mousemove', function(e) { moveOutlineHoverTip(e); });
         row.addEventListener('mouseleave', hideOutlineHoverTip);
       }
-      list.appendChild(row);
+      outlineFrag.appendChild(row);
     });
+    list.appendChild(outlineFrag);
   }
 
   // Phase 1：大纲 hover 悬浮提示实现（独立元素，关闭开关即不创建/不显示）
@@ -7806,7 +7812,11 @@
   // 定位并高亮文档中所有指定标签
   // 标签字符集（与 extractTags 一致）：中英文、数字、下划线、点、连字符
   var TAG_CHARS = '[\\w\\u4e00-\\u9fa5.-]';
+  // Phase 4-1：已抽取到 editor-pure.js（EditorPure），此处优先委托，缺失时回退原实现。
   function tagPattern(tag) {
+    if (window.EditorPure && typeof window.EditorPure.tagPattern === 'function') {
+      return window.EditorPure.tagPattern(tag);
+    }
     // 用否定前瞻判断标签后是否仍为标签字符，避免 \b 对中文/标点失效导致误判
     return '#(' + tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')(?!' + TAG_CHARS + ')';
   }
@@ -7930,9 +7940,25 @@
   registerCommand('pos-forward', '前进到下一编辑位置', '↷', function() { jumpPosHistoryForward(); }, 'Alt+Shift+-');
   registerCommand('wrap-selection', '包裹选区 ( \' [ { ` " )', '⤾', function() { openWrapSelectionPicker(); });
 
+  // ═══ AceJump 跳跃导航（Phase 4，对标 IDEA AceJump）───
+  // 触发进入跳跃模式：word/char/line 三种 + 选区语义。独立脚本 ace-jump.js，
+  // 未引入或异常时静默无效果（不影响现有功能）。
+  function acejump(mode, select) {
+    if (!window.EditorAceJump) { showToast('AceJump 未加载'); return; }
+    if (!mainEditor) return;
+    window.EditorAceJump.toggle(mainEditor, { mode: mode || 'word', select: !!select });
+  }
+  registerCommand('acejump-word', 'AceJump 跳跃（单词）', '🎯', function() { acejump('word', false); }, EditorShortcuts.get('aceJump'));
+  registerCommand('acejump-char', 'AceJump 跳跃（字符）', '🔤', function() { acejump('char', false); });
+  registerCommand('acejump-line', 'AceJump 跳跃（行首）', '⎯', function() { acejump('line', false); });
+  registerCommand('acejump-select', 'AceJump 跳跃（选区）', '✂', function() { acejump('word', true); });
+  // 捕获阶段统一分发：Ctrl/Cmd+; 唤起（EditorShortcuts 可配置回退）
+  EditorShortcuts.registerHandler('aceJump', function() { acejump('word', false); });
+
   var paletteOpen = false;
   var paletteIndex = 0;
   var paletteFiltered = [];
+  var paletteRenderRaf = null; // Phase 3：输入渲染 rAF 节流句柄
 
   function openCommandPalette() {
     paletteMode = 'command';
@@ -8033,7 +8059,13 @@
 
   elements.commandPaletteInput.addEventListener('input', function() {
     paletteIndex = 0;
-    renderCommandList(this.value);
+    // Phase 3：高频输入以 rAF 节流渲染，避免每次击键全量重建列表
+    if (paletteRenderRaf) cancelAnimationFrame(paletteRenderRaf);
+    const value = this.value;
+    paletteRenderRaf = requestAnimationFrame(function() {
+      paletteRenderRaf = null;
+      renderCommandList(value);
+    });
   });
   elements.commandPaletteInput.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') { e.preventDefault(); closeCommandPalette(); return; }
@@ -8061,6 +8093,7 @@
 
   // ── 全局文件快速搜索（Ctrl+Shift+O，Obsidian Quick Switcher 风格）──
   var quickOpenVisible = false;
+  var quickRenderRaf = null; // Phase 3：快速打开输入 rAF 节流句柄
   var quickIndex = 0;
   var quickFiltered = [];
 
@@ -8087,7 +8120,11 @@
 
   // Obsidian 风格前向模糊匹配：query 每个字符须按序出现（可跳格），
   // 前缀/连续/词首命中加分；返回分数，-1 表示不匹配。
+  // Phase 4-1：已抽取到 editor-pure.js（EditorPure），此处优先委托，缺失时回退原实现。
   function fuzzyScore(query, str) {
+    if (window.EditorPure && typeof window.EditorPure.fuzzyScore === 'function') {
+      return window.EditorPure.fuzzyScore(query, str);
+    }
     if (!query) return 0;
     var q = query.toLowerCase();
     var s = String(str || '').toLowerCase();
@@ -8177,7 +8214,10 @@
       return;
     }
     quickIndex = Math.min(quickIndex, quickFiltered.length - 1);
-    quickFiltered.forEach(function(t, i) {
+    // Phase 3：DocumentFragment 批量构造 + 条数上限，避免整表频繁重建
+    var quickVisible = quickFiltered.slice(0, 50);
+    var quickFrag = document.createDocumentFragment();
+    quickVisible.forEach(function(t, i) {
       var item = document.createElement('div');
       item.className = 'quick-switcher-item' + (i === quickIndex ? ' active' : '');
       var iconEl = document.createElement('span');
@@ -8194,8 +8234,9 @@
       item.appendChild(metaEl);
       item.addEventListener('mousedown', function(ev) { ev.preventDefault(); executeQuickOpen(i); });
       item.addEventListener('mouseenter', function() { setQuickIndex(i); });
-      list.appendChild(item);
+      quickFrag.appendChild(item);
     });
+    list.appendChild(quickFrag);
   }
 
   function setQuickIndex(i) {
@@ -8215,7 +8256,13 @@
 
   elements.quickSwitcherInput.addEventListener('input', function() {
     quickIndex = 0;
-    renderQuickList(this.value);
+    // Phase 3：rAF 节流，避免高频输入全量重建
+    if (quickRenderRaf) cancelAnimationFrame(quickRenderRaf);
+    const value = this.value;
+    quickRenderRaf = requestAnimationFrame(function() {
+      quickRenderRaf = null;
+      renderQuickList(value);
+    });
   });
   elements.quickSwitcherInput.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') { e.preventDefault(); closeQuickSwitcher(); return; }
