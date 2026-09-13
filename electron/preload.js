@@ -77,6 +77,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   openDataFolder: () => ipcRenderer.invoke('open-data-folder'),
 
+  /**
+   * 通用离线 OCR：对图片 dataUrl 识别文字（独立于截图工具模块，供剪藏插图复用）
+   * @param {string} dataUrl - 图片 data URL
+   * @returns {Promise<{status: string, text?: string, lines?: Array, message?: string}>}
+   */
+  ocrRecognize: (dataUrl) => ipcRenderer.invoke('ocr:recognize', { dataUrl }),
+
+  /** 查询通用离线 OCR 可用状态 */
+  ocrStatus: () => ipcRenderer.invoke('ocr:status'),
+
   // ===================== 文件/目录选择 =====================
 
   /**

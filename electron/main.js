@@ -4316,6 +4316,40 @@ function setupIPC() {
     }
   });
 
+  // ===== 通用离线 OCR（独立于截图工具模块，供剪藏插图等复用；复用 ocr-service 底层，不重复造轮子） =====
+  let ocrServiceRef = null;
+  function getOcrService() {
+    if (!ocrServiceRef) {
+      try { ocrServiceRef = require('./screenshot/ocr-service'); } catch (e) { ocrServiceRef = null; }
+    }
+    return ocrServiceRef;
+  }
+  ipcMain.handle('ocr:status', () => {
+    const svc = getOcrService();
+    if (!svc) return { available: false, reason: 'OCR 服务未加载' };
+    try { return svc.status(); } catch (e) { return { available: false, reason: e.message }; }
+  });
+  ipcMain.handle('ocr:recognize', async (e, payload) => {
+    const svc = getOcrService();
+    if (!svc) return { status: 'error', message: 'OCR 服务未加载' };
+    try {
+      const { nativeImage } = require('electron');
+      let img = null;
+      if (payload && payload.buf) {
+        img = nativeImage.createFromBuffer(Buffer.isBuffer(payload.buf) ? payload.buf : Buffer.from(payload.buf));
+      } else if (payload && payload.dataUrl) {
+        img = nativeImage.createFromDataURL(payload.dataUrl);
+      }
+      if (!img || img.isEmpty()) return { status: 'error', message: '无图片数据' };
+      const st = svc.status();
+      if (!st.available) return { status: 'error', message: st.reason || 'OCR 不可用' };
+      const result = await svc.recognize(img.toPNG());
+      return { status: 'success', text: (result && result.text) || '', lines: (result && result.lines) || [] };
+    } catch (err) {
+      return { status: 'error', message: err.message };
+    }
+  });
+
   // 检查后端是否可用
   ipcMain.handle('check-backend', async (event, port) => await checkPort(port));
 

@@ -38,14 +38,26 @@
     </div>
 </div>
 
-<div id="ask-modal" class="modal" style="display: none;">
+<div id="ask-modal" class="modal ask-panel-mode" style="display: none;">
     <div class="modal-content" style="max-width: 760px; max-height: 86vh;">
         <div class="modal-header">
-            <h3>✨ 问我的剪藏库</h3>
-            <button class="modal-close" type="button" onclick="closeAskModal()">&times;</button>
+            <div class="ask-panel-head">
+                <div class="ask-panel-avatar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8.5 8 9.6 9.6 0 0 1-4.5-1.4L3 20l1.8-3.9A8.5 8.5 0 1 1 21 12z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/></svg>
+                </div>
+                <div class="ask-panel-title-wrap">
+                    <h3 class="ask-panel-title">小记 · AI 助手</h3>
+                    <div class="ask-panel-sub">基于你的剪藏内容回答，附来源</div>
+                </div>
+            </div>
+            <button class="modal-close" type="button" onclick="closeAskModal()" title="收起面板">&times;</button>
         </div>
         <div class="modal-body">
-            <label class="modal-label" for="ask-question">基于全库剪藏内容提问（最多 200 字），回答会附来源条目</label>
+            <div class="ask-panel-context" id="ask-context">
+                <span class="ctx-dot"></span>
+                <span id="ask-context-text">正在看你的整个剪藏库</span>
+            </div>
+            <label class="modal-label" for="ask-question" style="margin-top: 12px;">基于全库剪藏内容提问（最多 200 字），回答会附来源条目</label>
             <textarea id="ask-question" class="modal-textarea compact-textarea" rows="2" maxlength="200" placeholder="例如：我之前收藏过哪些关于 Obsidian 的内容？"></textarea>
             <div class="ask-answer" id="ask-answer" style="display: none;">
                 <div class="ask-answer-body markdown-content" id="ask-answer-body"></div>
@@ -53,13 +65,13 @@
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn-secondary" type="button" onclick="closeAskModal()">关闭</button>
+            <button class="btn-secondary" type="button" onclick="closeAskModal()">收起</button>
             <button class="btn-primary" type="button" id="ask-submit-btn" onclick="submitAskQuestion()">提问</button>
         </div>
     </div>
 </div>
 
-<div id="prompt-config-modal" class="modal" style="display: none;">
+<div id="prompt-config-modal" class="modal modal-drawer-mode" style="display: none;">
     <div class="modal-content" style="max-width: 800px;">
         <div class="modal-header">
             <h3 id="prompt-config-title">Prompt 配置</h3>
@@ -82,7 +94,7 @@
 </div>
 
 <!-- 预览完整 Prompt 弹窗 -->
-<div id="preview-prompt-modal" class="modal" style="display: none;">
+<div id="preview-prompt-modal" class="modal modal-drawer-mode" style="display: none;">
     <div class="modal-content" style="max-width: 800px;">
         <div class="modal-header">
             <h3 id="preview-prompt-title">完整 Prompt 预览</h3>
@@ -112,13 +124,13 @@
             </select>
 
             <div id="organize-manual-fields" style="display: none; margin-top: 16px;">
-                <label class="modal-label" for="organize-type">类型（可选）</label>
+                <label class="modal-label" for="organize-type">整理方式（可选）</label>
                 <select id="organize-type" class="modal-textarea" style="min-height: 44px;">
-                    <option value="">保持原类型</option>
-                    <option value="store-only">只存储内容</option>
-                    <option value="ai-text">AI文本整理</option>
-                    <option value="link-ai">链接AI解析整理</option>
-                    <option value="doc-ai">文档AI解析整理</option>
+                    <option value="">保持原整理方式</option>
+                    <option value="store-only">稍后整理（仅存储内容）</option>
+                    <option value="ai-text">整理为 AI 笔记</option>
+                    <option value="link-ai">链接 AI 解析整理</option>
+                    <option value="doc-ai">文档 AI 解析整理</option>
                 </select>
 
                 <label class="modal-label" for="organize-category" style="margin-top: 12px;">分类（可选）</label>
@@ -166,6 +178,28 @@
     </div>
 </div>
 
+<!-- 每日回看弹窗 -->
+<div id="daily-review-modal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 540px; max-height: 86vh;">
+        <div class="modal-header">
+            <h3>今日回看</h3>
+            <button class="modal-close" type="button" onclick="closeDailyReview()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="daily-progress">
+                <div class="daily-progress-track"><div class="daily-progress-fill" id="daily-progress-fill"></div></div>
+                <span class="daily-progress-txt" id="daily-progress-txt">0 / 0</span>
+            </div>
+            <div id="daily-card" class="daily-card"></div>
+        </div>
+        <div class="modal-footer" id="daily-footer">
+            <button class="btn-secondary" type="button" onclick="dailyAction('skip')">跳过</button>
+            <button class="btn-secondary" type="button" onclick="dailyAction('archive')">归档</button>
+            <button class="btn-primary" type="button" onclick="dailyAction('keep')">仍有用</button>
+        </div>
+    </div>
+</div>
+
 <!-- 加载状态覆盖层 -->
 <div id="loading-overlay" class="loading-overlay" style="display: none;">
     <div class="loading-container">
@@ -180,31 +214,39 @@
         <button class="clip-theme-toggle" id="themeToggle" type="button" title="切换风格" aria-label="切换风格">
             <svg viewBox="0 0 24 24"><path d="M3 7h8"/><path d="M13 7h8"/><circle cx="11" cy="7" r="2"/><path d="M3 17h8"/><path d="M13 17h8"/><circle cx="13" cy="17" r="2"/></svg>
         </button>
-        <h1>剪藏 <span class="brand-subtitle">CutShelter</span></h1>
+        <h1>剪藏 <span class="brand-subtitle">碎碎记 · CutShelter</span></h1>
         <p class="subtitle">捕捉灵感，智能整理，构建你的个人知识库</p>
         <div class="toggle-container">
             <div class="action-split-group">
-                <button class="icon-btn" type="button" title="Git配置" onclick="openGitConfigModal()">⚙️</button>
+                <button class="icon-btn" type="button" title="Git配置" onclick="openGitConfigModal()">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+                </button>
                 <button class="toggle-btn main-btn" id="sync-btn" onclick="syncGit()">
-                    <span class="toggle-text">🔄 同步仓库</span>
+                    <span class="toggle-text">同步仓库</span>
                 </button>
-                <button class="icon-btn" type="button" id="sync-info-btn" title="同步说明与状态" onclick="toggleSyncPanel()">ℹ️</button>
+                <button class="icon-btn" type="button" id="sync-info-btn" title="同步说明与状态" onclick="toggleSyncPanel()">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                </button>
             </div>
             <div class="action-split-group">
-                <button class="icon-btn" type="button" title="配置整理Prompt" onclick="openPromptConfigModal('daily')">⚙️</button>
+                <button class="icon-btn" type="button" title="配置整理Prompt" onclick="openPromptConfigModal('daily')">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+                </button>
                 <button class="toggle-btn main-btn" id="organize-btn" onclick="organizeContent()">
-                    <span class="toggle-text">📚 整理今日内容</span>
+                    <span class="toggle-text">整理今日内容</span>
                 </button>
             </div>
             <div class="action-split-group">
-                <button class="icon-btn" type="button" title="配置周报Prompt" onclick="openPromptConfigModal('weekly')">⚙️</button>
+                <button class="icon-btn" type="button" title="配置周报Prompt" onclick="openPromptConfigModal('weekly')">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+                </button>
                 <button class="toggle-btn main-btn" id="weekly-report-btn" onclick="generateWeeklyReport()">
-                    <span class="toggle-text">📊 生成周报总结</span>
+                    <span class="toggle-text">生成周报总结</span>
                 </button>
             </div>
             <div class="action-split-group">
                 <button class="toggle-btn main-btn" id="organize-inbox-btn" onclick="openOrganizeActionModal('inbox')">
-                    <span class="toggle-text">📥 整理收件箱</span>
+                    <span class="toggle-text">整理收件箱</span>
                 </button>
             </div>
             <div style="display: inline-flex; align-items: center; gap: 8px;">
@@ -221,10 +263,35 @@
                 </button>
             </div>
             <button class="toggle-btn" id="toggle-btn" onclick="toggleMode()">
-                <span class="toggle-text" id="toggle-text">🔍 切换到信息检索</span>
+                <span class="toggle-text" id="toggle-text">切换到信息检索</span>
             </button>
         </div>
     </header>
+
+    <!-- 快速记录：对标 NoteGen 剪藏种类，一键发起（文本/插图/链接/待办/OCR） -->
+    <div class="quick-record-bar" id="quickRecordBar">
+        <span class="quick-record-label">快速记录</span>
+        <button class="quick-record-btn" type="button" onclick="quickRecord('store-only')" title="粘贴文本，稍后整理">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+            粘贴文本
+        </button>
+        <button class="quick-record-btn" type="button" onclick="quickRecord('image')" title="上传图片剪藏，支持 OCR">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            插图
+        </button>
+        <button class="quick-record-btn" type="button" onclick="quickRecord('link-ai')" title="收藏一个链接">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            链接
+        </button>
+        <button class="quick-record-btn" type="button" onclick="quickRecord('todo')" title="记一件要做的事">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-5"/></svg>
+            待办
+        </button>
+        <button class="quick-record-btn" type="button" onclick="quickRecord('ocr')" title="选择图片并 OCR 提取文字">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8h10M7 12h7M7 16h4"/></svg>
+            OCR
+        </button>
+    </div>
 
     <div id="git-sync-result" class="git-sync-result"></div>
 
@@ -265,6 +332,7 @@
                             <label class="image-upload-btn" id="image-upload-btn" for="image-input" title="选择图片上传">📷 上传图片</label>
                             <span class="image-upload-hint">支持 Ctrl+V 粘贴 / 拖拽图片到输入框</span>
                             <button type="button" class="image-preview-toggle" id="image-preview-toggle" title="切换编辑/预览">👁 预览</button>
+                            <button type="button" class="image-ocr-btn" id="image-ocr-btn" onclick="runImageOcr()" title="对已上传的图片离线识别文字，结果填入内容">✨ OCR 提取文字</button>
                         </div>
                         <input type="file" id="image-input" accept="image/*" multiple style="display:none;">
                         <div id="image-previews" class="image-previews" style="display:none;"></div>
@@ -285,12 +353,13 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label for="type">类型</label>
+                    <label for="type">整理方式</label>
                     <select id="type" onchange="handleTypeChange()">
-                        <option value="store-only">只存储内容</option>
-                        <option value="ai-text">AI文本整理</option>
-                        <option value="link-ai">链接AI解析整理</option>
-                        <option value="doc-ai">文档AI解析整理</option>
+                        <option value="store-only" selected>稍后整理（先进收件箱）</option>
+                        <option value="ai-text">立即 AI 整理为笔记</option>
+                        <option value="link-ai">链接 · AI 解析整理</option>
+                        <option value="doc-ai">文档 · AI 解析整理</option>
+                        <option value="image">插图 · OCR 提取文字</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -352,15 +421,29 @@
         </div>
     </div>
 
+    <!-- 每日回看横幅 -->
+    <div id="daily-review" class="daily-review" style="display:none;">
+        <div class="daily-review-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="4"/></svg>
+        </div>
+        <div class="daily-review-txt">
+            <div class="daily-review-title">每日回看 · <span id="daily-review-count">0</span> 条沉底的旧收藏</div>
+            <div class="daily-review-sub">收藏过，别让它永远躺平。花 1 分钟翻翻这些内容。</div>
+        </div>
+        <button class="daily-review-btn" type="button" onclick="openDailyReview()">开始回顾</button>
+        <button class="daily-review-close" type="button" onclick="dismissDailyReview()" title="关闭">&times;</button>
+    </div>
+
     <div id="clip-list">
         <div class="list-header">
             <h2>剪藏列表</h2>
             <div class="list-controls">
-                <button class="btn-secondary ask-library-btn" onclick="openAskModal()" title="基于全库剪藏内容提问，回答附来源">✨ 问我的剪藏库</button>
+                <button class="btn-secondary ask-library-btn" onclick="openAskModal()" title="基于全库剪藏内容提问，回答附来源">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:5px;"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 7.7l5.4-.8Z"/></svg>问我的剪藏库</button>
                 <select id="workflow-filter" class="workflow-filter">
-                    <option value="">全部流程</option>
-                    <option value="inbox">仅收件箱（待整理）</option>
+                    <option value="inbox" selected>收件箱（待整理）</option>
                     <option value="organized">仅已整理</option>
+                    <option value="">全部流程</option>
                 </select>
                 <span id="clip-count" class="clip-count">0</span>
             </div>
@@ -387,6 +470,15 @@
                 <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
             </svg>
             <span id="float-bar-btn-text">合成知识</span>
+        </button>
+        <div class="float-bar-divider"></div>
+        <button class="float-bar-btn" id="float-bar-organize-btn" onclick="batchOrganizeClips()" disabled title="对选中的剪藏批量 AI 整理">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <span id="float-bar-organize-text">批量整理</span>
+        </button>
+        <button class="float-bar-btn danger" id="float-bar-delete-btn" onclick="batchDeleteClips()" disabled title="删除选中的剪藏（可撤销）">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            <span id="float-bar-delete-text">删除</span>
         </button>
         <button class="float-bar-cancel" onclick="clearAllSelection()">取消选择</button>
     </div>

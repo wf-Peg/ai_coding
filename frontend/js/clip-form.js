@@ -27,6 +27,12 @@
             fileUploadArea.style.display = '';
             contentLabel.textContent = '文档';
             tagsGroup.style.display = '';
+        } else if (type === 'image') {
+            contentArea.style.display = '';
+            contentArea.placeholder = '图片剪藏：上传图片后可「OCR 提取文字」，识别结果会填入此处';
+            contentLabel.textContent = '插图';
+            fileUploadArea.style.display = 'none';
+            tagsGroup.style.display = '';
         } else if (type === 'store-only') {
             contentArea.style.display = '';
             contentArea.placeholder = '请输入要存储的内容';
@@ -43,6 +49,68 @@
     }
 
     // File upload handlers
+
+    /** 快速记录：预置剪藏类型并引导，提升首屏记录效率（对标 NoteGen 剪藏种类） */
+    function quickRecord(mode) {
+        const typeSel = document.getElementById('type');
+        const content = document.getElementById('content');
+        const section = document.getElementById('add-clip-section');
+        if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (mode === 'store-only') {
+            typeSel.value = 'store-only';
+            handleTypeChange();
+            content.placeholder = '粘贴文本内容，快速剪藏…（Ctrl+V）';
+            setTimeout(function () { content.focus(); }, 300);
+        } else if (mode === 'image') {
+            typeSel.value = 'image';
+            handleTypeChange();
+            content.placeholder = '图片剪藏：上传图片后可「OCR 提取文字」';
+            setTimeout(function () { content.focus(); }, 300);
+        } else if (mode === 'link-ai') {
+            typeSel.value = 'link-ai';
+            handleTypeChange();
+            content.placeholder = '输入链接 URL，AI 解析后收藏（如 https://example.com/article）';
+            setTimeout(function () { content.focus(); }, 300);
+        } else if (mode === 'todo') {
+            typeSel.value = 'store-only';
+            handleTypeChange();
+            content.placeholder = '记一件要做的事，稍后可在待办中查看…';
+            setTimeout(function () { content.focus(); }, 300);
+        } else if (mode === 'ocr') {
+            typeSel.value = 'image';
+            handleTypeChange();
+            setTimeout(function () {
+                const input = document.getElementById('image-input');
+                if (input) input.click();
+            }, 400);
+        }
+    }
+
+    /** 插图 OCR：对已上传的第一张图片离线识别文字，结果填入内容（复用通用离线 OCR，独立于截图工具） */
+    async function runImageOcr() {
+        const first = uploadedImages.find(i => i.status === 'done' && i.dataUrl);
+        if (!first) { showToast('请先上传图片再执行 OCR'); return; }
+        const api = window.electronAPI;
+        if (!api || typeof api.ocrRecognize !== 'function') { showToast('OCR 仅桌面客户端可用'); return; }
+        try {
+            if (typeof api.ocrStatus === 'function') {
+                const st = await api.ocrStatus();
+                if (st && st.available === false) { showToast('OCR 不可用：' + (st.reason || '模型未就绪')); return; }
+            }
+            showToast('OCR 识别中…');
+            const res = await api.ocrRecognize(first.dataUrl);
+            if (res.status === 'success' && res.text) {
+                const content = document.getElementById('content');
+                content.value = (content.value ? content.value + '\n' : '') + res.text.trim();
+                content.dispatchEvent(new Event('input'));
+                showToast('已识别 ' + res.text.trim().length + ' 字，填入内容');
+            } else {
+                showToast('OCR 失败：' + (res.message || '未识别到文字'));
+            }
+        } catch (e) {
+            showToast('OCR 失败：' + (e && e.message ? e.message : '请稍后重试'));
+        }
+    }
 
     if (dropzone) {
         dropzone.addEventListener('click', () => fileInput.click());

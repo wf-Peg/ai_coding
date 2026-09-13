@@ -299,11 +299,11 @@ var selectedClipIds = new Set();
     function getImageInput() { return document.getElementById('image-input'); }
     function getPreviewsBox() { return document.getElementById('image-previews'); }
 
-    // 图片上传区可见性（ai-text / store-only 显示）
+    // 图片上传区可见性（ai-text / store-only / image 显示）
     function updateImageAreaVisibility(type) {
         const area = getImageArea();
         if (!area) return;
-        const visible = (type === 'ai-text' || type === 'store-only');
+        const visible = (type === 'ai-text' || type === 'store-only' || type === 'image');
         area.style.display = visible ? '' : 'none';
         if (!visible && contentPreviewActive) {
             toggleContentPreview();
