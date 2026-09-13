@@ -19,7 +19,7 @@
   left: 50%;
   transform: translateX(-50%);
   max-width: min(70vw, 460px);
-  padding: 10px 34px 10px 16px;
+  padding: 10px 16px;
   border-radius: var(--app-radius, 10px);
   font-size: 13px;
   line-height: 1.6;
@@ -30,22 +30,29 @@
   white-space: pre-wrap;
   text-align: center;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
 }
-.ui-toast .ui-toast__icon { flex: 0 0 auto; font-size: 15px; line-height: 1.5; }
+.ui-toast .ui-toast__icon {
+  flex: 0 0 auto;
+  font-size: 15px;
+  line-height: 1.5;          /* 图标行高 22.5px = 行内垂直基准 */
+}
 .ui-toast .ui-toast__text { flex: 1 1 auto; }
 .ui-toast .ui-toast__close {
-  position: absolute;
-  top: 6px;
-  right: 6px;
+  /* 与左侧图标同盒高（22.5px）、同中心轴，避免字体度量差异导致的符号偏移 */
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22.5px;
+  padding: 0 6px;
   background: none;
   border: none;
   color: var(--app-text-muted);
   font-size: 15px;
   line-height: 1;
   cursor: pointer;
-  padding: 2px 4px;
   border-radius: 4px;
 }
 .ui-toast .ui-toast__close:hover { color: var(--app-text); background: var(--app-surface-hover); }

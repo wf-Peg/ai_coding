@@ -10,10 +10,13 @@
  *     canvas_edge 表（手动连线），同属画布层，与语义 relation 分离。
  * v5：新增 canvas_group / canvas_group_member 表（无限画布·分组 frame 层），
  *     把多个节点圈成可命名分组并整体拖动；同属画布层，与语义 relation 分离。
+ * v6：修复迁移。历史库在 v3/v4/v5 增量迁移时被旧实现的「提前写入最高版本号 + return」
+ *     跳级，出现 schema_version=5 但画布表缺失的坏状态；v6 重跑画布各层建表 SQL
+ *     （全部 CREATE TABLE IF NOT EXISTS，幂等，健康库无副作用）兜底补齐。
  * 后续扩展时新增版本迁移（schema_version+1），在 migrate() 里追加逻辑。
  */
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 // 建表 SQL（仅在 meta.schema_version 为空时执行 v1 建库）
 const SQL_V1 = `
@@ -114,6 +117,10 @@ CREATE TABLE IF NOT EXISTS canvas_group_member (
 CREATE INDEX IF NOT EXISTS idx_cgm_member ON canvas_group_member(node_id);
 `;
 
+// v6 修复迁移：重跑画布各层建表 SQL（CREATE TABLE IF NOT EXISTS，幂等；
+// 修复旧实现跳级导致的「schema_version=5 但画布表缺失」坏状态，健康库执行无副作用）
+const SQL_V6 = SQL_V3 + SQL_V4 + SQL_V5;
+
 /**
  * 执行建库/迁移。基于 meta.schema_version 判断。
  * v1：建 meta/content/content_fts。
@@ -127,37 +134,18 @@ function migrate(db) {
     .get('schema_version');
   const current = row ? parseInt(row.value, 10) : 0;
 
-  if (current === 0) {
-    // 全新建库：跑全量 SQL（v1 基础表 + v2 relation 表 + v3 画布布局表 + v4 画布节点/连线表 + v5 分组表）
-    db.exec(SQL_V1);
-    db.exec(SQL_V2);
-    db.exec(SQL_V3);
-    db.exec(SQL_V4);
-    db.exec(SQL_V5);
+  // 逐级执行所有未到位的迁移（各段 SQL 均为 CREATE TABLE IF NOT EXISTS，可重入幂等）。
+  // 注意：不得在中间步骤提前写入最高版本号并 return，否则后续迁移会被跳过（历史 bug）。
+  if (current < 1) db.exec(SQL_V1);
+  if (current < 2) db.exec(SQL_V2);
+  if (current < 3) db.exec(SQL_V3);
+  if (current < 4) db.exec(SQL_V4);
+  if (current < 5) db.exec(SQL_V5);
+  if (current < SCHEMA_VERSION) {
+    // v6：兜底补齐缺失的画布表（修复旧实现跳级导致的坏状态）
+    db.exec(SQL_V6);
+    // 仅在全部迁移完成后统一写入最终版本号
     upsertMeta(db, 'schema_version', String(SCHEMA_VERSION));
-    return;
-  }
-  if (current < 2) {
-    // v1 → v2：新增 relation 表
-    db.exec(SQL_V2);
-  }
-  if (current < 3) {
-    // v2 → v3：新增画布布局表
-    db.exec(SQL_V3);
-    upsertMeta(db, 'schema_version', String(SCHEMA_VERSION));
-    return;
-  }
-  if (current < 4) {
-    // v3 → v4：新增画布可写节点 + 手动连线表
-    db.exec(SQL_V4);
-    upsertMeta(db, 'schema_version', String(SCHEMA_VERSION));
-    return;
-  }
-  if (current < 5) {
-    // v4 → v5：新增画布分组 frame 表
-    db.exec(SQL_V5);
-    upsertMeta(db, 'schema_version', String(SCHEMA_VERSION));
-    return;
   }
 }
 

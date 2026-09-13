@@ -27,6 +27,7 @@
     var currentTheme = DEFAULT_THEME;
     var currentOrganizeTarget = { scope: 'inbox', clipId: null };
     var clipCache = new Map();
+    var softDeletedIds = new Set(); // 墓碑集合：删除未完全落库前客户端先行隐藏，避免"删除后闪回"
     var uploadedFileBase64 = null;
     var uploadedFileName = null;
     var uploadedImages = [];   // {localId, name, status, progress, path, url, dataUrl, file, error}
@@ -263,18 +264,6 @@ var selectedClipIds = new Set();
         return appearance;
     }
 
-    function getNextThemeId(themeId) {
-        return themeId === 'notion' ? 'regular' : 'notion';
-    }
-
-    function updateThemeToggleLabel() {
-        const toggle = document.getElementById('themeToggle');
-        if (!toggle) return;
-        const nextThemeName = getNextThemeId(currentTheme) === 'notion' ? 'Notion风格' : '常规风格';
-        toggle.title = `切换到${nextThemeName}`;
-        toggle.setAttribute('aria-label', `切换到${nextThemeName}`);
-    }
-
     function applyTheme(themeId, persist = true) {
         const core = window.CutShelterThemeCore;
         const raw = themeId == null ? getEffectiveTheme() : themeId;
@@ -288,7 +277,6 @@ var selectedClipIds = new Set();
         document.documentElement.setAttribute('data-theme', effectiveTheme);
         if (core) document.documentElement.setAttribute('data-motion', core.readStoredMotion(localStorage));
         if (persist) localStorage.setItem(THEME_STORAGE_KEY, effectiveTheme);
-        updateThemeToggleLabel();
     }
 
     // File upload state
@@ -599,12 +587,6 @@ var selectedClipIds = new Set();
             openClipByIdDirect(Number(directClipId));
         }
 
-        const themeToggle = document.getElementById('themeToggle');
-        if (themeToggle) {
-            themeToggle.addEventListener('click', () => {
-                applyTheme(getNextThemeId(currentTheme));
-            });
-        }
         window.addEventListener('storage', event => {
             if (event.key === THEME_STORAGE_KEY || event.key === APPEARANCE_KEY || event.key === 'app_motion_v1') {
                 applyTheme(null, false);
@@ -641,10 +623,94 @@ var selectedClipIds = new Set();
 
         // 为确认按钮添加点击事件
         document.getElementById('confirm-btn').addEventListener('click', confirmAction);
-        const workflowFilter = document.getElementById('workflow-filter');
-        if (workflowFilter) {
-            workflowFilter.addEventListener('change', fetchClips);
-        }
+        // 工作流筛选 · 自定义高级下拉：柔和过渡、选项交错浮现、选中高亮、键盘支持、点外关闭
+        (function initWorkflowSelect() {
+            const root = document.getElementById('workflow-select');
+            const trigger = document.getElementById('workflow-select-trigger');
+            const panel = document.getElementById('workflow-select-panel');
+            const hiddenInput = document.getElementById('workflow-filter');
+            const valueLabel = document.getElementById('workflow-select-value');
+            if (!root || !trigger || !panel || !hiddenInput || !valueLabel) return;
+
+            const options = Array.prototype.slice.call(panel.querySelectorAll('.workflow-select-option'));
+            const labels = {};
+            options.forEach((opt, i) => {
+                opt.style.setProperty('--i', i); // 选项交错入场延迟
+                labels[opt.getAttribute('data-value')] = (opt.textContent || '').trim();
+            });
+
+            // 每次展开重放选项交错浮现动画（animation 仅首帧播放，需强制重触发）
+            const refreshOptionAnim = () => {
+                options.forEach(opt => {
+                    opt.style.animation = 'none';
+                    void opt.offsetWidth;
+                    opt.style.animation = '';
+                });
+            };
+            const openPanel = () => {
+                root.classList.add('open');
+                trigger.setAttribute('aria-expanded', 'true');
+                panel.setAttribute('aria-hidden', 'false');
+                refreshOptionAnim();
+            };
+            const closePanel = () => {
+                root.classList.remove('open');
+                trigger.setAttribute('aria-expanded', 'false');
+                panel.setAttribute('aria-hidden', 'true');
+            };
+            const syncUI = (value) => {
+                hiddenInput.value = value;
+                if (labels[value] !== undefined) valueLabel.textContent = labels[value];
+                options.forEach(opt => {
+                    const on = opt.getAttribute('data-value') === value;
+                    opt.setAttribute('aria-selected', on ? 'true' : 'false');
+                });
+            };
+            const applyValue = (value) => {
+                syncUI(value);
+                closePanel();
+                valueLabel.classList.remove('bump');
+                void valueLabel.offsetWidth; // 重排以重放弹跳动画
+                valueLabel.classList.add('bump');
+                if (typeof fetchClips === 'function') fetchClips();
+            };
+
+            trigger.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                if (root.classList.contains('open')) closePanel();
+                else openPanel();
+            });
+            options.forEach(opt => {
+                opt.addEventListener('click', () => applyValue(opt.getAttribute('data-value')));
+            });
+            document.addEventListener('click', (ev) => {
+                if (!root.contains(ev.target)) closePanel();
+            });
+
+            // 键盘支持：Esc 关闭；↑/↓ 移动焦点；Enter/Space 选中
+            root.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') { e.preventDefault(); closePanel(); trigger.focus(); return; }
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    let idx = options.indexOf(document.activeElement);
+                    idx = (e.key === 'ArrowDown') ? idx + 1 : idx - 1;
+                    if (idx < 0) idx = options.length - 1;
+                    if (idx >= options.length) idx = 0;
+                    options[idx].focus();
+                    return;
+                }
+                if (e.key === 'Enter' || e.key === ' ') {
+                    const active = document.activeElement;
+                    if (active && active !== root && active !== trigger && active.getAttribute('data-value') !== null) {
+                        e.preventDefault();
+                        applyValue(active.getAttribute('data-value'));
+                    }
+                }
+            });
+
+            // 初始同步（不触发请求，列表初载由 fetchClips() 统一完成）
+            syncUI(hiddenInput.value);
+        })();
 
         document.getElementById('clip-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -739,6 +805,9 @@ var selectedClipIds = new Set();
 
                 // 刷新剪藏列表并确保显示剪藏列表页面
                 await fetchClips();
+
+                // 提交成功后收起表单，回到「记录条 + 列表」的主显示区（折叠态交互闭环）
+                if (typeof collapseForm === 'function') collapseForm();
 
                 // 确保显示剪藏列表，隐藏搜索结果页面
                 document.getElementById('search-results-page').style.display = 'none';

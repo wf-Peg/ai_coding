@@ -50,35 +50,56 @@
 
     // File upload handlers
 
+    /** 折叠态展开/收起：剪藏填写区默认折叠为记录条，交互后原位展开 */
+    function expandForm(preType) {
+        const section = document.getElementById('add-clip-section');
+        if (!section) return;
+        // 若表单当前被 toggleMode 隐藏（信息检索模式），先恢复显示
+        section.style.display = 'block';
+        section.classList.remove('form-collapsed');
+        // 重新触发 fadeInUp 展开动画（先强制重排，再恢复动画）
+        const form = section.querySelector('.clip-form');
+        if (form) {
+            form.style.animation = 'none';
+            void form.offsetWidth;
+            form.style.animation = '';
+        }
+        if (preType) {
+            const typeSel = document.getElementById('type');
+            if (typeSel && typeSel.value !== preType) {
+                typeSel.value = preType;
+                handleTypeChange();
+            }
+        }
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setTimeout(function () {
+            const content = document.getElementById('content');
+            if (content && (content.style.display !== 'none') && content.offsetParent !== null) {
+                content.focus();
+            }
+        }, 250);
+    }
+
+    function collapseForm() {
+        const section = document.getElementById('add-clip-section');
+        if (!section) return;
+        section.classList.add('form-collapsed');
+        // 不做强制滚动：表单折叠后，视觉自然回落到记录条 + 列表区域
+    }
+
     /** 快速记录：预置剪藏类型并引导，提升首屏记录效率（对标 NoteGen 剪藏种类） */
     function quickRecord(mode) {
         const typeSel = document.getElementById('type');
         const content = document.getElementById('content');
-        const section = document.getElementById('add-clip-section');
-        if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        expandForm(mode === 'store-only' ? 'store-only' : mode);
         if (mode === 'store-only') {
-            typeSel.value = 'store-only';
-            handleTypeChange();
             content.placeholder = '粘贴文本内容，快速剪藏…（Ctrl+V）';
-            setTimeout(function () { content.focus(); }, 300);
         } else if (mode === 'image') {
-            typeSel.value = 'image';
-            handleTypeChange();
             content.placeholder = '图片剪藏：上传图片后可「OCR 提取文字」';
-            setTimeout(function () { content.focus(); }, 300);
         } else if (mode === 'link-ai') {
-            typeSel.value = 'link-ai';
-            handleTypeChange();
             content.placeholder = '输入链接 URL，AI 解析后收藏（如 https://example.com/article）';
-            setTimeout(function () { content.focus(); }, 300);
-        } else if (mode === 'todo') {
-            typeSel.value = 'store-only';
-            handleTypeChange();
-            content.placeholder = '记一件要做的事，稍后可在待办中查看…';
-            setTimeout(function () { content.focus(); }, 300);
         } else if (mode === 'ocr') {
-            typeSel.value = 'image';
-            handleTypeChange();
+            content.placeholder = '图片剪藏：上传图片后可「OCR 提取文字」';
             setTimeout(function () {
                 const input = document.getElementById('image-input');
                 if (input) input.click();

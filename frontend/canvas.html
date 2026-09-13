@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>画布 - 碎碎记</title>
     <script src="libs/d3.min.js"></script>
+    <script src="libs/html2canvas.min.js"></script>
     <style>
         :root {
             --primary: var(--app-primary);
@@ -100,6 +101,7 @@
             text-align: center;
             color: var(--text-muted);
             z-index: 10;
+            pointer-events: none; /* 穿透右键到容器，保证空态下「右键空白新建节点」可用 */
         }
         .empty-state .icon {
             font-size: 3rem;
@@ -177,13 +179,46 @@
         .minimap-viewport.dragging { cursor: grabbing; }
 
         /* 画布卡片节点 */
-        .node rect {
-            stroke: var(--surface);
-            stroke-width: 2px;
+        .node { cursor: pointer; }
+        .node-card-rect {
+            stroke: var(--border);
+            stroke-width: 1px;
+            filter: drop-shadow(var(--app-shadow-sm));
             cursor: pointer;
-            transition: stroke-width var(--app-duration-normal) ease;
+            transform-box: fill-box;
+            transform-origin: center;
+            transition:
+                stroke var(--app-duration-fast) var(--app-ease-smooth),
+                stroke-width var(--app-duration-fast) var(--app-ease-smooth),
+                filter var(--app-duration-fast) var(--app-ease-smooth),
+                transform var(--app-duration-fast) var(--app-ease-smooth);
         }
-        .node:hover rect { stroke-width: 3px; }
+        .node:hover .node-card-rect {
+            stroke: var(--primary);
+            stroke-width: 1.5px;
+            filter: drop-shadow(var(--app-shadow-md));
+            transform: scale(1.02);
+        }
+        .node-focus-ring {
+            stroke: var(--app-primary-soft);
+            stroke-width: 0;
+            fill: none;
+            pointer-events: none;
+            transition: stroke-width var(--app-duration-fast) var(--app-ease-smooth);
+        }
+        .node.selected-node .node-card-rect {
+            stroke: var(--primary);
+            stroke-width: 2px;
+        }
+        .node.selected-node .node-focus-ring { stroke-width: 3px; }
+        .node.linking .node-card-rect {
+            stroke: var(--primary) !important;
+            stroke-width: 2px !important;
+            stroke-dasharray: 4 3;
+        }
+        .node-image-frame { stroke: var(--border); stroke-opacity: 0.6; stroke-width: 1px; pointer-events: none; }
+        .node-type-icon { pointer-events: none; }
+        .node-type-icon svg { color: rgba(15, 23, 42, 0.55); }
         .node .canvas-card-text {
             font-size: 11px;
             fill: #1f2937;
@@ -192,29 +227,41 @@
             user-select: none;
         }
         .node .canvas-ref-text { fill: #ffffff; }
-        .node.selected-node rect {
-            stroke: #ff9800 !important;
-            stroke-width: 3px !important;
-        }
-        .node.linking rect {
-            stroke: #ff9800 !important;
-            stroke-width: 3px !important;
-            stroke-dasharray: 4 3;
-        }
+        .node .node-card-title { font-size: 12px; font-weight: 700; }
+        .node .node-card-domain { font-size: 10px; fill: #6b7280; }
 
         /* 手动连线 */
-        .link-manual { stroke: #a78bfa; stroke-opacity: 0.7; stroke-width: 1.6px; }
+        .link-manual {
+            stroke: var(--border);
+            stroke-opacity: 0.9;
+            stroke-width: 1.6px;
+            cursor: pointer;
+            transition:
+                stroke var(--app-duration-fast) var(--app-ease-smooth),
+                stroke-width var(--app-duration-fast) var(--app-ease-smooth),
+                stroke-opacity var(--app-duration-fast) var(--app-ease-smooth);
+        }
+        .link-manual:hover { stroke: var(--primary); stroke-width: 2px; stroke-opacity: 1; }
         .link-manual.dimmed { stroke-opacity: 0.08; }
-        .temp-link { stroke: #ff9800; stroke-width: 1.6px; stroke-dasharray: 5 4; pointer-events: none; }
+        .canvas-arrow-path { fill: var(--primary); }
+        .temp-link { stroke: var(--primary); stroke-width: 1.6px; stroke-dasharray: 5 4; pointer-events: none; }
 
         /* 分组 frame */
         .group-frame-rect {
             fill: var(--app-primary-soft);
             fill-opacity: 0.18;
-            stroke: var(--primary);
-            stroke-opacity: 0.55;
-            stroke-width: 1.4px;
+            stroke: var(--border);
+            stroke-opacity: 0.8;
+            stroke-width: 1.2px;
             stroke-dasharray: 6 4;
+            pointer-events: none;
+            transition: stroke var(--app-duration-fast) var(--app-ease-smooth);
+        }
+        .group-frame:hover .group-frame-rect { stroke: var(--primary); stroke-opacity: 1; }
+        .group-frame-chip {
+            fill: var(--surface);
+            stroke: var(--border);
+            stroke-width: 1px;
             pointer-events: none;
         }
         .group-frame-title {
@@ -224,10 +271,6 @@
             text-anchor: start;
             user-select: none;
             cursor: grab;
-            paint-order: stroke;
-            stroke: var(--surface);
-            stroke-width: 3px;
-            stroke-linejoin: round;
         }
         .group-frame.selected-frame .group-frame-rect {
             stroke-opacity: 1;
@@ -260,7 +303,7 @@
         .canvas-menu button {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
             width: 100%;
             padding: 8px 12px;
             border: none;
@@ -270,11 +313,16 @@
             text-align: left;
             border-radius: 6px;
             cursor: pointer;
-            transition: var(--transition);
+            transition:
+                background var(--app-duration-fast) var(--app-ease-smooth),
+                color var(--app-duration-fast) var(--app-ease-smooth);
         }
-        .canvas-menu button:hover { background: var(--border); }
+        .canvas-menu button .menu-icon { width: 16px; height: 16px; color: var(--text-muted); flex-shrink: 0; }
+        .canvas-menu button:hover { background: var(--app-primary-soft); color: var(--primary); }
+        .canvas-menu button:hover .menu-icon { color: var(--primary); }
         .canvas-menu button.danger { color: #ef4444; }
-        .canvas-menu button.danger:hover { background: rgba(239,68,68,0.1); }
+        .canvas-menu button.danger .menu-icon { color: #ef4444; }
+        .canvas-menu button.danger:hover { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
         .canvas-menu .divider { height: 1px; background: var(--border); margin: 4px 6px; }
 
         /* Canvas modal */
@@ -320,6 +368,8 @@
         .ref-picker-item .rtype { color: var(--text-muted); font-size: 0.72rem; flex-shrink: 0; }
         .ref-picker-item .rtitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .canvas-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+        .clear-all-tip { font-size: 0.85rem; line-height: 1.7; color: var(--text-secondary); }
+        .clear-all-tip b { color: #ef4444; }
         .modal-btn { padding: 7px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); cursor: pointer; font-size: 0.85rem; transition: var(--transition); }
         .modal-btn:hover { border-color: var(--primary); color: var(--primary); }
         .modal-btn.ok { background: var(--primary); color: #fff; border-color: var(--primary); }
@@ -332,9 +382,74 @@
         ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
         * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 
+        /* 手绘画笔工具条 */
+        .draw-toolbar {
+            position: absolute;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 90;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: nowrap;
+            padding: 6px 10px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: var(--app-shadow-md);
+            max-width: calc(100% - 24px);
+            overflow-x: auto;
+        }
+        .draw-toolbar button {
+            border: none;
+            border-radius: 6px;
+            padding: 4px 8px;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-family: inherit;
+            cursor: pointer;
+            white-space: nowrap;
+            transition:
+                background var(--app-duration-fast) var(--app-ease-smooth),
+                color var(--app-duration-fast) var(--app-ease-smooth);
+        }
+        .draw-toolbar button:hover { background: var(--app-primary-soft); color: var(--primary); }
+        .draw-toolbar button.is-active { background: var(--app-primary); color: #fff; }
+        .draw-toolbar button.primary { background: var(--app-primary); color: #fff; }
+        .draw-toolbar button.primary:hover { background: var(--app-primary-hover); color: #fff; }
+        .draw-toolbar .divider { width: 1px; height: 18px; background: var(--border); margin: 0 2px; flex-shrink: 0; }
+        .draw-toolbar .swatch {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            padding: 0;
+            flex-shrink: 0;
+            box-sizing: border-box;
+        }
+        .draw-toolbar .swatch.selected { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+        /* 手绘输入覆盖层（画板工具激活时全屏截获指针） */
+        .draw-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 85;
+            cursor: crosshair;
+            display: none;
+            pointer-events: none;
+            touch-action: none;
+        }
+        .draw-overlay.active {
+            display: block;
+            pointer-events: all;
+        }
+
         @media (max-width: 768px) {
             .nav { padding: 10px 16px; gap: 6px 8px; flex-wrap: wrap; }
             .nav .nav-hint { display: none; }
+            .draw-toolbar { left: 12px; transform: none; right: 12px; justify-content: flex-start; }
         }
     </style>
     <link rel="stylesheet" href="styles/design-tokens.css">
@@ -346,7 +461,7 @@
 <body>
     <nav class="nav">
         <span class="title">画布</span>
-        <span class="nav-hint">右键空白新建节点 · 双击编辑 · 选中节点右键连线 · 拖动自由摆放 · 空格拖动平移 · 滚轮缩放 · 框选可组成分组</span>
+        <span class="nav-hint">空白双击新建便签 · 右键新建节点 · 双击编辑 · 选中节点右键连线 · 拖动吸附网格 · 点击分组标题折叠 · 双击标题重命名 · 选中画笔随手标注（临时擦写） · 空格拖动平移 · 滚轮缩放</span>
     </nav>
 
     <div class="graph-container" id="graphContainer">
@@ -357,7 +472,7 @@
         <div class="empty-state" id="emptyEl" style="display:none;">
             <div class="icon">🪧</div>
             <h3 id="emptyTitle">暂无画布节点</h3>
-            <p id="emptyDesc">右键空白处新建便签 / 链接 / 图片，或引用已有内容节点</p>
+            <p id="emptyDesc">双击空白处新建便签，或右键空白处新建便签 / 链接 / 图片 / 引用</p>
         </div>
         <div class="legend">
             <div class="legend-item"><span class="dot" style="background:#fbbf24;"></span>便签</div>
@@ -366,6 +481,31 @@
             <div class="legend-item"><span class="dot" style="background:#14b8a6;"></span>引用</div>
             <div class="legend-item"><span class="lmark" style="border-top-color:#a78bfa;"></span>手动连线</div>
         </div>
+
+        <!-- 手绘画笔工具条（临时擦写板） -->
+        <div class="draw-toolbar" id="drawToolbar" title="手绘为临时擦写，刷新即清空，不做存储/导出 · 再次点击已选工具或按 Esc 退出画板">
+            <button data-tool="pen">画笔</button>
+            <button data-tool="highlighter">荧光</button>
+            <button data-tool="eraser">橡皮</button>
+            <div class="divider"></div>
+            <button data-size="thin" class="is-active" title="细">细</button>
+            <button data-size="bold" title="粗">粗</button>
+            <div class="divider"></div>
+            <button class="swatch selected" data-color="#222" style="background-color:#222;"></button>
+            <button class="swatch" data-color="#6b7280" style="background-color:#6b7280;"></button>
+            <button class="swatch" data-color="#1a73e8" style="background-color:#1a73e8;"></button>
+            <button class="swatch" data-color="#e5484d" style="background-color:#e5484d;"></button>
+            <button class="swatch" data-color="#30a46c" style="background-color:#30a46c;"></button>
+            <button class="swatch" data-color="#f76b15" style="background-color:#f76b15;"></button>
+            <div class="divider"></div>
+            <button id="undoBtn">撤销</button>
+            <button id="clearBtn">清空</button>
+            <div class="divider"></div>
+            <button id="exportBtn" class="primary" title="将当前画布（含墨迹）导出为 PNG 图片">导出图片</button>
+        </div>
+
+        <!-- 手绘输入覆盖层 -->
+        <div class="draw-overlay" id="drawOverlay"></div>
 
         <!-- 小地图：大画布快速定位 -->
         <div class="minimap" id="minimap" style="display:none;">
@@ -376,29 +516,31 @@
 
     <!-- 画布右键菜单（空白处） -->
     <div class="canvas-menu" id="canvasMenu" style="display:none;">
-        <button data-action="add-note">📝 新建便签</button>
-        <button data-action="add-link">🔗 新建链接</button>
-        <button data-action="add-image">🖼️ 新建图片</button>
+        <button data-action="add-note"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>新建便签</button>
+        <button data-action="add-link"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>新建链接</button>
+        <button data-action="add-image"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>新建图片</button>
         <div class="divider"></div>
-        <button data-action="add-ref">📌 引用已有节点</button>
+        <button data-action="add-ref"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>引用已有节点</button>
+        <div class="divider"></div>
+        <button data-action="clear-all" class="danger"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>清空全部内容</button>
     </div>
     <!-- 节点右键菜单 -->
     <div class="canvas-menu" id="nodeMenu" style="display:none;">
-        <button data-action="link-from">🔗 从此节点连线</button>
-        <button data-action="edit-node">✏️ 编辑内容</button>
+        <button data-action="link-from"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>从此节点连线</button>
+        <button data-action="edit-node"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>编辑内容</button>
         <div class="divider"></div>
-        <button data-action="group" id="groupAction" style="display:none;">📦 组成分组</button>
-        <button data-action="delete-node" class="danger">🗑️ 删除节点</button>
+        <button data-action="group" id="groupAction" style="display:none;"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>组成分组</button>
+        <button data-action="delete-node" class="danger"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>删除节点</button>
     </div>
     <!-- 连线右键菜单 -->
     <div class="canvas-menu" id="edgeMenu" style="display:none;">
-        <button data-action="delete-edge" class="danger">🗑️ 删除连线</button>
+        <button data-action="delete-edge" class="danger"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>删除连线</button>
     </div>
     <!-- 分组 frame 右键菜单 -->
     <div class="canvas-menu" id="groupMenu" style="display:none;">
-        <button data-action="rename-group">✏️ 重命名分组</button>
+        <button data-action="rename-group"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>重命名分组</button>
         <div class="divider"></div>
-        <button data-action="dissolve-group" class="danger">💠 解散分组</button>
+        <button data-action="dissolve-group" class="danger"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>解散分组</button>
     </div>
 
     <!-- 画布节点 新建/编辑/引用 弹窗 -->

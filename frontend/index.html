@@ -1457,6 +1457,19 @@
             });
           }
         }
+        if (event.data && event.data.type === 'appNavigate' && event.data.view) {
+          // 编辑器命令面板的应用级导航：切换主窗口视图（白名单防越权切换任意内页）
+          const view = event.data.view;
+          if (view === 'graph') {
+            renderView('knowledge');
+            window.history.pushState({ view: 'knowledge' }, '', '/knowledge');
+            const kf = document.getElementById('knowledgeFrame');
+            if (kf) kf.src = 'knowledge-graph.html';
+          } else if (['clip', 'editor', 'canvas', 'workspace', 'knowledge', 'settings'].includes(view)) {
+            renderView(view);
+            window.history.pushState({ view: view }, '', '/' + view);
+          }
+        }
       });
 
       // ====== 导航切换（SPA 路由 + 页面缓存） ======
@@ -2007,6 +2020,13 @@
         if (!editorReady || !editorFrame || !editorFrame.contentWindow) return;
         const tag = e.target && e.target.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        // 焦点落在父窗口时：⌘/Ctrl+; 转发给编辑器唤出 AceJump（编辑区自身捕获仅当焦点在 iframe 内才生效）
+        if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key || '').toLowerCase() === ';') {
+          e.preventDefault();
+          if (window.__debugShortcutLog) window.__debugShortcutLog('父窗口 keydown 命中 ⌘/Ctrl+;，转发 editorFrame');
+          editorFrame.contentWindow.postMessage({ action: 'focusAceJump' }, '*');
+          return;
+        }
         if (e.metaKey || e.ctrlKey || e.altKey) return;
         // 斜杠菜单打开时：转发菜单导航/确认/关闭键
         if (editorSlashMenuOpen && ['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].indexOf(e.key) !== -1) {
@@ -2020,6 +2040,30 @@
           editorFrame.contentWindow.postMessage({ action: 'editorInsertChar', char: e.key }, '*');
         }
       });
+
+      // 主进程菜单加速键（CmdOrCtrl+;）→ IPC 事件 → 转发编辑器 iframe 唤出 AceJump。
+      // 走主进程兜底：即使中文输入法/焦点被抢占导致渲染层 keydown 收不到，也能唤起。
+      // 注意：必须在 keydown 处理器之外注册，避免每次按键都重复 addEventListener 泄漏。
+      if (window.electronAPI && window.electronAPI.onFocusAceJump) {
+        window.electronAPI.onFocusAceJump(() => {
+          // 无条件输出（不依赖 SHORTCUT_DEBUG），主窗口 DevTools 必能看到
+          console.log('[AceJump] 主窗口收到 focus-ace-jump IPC');
+          if (window.__debugShortcutLog) window.__debugShortcutLog('收到主进程 focus-ace-jump IPC，转发 editorFrame');
+          if (!editorFrame || !editorFrame.contentWindow) { console.log('[AceJump] editorFrame 不存在，转发失败'); return; }
+          editorFrame.contentWindow.postMessage({ action: 'focusAceJump' }, '*');
+        });
+      }
+      // SHORTCUT_DEBUG=1 启动：主进程下发诊断开关，设置本窗口标志并广播给各 iframe
+      if (window.electronAPI && window.electronAPI.onShortcutDebug) {
+        window.electronAPI.onShortcutDebug((v) => {
+          window.__shortcutDebug = !!v;
+          try {
+            document.querySelectorAll('iframe').forEach((f) => {
+              if (f.contentWindow) f.contentWindow.postMessage({ type: 'shortcut-debug', value: !!v }, '*');
+            });
+          } catch (e) {}
+        });
+      }
 
       // 截图工具：OCR 结果 → 编辑器新标签打开（主进程 IPC 事件）
       if (window.electronAPI && window.electronAPI.onScreenshotOpenInEditor) {
@@ -2580,6 +2624,18 @@
               console.error('[System] PDF OCR 失败:', err);
               showToast('PDF OCR 失败：' + friendlyError(err), true);
             }
+          });
+        }
+
+        // 剪贴板气泡「写作区」：把剪贴板内容以新标签页打开到编辑器
+        if (window.electronAPI.onToastWriteToEditor) {
+          window.electronAPI.onToastWriteToEditor(function(data) {
+            console.log('[System] 剪贴板内容送入写作区');
+            var title = (data && data.title) ? String(data.title) : '剪贴板内容';
+            var text = (data && data.text) ? String(data.text) : '';
+            renderView('editor');
+            window.history.pushState({ view: 'editor' }, '', '/editor');
+            sendToEditor({ type: 'openTextData', text: text, title: title });
           });
         }
 

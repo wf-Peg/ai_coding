@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>收件箱重设计 · 评审稿 v1</title>
+    <link rel="stylesheet" href="../frontend/styles/design-tokens.css">
+    <style>
+        /* ===== 评审容器 ===== */
+        * { box-sizing: border-box; margin: 0; }
+        body {
+            background: var(--app-bg);
+            color: var(--app-text);
+            font-family: var(--app-font);
+            padding: 96px 24px 72px;
+            transition: background var(--app-duration-normal) var(--app-ease-smooth), color var(--app-duration-normal) var(--app-ease-smooth);
+        }
+        .page { max-width: 1000px; margin: 0 auto; }
+
+        /* ===== 顶部评审工具条 ===== */
+        .review-bar {
+            position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+            z-index: 100;
+            display: flex; align-items: center; gap: 10px;
+            padding: 8px 14px;
+            background: var(--app-surface);
+            border: 1px solid var(--app-border);
+            border-radius: 999px;
+            box-shadow: var(--app-shadow-md);
+            font-size: 13px; color: var(--app-text);
+            white-space: nowrap;
+        }
+        .review-bar b { font-weight: 650; }
+        .review-bar .sep { width: 1px; height: 16px; background: var(--app-border); }
+        .theme-btn {
+            border: 1px solid var(--app-border);
+            background: var(--app-surface-subtle);
+            color: var(--app-text-secondary);
+            border-radius: 999px;
+            padding: 4px 12px;
+            font-size: 12px;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all var(--app-duration-fast) var(--app-ease-smooth);
+        }
+        .theme-btn:hover { border-color: var(--app-primary); color: var(--app-primary); }
+        .theme-btn.active { background: var(--app-primary-soft); border-color: var(--app-primary); color: var(--app-primary); font-weight: 600; }
+        .note-hint { font-size: 12px; color: var(--app-text-muted); margin: 18px 2px 6px; display: flex; align-items: center; gap: 6px; }
+        .note-hint .tag {
+            font-size: 10.5px; font-weight: 600; color: var(--app-primary);
+            background: var(--app-primary-soft); border-radius: 999px; padding: 2px 8px;
+        }
+
+        /* ===== 视图分隔与标题 ===== */
+        .view-title {
+            display: flex; align-items: baseline; gap: 10px;
+            margin: 44px 0 14px; padding-top: 30px; border-top: 1px dashed var(--app-border);
+        }
+        .view-title h2 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+        .view-title span { font-size: 12.5px; color: var(--app-text-muted); }
+        .view-frame {
+            background: var(--app-surface);
+            border: 1px solid var(--app-border);
+            border-radius: 18px;
+            box-shadow: var(--app-shadow-lg);
+            overflow: hidden;
+        }
+        .view-inner { padding: 24px 26px 30px; position: relative; }
+
+        /* ===== 新 Header（行1 品牌行 + 行2 动作行） ===== */
+        .mock-header { margin-bottom: 16px; }
+        .brand-row {
+            display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+        .brand-row h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.015em; color: var(--app-text); }
+        .brand-pill {
+            font-size: 11.5px; color: var(--app-text-muted);
+            background: var(--app-surface-subtle);
+            border: 1px solid var(--app-border);
+            border-radius: 999px; padding: 2px 10px;
+        }
+        .brand-sub { font-size: 13px; color: var(--app-text-muted); margin-left: 4px; }
+        .action-row {
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end;
+        }
+        .gbtn {
+            border: 1px solid transparent; background: transparent;
+            color: var(--app-text-secondary);
+            font-size: 12.5px; font-family: inherit; font-weight: 500;
+            padding: 6px 12px; border-radius: 9px; cursor: pointer;
+            transition: all var(--app-duration-fast) var(--app-ease-smooth);
+            white-space: nowrap;
+        }
+        .gbtn:hover { background: var(--app-surface-hover); color: var(--app-text); border-color: var(--app-border); }
+        .gbtn.primary-ghost { color: var(--app-primary); }
+        .gbtn.primary-ghost:hover { background: var(--app-primary-soft); border-color: var(--app-primary-soft); }
+        .icon-g {
+            width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
+            border: 1px solid transparent; background: transparent; color: var(--app-text-muted);
+            border-radius: 8px; cursor: pointer; transition: all var(--app-duration-fast) var(--app-ease-smooth);
+        }
+        .icon-g:hover { background: var(--app-surface-hover); color: var(--app-text); border-color: var(--app-border); }
+        .icon-g svg { width: 13px; height: 13px; }
+        .wc-pill {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 11.5px; color: var(--app-text-secondary);
+            background: var(--app-surface-subtle); border: 1px solid var(--app-border);
+            border-radius: 999px; padding: 4px 10px;
+        }
+        .wc-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--app-success); }
+        .toggle-pill {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 12.5px; color: var(--app-primary); font-weight: 600;
+            background: var(--app-primary-soft); border: 1px solid var(--app-primary-soft);
+            border-radius: 9px; padding: 6px 12px; cursor: pointer;
+            transition: all var(--app-duration-fast) var(--app-ease-smooth);
+        }
+        .toggle-pill:hover { border-color: var(--app-primary); }
+
+        /* ===== 记录入口：compose 记录条 + chips ===== */
+        .record-entry { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 14px; }
+        .compose-entry {
+            display: flex; align-items: center; gap: 10px;
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid transparent; border-radius: 12px;
+            background: var(--app-surface-subtle);
+            font-family: inherit; font-size: 14px; color: var(--app-text); text-align: left; cursor: pointer;
+            transition: all var(--app-duration-normal) var(--app-ease-smooth);
+        }
+        .compose-entry:hover {
+            background: var(--app-surface);
+            border-color: var(--app-border);
+            box-shadow: var(--app-shadow-sm);
+        }
+        .compose-entry .pen { width: 15px; height: 15px; color: var(--app-primary); flex-shrink: 0; }
+        .compose-entry .ph { flex: 1; color: var(--app-text-muted); }
+        .compose-entry .kbd {
+            font-size: 11px; color: var(--app-text-muted);
+            background: var(--app-surface);
+            border: 1px solid var(--app-border); border-radius: 6px; padding: 2px 8px;
+            font-family: var(--app-font-mono);
+        }
+        .chip-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            border: 1px solid transparent; background: var(--app-surface-subtle);
+            color: var(--app-text-secondary);
+            font-size: 12.5px; font-weight: 500; font-family: inherit;
+            padding: 7px 13px; border-radius: 999px; cursor: pointer;
+            transition: all var(--app-duration-fast) var(--app-ease-smooth);
+        }
+        .chip svg { width: 13px; height: 13px; }
+        .chip:hover {
+            background: var(--app-primary-soft); color: var(--app-primary);
+            transform: translateY(-1px);
+        }
+        .chip-primary { background: var(--app-primary-soft); color: var(--app-primary); }
+        .chip-primary:hover { background: var(--app-primary); color: #fff; }
+
+        /* ===== 每日回看横幅 ===== */
+        .daily-review {
+            display: flex; align-items: center; gap: 12px;
+            padding: 13px 16px; margin-bottom: 16px;
+            background: linear-gradient(90deg, var(--app-primary-soft), transparent 72%);
+            border: 1px solid var(--app-primary-soft);
+            border-radius: 14px;
+        }
+        .daily-review .ic {
+            width: 34px; height: 34px; flex-shrink: 0; border-radius: 10px;
+            background: var(--app-primary-soft); color: var(--app-primary);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .daily-review .ic svg { width: 16px; height: 16px; }
+        .daily-review .txt { flex: 1; min-width: 0; }
+        .daily-review .title { font-size: 13.5px; font-weight: 600; color: var(--app-text); }
+        .daily-review .title b { color: var(--app-primary); }
+        .daily-review .sub { font-size: 12px; color: var(--app-text-muted); margin-top: 2px; }
+        .daily-review .act {
+            border: none; background: var(--app-primary); color: #fff;
+            font-size: 12.5px; font-weight: 600; font-family: inherit;
+            padding: 7px 14px; border-radius: 9px; cursor: pointer; white-space: nowrap;
+            transition: all var(--app-duration-fast) var(--app-ease-smooth);
+        }
+        .daily-review .act:hover { background: var(--app-primary-hover); transform: translateY(-1px); }
+        .daily-review .x {
+            border: none; background: transparent; color: var(--app-text-muted);
+            font-size: 16px; line-height: 1; cursor: pointer; padding: 4px;
+        }
+        .daily-review .x:hover { color: var(--app-text); }
+
+        /* ===== 列表头 ===== */
+        .list-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 4px 0 10px; flex-wrap: wrap; }
+        .list-header .lh-title { font-size: 16.5px; font-weight: 700; letter-spacing: -0.01em; }
+        .lh-left { display: flex; align-items: center; gap: 10px; }
+        .ask-btn {
+            display: inline-flex; align-items: center; gap: 5px;
+            border: 1px solid var(--app-border); background: var(--app-surface);
+            color: var(--app-text-secondary); font-size: 12.5px; font-family: inherit; font-weight: 500;
+            padding: 6px 12px; border-radius: 9px; cursor: pointer;
+            transition: all var(--app-duration-fast) var(--app-ease-smooth);
+        }
+        .ask-btn:hover { border-color: var(--app-primary); color: var(--app-primary); background: var(--app-primary-soft); }
+        .ask-btn svg { width: 13px; height: 13px; }
+        .wfilter {
+            border: 1px solid var(--app-border); background: var(--app-surface-subtle);
+            color: var(--app-text); font-size: 12.5px; font-family: inherit;
+            padding: 6px 12px; border-radius: 9px; cursor: pointer;
+        }
+        .count-pill { font-size: 12px; color: var(--app-text-muted); background: var(--app-surface-subtle); border-radius: 999px; padding: 3px 10px; }
+
+        /* ===== 精简列表行 ===== */
+        .clip-items { display: flex; flex-direction: column; gap: 8px; }
+        .clip-item {
+            position: relative;
+            display: flex; align-items: flex-start; gap: 12px;
+            padding: 13px 14px 13px 14px;
+            border-radius: 12px;
+            background: transparent;
+            border: 1px solid transparent;
+            transition: background var(--app-duration-normal) var(--app-ease-smooth), border-color var(--app-duration-normal) var(--app-ease-smooth);
+            cursor: default;
+        }
+        .clip-item::before {
+            content: ''; position: absolute; left: 0; top: 18px; bottom: 18px; width: 3px;
+            border-radius: 0 3px 3px 0;
+            background: linear-gradient(180deg, var(--app-primary), rgba(35,131,226,0.35));
+            opacity: 0; transition: opacity var(--app-duration-normal) var(--app-ease-smooth);
+        }
+        .clip-item:hover { background: var(--app-surface-subtle); }
+        .clip-item:hover::before, .clip-item.selected::before { opacity: 1; }
+        .clip-item.selected { background: var(--app-primary-soft); }
+        .check {
+            width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px;
+            border: 2px solid var(--app-border-strong); border-radius: 50%;
+            background: var(--app-surface); transition: all var(--app-duration-fast) var(--app-ease-smooth);
+        }
+        .clip-item:hover .check { border-color: var(--app-primary); }
+        .clip-item.selected .check {
+            border-color: var(--app-primary); background: var(--app-primary);
+            box-shadow: inset 0 0 0 3px var(--app-surface);
+        }
+        .item-main { flex: 1; min-width: 0; }
+        .item-badges { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+        .type-lab { font-size: 12px; color: var(--app-text-muted); display: inline-flex; align-items: center; gap: 5px; }
+        .type-lab svg { width: 12px; height: 12px; }
+        .mini-chip {
+            font-size: 11.5px; font-weight: 500;
+            background: var(--app-surface-subtle); border: 1px solid var(--app-border);
+            color: var(--app-text-secondary); border-radius: 999px; padding: 1px 9px;
+        }
+        .mini-chip.cat { color: var(--app-primary); background: var(--app-primary-soft); border-color: transparent; }
+        .status { font-size: 11.5px; font-weight: 600; border-radius: 999px; padding: 1px 9px; }
+        .s-inbox { color: var(--app-warning); background: var(--app-warning-soft); }
+        .s-organized { color: var(--app-success); background: var(--app-success-soft); }
+        .s-store { color: var(--app-text-secondary); background: var(--app-surface-subtle); }
+        .item-summary {
+            font-size: 14.5px; font-weight: 600; line-height: 1.55; color: var(--app-text);
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+            letter-spacing: -0.005em;
+        }
+        .item-summary.lite { color: var(--app-text-secondary); font-weight: 500; }
+        .item-meta { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; margin-top: 6px; font-size: 12px; color: var(--app-text-muted); }
+        .item-meta .sep { color: var(--app-border-strong); }
+        .item-actions {
+            display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+            opacity: 0; transform: translateX(4px);
+            transition: opacity var(--app-duration-normal) var(--app-ease-smooth), transform var(--app-duration-normal) var(--app-ease-smooth);
+        }
+        .clip-item:hover .item-actions { opacity: 1; transform: translateX(0); }
+        .act-btn {
+            display: inline-flex; align-items: center; gap: 4px;
+            border: 1px solid var(--app-border); background: var(--app-surface);
+            color: var(--app-text-secondary); font-size: 12px; font-family: inherit;
+            padding: 5px 10px; border-radius: 8px; cursor: pointer; white-space: nowrap;
+            transition: all var(--app-duration-fast) var(--app-ease-smooth);
+            box-shadow: var(--app-shadow-xs);
+        }
+        .act-btn:hover { border-color: var(--app-primary); color: var(--app-primary); }
+        .act-btn svg { width: 11px; height: 11px; }
+        .act-btn.danger:hover { border-color: var(--app-danger); color: var(--app-danger); }
+
+        /* ===== 表单展开态 ===== */
+        .form-card {
+            border: 1px solid var(--app-border);
+            border-radius: 14px;
+            background: var(--app-surface);
+            box-shadow: var(--app-shadow-sm);
+            padding: 20px 22px;
+        }
+        .form-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+        .form-head h3 { font-size: 15.5px; font-weight: 700; }
+        .form-collapse {
+            display: inline-flex; align-items: center; gap: 4px;
+            border: 1px solid var(--app-border); background: var(--app-surface);
+            color: var(--app-text-secondary); font-size: 12px; font-family: inherit;
+            padding: 5px 10px; border-radius: 8px; cursor: pointer;
+        }
+        .form-collapse:hover { border-color: var(--app-primary); color: var(--app-primary); }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+        .fg { display: flex; flex-direction: column; gap: 5px; }
+        .fg label { font-size: 12px; color: var(--app-text-secondary); font-weight: 600; }
+        .fg .inp {
+            border: 1px solid var(--app-border); background: var(--app-surface);
+            border-radius: 9px; padding: 9px 12px; font-size: 13px; color: var(--app-text);
+            font-family: inherit;
+        }
+        .fg .inp:focus { outline: none; border-color: var(--app-primary); box-shadow: 0 0 0 3px var(--app-primary-soft); }
+        .fg.full { grid-column: 1 / -1; }
+        .fg textarea.inp { min-height: 92px; resize: vertical; line-height: 1.6; }
+        .img-drop {
+            border: 1.5px dashed var(--app-border-strong); border-radius: 10px;
+            background: var(--app-surface-subtle);
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 16px; color: var(--app-text-muted); font-size: 12.5px;
+        }
+        .form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+        .pbtn {
+            border: none; background: var(--app-primary); color: #fff; font-size: 13px; font-weight: 600; font-family: inherit;
+            padding: 8px 16px; border-radius: 9px; cursor: pointer;
+        }
+        .pbtn:hover { background: var(--app-primary-hover); }
+        .sbtn {
+            border: 1px solid var(--app-border); background: var(--app-surface); color: var(--app-text-secondary);
+            font-size: 13px; font-family: inherit; font-weight: 500; padding: 8px 16px; border-radius: 9px; cursor: pointer;
+        }
+        .sbtn:hover { border-color: var(--app-text-muted); color: var(--app-text); }
+
+        /* ===== 浮动批量操作条 ===== */
+        .float-wrap { position: relative; min-height: 60px; margin-top: 10px; }
+        .float-bar {
+            position: absolute; left: 50%; transform: translateX(-50%); bottom: 0;
+            display: flex; align-items: center; gap: 8px;
+            background: var(--app-surface);
+            border: 1px solid var(--app-border);
+            border-radius: 999px;
+            box-shadow: var(--app-shadow-lg);
+            padding: 7px 12px;
+            font-size: 12.5px; color: var(--app-text-secondary);
+        }
+        .float-bar .cnt b { color: var(--app-text); }
+        .fbtn {
+            display: inline-flex; align-items: center; gap: 5px;
+            border: none; background: transparent; color: var(--app-text-secondary);
+            font-size: 12.5px; font-family: inherit; font-weight: 600;
+            padding: 6px 12px; border-radius: 999px; cursor: pointer;
+        }
+        .fbtn:hover { background: var(--app-primary-soft); color: var(--app-primary); }
+        .fbtn.danger:hover { background: var(--app-danger-soft); color: var(--app-danger); }
+        .fbtn svg { width: 13px; height: 13px; }
+        .fdash { width: 1px; height: 18px; background: var(--app-border); }
+
+        /* ===== 设计注记 ===== */
+        .notes { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; padding: 12px 16px; border-radius: 10px; background: var(--app-surface-subtle); }
+        .notes .n { font-size: 12px; color: var(--app-text-secondary); line-height: 1.6; }
+        .notes .n b { color: var(--app-text); }
+
+        @media (max-width: 720px) {
+            .item-actions { opacity: 1 !important; transform: none !important; }
+            .form-grid { grid-template-columns: 1fr; }
+            .review-bar { width: calc(100% - 24px); justify-content: center; flex-wrap: wrap; }
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+
+    <!-- 评审工具条 -->
+    <div class="review-bar">
+        <b>收件箱重设计 · 评审稿 v1</b>
+        <span class="sep"></span>
+        <span>主题：</span>
+        <button class="theme-btn active" data-t="light" onclick="setTheme('light')">明亮</button>
+        <button class="theme-btn" data-t="notion" onclick="setTheme('notion')">纸感</button>
+        <button class="theme-btn" data-t="dark" onclick="setTheme('dark')">暗色</button>
+    </div>
+
+    <!-- ═════════ 视图 1：主视图（折叠态） ═════════ -->
+    <div class="view-title">
+        <h2>视图 1 · 主页（默认折叠态）</h2>
+        <span>改动点：单栏 · 左对齐品牌行 · 右对齐 ghost 工具条 · 记录条 + chips · 每日回看渐变横幅 · 精简列表行</span>
+    </div>
+    <div class="view-frame"><div class="view-inner">
+
+        <!-- 新 Header -->
+        <div class="mock-header">
+            <div class="brand-row">
+                <h1>收件箱</h1>
+                <span class="brand-pill">碎碎记 · CutShelter</span>
+                <span class="brand-sub">捕捉灵感，智能整理，构建你的个人知识库</span>
+            </div>
+            <div class="action-row">
+                <span class="wc-pill"><span class="dot"></span>Web Clipper 同步：已就绪</span>
+                <button class="gbtn primary-ghost">整理收件箱</button>
+                <button class="gbtn">整理今日内容</button>
+                <button class="gbtn">生成周报总结</button>
+                <button class="gbtn"><span style="margin-right:5px;">⟳</span>同步仓库</button>
+                <span class="icon-g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></span>
+                <span class="icon-g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>
+                <span class="toggle-pill">🔍 信息检索</span>
+            </div>
+        </div>
+
+        <!-- 记录入口 -->
+        <div class="record-entry">
+            <button class="compose-entry">
+                <svg class="pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                <span class="ph">写点什么… 输入或粘贴内容，一键记录</span>
+                <span class="kbd">⌘V 粘贴即存</span>
+            </button>
+            <div class="chip-row">
+                <button class="chip chip-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>粘贴文本</button>
+                <button class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>插图</button>
+                <button class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>链接</button>
+                <button class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8h10M7 12h7M7 16h4"/></svg>OCR</button>
+            </div>
+        </div>
+
+        <!-- 每日回看 -->
+        <div class="daily-review">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="4"/></svg></span>
+            <div class="txt">
+                <div class="title">每日回看 · <b>3</b> 条沉底的旧收藏</div>
+                <div class="sub">收藏过，别让它永远躺平。花 1 分钟翻翻这些内容。</div>
+            </div>
+            <button class="act">开始回顾</button>
+            <button class="x">&times;</button>
+        </div>
+
+        <!-- 列表头 -->
+        <div class="list-header">
+            <span class="lh-title">剪藏列表</span>
+            <div class="lh-left">
+                <button class="ask-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 7.7l5.4-.8Z"/></svg>问我的剪藏库</button>
+                <select class="wfilter"><option>收件箱（待整理）</option><option>仅已整理</option><option>全部流程</option></select>
+                <span class="count-pill">12 条</span>
+            </div>
+        </div>
+
+        <!-- 列表行 -->
+        <div class="clip-items">
+            <div class="clip-item" style="cursor:pointer;">
+                <span class="check"></span>
+                <div class="item-main">
+                    <div class="item-badges">
+                        <span class="type-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>链接</span>
+                        <span class="mini-chip cat">前端工程</span>
+                        <span class="status s-inbox">待整理</span>
+                    </div>
+                    <div class="item-summary">深入浅出讲解 Vite 6 的依赖预构建机制：为什么启动变快了，又是如何做到按需优化的…</div>
+                    <div class="item-meta"><span>juejin.cn</span><span class="sep">·</span><span>2026-09-13 14:20</span><span class="sep">·</span><span>🔖 3 标签</span></div>
+                </div>
+                <div class="item-actions">
+                    <button class="act-btn">AI 整理</button>
+                    <button class="act-btn">编辑</button>
+                    <button class="act-btn danger">删除</button>
+                </div>
+            </div>
+
+            <div class="clip-item selected" style="cursor:pointer;">
+                <span class="check"></span>
+                <div class="item-main">
+                    <div class="item-badges">
+                        <span class="type-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>文本</span>
+                        <span class="mini-chip cat">学习方法</span>
+                        <span class="status s-organized">已整理</span>
+                        <span class="mini-chip">💭 有思考</span>
+                    </div>
+                    <div class="item-summary">费曼学习法的四个步骤在于「输出倒逼输入」：用最简单的语言讲清一个概念，才算真正掌握…</div>
+                    <div class="item-meta"><span>剪藏</span><span class="sep">·</span><span>2026-09-12 09:45</span></div>
+                </div>
+                <div class="item-actions">
+                    <button class="act-btn">AI 整理</button>
+                    <button class="act-btn">编辑</button>
+                    <button class="act-btn danger">删除</button>
+                </div>
+            </div>
+
+            <div class="clip-item" style="cursor:pointer;">
+                <span class="check"></span>
+                <div class="item-main">
+                    <div class="item-badges">
+                        <span class="type-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>插图</span>
+                        <span class="mini-chip cat">产品设计</span>
+                        <span class="status s-inbox">待整理</span>
+                        <span class="mini-chip">📝 标 2</span>
+                    </div>
+                    <div class="item-summary lite">UI 设计稿：收件箱列表行式布局参考（含悬停操作浮现、状态徽章配色）</div>
+                    <div class="item-meta"><span>本地图片</span><span class="sep">·</span><span>2026-09-11 22:05</span></div>
+                </div>
+                <div class="item-actions">
+                    <button class="act-btn">OCR 识别</button>
+                    <button class="act-btn">编辑</button>
+                    <button class="act-btn danger">删除</button>
+                </div>
+            </div>
+
+            <div class="clip-item" style="cursor:pointer;">
+                <span class="check"></span>
+                <div class="item-main">
+                    <div class="item-badges">
+                        <span class="type-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>AI 笔记</span>
+                        <span class="mini-chip cat">人工智能</span>
+                        <span class="status s-organized">已整理</span>
+                    </div>
+                    <div class="item-summary">LoRA 微调 FAQ 汇总：数据集构建、显存占用、过拟合判断与常用参数参考区间…</div>
+                    <div class="item-meta"><span>docs.llm-cookbook</span><span class="sep">·</span><span>2026-09-10 16:30</span></div>
+                </div>
+                <div class="item-actions">
+                    <button class="act-btn">AI 整理</button>
+                    <button class="act-btn">编辑</button>
+                    <button class="act-btn danger">删除</button>
+                </div>
+            </div>
+
+            <div class="clip-item" style="cursor:pointer;">
+                <span class="check"></span>
+                <div class="item-main">
+                    <div class="item-badges">
+                        <span class="type-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>文本</span>
+                        <span class="status s-store">仅存储</span>
+                    </div>
+                    <div class="item-summary lite">临时存一段：周末要去配镜，记得带旧镜片和验光单（备忘）</div>
+                    <div class="item-meta"><span>剪藏</span><span class="sep">·</span><span>2026-09-09 08:15</span></div>
+                </div>
+                <div class="item-actions">
+                    <button class="act-btn">AI 整理</button>
+                    <button class="act-btn">编辑</button>
+                    <button class="act-btn danger">删除</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="notes">
+            <div class="n"><b>· Header 双行化</b>：标题左对齐 + 「碎碎记 · CutShelter」品牌 pill，右侧动作收敛为 ghost 工具条；右上角「切换风格」按钮已删除。</div>
+            <div class="n"><b>· 记录入口</b>：compose 记录条改为浅底柔和样式；快速记录 5 → 4 枚 chip（删除「待办」），主入口 `粘贴文本` 高亮。</div>
+            <div class="n"><b>· 列表行式</b>：从重边框卡片 → 无边框列表行；hover 浮现操作按钮、左侧主色指示条；状态徽章三色保留（橙=待整理 / 绿=已整理 / 灰=仅存储）。</div>
+        </div>
+    </div></div>
+
+    <!-- ═════════ 视图 2：表单展开态 ═════════ -->
+    <div class="view-title">
+        <h2>视图 2 · 剪藏表单展开态</h2>
+        <span>点击「记录条」后在页面内原位展开；顶部「收起」一键折叠回视图 1</span>
+    </div>
+    <div class="view-frame"><div class="view-inner">
+        <div class="form-card">
+            <div class="form-head">
+                <h3>新建剪藏</h3>
+                <button class="form-collapse">⌃ 收起</button>
+            </div>
+            <div class="form-grid">
+                <div class="fg">
+                    <label>剪藏类型</label>
+                    <div class="inp" style="display:flex;align-items:center;gap:8px;">
+                        <select style="flex:1;border:none;background:transparent;font-size:13px;font-family:inherit;color:var(--app-text);">
+                            <option>稍后整理（仅存储内容）</option>
+                            <option>立即 AI 整理为笔记</option>
+                            <option>链接 AI 解析整理</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="fg">
+                    <label>来源</label>
+                    <input class="inp" placeholder="例如：https://example.com/article" value="https://example.com/article">
+                </div>
+                <div class="fg">
+                    <label>分类</label>
+                    <div class="inp">前端工程 ▾</div>
+                </div>
+                <div class="fg">
+                    <label>标签</label>
+                    <div class="inp" style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;">
+                        <span class="mini-chip cat">vite</span><span class="mini-chip cat">构建</span>
+                        <span style="color:var(--app-text-muted);font-size:12.5px;">添加…</span>
+                    </div>
+                </div>
+                <div class="fg full">
+                    <label>内容</label>
+                    <textarea class="inp" placeholder="粘贴文本内容，快速剪藏…（Ctrl+V）">Vite 6 默认使用 esbuild 进行依赖预构建…</textarea>
+                </div>
+                <div class="fg full">
+                    <label>我的思考</label>
+                    <textarea class="inp" placeholder="记录你的想法、疑问、联想或反思…" style="min-height:56px;"></textarea>
+                </div>
+            </div>
+            <div class="img-drop">📎 支持粘贴 / 选择 / 拖拽图片，图片可一键 OCR 提取文字</div>
+            <div class="form-actions">
+                <button class="sbtn">清空</button>
+                <button class="sbtn">智能入库</button>
+                <button class="pbtn">添加剪藏</button>
+            </div>
+        </div>
+        <div class="notes">
+            <div class="n"><b>· 表单卡片化</b>：radius 14px + 轻阴影，字段双列网格；「内容」区随类型联动显隐（此处为折叠态展开的默认形态）。</div>
+            <div class="n"><b>· 提交后自动收起</b>：提交成功 → 列表刷新 → 表单折叠回记录条，回到视图 1 主区。</div>
+        </div>
+    </div></div>
+
+    <!-- ═════════ 视图 3：批量选择态 ═════════ -->
+    <div class="view-title">
+        <h2>视图 3 · 批量选择态</h2>
+        <span>圆形复选框选中 → 列表头计数 + 底部浮动操作条浮现</span>
+    </div>
+    <div class="view-frame"><div class="view-inner">
+        <div class="clip-items">
+            <div class="clip-item selected" style="cursor:pointer;">
+                <span class="check"></span>
+                <div class="item-main">
+                    <div class="item-badges">
+                        <span class="type-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>链接</span>
+                        <span class="mini-chip cat">前端工程</span>
+                        <span class="status s-inbox">待整理</span>
+                    </div>
+                    <div class="item-summary">深入浅出讲解 Vite 6 的依赖预构建机制：为什么启动变快了…</div>
+                    <div class="item-meta"><span>juejin.cn</span><span class="sep">·</span><span>2026-09-13 14:20</span></div>
+                </div>
+                <div class="item-actions">
+                    <button class="act-btn">AI 整理</button>
+                    <button class="act-btn">编辑</button>
+                    <button class="act-btn danger">删除</button>
+                </div>
+            </div>
+            <div class="clip-item selected" style="cursor:pointer;">
+                <span class="check"></span>
+                <div class="item-main">
+                    <div class="item-badges">
+                        <span class="type-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>文本</span>
+                        <span class="mini-chip cat">学习方法</span>
+                        <span class="status s-organized">已整理</span>
+                    </div>
+                    <div class="item-summary">费曼学习法的四个步骤在于「输出倒逼输入」…</div>
+                    <div class="item-meta"><span>剪藏</span><span class="sep">·</span><span>2026-09-12 09:45</span></div>
+                </div>
+                <div class="item-actions">
+                    <button class="act-btn">AI 整理</button>
+                    <button class="act-btn">编辑</button>
+                    <button class="act-btn danger">删除</button>
+                </div>
+            </div>
+            <div class="clip-item" style="cursor:pointer;">
+                <span class="check"></span>
+                <div class="item-main">
+                    <div class="item-badges">
+                        <span class="type-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>AI 笔记</span>
+                        <span class="mini-chip cat">人工智能</span>
+                        <span class="status s-organized">已整理</span>
+                    </div>
+                    <div class="item-summary">LoRA 微调 FAQ 汇总：数据集构建、显存占用、过拟合判断…</div>
+                    <div class="item-meta"><span>docs.llm-cookbook</span><span class="sep">·</span><span>2026-09-10 16:30</span></div>
+                </div>
+                <div class="item-actions">
+                    <button class="act-btn">AI 整理</button>
+                    <button class="act-btn">编辑</button>
+                    <button class="act-btn danger">删除</button>
+                </div>
+            </div>
+        </div>
+        <div class="float-wrap">
+            <div class="float-bar">
+                <span class="cnt">已选 <b>2</b> 项</span>
+                <span class="fdash"></span>
+                <button class="fbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>合成知识</button>
+                <span class="fdash"></span>
+                <button class="fbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>批量整理</button>
+                <button class="fbtn danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>删除</button>
+                <span style="width:1px;height:18px;background:var(--app-border);"></span>
+                <button class="fbtn">取消选择</button>
+            </div>
+        </div>
+        <div class="notes">
+            <div class="n"><b>· 选中态</b>：行背景主色浅蓝 + 左侧指示条点亮，圆形复选框填充；底栏「合成知识 / 批量整理 / 删除 / 取消选择」保持不变。</div>
+        </div>
+    </div></div>
+
+    <div style="height:40px;"></div>
+</div>
+
+<script>
+    function setTheme(t) {
+        if (t === 'light') {
+            document.documentElement.removeAttribute('data-theme');
+        } else {
+            document.documentElement.setAttribute('data-theme', t);
+        }
+        document.querySelectorAll('.theme-btn').forEach(function (b) {
+            b.classList.toggle('active', b.dataset.t === t);
+        });
+    }
+</script>
+</body>
+</html>

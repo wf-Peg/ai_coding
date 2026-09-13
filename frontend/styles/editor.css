@@ -3346,6 +3346,35 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
   background: var(--app-danger-soft);
 }
 
+/* 内置模板徽标（斜杠菜单行 + 模板管理列表通用） */
+.tpl-badge-sm {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 5px;
+  margin-right: 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 16px;
+  color: var(--app-brand);
+  background: var(--app-primary-soft);
+  border: 1px solid var(--app-primary-soft);
+  vertical-align: middle;
+  flex: 0 0 auto;
+}
+
+/* 「管理模板」维护入口行：顶部细分隔，弱化视觉权重 */
+.slash-manage-tpl {
+  margin-top: 4px;
+  border-top: 1px solid var(--app-border);
+  border-radius: 0 0 6px 6px;
+  color: var(--app-text-muted);
+}
+.slash-manage-tpl:hover,
+.slash-manage-tpl.focused {
+  color: var(--app-text);
+  background: var(--app-primary-soft);
+}
+
 /* ── 双链同名目标选择弹窗 ── */
 .wikilink-picker-card {
   width: min(460px, 94vw);
@@ -4286,6 +4315,25 @@ a.wikilink.wikilink-missing:hover {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* 带功能说明的条目：图标 +（名称 + 说明）两行内层列 + 快捷键 */
+.command-palette-item-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.command-palette-item-main .command-palette-item-name {
+  flex: 1;
+}
+.command-palette-item-desc {
+  font-size: 11px;
+  line-height: 1.3;
+  color: inherit;
+  opacity: .62;
+  white-space: normal;
+  overflow: hidden;
+}
 .command-palette-item-shortcut {
   flex-shrink: 0;
   margin-left: 12px;
@@ -4483,4 +4531,31 @@ a.wikilink.wikilink-missing:hover {
     opacity: 1;
     transform: translate(-50%, -50%) scale(1);
   }
+}
+
+/* 空画布唤起 AceJump 时的中央提示：淡入→停留→淡出，二者必得其一，避免“按了没反应”的误判 */
+.acejump-empty-hint {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 1000;
+  padding: 14px 20px;
+  border-radius: 12px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  color: var(--app-text);
+  font-size: 13px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+  animation: acejump-hint-pulse 2.2s var(--app-ease-smooth, ease-out) both;
+}
+.acejump-empty-hint b {
+  color: var(--app-primary, #2383e2);
+}
+@keyframes acejump-hint-pulse {
+  0% { opacity: 0; transform: translate(-50%, -46%); }
+  12% { opacity: 1; transform: translate(-50%, -50%); }
+  82% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%); }
 }

@@ -61,3 +61,24 @@ test('assignJumpCodes 兜底：与 EditorPure 一致（单字母 + 两阶段）'
   s2.forEach(c => assert.equal(c.length, 2));
   assert.deepEqual(AJ._assignJumpCodes(0), []);
 });
+
+test('start：候选为空时回调 onEmpty 而非静默（回归：写作区画布唤出无反应）', () => {
+  const container = {
+    clientHeight: 0, getBoundingClientRect: () => ({ height: 0 }),
+    appendChild: () => {}, addEventListener: () => {}, removeEventListener: () => {}
+  };
+  const renderer = {
+    $size: { height: 0 }, container,
+    getFirstFullyVisibleRow: () => 0, getLastFullyVisibleRow: () => 0,
+    textToScreenCoordinates: () => ({ pageX: 0, pageY: 0 })
+  };
+  const session = { getLength: () => 0, getLine: () => '' };
+  const fakeEditor = { container, renderer, session };
+
+  let empty = 0;
+  AJ.start(fakeEditor, { mode: 'word', select: false, onEmpty: () => { empty += 1; } });
+  assert.equal(empty, 1);
+  // 未传 onEmpty 时仍不抛异常（保持向后兼容）
+  assert.doesNotThrow(() => AJ.start(fakeEditor, { mode: 'word' }));
+  AJ.stop();
+});

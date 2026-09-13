@@ -154,6 +154,7 @@
         .lmark.derived-line { border-top-style: dashed; border-top-color: #fb923c; }
         .lmark.linked-line { border-top-color: var(--app-primary); }
         .lmark.plan-line { border-top-color: #22c55e; }
+        .lmark.wikilink-line { border-top-color: #c084fc; }
 
         /* 小地图 */
         .minimap {
@@ -304,6 +305,9 @@
             stroke: var(--link-color);
             stroke-opacity: var(--link-opacity);
             stroke-width: 1px;
+        }
+        .link.link-wikilink {
+            stroke-width: 1.5px;
         }
         .link.dimmed {
             stroke-opacity: 0.05;
@@ -479,6 +483,7 @@
             <div class="legend-item"><span class="lmark derived-line"></span>来源</div>
             <div class="legend-item"><span class="lmark linked-line"></span>关联</div>
             <div class="legend-item"><span class="lmark plan-line"></span>计划关联</div>
+            <div class="legend-item"><span class="lmark wikilink-line"></span>双链引用</div>
         </div>
 
         <!-- 小地图：大画布快速定位 -->

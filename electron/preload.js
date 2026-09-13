@@ -280,6 +280,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onFocusGlobalCmdPalette: (callback) => ipcRenderer.on('focus-global-cmd-palette', () => callback()),
 
   /**
+   * 监听主进程请求唤起编辑器 AceJump（⌘/Ctrl+; 菜单加速键触发）
+   * @param {Function} callback - 无参回调
+   */
+  onFocusAceJump: (callback) => ipcRenderer.on('focus-ace-jump', () => callback()),
+
+  /**
+   * 监听主进程开启渲染层快捷键诊断日志（SHORTCUT_DEBUG=1 启动时主进程下发）
+   * @param {Function} callback - 回调参数为是否开启的布尔值
+   */
+  onShortcutDebug: (callback) => ipcRenderer.on('shortcut-debug', (e, v) => callback(!!v)),
+
+  /**
    * 设置「全局搜索」菜单加速键（设置模块自定义快捷键后热更新主进程菜单）
    * @param {string} combo - 形如 'Ctrl+Shift+F'
    * @returns {Promise<boolean>}
@@ -644,12 +656,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 剪贴板即时助手：读取富内容（文本/图片）供渲染进程预览
   readClipboardRich: () => ipcRenderer.invoke('read-clipboard:rich'),
 
-  // 剪贴板气泡窗交互：记录到剪藏 / 忽略 / 关闭
+  // 剪贴板气泡窗交互：记录到剪藏 / 写入写作区 / 忽略 / 关闭 / 打开历史面板
   clipboardToast: {
     record: () => ipcRenderer.invoke('clipboard-toast:record'),
+    write: () => ipcRenderer.invoke('clipboard-toast:write'),
     ignore: () => ipcRenderer.invoke('clipboard-toast:ignore'),
     close: () => ipcRenderer.invoke('clipboard-toast:close'),
+    openHistory: () => ipcRenderer.invoke('clipboard-history:open'),
   },
+
+  /** 主进程把剪贴板内容送入写作区（主窗口监听后转发给编辑器 iframe） */
+  onToastWriteToEditor: (callback) => ipcRenderer.on('toast-write-to-editor', (_event, data) => callback(data)),
+
+  // 剪贴板历史面板：列表 / 删除 / 清空 / 补录为剪藏 / 打开与关闭窗口
+  clipboardHistory: {
+    list: () => ipcRenderer.invoke('clipboard-history:list'),
+    remove: (id) => ipcRenderer.invoke('clipboard-history:delete', id),
+    clear: () => ipcRenderer.invoke('clipboard-history:clear'),
+    record: (id) => ipcRenderer.invoke('clipboard-history:record', id),
+    open: () => ipcRenderer.invoke('clipboard-history:open'),
+    close: () => ipcRenderer.invoke('clipboard-history:close'),
+  },
+
+  /** 监听主进程推送的剪贴板历史刷新信号（新内容入库 / 面板打开时自动拉取） */
+  onClipboardHistoryRefresh: (callback) => ipcRenderer.on('clipboard-history:refresh', () => callback()),
 
   getShortcutConfig: () => ipcRenderer.invoke('get-shortcut-config'),
   setShortcutConfig: (config) => ipcRenderer.invoke('set-shortcut-config', config),

@@ -125,3 +125,24 @@ test('捕获分发：覆盖自定义组合键后同样按新键命中', () => {
   ES.registerHandler('quickOpen', null);
   ES.reset();
 });
+
+test('捕获分发：Cmd+;（metaKey）命中并执行 aceJump handler（回归：☆写作区画布按 Cmd+; 无反应）', () => {
+  store.clear();
+  let calls = 0;
+  ES.registerHandler('aceJump', () => { calls += 1; });
+  const evt = { ctrlKey: false, metaKey: true, shiftKey: false, altKey: false, key: ';', preventDefault: () => {}, stopImmediatePropagation: () => {} };
+  ES.dispatchCapture(evt);
+  assert.equal(calls, 1);
+  // 不匹配的键不应触发（如 Cmd+P）
+  const other = { ctrlKey: false, metaKey: true, shiftKey: false, altKey: false, key: 'P', preventDefault: () => {}, stopImmediatePropagation: () => {} };
+  ES.dispatchCapture(other);
+  assert.equal(calls, 1);
+  ES.registerHandler('aceJump', null);
+});
+
+test('match：中文输入法全角分号也能命中 Ctrl+;', () => {
+  store.clear();
+  // 全角 ； 归一化后应命中半角配置键 Ctrl+;
+  assert.equal(ES.match({ ctrlKey: false, metaKey: true, shiftKey: false, altKey: false, key: '；' }, 'Ctrl+;'), true);
+  assert.equal(ES.match({ ctrlKey: false, metaKey: true, shiftKey: false, altKey: false, key: '；' }, 'Ctrl+P'), false);
+});

@@ -82,7 +82,12 @@
     var lastRow = Math.min(session.getLength() - 1, renderer.getLastFullyVisibleRow() || firstRow);
     if (lastRow < firstRow) return [];
 
-    var viewHeight = renderer.$size ? renderer.$size.height : (renderer.container ? renderer.container.clientHeight : 0);
+    var viewHeight = renderer.$size ? renderer.$size.height : 0;
+    // 兜底：编辑器容器尚未测量出 $size 时，回退用容器实际高度，避免可视区坐标被误判过滤导致"唤出无反应"
+    if (!viewHeight || isNaN(viewHeight)) {
+      var host = (renderer.container || editor.container);
+      viewHeight = host ? (host.clientHeight || host.getBoundingClientRect().height || 0) : 0;
+    }
     var out = [];
 
     for (var row = firstRow; row <= lastRow; row++) {
@@ -142,7 +147,7 @@
     var overlay = document.createElement('div');
     overlay.className = 'ace-jump-overlay';
     overlay.setAttribute('aria-hidden', 'true');
-    overlay.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;z-index:1000;overflow:hidden;';
+    overlay.style.cssText = 'position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none;z-index:1000;overflow:hidden;';
     editor.container.appendChild(overlay);
     return overlay;
   }
@@ -252,8 +257,14 @@
     jump.select = !!opts.select;
 
     var base = collectCandidates(editor, jump.mode);
+    if (typeof global.__debugShortcutLog === 'function') {
+      global.__debugShortcutLog('AceJump start()', 'mode=' + jump.mode, '候选数=' + base.length,
+        '文档行数=' + editor.session.getLength(),
+        '容器尺寸=' + (editor.container.clientWidth) + 'x' + (editor.container.clientHeight));
+    }
     if (base.length === 0) {
       jump.editor = null;
+      if (typeof opts.onEmpty === 'function') opts.onEmpty();
       return;
     }
     jump.baseCandidates = base;

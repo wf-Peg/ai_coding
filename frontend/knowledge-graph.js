@@ -212,10 +212,20 @@
       .data(allLinks)
       .join('line')
       .attr('class', function(d) {
-        var suffix = d.type === 'derived_from' ? 'derived' : (d.type === 'plan_links' ? 'plan' : 'linked');
+        // wikilink 双链优先（正文 [[...]] 引用的互链），其次类型语义
+        var suffix = d.wikilink ? 'wikilink' : (d.type === 'derived_from' ? 'derived' : (d.type === 'plan_links' ? 'plan' : 'linked'));
         return 'link link-' + suffix;
       })
       .attr('stroke-dasharray', function(d) { return d.type === 'derived_from' ? '5 4' : null; });
+
+    // 连线悬停提示（语义说明）
+    linkElements.append('title').text(function(d) {
+      if (d.wikilink) return '双链引用（[[wikilink]]）';
+      if (d.type === 'derived_from') return '来源剪藏';
+      if (d.type === 'plan_links') return '学习计划关联';
+      if (d.type === 'manual') return '手动连线';
+      return '语义关联';
+    });
 
     // Render nodes
     nodeElements = g.append('g')
@@ -546,6 +556,9 @@
     svg.selectAll('.link-plan')
       .attr('stroke', isDark ? '#22c55e' : '#22c55e')
       .attr('stroke-opacity', 0.6);
+    svg.selectAll('.link-wikilink')
+      .attr('stroke', '#c084fc')
+      .attr('stroke-opacity', 0.65);
 
     svg.selectAll('.node circle, .node rect, .node polygon')
       .attr('stroke', nodeStroke);

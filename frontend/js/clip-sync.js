@@ -77,21 +77,21 @@
         const syncBtn = document.getElementById('sync-btn');
 
         syncBtn.disabled = true;
-        syncBtn.innerHTML = '<span class="toggle-text">🔄 同步中...</span>';
+        syncBtn.classList.add('btn-loading');
         hideGitSyncResult();
 
         axios.post(`${GIT_API_BASE_URL}/sync`)
             .then(response => {
-                syncBtn.innerHTML = '<span class="toggle-text">🔄 同步仓库</span>';
                 syncBtn.disabled = false;
+                syncBtn.classList.remove('btn-loading');
                 renderGitSyncResult(response.data || { ok: true, steps: [] });
                 // 同步完成后刷新同步状态面板（最近同步时间等实时更新）
                 loadSyncStatusPanel();
                 showNotification((response.data?.ok) ? '同步完成' : '同步过程中出现问题，详见同步详情');
             })
             .catch(error => {
-                syncBtn.innerHTML = '<span class="toggle-text">🔄 同步仓库</span>';
                 syncBtn.disabled = false;
+                syncBtn.classList.remove('btn-loading');
                 // 后端在同步异常时以 400 返回结构化的分步结果
                 renderGitSyncResult(error.response?.data || { ok: false, message: error.response?.data?.message || error.message, steps: [] });
                 showNotification('同步失败: ' + (error.response?.data?.message || error.message));
@@ -140,13 +140,25 @@
         }
     }
 
-    // 触发 Web Clipper 同步：调用 POST /api/sync/trigger
+    // pill 主文案
+    function setWcPillText(text) {
+        const label = document.getElementById('wc-pill-text');
+        if (label) label.textContent = text;
+    }
+
+    // pill 主文案后的状态/条数小字（单行紧凑显示，避免撑高工具栏）
+    function setWcPillMeta(text) {
+        const meta = document.getElementById('wc-pill-meta');
+        if (meta) meta.textContent = text || '';
+    }
+
     function triggerWebClipperSync() {
-        const syncBtn = document.getElementById('web-clipper-sync-btn');
-        if (!syncBtn) return;
-        const originalHtml = syncBtn.innerHTML;
-        syncBtn.disabled = true;
-        syncBtn.innerHTML = '同步中...';
+        const pill = document.getElementById('web-clipper-sync-status');
+        if (!pill) return;
+        pill.classList.add('wc-syncing');
+        pill.title = 'Web Clipper 同步中…';
+        setWcPillText('clipper同步');
+        setWcPillMeta('同步中…');
 
         axios.post(`${SYNC_API_BASE_URL}/trigger`)
             .then(response => {
@@ -163,31 +175,41 @@
                 const msg = error.response?.data?.message || error.message || '未知错误';
                 showToast('Web Clipper 同步失败: ' + msg);
                 console.error('Web Clipper sync failed:', error);
+                pill.title = 'Web Clipper 同步：失败（点击重试）';
+                setWcPillText('clipper同步');
+                setWcPillMeta('失败');
             })
             .finally(() => {
-                syncBtn.disabled = false;
-                syncBtn.innerHTML = originalHtml;
+                pill.classList.remove('wc-syncing');
             });
     }
 
-    // 加载 Web Clipper 同步状态：调用 GET /api/sync/status
+    // 加载 Web Clipper 同步状态：状态点颜色 + 文字标签；详细文案见 tooltip
     function loadSyncStatus() {
-        const statusText = document.getElementById('sync-status-text');
-        const statusDot = document.querySelector('#web-clipper-sync-status .sync-dot');
-        if (!statusText) return;
+        const pill = document.getElementById('web-clipper-sync-status');
+        if (!pill) return;
+        const statusDot = pill.querySelector('.sync-dot');
 
         axios.get(`${SYNC_API_BASE_URL}/status`)
             .then(response => {
                 const data = response.data || {};
                 const synced = data.synced != null ? data.synced : (data.syncedCount != null ? data.syncedCount : 0);
                 const pending = data.pending != null ? data.pending : (data.pendingCount != null ? data.pendingCount : 0);
-                statusText.textContent = `Web Clipper 同步：已同步 ${synced} 条，待同步 ${pending} 条`;
+                pill.title = `Web Clipper 同步：已同步 ${synced} 条，待同步 ${pending} 条（点击立即同步）`;
+                setWcPillText('clipper同步');
+                if (pending > 0) {
+                    setWcPillMeta(`待传${pending}`);
+                } else {
+                    setWcPillMeta('');
+                }
                 if (statusDot) {
                     statusDot.classList.toggle('pending', pending > 0);
                 }
             })
             .catch(error => {
-                statusText.textContent = 'Web Clipper 同步：状态获取失败';
+                pill.title = 'Web Clipper 同步：状态获取失败（点击重试）';
+                setWcPillText('clipper同步');
+                setWcPillMeta('失败');
                 if (statusDot) statusDot.classList.add('pending');
                 console.error('Load sync status failed:', error);
             });
@@ -617,8 +639,16 @@ async function batchDeleteClips() {
     try {
         await Promise.all(ids.map(id => axios.delete(`${API_BASE_URL}/${id}`)));
         const count = ids.length;
+        // 写入墓碑（避免本地索引残留导致删除后闪回）
+        ids.forEach(id => softDeletedIds.add(String(id)));
         clearAllSelection();
-        if (typeof fetchClips === 'function') fetchClips();
+        // 逐条淡出后再全量刷新，删除即时可见且动画连续
+        ids.forEach(id => {
+            const anchor = document.getElementById('check-area-' + id);
+            const item = anchor ? anchor.closest('.clip-item') : null;
+            if (item) item.classList.add('clip-item-removing');
+        });
+        setTimeout(() => { if (typeof fetchClips === 'function') fetchClips(); }, 240);
         if (clips.length > 0 && typeof showActionToast === 'function') {
             showActionToast(`已删除 ${count} 条`, '撤销', function () {
                 Promise.all(clips.map(c => {

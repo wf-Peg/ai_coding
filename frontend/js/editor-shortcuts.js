@@ -21,6 +21,29 @@
 
   var STORAGE_KEY = 'editor_shortcuts_v1';
 
+  // ── 快捷键诊断开关 ──
+  // 启用方式（满足其一即可）：
+  //   A. URL 带 ?debug=shortcuts（浏览器实测 / file:// 调试）
+  //   B. 控制台执行 localStorage.setItem('editor_shortcuts_debug','1')
+  // 输出统一加 [ShortcutDebug] 前缀，便于 grep。
+  function debugEnabled() {
+    try {
+      if (typeof window === 'undefined' || !window.location) return false;
+      if (typeof window.__shortcutDebug === 'boolean') return window.__shortcutDebug;
+      var q = (window.location.search || '').indexOf('debug=shortcuts') >= 0;
+      if (q) { window.__shortcutDebug = true; return true; }
+      if (localStorage.getItem('editor_shortcuts_debug') === '1') {
+        window.__shortcutDebug = true;
+        return true;
+      }
+    } catch (e) { /* localStorage 不可用时静默关闭 */ }
+    return false;
+  }
+  function debugLog() {
+    if (!debugEnabled()) return;
+    try { console.log.apply(console, ['[ShortcutDebug]'].concat(Array.prototype.slice.call(arguments))); } catch (e) {}
+  }
+
   // action → { label, shortcut }
   // shortcut 采用 'Ctrl+Shift+X' 形式；Ctrl 同时表示平台主修饰键（mac 上为 Cmd）
   var DEFAULTS = {
@@ -34,7 +57,9 @@
     recent:       { label: '最近打开文件', shortcut: 'Ctrl+Shift+N' },
     favorite:     { label: '常用文件收藏', shortcut: 'Ctrl+Shift+A' },
     overview:     { label: '内容概览', shortcut: 'Ctrl+Shift+Y' },
-    aceJump:      { label: 'AceJump 跳跃导航', shortcut: 'Ctrl+;' }
+    aceJump:      { label: 'AceJump 跳跃导航', shortcut: 'Ctrl+;' },
+    posBack:      { label: '返回上一编辑位置', shortcut: 'Ctrl+Alt+ArrowLeft' },
+    posForward:   { label: '前进到下一编辑位置', shortcut: 'Ctrl+Alt+ArrowRight' }
   };
 
   /** 读取本地覆盖配置（已清洗，仅保留合法 action） */
@@ -96,6 +121,27 @@
     return res;
   }
 
+  // 全角→半角标点映射：中文输入法在部分布局/状态下会把 ; 报为全角 ；，
+  // 导致 Ctrl/Cmd+; 等符号组合在 match 时误判不命中。比对前统一归一化。
+  var FULLWIDTH_TO_ASCII = (function () {
+    var map = {};
+    var full = '：；，。"？！（）【】＝＋-,／.';
+    // 半角对应（顺序一致）——用字符数组避免引号/反斜杠导致的转义差异
+    var half = [':', ';', ',', '.', '"', '?', '!', '(', ')', '[', ']', '=', '+', '-', ',', '/', '.'];
+    for (var u = 0; u < full.length; u++) {
+      var ch = full.charAt(u);
+      var h = half[u] !== undefined ? half[u] : ch;
+      if (!map[ch]) map[ch] = h;
+    }
+    return map;
+  })();
+  function normalizeKey(k, pKey) {
+    var n = FULLWIDTH_TO_ASCII[k];
+    // 单字符标点：全角→半角后比较；若配置键本身是全角（理论上不会），也反向归一化配置键
+    if (n && pKey.length === 1) return n;
+    return k;
+  }
+
   /** 匹配 KeyboardEvent 与组合键描述 */
   function match(e, combo) {
     var p = parse(combo);
@@ -110,8 +156,9 @@
     if (!ctrlOk || !shiftOk || !altOk) return false;
     var k = String(e.key || '').toUpperCase();
     if (p.key === ' ') return e.key === ' ';
-    // 单字符：忽略大小写；其实 e.key 已是 final 大小写，统一大写比较
-    return k === p.key;
+    // 单字符：忽略大小写；其实 e.key 已是 final 大小写，统一大写比较。
+    // 先做全角→半角归一化（如 ；→;），再比较，规避中文输入法的全角 key。
+    return normalizeKey(k, p.key) === p.key;
   }
 
   /** 保存整份配置 */
@@ -197,9 +244,15 @@
       if (e.defaultPrevented) return; // 已被更高优先级处理，跳过
       // match 的第二个参数需传实际组合键（get(action)），不能传 action 名
       if (match(e, get(action))) {
+        debugLog('命中', action, 'combo=' + get(action), 'e.key=' + e.key, 'meta=' + e.metaKey, 'ctrl=' + e.ctrlKey, 'shift=' + e.shiftKey, 'isTrusted=' + e.isTrusted);
         e.preventDefault();
         e.stopImmediatePropagation(); // 完全消费该键，避免 ACE 自身的同键命令（如展开选区/重放宏）在编辑区内仍触发
-        try { _handlers[action](e); } catch (err) { /* 单 handler 异常不影响其它 */ }
+        try { _handlers[action](e); } catch (err) { debugLog('handler 异常', action, String(err && err.message || err)); }
+      } else {
+        // 组合键未命中时也留痕：便于判断事件是否到达本层（如 Cmd+; 被原生菜单吞掉时不会打印）
+        if (e.metaKey || e.ctrlKey) {
+          debugLog('未命中', action, 'combo=' + get(action), 'e.key=' + e.key + ', meta=' + e.metaKey + ', ctrl=' + e.ctrlKey + ', shift=' + e.shiftKey + ', alt=' + e.altKey);
+        }
       }
     });
   }
@@ -227,6 +280,10 @@
     getHandler: getHandler,
     hasHandler: hasHandler,
     startCapture: startCapture,
-    dispatchCapture: dispatchCapture
+    dispatchCapture: dispatchCapture,
+    debugEnabled: debugEnabled,
+    debugLog: debugLog
   };
+  // 供 editor.js / ace-jump.js 复用同一诊断开关（避免再次判断 URL/localStorage）
+  window.__debugShortcutLog = debugLog;
 })();

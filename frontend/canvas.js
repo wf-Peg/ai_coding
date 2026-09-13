@@ -25,6 +25,8 @@
   const canvasModalCancel = document.getElementById('canvasModalCancel');
   const minimapEl = document.getElementById('minimap');
   const minimapSvg = document.getElementById('minimapSvg');
+  const drawToolbar = document.getElementById('drawToolbar');
+  const drawOverlayEl = document.getElementById('drawOverlay');
 
   let allNodes = [];          // 画布卡片节点 {id,type,title,text,x,y}
   let allEdges = [];          // 手动连线 {id,source,target,type:'manual'}
@@ -36,7 +38,7 @@
   let spacePressed = false;
   let boxSelect = null;
   let suppressSvgClick = false;
-  let svg, g, nodeElements, linkElements, frameLayer, selectionLayer;
+  let svg, g, nodeElements, linkElements, frameLayer, selectionLayer, inkLayer;
   let currentTransform = d3.zoomIdentity;
   let preservedTransform = d3.zoomIdentity;
   let zoomBehavior = null;
@@ -50,6 +52,20 @@
   let minimapMeta = null;
   let minimapViewportDrag = null;
   let resizeBound = false;
+
+  const GRID = 12;            // 网格吸附间距（px）
+  let groupCollapsed = {};    // 分组折叠状态（内存态，刷新后重置）
+  let collapseTimer = null;   // 折叠点击防抖（区分“单击折叠 / 双击重命名”）
+
+  // ---- 手绘墨迹（临时擦写板：仅本次会话有效，刷新/重进即清空，不落库） ----
+  const INK_COLORS = ['#222', '#6b7280', '#1a73e8', '#e5484d', '#30a46c', '#f76b15'];
+  const INK_WIDTH = { thin: 2, bold: 6 };          // 细/粗 笔触基底宽度
+  const ERASE_RADIUS = 8;                          // 橡皮擦命中半径（世界坐标 px）
+  let drawTool = null;           // null | 'pen' | 'highlighter' | 'eraser'
+  let inkSize = 'thin';          // 粗细档
+  let inkColor = INK_COLORS[0];
+  let strokes = [];              // 墨迹数据 [{color,width,opacity,points:[[x,y]...]}]
+  let drawing = null;            // 进行中的墨迹 {el, points, color, width, opacity}
 
   // ---- 数据加载 ----
 
@@ -188,6 +204,9 @@
 
     svg.call(zoom);
     zoomBehavior = zoom;
+    // 禁用 d3.zoom 的默认双击缩放（其 stopImmediatePropagation 会截断空白双击事件，
+    // 导致容器级「空白双击新建便签」监听收不到事件）
+    svg.on('dblclick.zoom', null);
 
     svg.on('click', function(event) {
       if (event.target !== svg.node()) return;
@@ -195,18 +214,22 @@
       resetSelection();
     });
 
-    // 空白画布右键：新建节点菜单
-    svg.on('contextmenu', function(event) {
-      if (!isCanvasBackground(event)) return;
-      event.preventDefault();
-      openCanvasMenu(event.clientX, event.clientY, screenToWorld(event));
-    });
-
     // 图片缩略图圆角裁剪（固定尺寸 110x72）
     svg.append('defs').append('clipPath')
       .attr('id', 'canvasImgClip')
       .append('rect')
       .attr('x', -55).attr('y', -36).attr('width', 110).attr('height', 72).attr('rx', 8);
+
+    // 连线箭头 marker（fill 走 CSS：var(--primary)，自动适配深浅主题）
+    svg.append('defs').append('marker')
+      .attr('id', 'canvasArrow')
+      .attr('viewBox', '0 0 10 10')
+      .attr('refX', '1').attr('refY', '5')
+      .attr('markerWidth', '6').attr('markerHeight', '6')
+      .attr('orient', 'auto')
+      .append('path')
+      .attr('d', 'M0,0 L10,5 L0,10 z')
+      .attr('class', 'canvas-arrow-path');
 
     g = svg.append('g');
 
@@ -238,13 +261,14 @@
       svg.call(zoom.transform, preservedTransform);
     }
 
-    // 手动连线（直线，按节点坐标绘制）
+    // 手动连线（带箭头，端点在卡片边缘）
     linkElements = g.append('g')
       .attr('class', 'links')
       .selectAll('line')
       .data(allEdges)
       .join('line')
-      .attr('class', 'link link-manual');
+      .attr('class', 'link link-manual')
+      .attr('marker-end', 'url(#canvasArrow)');
 
     // 节点卡片
     nodeElements = g.append('g')
@@ -265,7 +289,6 @@
     nodeElements.on('click', onNodeClick);
     nodeElements.on('dblclick', onNodeDblClick);
     nodeElements.on('contextmenu', onNodeContextMenu);
-    nodeElements.on('mouseenter', onNodeEnter).on('mouseleave', onNodeLeave);
 
     // 手动连线右键菜单（删除）
     linkElements.on('contextmenu', function(event, d) {
@@ -287,6 +310,10 @@
     // 选择层（框选矩形）
     selectionLayer = g.append('g').attr('class', 'selection-layer');
 
+    // 手绘墨迹层（SVG 最顶层，随画布缩放平移；由 renderCanvas 重建后从 strokes 还原）
+    inkLayer = g.append('g').attr('class', 'ink-layer');
+    renderInk();
+
     // 空白左键拖动 = 框选
     svg.on('mousedown', function(event) {
       if (event.target !== svg.node()) return;
@@ -300,31 +327,77 @@
     renderMinimap();
   }
 
+  // 锚点：中心连线方向与矩形四条边的首个交点（卡片边缘而非中心，纯渲染计算，不改数据模型）
+  function edgeAnchorPoint(cx, cy, hw, hh, dx, dy) {
+    if (dx === 0 && dy === 0) return [cx, cy];
+    var tx = dx !== 0 ? Math.abs(hw / dx) : Infinity;
+    var ty = dy !== 0 ? Math.abs(hh / dy) : Infinity;
+    var t = Math.min(tx, ty);
+    return [cx + t * dx, cy + t * dy];
+  }
+
   function updateLinkPositions() {
     if (!linkElements) return;
-    linkElements
-      .attr('x1', function(d) { var s = nodeMap[d.source]; return s ? s.x : 0; })
-      .attr('y1', function(d) { var s = nodeMap[d.source]; return s ? s.y : 0; })
-      .attr('x2', function(d) { var t = nodeMap[d.target]; return t ? t.x : 0; })
-      .attr('y2', function(d) { var t = nodeMap[d.target]; return t ? t.y : 0; });
+    linkElements.each(function(d) {
+      var s = nodeMap[d.source], t = nodeMap[d.target];
+      if (!s || !t) return;
+      var ss = canvasCardSize(s), ts = canvasCardSize(t);
+      var dx = t.x - s.x, dy = t.y - s.y;
+      var p1 = edgeAnchorPoint(s.x, s.y, ss.w / 2, ss.h / 2, dx, dy);
+      var p2 = edgeAnchorPoint(t.x, t.y, ts.w / 2, ts.h / 2, -dx, -dy);
+      d3.select(this)
+        .attr('x1', p1[0]).attr('y1', p1[1])
+        .attr('x2', p2[0]).attr('y2', p2[1]);
+    });
   }
 
   function refreshNodePos(n) {
     if (n && n.__el) d3.select(n.__el).attr('transform', 'translate(' + n.x + ',' + n.y + ')');
   }
 
+  // 内联 SVG 线框类型图标（16px，与编辑器工具栏图标风格一致）
+  function typeIconMarkup(type) {
+    var path = '';
+    if (type === 'image') path = '<rect x="2.5" y="2.5" width="19" height="19" rx="3"/><circle cx="9" cy="9" r="1.6"/><path d="m21 15-6-6L5 21"/>';
+    else if (type === 'link') path = '<path d="M9.4 14.6a3.2 3.2 0 0 0 4.5 0l3-3a3.18 3.18 0 0 0-4.5-4.5l-1.3 1.3"/><path d="M14.6 9.4a3.2 3.2 0 0 0-4.5 0l-3 3a3.18 3.18 0 0 0 4.5 4.5l1.3-1.3"/>';
+    else if (type === 'ref') path = '<path d="M7 3h10a1.5 1.5 0 0 1 1.5 1.5V21L15 18.5 12 21l-3-2.5L5.5 21V4.5A1.5 1.5 0 0 1 7 3z"/>';
+    return '<svg class="canvas-card-badge" width="16" height="16" viewBox="0 0 24 24" fill="none" ' +
+      'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + path + '</svg>';
+  }
+
+  function addTypeIcon(gSel, type, x, y) {
+    gSel.append('g')
+      .attr('class', 'node-type-icon')
+      .attr('transform', 'translate(' + x + ',' + y + ')')
+      .html(typeIconMarkup(type));
+  }
+
+  function urlDomain(text) {
+    try {
+      var u = new URL(String(text == null ? '' : text).trim());
+      return (u.hostname || '').replace(/^www\./, '');
+    } catch (e) { return null; }
+  }
+
   // 绘制单张画布卡片（便签/链接/图片/引用）
   function renderCanvasCard(gSel, d) {
     var s = canvasCardSize(d);
-    var w = s.w, h = s.h, rx = 8, fill = nodeColor(d.type);
+    var w = s.w, h = s.h, rx = 10, fill = nodeColor(d.type);
+
+    // 选中外圈 focus ring（偏移 4px 的浅色描边，默认宽度 0 隐藏）
+    gSel.append('rect')
+      .attr('class', 'node-focus-ring')
+      .attr('x', -w / 2 - 4).attr('y', -h / 2 - 4)
+      .attr('width', w + 8).attr('height', h + 8)
+      .attr('rx', rx + 4);
 
     gSel.append('rect')
+      .attr('class', 'node-card-rect')
       .attr('x', -w / 2).attr('y', -h / 2)
       .attr('width', w).attr('height', h)
       .attr('rx', rx).attr('fill', fill);
 
     if (d.type === 'image') {
-      gSel.append('text').attr('class', 'canvas-card-text').attr('y', 4).text('🖼');
       if (d.text) {
         gSel.append('image')
           .attr('href', d.text)
@@ -332,23 +405,44 @@
           .attr('width', w).attr('height', h)
           .attr('preserveAspectRatio', 'xMidYMid slice')
           .attr('clip-path', 'url(#canvasImgClip)');
+        // 圆角描边覆盖，图片卡有精致边框感
+        gSel.append('rect')
+          .attr('class', 'node-image-frame')
+          .attr('x', -w / 2).attr('y', -h / 2)
+          .attr('width', w).attr('height', h)
+          .attr('rx', rx).attr('fill', 'none');
       }
+      addTypeIcon(gSel, 'image', -w / 2 + 15, -h / 2 + 15);
       return;
     }
 
+    var textSel = gSel.append('text')
+      .attr('class', 'canvas-card-text' + (d.type === 'ref' ? ' canvas-ref-text' : ''));
+
+    if (d.type === 'link') {
+      // 链接卡：角标图标 + 标题 + 域名灰字
+      addTypeIcon(gSel, 'link', -w / 2 + 13, -h / 2 + 13);
+      var linkTitle = wrapLines(d.title || '链接', 11)[0] || '链接';
+      var domain = urlDomain(d.text || d.title);
+      textSel.append('tspan').attr('x', 0).attr('y', -1).attr('class', 'node-card-title').text(linkTitle);
+      textSel.append('tspan').attr('x', 0).attr('y', 13).attr('class', 'node-card-domain').text(domain || '链接');
+      return;
+    }
+
+    if (d.type === 'ref') addTypeIcon(gSel, 'ref', -w / 2 + 13, -h / 2 + 13);
+
     var label = '';
     if (d.type === 'note') label = d.text || d.title || '便签';
-    else if (d.type === 'link') label = '🔗 ' + (d.title || d.text || '链接');
     else label = d.title || '引用';
 
     var lines = wrapLines(label, d.type === 'note' ? 12 : 13);
-    var textSel = gSel.append('text')
-      .attr('class', d.type === 'ref' ? 'canvas-card-text canvas-ref-text' : 'canvas-card-text');
-    var lineHeight = 13;
+    var lineHeight = 14;
     var startY = -((lines.length - 1) * lineHeight) / 2;
     for (var i = 0; i < lines.length; i++) {
       textSel.append('tspan').attr('x', 0).attr('y', startY + i * lineHeight).text(lines[i]);
     }
+    // 引用卡有角标，正文略向左上偏移避免重叠
+    if (d.type === 'ref') textSel.attr('transform', 'translate(3,2)');
   }
 
   function canvasCardSize(d) {
@@ -410,16 +504,6 @@
     openNodeMenu(event.clientX, event.clientY, d);
   }
 
-  function onNodeEnter(event) {
-    d3.select(this).select('rect').transition().duration(150).attr('stroke-width', 3);
-  }
-
-  function onNodeLeave(event, d) {
-    if (selectedNodeId !== String(d.id)) {
-      d3.select(this).select('rect').transition().duration(150).attr('stroke-width', 2);
-    }
-  }
-
   function selectNode(d) {
     selectedNodeId = String(d.id);
     selectedNodeIds.clear();
@@ -449,7 +533,13 @@
   function isCanvasBackground(event) {
     var t = event ? event.target : null;
     if (!t) return false;
-    if (t === svg.node()) return true;
+    // 小地图/图例等画布外层控件不算空白
+    if (t.closest && t.closest('#minimap, .legend')) return false;
+    // 手绘覆盖层视为画布空白：画板模式下右键仍可唤起空白菜单（新建/引用等）
+    if (t === drawOverlayEl) return true;
+    // 空态：svg 未创建，容器本身 / 空态提示层（pointer-events:none 穿透）即空白
+    if (!svg || t === svg.node()) return true;
+    if (t === container || t === emptyEl) return true;
     if (t instanceof SVGElement) {
       if (!t.closest('.node, .temp-link, line.link, .frame-title')) return true;
     }
@@ -460,7 +550,7 @@
 
   function dragBehavior() {
     return d3.drag()
-      .filter(function() { return !spacePressed; })
+      .filter(function() { return !spacePressed && !drawTool; })
       .on('start', function(event, d) {
         if (selectedNodeIds.size > 1 && selectedNodeIds.has(String(d.id))) {
           startBatchMove(event);
@@ -469,8 +559,8 @@
       })
       .on('drag', function(event, d) {
         if (batchMove) { moveSelection(event); return; }
-        d.x = event.x;
-        d.y = event.y;
+        d.x = Math.round(event.x / GRID) * GRID;
+        d.y = Math.round(event.y / GRID) * GRID;
         refreshNodePos(d);
         updateLinkPositions();
         updateGroupFrames();
@@ -496,8 +586,8 @@
     var dx = event.x - batchMove.startX;
     var dy = event.y - batchMove.startY;
     batchMove.nodes.forEach(function(n) {
-      n.x = n._sx + dx;
-      n.y = n._sy + dy;
+      n.x = Math.round((n._sx + dx) / GRID) * GRID;
+      n.y = Math.round((n._sy + dy) / GRID) * GRID;
       refreshNodePos(n);
     });
     updateLinkPositions();
@@ -535,6 +625,7 @@
   // ---- 框选（Box Select）----
 
   function beginBoxSelect(event) {
+    if (drawTool) return;
     var pt = currentTransform.invert(d3.pointer(event, container));
     boxSelect = { startX: pt[0], startY: pt[1], shift: event.shiftKey || event.ctrlKey || event.metaKey };
     if (!selectionLayer) return;
@@ -601,8 +692,20 @@
       .each(function(gd) {
         var s = d3.select(this);
         s.append('rect').attr('class', 'group-frame-rect');
-        s.append('text').attr('class', 'group-frame-title')
+        s.append('rect').attr('class', 'group-frame-chip');
+        var title = s.append('text').attr('class', 'group-frame-title')
           .text(gd.name || '分组')
+          // 单击标题折叠/展开（防抖，双击重命名时不触发折叠）
+          .on('click', function(e) {
+            e.stopPropagation();
+            scheduleCollapseToggle(gd.id);
+          })
+          .on('dblclick', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            cancelCollapseToggle();
+            openGroupNameModal({ mode: 'rename', id: gd.id, current: gd.name || '' });
+          })
           .on('contextmenu', function(e) {
             e.stopPropagation();
             e.preventDefault();
@@ -618,12 +721,68 @@
     frameLayer.selectAll('g.group-frame').each(function(gd) {
       var b = frameBounds(gd);
       var s = d3.select(this);
-      s.select('rect.group-frame-rect')
-        .attr('x', b.x).attr('y', b.y)
-        .attr('width', Math.max(b.w, 1)).attr('height', Math.max(b.h, 1));
-      s.select('text.group-frame-title')
-        .attr('x', b.x + 8).attr('y', b.y + 12).text(gd.name || '分组');
+      var rect = s.select('rect.group-frame-rect');
+      var chip = s.select('rect.group-frame-chip');
+      var title = s.select('text.group-frame-title');
+      var collapsed = !!groupCollapsed[gd.id];
+      var label = (collapsed ? '▶ ' : '▼ ') + (gd.name || '分组');
+      var tw = label.length * 6.6 + 18; // 标题 chip 宽（11px 字体近似字符宽）
+
+      rect.attr('rx', 10);
+      chip.attr('rx', 11);
+      if (collapsed) {
+        // 折叠：frame 收成标题条高度，成员节点与连线由 applyGroupCollapse 隐藏
+        rect.attr('x', b.x).attr('y', b.y)
+          .attr('width', Math.max(tw + 24, 80)).attr('height', 26);
+        chip.attr('x', b.x + 4).attr('y', b.y + 3)
+          .attr('width', tw).attr('height', 20);
+        title.attr('x', b.x + 12).attr('y', b.y + 17).text(label);
+      } else {
+        rect.attr('x', b.x).attr('y', b.y)
+          .attr('width', Math.max(b.w, 1)).attr('height', Math.max(b.h, 1));
+        chip.attr('x', b.x + 4).attr('y', b.y + 2)
+          .attr('width', tw).attr('height', 22);
+        title.attr('x', b.x + 12).attr('y', b.y + 18).text(label);
+      }
     });
+    applyGroupCollapse();
+  }
+
+  function scheduleCollapseToggle(id) {
+    cancelCollapseToggle();
+    collapseTimer = setTimeout(function() {
+      collapseTimer = null;
+      toggleGroupCollapse(id);
+    }, 250);
+  }
+
+  function cancelCollapseToggle() {
+    if (collapseTimer) { clearTimeout(collapseTimer); collapseTimer = null; }
+  }
+
+  function toggleGroupCollapse(id) {
+    groupCollapsed[id] = !groupCollapsed[id];
+    updateGroupFrames();
+  }
+
+  // 折叠分组：隐藏成员节点及与之相连的连线（展开时恢复，display 置空）
+  function applyGroupCollapse() {
+    var hidden = new Set();
+    allGroups.forEach(function(gd) {
+      if (!groupCollapsed[gd.id]) return;
+      (gd.members || []).forEach(function(id) { hidden.add(String(id)); });
+    });
+    if (nodeElements) {
+      nodeElements.each(function(n) {
+        d3.select(this).style('display', hidden.has(String(n.id)) ? 'none' : null);
+      });
+    }
+    if (linkElements) {
+      linkElements.each(function(d) {
+        var hide = hidden.has(String(d.source)) || hidden.has(String(d.target));
+        d3.select(this).style('display', hide ? 'none' : null);
+      });
+    }
   }
 
   function frameBounds(gd) {
@@ -643,7 +802,7 @@
 
   function groupDragBehavior() {
     return d3.drag()
-      .filter(function() { return !spacePressed; })
+      .filter(function() { return !spacePressed && !drawTool; })
       .on('start', function(event, gd) {
         groupMove = { startX: event.x, startY: event.y, members: [] };
         (gd.members || []).forEach(function(id) {
@@ -658,8 +817,8 @@
         var dx = event.x - groupMove.startX;
         var dy = event.y - groupMove.startY;
         groupMove.members.forEach(function(n) {
-          n.x = n._sx + dx;
-          n.y = n._sy + dy;
+          n.x = Math.round((n._sx + dx) / GRID) * GRID;
+          n.y = Math.round((n._sy + dy) / GRID) * GRID;
           refreshNodePos(n);
         });
         updateLinkPositions();
@@ -728,6 +887,24 @@
     canvasMenu._pt = pt || { x: 100, y: 100 };
   }
 
+  // 空白画布右键：新建节点菜单。
+  // 绑定在容器层而非 svg —— 空态（无画布节点）时不创建 svg，若只绑 svg 则空态右键无入口。
+  // 事件从 svg/节点等子元素冒泡到 container，由 isCanvasBackground 过滤空白与交互元素。
+  container.addEventListener('contextmenu', function(event) {
+    if (!isCanvasBackground(event)) return;
+    event.preventDefault();
+    var p = screenToWorld(event);
+    openCanvasMenu(event.clientX, event.clientY, { x: p[0], y: p[1] });
+  });
+
+  // 空白画布双击：直接新建便签（NoteGen 式快速入口，复用右键「新建便签」的弹窗与落库链路）
+  container.addEventListener('dblclick', function(event) {
+    if (!isCanvasBackground(event)) return;
+    event.preventDefault();
+    var p = screenToWorld(event);
+    openCreateModal('note', { x: p[0], y: p[1] });
+  });
+
   function openNodeMenu(x, y, d) {
     closeMenus();
     if (groupAction) {
@@ -755,6 +932,52 @@
     canvasModalCtx = null;
     pendingRefNodeId = null;
     pendingGroup = null;
+  }
+
+  // 清空全部内容：危险操作，弹确认框（复用画布弹窗）
+  function openClearAllConfirm() {
+    closeMenus();
+    canvasModalCtx = { mode: 'clear-all' };
+    pendingGroup = null;
+    pendingRefNodeId = null;
+    canvasModalTitle.textContent = '清空全部内容';
+    canvasModalBody.innerHTML =
+      '<p class="clear-all-tip">将<b>永久删除</b>画布上所有节点、连线、分组，并清空手绘墨迹（临时擦写）。' +
+      '此操作不可恢复，确认继续？</p>';
+    canvasModalMask.style.display = 'flex';
+  }
+
+  async function clearCanvasAll() {
+    const bridge = window.electronAPI && window.electronAPI.localIndex;
+    var i;
+    // 连线
+    for (i = 0; i < allEdges.length; i++) {
+      if (bridge && typeof bridge.deleteCanvasEdge === 'function') {
+        try { await bridge.deleteCanvasEdge({ id: allEdges[i].id }); } catch (e) {}
+      }
+    }
+    allEdges = [];
+    // 分组
+    for (i = 0; i < allGroups.length; i++) {
+      if (bridge && typeof bridge.dissolveGroup === 'function') {
+        try { await bridge.dissolveGroup({ id: allGroups[i].id }); } catch (e) {}
+      }
+    }
+    allGroups = [];
+    // 节点
+    var ids = allNodes.map(function(n) { return n.id; });
+    for (i = 0; i < ids.length; i++) {
+      if (bridge && typeof bridge.deleteCanvasNode === 'function') {
+        try { await bridge.deleteCanvasNode({ id: ids[i] }); } catch (e) {}
+      }
+      delete nodeMap[ids[i]];
+    }
+    allNodes = [];
+    selectedNodeIds.clear();
+    selectedNodeId = null;
+    // 墨迹一并清空
+    strokes = [];
+    renderCanvas(); // 空态（showEmpty）自动呈现
   }
 
   function openCreateModal(kind, pt) {
@@ -888,6 +1111,11 @@
 
     var ctx = canvasModalCtx;
     if (!ctx) return;
+    if (ctx.mode === 'clear-all') {
+      await clearCanvasAll();
+      closeModal();
+      return;
+    }
     var createdNode = null;
     if (ctx.mode === 'create') {
       if (ctx.kind === 'ref') {
@@ -941,7 +1169,7 @@
 
   function cancelLink() {
     linkSourceId = null;
-    nodeElements.classed('linking', false);
+    if (nodeElements) nodeElements.classed('linking', false);
     if (tempLink) tempLink.attr('display', 'none');
   }
 
@@ -1117,13 +1345,203 @@
   }
 
   // ---- 主题 ----
+  // 节点描边/投影、连线与箭头颜色均走 CSS var(--...) 自动适配深浅主题，无需 JS 覆写。
 
+  // ---- 手绘墨迹（临时擦写板） ----
+
+  function setDrawTool(tool) {
+    drawTool = tool;
+    drawing = null;
+    var overlay = document.getElementById('drawOverlay');
+    if (overlay) overlay.classList.toggle('active', !!tool);
+    // 工具条高亮
+    if (drawToolbar) {
+      drawToolbar.querySelectorAll('button[data-tool]').forEach(function(b) {
+        b.classList.toggle('is-active', b.dataset.tool === tool);
+      });
+    }
+    if (tool) { closeMenus(); cancelLink(); resetSelection(); ensureInkLayer(); }
+  }
+
+  // 空态（无画布节点）时保证可当临时擦写板使用：惰性创建最小 svg + 缩放组 + 墨迹层
+  function ensureInkLayer() {
+    if (inkLayer) return;
+    var w = container.clientWidth, h = container.clientHeight;
+    svg = d3.select('#graphContainer').append('svg').attr('width', w).attr('height', h);
+    g = svg.append('g');
+    var zoom = d3.zoom()
+      .scaleExtent([0.1, 10])
+      .filter(function(event) {
+        var e = event.sourceEvent;
+        if (!e) return true;
+        if (e.type === 'wheel') return true;
+        if (e.type === 'mousemove' && spacePressed) return true;
+        if (e.type === 'mousedown' && (e.button === 1 || spacePressed)) return true;
+        return false;
+      })
+      .on('zoom', function(event) {
+        currentTransform = event.transform;
+        preservedTransform = event.transform;
+        g.attr('transform', event.transform);
+      });
+    svg.call(zoom);
+    zoomBehavior = zoom;
+    svg.on('dblclick.zoom', null);
+    inkLayer = g.append('g').attr('class', 'ink-layer');
+    inboxEmptyStateHide();
+  }
+
+  function inboxEmptyStateHide() {
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (emptyEl) emptyEl.style.display = 'none';
+  }
+
+  function renderInk() {
+    if (!inkLayer) return;
+    inkLayer.selectAll('*').remove();
+    strokes.forEach(function(s) {
+      if (!s.points || s.points.length < 1) return;
+      inkLayer.append('path')
+        .attr('d', s.points.map(function(p, i) { return (i === 0 ? 'M' : 'L') + p[0] + ' ' + p[1]; }).join(' '))
+        .attr('fill', 'none')
+        .attr('stroke', s.color)
+        .attr('stroke-width', s.width)
+        .attr('stroke-opacity', s.opacity)
+        .attr('stroke-linecap', 'round')
+        .attr('stroke-linejoin', 'round')
+        .attr('pointer-events', 'none');
+    });
+  }
+
+  function strokeParams() {
+    var bold = inkSize === 'bold';
+    var opacity = drawTool === 'highlighter' ? 0.35 : 1;
+    var width = (drawTool === 'highlighter' ? (bold ? 16 : 9) : INK_WIDTH[inkSize]);
+    return { width: width, opacity: opacity, color: inkColor };
+  }
+
+  // 点到折线的最短距离（分段线性），用于橡皮擦命中判断
+  function pointToPolylineDist(px, py, pts) {
+    if (!pts || pts.length < 2) {
+      if (!pts || !pts.length) return Infinity;
+      return Math.hypot(px - pts[0][0], py - pts[0][1]);
+    }
+    var min = Infinity;
+    for (var i = 1; i < pts.length; i++) {
+      var a = pts[i - 1], b = pts[i];
+      var abx = b[0] - a[0], aby = b[1] - a[1];
+      var t = ((px - a[0]) * abx + (py - a[1]) * aby) / (abx * abx + aby * aby);
+      t = Math.max(0, Math.min(1, t));
+      var cx = a[0] + t * abx, cy = a[1] + t * aby;
+      var d = Math.hypot(px - cx, py - cy);
+      if (d < min) min = d;
+    }
+    return min;
+  }
+
+  function handleDrawStart(event) {
+    event.preventDefault();
+    if (!drawTool || drawOverlayEl === null) return;
+    // 仅左键绘制；右键保留给画布右键菜单
+    if (event.button !== 0) return;
+    ensureInkLayer();
+    // 指针捕获：保证快速拖动越出覆盖层时仍连续绘制
+    if (drawOverlayEl.setPointerCapture) {
+      try { drawOverlayEl.setPointerCapture(event.pointerId); } catch (e) {}
+    }
+    var w = screenToWorld(event);
+    if (drawTool === 'eraser') {
+      // 橡皮：记录擦除进行态，左键按住连续擦
+      drawing = { erasing: true, x: w[0], y: w[1] };
+      eraseAt(w[0], w[1]);
+      return;
+    }
+    var p = strokeParams();
+    drawing = {
+      points: [w],
+      color: p.color,
+      width: p.width,
+      opacity: p.opacity,
+      el: null
+    };
+    drawing.el = inkLayer.append('path')
+      .attr('fill', 'none')
+      .attr('stroke', p.color)
+      .attr('stroke-width', p.width)
+      .attr('stroke-opacity', p.opacity)
+      .attr('stroke-linecap', 'round')
+      .attr('stroke-linejoin', 'round')
+      .attr('pointer-events', 'none')
+      .attr('d', 'M' + w[0] + ' ' + w[1]);
+  }
+
+  function handleDrawMove(event) {
+    if (!drawTool || !drawing) return;
+    event.preventDefault();
+    var w = screenToWorld(event);
+    if (drawing.erasing) {
+      eraseAt(w[0], w[1]);
+      return;
+    }
+    var pts = drawing.points;
+    var last = pts[pts.length - 1];
+    // 抽稀：与上点距离过近跳过，避免点过多拖慢渲染
+    if (last && Math.hypot(w[0] - last[0], w[1] - last[1]) < 2) return;
+    pts.push(w);
+    drawing.el.attr('d', pts.map(function(p, i) { return (i === 0 ? 'M' : 'L') + p[0] + ' ' + p[1]; }).join(' '));
+  }
+
+  function handleDrawEnd() {
+    if (!drawing) return;
+    if (drawing.erasing) { drawing = null; return; }
+    if (drawing.points.length > 0) {
+      strokes.push({
+        color: drawing.color,
+        width: drawing.width,
+        opacity: drawing.opacity,
+        points: drawing.points
+      });
+    }
+    drawing = null;
+  }
+
+  function eraseAt(wx, wy) {
+    var hit = -1;
+    for (var i = 0; i < strokes.length; i++) {
+      if (pointToPolylineDist(wx, wy, strokes[i].points) < ERASE_RADIUS) { hit = i; break; }
+    }
+    if (hit >= 0) {
+      strokes.splice(hit, 1);
+      renderInk();
+    }
+  }
+
+  // 导出画布（当前视口，含墨迹）为 PNG 图片
+  async function exportCanvas() {
+    var el = document.getElementById('graphContainer');
+    if (!el || typeof html2canvas !== 'function') return;
+    if (drawTool) setDrawTool(null); // 先退出画板，避免覆盖层/画笔残留
+
+    // 临时隐藏浮层控件，避免进入导出画面
+    var overlays = el.querySelectorAll('.draw-toolbar, .minimap, .legend, #drawOverlay');
+    var vis = [];
+    overlays.forEach(function(n, i) { vis[i] = n.style.visibility; n.style.visibility = 'hidden'; });
+
+    try {
+      var bg = getComputedStyle(document.documentElement).getPropertyValue('--app-bg').trim() || '#fff';
+      var canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: bg });
+      var a = document.createElement('a');
+      var d = new Date();
+      var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+      a.download = '画布-' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + Date.now() + '.png';
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    } finally {
+      overlays.forEach(function(n, i) { n.style.visibility = vis[i]; });
+    }
+  }
   function applyThemeStyles() {
-    if (!svg) return;
-    var theme = document.documentElement.getAttribute('data-theme') || 'notion';
-    var isDark = theme === 'dark';
-    var nodeStroke = isDark ? '#2d2d2d' : '#ffffff';
-    svg.selectAll('.node rect').attr('stroke', nodeStroke);
+    // 保留钩子：主题切换时如需按需刷新可在此扩展
   }
 
   window.onThemeChange = function() {
@@ -1162,6 +1580,7 @@
       if (action === 'add-link') openCreateModal('link', pt);
       if (action === 'add-image') openCreateModal('image', pt);
       if (action === 'add-ref') openCreateModal('ref', pt);
+      if (action === 'clear-all') openClearAllConfirm();
     });
   });
 
@@ -1222,10 +1641,58 @@
     if (e.key !== 'Escape') return;
     if (canvasModalMask.style.display === 'flex') { closeModal(); return; }
     if (linkSourceId) { cancelLink(); return; }
+    if (drawTool) { setDrawTool(null); return; }
     closeMenus();
   });
 
   // ---- Init ----
+
+  // 手绘画笔：工具栏事件
+  if (drawToolbar) {
+    drawToolbar.addEventListener('click', function(event) {
+      var btn = event.target.closest('button');
+      if (!btn) return;
+      event.stopPropagation();
+      if (btn.dataset.tool) { setDrawTool(btn.dataset.tool === drawTool ? null : btn.dataset.tool); return; }
+      if (btn.dataset.size) {
+        inkSize = btn.dataset.size;
+        drawToolbar.querySelectorAll('button[data-size]').forEach(function(b) {
+          b.classList.toggle('is-active', b.dataset.size === inkSize);
+        });
+        return;
+      }
+      if (btn.classList.contains('swatch')) {
+        inkColor = btn.dataset.color;
+        drawToolbar.querySelectorAll('.swatch').forEach(function(s) { s.classList.toggle('selected', s === btn); });
+        return;
+      }
+    });
+    document.getElementById('undoBtn').addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (strokes.length) { strokes.pop(); renderInk(); }
+    });
+    document.getElementById('clearBtn').addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (!strokes.length) return;
+      strokes = [];
+      renderInk();
+    });
+    var exportBtn = document.getElementById('exportBtn');
+    if (exportBtn) {
+      exportBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        exportCanvas();
+      });
+    }
+  }
+
+  // 手绘画笔：覆盖层指针绘制（临时擦写板）
+  if (drawOverlayEl) {
+    drawOverlayEl.addEventListener('pointerdown', handleDrawStart);
+    drawOverlayEl.addEventListener('pointermove', handleDrawMove);
+    window.addEventListener('pointerup', handleDrawEnd);
+    drawOverlayEl.addEventListener('pointerleave', handleDrawEnd);
+  }
 
   document.addEventListener('DOMContentLoaded', function() {
     loadData();

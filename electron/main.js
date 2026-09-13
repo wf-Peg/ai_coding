@@ -248,6 +248,71 @@ function clearGpuPerfPendingFlag() {
 // 应用 GPU 档位策略（必须在 app ready 之前执行）
 const appliedGpuProfile = applyGpuPolicy();
 
+/** 内置模板默认集：用户编辑后以覆盖项写入 config.json 的 builtinTemplates；删除 = 恢复默认 */
+const DEFAULT_BUILTIN_TEMPLATES = [
+  {
+    name: '日记模板.md',
+    content: '# {{date:YYYY年MM月DD日}}（星期{{weekday}}）'
+      + '\n\n> 记录于：{{now:HH:mm}}  ·  天气：'
+      + '\n\n## 今日计划'
+      + '\n- [ ] '
+      + '\n\n## 今日收获 / 思考'
+      + '\n\n\n## 明日待办'
+      + '\n- [ ] '
+  },
+  {
+    name: '会议记录.md',
+    content: '# {{date:YYYY-MM-DD}} 会议记录（星期{{weekday}}）'
+      + '\n- 主题：'
+      + '\n- 参会人：'
+      + '\n- 记录人：{{author}}'
+      + '\n- 时间：{{time}}'
+      + '\n\n## 议题'
+      + '\n\n\n## 结论 / 决议'
+      + '\n\n\n## 待办与负责人'
+      + '\n- [ ] '
+  },
+  {
+    name: '周报模板.md',
+    content: '# 周报 {{date:YYYY-MM-DD}}'
+      + '\n## 本周完成'
+      + '\n- [ ] '
+      + '\n\n## 数据 / 亮点'
+      + '\n- '
+      + '\n\n## 下周计划'
+      + '\n- '
+      + '\n\n## 风险 / 求助'
+      + '\n- '
+  },
+  {
+    name: '随笔模板.md',
+    content: '# {{date:YYYY-MM-DD}} · {{title}}'
+      + '\n\n> {{time}} · 星期{{weekday}}'
+      + '\n\n（随笔正文）'
+  },
+  {
+    name: 'SQL 注释模板.md',
+    content: '-- ============================================'
+      + '\n-- 脚本：{{title}}.sql'
+      + '\n-- 说明：'
+      + '\n-- 作者：{{author}}'
+      + '\n-- 日期：{{date:YYYY-MM-DD}}'
+      + '\n-- 版本：V{{date:YYMMDD}}.1'
+      + '\n-- ============================================'
+  },
+  {
+    name: 'Java 文件头模板.md',
+    content: '/**'
+      + '\n * 类描述：'
+      + '\n *'
+      + '\n * @author    {{author}}'
+      + '\n * @date      {{date:YYYY-MM-DD}} {{time}}'
+      + '\n * @version   v1.0'
+      + '\n * @since     1.8'
+      + '\n */'
+  }
+];
+
 /** 默认配置（新用户首次运行时使用） */
 const DEFAULT_CONFIG = {
   backendPort: 8081,           // Spring Boot 后端端口
@@ -285,7 +350,8 @@ const DEFAULT_CONFIG = {
   dshPort: 3081,                // DSH sidecar 端口（固定 3081，避免与用户手动启动的 3080 冲突；若 3081 已有 DSH 则复用）
   dshBinPath: '',               // DSH CLI 路径（空 = 自动探测：DSH_BIN env → 内置 node_modules → npx 缓存 → npx）
   dshAgentNpxSpec: '@deepseek-ai/dsh@0.1.0-rc.7', // dsh 安装命令的固定兜底 spec（在线同步失败时的最后手段，可被配置/环境变量覆盖）
-  dshSync: { version: '', ts: 0 } // dsh 最新版本在线同步缓存（version + 时间戳，TTL=DSH_SYNC_TTL）
+  dshSync: { version: '', ts: 0 }, // dsh 最新版本在线同步缓存（version + 时间戳，TTL=DSH_SYNC_TTL）
+  builtinTemplates: DEFAULT_BUILTIN_TEMPLATES  // 内置模板：存储于配置文件，可编辑；删除 = 恢复默认
 };
 
 // ===== dsh 安装命令在线同步（npm 优先 + GitHub README 兜底）=====
@@ -1883,10 +1949,50 @@ function showMainWindow() {
   // 托盘淡出路径会把窗口 opacity 降到 0（见 fadeOutWindow），唤起前必须复位，
   // 否则窗口显示为透明/黑块（macOS/Windows 上表现为"无法恢复主窗口"）。
   try { if (mainWindow.getOpacity() !== 1) mainWindow.setOpacity(1); } catch (e) {}
+  // 唤起前先校准位置：防止窗口顶部残留在系统菜单栏/任务栏上方的越界态被原样弹回
+  ensureWindowVisible(mainWindow);
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
   trayHidden = false; // 由托盘/快捷键等主动唤起后解除托盘隐藏态，恢复 activate 自动唤起
+}
+
+// 屏幕变更监听只注册一次（多显示器拔插/分辨率变更时窗口可能被系统挪出可视区）
+let windowClampRegistered = false;
+
+/**
+ * 窗口可视区校准兜底
+ * 应用不持久化窗口位置，偶发场景（显示器拔插/分辨率变更/原生全屏退出/OS 会话恢复等）
+ * 会把窗口顶边抬到 workArea 之上（压到系统菜单栏区域）。这里把窗口拉回安全区：
+ *  - 顶/左侧越界 → 对齐到所在显示器工作区原点
+ *  - 窗口整体落在工作区外（如所属显示器被移除）→ 归位到主屏居中
+ * 全屏/最大化属于系统接管边界，跳过。
+ * @param {BrowserWindow|null} win
+ */
+function ensureWindowVisible(win) {
+  if (!win || win.isDestroyed()) return;
+  if (win.isFullScreen() || win.isMaximized()) return;
+  try {
+    const bounds = win.getBounds();
+    const display = screen.getDisplayMatching(bounds) || screen.getPrimaryDisplay();
+    const wa = display.workArea;
+    let nx = bounds.x;
+    let ny = bounds.y;
+    if (ny < wa.y) ny = wa.y;              // 顶边压进系统菜单栏区域：对齐到工作区顶部
+    if (nx < wa.x) nx = wa.x;              // 左边越出可视区：对齐到工作区左缘
+    const fullyOffscreen = nx >= wa.x + wa.width || ny >= wa.y + wa.height;
+    if (fullyOffscreen) {
+      const pb = screen.getPrimaryDisplay().workArea;   // 显示器被移除：归位到主屏居中
+      nx = pb.x + Math.round((pb.width - bounds.width) / 2);
+      ny = pb.y + Math.round((pb.height - bounds.height) / 2);
+    }
+    if (nx !== bounds.x || ny !== bounds.y) {
+      log.info(`[Window] clamp 位置: (${bounds.x},${bounds.y}) → (${nx},${ny})`);
+      win.setBounds({ x: nx, y: ny, width: bounds.width, height: bounds.height }, false);
+    }
+  } catch (e) {
+    // 校准属兜底逻辑，偶发异常直接忽略不影响主流程
+  }
 }
 
 /**
@@ -2057,6 +2163,9 @@ async function showCloseDialog(win) {
     transparent: true,
     // 显式透明背景：避免合成器把无内容的透明窗口画成黑块（CSS 动画期间出现黑色残影）
     backgroundColor: '#00000000',
+    // 关闭原生窗口阴影：macOS 透明窗口的 hasShadow 会被合成器渲染成窗口外圈的黑色硬边伪影
+    // （即"外圈一层黑影"），关闭它由卡片自身的柔和 box-shadow 提供层级分离。
+    hasShadow: false,
     webPreferences: {
       nodeIntegration: false,   // 安全：禁用 Node.js 集成
       contextIsolation: true,   // 安全：启用上下文隔离
@@ -2221,9 +2330,9 @@ async function showCloseDialog(win) {
       dialogResult = args[0];
       // 收到选择后用窗口级 setOpacity 原生淡出再关闭（与主窗口退场一致），
       // 避免透明窗口内 CSS 动画造成的黑色残影。
-      fadeOutWindow(closeDialog, 200, () => { if (!closeDialog.isDestroyed()) closeDialog.close(); });
+      fadeOutWindow(closeDialog, THEME_DURATION_NORMAL, () => { if (!closeDialog.isDestroyed()) closeDialog.close(); });
     } else if (channel === 'close-dialog-cancel') {
-      fadeOutWindow(closeDialog, 200, () => { if (!closeDialog.isDestroyed()) closeDialog.close(); });
+      fadeOutWindow(closeDialog, THEME_DURATION_NORMAL, () => { if (!closeDialog.isDestroyed()) closeDialog.close(); });
     }
   });
 
@@ -2339,8 +2448,33 @@ function createMainWindow(config) {
       mainWindow.webContents.send('backend-ready');
       mainWindow.webContents.send('load-config', config);
     }
+    // SHORTCUT_DEBUG=1：环境变量一键开启渲染层 [ShortcutDebug] 日志（免去手动 localStorage）
+    if (process.env.SHORTCUT_DEBUG === '1') {
+      mainWindow.webContents.send('shortcut-debug', true);
+    }
     // performance 渲染档启动成功：清除 pending 降级标记，避免下次误判为崩溃
     clearGpuPerfPendingFlag();
+  });
+
+  // ===== ⌘/Ctrl+; AceJump 最低层兜底 + 键盘诊断 =====
+  // 菜单加速键仅在原生菜单接受该组合时才触发；若按键被系统/输入法在更低层吃掉，
+  // before-input-event 就是主进程能观察到它的最后一级。命中时直接在此触发（绕过菜单与渲染层），
+  // 并打印到启动终端，用于区分"事件根本没进应用"还是"进了应用但后续链路断"。
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (!input || input.type !== 'keyDown') return;
+    const isMac = process.platform === 'darwin';
+    const isAceJumpCombo = input.key === ';' && (isMac ? !!input.meta : !!input.control);
+    if (isAceJumpCombo || process.env.SHORTCUT_DEBUG === '1') {
+      console.log('[ShortcutDebug] before-input-event', JSON.stringify({
+        type: input.type, key: input.key, code: input.code,
+        meta: !!input.meta, control: !!input.control, shift: !!input.shift, alt: !!input.alt,
+        repeat: !!input.isAutoRepeat
+      }));
+    }
+    if (isAceJumpCombo) {
+      event.preventDefault();
+      focusAceJump();
+    }
   });
 
   // 开始加载页面，最多重试 5 次（共 10 秒）
@@ -2348,6 +2482,33 @@ function createMainWindow(config) {
 
   // 窗口销毁时清理引用
   mainWindow.on('closed', () => { mainWindow = null; });
+
+  // 创建时就校准一次：多显示器拔插/分辨率变更/OS 会话恢复可能把窗口顶到系统菜单栏区域
+  ensureWindowVisible(mainWindow);
+  if (!windowClampRegistered) {
+    windowClampRegistered = true;
+    // 显示器拓扑变化（拔插/分辨率/排列改变）后窗口可能被系统移出可视区，统一拉回安全区
+    screen.on('display-metrics-changed', () => { ensureWindowVisible(mainWindow); });
+  }
+  // 原生全屏退出（编辑器 F11/⌃⌘F 走 setFullScreen）后恢复的边界有已知缺陷：
+  // 等系统还原动画结束后再校准一次，避免窗口顶边残留在菜单栏上方
+  mainWindow.on('leave-full-screen', () => {
+    setTimeout(() => ensureWindowVisible(mainWindow), 300);
+  });
+
+  // macOS Cmd+Tab 切屏切回时（OS 已知缺陷）窗口 y 会落到 workArea 之上、顶进菜单栏。
+  // activate/focus 触发的同步校准发生在系统切换动画完成前，最终位置随后会被系统覆盖，
+  // 因此对 show/focus 做延迟去抖校准，抓"动画落定后的最终位置"。
+  let clampTimer = null;
+  const clampAfterShowFocus = () => {
+    if (clampTimer) clearTimeout(clampTimer);
+    clampTimer = setTimeout(() => {
+      clampTimer = null;
+      ensureWindowVisible(mainWindow);
+    }, 250);
+  };
+  mainWindow.on('show', clampAfterShowFocus);
+  mainWindow.on('focus', clampAfterShowFocus);
 
   // 应用主动退出时，忽略渲染进程 beforeunload 的阻止（如编辑器未保存标签的取消卸载）
   // 否则子 iframe 的 beforeunload 会阻断 app.quit()，导致 Cmd+Q / 扩展坞 / 右上角关闭均无效。
@@ -2369,7 +2530,7 @@ function createMainWindow(config) {
       if (closeToTray === true) {
         // 最小化到托盘：淡出后 hide() 真正将窗口收入托盘（macOS 上 minimize() 仍会残留/被激活弹回）
         trayHidden = true;
-        fadeOutWindow(mainWindow, 160, () => {
+        fadeOutWindow(mainWindow, THEME_DURATION_NORMAL, () => {
           if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide();
         });
       } else if (closeToTray === false) {
@@ -2395,6 +2556,7 @@ function createMainWindow(config) {
     {
       label: 'Clip', submenu: [
         { label: 'Command Palette', accelerator: 'CmdOrCtrl+K', click: () => focusGlobalCmdPalette() },
+        { label: 'AceJump', accelerator: 'CmdOrCtrl+;', click: () => focusAceJump() },
         { type: 'separator' },
         { label: 'Global Search', accelerator: globalSearchAccelerator, click: () => focusGlobalSearch() },
         { type: 'separator' },
@@ -2448,7 +2610,14 @@ function createMainWindow(config) {
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
   }
-  buildMenu();
+  try {
+    buildMenu();
+    console.log('[ShortcutDebug] buildMenu OK（AceJump 加速键 CmdOrCtrl+; 已注册）');
+  } catch (e) {
+    // 若某条 accelerator 语法非法，Menu.buildFromTemplate 会抛错——直接在终端暴露，
+    // 避免"菜单加速键静默失效"导致 Cmd+; 全链路无响应又无从排查。
+    console.error('[ShortcutDebug] buildMenu FAILED（accelerator 可能非法）:', e && e.message ? e.message : e);
+  }
 
   // 监听「全局搜索」快捷键配置变更（设置模块改进），热更新主进程菜单 accelerator，
   // 从而在 iframe 焦点场景下仍能按用户自定义的组合唤起全局搜索。
@@ -2482,6 +2651,17 @@ function focusGlobalCmdPalette() {
   if (!mainWindow.isVisible()) mainWindow.show();
   mainWindow.focus();
   mainWindow.webContents.send('focus-global-cmd-palette');
+}
+
+// 唤起编辑器 AceJump（⌘/Ctrl+; 菜单加速键触发；走主进程兜底，避开中文输入法/焦点被抢占导致渲染层 keydown 收不到）
+function focusAceJump() {
+  // 主进程日志输出到启动终端（DevTools 里看不到），用于确认菜单加速键是否真的触发
+  console.log('[ShortcutDebug] focusAceJump: 菜单加速键 ⌘/Ctrl+; 触发，发送 focus-ace-jump IPC');
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  if (!mainWindow.isVisible()) mainWindow.show();
+  mainWindow.focus();
+  mainWindow.webContents.send('focus-ace-jump');
 }
 
 /**
@@ -2561,8 +2741,20 @@ function beginShutdown() {
   stopDshAgent();
 }
 
+// 主题令牌时长（对齐 frontend/styles/design-tokens.css）
+const THEME_DURATION_FAST = 120;    // --app-duration-fast
+const THEME_DURATION_NORMAL = 200;  // --app-duration-normal
+const THEME_DURATION_PANEL = 250;   // --app-duration-panel
+
+// 近似 --app-ease-smooth (cubic-bezier(.22,1,.36,1)) 的退场曲线，用于窗口淡出时间轴
+function themeEaseSmooth(p) {
+  return 1 - Math.pow(1 - p, 3);
+}
+
 /**
  * 主窗口退场淡出（GPU 原生透明度动画，见 BrowserWindow.setOpacity）。
+ * 时长采用主题令牌 --app-duration-normal，时间轴按 --app-ease-smooth 曲线推进，
+ * 与全局皮肤动画节奏保持一致。
  * macOS 恒支持、Windows 支持；Linux 不支持 setOpacity，直接回调跳过。
  * @param {BrowserWindow|null} win
  * @param {number} ms 淡出总时长
@@ -2576,8 +2768,10 @@ function fadeOutWindow(win, ms, done) {
   const steps = 12;
   const stepMs = ms / steps;
   for (let i = 1; i <= steps; i++) {
+    const p = i / steps;                // 进度 0→1
+    const eased = themeEaseSmooth(p);   // 退场加速曲线
     setTimeout(() => {
-      if (!win.isDestroyed()) win.setOpacity(1 - i / steps);
+      if (!win.isDestroyed()) win.setOpacity(1 - eased);
     }, i * stepMs);
   }
   setTimeout(done || (() => {}), ms);
@@ -2622,9 +2816,12 @@ function quitApp() {
 
   // 主窗口淡出后退出，视觉丝滑；stop 系列已非阻塞，淡出期间系统无阻塞。
   // beginShutdown 此处幂等，仅首次真正执行。
+  // 时长 --app-duration-normal；淡出到全透明后先 hide() 再 app.quit()——
+  // 若不 hide，macOS 合成器仍缓存最近一帧会在退出瞬间滞留"重影/残影"。
   const quitT0 = Date.now();
   log.info('[Quit] 开始主窗口淡出（后端/前端/DSH 已触发停止）...');
-  fadeOutWindow(mainWindow, 180, () => {
+  fadeOutWindow(mainWindow, THEME_DURATION_NORMAL, () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide();
     beginShutdown();
     log.info(`[Quit] 发起 app.quit（距退出启动 ${Date.now() - quitT0}ms）`);
     app.quit();
@@ -4107,25 +4304,54 @@ function setupIPC() {
     return dir;
   }
 
-  // 列出模板（*.md / *.txt）
+  // 内置模板 helper：内置模板存储于 config.json 的 builtinTemplates（可编辑）；自定义模板存 templates 目录文件
+  function getBuiltinTemplates() {
+    const cfg = loadConfig();
+    return Array.isArray(cfg.builtinTemplates) ? cfg.builtinTemplates : (DEFAULT_BUILTIN_TEMPLATES || []);
+  }
+  function isBuiltinTemplateName(name) {
+    return getBuiltinTemplates().some(t => t.name === name);
+  }
+  function saveBuiltinTemplate(name, content) {
+    const cfg = loadConfig();
+    const list = (Array.isArray(cfg.builtinTemplates) ? cfg.builtinTemplates : (DEFAULT_BUILTIN_TEMPLATES || [])).slice();
+    const idx = list.findIndex(t => t.name === name);
+    const rec = { name, content };
+    if (idx >= 0) list[idx] = rec; else list.push(rec);
+    saveConfig({ ...cfg, builtinTemplates: list });
+  }
+  function resetBuiltinTemplate(name) {
+    const cfg = loadConfig();
+    if (!Array.isArray(cfg.builtinTemplates)) return;
+    const next = cfg.builtinTemplates.filter(t => t.name !== name);
+    saveConfig({ ...cfg, builtinTemplates: next });
+  }
+
+  // 列出模板：内置（config）+ 自定义（templates 目录 *.md/*.txt）
   ipcMain.handle('editor-list-templates', async () => {
     try {
       const dir = resolveTemplatesDir();
       const names = fs.readdirSync(dir)
         .filter(f => /\.(md|txt)$/i.test(f))
         .sort();
-      return { success: true, dir, templates: names.map(n => ({ name: n, path: path.join(dir, n) })) };
+      const builtin = getBuiltinTemplates().map(t => ({ name: t.name, source: 'builtin', builtin: true }));
+      const custom = names.map(n => ({ name: n, source: 'custom', builtin: false, path: path.join(dir, n) }));
+      return { success: true, dir, templates: builtin.concat(custom) };
     } catch (err) {
       return { success: false, message: err.message };
     }
   });
 
-  // 读取单个模板内容
+  // 读取单个模板内容（内置读 config，自定义读文件）
   ipcMain.handle('editor-read-template', async (event, name) => {
     try {
-      const dir = resolveTemplatesDir();
       const safe = String(name || '').replace(/[\\/:*?"<>|]/g, '_');
       if (!safe) throw new Error('模板名无效');
+      if (isBuiltinTemplateName(safe)) {
+        const t = getBuiltinTemplates().find(t => t.name === safe);
+        return { success: true, content: (t && t.content) || '', builtin: true };
+      }
+      const dir = resolveTemplatesDir();
       const filePath = path.join(dir, safe);
       if (!filePath.startsWith(dir) || !fs.existsSync(filePath)) throw new Error('模板不存在：' + name);
       const content = fs.readFileSync(filePath, 'utf-8');
@@ -4135,12 +4361,17 @@ function setupIPC() {
     }
   });
 
-  // 保存模板（覆盖同名文件）
+  // 保存模板（内置 → config；自定义 → 文件）
   ipcMain.handle('editor-save-template', async (event, payload) => {
     try {
       const name = String(payload?.name || '').replace(/[\\/:*?"<>|]/g, '_');
       if (!name) throw new Error('模板名无效');
       if (!/\.(md|txt)$/i.test(name)) throw new Error('模板仅支持 .md / .txt');
+      if (isBuiltinTemplateName(name)) {
+        saveBuiltinTemplate(name, payload?.content || '');
+        log.info('[EditorTemplate] saved(builtin)', name);
+        return { success: true, builtin: true };
+      }
       const dir = resolveTemplatesDir();
       const filePath = path.join(dir, name);
       if (!filePath.startsWith(dir)) throw new Error('模板路径非法');
@@ -4152,11 +4383,16 @@ function setupIPC() {
     }
   });
 
-  // 删除模板
+  // 删除模板（内置 → 恢复默认；自定义 → 删文件）
   ipcMain.handle('editor-delete-template', async (event, name) => {
     try {
       const safe = String(name || '').replace(/[\\/:*?"<>|]/g, '_');
       if (!safe) throw new Error('模板名无效');
+      if (isBuiltinTemplateName(safe)) {
+        resetBuiltinTemplate(safe);
+        log.info('[EditorTemplate] reset(builtin)', safe);
+        return { success: true, builtin: true, reset: true };
+      }
       const dir = resolveTemplatesDir();
       const filePath = path.join(dir, safe);
       if (!filePath.startsWith(dir) || !fs.existsSync(filePath)) throw new Error('模板不存在：' + name);
@@ -4706,7 +4942,89 @@ let clipboardToastWin = null;              // 当前气泡窗
 let clipboardDismissTimer = null;          // 气泡自动关闭定时器
 const CLIPBOARD_POLL_MS = 1500;
 const CLIPBOARD_COOLDOWN_MS = 10000;
-const CLIPBOARD_TOAST_LIFETIME_MS = 15000;
+const CLIPBOARD_TOAST_LIFETIME_MS = 3500;
+
+// ═══════════════════════════════════════════════════════════
+// 剪贴板历史（即时助手旁路）
+// 每次轮询识别到「新复制内容」即落盘一条历史（独立于气泡冷却：冷却只抑制弹窗、不丢历史），
+// 供「历史面板」回看与补录（一键记录到剪藏）。存储独立于后端：config 目录下
+// clipboard-history.json，文本存原文、图片存等比缩略 dataURL，控制文件体积。
+// ═══════════════════════════════════════════════════════════
+const CLIPBOARD_HISTORY_FILE = path.join(CONFIG_DIR, 'clipboard-history.json');
+const CLIPBOARD_HISTORY_MAX = 200;            // 保留条数（超出裁剪最旧）
+const CLIPBOARD_HISTORY_THUMB_W = 800;        // 图片历史缩略宽度上限
+let clipboardHistoryCache = null;             // 内存态（新的在前）
+let clipboardHistoryWin = null;               // 历史面板窗口
+
+function loadClipboardHistory() {
+  try {
+    if (clipboardHistoryCache) return clipboardHistoryCache;
+    if (!fs.existsSync(CLIPBOARD_HISTORY_FILE)) { clipboardHistoryCache = []; return clipboardHistoryCache; }
+    const raw = JSON.parse(fs.readFileSync(CLIPBOARD_HISTORY_FILE, 'utf-8'));
+    clipboardHistoryCache = Array.isArray(raw) ? raw : [];
+    return clipboardHistoryCache;
+  } catch (e) {
+    log.warn('[ClipboardHistory] load failed:', e.message);
+    clipboardHistoryCache = [];
+    return clipboardHistoryCache;
+  }
+}
+
+function saveClipboardHistory() {
+  try {
+    fs.writeFileSync(CLIPBOARD_HISTORY_FILE, JSON.stringify((clipboardHistoryCache || []).slice(0, CLIPBOARD_HISTORY_MAX), null, 2), 'utf-8');
+  } catch (e) {
+    log.warn('[ClipboardHistory] save failed:', e.message);
+  }
+}
+
+/** 图片等比例缩到宽度上限，控制历史文件体积 */
+function makeImageThumbDataUrl(image, maxWidth) {
+  try {
+    const size = image.getSize();
+    const scale = size.width > maxWidth ? maxWidth / size.width : 1;
+    const resized = scale < 1 ? image.resize({ width: Math.round(size.width * scale) }) : image;
+    return 'data:image/png;base64,' + resized.toPNG().toString('base64');
+  } catch (e) {
+    return null;
+  }
+}
+
+/** 历史条目签名（与气泡去重策略一致） */
+function clipboardHistorySignature(entry) {
+  if (!entry) return null;
+  if (entry.type === 'text') {
+    const t = String(entry.text || '').replace(/\s+/g, '').slice(0, 2000);
+    return t ? 't:' + t : null;
+  }
+  return entry.imageDataUrl ? 'i:' + entry.imageDataUrl.length : null;
+}
+
+/** 追加一条历史（已存在同内容则跳过），返回是否新增 */
+function addClipboardHistory(content) {
+  const list = loadClipboardHistory();
+  let entry;
+  if (content.type === 'text') {
+    if (!String(content.text || '').trim()) return false;
+    entry = { id: 'h' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), type: 'text', text: String(content.text), createdAt: Date.now() };
+  } else {
+    const thumb = content._image
+      ? makeImageThumbDataUrl(content._image, CLIPBOARD_HISTORY_THUMB_W)
+      : (content.imageDataUrl || null);
+    if (!thumb) return false;
+    entry = { id: 'h' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), type: 'image', imageDataUrl: thumb, createdAt: Date.now() };
+  }
+  const sig = clipboardHistorySignature(entry);
+  for (let i = 0; i < list.length; i++) {
+    if (clipboardHistorySignature(list[i]) === sig) return false;
+  }
+  list.unshift(entry);
+  while (list.length > CLIPBOARD_HISTORY_MAX) list.pop();
+  saveClipboardHistory();
+  // 历史面板若已打开，实时刷新（新复制内容即时可见）
+  if (clipboardHistoryWin && !clipboardHistoryWin.isDestroyed()) refreshClipboardHistoryWin();
+  return true;
+}
 
 /** 剪贴板内容签名：文本取去空白后的内容；图片取尺寸+字节数。用于去重。 */
 function clipboardSignature(content) {
@@ -4745,16 +5063,18 @@ function readClipboardRich() {
   return null;
 }
 
-/** 轮询主逻辑：检测到新内容且非冷却期 → 弹气泡。 */
+/** 轮询主逻辑：每次新复制内容先入历史，再按冷却决定是否弹气泡。 */
 function pollClipboard() {
   try {
     const content = readClipboardRich();
     const key = clipboardSignature(content);
     if (!key) return;
     if (key === lastClipboardKey) return;                       // 同内容不重复
+    lastClipboardKey = key;
+    // 历史与气泡解耦：冷却期内不弹窗，但历史照常入库（保证"复制过必有痕"）
+    try { addClipboardHistory(content); } catch (e) { log.warn('[ClipboardAssistant] history add error:', e.message); }
     const now = Date.now();
     if (now - lastClipboardPromptAt < CLIPBOARD_COOLDOWN_MS) return; // 冷却
-    lastClipboardKey = key;
     lastClipboardPromptAt = now;
     showClipboardToast(content);
   } catch (e) {
@@ -4845,6 +5165,9 @@ async function showClipboardToast(content) {
       y: height - toastHeight - margin,
       frame: false,
       alwaysOnTop: true,
+      // macOS 用 panel 面板类型（NSPanel）+ 不可聚焦：即使 App 在后台/托盘，
+      // 气泡出现 or 交互都不会激活 App、不把主页面弹到前台；Windows/Linux 忽略该类型。
+      type: process.platform === 'darwin' ? 'panel' : undefined,
       skipTaskbar: true,
       resizable: false,
       transparent: true,
@@ -4852,7 +5175,9 @@ async function showClipboardToast(content) {
       // 避免透明窗口动画/合成时被画成黑块，产生黑色残影
       backgroundColor: '#00000000',
       hasShadow: false,
-      focusable: true,          // 需要按钮可点击交互
+      // 不可聚焦：置顶窗参与交互时不激活 App，避免点右上角关闭/点其它处把应用主页面弹到前台
+      //（非聚焦窗口仍可接收鼠标点击，[记录到剪藏][忽略] 按钮照常可用）
+      focusable: false,
       show: false,
       webPreferences: {
         nodeIntegration: false,
@@ -4926,6 +5251,8 @@ async function showClipboardToast(content) {
     <div class="preview">${preview}</div>
     <div class="actions">
       <button class="btn ghost" id="ignoreBtn">忽略</button>
+      <button class="btn ghost" id="historyBtn">历史</button>
+      <button class="btn ghost" id="writeBtn"${content.type === 'image' ? ' disabled title="图片内容暂不支持写入写作区"' : ''}>写作区</button>
       <button class="btn primary" id="recordBtn">记录到剪藏</button>
     </div>
   </div>
@@ -4934,11 +5261,24 @@ async function showClipboardToast(content) {
     function dismiss() { if (api && api.ignore) api.ignore(); }
     document.getElementById('closeBtn').addEventListener('click', dismiss);
     document.getElementById('ignoreBtn').addEventListener('click', dismiss);
+    document.getElementById('historyBtn').addEventListener('click', function () {
+      // 收起当前气泡，再打开历史面板（气泡按需创建，收起避免遮挡面板）
+      if (api && api.ignore) api.ignore();
+      if (api && api.openHistory) api.openHistory();
+    });
+    document.getElementById('writeBtn').addEventListener('click', function () {
+      if (api && api.write) api.write();
+    });
     document.getElementById('recordBtn').addEventListener('click', function () {
       if (api && api.record) api.record();
     });
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') dismiss();
+    });
+    // 双击通知区域 = 关闭通知（与右上角 X 同功能）；双击到按钮则交给单击处理，不额外关闭
+    document.querySelector('.card').addEventListener('dblclick', function (e) {
+      if (e.target && e.target.closest && e.target.closest('.btn')) return;
+      dismiss();
     });
   </script>
 </body>
@@ -4989,45 +5329,50 @@ async function uploadImageDataUrl(base, dataUrl) {
   throw new Error('上传图片失败: 未返回路径');
 }
 
-// 记录当前气泡里的内容为剪藏（默认"存储原文 + 收件箱"模式）；图片先上传再入库。
+/** 将一份剪贴内容记录为剪藏（默认"存储原文 + 收件箱"模式）；图片先上传再入库。 */
+async function recordClipboardContent(c) {
+  const cfg = loadConfig();
+  const base = 'http://127.0.0.1:' + (cfg.backendPort || 8081);
+  const plain = c.text ? String(c.text).replace(/\s+/g, ' ').trim() : '';
+  let payload;
+  if (c.type === 'text') {
+    // type=store-only → 后端自动设为 workflowStatus=inbox（收件箱）并按"存储原文"保留 content；
+    // useAiTags=false 避免触发 AI 加工，仅存原文待整理。
+    payload = {
+      content: c.text,
+      title: (String(c.text).split('\n')[0] || '').trim().slice(0, 60) || '剪贴板内容',
+      summary: plain.slice(0, 120),
+      type: 'store-only',
+      workflowStatus: 'inbox',
+      source: 'clipboard',
+      useAiTags: false,
+    };
+  } else {
+    const path = await uploadImageDataUrl(base, c.imageDataUrl);
+    payload = {
+      content: '剪贴板图片',
+      title: '剪贴板图片 ' + new Date().toLocaleString(),
+      type: 'image',
+      source: 'clipboard',
+      imagePaths: [path],
+      useAiTags: false,
+    };
+  }
+  const data = await httpPostJson(base + '/api/clip/add', payload);
+  const id = data && (data.id != null ? data.id : data.clipId);
+  log.info('[ClipboardAssistant] recorded:', id != null ? '#' + id : 'ok');
+  const clipIdText = id != null ? ' #' + id : '';
+  notifyClipboardResult('已记录到剪藏', '已存入收件箱，待整理' + clipIdText);
+  return { success: true, data };
+}
+
+// 记录当前气泡里的内容为剪藏（复用 recordClipboardContent）
 ipcMain.handle('clipboard-toast:record', async () => {
   const c = pendingClipboard;
   closeClipboardToast(true); // 记录后原生淡出收起
   if (!c) return { success: false, message: '无待确认内容' };
   try {
-    const cfg = loadConfig();
-    const base = 'http://127.0.0.1:' + (cfg.backendPort || 8081);
-    const plain = c.text ? String(c.text).replace(/\s+/g, ' ').trim() : '';
-    let payload;
-    if (c.type === 'text') {
-      // type=store-only → 后端自动设为 workflowStatus=inbox（收件箱）并按"存储原文"保留 content；
-      // useAiTags=false 避免触发 AI 加工，仅存原文待整理。
-      payload = {
-        content: c.text,
-        title: (String(c.text).split('\n')[0] || '').trim().slice(0, 60) || '剪贴板内容',
-        summary: plain.slice(0, 120),
-        type: 'store-only',
-        workflowStatus: 'inbox',
-        source: 'clipboard',
-        useAiTags: false,
-      };
-    } else {
-      const path = await uploadImageDataUrl(base, c.imageDataUrl);
-      payload = {
-        content: '剪贴板图片',
-        title: '剪贴板图片 ' + new Date().toLocaleString(),
-        type: 'image',
-        source: 'clipboard',
-        imagePaths: [path],
-        useAiTags: false,
-      };
-    }
-    const data = await httpPostJson(base + '/api/clip/add', payload);
-    const id = data && (data.id != null ? data.id : data.clipId);
-    log.info('[ClipboardAssistant] recorded:', id != null ? '#' + id : 'ok');
-    const clipIdText = id != null ? ' #' + id : '';
-    notifyClipboardResult('已记录到剪藏', '已存入收件箱，待整理' + clipIdText);
-    return { success: true, data };
+    return await recordClipboardContent(c);
   } catch (e) {
     const msg = formatClipboardRecordError(e);
     log.warn('[ClipboardAssistant] record failed:', msg);
@@ -5058,6 +5403,294 @@ function formatClipboardRecordError(e) {
 
 ipcMain.handle('clipboard-toast:ignore', () => { closeClipboardToast(true); return { success: true }; });
 ipcMain.handle('clipboard-toast:close', () => { closeClipboardToast(true); return { success: true }; });
+
+// 把当前剪贴板内容送入「写作区」（编辑器新标签页），由主窗口转发给编辑器 iframe
+ipcMain.handle('clipboard-toast:write', () => {
+  const c = pendingClipboard;
+  closeClipboardToast(true);
+  if (!c) return { success: false, message: '无待确认内容' };
+  if (c.type !== 'text' || !c.text || !c.text.trim()) {
+    return { success: false, message: '当前剪贴板为图片，暂不支持写入写作区' };
+  }
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { success: false, message: '主窗口未就绪，无法打开写作区' };
+  }
+  try {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    if (!mainWindow.isVisible()) mainWindow.show();
+    mainWindow.webContents.send('toast-write-to-editor', {
+      text: c.text,
+      title: c.title || '剪贴板内容'
+    });
+    mainWindow.focus();
+    return { success: true };
+  } catch (e) {
+    log.warn('[ClipboardAssistant] write-to-editor error:', e.message);
+    return { success: false, message: '写入写作区失败：' + e.message };
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// 剪贴板历史面板：查询 / 补录为剪藏 / 删除 / 清空 / 打开窗口
+// ═══════════════════════════════════════════════════════════
+ipcMain.handle('clipboard-history:list', () => {
+  return { success: true, items: loadClipboardHistory() };
+});
+
+ipcMain.handle('clipboard-history:delete', (_ev, id) => {
+  const list = loadClipboardHistory();
+  const next = list.filter(x => x.id !== id);
+  if (next.length === list.length) return { success: false, message: '未找到该记录' };
+  clipboardHistoryCache = next;
+  saveClipboardHistory();
+  return { success: true };
+});
+
+ipcMain.handle('clipboard-history:clear', () => {
+  clipboardHistoryCache = [];
+  saveClipboardHistory();
+  return { success: true };
+});
+
+/** 把历史条目补录为剪藏（复用与气泡一致的记录流程），成功后从历史移除防重复补录。 */
+ipcMain.handle('clipboard-history:record', async (_ev, id) => {
+  const item = loadClipboardHistory().find(x => x.id === id);
+  if (!item) return { success: false, message: '未找到该记录' };
+  try {
+    const content = item.type === 'text'
+      ? { type: 'text', text: item.text }
+      : { type: 'image', imageDataUrl: item.imageDataUrl };
+    const result = await recordClipboardContent(content);
+    if (result && result.success) {
+      clipboardHistoryCache = loadClipboardHistory().filter(x => x.id !== id);
+      saveClipboardHistory();
+    }
+    return result;
+  } catch (e) {
+    const msg = formatClipboardRecordError(e);
+    notifyClipboardResult('记录失败', msg);
+    return { success: false, message: msg };
+  }
+});
+
+ipcMain.handle('clipboard-history:open', () => {
+  showClipboardHistoryWindow();
+  return { success: true };
+});
+
+ipcMain.handle('clipboard-history:close', () => {
+  if (clipboardHistoryWin && !clipboardHistoryWin.isDestroyed()) clipboardHistoryWin.close();
+  return { success: true };
+});
+
+/** 打开剪贴板历史面板（置顶小窗，复用 toast 的视觉语言；已打开则聚焦刷新）。 */
+function showClipboardHistoryWindow() {
+  try {
+    if (clipboardHistoryWin && !clipboardHistoryWin.isDestroyed()) {
+      refreshClipboardHistoryWin();
+      clipboardHistoryWin.show();
+      clipboardHistoryWin.focus();
+      return;
+    }
+    const appearance = resolveAppTheme();
+    const isDark = appearance === 'dark';
+    const { screen } = require('electron');
+    const display = screen.getPrimaryDisplay();
+    const { width, height } = display.workAreaSize;
+    const winW = 460, winH = 580, margin = 24;
+
+    clipboardHistoryWin = new BrowserWindow({
+      width: winW,
+      height: winH,
+      x: width - winW - margin,
+      y: height - winH - margin,
+      frame: false,
+      alwaysOnTop: true,
+      type: process.platform === 'darwin' ? 'panel' : undefined,
+      skipTaskbar: true,
+      resizable: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      hasShadow: false,
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js'),
+      },
+    });
+    toastWindows.push(clipboardHistoryWin);
+    clipboardHistoryWin.on('closed', () => {
+      toastWindows = toastWindows.filter(w => w !== clipboardHistoryWin);
+      clipboardHistoryWin = null;
+    });
+    clipboardHistoryWin.webContents.on('did-finish-load', () => {
+      refreshClipboardHistoryWin();
+      if (!clipboardHistoryWin.isDestroyed()) {
+        clipboardHistoryWin.show();
+        clipboardHistoryWin.focus();
+      }
+    });
+    clipboardHistoryWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(buildClipboardHistoryHtml(isDark)));
+  } catch (e) {
+    log.warn('[ClipboardHistory] open window failed:', e.message);
+  }
+}
+
+/** 向历史面板推送最新列表（通过 IPC 由面板主动拉取，无需二次注入脚本）。 */
+function refreshClipboardHistoryWin() {
+  if (!clipboardHistoryWin || clipboardHistoryWin.isDestroyed()) return;
+  try {
+    clipboardHistoryWin.webContents.send('clipboard-history:refresh');
+  } catch (e) { /* ignore */ }
+}
+
+function buildClipboardHistoryHtml(isDark) {
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --primary: ${isDark ? '#61a6ff' : '#2383e2'};
+    --primary-hover: ${isDark ? '#7bb5ff' : '#1f76c9'};
+    --card-bg: ${isDark ? 'linear-gradient(135deg, rgba(40,40,48,0.97), rgba(26,26,32,0.97))'
+                        : 'linear-gradient(135deg, #ffffff, #fbfbfa)'};
+    --card-border: ${isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)'};
+    --fg: ${isDark ? 'rgba(255,255,255,0.92)' : 'rgba(15,17,21,0.88)'};
+    --fg-dim: ${isDark ? 'rgba(255,255,255,0.45)' : 'rgba(15,23,42,0.45)'};
+    --close-color: ${isDark ? 'rgba(255,255,255,0.35)' : 'rgba(15,23,42,0.42)'};
+    --close-hover-bg: ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'};
+    --btn-ghost-bg: ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'};
+    --btn-ghost-color: ${isDark ? 'rgba(255,255,255,0.72)' : 'rgba(15,23,42,0.72)'};
+    --btn-ghost-hover: ${isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.09)'};
+    --item-hover: ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'};
+    --divider: ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'};
+    --danger: #e5484d;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+  body { background: transparent; height: 100vh; overflow: hidden; font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+  .card {
+    background: var(--card-bg);
+    backdrop-filter: blur(20px);
+    border-radius: 16px;
+    border: 1px solid var(--card-border);
+    box-shadow: 0 16px 48px rgba(0,0,0,${isDark ? '.5' : '.24'});
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 18px;
+    animation: slideIn .25s cubic-bezier(.16,1,.3,1);
+  }
+  @keyframes slideIn { from { transform: translateX(340px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .head-title { font-size: 13px; font-weight: 600; color: var(--primary); letter-spacing: .5px; flex: 1; }
+  .head-btn { border: none; background: transparent; color: var(--close-color); font-size: 12px; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+  .head-btn:hover { background: var(--close-hover-bg); color: var(--fg); }
+  .head-btn.danger { color: var(--danger); opacity: .8; }
+  .head-btn.danger:hover { opacity: 1; }
+  .list { flex: 1; min-height: 0; overflow-y: auto; margin: 0 -6px; padding: 0 6px; }
+  .list::-webkit-scrollbar { width: 6px; }
+  .list::-webkit-scrollbar-thumb { background: var(--divider); border-radius: 3px; }
+  .item { border-bottom: 1px solid var(--divider); padding: 10px 4px; display: flex; gap: 12px; align-items: flex-start; }
+  .item:hover { background: var(--item-hover); border-radius: 10px; }
+  .item-time { font-size: 11px; color: var(--fg-dim); flex-shrink: 0; width: 34px; padding-top: 2px; }
+  .item-body { flex: 1; min-width: 0; }
+  .item-text { font-size: 12.5px; line-height: 1.55; color: var(--fg); white-space: pre-wrap; word-break: break-all; max-height: 72px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+  .item-img { max-width: 100%; max-height: 120px; border-radius: 8px; object-fit: contain; }
+  .item-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .mini-btn { height: 26px; padding: 0 12px; border: none; border-radius: 7px; font-size: 12px; cursor: pointer; background: var(--btn-ghost-bg); color: var(--btn-ghost-color); min-width: 72px; white-space: nowrap; }
+  .mini-btn:hover { background: var(--btn-ghost-hover); }
+  .mini-btn.primary { background: var(--primary); color: #fff; font-weight: 600; }
+  .mini-btn.primary:hover { background: var(--primary-hover); }
+  .mini-btn.danger:hover { color: var(--danger); }
+  .empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--fg-dim); font-size: 13px; }
+  .empty-icon { font-size: 30px; opacity: .6; }
+  .busy-tip { color: var(--fg-dim); font-size: 12px; padding: 12px 4px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="head">
+      <div class="head-title">剪贴板历史</div>
+      <button class="head-btn danger" id="clearBtn">清空</button>
+      <button class="head-btn" id="closeBtn">关闭</button>
+    </div>
+    <div class="list" id="list"></div>
+  </div>
+  <script>
+    var api = window.electronAPI && window.electronAPI.clipboardHistory;
+    var listEl = document.getElementById('list');
+    var loading = false;
+
+    function fmtTime(ts) {
+      if (!ts) return '';
+      var d = new Date(ts);
+      function p(n) { return n < 10 ? '0' + n : '' + n; }
+      return p(d.getHours()) + ':' + p(d.getMinutes());
+    }
+
+    function render() {
+      if (loading) return;
+      loading = true;
+      listEl.innerHTML = '<div class="busy-tip">正在读取…</div>';
+      api.list().then(function (res) {
+        loading = false;
+        var items = (res && res.items) || [];
+        if (!items.length) {
+          listEl.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><div>暂无剪贴板历史</div><div style="font-size:12px">复制任意内容后将自动记录于此</div></div>';
+          return;
+        }
+        listEl.innerHTML = '';
+        items.forEach(function (item) {
+          var row = document.createElement('div');
+          row.className = 'item';
+          var body = item.type === 'image'
+            ? '<img class="item-img" src="' + (item.imageDataUrl || '') + '" alt="图片">'
+            : '<div class="item-text">' + String(item.text || '').replace(/[<>&]/g, function (c) { return { '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]; }) + '</div>';
+          row.innerHTML = '<div class="item-time">' + fmtTime(item.createdAt) + '</div>'
+            + '<div class="item-body">' + body
+            + '<div class="item-actions">'
+            + '<button class="mini-btn primary" data-act="record" data-id="' + item.id + '">记录到剪藏</button>'
+            + '<button class="mini-btn danger" data-act="delete" data-id="' + item.id + '">删除</button>'
+            + '</div></div>';
+          listEl.appendChild(row);
+          var recordBtn = row.querySelector('[data-act="record"]');
+          recordBtn.addEventListener('click', function () {
+            var btn = this;
+            btn.disabled = true;
+            btn.textContent = '记录中…';
+            api.record(item.id).then(function (r) {
+              btn.disabled = false;
+              if (r && r.success) { render(); }
+              else listEl.innerHTML = '<div class="busy-tip">' + ((r && r.message) ? r.message : '记录失败') + '</div>';
+            });
+          });
+          row.querySelector('[data-act="delete"]').addEventListener('click', function () {
+            api.remove(item.id).then(render);
+          });
+        });
+      }).catch(function () { loading = false; listEl.innerHTML = '<div class="busy-tip">读取失败，请重试</div>'; });
+    }
+
+    document.getElementById('clearBtn').addEventListener('click', function () {
+      if (!confirm('确定清空全部剪贴板历史吗？')) return;
+      api.clear().then(render);
+    });
+    function closeWin() {
+      if (api && api.close) api.close(); else window.close();
+    }
+    document.getElementById('closeBtn').addEventListener('click', closeWin);
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeWin(); });
+    // 主进程推送刷新信号（新复制内容入库 / 打开面板时自动刷新）
+    if (window.electronAPI && window.electronAPI.onClipboardHistoryRefresh) {
+      window.electronAPI.onClipboardHistoryRefresh(render);
+    }
+    render();
+  </script>
+</body>
+</html>`;
+}
 // 渲染进程可用 API：读取当前剪贴板富内容（供手动预览）
 ipcMain.handle('read-clipboard:rich', () => {
   const c = readClipboardRich();

@@ -4,6 +4,7 @@ import com.example.clip.dto.KnowledgeRequest;
 import com.example.clip.dto.KnowledgeResponse;
 import com.example.clip.model.Comment;
 import com.example.clip.model.Knowledge;
+import com.example.clip.model.KnowledgeEntry;
 import com.example.clip.service.AppConfigService;
 import com.example.clip.service.FileStorageService;
 import com.example.clip.service.KnowledgeService;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -116,6 +118,18 @@ public class KnowledgeController {
         } else {
             knowledges = knowledgeService.getAllKnowledge();
         }
+        // 兜底：新版 knowledge-base 尚无数据时，回退展示旧版 knowledge/ 存量条目（只读，不落盘）。
+        // 存量与知识图谱「仅知识」同源；LegacyKnowledgeMigrationRunner 迁移完成后自动合并且此处不再命中。
+        if (knowledges.isEmpty()
+                && (keyword == null || keyword.isEmpty())
+                && (category == null || category.isEmpty())) {
+            List<KnowledgeEntry> legacyEntries = storageService.getAllKnowledgeEntries();
+            if (!legacyEntries.isEmpty()) {
+                return ResponseEntity.ok(legacyEntries.stream()
+                        .map(this::toResponseFromEntry)
+                        .collect(Collectors.toList()));
+            }
+        }
         if (workspaceId != null && !workspaceId.isBlank()) {
             knowledges = filterByWorkspace(knowledges, workspaceId);
         }
@@ -134,6 +148,11 @@ public class KnowledgeController {
     public ResponseEntity<KnowledgeResponse> getKnowledge(@PathVariable Long id) {
         Knowledge knowledge = knowledgeService.getKnowledgeById(id);
         if (knowledge == null) {
+            // 兜底：新版 knowledge-base 无此条目时回退旧版 knowledge/ 存量（与列表兜底一致，只读展示）
+            KnowledgeEntry legacy = storageService.getKnowledgeEntryById(id);
+            if (legacy != null) {
+                return ResponseEntity.ok(toResponseFromEntry(legacy));
+            }
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(toResponse(knowledge));
@@ -420,6 +439,48 @@ public class KnowledgeController {
         response.setLinkedCount(knowledge.getLinkedKnowledgeIds() != null ? knowledge.getLinkedKnowledgeIds().size() : 0);
         response.setCreatedAt(knowledge.getCreatedAt());
         response.setUpdatedAt(knowledge.getUpdatedAt());
+        return response;
+    }
+
+    /**
+     * 将旧版 KnowledgeEntry 转换为 KnowledgeResponse DTO（存量兜底展示，只读不落盘）。
+     * 字段映射与 {@code LegacyKnowledgeMigrationRunner} 保持一致：正文优先取 insight，
+     * 摘要与 insight 不同则作为引言拼入；tags 合并 keywords 去重。
+     *
+     * @param entry 旧版知识条目
+     * @return 知识响应 DTO
+     */
+    private KnowledgeResponse toResponseFromEntry(KnowledgeEntry entry) {
+        KnowledgeResponse response = new KnowledgeResponse();
+        response.setId(entry.getId());
+        response.setTitle(entry.getTitle());
+        response.setSummary(entry.getSummary());
+        String insight = entry.getInsight() == null || entry.getInsight().isBlank() ? null : entry.getInsight();
+        String summary = entry.getSummary() == null || entry.getSummary().isBlank() ? null : entry.getSummary();
+        response.setContent(insight != null
+                ? (summary != null && !summary.equals(insight) ? "> " + summary + "\n\n" + insight : insight)
+                : summary);
+        response.setCategory(entry.getCategory());
+
+        List<String> tags = new ArrayList<>();
+        if (entry.getTags() != null) tags.addAll(entry.getTags());
+        if (entry.getKeywords() != null) {
+            for (String keyword : entry.getKeywords()) {
+                if (keyword != null && !keyword.isBlank() && !tags.contains(keyword)) {
+                    tags.add(keyword);
+                }
+            }
+        }
+        response.setTags(tags);
+
+        List<Long> sourceClipIds = new ArrayList<>();
+        if (entry.getSourceClipId() != null) sourceClipIds.add(entry.getSourceClipId());
+        response.setSourceClipIds(sourceClipIds);
+        response.setSourceCount(sourceClipIds.size());
+        response.setLinkedKnowledgeIds(new ArrayList<>());
+        response.setLinkedCount(0);
+        response.setCreatedAt(entry.getCreatedAt());
+        response.setUpdatedAt(entry.getCreatedAt());
         return response;
     }
 }

@@ -144,9 +144,13 @@ function extractBodyPlain(clip) {
 }
 
 // 实体目录 → content.type 映射（M3 图谱关系层端点）：knowledge / learning-plan
+// knowledge 兼容两处存放：旧版 knowledge/（KnowledgeEntry 数组）与新版 knowledge-base/（Knowledge 数组），
+// 图谱/搜索需与后端 /api/knowledge 对齐，两处都扫；同 id 实体在 scanEntities 中按 type:id 去重，
+// 迁移完成后同一实体不会重复入图。
 const ENTITY_DIRS = [
-  { dir: 'knowledge',     type: 'knowledge' },
-  { dir: 'learning-plan', type: 'learning-plan' }
+  { dir: 'knowledge',      type: 'knowledge' },
+  { dir: 'knowledge-base', type: 'knowledge' },
+  { dir: 'learning-plan',  type: 'learning-plan' }
 ];
 
 /**
@@ -195,6 +199,7 @@ function candidateRoots(storagePath) {
 function scanEntities(storagePath) {
   const results = [];
   const seen = new Set();
+  const seenEntityIds = new Set();
   for (const root of candidateRoots(storagePath)) {
     for (const { dir, type } of ENTITY_DIRS) {
       const dirPath = path.join(root, dir);
@@ -215,6 +220,9 @@ function scanEntities(storagePath) {
         try { mtime = fs.statSync(full).mtimeMs.toString(); } catch (e) { /* ignore */ }
         for (const entity of entities) {
           if (entity && entity.id !== null && entity.id !== undefined) {
+            const entityKey = type + ':' + entity.id;
+            if (seenEntityIds.has(entityKey)) continue; // 新旧目录并存时按 id 去重（迁移后同 id 两处均有）
+            seenEntityIds.add(entityKey);
             results.push({ filePath: full, mtime, type, entity });
           }
         }

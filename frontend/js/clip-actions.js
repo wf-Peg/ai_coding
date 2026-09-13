@@ -285,6 +285,8 @@
         try {
             const response = await axios.delete(`${API_BASE_URL}/${id}`);
             if (response.data.status === 'success') {
+                // 写入墓碑：本地索引同步滞后期内客户端先行隐藏，避免删除后闪回
+                if (id != null) softDeletedIds.add(String(id));
                 // 先播放卡片移除动画，动画结束（240ms）后再全量刷新列表，
                 // 避免重建 DOM 打断动画；同时保证删除即时可见，无需手动切换筛选
                 animateRemoveClipItem(id, function () { fetchClips(); });
@@ -331,6 +333,8 @@
         };
         return axios.post(`${API_BASE_URL}/add`, payload).then(function (res) {
             const st = res.data && res.data.status;
+            const cid = clip.id != null ? String(clip.id) : null;
+            if (cid) softDeletedIds.delete(cid); // 撤销成功：清墓碑，条目恢复可见
             showToast(st === 'success' ? '已恢复删除的剪藏' : '已恢复（与原内容合并）');
             fetchClips();
         }).catch(function () {
@@ -517,33 +521,34 @@
     }
 
     async function organizeContent() {
-        showActionConfirm('确定要整理今日内容吗？将按分类聚合并生成整理结果。', async () => {
+        showActionConfirm('确定要生成今日日报吗？将汇总今日剪藏并生成日报内容。', async () => {
             await doOrganizeContent();
         });
     }
 
     async function doOrganizeContent() {
         const organizeBtn = document.getElementById('organize-btn');
-        const originalText = organizeBtn.textContent;
+        const originalHTML = organizeBtn.innerHTML; // 含图标，恢复需用 innerHTML 防止图标丢失
 
         try {
-            showLoading('正在整理今日内容...', '按分类聚合并生成整理结果...');
+            showLoading('正在生成今日日报...', '汇总今日剪藏并按分类聚合...');
             organizeBtn.disabled = true;
             organizeBtn.classList.add('btn-loading');
             const response = await axios.post(`${API_BASE_URL}/organize`);
             if (response.data.status === 'success') {
-                showNotification(response.data.message || '今日内容整理完成', true);
+                const msg = response.data.message;
+                showNotification((msg && msg !== '今日内容整理完成') ? msg : '今日日报已生成', true);
             } else {
-                showNotification('整理请求已完成', true);
+                showNotification('日报请求已完成', true);
             }
         } catch (error) {
-            console.error('整理今日内容失败:', error);
-            showError('整理失败', error.response?.data?.message || '请稍后重试');
+            console.error('生成日报失败:', error);
+            showError('日报生成失败', error.response?.data?.message || '请稍后重试');
         } finally {
             hideLoading();
             organizeBtn.disabled = false;
             organizeBtn.classList.remove('btn-loading');
-            organizeBtn.textContent = originalText;
+            organizeBtn.innerHTML = originalHTML;
         }
     }
 
@@ -741,11 +746,16 @@
         const items = collectDailyReviewItems();
         if (items.length === 0) { banner.style.display = 'none'; return; }
         document.getElementById('daily-review-count').textContent = items.length;
-        // 本周回顾进度提示（已有回顾记录时展示）
+        // 本周回顾进度提示（已有回顾记录时展示为独立徽章，保留基础文案不动）
         const week = getWeekReviewStats();
-        const subEl = banner.querySelector('.daily-review-sub');
-        if (subEl && week.count > 0) {
-            subEl.textContent = '本周已回看 ' + week.count + ' 条 · 保留 ' + week.keep + ' · 归档 ' + week.archive;
+        const progressEl = document.getElementById('daily-review-progress');
+        if (progressEl) {
+            if (week.count > 0) {
+                progressEl.textContent = '本周已回看 ' + week.count + ' 条 · 保留 ' + week.keep + ' · 归档 ' + week.archive;
+                progressEl.style.display = 'inline-flex';
+            } else {
+                progressEl.style.display = 'none';
+            }
         }
         banner.style.display = 'flex';
     }

@@ -211,86 +211,84 @@
 
 <div class="main-content-area">
     <header>
-        <button class="clip-theme-toggle" id="themeToggle" type="button" title="切换风格" aria-label="切换风格">
-            <svg viewBox="0 0 24 24"><path d="M3 7h8"/><path d="M13 7h8"/><circle cx="11" cy="7" r="2"/><path d="M3 17h8"/><path d="M13 17h8"/><circle cx="13" cy="17" r="2"/></svg>
-        </button>
-        <h1>剪藏 <span class="brand-subtitle">碎碎记 · CutShelter</span></h1>
-        <p class="subtitle">捕捉灵感，智能整理，构建你的个人知识库</p>
-        <div class="toggle-container">
-            <div class="action-split-group">
-                <button class="icon-btn" type="button" title="Git配置" onclick="openGitConfigModal()">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+        <div class="header-main">
+            <div class="brand-cluster">
+                <h1>收件箱</h1>
+                <span class="brand-pill">碎碎记 · CutShelter</span>
+            </div>
+        <div class="action-row">
+            <div class="action-split-group ghost-grp">
+                <button class="gbtn primary-ghost" id="organize-inbox-btn" type="button" onclick="openOrganizeActionModal('inbox')">整理收件箱</button>
+            </div>
+            <div class="action-split-group ghost-grp">
+                <button class="icon-g" type="button" title="配置整理Prompt" aria-label="配置整理Prompt" onclick="openPromptConfigModal('daily')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
                 </button>
-                <button class="toggle-btn main-btn" id="sync-btn" onclick="syncGit()">
-                    <span class="toggle-text">同步仓库</span>
-                </button>
-                <button class="icon-btn" type="button" id="sync-info-btn" title="同步说明与状态" onclick="toggleSyncPanel()">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                <button class="gbtn" id="organize-btn" type="button" onclick="organizeContent()" title="整理今日内容，生成日报" aria-label="整理今日内容，生成日报">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M12 12.5v5M9.5 15h5"/></svg>
+                    <span class="gbtn-text">日报</span>
                 </button>
             </div>
-            <div class="action-split-group">
-                <button class="icon-btn" type="button" title="配置整理Prompt" onclick="openPromptConfigModal('daily')">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+            <div class="action-split-group ghost-grp">
+                <button class="icon-g" type="button" title="配置周报Prompt" aria-label="配置周报Prompt" onclick="openPromptConfigModal('weekly')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
                 </button>
-                <button class="toggle-btn main-btn" id="organize-btn" onclick="organizeContent()">
-                    <span class="toggle-text">整理今日内容</span>
-                </button>
-            </div>
-            <div class="action-split-group">
-                <button class="icon-btn" type="button" title="配置周报Prompt" onclick="openPromptConfigModal('weekly')">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
-                </button>
-                <button class="toggle-btn main-btn" id="weekly-report-btn" onclick="generateWeeklyReport()">
-                    <span class="toggle-text">生成周报总结</span>
+                <button class="gbtn" id="weekly-report-btn" type="button" onclick="generateWeeklyReport()" title="生成周报总结" aria-label="生成周报总结">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+                    <span class="gbtn-text">周报</span>
                 </button>
             </div>
-            <div class="action-split-group">
-                <button class="toggle-btn main-btn" id="organize-inbox-btn" onclick="openOrganizeActionModal('inbox')">
-                    <span class="toggle-text">整理收件箱</span>
+            <div class="action-split-group ghost-grp">
+                <button class="icon-g" type="button" title="Git配置" aria-label="Git配置" onclick="openGitConfigModal()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+                </button>
+                <button class="gbtn" id="sync-btn" type="button" onclick="syncGit()" title="同步仓库" aria-label="同步仓库">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
+                    <span class="gbtn-text">同步</span>
+                </button>
+                <button class="icon-g" type="button" id="sync-info-btn" title="同步说明与状态" aria-label="同步说明与状态" onclick="toggleSyncPanel()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
                 </button>
             </div>
-            <div style="display: inline-flex; align-items: center; gap: 8px;">
-                <span id="web-clipper-sync-status" class="sync-status" title="Web Clipper 同步状态">
-                    <span class="sync-dot"></span>
-                    <span id="sync-status-text">Web Clipper 同步：加载中...</span>
-                </span>
-                <button class="web-clipper-sync-btn" id="web-clipper-sync-btn" onclick="triggerWebClipperSync()" title="立即将 Web Clipper 扩展中暂存的内容同步到剪藏">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
-                        <polyline points="21 3 21 9 15 9"/>
-                    </svg>
-                    <span class="wc-sync-label">立即同步</span>
-                </button>
-            </div>
-            <button class="toggle-btn" id="toggle-btn" onclick="toggleMode()">
-                <span class="toggle-text" id="toggle-text">切换到信息检索</span>
+            <span class="wc-pill" id="web-clipper-sync-status" title="Web Clipper 同步：加载中..." role="button" tabindex="0" onclick="triggerWebClipperSync()">
+                <span class="sync-dot"></span>
+                <span class="wc-pill-text" id="wc-pill-text">clipper同步</span>
+                <span class="wc-pill-meta" id="wc-pill-meta"></span>
+            </span>
+            <button class="toggle-hot" id="toggle-btn" type="button" onclick="toggleMode()" title="切换到信息检索" aria-label="切换到信息检索">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                <span class="toggle-hot-text">检索</span>
             </button>
+        </div>
         </div>
     </header>
 
-    <!-- 快速记录：对标 NoteGen 剪藏种类，一键发起（文本/插图/链接/待办/OCR） -->
-    <div class="quick-record-bar" id="quickRecordBar">
-        <span class="quick-record-label">快速记录</span>
-        <button class="quick-record-btn" type="button" onclick="quickRecord('store-only')" title="粘贴文本，稍后整理">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
-            粘贴文本
+    <!-- 记录入口：compose 记录条 + 快速记录按钮（对标 NoteGen 剪藏种类，一键发起） -->
+    <div class="record-entry" id="recordEntry">
+        <button class="compose-entry" id="composeEntry" type="button" onclick="expandForm('store-only')" title="展开表单，输入或粘贴内容">
+            <svg class="compose-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            <span class="compose-ph">写点什么… 输入或粘贴内容，一键记录</span>
+            <span class="compose-kbd">⌘V 粘贴即存</span>
         </button>
-        <button class="quick-record-btn" type="button" onclick="quickRecord('image')" title="上传图片剪藏，支持 OCR">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-            插图
-        </button>
-        <button class="quick-record-btn" type="button" onclick="quickRecord('link-ai')" title="收藏一个链接">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-            链接
-        </button>
-        <button class="quick-record-btn" type="button" onclick="quickRecord('todo')" title="记一件要做的事">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-5"/></svg>
-            待办
-        </button>
-        <button class="quick-record-btn" type="button" onclick="quickRecord('ocr')" title="选择图片并 OCR 提取文字">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8h10M7 12h7M7 16h4"/></svg>
-            OCR
-        </button>
+        <div class="quick-record-bar" id="quickRecordBar">
+            <span class="quick-record-label">快速记录</span>
+            <button class="quick-record-btn chip-primary" type="button" onclick="quickRecord('store-only')" title="粘贴文本，稍后整理">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+                粘贴文本
+            </button>
+            <button class="quick-record-btn" type="button" onclick="quickRecord('image')" title="上传图片剪藏，支持 OCR">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                插图
+            </button>
+            <button class="quick-record-btn" type="button" onclick="quickRecord('link-ai')" title="收藏一个链接">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                链接
+            </button>
+            <button class="quick-record-btn" type="button" onclick="quickRecord('ocr')" title="选择图片并 OCR 提取文字">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8h10M7 12h7M7 16h4"/></svg>
+                OCR
+            </button>
+        </div>
     </div>
 
     <div id="git-sync-result" class="git-sync-result"></div>
@@ -320,8 +318,16 @@
         </div>
     </div>
 
-    <div id="add-clip-section">
+    <!-- 剪藏填写区：默认折叠为记录条形态，点击记录条/快速记录后原位展开 -->
+    <div id="add-clip-section" class="form-collapsed">
         <div class="clip-form">
+            <div class="form-head">
+                <h3 class="form-title">新建剪藏</h3>
+                <button class="form-collapse-btn" type="button" onclick="collapseForm()" title="收起表单">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>
+                    收起
+                </button>
+            </div>
             <div id="success-message" class="success-message" style="display: none;"></div>
             <form id="clip-form">
                 <div class="form-group">
@@ -400,22 +406,28 @@
     </div>
 
     <div id="search-section" style="display: none;">
-        <div class="clip-form">
-            <h2>信息检索</h2>
-            <form id="search-form">
-                <div class="form-group">
-                    <label for="search-query">搜索关键词</label>
-                    <input type="text" id="search-query" placeholder="输入搜索关键词...">
+        <div class="search-panel">
+            <div class="search-panel-head">
+                <div class="search-panel-title">
+                    <svg class="search-panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                    信息检索
                 </div>
-                <div class="form-group">
-                    <label for="search-category">分类</label>
-                    <select id="search-category">
-                        <option value="">全部分类</option>
-                    </select>
-                </div>
-                <div class="form-actions">
-                    <button type="button" class="btn-secondary" onclick="clearSearch()">清空</button>
-                    <button type="submit" class="btn-primary">搜索</button>
+                <div class="search-panel-sub">在全库剪藏中检索，支持关键词与分类筛选，输入后实时返回结果</div>
+            </div>
+            <form id="search-form" class="search-form">
+                <div class="search-form-row">
+                    <div class="search-field search-field-query">
+                        <input type="text" id="search-query" placeholder="输入关键词，回车或停顿即检索…" autocomplete="off">
+                    </div>
+                    <div class="search-field search-field-category">
+                        <select id="search-category">
+                            <option value="">全部分类</option>
+                        </select>
+                    </div>
+                    <div class="search-actions">
+                        <button type="button" class="btn-secondary" onclick="clearSearch()">清空</button>
+                        <button type="submit" class="btn-primary">检索</button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -424,27 +436,54 @@
     <!-- 每日回看横幅 -->
     <div id="daily-review" class="daily-review" style="display:none;">
         <div class="daily-review-icon">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="4"/></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="4"/></svg>
         </div>
         <div class="daily-review-txt">
-            <div class="daily-review-title">每日回看 · <span id="daily-review-count">0</span> 条沉底的旧收藏</div>
-            <div class="daily-review-sub">收藏过，别让它永远躺平。花 1 分钟翻翻这些内容。</div>
+            <div class="daily-review-title">
+                <span class="daily-review-title-label">每日回看</span>
+                <span class="daily-review-count-pill"><span id="daily-review-count">0</span> 条</span>
+                <span class="daily-review-title-rest">沉底的旧收藏</span>
+            </div>
+            <div class="daily-review-sub">
+                <span>收藏过，别让它永远躺平 · 花 1 分钟翻翻这些内容。</span>
+                <span id="daily-review-progress" class="daily-review-progress" style="display:none;"></span>
+            </div>
         </div>
-        <button class="daily-review-btn" type="button" onclick="openDailyReview()">开始回顾</button>
-        <button class="daily-review-close" type="button" onclick="dismissDailyReview()" title="关闭">&times;</button>
+        <div class="daily-review-actions">
+            <button class="daily-review-btn" type="button" onclick="openDailyReview()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                <span>开始回顾</span>
+            </button>
+            <button class="daily-review-close" type="button" onclick="dismissDailyReview()" title="关闭" aria-label="关闭">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
     </div>
 
     <div id="clip-list">
         <div class="list-header">
-            <h2>剪藏列表</h2>
+            <span class="list-title">剪藏列表</span>
             <div class="list-controls">
-                <button class="btn-secondary ask-library-btn" onclick="openAskModal()" title="基于全库剪藏内容提问，回答附来源">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:5px;"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 7.7l5.4-.8Z"/></svg>问我的剪藏库</button>
-                <select id="workflow-filter" class="workflow-filter">
-                    <option value="inbox" selected>收件箱（待整理）</option>
-                    <option value="organized">仅已整理</option>
-                    <option value="">全部流程</option>
-                </select>
+                <button class="ask-btn" onclick="openAskModal()" title="基于全库剪藏内容提问，回答附来源">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></svg><span class="ask-btn-text">问我的剪藏库</span></button>
+                <div class="workflow-select" id="workflow-select" tabindex="0" aria-label="工作流筛选">
+                    <input type="hidden" id="workflow-filter" value="inbox">
+                    <button type="button" class="workflow-select-trigger" id="workflow-select-trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="工作流筛选" title="筛选剪藏列表">
+                        <span class="workflow-select-value" id="workflow-select-value">待整理</span>
+                        <svg class="workflow-select-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="workflow-select-panel" id="workflow-select-panel" role="listbox" aria-label="工作流筛选" aria-hidden="true">
+                        <button type="button" class="workflow-select-option" role="option" data-value="inbox" aria-selected="true">
+                            <span class="wso-dot"></span><span class="wso-label">待整理</span><svg class="wso-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                        </button>
+                        <button type="button" class="workflow-select-option" role="option" data-value="organized" aria-selected="false">
+                            <span class="wso-dot wso-dot-organized"></span><span class="wso-label">已整理</span><svg class="wso-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                        </button>
+                        <button type="button" class="workflow-select-option" role="option" data-value="" aria-selected="false">
+                            <span class="wso-dot wso-dot-all"></span><span class="wso-label">全部剪藏</span><svg class="wso-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                        </button>
+                    </div>
+                </div>
                 <span id="clip-count" class="clip-count">0</span>
             </div>
         </div>
@@ -453,8 +492,8 @@
 
     <div id="search-results-page" style="display: none;">
         <div class="list-header">
-            <h2>搜索结果</h2>
-            <button class="btn-secondary" onclick="backToList()">返回列表</button>
+            <span class="list-title">搜索结果</span>
+            <button class="ask-btn" onclick="backToList()"><span class="ask-btn-text">返回列表</span></button>
         </div>
         <div id="search-results" class="clip-items"></div>
     </div>

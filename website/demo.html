@@ -1,0 +1,1512 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>碎碎记 · 交互体验</title>
+<style>
+/* ============ 设计系统 token（复用产品 design-tokens.css 值） ============ */
+:root {
+  --app-bg: #f7f7f5;
+  --app-surface: #ffffff;
+  --app-surface-subtle: #f1f1ef;
+  --app-surface-hover: #ececea;
+  --app-border: #e3e3df;
+  --app-border-strong: #d2d2cd;
+  --app-text: #2f3437;
+  --app-text-secondary: #6b6f76;
+  --app-text-muted: #92969d;
+  --app-primary: #2383e2;
+  --app-primary-hover: #1f76c9;
+  --app-primary-soft: rgba(35,131,226,0.10);
+  --app-primary-strong: rgba(35,131,226,0.16);
+  --app-success: #238b63;
+  --app-success-soft: rgba(35,139,99,0.10);
+  --app-warning: #b7791f;
+  --app-warning-soft: rgba(183,121,31,0.12);
+  --app-danger: #d14343;
+  --app-danger-soft: rgba(209,67,67,0.10);
+  --app-radius-sm: 6px;
+  --app-radius: 9px;
+  --app-radius-lg: 12px;
+  --app-shadow-sm: 0 1px 3px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04);
+  --app-shadow-md: 0 4px 6px rgba(15,23,42,0.06), 0 2px 4px rgba(15,23,42,0.04);
+  --app-shadow-lg: 0 10px 15px rgba(15,23,42,0.08), 0 4px 6px rgba(15,23,42,0.04);
+  --app-shadow-panel-right: -4px 0 8px rgba(15,23,42,0.04), -8px 0 24px rgba(15,23,42,0.08);
+  --app-duration-fast: 120ms;
+  --app-duration-normal: 200ms;
+  --app-duration-slow: 300ms;
+  --app-ease-smooth: cubic-bezier(0.22,1,0.36,1);
+  --font-sans: "IBM Plex Sans", "Noto Sans SC", -apple-system, "PingFang SC", sans-serif;
+  --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  /* 类型色（记录方式） */
+  --type-screenshot: #4a9e9e;
+  --type-paste: #8b5cf6;
+  --type-ocr: #10b981;
+  --type-link: #3f8cff;
+  --type-file: #f97316;
+  --type-todo: #eab308;
+  --titlebar-h: 44px;
+  --sidebar-w: 216px;
+  --ai-panel-w: 360px;
+}
+
+html[data-theme="dark"] {
+  --app-bg: #1e1e1e;
+  --app-surface: #282828;
+  --app-surface-subtle: #323232;
+  --app-surface-hover: #3b3b3b;
+  --app-border: #414141;
+  --app-border-strong: #525252;
+  --app-text: #dedede;
+  --app-text-secondary: #aaaaaa;
+  --app-text-muted: #777777;
+  --app-primary: #61a6ff;
+  --app-primary-hover: #7bb5ff;
+  --app-primary-soft: rgba(97,166,255,0.14);
+  --app-primary-strong: rgba(97,166,255,0.20);
+  --app-success: #56c997;
+  --app-success-soft: rgba(86,201,151,0.14);
+  --app-warning: #e6b35c;
+  --app-warning-soft: rgba(230,179,92,0.14);
+  --app-danger: #ef7777;
+  --app-danger-soft: rgba(239,119,119,0.12);
+  --app-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+  --app-shadow-md: 0 4px 8px rgba(0,0,0,0.3);
+  --app-shadow-lg: 0 10px 20px rgba(0,0,0,0.3);
+  --app-shadow-panel-right: -4px 0 12px rgba(0,0,0,0.3);
+  --type-screenshot: #5cc3c3;
+  --type-paste: #a88bff;
+  --type-ocr: #3dd5a0;
+  --type-link: #6aa8ff;
+  --type-file: #ff9d5c;
+  --type-todo: #f5d24c;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font-sans);
+  background: var(--app-bg);
+  color: var(--app-text);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.5;
+}
+button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+svg { display: block; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--app-border-strong); border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--app-text-muted); border: 2px solid transparent; background-clip: padding-box; }
+
+/* ============ 应用外壳 ============ */
+.app { display: flex; flex-direction: column; height: 100vh; }
+
+/* ============ 顶部标题栏（原生拖拽区） ============ */
+.titlebar {
+  height: var(--titlebar-h);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  background: var(--app-surface-subtle);
+  border-bottom: 1px solid var(--app-border);
+  -webkit-app-region: drag;
+  padding-left: 76px; /* macOS 红绿灯留白 */
+  user-select: none;
+}
+.tb-brand { display: flex; align-items: center; gap: 8px; padding-left: 14px; -webkit-app-region: no-drag; }
+.tb-logo { width: 20px; height: 20px; }
+.tb-name { font-weight: 600; font-size: 13.5px; letter-spacing: 0.01em; }
+.tb-tag { font-size: 10.5px; color: var(--app-text-muted); border: 1px solid var(--app-border); border-radius: 5px; padding: 1px 6px; margin-left: 2px; font-weight: 500; }
+.tb-spacer { flex: 1; }
+.tb-search { -webkit-app-region: no-drag; position: relative; margin-right: 8px; }
+.tb-search-box {
+  display: flex; align-items: center; gap: 7px;
+  height: 28px; width: 190px; padding: 0 9px;
+  border: 1px solid var(--app-border); border-radius: 7px;
+  background: var(--app-surface); color: var(--app-text);
+  transition: width var(--app-duration-normal) var(--app-ease-smooth), border-color var(--app-duration-fast) ease, box-shadow var(--app-duration-fast) ease;
+}
+.tb-search-box:focus-within { width: 250px; border-color: var(--app-primary); box-shadow: 0 0 0 3px var(--app-primary-soft); }
+.tb-search-box svg { width: 13px; height: 13px; color: var(--app-text-muted); }
+.tb-search-box input { flex: 1; border: none; outline: none; background: transparent; color: var(--app-text); font-size: 12.5px; font-family: inherit; }
+.tb-search-box input::placeholder { color: var(--app-text-muted); }
+.tb-kbd { font-size: 10.5px; color: var(--app-text-muted); border: 1px solid var(--app-border); border-radius: 4px; padding: 1px 5px; white-space: nowrap; }
+.tb-right { -webkit-app-region: no-drag; display: flex; align-items: center; gap: 4px; padding-right: 12px; }
+.tb-icobtn { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 7px; color: var(--app-text-secondary); transition: background var(--app-duration-fast) ease, color var(--app-duration-fast) ease; }
+.tb-icobtn:hover { background: var(--app-surface-hover); color: var(--app-text); }
+.tb-icobtn svg { width: 16px; height: 16px; }
+
+/* ============ 主体（侧栏 + 主区 + AI 面板） ============ */
+.main { flex: 1; display: flex; min-height: 0; }
+
+/* ============ 左侧导航 ============ */
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  background: var(--app-surface-subtle);
+  border-right: 1px solid var(--app-border);
+  display: flex; flex-direction: column;
+  padding: 12px 8px;
+  gap: 2px;
+  overflow-y: auto;
+}
+.side-section { font-size: 10.5px; font-weight: 600; color: var(--app-text-muted); letter-spacing: 0.06em; text-transform: uppercase; padding: 14px 10px 5px; }
+.side-item {
+  display: flex; align-items: center; gap: 9px;
+  height: 34px; padding: 0 10px; border-radius: 7px;
+  color: var(--app-text-secondary); font-size: 13.5px; font-weight: 500;
+  transition: background var(--app-duration-fast) ease, color var(--app-duration-fast) ease;
+  position: relative;
+  white-space: nowrap;
+}
+.side-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+.side-item:hover { background: var(--app-surface-hover); color: var(--app-text); }
+.side-item.active { background: var(--app-primary-soft); color: var(--app-primary); font-weight: 600; }
+.side-item .count { margin-left: auto; font-size: 11px; color: var(--app-text-muted); font-weight: 500; background: var(--app-surface); border: 1px solid var(--app-border); border-radius: 10px; padding: 0 7px; line-height: 18px; min-width: 20px; text-align: center; }
+.side-item.active .count { background: var(--app-primary-strong); border-color: transparent; color: var(--app-primary); }
+.side-item.sub { padding-left: 34px; height: 32px; font-size: 13px; }
+.side-divider { height: 1px; background: var(--app-border); margin: 8px 6px; }
+.side-foot {
+  margin-top: auto; padding-top: 12px;
+  display: flex; align-items: center; gap: 9px;
+  padding: 10px 10px; border-radius: 8px;
+  background: var(--app-surface); border: 1px solid var(--app-border);
+}
+.side-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--app-primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+.side-user { min-width: 0; }
+.side-user-name { font-size: 12.5px; font-weight: 600; line-height: 1.2; }
+.side-user-role { font-size: 10.5px; color: var(--app-text-muted); }
+
+/* ============ 主内容区 ============ */
+.content { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--app-bg); }
+
+/* 页头 */
+.page-head { padding: 20px 28px 12px; }
+.page-title-row { display: flex; align-items: center; gap: 10px; }
+.page-title { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.page-count { font-size: 12px; color: var(--app-text-secondary); background: var(--app-surface); border: 1px solid var(--app-border); border-radius: 12px; padding: 2px 9px; font-weight: 500; }
+.page-desc { font-size: 13px; color: var(--app-text-muted); margin-top: 4px; }
+.page-actions { margin-left: auto; display: flex; gap: 8px; }
+.btn {
+  height: 32px; padding: 0 14px; border-radius: 7px;
+  font-size: 13px; font-weight: 500;
+  display: inline-flex; align-items: center; gap: 7px;
+  transition: background var(--app-duration-fast) ease, transform var(--app-duration-fast) ease, box-shadow var(--app-duration-fast) ease;
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary { background: var(--app-primary); color: #fff; box-shadow: var(--app-shadow-sm); }
+.btn-primary:hover { background: var(--app-primary-hover); }
+.btn-ghost { background: var(--app-surface); color: var(--app-text-secondary); border: 1px solid var(--app-border); }
+.btn-ghost:hover { color: var(--app-text); background: var(--app-surface-hover); }
+.btn svg { width: 14px; height: 14px; }
+
+/* 状态 tab 分段控件 */
+.page-tabs { padding: 0 28px 6px; display: flex; align-items: center; gap: 4px; }
+.seg { display: inline-flex; background: var(--app-surface-subtle); border: 1px solid var(--app-border); border-radius: 8px; padding: 3px; gap: 2px; }
+.seg-btn {
+  height: 28px; padding: 0 13px; border-radius: 6px;
+  font-size: 12.5px; font-weight: 500; color: var(--app-text-secondary);
+  transition: background var(--app-duration-fast) ease, color var(--app-duration-fast) ease, box-shadow var(--app-duration-fast) ease;
+}
+.seg-btn:hover { color: var(--app-text); }
+.seg-btn.active { background: var(--app-surface); color: var(--app-text); font-weight: 600; box-shadow: var(--app-shadow-sm); }
+.seg-btn .n { font-size: 10.5px; color: var(--app-text-muted); margin-left: 4px; }
+.seg-btn.active .n { color: var(--app-primary); }
+
+/* 批量操作工具条 */
+.bulkbar {
+  display: none;
+  align-items: center; gap: 10px;
+  margin: 4px 28px 10px; padding: 8px 12px;
+  background: var(--app-surface); border: 1px solid var(--app-border); border-radius: 9px;
+  box-shadow: var(--app-shadow-md);
+  animation: bulkIn var(--app-duration-normal) var(--app-ease-smooth);
+}
+@keyframes bulkIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.bulkbar.show { display: flex; }
+.bulkbar-count { font-size: 12.5px; font-weight: 600; color: var(--app-primary); }
+.bulkbar-sep { width: 1px; height: 16px; background: var(--app-border); }
+.bulkbar-btn { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 6px; font-size: 12.5px; color: var(--app-text-secondary); transition: background var(--app-duration-fast) ease, color var(--app-duration-fast) ease; }
+.bulkbar-btn:hover { background: var(--app-surface-hover); color: var(--app-text); }
+.bulkbar-btn.danger:hover { color: var(--app-danger); background: var(--app-danger-soft); }
+.bulkbar-btn svg { width: 14px; height: 14px; }
+.bulkbar-cancel { margin-left: auto; font-size: 12px; color: var(--app-text-muted); }
+
+/* 滚动区 */
+.scroll { flex: 1; overflow-y: auto; padding: 6px 28px 40px; }
+
+/* 每日回看横幅 */
+.daily {
+  display: flex; align-items: center; gap: 12px;
+  background: linear-gradient(120deg, var(--app-primary-soft), transparent 70%);
+  border: 1px solid var(--app-primary-strong);
+  border-radius: var(--app-radius-lg); padding: 12px 14px; margin-bottom: 14px;
+}
+.daily-icon { width: 30px; height: 30px; border-radius: 8px; background: var(--app-primary); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.daily-icon svg { width: 16px; height: 16px; }
+.daily-txt { flex: 1; min-width: 0; }
+.daily-title { font-size: 13.5px; font-weight: 600; }
+.daily-sub { font-size: 12px; color: var(--app-text-secondary); }
+.daily-close { width: 26px; height: 26px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--app-text-muted); transition: background var(--app-duration-fast) ease; }
+.daily-close:hover { background: var(--app-surface-hover); color: var(--app-text); }
+.daily-close svg { width: 14px; height: 14px; }
+
+/* 标签折叠分组 */
+.group { margin-bottom: 6px; }
+.group-head {
+  display: flex; align-items: center; gap: 8px;
+  height: 32px; padding: 0 8px; border-radius: 7px; cursor: pointer;
+  color: var(--app-text-secondary); font-size: 12.5px; font-weight: 600;
+  transition: background var(--app-duration-fast) ease;
+}
+.group-head:hover { background: var(--app-surface-hover); }
+.group-caret { width: 16px; height: 16px; color: var(--app-text-muted); transition: transform var(--app-duration-fast) var(--app-ease-smooth); }
+.group-head.collapsed .group-caret { transform: rotate(-90deg); }
+.group-caret svg { width: 14px; height: 14px; }
+.group-tag { display: inline-flex; align-items: center; gap: 5px; }
+.group-tag .dot { width: 7px; height: 7px; border-radius: 50%; }
+.group-count { font-size: 11px; color: var(--app-text-muted); font-weight: 500; }
+.group-body { display: flex; flex-direction: column; gap: 4px; padding: 4px 0 6px; }
+.group-head.collapsed + .group-body { display: none; }
+
+/* 记录卡片 */
+.clip {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--app-surface); border: 1px solid var(--app-border);
+  border-radius: var(--app-radius); padding: 12px 14px;
+  transition: border-color var(--app-duration-fast) ease, box-shadow var(--app-duration-fast) ease, transform var(--app-duration-fast) ease;
+  cursor: pointer;
+}
+.clip:hover { border-color: var(--app-border-strong); box-shadow: var(--app-shadow-sm); }
+.clip.selected { border-color: var(--app-primary); box-shadow: 0 0 0 3px var(--app-primary-soft); }
+.clip-check {
+  width: 18px; height: 18px; border-radius: 5px;
+  border: 1.5px solid var(--app-border-strong); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; transition: background var(--app-duration-fast) ease, border-color var(--app-duration-fast) ease, opacity var(--app-duration-fast) ease;
+  opacity: 0;
+}
+.clip:hover .clip-check, .clip.selected .clip-check { opacity: 1; }
+.clip-check svg { width: 11px; height: 11px; }
+.clip.selected .clip-check { background: var(--app-primary); border-color: var(--app-primary); }
+.clip-type {
+  width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.clip-type svg { width: 17px; height: 17px; }
+.clip-main { flex: 1; min-width: 0; }
+.clip-title { font-size: 13.5px; font-weight: 600; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.clip-meta { display: flex; align-items: center; gap: 8px; margin-top: 3px; font-size: 11.5px; color: var(--app-text-muted); }
+.clip-meta .src { color: var(--app-text-secondary); }
+.clip-status { flex-shrink: 0; display: flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 500; padding: 3px 9px; border-radius: 12px; }
+.clip-status .dot { width: 6px; height: 6px; border-radius: 50%; }
+.clip-status.pending { color: var(--app-warning); background: var(--app-warning-soft); }
+.clip-status.pending .dot { background: var(--app-warning); }
+.clip-status.done { color: var(--app-success); background: var(--app-success-soft); }
+.clip-status.done .dot { background: var(--app-success); }
+.clip-status.store { color: var(--app-text-muted); background: var(--app-surface-subtle); }
+.clip-status.store .dot { background: var(--app-text-muted); }
+.clip-actions { flex-shrink: 0; display: flex; gap: 2px; opacity: 0; transition: opacity var(--app-duration-fast) ease; }
+.clip:hover .clip-actions { opacity: 1; }
+.clip-act { width: 26px; height: 26px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--app-text-muted); transition: background var(--app-duration-fast) ease, color var(--app-duration-fast) ease; }
+.clip-act:hover { background: var(--app-surface-hover); color: var(--app-text); }
+.clip-act svg { width: 14px; height: 14px; }
+
+/* 空状态 */
+.empty { display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 70px 20px; }
+.empty.show { display: flex; }
+.empty-illo { width: 64px; height: 64px; border-radius: 18px; background: var(--app-primary-soft); color: var(--app-primary); display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
+.empty-illo svg { width: 30px; height: 30px; }
+.empty-title { font-size: 16px; font-weight: 700; }
+.empty-sub { font-size: 13px; color: var(--app-text-muted); margin-top: 6px; max-width: 340px; }
+.empty-steps { display: flex; gap: 10px; margin-top: 22px; }
+.empty-step { background: var(--app-surface); border: 1px solid var(--app-border); border-radius: var(--app-radius); padding: 14px 16px; width: 150px; text-align: left; }
+.empty-step-n { width: 22px; height: 22px; border-radius: 50%; background: var(--app-primary-soft); color: var(--app-primary); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
+.empty-step-t { font-size: 12.5px; font-weight: 600; }
+.empty-step-s { font-size: 11.5px; color: var(--app-text-muted); margin-top: 3px; line-height: 1.45; }
+
+/* 占位视图（其它模块） */
+.placeholder { width: 100%; height: 100%; }
+.ph-center { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px; gap: 2px; }
+.ph-center .empty-sub { max-width: 380px; }
+
+/* ============ 右侧 AI 助手面板 ============ */
+.ai-panel {
+  width: var(--ai-panel-w); flex-shrink: 0;
+  background: var(--app-surface); border-left: 1px solid var(--app-border);
+  display: flex; flex-direction: column; min-height: 0;
+  transition: width var(--app-duration-normal) var(--app-ease-smooth), opacity var(--app-duration-normal) ease, transform var(--app-duration-normal) var(--app-ease-smooth);
+}
+.ai-panel.hidden { width: 0; opacity: 0; transform: translateX(20px); overflow: hidden; border-left: none; }
+.ai-head { display: flex; align-items: center; gap: 9px; padding: 14px 14px 10px; border-bottom: 1px solid var(--app-border); }
+.ai-avatar { width: 30px; height: 30px; border-radius: 9px; background: var(--app-primary); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.ai-avatar svg { width: 16px; height: 16px; }
+.ai-name { font-size: 14px; font-weight: 700; }
+.ai-status { font-size: 11px; color: var(--app-text-muted); display: flex; align-items: center; gap: 5px; }
+.ai-status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--app-success); }
+.ai-close { margin-left: auto; width: 26px; height: 26px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--app-text-muted); transition: background var(--app-duration-fast) ease; }
+.ai-close:hover { background: var(--app-surface-hover); color: var(--app-text); }
+.ai-close svg { width: 14px; height: 14px; }
+/* 上下文指示器 */
+.ai-context { padding: 10px 14px; border-bottom: 1px solid var(--app-border); }
+.ctx-seg { display: flex; background: var(--app-surface-subtle); border-radius: 7px; padding: 2px; gap: 2px; }
+.ctx-btn { flex: 1; height: 26px; border-radius: 5px; font-size: 11.5px; font-weight: 500; color: var(--app-text-muted); transition: background var(--app-duration-fast) ease, color var(--app-duration-fast) ease; }
+.ctx-btn:hover { color: var(--app-text); }
+.ctx-btn.active { background: var(--app-surface); color: var(--app-text); font-weight: 600; box-shadow: var(--app-shadow-sm); }
+.ctx-hint { font-size: 11px; color: var(--app-text-muted); margin-top: 8px; display: flex; align-items: center; gap: 5px; }
+.ctx-hint svg { width: 11px; height: 11px; flex-shrink: 0; color: var(--app-primary); }
+/* 消息区 */
+.ai-msgs { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+.msg { display: flex; flex-direction: column; gap: 6px; max-width: 100%; }
+.msg.user { align-items: flex-end; }
+.msg.user .bubble { background: var(--app-primary); color: #fff; border-radius: 12px 12px 4px 12px; padding: 9px 12px; font-size: 13px; }
+.msg.ai { align-items: flex-start; }
+.msg.ai .bubble { background: var(--app-surface-subtle); color: var(--app-text); border-radius: 12px 12px 12px 4px; padding: 10px 12px; font-size: 13px; line-height: 1.55; }
+/* 来源引用卡片 */
+.src-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.src-card {
+  background: var(--app-surface); border: 1px solid var(--app-border); border-radius: var(--app-radius);
+  padding: 10px 11px; transition: border-color var(--app-duration-fast) ease;
+}
+.src-card:hover { border-color: var(--app-border-strong); }
+.src-top { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
+.src-badge { font-size: 10px; font-weight: 600; letter-spacing: 0.02em; padding: 1px 7px; border-radius: 4px; }
+.src-badge.link { color: #3f8cff; background: rgba(63,140,255,0.12); }
+.src-badge.paste { color: #8b5cf6; background: rgba(139,92,246,0.12); }
+.src-badge.file { color: #f97316; background: rgba(249,115,22,0.12); }
+.src-from { margin-left: auto; font-size: 10.5px; color: var(--app-text-muted); }
+.src-title { font-size: 12.5px; font-weight: 600; line-height: 1.35; }
+.src-snippet { font-size: 11.5px; color: var(--app-text-secondary); margin-top: 3px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.src-actions { display: flex; gap: 6px; margin-top: 8px; }
+.src-btn { flex: 1; height: 26px; border-radius: 6px; font-size: 11.5px; font-weight: 500; display: inline-flex; align-items: center; justify-content: center; gap: 5px; transition: background var(--app-duration-fast) ease; }
+.src-btn.primary { background: var(--app-primary-soft); color: var(--app-primary); }
+.src-btn.primary:hover { background: var(--app-primary-strong); }
+.src-btn.ghost { background: var(--app-surface-subtle); color: var(--app-text-secondary); }
+.src-btn.ghost:hover { color: var(--app-text); }
+.src-btn svg { width: 12px; height: 12px; }
+/* composer */
+.ai-composer { padding: 12px 14px 14px; border-top: 1px solid var(--app-border); }
+.ai-input-wrap { display: flex; align-items: flex-end; gap: 8px; background: var(--app-surface-subtle); border: 1px solid var(--app-border); border-radius: 10px; padding: 8px 8px 8px 12px; transition: border-color var(--app-duration-fast) ease, box-shadow var(--app-duration-fast) ease; }
+.ai-input-wrap:focus-within { border-color: var(--app-primary); box-shadow: 0 0 0 3px var(--app-primary-soft); }
+.ai-input-wrap textarea { flex: 1; border: none; outline: none; background: transparent; color: var(--app-text); font-size: 13px; font-family: inherit; resize: none; max-height: 90px; line-height: 1.5; }
+.ai-input-wrap textarea::placeholder { color: var(--app-text-muted); }
+.ai-send { width: 30px; height: 30px; border-radius: 8px; background: var(--app-primary); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background var(--app-duration-fast) ease; }
+.ai-send:hover { background: var(--app-primary-hover); }
+.ai-send svg { width: 15px; height: 15px; }
+.ai-foot { padding: 0 14px 10px; font-size: 10.5px; color: var(--app-text-muted); text-align: center; }
+
+/* ============ 快速记录弹层 ============ */
+.overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.4); z-index: 200; display: none; align-items: center; justify-content: center; animation: fadeIn var(--app-duration-normal) ease; }
+.overlay.show { display: flex; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+html[data-theme="dark"] .overlay { background: rgba(0,0,0,0.6); }
+.modal {
+  width: 460px; max-width: 92vw; background: var(--app-surface);
+  border: 1px solid var(--app-border); border-radius: 14px;
+  box-shadow: var(--app-shadow-lg); overflow: hidden;
+  animation: popIn var(--app-duration-normal) var(--app-ease-smooth);
+}
+@keyframes popIn { from { opacity: 0; transform: scale(0.96) translateY(-6px); } to { opacity: 1; transform: none; } }
+.modal-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 12px; }
+.modal-title { font-size: 15px; font-weight: 700; }
+.modal-sub { font-size: 12.5px; color: var(--app-text-muted); margin-top: 2px; }
+.modal-close { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; color: var(--app-text-muted); transition: background var(--app-duration-fast) ease; }
+.modal-close:hover { background: var(--app-surface-hover); color: var(--app-text); }
+.modal-close svg { width: 14px; height: 14px; }
+.modal-body { padding: 4px 18px 18px; }
+/* 记录方式选择 */
+.capture-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.capture {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px; border: 1px solid var(--app-border); border-radius: 10px;
+  background: var(--app-surface); transition: border-color var(--app-duration-fast) ease, background var(--app-duration-fast) ease;
+}
+.capture:hover { border-color: var(--app-primary); background: var(--app-primary-soft); }
+.capture-ico { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.capture-ico svg { width: 16px; height: 16px; }
+.capture-t { font-size: 13px; font-weight: 600; }
+.capture-s { font-size: 11px; color: var(--app-text-muted); margin-top: 1px; }
+/* 整理方式开关 */
+.organize-toggle { margin-top: 16px; border-top: 1px solid var(--app-border); padding-top: 14px; }
+.org-title { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+.org-options { display: flex; gap: 8px; }
+.org-opt {
+  flex: 1; padding: 11px 12px; border: 1px solid var(--app-border); border-radius: 10px;
+  background: var(--app-surface); text-align: left; transition: border-color var(--app-duration-fast) ease, background var(--app-duration-fast) ease;
+}
+.org-opt:hover { border-color: var(--app-border-strong); }
+.org-opt.active { border-color: var(--app-primary); background: var(--app-primary-soft); }
+.org-opt-t { font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.org-opt-t .dot { width: 7px; height: 7px; border-radius: 50%; }
+.org-opt-s { font-size: 11px; color: var(--app-text-muted); margin-top: 4px; line-height: 1.4; }
+.modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--app-border); background: var(--app-surface-subtle); }
+
+/* ============ Toast ============ */
+.toast {
+  position: fixed; top: 56px; left: 50%; transform: translateX(-50%) translateY(-8px);
+  background: var(--app-text); color: var(--app-bg);
+  padding: 9px 16px; border-radius: 9px; font-size: 12.5px; font-weight: 500;
+  box-shadow: var(--app-shadow-lg); z-index: 300; opacity: 0; pointer-events: none;
+  transition: opacity var(--app-duration-normal) ease, transform var(--app-duration-normal) var(--app-ease-smooth);
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast span { color: var(--app-primary); }
+
+/* ============ 每日回看按钮 ============ */
+.daily-go {
+  flex-shrink: 0; height: 28px; padding: 0 12px; border-radius: 7px;
+  background: var(--app-primary); color: #fff; font-size: 12.5px; font-weight: 600;
+  display: inline-flex; align-items: center; white-space: nowrap;
+  transition: background var(--app-duration-fast) ease;
+}
+.daily-go:hover { background: var(--app-primary-hover); }
+
+/* ============ 设置页 ============ */
+.settings { display: flex; flex-direction: column; height: 100%; }
+.settings-scroll { flex: 1; overflow-y: auto; padding: 8px 28px 40px; display: flex; flex-direction: column; gap: 26px; max-width: 720px; }
+.set-section-title { font-size: 13px; font-weight: 700; color: var(--app-text); margin-bottom: 10px; }
+.set-card { background: var(--app-surface); border: 1px solid var(--app-border); border-radius: var(--app-radius-lg); overflow: hidden; }
+.set-row { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--app-border); }
+.set-row:last-child { border-bottom: none; }
+.set-row-label { font-size: 13px; color: var(--app-text); width: 90px; flex-shrink: 0; }
+.set-row-value { font-size: 13px; color: var(--app-text-secondary); }
+.set-row-mono { font-size: 12px; font-family: var(--font-mono); color: var(--app-text-secondary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-row-action { font-size: 12.5px; color: var(--app-primary); font-weight: 500; flex-shrink: 0; }
+.set-row-action:hover { text-decoration: underline; }
+
+/* 信任感卡片 */
+.trust-card { display: flex; align-items: center; gap: 16px; background: linear-gradient(120deg, var(--app-primary-soft), transparent 70%); border: 1px solid var(--app-primary-strong); border-radius: var(--app-radius-lg); padding: 18px 20px; margin-bottom: 14px; }
+.trust-icon { width: 44px; height: 44px; border-radius: 12px; background: var(--app-primary); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.trust-icon svg { width: 22px; height: 22px; }
+.trust-main { flex: 1; min-width: 0; }
+.trust-title { font-size: 15px; font-weight: 700; }
+.trust-desc { font-size: 13px; color: var(--app-text-secondary); margin-top: 4px; line-height: 1.55; }
+.trust-desc strong { color: var(--app-primary); font-weight: 600; }
+.trust-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+.trust-point { background: var(--app-surface); border: 1px solid var(--app-border); border-radius: var(--app-radius); padding: 14px; }
+.trust-point-ico { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+.trust-point-ico svg { width: 15px; height: 15px; }
+.trust-point-t { font-size: 13px; font-weight: 600; }
+.trust-point-s { font-size: 11.5px; color: var(--app-text-muted); margin-top: 4px; line-height: 1.5; }
+
+/* ============ 每日回顾弹窗 ============ */
+.review-modal { width: 480px; max-width: 92vw; }
+.review-progress { display: flex; align-items: center; gap: 12px; padding: 4px 18px 6px; }
+.review-progress-track { flex: 1; height: 5px; border-radius: 3px; background: var(--app-surface-subtle); overflow: hidden; }
+.review-progress-fill { height: 100%; width: 0; border-radius: 3px; background: var(--app-primary); transition: width var(--app-duration-normal) var(--app-ease-smooth); }
+.review-progress-txt { font-size: 12px; color: var(--app-text-muted); font-weight: 600; min-width: 34px; text-align: right; }
+.review-stage { padding: 14px 18px 8px; min-height: 180px; display: flex; flex-direction: column; }
+.review-card { background: var(--app-surface-subtle); border: 1px solid var(--app-border); border-radius: var(--app-radius-lg); padding: 18px; flex: 1; animation: fadeIn var(--app-duration-normal) ease; }
+.review-card-type { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--app-text-secondary); margin-bottom: 10px; }
+.review-card-type .dot { width: 7px; height: 7px; border-radius: 50%; }
+.review-card-title { font-size: 16px; font-weight: 700; line-height: 1.4; }
+.review-card-snippet { font-size: 13px; color: var(--app-text-secondary); margin-top: 8px; line-height: 1.6; }
+.review-card-meta { font-size: 11.5px; color: var(--app-text-muted); margin-top: 12px; display: flex; align-items: center; gap: 6px; }
+.review-actions { display: flex; gap: 8px; padding: 14px 18px 18px; border-top: 1px solid var(--app-border); }
+.review-btn { height: 34px; border-radius: 8px; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: background var(--app-duration-fast) ease, color var(--app-duration-fast) ease; }
+.review-btn.skip { flex: 1; background: var(--app-surface-subtle); color: var(--app-text-secondary); }
+.review-btn.skip:hover { color: var(--app-text); }
+.review-btn.archive { flex: 1; background: var(--app-surface-subtle); color: var(--app-text-secondary); }
+.review-btn.archive:hover { color: var(--app-warning); }
+.review-btn.keep { flex: 1.4; background: var(--app-primary); color: #fff; box-shadow: var(--app-shadow-sm); }
+.review-btn.keep:hover { background: var(--app-primary-hover); }
+.review-done { text-align: center; padding: 30px 20px 26px; animation: fadeIn var(--app-duration-normal) ease; }
+.review-done-icon { width: 52px; height: 52px; border-radius: 50%; background: var(--app-success-soft); color: var(--app-success); display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
+.review-done-icon svg { width: 26px; height: 26px; }
+.review-done-title { font-size: 16px; font-weight: 700; }
+.review-done-sub { font-size: 13px; color: var(--app-text-muted); margin-top: 6px; }
+.review-done button { margin: 18px auto 0; }
+
+/* ============ 写作视图（编辑器 · 高频操作区） ============ */
+.writer { display: flex; height: 100%; min-height: 0; }
+.writer-side { width: 232px; flex-shrink: 0; background: var(--app-surface-subtle); border-right: 1px solid var(--app-border); display: flex; flex-direction: column; min-height: 0; }
+.writer-side-head { display: flex; align-items: center; padding: 12px 12px 8px; }
+.writer-side-title { font-size: 13px; font-weight: 700; flex: 1; }
+.writer-side-add { width: 24px; height: 24px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--app-text-secondary); transition: background var(--app-duration-fast) ease; }
+.writer-side-add:hover { background: var(--app-surface-hover); color: var(--app-text); }
+.writer-side-add svg { width: 14px; height: 14px; }
+.writer-side-search { display: flex; align-items: center; gap: 6px; margin: 0 10px 10px; padding: 0 8px; height: 28px; border: 1px solid var(--app-border); border-radius: 7px; background: var(--app-surface); color: var(--app-text-muted); }
+.writer-side-search svg { width: 12px; height: 12px; flex-shrink: 0; }
+.writer-side-search input { flex: 1; border: none; outline: none; background: transparent; color: var(--app-text); font-size: 12px; font-family: inherit; }
+.writer-side-search input::placeholder { color: var(--app-text-muted); }
+.writer-side-sec { font-size: 10.5px; font-weight: 600; color: var(--app-text-muted); letter-spacing: 0.06em; text-transform: uppercase; padding: 10px 12px 4px; }
+.writer-side-list { flex: 1; overflow-y: auto; padding: 2px 8px 12px; display: flex; flex-direction: column; gap: 2px; }
+.doc-item { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px; border-radius: 8px; text-align: left; transition: background var(--app-duration-fast) ease; }
+.doc-item:hover { background: var(--app-surface-hover); }
+.doc-item.active { background: var(--app-primary-soft); }
+.doc-item-type { width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.doc-item-type svg { width: 14px; height: 14px; }
+.doc-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.doc-item-name { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--app-text); }
+.doc-item.active .doc-item-name { color: var(--app-primary); }
+.doc-item-meta { font-size: 10.5px; color: var(--app-text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.writer-main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--app-bg); }
+.writer-toolbar { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--app-border); background: var(--app-surface); }
+.writer-tool-group { display: flex; align-items: center; gap: 3px; }
+.writer-tool { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; color: var(--app-text-secondary); transition: background var(--app-duration-fast) ease, color var(--app-duration-fast) ease; }
+.writer-tool:hover { background: var(--app-surface-hover); color: var(--app-text); }
+.writer-tool.primary { color: var(--app-primary); }
+.writer-tool.primary:hover { background: var(--app-primary-soft); }
+.writer-tool svg { width: 15px; height: 15px; }
+.writer-doc-id { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; }
+.writer-doc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--app-success); flex-shrink: 0; }
+.writer-doc-id strong { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.writer-doc-badge { font-size: 10px; font-weight: 600; color: var(--app-primary); background: var(--app-primary-soft); border-radius: 4px; padding: 1px 6px; white-space: nowrap; }
+.writer-select { height: 28px; border: 1px solid var(--app-border); border-radius: 6px; background: var(--app-surface); color: var(--app-text); font-size: 12px; font-family: inherit; padding: 0 6px; outline: none; }
+.writer-tool-sep { width: 1px; height: 16px; background: var(--app-border); margin: 0 4px; }
+.writer-tool-sep-v { width: 1px; height: 11px; background: var(--app-border); }
+.writer-clip-btn { height: 28px; padding: 0 12px; border-radius: 7px; background: var(--app-primary); color: #fff; font-size: 12.5px; font-weight: 600; display: inline-flex; align-items: center; transition: background var(--app-duration-fast) ease; }
+.writer-clip-btn:hover { background: var(--app-primary-hover); }
+
+.writer-tabbar { display: flex; align-items: center; gap: 2px; padding: 6px 12px 0; border-bottom: 1px solid var(--app-border); background: var(--app-surface-subtle); }
+.writer-tab { height: 30px; padding: 0 14px; border-radius: 7px 7px 0 0; font-size: 12px; color: var(--app-text-secondary); display: inline-flex; align-items: center; border: 1px solid transparent; cursor: default; }
+.writer-tab.active { background: var(--app-surface); color: var(--app-text); font-weight: 600; border-color: var(--app-border); border-bottom-color: var(--app-surface); }
+.writer-tab-new { width: 26px; height: 30px; display: flex; align-items: center; justify-content: center; color: var(--app-text-muted); border-radius: 7px 7px 0 0; }
+.writer-tab-new:hover { background: var(--app-surface-hover); color: var(--app-text); }
+
+.writer-body { flex: 1; overflow-y: auto; min-height: 0; }
+.writer-editor { max-width: 780px; margin: 0 auto; padding: 40px 48px 80px; font-size: 14.5px; line-height: 1.75; color: var(--app-text); outline: none; min-height: 100%; }
+.writer-editor h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 18px; line-height: 1.3; }
+.writer-editor h2 { font-size: 18px; font-weight: 600; margin: 22px 0 10px; }
+.writer-editor p { margin-bottom: 12px; }
+.writer-editor ul { margin: 0 0 12px 22px; }
+.writer-editor li { margin-bottom: 5px; }
+.writer-editor code { font-family: var(--font-mono); font-size: 12.5px; background: var(--app-surface-subtle); border: 1px solid var(--app-border); border-radius: 4px; padding: 1px 5px; }
+.writer-statusbar { display: flex; align-items: center; gap: 10px; padding: 5px 12px; border-top: 1px solid var(--app-border); background: var(--app-surface); font-size: 11px; color: var(--app-text-muted); }
+.writer-status-right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- 顶部标题栏 -->
+  <header class="titlebar">
+    <div class="tb-brand">
+      <svg class="tb-logo" viewBox="0 0 24 24" fill="none">
+        <path d="M7 20C3 17 2 13 2 11C2 8 3 5 7 3L9 6C6 7 5 9 5 11C5 14 6 16 9 18Z" fill="#4A9E9E"/>
+        <path d="M7 2C10 0 14 0 17 2L16 5C13 3 10 3 9 5Z" fill="#3A9B9B"/>
+      </svg>
+      <span class="tb-name">碎碎记</span>
+      <span class="tb-tag">AI 知识工作台</span>
+    </div>
+    <div class="tb-spacer"></div>
+    <div class="tb-search" onclick="document.getElementById('searchInput').focus()">
+      <div class="tb-search-box" id="searchBox">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="searchInput" placeholder="搜索剪藏 / 知识 / 文件...">
+        <span class="tb-kbd">⌘ K</span>
+      </div>
+    </div>
+    <div class="tb-right">
+      <button class="tb-icobtn" id="themeToggle" title="切换深浅色主题">
+        <svg id="themeIconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+        <svg id="themeIconMoon" style="display:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+      </button>
+      <button class="tb-icobtn" title="设置">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="main">
+    <!-- 左侧导航 -->
+    <nav class="sidebar">
+      <div class="side-section">工作流</div>
+      <button class="side-item active" data-nav="inbox">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z"/></svg>
+        收件箱<span class="count">5</span>
+      </button>
+      <button class="side-item" data-nav="writing">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+        写作
+      </button>
+      <button class="side-item" data-nav="canvas">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+        画布
+      </button>
+
+      <div class="side-divider"></div>
+      <div class="side-section">沉淀</div>
+      <button class="side-item" data-nav="knowledge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>
+        知识库
+      </button>
+      <button class="side-item" data-nav="graph">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M6.5 7.5 10.5 16M12.5 16l6-9M5 8l12-0"/></svg>
+        知识图谱
+      </button>
+
+      <div class="side-divider"></div>
+      <div class="side-section">更多</div>
+      <button class="side-item" data-nav="tools">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+        工具
+      </button>
+      <button class="side-item" data-nav="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+        设置
+      </button>
+
+      <div class="side-foot">
+        <div class="side-avatar">P</div>
+        <div class="side-user">
+          <div class="side-user-name">本地工作区</div>
+          <div class="side-user-role">纯文本 · 本地优先</div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- 主内容区 -->
+    <div class="content" id="contentArea">
+      <!-- 收件箱视图 -->
+      <div class="view" id="view-inbox">
+        <div class="page-head">
+          <div class="page-title-row">
+            <div class="page-title">收件箱</div>
+            <span class="page-count">12 条</span>
+            <div class="page-actions">
+              <button class="btn btn-ghost" id="aiToggle" title="打开 AI 助手">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4M12 4l-3 3M12 4l3 3"/><path d="M12 20v-4M12 16l-3 3M12 16l3 3"/><path d="M8 12H4M4 12l3-3M4 12l3 3"/><path d="M20 12h-4M16 12l3-3M16 12l3 3"/><circle cx="12" cy="12" r="2.5"/></svg>
+                AI 助手
+              </button>
+              <button class="btn btn-primary" id="quickCaptureBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                快速记录
+              </button>
+            </div>
+          </div>
+          <div class="page-desc">随手记下，稍后整理。截图、文本、链接会自动落到这里，不再纠结放哪。</div>
+        </div>
+
+        <div class="page-tabs">
+          <div class="seg" id="statusSeg">
+            <button class="seg-btn active" data-status="pending">待整理<span class="n">5</span></button>
+            <button class="seg-btn" data-status="done">已整理<span class="n">4</span></button>
+            <button class="seg-btn" data-status="store">仅存储<span class="n">3</span></button>
+          </div>
+        </div>
+
+        <!-- 批量操作条 -->
+        <div class="bulkbar" id="bulkbar">
+          <span class="bulkbar-count" id="bulkCount">已选 0 条</span>
+          <span class="bulkbar-sep"></span>
+          <button class="bulkbar-btn" id="bulkOrganize">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>整理选中
+          </button>
+          <button class="bulkbar-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>移入知识库
+          </button>
+          <button class="bulkbar-btn danger">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>删除
+          </button>
+          <button class="bulkbar-cancel" id="bulkCancel">取消</button>
+        </div>
+
+        <div class="scroll">
+          <!-- 每日回看 -->
+          <div class="daily" id="dailyReview" onclick="openReview()">
+            <div class="daily-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="4"/></svg>
+            </div>
+            <div class="daily-txt">
+              <div class="daily-title">每日回看 · 3 条沉底的旧收藏</div>
+              <div class="daily-sub">收藏过,别让它永远躺平。花 1 分钟翻翻这些内容。</div>
+            </div>
+            <button class="daily-go">开始回顾</button>
+            <button class="daily-close" id="dailyClose" onclick="event.stopPropagation()" title="关闭">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+
+          <!-- 标签折叠分组：未分类 -->
+          <div class="group" data-group="uncat">
+            <div class="group-head" onclick="toggleGroup(this)">
+              <span class="group-caret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+              <span class="group-tag"><span class="dot" style="background:var(--app-text-muted)"></span>未分类</span>
+              <span class="group-count">3 条</span>
+            </div>
+            <div class="group-body"></div>
+          </div>
+
+          <!-- 标签折叠分组：前端 -->
+          <div class="group" data-group="frontend">
+            <div class="group-head" onclick="toggleGroup(this)">
+              <span class="group-caret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+              <span class="group-tag"><span class="dot" style="background:var(--type-link)"></span>前端</span>
+              <span class="group-count">2 条</span>
+            </div>
+            <div class="group-body"></div>
+          </div>
+
+          <!-- 标签折叠分组：AI -->
+          <div class="group" data-group="ai" >
+            <div class="group-head collapsed" onclick="toggleGroup(this)">
+              <span class="group-caret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+              <span class="group-tag"><span class="dot" style="background:var(--type-paste)"></span>AI</span>
+              <span class="group-count">1 条</span>
+            </div>
+            <div class="group-body"></div>
+          </div>
+
+          <!-- 空状态 -->
+          <div class="empty" id="emptyState">
+            <div class="empty-illo">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z"/></svg>
+            </div>
+            <div class="empty-title">这里暂时是空的</div>
+            <div class="empty-sub">你所有的截图、文本、链接都会先落到这里，等你慢慢整理。</div>
+            <div class="empty-steps">
+              <div class="empty-step"><div class="empty-step-n">1</div><div class="empty-step-t">截个图</div><div class="empty-step-s">随手框选屏幕上的内容</div></div>
+              <div class="empty-step"><div class="empty-step-n">2</div><div class="empty-step-t">自动进收件箱</div><div class="empty-step-s">不用想放哪，它会自己来</div></div>
+              <div class="empty-step"><div class="empty-step-n">3</div><div class="empty-step-t">一键整理</div><div class="empty-step-s">让 AI 帮你归类和总结</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 其它视图占位 -->
+      <div class="view" id="view-writing" style="display:none">
+        <div class="writer">
+          <!-- 左侧文档列表 -->
+          <aside class="writer-side">
+            <div class="writer-side-head">
+              <span class="writer-side-title">文档</span>
+              <button class="writer-side-add" id="writerNewBtn" title="新建文档" onclick="writerToast('已新建文档')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+            </div>
+            <div class="writer-side-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input placeholder="搜索文档...">
+            </div>
+            <div class="writer-side-sec">最近</div>
+            <div class="writer-side-list" id="writerDocList">
+              <button class="doc-item active" data-doc="1" onclick="switchDoc(this)">
+                <span class="doc-item-type" style="background:var(--type-link);color:#fff">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>
+                </span>
+                <span class="doc-item-main">
+                  <span class="doc-item-name">Electron 透明与残影排查</span>
+                  <span class="doc-item-meta">来自收件箱 · 2 分钟前</span>
+                </span>
+              </button>
+              <button class="doc-item" data-doc="2" onclick="switchDoc(this)">
+                <span class="doc-item-type" style="background:var(--type-paste);color:#fff">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+                </span>
+                <span class="doc-item-main">
+                  <span class="doc-item-name">RAG 落地笔记</span>
+                  <span class="doc-item-meta">来自收件箱 · 1 小时前</span>
+                </span>
+              </button>
+              <button class="doc-item" data-doc="3" onclick="switchDoc(this)">
+                <span class="doc-item-type" style="background:var(--type-ocr);color:#fff">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8h10M7 12h7M7 16h4"/></svg>
+                </span>
+                <span class="doc-item-main">
+                  <span class="doc-item-name">产品路线白板整理</span>
+                  <span class="doc-item-meta">来自收件箱 · 昨天</span>
+                </span>
+              </button>
+              <div class="writer-side-sec">其它</div>
+              <button class="doc-item" data-doc="4" onclick="switchDoc(this)">
+                <span class="doc-item-type" style="background:var(--app-text-muted);color:#fff">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 7.7l5.4-.8Z"/></svg>
+                </span>
+                <span class="doc-item-main">
+                  <span class="doc-item-name">产品命名备选</span>
+                  <span class="doc-item-meta">手写 · 2 周前</span>
+                </span>
+              </button>
+            </div>
+          </aside>
+
+          <!-- 编辑器主体 -->
+          <div class="writer-main">
+            <div class="writer-toolbar">
+              <div class="writer-tool-group">
+                <button class="writer-tool" title="新建 Ctrl+N" onclick="writerToast('已新建文档')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M12 10v6M9 13h6"/></svg>
+                </button>
+                <button class="writer-tool" title="打开 Ctrl+O" onclick="writerToast('打开文件')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                </button>
+                <button class="writer-tool primary" title="保存 Ctrl+S" onclick="writerToast('已保存')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+                </button>
+              </div>
+
+              <div class="writer-doc-id">
+                <span class="writer-doc-dot"></span>
+                <strong id="writerDocName">Electron 透明与残影排查</strong>
+                <span class="writer-doc-badge">来自收件箱</span>
+              </div>
+
+              <div class="writer-tool-group">
+                <select class="writer-select" title="语言模式">
+                  <option selected>Markdown</option><option>纯文本</option><option>JSON</option>
+                </select>
+                <button class="writer-tool" title="Markdown 预览" onclick="writerToast('切换预览')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                </button>
+                <button class="writer-tool" title="导出" onclick="writerToast('导出 Markdown / PDF')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></svg>
+                </button>
+                <span class="writer-tool-sep"></span>
+                <button class="writer-clip-btn" onclick="writerToast('已存入剪藏')">存入剪藏</button>
+              </div>
+            </div>
+
+            <div class="writer-tabbar">
+              <span class="writer-tab active">Electron 透明与残影排查</span>
+              <span class="writer-tab">RAG 落地笔记</span>
+              <span class="writer-tab-new" title="新建标签 Ctrl+T">+</span>
+            </div>
+
+            <div class="writer-body" id="writerBody">
+              <div class="writer-editor" id="writerEditor" contenteditable="true" spellcheck="false">
+                <h1>Electron 透明窗口残影问题排查</h1>
+                <p><strong>问题</strong>：macOS 上透明窗口用 CSS <code>opacity</code>/<code>transform</code> 做淡入淡出，会出现黑色残影。</p>
+                <h2>原因</h2>
+                <p>合成器对透明窗口的 CSS 透明度处理与普通窗口不一致，动画期间未正确合成。</p>
+                <h2>结论</h2>
+                <ul>
+                  <li>改用窗口级 <code>setOpacity()</code></li>
+                  <li>透明窗口显式 <code>backgroundColor: '#00000000'</code></li>
+                  <li>显示前重置 <code>setOpacity(1)</code></li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="writer-statusbar">
+              <span>Ln 12, Col 4</span>
+              <span class="writer-tool-sep-v"></span>
+              <span>Markdown</span>
+              <span class="writer-tool-sep-v"></span>
+              <span>UTF-8</span>
+              <span class="writer-status-right">已保存 · 本地纯文本</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="view placeholder" id="view-canvas" style="display:none">
+        <div class="ph-center"><div class="empty-title">画布</div><div class="empty-sub">用连接关系梳理想法、流程与还未成形的念头。</div></div>
+      </div>
+      <div class="view placeholder" id="view-knowledge" style="display:none">
+        <div class="ph-center"><div class="empty-title">知识库</div><div class="empty-sub">整理归档后的内容在这里沉淀,成为可检索的知识。</div></div>
+      </div>
+      <div class="view placeholder" id="view-graph" style="display:none">
+        <div class="ph-center"><div class="empty-title">知识图谱</div><div class="empty-sub">可视化你的知识节点与它们之间的连接。</div></div>
+      </div>
+      <div class="view placeholder" id="view-tools" style="display:none">
+        <div class="ph-center"><div class="empty-title">工具</div><div class="empty-sub">PDF 解析等小工具集合。</div></div>
+      </div>
+      <div class="view" id="view-settings" style="display:none">
+        <div class="settings">
+          <div class="page-head">
+            <div class="page-title-row"><div class="page-title">设置</div></div>
+            <div class="page-desc">管理偏好与你的数据所有权。</div>
+          </div>
+          <div class="settings-scroll">
+            <div class="set-section">
+              <div class="set-section-title">通用</div>
+              <div class="set-card">
+                <div class="set-row"><div class="set-row-label">外观主题</div><div class="set-row-value" id="setThemeValue">跟随系统</div></div>
+                <div class="set-row"><div class="set-row-label">界面语言</div><div class="set-row-value">简体中文</div></div>
+              </div>
+            </div>
+
+            <div class="set-section">
+              <div class="set-section-title">数据与隐私</div>
+              <div class="trust-card">
+                <div class="trust-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </div>
+                <div class="trust-main">
+                  <div class="trust-title">你的数据,100% 属于你</div>
+                  <div class="trust-desc">所有内容以 <strong>纯文本文件</strong>(Markdown / JSON) 存在本机,不绑定任何云端账号,随时用任何工具打开、迁移。</div>
+                </div>
+                <button class="btn btn-primary" onclick="exportData()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+                  一键导出
+                </button>
+              </div>
+              <div class="trust-grid">
+                <div class="trust-point">
+                  <div class="trust-point-ico" style="background:var(--type-link);color:#fff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg></div>
+                  <div class="trust-point-t">本地优先</div>
+                  <div class="trust-point-s">数据只落在你自己的磁盘,不留云端</div>
+                </div>
+                <div class="trust-point">
+                  <div class="trust-point-ico" style="background:var(--type-paste);color:#fff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></div>
+                  <div class="trust-point-t">纯文本可读</div>
+                  <div class="trust-point-s">任何编辑器都能打开,不锁格式</div>
+                </div>
+                <div class="trust-point">
+                  <div class="trust-point-ico" style="background:var(--type-ocr);color:#fff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></div>
+                  <div class="trust-point-t">一键带走</div>
+                  <div class="trust-point-s">打包导出,换软件也不怕数据丢失</div>
+                </div>
+              </div>
+              <div class="set-card">
+                <div class="set-row">
+                  <div class="set-row-label">存储位置</div>
+                  <div class="set-row-mono">~/cut-shelter/clip-storage</div>
+                  <button class="set-row-action" onclick="showToast('已在访达中打开存储目录')">打开目录</button>
+                </div>
+                <div class="set-row"><div class="set-row-label">数据格式</div><div class="set-row-value">纯文本 Markdown</div></div>
+                <div class="set-row"><div class="set-row-label">检索索引</div><div class="set-row-value">本地 SQLite · 可随时重建</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右侧 AI 助手面板 -->
+    <aside class="ai-panel hidden" id="aiPanel">
+      <div class="ai-head">
+        <div class="ai-avatar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 7.7l5.4-.8Z"/></svg>
+        </div>
+        <div>
+          <div class="ai-name">小记</div>
+          <div class="ai-status"><span class="dot"></span>就绪</div>
+        </div>
+        <button class="ai-close" id="aiClose" title="收起面板">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+      </div>
+
+      <div class="ai-context">
+        <div class="ctx-seg" id="ctxSeg">
+          <button class="ctx-btn" data-ctx="selection">选中记录</button>
+          <button class="ctx-btn active" data-ctx="library">全库</button>
+          <button class="ctx-btn" data-ctx="doc">当前文档</button>
+        </div>
+        <div class="ctx-hint" id="ctxHint">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          正在看你的整个剪藏库 · 回答会附来源
+        </div>
+      </div>
+
+      <div class="ai-msgs" id="aiMsgs">
+        <div class="msg ai">
+          <div class="bubble">你好,我是小记。选中几条记录可以针对性提问,或直接问你的整库内容。整理好的东西我能顺手写成笔记。</div>
+        </div>
+      </div>
+
+      <div class="ai-composer">
+        <div class="ai-input-wrap">
+          <textarea id="aiInput" rows="1" placeholder="问我点啥,或让我整理内容..."></textarea>
+          <button class="ai-send" id="aiSend" title="发送">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="ai-foot">上下文仅在本机本地处理 · 回答可能不准确</div>
+    </aside>
+  </div>
+</div>
+
+<!-- 快速记录弹层 -->
+<div class="overlay" id="captureOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title">快速记录</div>
+        <div class="modal-sub">选一种方式,内容会自动落到收件箱</div>
+      </div>
+      <button class="modal-close" onclick="closeCapture()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="capture-grid">
+        <div class="capture" data-type="截图" data-colored="var(--type-screenshot)" onclick="chooseCapture(this)">
+          <div class="capture-ico" style="background:var(--type-screenshot);color:#fff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8.5 8.5h7v7h-7z"/></svg></div>
+          <div><div class="capture-t">截图</div><div class="capture-s">框选屏幕内容</div></div>
+        </div>
+        <div class="capture" data-type="文本" data-colored="var(--type-paste)" onclick="chooseCapture(this)">
+          <div class="capture-ico" style="background:var(--type-paste);color:#fff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg></div>
+          <div><div class="capture-t">粘贴文本</div><div class="capture-s">复制的一段话/代码</div></div>
+        </div>
+        <div class="capture" data-type="OCR" data-colored="var(--type-ocr)" onclick="chooseCapture(this)">
+          <div class="capture-ico" style="background:var(--type-ocr);color:#fff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8h10M7 12h7M7 16h4"/></svg></div>
+          <div><div class="capture-t">OCR 识别</div><div class="capture-s">图片里提取文字</div></div>
+        </div>
+        <div class="capture" data-type="链接" data-colored="var(--type-link)" onclick="chooseCapture(this)">
+          <div class="capture-ico" style="background:var(--type-link);color:#fff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+          <div><div class="capture-t">链接</div><div class="capture-s">收藏一个网页</div></div>
+        </div>
+        <div class="capture" data-type="文件" data-colored="var(--type-file)" onclick="chooseCapture(this)">
+          <div class="capture-ico" style="background:var(--type-file);color:#fff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2Z"/><path d="M14 2v6h6"/></svg></div>
+          <div><div class="capture-t">文件</div><div class="capture-s">PDF / 文档</div></div>
+        </div>
+        <div class="capture" data-type="待办" data-colored="var(--type-todo)" onclick="chooseCapture(this)">
+          <div class="capture-ico" style="background:var(--type-todo);color:#fff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-5"/></svg></div>
+          <div><div class="capture-t">待办</div><div class="capture-s">记一件要做的事</div></div>
+        </div>
+      </div>
+
+      <div class="organize-toggle">
+        <div class="org-title">这一步之后,内容要怎样处理?</div>
+        <div class="org-options">
+          <button class="org-opt active" data-org="later" onclick="chooseOrg(this)">
+            <div class="org-opt-t"><span class="dot" style="background:var(--app-warning)"></span>稍后整理</div>
+            <div class="org-opt-s">先落到收件箱,回头我帮你归类和总结</div>
+          </button>
+          <button class="org-opt" data-org="now" onclick="chooseOrg(this)">
+            <div class="org-opt-t"><span class="dot" style="background:var(--app-primary)"></span>现在整理</div>
+            <div class="org-opt-s">调用 AI 立即分析,直接给出结果</div>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeCapture()">取消</button>
+      <button class="btn btn-primary" onclick="commitCapture()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        确认记录
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- 每日回顾弹窗 -->
+<div class="overlay" id="reviewOverlay">
+  <div class="modal review-modal">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title">今日回看</div>
+        <div class="modal-sub">花 1 分钟,和沉底的内容重逢</div>
+      </div>
+      <button class="modal-close" onclick="closeReview()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="review-progress">
+      <div class="review-progress-track"><div class="review-progress-fill" id="reviewFill"></div></div>
+      <span class="review-progress-txt" id="reviewCount">1 / 3</span>
+    </div>
+    <div class="review-stage" id="reviewStage"></div>
+    <div class="review-actions" id="reviewActions">
+      <button class="review-btn skip" onclick="reviewAction('skip')">跳过</button>
+      <button class="review-btn archive" onclick="reviewAction('archive')">归档</button>
+      <button class="review-btn keep" onclick="reviewAction('keep')">仍有用</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============ 状态 ============ */
+const state = {
+  theme: 'light',
+  status: 'pending',      // pending / done / store
+  selectedOrg: 'later',
+  selectedType: '截图',
+  selectedColor: 'var(--type-screenshot)',
+  nav: 'inbox',
+  aiOpen: false,
+};
+
+/* 初始数据（映射后端 type/status） */
+const clips = [
+  { id:1, type:'截图', color:'var(--type-screenshot)', title:'曲院风荷到孤山的散步路线', src:'截图 · OCR', time:'2 分钟前', status:'pending', tag:'uncat' },
+  { id:2, type:'链接', color:'var(--type-link)', title:'Electron 窗口透明与残影问题的排查思路', src:'网页链接', time:'18 分钟前', status:'pending', tag:'frontend' },
+  { id:3, type:'文件', color:'var(--type-file)', title:'2024 年度读书笔记汇总.pdf', src:'PDF 文档', time:'1 小时前', status:'pending', tag:'uncat' },
+  { id:4, type:'文本', color:'var(--type-paste)', title:'晚餐想吃杭帮菜,记得提前订座', src:'粘贴文本', time:'昨天 21:04', status:'pending', tag:'uncat' },
+  { id:5, type:'OCR', color:'var(--type-ocr)', title:'会议白板上有关产品路线的关键点', src:'OCR 识别', time:'昨天 15:30', status:'pending', tag:'frontend' },
+  { id:6, type:'文本', color:'var(--type-paste)', title:'RAG 检索增强生成的三种落地方式', src:'粘贴文本', time:'3 天前', status:'done', tag:'ai' },
+  { id:7, type:'链接', color:'var(--type-link)', title:'NoteGen:先记录、再整理的产品设计', src:'网页链接', time:'5 天前', status:'done', tag:'frontend' },
+  { id:8, type:'截图', color:'var(--type-screenshot)', title:'天目里建筑与店铺地图', src:'截图 · OCR', time:'上周', status:'done', tag:'uncat' },
+  { id:9, type:'文件', color:'var(--type-file)', title:'《思考,快与慢》精读笔记', src:'PDF 文档', time:'上周', status:'done', tag:'ai' },
+  { id:10, type:'待办', color:'var(--type-todo)', title:'整理本周收集的前端文章', src:'待办', time:'2 周前', status:'store', tag:'uncat' },
+  { id:11, type:'文本', color:'var(--type-paste)', title:'关于产品命名的几条备选', src:'粘贴文本', time:'2 周前', status:'store', tag:'frontend' },
+  { id:12, type:'链接', color:'var(--type-link)', title:'个人知识管理系统搭建思路', src:'网页链接', time:'1 个月前', status:'store', tag:'ai' },
+];
+
+/* 分组排序与过滤后的渲染 */
+function groupVisual(list) {
+  const order = ['uncat', 'frontend', 'ai'];
+  const grouped = {};
+  list.forEach(c => { (grouped[c.tag] ||= []).push(c); });
+  return order.map(tag => ({ tag, list: grouped[tag] || [] }));
+}
+
+function clipHTML(c) {
+  const statusLabel = { pending:'待整理', done:'已整理', store:'仅存储' }[c.status];
+  const typeIcons = {
+    '截图':'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8.5 8.5h7v7h-7z"/>',
+    '文本':'<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>',
+    'OCR':'<path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8h10M7 12h7M7 16h4"/>',
+    '链接':'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+    '文件':'<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2Z"/><path d="M14 2v6h6"/>',
+    '待办':'<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-5"/>',
+  };
+  return `
+    <div class="clip" data-id="${c.id}" data-status="${c.status}" onclick="toggleSelect(this)">
+      <div class="clip-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-9"/></svg></div>
+      <div class="clip-type" style="background:${c.color};color:#fff">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${typeIcons[c.type]}</svg>
+      </div>
+      <div class="clip-main">
+        <div class="clip-title">${c.title}</div>
+        <div class="clip-meta"><span class="src">${c.src}</span><span>·</span><span>${c.time}</span></div>
+      </div>
+      <div class="clip-status ${c.status}" style="margin:0 6px 0 0"><span class="dot"></span>${statusLabel}</div>
+      <div class="clip-actions">
+        <button class="clip-act" title="整理" onclick="event.stopPropagation();organizeOne(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></button>
+        <button class="clip-act" title="删除" onclick="event.stopPropagation();deleteOne(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+      </div>
+    </div>`;
+}
+
+function renderClips() {
+  const filtered = clips.filter(c => c.status === state.status);
+  const groups = groupVisual(filtered);
+  document.querySelectorAll('.group').forEach(g => {
+    const tag = g.dataset.group;
+    const gs = groups.find(x => x.tag === tag);
+    const body = g.querySelector('.group-body');
+    body.innerHTML = '';
+    if (gs && gs.list.length > 0) {
+      g.style.display = '';
+      g.querySelector('.group-count').textContent = gs.list.length + ' 条';
+      gs.list.forEach(c => body.innerHTML += clipHTML(c));
+    } else {
+      g.style.display = 'none';
+    }
+  });
+  // 更新空状态
+  const hasAny = filtered.length > 0;
+  document.getElementById('emptyState').classList.toggle('show', !hasAny);
+  // 更新计数
+  document.getElementById('bulkCount').textContent = `已选 ${document.querySelectorAll('.clip.selected').length} 条`;
+}
+
+function renderStatusSeg() {
+  document.querySelectorAll('#statusSeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.status === state.status));
+}
+
+/* ============ 交互 ============ */
+function toggleGroup(head) {
+  head.classList.toggle('collapsed');
+}
+
+function toggleSelect(el) {
+  el.classList.toggle('selected');
+  syncBulkBar();
+}
+
+function syncBulkBar() {
+  const count = document.querySelectorAll('.clip.selected').length;
+  document.getElementById('bulkCount').textContent = `已选 ${count} 条`;
+  document.getElementById('bulkbar').classList.toggle('show', count > 0);
+}
+
+function organizeOne(btn) {
+  const clipEl = btn.closest('.clip');
+  const id = +clipEl.dataset.id;
+  const c = clips.find(x => x.id === id);
+  if (c) { c.status = 'done'; }
+  renderClips();
+  showToast('已整理并写入 <span>写作</span> 列表');
+}
+
+function deleteOne(btn) {
+  const clipEl = btn.closest('.clip');
+  const id = +clipEl.dataset.id;
+  const idx = clips.findIndex(x => x.id === id);
+  if (idx >= 0) clips.splice(idx, 1);
+  renderClips();
+  showToast('已删除 · 可在稍后撤销');
+}
+
+/* 状态 tab */
+document.querySelectorAll('#statusSeg .seg-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    state.status = b.dataset.status;
+    renderStatusSeg();
+    // 清除多选
+    document.querySelectorAll('.clip.selected').forEach(x => x.classList.remove('selected'));
+    syncBulkBar();
+    renderClips();
+  });
+});
+
+/* 批量 */
+document.getElementById('bulkCancel').addEventListener('click', () => {
+  document.querySelectorAll('.clip.selected').forEach(x => x.classList.remove('selected'));
+  syncBulkBar();
+});
+document.getElementById('bulkOrganize').addEventListener('click', () => {
+  document.querySelectorAll('.clip.selected').forEach(x => {
+    const c = clips.find(c => c.id === +x.dataset.id);
+    if (c) c.status = 'done';
+  });
+  document.querySelectorAll('.clip.selected').forEach(x => x.classList.remove('selected'));
+  syncBulkBar();
+  renderClips();
+  showToast('批量整理完成');
+});
+
+/* 导航 */
+document.querySelectorAll('.side-item[data-nav]').forEach(item => {
+  item.addEventListener('click', () => {
+    state.nav = item.dataset.nav;
+    document.querySelectorAll('.side-item[data-nav]').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+    document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
+    const target = document.getElementById('view-' + item.dataset.nav);
+    if (target) target.style.display = 'block';
+    // 进入写作视图时，AI 上下文自动切到「当前文档」
+    if (state.nav === 'writing') {
+      setAiContext('doc');
+    } else if (state.nav === 'inbox') {
+      setAiContext('library');
+    }
+  });
+});
+
+/* 主题切换 */
+document.getElementById('themeToggle').addEventListener('click', () => {
+  state.theme = state.theme === 'light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', state.theme);
+  document.getElementById('themeIconSun').style.display = state.theme === 'light' ? 'block' : 'none';
+  document.getElementById('themeIconMoon').style.display = state.theme === 'dark' ? 'block' : 'none';
+});
+
+/* AI 面板 */
+const aiPanel = document.getElementById('aiPanel');
+document.getElementById('aiToggle').addEventListener('click', () => {
+  state.aiOpen = !state.aiOpen;
+  aiPanel.classList.toggle('hidden', !state.aiOpen);
+});
+document.getElementById('aiClose').addEventListener('click', () => {
+  state.aiOpen = false;
+  aiPanel.classList.add('hidden');
+});
+
+/* AI 上下文 */
+const ctxMap = {
+  selection: { txt: '正在看选中的记录 · 回答附所选来源', n: 2 },
+  library: { txt: '正在看你的整个剪藏库 · 回答会附来源', n: 0 },
+  doc: { txt: '正在看当前打开的文档', n: 0 },
+};
+function setAiContext(key) {
+  document.querySelectorAll('#ctxSeg .ctx-btn').forEach(x => x.classList.toggle('active', x.dataset.ctx === key));
+  document.getElementById('ctxHint').lastChild.textContent = ctxMap[key].txt;
+}
+document.querySelectorAll('#ctxSeg .ctx-btn').forEach(b => {
+  b.addEventListener('click', () => setAiContext(b.dataset.ctx));
+});
+
+/* AI 发送预设问答 */
+function appendMsg(role, text) {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg ' + role;
+  wrap.innerHTML = `<div class="bubble">${text}</div>`;
+  if (role === 'ai') {
+    wrap.querySelector('.bubble').insertAdjacentHTML('afterend', `
+      <div class="src-list">
+        <div class="src-card">
+          <div class="src-top"><span class="src-badge link">链接</span><span class="src-from">来自收件箱</span></div>
+          <div class="src-title">Electron 窗口透明与残影问题的排查思路</div>
+          <div class="src-snippet">关于 setOpacity 与 CSS opacity 在 macOS 合成器上的差异,以及黑帧检测的必要性。</div>
+          <div class="src-actions">
+            <button class="src-btn primary" onclick="organizeFromSrc(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>整理为笔记</button>
+            <button class="src-btn ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>查看</button>
+          </div>
+        </div>
+        <div class="src-card">
+          <div class="src-top"><span class="src-badge paste">文本</span><span class="src-from">来自收件箱</span></div>
+          <div class="src-title">RAG 检索增强生成的三种落地方式</div>
+          <div class="src-snippet">检索、增强、生成三阶段的工程拆解,以及落到本地知识库时的取舍。</div>
+          <div class="src-actions">
+            <button class="src-btn primary" onclick="organizeFromSrc(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>整理为笔记</button>
+            <button class="src-btn ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>查看</button>
+          </div>
+        </div>
+      </div>
+    `);
+  }
+  return wrap;
+}
+
+function organizeFromSrc(btn) {
+  const card = btn.closest('.src-card');
+  card.style.borderColor = 'var(--app-success)';
+  btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-9"/></svg>已写入写作';
+  btn.classList.remove('primary');
+  btn.style.background = 'var(--app-success-soft)';
+  btn.style.color = 'var(--app-success)';
+  showToast('已整理成笔记,推送到 <span>写作</span>');
+}
+
+function sendAi() {
+  const input = document.getElementById('aiInput');
+  const q = input.value.trim();
+  const msgs = document.getElementById('aiMsgs');
+  if (q) {
+    msgs.appendChild(appendMsg('user', escapeHtml(q)));
+    input.value = '';
+    input.style.height = 'auto';
+  }
+  msgs.appendChild(appendMsg('ai', '我翻了你的收件箱,找到两条和这个主题相关的内容。'));
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+document.getElementById('aiSend').addEventListener('click', sendAi);
+document.getElementById('aiInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAi(); }
+});
+
+function escapeHtml(s) { return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+/* 快速记录弹层 */
+function openCapture() { document.getElementById('captureOverlay').classList.add('show'); }
+function closeCapture() { document.getElementById('captureOverlay').classList.remove('show'); }
+document.getElementById('quickCaptureBtn').addEventListener('click', openCapture);
+document.getElementById('captureOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeCapture(); });
+
+function chooseCapture(el) {
+  document.querySelectorAll('.capture').forEach(c => c.style.outline = 'none');
+  el.style.outline = '2px solid var(--app-primary)';
+  el.style.outlineOffset = '-2px';
+  state.selectedType = el.dataset.type;
+  state.selectedColor = el.dataset.colored;
+}
+function chooseOrg(el) {
+  document.querySelectorAll('.org-opt').forEach(o => o.classList.remove('active'));
+  el.classList.add('active');
+  state.selectedOrg = el.dataset.org;
+}
+function commitCapture() {
+  closeCapture();
+  const isNow = state.selectedOrg === 'now';
+  const demoTitles = { '截图':'一份刚框选的界面标注', '文本':'随手记的一段想法', 'OCR':'图片里提取的关键文字', '链接':'一个值得回看的网页', '文件':'一份新导入的文档', '待办':'一件新记的待办' };
+  const newClip = {
+    id: Date.now(),
+    type: state.selectedType,
+    color: state.selectedColor,
+    title: demoTitles[state.selectedType] || state.selectedType,
+    src: state.selectedType + (state.selectedType === '待办' ? '' : (state.selectedType === '截图' ? ' · 截图' : '')),
+    time: '刚刚',
+    status: isNow ? 'done' : 'pending',
+    tag: 'uncat',
+  };
+  clips.unshift(newClip);
+  // 如果是「现在整理」,演示直接落到已整理
+  state.status = 'pending';
+  renderStatusSeg();
+  renderClips();
+  showToast(isNow ? '已 AI 整理完成,归入 <span>已整理</span>' : '已落进收件箱,<span>待整理</span>');
+}
+
+/* 每日回看 */
+document.getElementById('dailyClose').addEventListener('click', () => {
+  document.getElementById('dailyReview').style.display = 'none';
+});
+
+/* Toast */
+let toastTimer;
+function showToast(html) {
+  const t = document.getElementById('toast');
+  t.innerHTML = html;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+/* ============ 写作视图交互 ============ */
+const writerDocs = {
+  1: { name: 'Electron 透明与残影排查', badge: '来自收件箱' },
+  2: { name: 'RAG 落地笔记', badge: '来自收件箱' },
+  3: { name: '产品路线白板整理', badge: '来自收件箱' },
+  4: { name: '产品命名备选', badge: '' },
+};
+function switchDoc(el) {
+  document.querySelectorAll('.doc-item').forEach(d => d.classList.remove('active'));
+  el.classList.add('active');
+  const doc = writerDocs[el.dataset.doc];
+  if (!doc) return;
+  document.getElementById('writerDocName').textContent = doc.name;
+  const badge = document.querySelector('.writer-doc-badge');
+  if (doc.badge) { badge.textContent = doc.badge; badge.style.display = ''; }
+  else { badge.style.display = 'none'; }
+  // 切文档后 AI 上下文保持「当前文档」
+  setAiContext('doc');
+  showToast('已切换到「' + doc.name + '」');
+}
+function writerToast(msg) {
+  showToast(msg);
+}
+
+/* ============ 每日回顾 ============ */
+const reviewData = [
+  { type:'链接', color:'var(--type-link)', tag:'前端', title:'Electron 窗口透明与残影问题的排查思路', snippet:'关于 setOpacity 与 CSS opacity 在 macOS 合成器上的差异,以及黑帧检测的必要性。', since:'161 天没看' },
+  { type:'文本', color:'var(--type-paste)', tag:'AI', title:'RAG 检索增强生成的三种落地方式', snippet:'检索、增强、生成三阶段的工程拆解,以及落到本地知识库时的取舍。', since:'95 天没看' },
+  { type:'文件', color:'var(--type-file)', tag:'阅读', title:'《思考,快与慢》精读笔记', snippet:'系统 1 与系统 2 的经典框架,以及直觉判断中的认知偏差清单。', since:'72 天没看' },
+];
+let reviewIdx = 0;
+let reviewResult = { keep: 0, archive: 0, skip: 0 };
+
+function openReview() {
+  reviewIdx = 0;
+  reviewResult = { keep: 0, archive: 0, skip: 0 };
+  document.getElementById('reviewActions').style.display = 'flex';
+  renderReview();
+  document.getElementById('reviewOverlay').classList.add('show');
+}
+function closeReview() {
+  document.getElementById('reviewOverlay').classList.remove('show');
+}
+function renderReview() {
+  const stage = document.getElementById('reviewStage');
+  const c = reviewData[reviewIdx];
+  document.getElementById('reviewCount').textContent = (reviewIdx + 1) + ' / ' + reviewData.length;
+  document.getElementById('reviewFill').style.width = ((reviewIdx + 1) / reviewData.length * 100) + '%';
+  stage.innerHTML = `
+    <div class="review-card">
+      <div class="review-card-type"><span class="dot" style="background:${c.color}"></span>${c.type} · 来自 ${c.tag}</div>
+      <div class="review-card-title">${c.title}</div>
+      <div class="review-card-snippet">${c.snippet}</div>
+      <div class="review-card-meta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>${c.since}</div>
+    </div>`;
+}
+function reviewAction(action) {
+  reviewResult[action]++;
+  reviewIdx++;
+  if (reviewIdx >= reviewData.length) {
+    const stage = document.getElementById('reviewStage');
+    document.getElementById('reviewActions').style.display = 'none';
+    stage.innerHTML = `
+      <div class="review-done">
+        <div class="review-done-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-9"/></svg></div>
+        <div class="review-done-title">今日回看完成</div>
+        <div class="review-done-sub">保留了 ${reviewResult.keep} 条 · 归档了 ${reviewResult.archive} 条</div>
+        <button class="btn btn-ghost" onclick="closeReview()">收工</button>
+      </div>`;
+    document.getElementById('reviewCount').textContent = reviewData.length + ' / ' + reviewData.length;
+    document.getElementById('reviewFill').style.width = '100%';
+  } else {
+    renderReview();
+  }
+}
+document.getElementById('reviewOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeReview(); });
+
+/* ============ 设置页 · 数据导出 ============ */
+function exportData() {
+  showToast('已打包导出全部数据 · <span>随身带走</span>');
+}
+
+/* 初始化 */
+renderClips();
+</script>
+</body>
+</html>

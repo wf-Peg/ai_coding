@@ -137,8 +137,13 @@
   // 悬浮提示快捷键平台自适应：macOS 显示 ⌘/⇧/⌥ 符号，Windows/Linux 保留 Ctrl/Shift/Alt 文本。
   function platformShortcut(sc) {
     if (!sc) return '';
-    if (!/Mac/i.test(navigator.platform || '')) return sc;
-    return sc
+    var out = sc
+      .replace(/ArrowLeft/gi, '←')
+      .replace(/ArrowRight/gi, '→')
+      .replace(/ArrowUp/gi, '↑')
+      .replace(/ArrowDown/gi, '↓');
+    if (!/Mac/i.test(navigator.platform || '')) return out;
+    return out
       .replace(/Ctrl\+/gi, '⌘')
       .replace(/Meta\+/gi, '⌘')
       .replace(/Shift\+/gi, '⇧')
@@ -273,6 +278,28 @@
   // Ctrl/Cmd+G（跳转到行）与 Ctrl/Cmd+Shift+L（自动识别格式化）由窗口捕获阶段统一接管
   //  （见下方 keydown 捕获处理器），保证编辑区内外焦点均能触发。
   // 不再覆盖 ACE 内置命令，令其各自保留默认键位。
+
+  // 对齐上游 acejump 插件的绑定方式：通过 ACE 命令管理器注册组合键
+  // （原版 bindKey: win "Ctrl+;" / mac "Ctrl+;"）。作为 EditorShortcuts 捕获分发的
+  // 双保险——焦点落在 ACE 内部时由命令管理器直接命中，不依赖 window 捕获。
+  (function bindAceJumpCommand() {
+    if (!mainEditor || !mainEditor.commands) return;
+    var combo = (window.EditorShortcuts && EditorShortcuts.get('aceJump')) || 'Ctrl+;';
+    var win = combo.split('+').join('-');   // Ctrl+;  → Ctrl-;
+    var mac = combo.replace(/^Ctrl\+/i, 'Cmd+').split('+').join('-'); // → Cmd-;
+    try {
+      mainEditor.commands.addCommand({
+        name: 'acejump-activate',
+        bindKey: { win: win, mac: mac, sender: 'editor' },
+        exec: function () {
+          if (typeof window.__debugShortcutLog === 'function') window.__debugShortcutLog('ACE 命令管理器命中 acejump-activate（' + combo + '）');
+          hideStartWritingGuide();
+          mainEditor.focus();
+          acejump('word', false);
+        }
+      });
+    } catch (e) { /* 绑定失败不影响既有功能 */ }
+  })();
 
   // 搜索/替换快捷键（Ctrl+F / Ctrl+H）由 Ace 内置命令处理：
   // ace.js 核心已注册 find/replace 命令并调用 config.loadModule("ace/ext/searchbox")，
@@ -530,12 +557,14 @@
 
   /**
    * 切换到指定索引的标签
+   * @param {boolean} [recordHistory=true] 切换前是否记录当前编辑位置（位置历史跳转复用标签时置 false，避免重写历史指针）
    */
-  function switchToTab(index) {
+  function switchToTab(index, recordHistory) {
+    if (recordHistory === undefined) recordHistory = true;
     if (index === activeTabIndex || index < 0 || index >= tabs.length) return;
     if (activeAiRequest) cancelAiRequest();
     saveActiveTabSnapshot();
-    recordEditorPositionHistory(); // Phase 1：切换前记录当前编辑位置
+    if (recordHistory) recordEditorPositionHistory(); // Phase 1：切换前记录当前编辑位置
     activeTabIndex = index;
     state = tabs[activeTabIndex];
     ensureAiChatState(state);
@@ -1011,16 +1040,25 @@
     }
     const parts = filePath.split(/[/\\]+/).filter(Boolean);
     if (!parts.length) return;
-    // 目录段：从根开始逐级累加，点击可在文件树中打开对应目录
-    let acc = '';
+    // 目录段：每个目录段点击可在文件树中打开其完整路径（保留盘符/根前缀）
+    const isWinAbs = /^[a-zA-Z]:[/\\]/.test(filePath);
+    const isUnixAbs = filePath.startsWith('/');
     for (let i = 0; i < parts.length - 1; i++) {
-      acc = acc ? acc + '/' + parts[i] : parts[i];
+      // 构造目录段的完整绝对路径，避免相对路径导致 listDirectory 查不到
+      let target;
+      if (isWinAbs) {
+        target = i === 0 ? parts[0] + '/' : parts[0] + '/' + parts.slice(1, i + 1).join('/');
+      } else if (isUnixAbs) {
+        target = '/' + parts.slice(0, i + 1).join('/');
+      } else {
+        target = parts.slice(0, i + 1).join('/'); // 相对路径保底（理论不出现）
+      }
       const seg = document.createElement('span');
       seg.className = 'breadcrumb-seg';
       seg.textContent = parts[i];
-      seg.title = '在文件树中打开 ' + acc;
+      seg.title = '在文件树中打开 ' + target;
       seg.addEventListener('click', function () {
-        openBreadcrumbDir(acc);
+        openBreadcrumbDir(target);
       });
       bar.appendChild(seg);
       const sep = document.createElement('span');
@@ -1040,14 +1078,19 @@
     if (!featureOn('breadcrumbBar')) return;
     const api = getElectronAPI();
     if (!api || typeof api.listDirectory !== 'function') return;
-    // 打开文件树面板并切换到目标目录
-    if (typeof toggleFileTree === 'function' && !fileTreeOpen) toggleFileTree();
+    // 先登记目标目录与一次性来源，再打开面板：loadFileTree 命中缓存直接加载该目录，
+    // 避免与 getFileDirectory 异步解析链形成竞态互相覆盖
     fileTreeDir = dirPath;
-    loadDirectory(dirPath);
+    fileTreeDirSource = 'breadcrumb';
+    if (typeof toggleFileTree === 'function' && !fileTreeOpen) {
+      toggleFileTree();
+    } else {
+      loadDirectory(dirPath);
+    }
   }
 
   // ══════════════════════════════════════════════════════════
-  // Phase 1：近期编辑位置记忆（Alt+- / Alt+Shift+- 前后跳转）
+  // Phase 1：近期编辑位置记忆（快捷键见 EditorShortcuts：Ctrl/Cmd+Alt+← / →）
   // 独立于现有标签快照；仅记录 (fileKey,row,column)，上限 50 条。
   // ══════════════════════════════════════════════════════════
   const POS_HISTORY_KEY = 'editor_pos_history_v1';
@@ -1117,12 +1160,19 @@
       mainEditor.focus();
       return;
     }
-    // 异文件：只有带真实路径的历史才可重新打开（桌面模式）
+    // 异文件：优先复用已打开的编辑区（tabs），不新建；确实未打开时才经 openFileByPath 首次打开
     if (target.key.indexOf('path:') === 0) {
+      const filePath = target.key.slice(5);
+      const existingIdx = tabs.findIndex(t => t.displayPath === filePath);
+      if (existingIdx >= 0) {
+        if (existingIdx !== activeTabIndex) switchToTab(existingIdx, false); // 不记历史，保持跳转指针
+        mainEditor.gotoLine(target.row + 1, target.column, true);
+        mainEditor.focus();
+        return;
+      }
       const api = getElectronAPI();
       if (api && typeof api.openFileByPath === 'function') {
         try {
-          const filePath = target.key.slice(5);
           const result = await api.openFileByPath(filePath);
           if (result && !result.canceled) {
             saveActiveTabSnapshot();
@@ -3111,10 +3161,18 @@
           row.type = 'button';
           row.className = 'slash-item';
           row.dataset.id = 'tpl-' + t.name;
-          row.innerHTML = SLASH_ICON.template + '<span class="ctx-label">' + t.name + '</span>';
+          row.innerHTML = (t.builtin ? '<span class="tpl-badge-sm">内置</span>' : '') + SLASH_ICON.template + '<span class="ctx-label">' + t.name + '</span>';
           row.addEventListener('click', function() { executeSlashItem({ id: 'tpl-' + t.name, title: t.name, icon: 'template', templateName: t.name }); });
           listEl.appendChild(row);
         });
+        // 「维护模板」入口：选择后打开模板管理弹窗
+        const manageRow = document.createElement('button');
+        manageRow.type = 'button';
+        manageRow.className = 'slash-item slash-manage-tpl';
+        manageRow.dataset.id = 'slash-manage-templates';
+        manageRow.innerHTML = SLASH_ICON.template + '<span class="ctx-label">管理模板…</span>';
+        manageRow.addEventListener('click', function() { executeSlashItem({ id: 'slash-manage-templates', manage: true, icon: 'template' }); });
+        listEl.appendChild(manageRow);
       }
       if (!matched) {
         const empty = document.createElement('div');
@@ -3215,6 +3273,19 @@
           ? '请基于以下内容继续续写，保持原有语气与风格，直接输出续写部分：\n\n' + text
           : '请润色以下文本，保持原意，直接输出润色结果：\n\n' + text;
         sendAiMessage(prompt);
+        return;
+      }
+      if (item.manage) {
+        // 维护模板：删除 "/" 前缀后打开模板管理弹窗
+        const cur = mainEditor.getCursorPosition();
+        const line = mainEditor.session.getLine(cur.row);
+        const before = line.slice(0, cur.column);
+        const m = /(^|\s)\//.exec(before);
+        const startCol = m ? m.index + m[0].length - 1 : cur.column;
+        const range = new Range(cur.row, startCol, cur.row, cur.column);
+        closeSlashMenu();
+        mainEditor.session.replace(range, '');
+        openTemplateManager();
         return;
       }
       if (item.templateName) {
@@ -4145,7 +4216,8 @@
     ['Markdown 预览', 'Ctrl+Shift+M'], ['编辑器设置', 'Ctrl+,'], ['全屏', 'F11'],
     ['命令面板', 'Ctrl+P / Ctrl+K'], ['终端跟随目录', 'Alt+T'], ['撤销', 'Ctrl+Z'],
     ['重做', 'Ctrl+Shift+Z'], ['字体放大', 'Ctrl+='], ['字体缩小', 'Ctrl+-'],
-    ['插入图片', 'Ctrl+Shift+I'], ['唤起浏览器控制台', 'Ctrl+F12'], ['双击选词同词高亮', '双击']
+    ['插入图片', 'Ctrl+Shift+I'], ['唤起浏览器控制台', 'Ctrl+F12'], ['双击选词同词高亮', '双击'],
+    ['AceJump 跳跃导航', 'Ctrl+;'], ['返回编辑位置', 'Ctrl+Alt+←'], ['前进编辑位置', 'Ctrl+Alt+→']
   ].filter(function (row) { return row; });
   function buildShortcutRows(rows) {
     return rows.map(function (r) {
@@ -4953,6 +5025,20 @@
       if (state.clipId) loadClip(state.clipId);
     } else if (data.action === 'focusEditor') {
       mainEditor.focus();
+    } else if (data.action === 'focusAceJump') {
+      // 父窗口焦点场景转发：⌘/Ctrl+; 唤出 AceJump（与 editorKeyDown/editorInsertChar 同一转发通道）
+      // 无条件输出（不依赖 SHORTCUT_DEBUG），用于定位 IPC→iframe 转发是否到达
+      console.log('[AceJump] iframe 收到 focusAceJump 消息');
+      try {
+        hideStartWritingGuide();
+        mainEditor.focus();
+        acejump('word', false);
+      } catch (err) {
+        console.error('[AceJump] 唤出失败:', err.message, err.stack || '');
+      }
+    } else if (data.type === 'shortcut-debug') {
+      // 主进程 SHORTCUT_DEBUG=1 时由父窗口广播到 iframe：开启本窗口快捷键诊断日志
+      window.__shortcutDebug = !!data.value;
     } else if (data.action === 'editorInsertChar') {
       // 父窗口兜底转发：焦点落在父窗口（点击工具栏/标签栏等）时，可打印字符经此注入编辑器。
       // 触发链与直接输入一致：insert → session change → 斜杠菜单条件检查
@@ -5042,7 +5128,7 @@
     }
   });
 
-  // Phase 1：近期编辑位置前后跳转（Alt+- / Alt+Shift+-；避开 View 菜单 zoomOut 占用的 Ctrl+-）
+  // 兼容旧键位：Alt+- / Alt+Shift+- 前后跳转（新主键位 Ctrl/Cmd+Alt+←/→ 走 EditorShortcuts 统一分发）
   document.addEventListener('keydown', function(e) {
     if (!e.altKey || e.ctrlKey || e.metaKey) return;
     if (e.key !== '-' && e.key !== '_') return;
@@ -5320,7 +5406,8 @@
   // 5. File Tree (文件树侧边栏)
   // ══════════════════════════════════════════════════════════
   var fileTreeOpen = false;
-  var fileTreeDir = null; // 当前浏览的目录路径
+  var fileTreeDir = null;       // 当前浏览的目录路径
+  var fileTreeDirSource = null; // 目录来源：null=当前文件默认会话 | 'breadcrumb'=面包屑一次性定位 | 'manual'=手动选择目录
 
   function toggleFileTree() {
     fileTreeOpen = !fileTreeOpen;
@@ -5332,6 +5419,12 @@
       // 互斥：关闭其它左抽屉（历史/最近/收藏/反链/大纲/标签）
       closeOtherLeftPanes('show-filetree');
       loadFileTree();
+    } else {
+      // 面包屑定位是一次性会话：关闭后不缓存，下次手动唤起回到当前文件父目录
+      if (fileTreeDirSource === 'breadcrumb') {
+        fileTreeDir = null;
+        fileTreeDirSource = null;
+      }
     }
 
     setTimeout(function() { mainEditor.resize(); }, 250);
@@ -5344,8 +5437,9 @@
       return;
     }
 
-    // 已有已选择的目录，直接加载
-    if (fileTreeDir) {
+    // 仅"手动选择目录"或"面包屑定位会话中"复用缓存；
+    // 默认会话（null）一律按当前文件父目录重新解析，避免与面包屑定位互相污染
+    if (fileTreeDir && (fileTreeDirSource === 'manual' || fileTreeDirSource === 'breadcrumb')) {
       loadDirectory(fileTreeDir);
       return;
     }
@@ -5418,6 +5512,7 @@
       .then(function(dirPath) {
         if (!dirPath) return;
         fileTreeDir = dirPath;
+        fileTreeDirSource = 'manual'; // 手动选择的目录为持久会话
         loadDirectory(dirPath);
       })
       .catch(function(err) {
@@ -7525,7 +7620,14 @@
       }
     });
     // 同步重置被关闭抽屉的状态标志，确保再次点击时能正确切换
-    if (keepClass !== 'show-filetree') fileTreeOpen = false;
+    if (keepClass !== 'show-filetree') {
+      fileTreeOpen = false;
+      // 文件树被其它抽屉互斥关闭时，同样清理面包屑一次性会话缓存
+      if (fileTreeDirSource === 'breadcrumb') {
+        fileTreeDir = null;
+        fileTreeDirSource = null;
+      }
+    }
     if (keepClass !== 'show-backlinks') backlinksVisible = false;
     if (keepClass !== 'show-outline') outlineVisible = false;
     if (keepClass !== 'show-tags') tagsVisible = false;
@@ -7851,8 +7953,8 @@
 
   // ── 命令面板(Ctrl+P) ──
   var commandRegistry = [];
-  function registerCommand(id, name, icon, handler, shortcut) {
-    commandRegistry.push({ id: id, name: name, icon: icon, handler: handler, shortcut: shortcut || '' });
+  function registerCommand(id, name, icon, handler, shortcut, desc) {
+    commandRegistry.push({ id: id, name: name, icon: icon, handler: handler, shortcut: shortcut || '', desc: desc || '' });
   }
 
   // Phase 2：包裹选区——弹出字符选择（纯 DOM 确认框，兼容 Electron contextIsolation）
@@ -7936,29 +8038,85 @@
   registerCommand('export-word', '导出为 Word (.docx)', '📝', function() { exportToWord(); });
   registerCommand('export-pdf', '导出为 PDF (.pdf)', '📄', function() { exportToPdf(); });
   registerCommand('settings', '编辑器设置', '⚙', function() { openSettingsModal(); }, 'Ctrl+,');
-  registerCommand('pos-back', '返回上一编辑位置', '↶', function() { jumpPosHistoryBack(); }, 'Alt+-');
-  registerCommand('pos-forward', '前进到下一编辑位置', '↷', function() { jumpPosHistoryForward(); }, 'Alt+Shift+-');
+  registerCommand('pos-back', '返回上一编辑位置', '↶', function() { jumpPosHistoryBack(); }, 'Ctrl+Alt+ArrowLeft');
+  registerCommand('pos-forward', '前进到下一编辑位置', '↷', function() { jumpPosHistoryForward(); }, 'Ctrl+Alt+ArrowRight');
   registerCommand('wrap-selection', '包裹选区 ( \' [ { ` " )', '⤾', function() { openWrapSelectionPicker(); });
 
   // ═══ AceJump 跳跃导航（Phase 4，对标 IDEA AceJump）───
   // 触发进入跳跃模式：word/char/line 三种 + 选区语义。独立脚本 ace-jump.js，
   // 未引入或异常时静默无效果（不影响现有功能）。
+  var lastAceJumpTriggerT = 0;
+  // 空画布唤起 AceJump 时的画布中央提示（toast 太容易被忽略，用户感知=“没反应”）
+  function showAceJumpEmptyHint() {
+    var host = mainEditor && mainEditor.container && mainEditor.container.closest ? mainEditor.container : null;
+    if (!host) return;
+    if (host.querySelector('.acejump-empty-hint')) return;
+    var d = document.createElement('div');
+    d.className = 'acejump-empty-hint';
+    d.innerHTML = '<span>画布是空的：先输入内容，再按 <b>⌘; / Ctrl+;</b> 即可跳到任意位置</span>';
+    host.appendChild(d);
+    setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, 2200);
+  }
   function acejump(mode, select) {
+    // 同一组合键被多条路径（主进程菜单加速键 IPC + 渲染层捕获 + 父窗口转发）在极短时间内
+    // 重复触发时去重：toggle 语义会令第二次触发变成"取消"，导致覆盖层刚出现就消失（假"无响应"）。
+    // 80ms 内忽略：正常人手速二次按键 >500ms，不会被误吞；按住触发键的自动重复也会被抑制（避免闪烁）。
+    var now = Date.now();
+    if (now - lastAceJumpTriggerT < 80) return;
+    lastAceJumpTriggerT = now;
+
     if (!window.EditorAceJump) { showToast('AceJump 未加载'); return; }
     if (!mainEditor) return;
-    window.EditorAceJump.toggle(mainEditor, { mode: mode || 'word', select: !!select });
+    window.EditorAceJump.toggle(mainEditor, {
+      mode: mode || 'word',
+      select: !!select,
+      onEmpty: function() {
+        showAceJumpEmptyHint();
+        showToast('当前编辑区无可跳转目标（区域为空或尚未完成布局）');
+      }
+    });
   }
-  registerCommand('acejump-word', 'AceJump 跳跃（单词）', '🎯', function() { acejump('word', false); }, EditorShortcuts.get('aceJump'));
-  registerCommand('acejump-char', 'AceJump 跳跃（字符）', '🔤', function() { acejump('char', false); });
-  registerCommand('acejump-line', 'AceJump 跳跃（行首）', '⎯', function() { acejump('line', false); });
-  registerCommand('acejump-select', 'AceJump 跳跃（选区）', '✂', function() { acejump('word', true); });
+  registerCommand('acejump-word', 'AceJump 跳跃（单词）', '🎯', function() { acejump('word', false); }, EditorShortcuts.get('aceJump'), '跳转到可见区域中任意单词 / 中文单字的开头');
+  registerCommand('acejump-char', 'AceJump 跳跃（字符）', '🔤', function() { acejump('char', false); }, '', '跳转到可见区域中的任意单个字符');
+  registerCommand('acejump-line', 'AceJump 跳跃（行首）', '⎯', function() { acejump('line', false); }, '', '跳转到每个可见行的首个非空白字符');
+  registerCommand('acejump-select', 'AceJump 跳跃（选区）', '✂', function() { acejump('word', true); }, '', '从当前光标延伸选区到目标位置（单词模式）');
   // 捕获阶段统一分发：Ctrl/Cmd+; 唤起（EditorShortcuts 可配置回退）
   EditorShortcuts.registerHandler('aceJump', function() { acejump('word', false); });
+
+  // ═══ 应用级命令（跨模块：父窗口导航 + 全局功能）───
+  // 编辑器以 iframe 嵌入主窗口，通过 window.parent.postMessage 通知 index.html 切换视图，
+  // 实现"编辑器内键盘直达全局页面"，对标 Taio 应用级命令面板。浏览器直开时降级为提示。
+  function appNavigate(view) {
+    try {
+      if (window.parent && window.parent.postMessage) {
+        window.parent.postMessage({ type: 'appNavigate', view: view }, '*');
+      } else {
+        showToast('页面跳转仅桌面应用可用', true);
+      }
+    } catch (e) { showToast('页面跳转失败', true); }
+  }
+  function appOpenClipboardHistory() {
+    var api = getElectronAPI();
+    if (api && api.clipboardHistory && api.clipboardHistory.open) {
+      api.clipboardHistory.open();
+    } else {
+      showToast('剪贴板历史仅桌面应用可用', true);
+    }
+  }
+  registerCommand('app-go-inbox', '到收件箱', '📥', function() { appNavigate('clip'); }, '', '切换主窗口到「收件箱」管理剪藏');
+  registerCommand('app-go-editor', '到写作页', '✍', function() { appNavigate('editor'); }, '', '切换主窗口到「写作」编辑器');
+  registerCommand('app-go-canvas', '到画布', '🎨', function() { appNavigate('canvas'); }, '', '切换主窗口到「画布」自由摆放与手绘');
+  registerCommand('app-go-workspace', '到工作台', '🖥', function() { appNavigate('workspace'); }, '', '切换主窗口到「工作台」工作区概览');
+  registerCommand('app-go-knowledge', '到知识库', '📚', function() { appNavigate('knowledge'); }, '', '切换主窗口到「知识库」文档管理');
+  registerCommand('app-go-graph', '到知识图谱', '🕸', function() { appNavigate('graph'); }, '', '切换主窗口到「知识图谱」双链视图');
+  registerCommand('app-go-settings', '到应用设置', '⚙️', function() { appNavigate('settings'); }, '', '切换主窗口到「设置」全局配置');
+  registerCommand('app-clipboard-history', '剪贴板历史', '📋', function() { appOpenClipboardHistory(); }, '', '打开剪贴板历史面板，一键补录为剪藏');
 
   var paletteOpen = false;
   var paletteIndex = 0;
   var paletteFiltered = [];
   var paletteRenderRaf = null; // Phase 3：输入渲染 rAF 节流句柄
+  var paletteVisibleLen = 0;   // 当前实际渲染的可见条数（≤ LIMIT）；键盘导航以此为准，避免索引越过可见区
 
   function openCommandPalette() {
     paletteMode = 'command';
@@ -8020,19 +8178,28 @@
     var list = elements.commandPaletteList;
     list.innerHTML = '';
     if (!paletteFiltered.length) {
+      paletteVisibleLen = 0;
+      paletteIndex = 0;
       list.innerHTML = '<div class="command-palette-empty">无匹配命令</div>';
       return;
     }
-    paletteIndex = Math.min(paletteIndex, paletteFiltered.length - 1);
     // Phase 3：DocumentFragment 批量构造 + 条数上限，避免频繁整表重建
     var LIMIT = 50;
     var visible = paletteFiltered.slice(0, LIMIT);
+    paletteVisibleLen = visible.length;
+    // 索引对齐可见区：paletteIndex 只能在已渲染的 visible 范围内移动
+    paletteIndex = Math.min(paletteIndex, paletteVisibleLen - 1);
     var frag = document.createDocumentFragment();
     visible.forEach(function(c, i) {
       var item = document.createElement('div');
       item.className = 'command-palette-item' + (i === paletteIndex ? ' active' : '');
+      var nameHtml = '<span class="command-palette-item-name">' + escapeHtml(c.name) + '</span>';
+      if (c.desc) {
+        nameHtml = '<span class="command-palette-item-main">' + nameHtml
+          + '<span class="command-palette-item-desc">' + escapeHtml(c.desc) + '</span></span>';
+      }
       item.innerHTML = '<span class="command-palette-item-icon">' + c.icon + '</span>'
-        + '<span class="command-palette-item-name">' + escapeHtml(c.name) + '</span>'
+        + nameHtml
         + (c.shortcut ? '<span class="command-palette-item-shortcut">' + platformShortcut(c.shortcut) + '</span>' : '');
       item.addEventListener('mousedown', function(ev) { ev.preventDefault(); executeCommand(i); });
       item.addEventListener('mouseenter', function() { setPaletteIndex(i); });
@@ -8069,7 +8236,7 @@
   });
   elements.commandPaletteInput.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') { e.preventDefault(); closeCommandPalette(); return; }
-    if (e.key === 'ArrowDown') { e.preventDefault(); setPaletteIndex(Math.min(paletteIndex + 1, paletteFiltered.length - 1)); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setPaletteIndex(Math.min(paletteIndex + 1, paletteVisibleLen - 1)); return; }
     if (e.key === 'ArrowUp') { e.preventDefault(); setPaletteIndex(Math.max(paletteIndex - 1, 0)); return; }
     if (e.key === 'Enter') { e.preventDefault(); executeCommand(paletteIndex); return; }
   });
@@ -8096,6 +8263,7 @@
   var quickRenderRaf = null; // Phase 3：快速打开输入 rAF 节流句柄
   var quickIndex = 0;
   var quickFiltered = [];
+  var quickVisibleLen = 0;  // 当前实际渲染的可见条数（≤50）；键盘导航以此为准，避免索引越过可见区
 
   async function openQuickSwitcher() {
     if (paletteOpen) closeCommandPalette();
@@ -8210,12 +8378,16 @@
     var list = elements.quickSwitcherList;
     list.innerHTML = '';
     if (!quickFiltered.length) {
+      quickVisibleLen = 0;
+      quickIndex = 0;
       list.innerHTML = '<div class="command-palette-empty">' + (all.length ? '无匹配文件' : '暂无文件索引，请先打开桌面应用') + '</div>';
       return;
     }
-    quickIndex = Math.min(quickIndex, quickFiltered.length - 1);
     // Phase 3：DocumentFragment 批量构造 + 条数上限，避免整表频繁重建
     var quickVisible = quickFiltered.slice(0, 50);
+    quickVisibleLen = quickVisible.length;
+    // 索引对齐可见区：quickIndex 只能在已渲染的 quickVisible 范围内移动
+    quickIndex = Math.min(quickIndex, quickVisibleLen - 1);
     var quickFrag = document.createDocumentFragment();
     quickVisible.forEach(function(t, i) {
       var item = document.createElement('div');
@@ -8266,7 +8438,7 @@
   });
   elements.quickSwitcherInput.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') { e.preventDefault(); closeQuickSwitcher(); return; }
-    if (e.key === 'ArrowDown') { e.preventDefault(); setQuickIndex(Math.min(quickIndex + 1, quickFiltered.length - 1)); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setQuickIndex(Math.min(quickIndex + 1, quickVisibleLen - 1)); return; }
     if (e.key === 'ArrowUp') { e.preventDefault(); setQuickIndex(Math.max(quickIndex - 1, 0)); return; }
     if (e.key === 'Enter') { e.preventDefault(); executeQuickOpen(quickIndex); return; }
   });
@@ -8282,28 +8454,52 @@
     if (quickOpenVisible) closeQuickSwitcher(); else openQuickSwitcher();
   });
 
+  // 编辑位置前后跳转快捷键（默认 Ctrl/Cmd+Alt+← / Ctrl/Cmd+Alt+→，可在系统设置中修改）；
+  // 兼容旧键位 Alt+- / Alt+Shift+-（L5103 的 keydown 绑定）。由 EditorShortcuts 捕获阶段统一分发
+  EditorShortcuts.registerHandler('posBack', function() { jumpPosHistoryBack(); });
+  EditorShortcuts.registerHandler('posForward', function() { jumpPosHistoryForward(); });
+
   // 全部右下角抽屉快捷键已注册完毕，开启捕获阶段全局分发（幂等）
   EditorShortcuts.startCapture();
 
   // ── 模板系统：列表/读取/插入/变量替换 ──
-  function templateFormatDate(d) {
-    var pad = function(n) { return String(n).padStart(2, '0'); };
-    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  // 日期格式化：支持 strftime 风格 token（YYYY/YY/MM/M/DD/D/HH/H/mm/ss），最长优先替换避免 YY 误吞 YYYY
+  function formatDate(d, fmt) {
+    var pad = function(n, w) { n = String(Math.abs(n)); return n.padStart(w, '0'); };
+    var map = {
+      YYYY: String(d.getFullYear()),
+      YY: pad(d.getFullYear() % 100, 2),
+      MM: pad(d.getMonth() + 1, 2),
+      M: String(d.getMonth() + 1),
+      DD: pad(d.getDate(), 2),
+      D: String(d.getDate()),
+      HH: pad(d.getHours(), 2),
+      H: String(d.getHours()),
+      mm: pad(d.getMinutes(), 2),
+      ss: pad(d.getSeconds(), 2)
+    };
+    return String(fmt).replace(/YYYY|YY|MM|M|DD|D|HH|H|mm|ss/g, function(t) { return map[t]; });
   }
-  function templateNow() {
-    var d = new Date();
-    var pad = function(n) { return String(n).padStart(2, '0'); };
-    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
-      + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
-  }
+  // 变量替换：{{date}}/{{now}}/{{time}}/{{year}}/{{month}}/{{day}}/{{weekday}}/{{title}}/{{author}}
+  // 支持带日期格式参数：{{date:YYYYMMDD}} / {{date:YYMMDD}} / {{now:YYYY-MM-DD HH:mm}}
   function replaceTemplateVars(content, author) {
+    var now = new Date();
     var vars = {
-      '{{date}}': templateFormatDate(new Date()),
-      '{{now}}': templateNow(),
+      '{{date}}': formatDate(now, 'YYYY-MM-DD'),
+      '{{now}}': formatDate(now, 'YYYY-MM-DD HH:mm'),
+      '{{time}}': formatDate(now, 'HH:mm'),
+      '{{year}}': String(now.getFullYear()),
+      '{{month}}': String(now.getMonth() + 1),
+      '{{day}}': String(now.getDate()),
+      '{{weekday}}': ['日', '一', '二', '三', '四', '五', '六'][now.getDay()],
       '{{title}}': getCurrentFileName().replace(/\.[^.]+$/, ''),
       '{{author}}': author || ''
     };
-    return Object.keys(vars).reduce(function(s, k) { return s.split(k).join(vars[k]); }, content);
+    var s = content;
+    Object.keys(vars).forEach(function(k) { s = s.split(k).join(vars[k]); });
+    // 带日期格式参数统一用 formatDate 补齐（在固定变量替换之后再处理，避免嵌套冲突）
+    s = s.replace(/\{\{(date|now):([^}]+)\}\}/g, function(m, kind, fmt) { return formatDate(now, fmt); });
+    return s;
   }
 
   // 模板数据统一加载入口：规范化主进程返回的 {success, templates} 契约
@@ -8401,10 +8597,12 @@
       list.forEach(function(t) {
         var row = document.createElement('div');
         row.className = 'template-item';
-        row.innerHTML = '<span class="template-item-name">' + escapeHtml(t.name) + '</span>'
+        row.innerHTML = '<span class="template-item-name">'
+          + (t.builtin ? '<span class="tpl-badge-sm">内置</span>' : '')
+          + escapeHtml(t.name) + '</span>'
           + '<span class="template-item-actions">'
           + '<button type="button" class="tool-btn" data-tpl-edit="' + escapeHtml(t.name) + '">编辑</button>'
-          + '<button type="button" class="tool-btn danger-action" data-tpl-delete="' + escapeHtml(t.name) + '">删除</button>'
+          + '<button type="button" class="tool-btn danger-action" data-tpl-delete="' + escapeHtml(t.name) + '" data-tpl-builtin="' + (t.builtin ? '1' : '0') + '">' + (t.builtin ? '恢复默认' : '删除') + '</button>'
           + '</span>';
         row.addEventListener('click', function(ev) {
           if (ev.target.closest('[data-tpl-edit]')) { editTemplateInManager(t.name); return; }
@@ -8446,22 +8644,23 @@
 
   function deleteTemplateInManager(name, btn) {
     if (templateDeletePending === name) {
-      // 第二段：确认删除
+      // 第二段：确认删除/恢复默认
       clearTimeout(templateDeleteTimer);
       templateDeletePending = null;
       var api = getElectronAPI();
       api.deleteTemplate(name).then(function(result) {
-        if (!result || !result.success) { showToast((result && result.message) || '删除模板失败', true); return; }
-        showToast('已删除模板 ' + name);
+        if (!result || !result.success) { showToast((result && result.message) || '操作失败', true); return; }
+        showToast(result.builtin ? ('已恢复默认模板 ' + name) : ('已删除模板 ' + name));
         if (templateEditing === name) resetTemplateForm();
         renderTemplateManagerList();
-      }).catch(function(err) { showToast('删除模板失败：' + err.message, true); });
+      }).catch(function(err) { showToast('操作失败：' + err.message, true); });
       return;
     }
     // 第一段：进入待确认状态（3 秒内再点才执行）
     clearTimeout(templateDeleteTimer);
     templateDeletePending = name;
-    btn.textContent = '确认删除';
+    var isBuiltin = btn.dataset && btn.dataset.tplBuiltin === '1';
+    btn.textContent = isBuiltin ? '确认恢复默认' : '确认删除';
     btn.classList.add('danger-confirm');
     templateDeleteTimer = setTimeout(function() {
       templateDeletePending = null;

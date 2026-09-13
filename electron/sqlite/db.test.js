@@ -24,10 +24,10 @@ test('node:sqlite 可用（Electron 36 / Node 22 内置）', () => {
   assert.ok(row && row.v, `sqlite_version 应为非空，实际=${row && row.v}`);
 });
 
-test('建库后 meta.schema_version 应为 5', () => {
+test('建库后 meta.schema_version 应为 6', () => {
   const { db } = makeDb();
   const row = db.prepare("SELECT value FROM meta WHERE key='schema_version'").get();
-  assert.strictEqual(row.value, '5');
+  assert.strictEqual(row.value, '6');
 });
 
 test('relation 表已创建（M3 v2）', () => {
@@ -97,4 +97,32 @@ test('WAL 模式已启用', () => {
   const { db } = makeDb();
   const row = db.prepare('PRAGMA journal_mode').get();
   assert.strictEqual(row.journal_mode, 'wal');
+});
+
+test('回归：schema_version=5 但缺画布表（真实坏库）应被 v6 补齐', () => {
+  const { db } = makeDb();
+  // 还原线上坏库状态：版本 5，画布四表缺失（旧实现跳级 bug 的真实产物）
+  db.exec('DROP TABLE IF EXISTS canvas_node; DROP TABLE IF EXISTS canvas_edge; DROP TABLE IF EXISTS canvas_group; DROP TABLE IF EXISTS canvas_group_member;');
+  db.prepare("UPDATE meta SET value='5' WHERE key='schema_version'").run();
+  require('./init').migrate(db);
+  const names = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('canvas_node','canvas_edge','canvas_group','canvas_group_member')"
+  ).all().map((r) => r.name).sort();
+  assert.deepEqual(names, ['canvas_edge', 'canvas_group', 'canvas_group_member', 'canvas_node']);
+  const v = db.prepare("SELECT value FROM meta WHERE key='schema_version'").get();
+  assert.strictEqual(v.value, '6');
+});
+
+test('回归：旧库 schema_version=2 增量迁移不应跳级', () => {
+  const { db } = makeDb();
+  // 模拟旧库（仅到 v2）：清掉画布各层表并把版本回拨到 2
+  db.exec('DROP TABLE IF EXISTS canvas_layout; DROP TABLE IF EXISTS canvas_node; DROP TABLE IF EXISTS canvas_edge; DROP TABLE IF EXISTS canvas_group; DROP TABLE IF EXISTS canvas_group_member;');
+  db.prepare("UPDATE meta SET value='2' WHERE key='schema_version'").run();
+  require('./init').migrate(db);
+  const names = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('canvas_layout','canvas_node','canvas_edge','canvas_group','canvas_group_member')"
+  ).all().map((r) => r.name).sort();
+  assert.deepEqual(names, ['canvas_edge', 'canvas_group', 'canvas_group_member', 'canvas_layout', 'canvas_node']);
+  const v = db.prepare("SELECT value FROM meta WHERE key='schema_version'").get();
+  assert.strictEqual(v.value, '6');
 });

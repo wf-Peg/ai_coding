@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>碎碎记 CutShelter · 本地优先的剪藏与知识管理</title>
+<meta name="description" content="碎碎记 CutShelter：捕捉灵感，智能整理，构建你的个人知识库。离线 OCR、本地纯文本存储、一键 AI 整理。">
+<style>
+/* ============ 设计系统 token（复用产品 design-tokens.css / design-prototype 值，浅色主题） ============ */
+:root {
+  --app-bg: #f7f7f5;
+  --app-surface: #ffffff;
+  --app-surface-subtle: #f1f1ef;
+  --app-surface-hover: #ececea;
+  --app-border: #e3e3df;
+  --app-border-strong: #d2d2cd;
+  --app-text: #2f3437;
+  --app-text-secondary: #6b6f76;
+  --app-text-muted: #92969d;
+  --app-primary: #2383e2;
+  --app-primary-hover: #1f76c9;
+  --app-primary-soft: rgba(35,131,226,0.10);
+  --app-primary-strong: rgba(35,131,226,0.16);
+  --app-success: #238b63;
+  --app-success-soft: rgba(35,139,99,0.10);
+  --app-warning: #b7791f;
+  --app-warning-soft: rgba(183,121,31,0.12);
+  --app-danger: #d14343;
+  --app-radius-sm: 6px;
+  --app-radius: 9px;
+  --app-radius-lg: 12px;
+  --app-shadow-sm: 0 1px 3px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04);
+  --app-shadow-md: 0 4px 6px rgba(15,23,42,0.06), 0 2px 4px rgba(15,23,42,0.04);
+  --app-shadow-lg: 0 10px 15px rgba(15,23,42,0.08), 0 4px 6px rgba(15,23,42,0.04);
+  --app-duration-fast: 120ms;
+  --app-duration-normal: 200ms;
+  --app-duration-slow: 300ms;
+  --app-ease-smooth: cubic-bezier(0.22,1,0.36,1);
+  --font-sans: "IBM Plex Sans", "Noto Sans SC", -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  /* 类型徽章色（记录方式，同产品语义） */
+  --type-text: #8b5cf6;
+  --type-image: #10b981;
+  --type-link: #3f8cff;
+  --type-file: #f97316;
+  --type-todo: #eab308;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+body {
+  font-family: var(--font-sans);
+  background: var(--app-bg);
+  color: var(--app-text);
+  -webkit-font-smoothing: antialiased;
+  font-size: 15px;
+  line-height: 1.65;
+}
+a { color: var(--app-primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+svg { display: block; }
+::selection { background: var(--app-primary-strong); }
+
+/* ============ 顶部导航 ============ */
+.nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(255,255,255,0.96);
+  border-bottom: 1px solid var(--app-border);
+  backdrop-filter: none; /* 不用玻璃拟态，保持低饱和实底 */
+}
+.nav-inner {
+  max-width: 1100px; margin: 0 auto; padding: 0 24px;
+  height: 60px; display: flex; align-items: center; gap: 20px;
+}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15.5px; letter-spacing: 0.01em; color: var(--app-text); }
+.brand:hover { text-decoration: none; }
+.brand-bubble {
+  width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #4d9bf2, #2383e2);
+  color: #fff; box-shadow: 0 1px 3px rgba(35,131,226,0.35);
+}
+.brand-bubble svg { width: 15px; height: 15px; }
+.brand-en { font-size: 12px; color: var(--app-text-muted); font-weight: 500; margin-left: 2px; }
+.nav-links { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.nav-links a {
+  padding: 6px 12px; border-radius: var(--app-radius-sm);
+  color: var(--app-text-secondary); font-size: 13.5px; font-weight: 500;
+  transition: background var(--app-duration-fast) var(--app-ease-smooth), color var(--app-duration-fast) var(--app-ease-smooth);
+}
+.nav-links a:hover { background: var(--app-surface-hover); color: var(--app-text); text-decoration: none; }
+.nav-cta {
+  margin-left: 10px; padding: 7px 14px; border-radius: var(--app-radius-sm);
+  background: var(--app-primary); color: #fff !important; font-size: 13px; font-weight: 600;
+  transition: background var(--app-duration-fast) var(--app-ease-smooth);
+}
+.nav-cta:hover { background: var(--app-primary-hover); text-decoration: none; }
+
+/* ============ 通用容器 / 区块 ============ */
+.section { padding: 76px 24px 20px; }
+.container { max-width: 1100px; margin: 0 auto; }
+.sec-head { margin-bottom: 38px; }
+.sec-kicker {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12.5px; font-weight: 600; letter-spacing: 0.06em;
+  color: var(--app-primary); text-transform: uppercase;
+}
+.sec-kicker::before { content: ""; width: 18px; height: 2px; border-radius: 1px; background: var(--app-primary); }
+.sec-title { font-size: 28px; font-weight: 650; letter-spacing: -0.01em; margin-top: 10px; line-height: 1.3; }
+.sec-desc { color: var(--app-text-secondary); margin-top: 10px; max-width: 640px; font-size: 14.5px; }
+
+/* 滚动渐入 */
+.reveal { opacity: 0; transform: translateY(16px); transition: opacity var(--app-duration-slow) var(--app-ease-smooth), transform var(--app-duration-slow) var(--app-ease-smooth); }
+.reveal.in { opacity: 1; transform: none; }
+
+/* ============ Hero ============ */
+.hero { padding: 88px 24px 40px; }
+.hero-inner { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 56px; align-items: center; }
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 12px; border-radius: 999px;
+  border: 1px solid var(--app-border); background: var(--app-surface);
+  font-size: 12.5px; color: var(--app-text-secondary); font-weight: 500;
+}
+.hero-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--app-success); }
+.hero h1 { font-size: 42px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.22; margin-top: 20px; }
+.hero h1 .en { color: var(--app-text-muted); font-size: 26px; font-weight: 600; display: block; margin-top: 4px; }
+.hero-slogan { font-size: 17px; color: var(--app-text); font-weight: 550; margin-top: 16px; }
+.hero-desc { color: var(--app-text-secondary); margin-top: 12px; font-size: 14.5px; max-width: 480px; }
+.hero-cta { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 20px; border-radius: var(--app-radius-sm);
+  font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer;
+  border: 1px solid var(--app-border); background: var(--app-surface); color: var(--app-text);
+  transition: all var(--app-duration-normal) var(--app-ease-smooth);
+}
+.btn:hover { text-decoration: none; }
+.btn svg { width: 15px; height: 15px; }
+.btn-primary { background: var(--app-primary); border-color: var(--app-primary); color: #fff; }
+.btn-primary:hover { background: var(--app-primary-hover); border-color: var(--app-primary-hover); box-shadow: var(--app-shadow-md); }
+.btn-ghost:hover { border-color: var(--app-border-strong); background: var(--app-surface-hover); }
+.hero-trust { margin-top: 22px; display: flex; gap: 20px; flex-wrap: wrap; }
+.hero-trust span { font-size: 12.5px; color: var(--app-text-muted); display: inline-flex; align-items: center; gap: 6px; }
+.hero-trust svg { width: 13px; height: 13px; color: var(--app-success); }
+
+/* ---- 产品界面示意（CSS 绘制，非图片） ---- */
+.appmock { background: var(--app-surface); border: 1px solid var(--app-border); border-radius: var(--app-radius-lg); box-shadow: var(--app-shadow-lg); overflow: hidden; }
+.mock-titlebar { height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 14px; background: var(--app-surface-subtle); border-bottom: 1px solid var(--app-border); }
+.mock-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--app-border-strong); }
+.mock-dot:nth-child(1) { background: #e8c0bd; } .mock-dot:nth-child(2) { background: #e8dcae; } .mock-dot:nth-child(3) { background: #bfe0c3; }
+.mock-title { font-size: 12px; color: var(--app-text-muted); margin-left: 8px; font-weight: 500; }
+.mock-search { margin-left: auto; width: 150px; height: 22px; border: 1px solid var(--app-border); border-radius: 5px; background: var(--app-surface); }
+.mock-body { display: grid; grid-template-columns: 150px 1fr; min-height: 320px; }
+.mock-side { background: var(--app-surface-subtle); border-right: 1px solid var(--app-border); padding: 12px 10px; }
+.mock-side-item { height: 26px; border-radius: 6px; margin-bottom: 6px; display: flex; align-items: center; gap: 7px; padding: 0 8px; font-size: 11.5px; color: var(--app-text-secondary); }
+.mock-side-item.active { background: var(--app-primary-soft); color: var(--app-primary); font-weight: 600; }
+.mock-side-item .mi { width: 6px; height: 6px; border-radius: 2px; background: var(--app-border-strong); }
+.mock-side-item.active .mi { background: var(--app-primary); }
+.mock-main { padding: 14px 16px; }
+.mock-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.mock-head-title { font-size: 14px; font-weight: 650; }
+.mock-chip { font-size: 10.5px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--app-border); color: var(--app-text-muted); }
+.mock-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border: 1px solid transparent; border-bottom: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  margin-bottom: 2px; background: transparent;
+  transition: background var(--app-duration-fast) var(--app-ease-smooth), border-color var(--app-duration-fast) var(--app-ease-smooth);
+}
+.mock-card:hover { background: var(--app-surface-subtle); border-bottom-color: transparent; }
+.mock-tp { width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0; }
+.mock-tp svg { width: 13px; height: 13px; }
+.mock-card-t { flex: 1; min-width: 0; }
+.mock-card-title { font-size: 12.5px; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mock-card-sub { font-size: 11px; color: var(--app-text-muted); margin-top: 1px; }
+.badge { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.badge::before { content: ""; width: 5px; height: 5px; border-radius: 50%; }
+.badge-inbox { color: var(--app-warning); background: var(--app-warning-soft); } .badge-inbox::before { background: var(--app-warning); }
+.badge-organized { color: var(--app-success); background: var(--app-success-soft); } .badge-organized::before { background: var(--app-success); }
+.badge-other { color: var(--app-text-muted); background: var(--app-surface-hover); } .badge-other::before { background: var(--app-text-muted); }
+.mock-floatbar {
+  display: flex; align-items: center; gap: 8px;
+  margin: 2px 0 12px; padding: 8px 12px;
+  border: 1px solid var(--app-border); border-radius: var(--app-radius-sm);
+  background: var(--app-surface-subtle);
+}
+.mock-fb-btn { font-size: 11px; color: var(--app-text-secondary); padding: 3px 10px; border-radius: 5px; border: 1px solid var(--app-border); background: var(--app-surface); }
+.mock-fb-btn.primary { color: var(--app-primary); border-color: var(--app-primary); font-weight: 600; }
+.mock-fb-btn.danger { color: var(--app-danger); border-color: #eccaca; }
+.mock-fb-note { margin-left: auto; font-size: 10.5px; color: var(--app-text-muted); }
+.mock-compose {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px; margin-bottom: 10px;
+  border: 1px solid var(--app-border); border-radius: var(--app-radius-sm);
+  background: var(--app-surface); box-shadow: var(--app-shadow-sm);
+}
+.mock-compose .pen { width: 14px; height: 14px; color: var(--app-primary); flex-shrink: 0; }
+.mock-compose .ph { flex: 1; min-width: 0; font-size: 11.5px; color: var(--app-text-muted); }
+.mock-compose .kbd {
+  font-family: var(--font-mono); font-size: 10px; color: var(--app-text-muted);
+  background: var(--app-surface-hover); border: 1px solid var(--app-border);
+  border-radius: 4px; padding: 1px 6px; flex-shrink: 0;
+}
+
+/* ============ 产品体验（界面一览 + 可交互原型） ============ */
+.exp-mocks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.exp-mock {
+  background: var(--app-surface); border: 1px solid var(--app-border); border-radius: var(--app-radius-lg);
+  overflow: hidden;
+  transition: transform var(--app-duration-normal) var(--app-ease-smooth), box-shadow var(--app-duration-normal) var(--app-ease-smooth), border-color var(--app-duration-normal) var(--app-ease-smooth);
+}
+.exp-mock:hover { transform: translateY(-3px); box-shadow: var(--app-shadow-md); border-color: var(--app-border-strong); }
+.exp-mock-head { display: flex; align-items: center; gap: 6px; padding: 9px 12px; background: var(--app-surface-subtle); border-bottom: 1px solid var(--app-border); }
+.exp-mock-head .md { width: 8px; height: 8px; border-radius: 50%; background: var(--app-border-strong); }
+.exp-mock-title { font-size: 12px; color: var(--app-text-muted); font-weight: 550; margin-left: 4px; }
+.exp-mock-cap { padding: 11px 14px; border-top: 1px solid var(--app-border); font-size: 12.5px; color: var(--app-text-secondary); background: var(--app-surface); }
+.exp-mock-cap b { color: var(--app-text); font-weight: 600; }
+
+/* 编辑器 mock */
+.mk-editor { padding: 10px 12px; background: var(--app-surface); min-height: 150px; }
+.mk-toolbar { display: flex; gap: 5px; margin-bottom: 10px; }
+.mk-tbtn { height: 16px; border-radius: 4px; background: var(--app-surface-hover); border: 1px solid var(--app-border); }
+.mk-tbtn.w { width: 34px; } .mk-tbtn.m { width: 20px; }
+.mk-tbtn.primary { background: var(--app-primary); border-color: var(--app-primary); width: 44px; }
+.mk-line { height: 7px; border-radius: 3px; background: var(--app-surface-hover); margin-bottom: 7px; }
+.mk-line.h { height: 8px; background: var(--app-border-strong); width: 40%; }
+.mk-line.blue { background: var(--app-primary-soft); }
+.mk-line.code { background: var(--app-surface-hover); border-left: 2px solid var(--app-primary); }
+
+/* 图谱 mock */
+.mk-graph { padding: 10px 12px; min-height: 150px; }
+.mk-graph svg { width: 100%; height: 130px; }
+.mk-node { fill: var(--app-surface); stroke: var(--app-primary); stroke-width: 1.5; }
+.mk-node.core { fill: var(--app-primary); stroke: var(--app-primary); }
+.mk-edge { stroke: var(--app-border-strong); stroke-width: 1.2; }
+
+/* AI 助手 mock */
+.mk-ai { padding: 12px; min-height: 150px; display: flex; flex-direction: column; gap: 8px; }
+.mk-ai-avatar { width: 20px; height: 20px; border-radius: 6px; background: linear-gradient(135deg, #4d9bf2, #2383e2); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.mk-ai-avatar svg { width: 12px; height: 12px; }
+.mk-ai-row { display: flex; align-items: flex-start; gap: 7px; }
+.mk-ai-row.user { justify-content: flex-end; }
+.mk-ai-bubble { max-width: 78%; font-size: 11px; line-height: 1.55; padding: 6px 9px; border-radius: 9px; }
+.mk-ai-bubble.bot { background: var(--app-surface-subtle); border: 1px solid var(--app-border); color: var(--app-text-secondary); }
+.mk-ai-bubble.me { background: var(--app-primary); color: #fff; }
+.mk-ai-source { margin-top: 5px; padding-top: 5px; border-top: 1px dashed var(--app-border-strong); font-size: 10px; color: var(--app-primary); }
+.mk-ai-input { display: flex; gap: 6px; margin-top: auto; }
+.mk-ai-input .inp { flex: 1; height: 18px; border: 1px solid var(--app-border); border-radius: 6px; background: var(--app-surface); }
+.mk-ai-input .send { width: 26px; height: 18px; border-radius: 6px; background: var(--app-primary); }
+
+/* 可交互原型 iframe */
+.exp-frame {
+  margin-top: 20px; background: var(--app-surface);
+  border: 1px solid var(--app-border); border-radius: var(--app-radius-lg); overflow: hidden;
+  box-shadow: var(--app-shadow-lg);
+}
+.exp-frame-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--app-surface-subtle); border-bottom: 1px solid var(--app-border); }
+.exp-frame-bar .exp-flag { font-size: 12px; font-weight: 600; color: var(--app-primary); display: inline-flex; align-items: center; gap: 6px; }
+.exp-frame-bar .exp-flag svg { width: 13px; height: 13px; }
+.exp-frame-bar .exp-hint { font-size: 11.5px; color: var(--app-text-muted); }
+.exp-frame-bar .exp-open { margin-left: auto; }
+.exp-frame-bar .exp-open a { font-size: 12px; font-weight: 600; }
+.exp-frame iframe { display: block; width: 100%; height: 680px; border: 0; background: var(--app-bg); }
+
+/* ============ 功能特性 ============ */
+.features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.feature {
+  background: var(--app-surface); border: 1px solid var(--app-border); border-radius: var(--app-radius-lg);
+  padding: 26px 24px;
+  transition: transform var(--app-duration-normal) var(--app-ease-smooth), box-shadow var(--app-duration-normal) var(--app-ease-smooth), border-color var(--app-duration-normal) var(--app-ease-smooth);
+}
+.feature:hover { transform: translateY(-3px); box-shadow: var(--app-shadow-md); border-color: var(--app-border-strong); }
+.feature-icon {
+  width: 38px; height: 38px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--app-primary-soft); color: var(--app-primary); margin-bottom: 14px;
+}
+.feature-icon svg { width: 19px; height: 19px; }
+.feature h3 { font-size: 15.5px; font-weight: 650; }
+.feature p { font-size: 13.5px; color: var(--app-text-secondary); margin-top: 7px; line-height: 1.6; }
+
+/* ============ 工作流 ============ */
+.workflow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; counter-reset: step; }
+.wf-step {
+  position: relative; background: var(--app-surface);
+  border: 1px solid var(--app-border); border-radius: var(--app-radius-lg); padding: 22px 20px;
+  transition: transform var(--app-duration-normal) var(--app-ease-smooth), box-shadow var(--app-duration-normal) var(--app-ease-smooth);
+}
+.wf-step:hover { transform: translateY(-3px); box-shadow: var(--app-shadow-md); }
+.wf-num {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--app-primary); color: #fff; font-size: 13px; font-weight: 700; margin-bottom: 12px;
+}
+.wf-step h3 { font-size: 15px; font-weight: 650; }
+.wf-step p { font-size: 13px; color: var(--app-text-secondary); margin-top: 6px; line-height: 1.6; }
+.wf-arrow { align-self: center; justify-self: center; color: var(--app-border-strong); }
+.wf-arrow svg { width: 18px; height: 18px; }
+
+/* ============ 使用文档 ============ */
+.docs-wrap { background: var(--app-surface); border: 1px solid var(--app-border); border-radius: var(--app-radius-lg); overflow: hidden; }
+.docs-toc {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  padding: 12px 16px; border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface-subtle);
+}
+.docs-toc a {
+  padding: 5px 12px; border-radius: var(--app-radius-sm);
+  font-size: 12.5px; color: var(--app-text-secondary); font-weight: 500;
+  transition: background var(--app-duration-fast) var(--app-ease-smooth), color var(--app-duration-fast) var(--app-ease-smooth);
+}
+.docs-toc a:hover { background: var(--app-surface-hover); color: var(--app-text); text-decoration: none; }
+.doc-sec { padding: 34px 40px 30px; border-bottom: 1px solid var(--app-border); scroll-margin-top: 76px; }
+.doc-sec:last-child { border-bottom: none; }
+.doc-sec h2 { font-size: 20px; font-weight: 650; display: flex; align-items: center; gap: 10px; }
+.doc-sec h2 .d-ic {
+  width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--app-primary-soft); color: var(--app-primary);
+}
+.doc-sec h2 .d-ic svg { width: 15px; height: 15px; }
+.doc-sec h3 { font-size: 14.5px; font-weight: 600; margin: 22px 0 8px; }
+.doc-sec p, .doc-sec li { font-size: 13.5px; color: var(--app-text-secondary); line-height: 1.75; }
+.doc-sec ul { padding-left: 20px; margin-top: 4px; }
+.doc-sec ul li { margin-bottom: 4px; }
+.doc-sec strong { color: var(--app-text); font-weight: 600; }
+.doc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 28px; margin-top: 8px; }
+.doc-note {
+  margin-top: 14px; padding: 12px 16px; border-radius: var(--app-radius-sm);
+  background: var(--app-primary-soft); border: 1px solid rgba(35,131,226,0.22);
+  font-size: 13px; color: var(--app-text-secondary); line-height: 1.7;
+}
+.doc-note strong { color: var(--app-primary); }
+.doc-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+.doc-table th, .doc-table td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--app-border); }
+.doc-table th { font-size: 12px; color: var(--app-text-muted); font-weight: 600; background: var(--app-surface-subtle); }
+.doc-table td { color: var(--app-text-secondary); }
+.doc-table code, .doc-kbd {
+  font-family: var(--font-mono); font-size: 12px; background: var(--app-surface-hover);
+  border: 1px solid var(--app-border); border-radius: 4px; padding: 1px 6px; color: var(--app-text);
+}
+
+/* 六种剪藏类型条目 */
+.clip-types { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 8px; }
+.clip-type {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 12px 14px; border: 1px solid var(--app-border); border-radius: var(--app-radius-sm);
+  background: var(--app-surface); transition: border-color var(--app-duration-fast) var(--app-ease-smooth);
+}
+.clip-type:hover { border-color: var(--app-primary); }
+.clip-type .ct-ic { width: 24px; height: 24px; border-radius: 7px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #fff; }
+.clip-type .ct-ic svg { width: 12px; height: 12px; }
+.clip-type b { display: block; font-size: 13px; font-weight: 600; }
+.clip-type span { font-size: 12px; color: var(--app-text-muted); line-height: 1.55; display: block; margin-top: 2px; }
+
+/* ============ 数据与隐私 ============ */
+.trust-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.trust-card {
+  background: var(--app-surface); border: 1px solid var(--app-border); border-radius: var(--app-radius-lg);
+  padding: 24px; text-align: center;
+  transition: transform var(--app-duration-normal) var(--app-ease-smooth), box-shadow var(--app-duration-normal) var(--app-ease-smooth);
+}
+.trust-card:hover { transform: translateY(-3px); box-shadow: var(--app-shadow-md); }
+.trust-card .tc-ic {
+  width: 44px; height: 44px; margin: 0 auto 12px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--app-success-soft); color: var(--app-success);
+}
+.trust-card .tc-ic svg { width: 21px; height: 21px; }
+.trust-card h3 { font-size: 15px; font-weight: 650; }
+.trust-card p { font-size: 13px; color: var(--app-text-secondary); margin-top: 7px; line-height: 1.6; }
+
+/* ============ 页脚 ============ */
+.footer { border-top: 1px solid var(--app-border); background: var(--app-surface); margin-top: 64px; padding: 34px 24px 40px; }
+.footer-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.footer-brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 14px; }
+.footer-brand .brand-bubble { width: 22px; height: 22px; border-radius: 7px; }
+.footer-brand .brand-bubble svg { width: 13px; height: 13px; }
+.footer-note { font-size: 12.5px; color: var(--app-text-muted); margin-left: auto; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.footer-ver { font-family: var(--font-mono); font-size: 12px; color: var(--app-text-muted); border: 1px solid var(--app-border); border-radius: 5px; padding: 2px 8px; }
+
+/* ============ 响应式 ============ */
+@media (max-width: 960px) {
+  .hero-inner { grid-template-columns: 1fr; gap: 40px; }
+  .hero { padding-top: 56px; }
+  .features { grid-template-columns: repeat(2, 1fr); }
+  .workflow { grid-template-columns: repeat(2, 1fr); }
+  .clip-types { grid-template-columns: repeat(2, 1fr); }
+  .trust-cards { grid-template-columns: 1fr; }
+  .exp-mocks { grid-template-columns: 1fr; }
+  .exp-frame iframe { height: 560px; }
+}
+@media (max-width: 640px) {
+  .nav-links a { display: none; }
+  .nav-links .nav-cta { display: inline-flex; }
+  .hero h1 { font-size: 32px; }
+  .features { grid-template-columns: 1fr; }
+  .workflow { grid-template-columns: 1fr; }
+  .doc-grid { grid-template-columns: 1fr; }
+  .clip-types { grid-template-columns: 1fr; }
+  .doc-sec { padding: 26px 22px; }
+  .mock-body { grid-template-columns: 1fr; }
+  .mock-side { display: none; }
+  .exp-frame-bar .exp-hint { display: none; }
+  .exp-frame iframe { height: 520px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============ 顶部导航 ============ -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="#top">
+      <span class="brand-bubble">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8.5 8 9.6 9.6 0 0 1-4.5-1.4L3 20l1.8-3.9A8.5 8.5 0 1 1 21 12z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/></svg>
+      </span>
+      碎碎记<span class="brand-en">CutShelter</span>
+    </a>
+    <div class="nav-links">
+      <a href="#experience">产品体验</a>
+      <a href="#features">功能</a>
+      <a href="#workflow">工作流</a>
+      <a href="#docs">使用文档</a>
+      <a href="#privacy">数据与隐私</a>
+      <a class="nav-cta" href="#experience">在线体验</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ============ Hero ============ -->
+<header class="hero" id="top">
+  <div class="hero-inner">
+    <div class="reveal">
+      <span class="hero-badge"><span class="dot"></span>本地优先 · 纯文本存储 · 可离线使用</span>
+      <h1>碎碎记<span class="en">CutShelter</span></h1>
+      <p class="hero-slogan">捕捉灵感，智能整理，构建你的个人知识库</p>
+      <p class="hero-desc">一款本地优先的剪藏与知识管理桌面应用。随时截图、粘贴、插图、收藏链接，先进收件箱，再一键 AI 整理为笔记——数据以纯文本 Markdown 保存在你自己的电脑里。</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#quickstart">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          快速上手
+        </a>
+        <a class="btn btn-ghost" href="#docs">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          查看使用文档
+        </a>
+      </div>
+      <div class="hero-trust">
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>数据 100% 属于你</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>离线 OCR 不联网</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>一处记录，处处可整理</span>
+      </div>
+    </div>
+
+    <!-- 产品界面示意：收件箱主线（CSS 绘制） -->
+    <div class="appmock reveal" aria-label="碎碎记收件箱界面示意">
+      <div class="mock-titlebar">
+        <span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>
+        <span class="mock-title">碎碎记 · CutShelter</span>
+        <span class="mock-search"></span>
+      </div>
+      <div class="mock-body">
+        <div class="mock-side">
+          <div class="mock-side-item active"><span class="mi"></span>收件箱</div>
+          <div class="mock-side-item"><span class="mi"></span>写作</div>
+          <div class="mock-side-item"><span class="mi"></span>画布</div>
+          <div class="mock-side-item"><span class="mi"></span>知识库</div>
+          <div class="mock-side-item"><span class="mi"></span>知识图谱</div>
+        </div>
+        <div class="mock-main">
+          <div class="mock-compose">
+            <svg class="pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            <span class="ph">写点什么… 输入或粘贴内容，一键记录</span>
+            <span class="kbd">⌘V</span>
+          </div>
+          <div class="mock-head">
+            <span class="mock-head-title">收件箱</span>
+            <span class="mock-chip">待整理（3）</span>
+          </div>
+          <div class="mock-card">
+            <span class="mock-tp" style="background:#8b5cf6;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></span>
+            <div class="mock-card-t"><div class="mock-card-title">一篇关于个人知识管理的文章</div><div class="mock-card-sub">粘贴文本 · 3 分钟前</div></div>
+            <span class="badge badge-inbox">待整理</span>
+          </div>
+          <div class="mock-card">
+            <span class="mock-tp" style="background:#10b981;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
+            <div class="mock-card-t"><div class="mock-card-title">产品截图（已 OCR 提取文字）</div><div class="mock-card-sub">插图 · OCR 识别 128 字</div></div>
+            <span class="badge badge-inbox">待整理</span>
+          </div>
+          <div class="mock-card">
+            <span class="mock-tp" style="background:#3f8cff;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
+            <div class="mock-card-t"><div class="mock-card-title">设计规范收集 · 链接</div><div class="mock-card-sub">链接 · AI 解析已归档</div></div>
+            <span class="badge badge-organized">已整理</span>
+          </div>
+          <div class="mock-floatbar">
+            <span class="mock-fb-btn">批量整理</span>
+            <span class="mock-fb-btn danger">删除</span>
+            <span class="mock-fb-note">已选 2 条 · 可撤销</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ============ 产品体验 ============ -->
+<section class="section" id="experience" style="padding-top: 40px;">
+  <div class="container">
+    <div class="sec-head reveal">
+      <span class="sec-kicker">Experience</span>
+      <h2 class="sec-title">产品体验</h2>
+      <p class="sec-desc">写作、图谱与 AI 助手一览；下方嵌入可交互原型，点击侧栏、切换主题、打开 AI 助手、体验快速记录，无需安装即可试玩。</p>
+    </div>
+
+    <div class="exp-mocks">
+      <!-- 写作 / 编辑器 -->
+      <div class="exp-mock reveal">
+        <div class="exp-mock-head"><span class="md"></span><span class="md"></span><span class="md"></span><span class="exp-mock-title">写作 · 编辑器</span></div>
+        <div class="mk-editor">
+          <div class="mk-toolbar"><span class="mk-tbtn w"></span><span class="mk-tbtn m"></span><span class="mk-tbtn m"></span><span class="mk-tbtn primary"></span></div>
+          <div class="mk-line h"></div>
+          <div class="mk-line"></div>
+          <div class="mk-line blue"></div>
+          <div class="mk-line code"></div>
+          <div class="mk-line"></div>
+          <div class="mk-line blue"></div>
+          <div class="mk-line"></div>
+        </div>
+        <div class="exp-mock-cap"><b>Markdown 写作</b>与代码编辑一体，本地纯文本保存</div>
+      </div>
+
+      <!-- 知识图谱 -->
+      <div class="exp-mock reveal">
+        <div class="exp-mock-head"><span class="md"></span><span class="md"></span><span class="md"></span><span class="exp-mock-title">知识图谱 · 无限画布</span></div>
+        <div class="mk-graph">
+          <svg viewBox="0 0 320 130" fill="none">
+            <path class="mk-edge" d="M60 65 100 30 M60 65 110 105 M100 30 200 20 M110 105 210 110 M200 20 270 60 M210 110 260 100 M270 60 200 20 M270 60 260 100"/>
+            <circle class="mk-node core" cx="60" cy="65" r="10"/>
+            <circle class="mk-node" cx="100" cy="30" r="7"/>
+            <circle class="mk-node" cx="110" cy="105" r="7"/>
+            <circle class="mk-node" cx="200" cy="20" r="7"/>
+            <circle class="mk-node" cx="210" cy="110" r="7"/>
+            <circle class="mk-node" cx="270" cy="60" r="7"/>
+            <circle class="mk-node" cx="260" cy="100" r="6"/>
+          </svg>
+        </div>
+        <div class="exp-mock-cap"><b>双链关联</b> + 无限画布，知识互联成网</div>
+      </div>
+
+      <!-- AI 助手 -->
+      <div class="exp-mock reveal">
+        <div class="exp-mock-head"><span class="md"></span><span class="md"></span><span class="md"></span><span class="exp-mock-title">AI 助手 · 小记</span></div>
+        <div class="mk-ai">
+          <div class="mk-ai-row">
+            <span class="mk-ai-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8.5 8 9.6 9.6 0 0 1-4.5-1.4L3 20l1.8-3.9A8.5 8.5 0 1 1 21 12z"/></svg></span>
+            <div class="mk-ai-bubble bot">我找到了 2 条相关剪藏，摘要如下。<div class="mk-ai-source">来自收件箱 · 查看原文</div></div>
+          </div>
+          <div class="mk-ai-row user"><div class="mk-ai-bubble me">整理成一篇笔记</div></div>
+          <div class="mk-ai-row">
+            <span class="mk-ai-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8.5 8 9.6 9.6 0 0 1-4.5-1.4L3 20l1.8-3.9A8.5 8.5 0 1 1 21 12z"/></svg></span>
+            <div class="mk-ai-bubble bot">已整理为笔记，并推送到写作区。</div>
+          </div>
+          <div class="mk-ai-input"><span class="inp"></span><span class="send"></span></div>
+        </div>
+        <div class="exp-mock-cap"><b>回答附来源</b>，一键整理为笔记</div>
+      </div>
+    </div>
+
+    <!-- 可交互原型 iframe -->
+    <div class="exp-frame reveal">
+      <div class="exp-frame-bar">
+        <span class="exp-flag">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          在线体验 · 交互原型
+        </span>
+        <span class="exp-hint">试试：切换深/浅色、点侧栏「写作/知识库」、打开 AI 助手、点「快速记录」</span>
+        <span class="exp-open"><a href="demo.html" target="_blank" rel="noopener">在新窗口打开 ↗</a></span>
+      </div>
+      <iframe src="demo.html" title="碎碎记交互体验原型" loading="lazy" scrolling="no"></iframe>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 功能特性 ============ -->
+<section class="section" id="features">
+  <div class="container">
+    <div class="sec-head reveal">
+      <span class="sec-kicker">Features</span>
+      <h2 class="sec-title">为「随手记下」设计，为「长期沉淀」服务</h2>
+      <p class="sec-desc">从记录到整理到写作，一条主线贯穿；你的每一次捕捉，最终都会沉淀为可检索、可关联、可带走的个人知识。</p>
+    </div>
+    <div class="features">
+      <div class="feature reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/></svg></div>
+        <h3>剪藏六种方式</h3>
+        <p>文本、链接、文档、插图、待办、截图——任何想留下的内容，都有对应的捕捉入口。</p>
+      </div>
+      <div class="feature reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8h10M7 12h7M7 16h4"/></svg></div>
+        <h3>离线 OCR</h3>
+        <p>插图里的文字在本地识别，模型内置、全程不联网，识别结果直接填入内容区。</p>
+      </div>
+      <div class="feature reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8.5 8 9.6 9.6 0 0 1-4.5-1.4L3 20l1.8-3.9A8.5 8.5 0 1 1 21 12z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/></svg></div>
+        <h3>AI 助手「小记」</h3>
+        <p>回答附来源、可一键整理为笔记；上下文在选中记录、全库与当前文档间自由切换。</p>
+      </div>
+      <div class="feature reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+        <h3>本地优先 · 纯文本</h3>
+        <p>所有数据以 Markdown / JSON 明文存于本地，不绑定云端账号，数据 100% 属于你。</p>
+      </div>
+      <div class="feature reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="7" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="17" r="2"/><path d="m7 7 3 2M17 8l-3 2M8 16l2.5-2M16 15l-2.5-2.5"/></svg></div>
+        <h3>知识库与知识图谱</h3>
+        <p>剪藏自动落库，双链关联 + 无限画布，让碎片知识长成你的第二大脑。</p>
+      </div>
+      <div class="feature reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></div>
+        <h3>多主题编辑器</h3>
+        <p>Markdown 写作与代码编辑一体，支持语法高亮、格式化、版本对比，本地纯文本保存。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 工作流 ============ -->
+<section class="section" id="workflow">
+  <div class="container">
+    <div class="sec-head reveal">
+      <span class="sec-kicker">Workflow</span>
+      <h2 class="sec-title">先记录，再整理，最后沉淀</h2>
+      <p class="sec-desc">记录时不做选择题，先进收件箱；需要整理时，一键交给 AI 分类归档。</p>
+    </div>
+    <div class="workflow">
+      <div class="wf-step reveal">
+        <span class="wf-num">1</span>
+        <h3>记录</h3>
+        <p>截图、粘贴文本、收藏链接、插图、记待办——几秒钟完成捕捉。</p>
+      </div>
+      <div class="wf-step reveal">
+        <span class="wf-num">2</span>
+        <h3>进收件箱</h3>
+        <p>默认「稍后整理」，所有新内容先到收件箱（待整理），不打断当前思路。</p>
+      </div>
+      <div class="wf-step reveal">
+        <span class="wf-num">3</span>
+        <h3>一键整理</h3>
+        <p>AI 自动摘要、分类、打标签，一键生成结构化笔记，进入知识库。</p>
+      </div>
+      <div class="wf-step reveal">
+        <span class="wf-num">4</span>
+        <h3>写作 / 画布</h3>
+        <p>笔记沉淀为 Markdown 文档，可在编辑器中继续写作，或拖入画布自由组织。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 使用文档 ============ -->
+<section class="section" id="docs">
+  <div class="container">
+    <div class="sec-head reveal">
+      <span class="sec-kicker">Documentation</span>
+      <h2 class="sec-title">使用文档</h2>
+      <p class="sec-desc">概要版说明，覆盖核心功能与常用操作。完整细节以应用内各模块为准。</p>
+    </div>
+
+    <div class="docs-wrap reveal">
+      <div class="docs-toc">
+        <a href="#quickstart">快速上手</a>
+        <a href="#doc-clip">剪藏</a>
+        <a href="#doc-inbox">收件箱与整理</a>
+        <a href="#doc-editor">编辑器</a>
+        <a href="#doc-knowledge">知识库与知识图谱</a>
+        <a href="#doc-assistant">AI 助手</a>
+        <a href="#doc-tools">工具模块</a>
+        <a href="#doc-extension">浏览器插件</a>
+        <a href="#privacy">数据与隐私</a>
+      </div>
+
+      <!-- 快速上手 -->
+      <div class="doc-sec" id="quickstart">
+        <h2><span class="d-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>快速上手</h2>
+        <div class="doc-grid">
+          <div>
+            <h3>① 安装与启动</h3>
+            <p>安装桌面客户端后首次启动，将自动拉起本地后端服务与 OCR 模型初始化，状态栏可见「后端就绪」提示，即可开始使用。</p>
+          </div>
+          <div>
+            <h3>② 完成第一次记录</h3>
+            <p>在「剪藏」页顶部点「快速记录」一键发起（文本 / 插图 / 链接 / OCR），或点记录条展开完整表单；选择「稍后整理」，内容即进入收件箱。</p>
+          </div>
+          <div>
+            <h3>③ 整理收件箱</h3>
+            <p>进入「收件箱」视图，选中条目点击「整理」；AI 将自动生成摘要、分类与标签，沉淀为结构化笔记。</p>
+          </div>
+          <div>
+            <h3>④ 浏览器里随手剪藏</h3>
+            <p>安装「智能剪藏助手」浏览器插件，网页内容右键或快捷键一键进收件箱，稍后统一整理。</p>
+          </div>
+          <div>
+            <h3>⑤ 开始写作与沉淀</h3>
+            <p>整理完成的笔记可在编辑器中继续编辑，或进入知识库 / 知识图谱查看关联，形成你的个人知识网络。</p>
+          </div>
+        </div>
+        <div class="doc-note"><strong>离线可用：</strong>除「AI 整理 / AI 问答」需要联网调用大模型外，剪藏、OCR、编辑、存储等核心能力均可离线使用。</div>
+      </div>
+
+      <!-- 剪藏 -->
+      <div class="doc-sec" id="doc-clip">
+        <h2><span class="d-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></span>剪藏</h2>
+        <p>记录时只需要做一个决策——<strong>「稍后整理」还是「立即 AI 整理」</strong>，其余类型由系统自动映射。</p>
+        <div class="clip-types">
+          <div class="clip-type">
+            <span class="ct-ic" style="background:#8b5cf6;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></span>
+            <div><b>文本 / 粘贴</b><span>Ctrl+V 粘贴即存，先进收件箱</span></div>
+          </div>
+          <div class="clip-type">
+            <span class="ct-ic" style="background:#3f8cff;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
+            <div><b>链接</b><span>AI 解析网页正文后收藏</span></div>
+          </div>
+          <div class="clip-type">
+            <span class="ct-ic" style="background:#f97316;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg></span>
+            <div><b>文档 / 文件</b><span>上传文件，AI 解析提取内容</span></div>
+          </div>
+          <div class="clip-type">
+            <span class="ct-ic" style="background:#10b981;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
+            <div><b>插图</b><span>上传图片，支持离线 OCR 提取文字</span></div>
+          </div>
+          <div class="clip-type">
+            <span class="ct-ic" style="background:#eab308;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-5"/></svg></span>
+            <div><b>待办</b><span>记一件要做的事，随内容一并沉淀</span></div>
+          </div>
+          <div class="clip-type">
+            <span class="ct-ic" style="background:#4a9e9e;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
+            <div><b>截图</b><span>全局快捷键截屏，一键进收件箱</span></div>
+          </div>
+        </div>
+        <h3>插图 OCR</h3>
+        <p>上传图片后点击「<strong>OCR 提取文字</strong>」，本地模型识别图片中的文字并自动填入内容区；全程离线，图片不外传。</p>
+      </div>
+
+      <!-- 收件箱与整理 -->
+      <div class="doc-sec" id="doc-inbox">
+        <h2><span class="d-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span>收件箱与整理</h2>
+        <div class="doc-grid">
+          <div>
+            <h3>状态徽章</h3>
+            <ul>
+              <li><strong>待整理</strong>（橙）——在收件箱中等待整理</li>
+              <li><strong>已整理</strong>（绿）——已完成 AI 整理归档</li>
+              <li><strong>其它</strong>（灰）——归档等其它状态</li>
+            </ul>
+          </div>
+          <div>
+            <h3>批量操作</h3>
+            <ul>
+              <li>勾选多条后浮现操作条：<strong>批量整理 / 删除</strong></li>
+              <li>删除带 240ms 动画 + Toast <strong>撤销</strong>（6 秒内可恢复）</li>
+            </ul>
+          </div>
+          <div>
+            <h3>折叠式记录入口</h3>
+            <p>表单默认折叠为一条记录条，按需展开、提交后自动收起，列表始终是主显示区；「待整理」默认筛选，快速记录一键直达。</p>
+          </div>
+          <div>
+            <h3>每日回看</h3>
+            <p>把「收藏完就忘」的旧内容重新翻出来：跳过 / 归档 / 仍有用，1 分钟完成回顾。</p>
+          </div>
+          <div>
+            <h3>从收件箱到写作</h3>
+            <p>整理为笔记后自动推送编辑器，在「最近」分组置顶显示「来自收件箱」，闭环直达。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 编辑器 -->
+      <div class="doc-sec" id="doc-editor">
+        <h2><span class="d-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></span>编辑器（写作）</h2>
+        <p>Markdown 与代码编辑一体，工具栏收敛为高频动作，本地纯文本保存（支持 txt / md / json / xml / sql / yaml 等常见格式）。</p>
+        <table class="doc-table">
+          <tr><th>操作</th><th>macOS</th><th>Windows / Linux</th></tr>
+          <tr><td>保存</td><td><span class="doc-kbd">⌘S</span></td><td><span class="doc-kbd">Ctrl+S</span></td></tr>
+          <tr><td>新建文档</td><td><span class="doc-kbd">⌘N</span></td><td><span class="doc-kbd">Ctrl+N</span></td></tr>
+          <tr><td>打开文件</td><td><span class="doc-kbd">⌘O</span></td><td><span class="doc-kbd">Ctrl+O</span></td></tr>
+          <tr><td>查找 / 替换</td><td><span class="doc-kbd">⌘F</span> / <span class="doc-kbd">⌘R</span></td><td><span class="doc-kbd">Ctrl+F</span> / <span class="doc-kbd">Ctrl+R</span></td></tr>
+          <tr><td>全局搜索</td><td><span class="doc-kbd">⌘⇧F</span></td><td><span class="doc-kbd">Ctrl+Shift+F</span></td></tr>
+          <tr><td>跳转行</td><td><span class="doc-kbd">⌘G</span></td><td><span class="doc-kbd">Ctrl+G</span></td></tr>
+        </table>
+        <div class="doc-note"><strong>提示：</strong>Markdown 预览支持双链 `[[笔记名]]` 跳转，代码可一键格式化（JSON / XML / SQL 等）。</div>
+      </div>
+
+      <!-- 知识库与知识图谱 -->
+      <div class="doc-sec" id="doc-knowledge">
+        <h2><span class="d-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="7" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="17" r="2"/><path d="m7 7 3 2M17 8l-3 2M8 16l2.5-2M16 15l-2.5-2.5"/></svg></span>知识库与知识图谱</h2>
+        <div class="doc-grid">
+          <div>
+            <h3>剪藏落库</h3>
+            <p>每一条剪藏对应一个 Markdown 文件，AI 字段自动写入 frontmatter，可直接在 Obsidian 等工具中打开使用。</p>
+          </div>
+          <div>
+            <h3>双链关联</h3>
+            <p>支持 `[[笔记名]]` 双向链接，反链、出链面板实时展示，知识互联互通。</p>
+          </div>
+          <div>
+            <h3>无限画布</h3>
+            <p>节点自由摆放、手动连线、分组整理，从知识图谱延伸出可视化的思考空间。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI 助手 -->
+      <div class="doc-sec" id="doc-assistant">
+        <h2><span class="d-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8.5 8 9.6 9.6 0 0 1-4.5-1.4L3 20l1.8-3.9A8.5 8.5 0 1 1 21 12z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/></svg></span>AI 助手「小记」</h2>
+        <div class="doc-grid">
+          <div>
+            <h3>三种上下文</h3>
+            <p>选中记录 / 整个剪藏库 / 当前文档——面板顶部指示器会明确告知「小记」正在看什么。</p>
+          </div>
+          <div>
+            <h3>来源引用</h3>
+            <p>回答附带来源卡片，可跳转原文，也可一键「整理为笔记」，直接进入写作。</p>
+          </div>
+          <div>
+            <h3>Prompt 可配置</h3>
+            <p>剪藏分析、整理收件箱、周报总结等场景的 Prompt 均可按需自定义。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 工具模块 -->
+      <div class="doc-sec" id="doc-tools">
+        <h2><span class="d-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>工具模块</h2>
+        <div class="doc-grid">
+          <div>
+            <h3>截图工具</h3>
+            <p>全屏 / 选区截图，标注、贴图、取色一应俱全，快捷键可自定义。</p>
+          </div>
+          <div>
+            <h3>离线 OCR</h3>
+            <p>模型内置，对截图或插图一键识别文字，断网可用。</p>
+          </div>
+          <div>
+            <h3>PDF 处理</h3>
+            <p>合并、拆分、提取文本，内置工具不依赖外网服务。</p>
+          </div>
+          <div>
+            <h3>提示词库</h3>
+            <p>收藏常用 Prompt，分类管理，一键应用到系统槽位。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 浏览器插件 -->
+      <div class="doc-sec" id="doc-extension">
+        <h2><span class="d-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span>浏览器插件</h2>
+        <p>配套扩展「智能剪藏助手」，在浏览器里随时把网页内容一键收进碎碎记——配合桌面端收件箱，形成「网页读到 → 随手剪藏 → 稍后整理」的闭环。</p>
+        <div class="doc-grid">
+          <div>
+            <h3>三种剪藏方式</h3>
+            <ul>
+              <li><strong>右键菜单</strong>：剪藏整个页面 / 选中内容 / 图片</li>
+              <li><strong>快捷键</strong>：<span class="doc-kbd">Ctrl+Shift+S</span> 剪藏页面，<span class="doc-kbd">Ctrl+Shift+V</span> 剪藏选中内容（macOS 为 <span class="doc-kbd">Cmd</span>）</li>
+              <li><strong>弹出窗口</strong>：点击工具栏图标，手动输入或粘贴后添加剪藏</li>
+            </ul>
+          </div>
+          <div>
+            <h3>智能内容提取</h3>
+            <p>自动识别并提取网页正文，去除导航、广告等噪音；支持 CSS 选择器规则自定义提取范围。</p>
+          </div>
+          <div>
+            <h3>灵活配置</h3>
+            <ul>
+              <li>API 地址、超时与重试次数可配置</li>
+              <li>默认剪藏类型（AI 整理 / 仅存储 / 链接解析 / 文档解析）</li>
+              <li>自动生成标签、记录来源 URL、成功通知开关</li>
+              <li>界面风格跟随（常规 / Notion）</li>
+            </ul>
+          </div>
+          <div>
+            <h3>快速安装</h3>
+            <p>浏览器打开 <span class="doc-kbd">chrome://extensions/</span>，开启开发者模式 → 「加载已解压的扩展程序」，选择项目的 <span class="doc-kbd">browser-extension</span> 目录即可。</p>
+          </div>
+        </div>
+        <div class="doc-note"><strong>使用前提：</strong>插件需与桌面端后端服务配合使用，首次使用请在插件设置中配置 API 地址（默认 <span class="doc-kbd">http://127.0.0.1:8081</span>）并「测试连接」。</div>
+      </div>
+
+      <!-- 数据与隐私 -->
+      <div class="doc-sec" id="privacy">
+        <h2><span class="d-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>数据与隐私</h2>
+        <p class="sec-desc" style="margin-top:0;">你的数据，100% 属于你——这是产品的第一原则。</p>
+        <div class="trust-cards" style="margin-top:20px;">
+          <div class="trust-card reveal">
+            <span class="tc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+            <h3>本地优先</h3>
+            <p>数据存于本地存储目录，不绑定云端账号，应用主体可断网使用。</p>
+          </div>
+          <div class="trust-card reveal">
+            <span class="tc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>
+            <h3>纯文本可读</h3>
+            <p>Markdown / JSON 明文存储，任何文本编辑器都能直接打开查看。</p>
+          </div>
+          <div class="trust-card reveal">
+            <span class="tc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></span>
+            <h3>一键带走</h3>
+            <p>存储目录一目了然、可一键导出；换工具、换电脑，数据随时迁移。</p>
+          </div>
+        </div>
+        <div class="doc-note" style="margin-top:22px;">
+          <strong>存储路径：</strong>「数据文件路径」存放你的剪藏内容，「配置文件路径」存放应用配置，两者在设置页分别展示、可一键打开。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 页脚 ============ -->
+<footer class="footer">
+  <div class="footer-inner">
+    <span class="footer-brand">
+      <span class="brand-bubble">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8.5 8 9.6 9.6 0 0 1-4.5-1.4L3 20l1.8-3.9A8.5 8.5 0 1 1 21 12z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/></svg>
+      </span>
+      碎碎记 · CutShelter
+    </span>
+    <span class="footer-note">
+      <span>官网为离线页面，双击即可打开；交互体验见上方「在线体验」</span>
+      <span class="footer-ver">v1.0.16</span>
+    </span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  // 锚点平滑滚动（html 已配 scroll-behavior，这里兜底兼容）
+  document.querySelectorAll('a[href^="#"]').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      var target = document.querySelector(a.getAttribute('href'));
+      if (target) {
+        e.preventDefault();
+        var top = target.getBoundingClientRect().top + window.scrollY - 68;
+        window.scrollTo({ top: top, behavior: 'smooth' });
+      }
+    });
+  });
+  // 滚动渐入
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (en) {
+      if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
+    });
+  }, { threshold: 0.08 });
+  document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+})();
+</script>
+</body>
+</html>

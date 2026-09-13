@@ -145,3 +145,30 @@ test('M3.6 遗留文件迁移：持久化 + 幂等 + 派生优先', () => {
   assert.ok(derived, '派生关系存在');
   assert.equal(relationBuilder.count(db), 3, 'clip:1->k1 派生加入，总共 3 条');
 });
+
+test('M3.7 正文 wikilink 双链入图：[[目标]] 解析 + 标题/别名/后缀匹配 + 去重', () => {
+  // c1 正文双链指向 k1 / k5（含别名与 .md 后缀变体）；k1 正文反向指向 c1
+  seed(
+    [
+      { id: 1, title: 'k1', content: '关联 [[c1]]' },
+      { id: 5, title: 'k5' }
+    ],
+    []
+  );
+  const clipFile = path.join(base, 'clip-storage', 'inbox', 'screen', '260823.json');
+  fs.writeFileSync(clipFile, JSON.stringify([
+    { id: 1, title: 'c1', content: '参考 [[k1]] 与 [[k5|别名]]，也见 [[k5.md]] 和 [[不存在项]]' },
+    { id: 2, title: 'c2' },
+    { id: 9, title: 'c9' }
+  ]));
+  svc.initLocalIndex(base);
+  const db = require('./db').getDatabase();
+  const g = graph.getGraph(db, null);
+
+  const wl = g.links.filter((l) => l.wikilink && l.type === 'linked_to')
+    .map((l) => l.source + '->' + l.target).sort();
+  // clip:1 → knowledge:1（[[k1]]）、clip:1 → knowledge:5（[[k5|别名]] 与 [[k5.md]] 去重为一条）、k1 反向 → clip:1
+  assert.deepEqual(wl, ['clip:1->knowledge:1', 'clip:1->knowledge:5', 'knowledge:1->clip:1']);
+  // 未命中目标（[[不存在项]]）不应产生边
+  assert.equal(g.links.filter((l) => l.wikilink).length, 3, '仅 3 条 wikilink 边（缺失目标不产生边）');
+});

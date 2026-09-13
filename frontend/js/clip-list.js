@@ -51,7 +51,7 @@ function formatClipDateTime(date) {
     function toggleMode() {
         clearAllSelection();
         const toggleBtn = document.getElementById('toggle-btn');
-        const toggleText = document.getElementById('toggle-text');
+        const recordEntry = document.getElementById('recordEntry');
         const addClipSection = document.getElementById('add-clip-section');
         const searchSection = document.getElementById('search-section');
         const searchResultsPage = document.getElementById('search-results-page');
@@ -60,7 +60,9 @@ function formatClipDateTime(date) {
         if (currentMode === 'add-clip') {
             currentMode = 'search';
             toggleBtn.classList.add('active');
-            toggleText.textContent = '📋 切换到添加剪藏';
+            toggleBtn.title = '切换到添加剪藏';
+            toggleBtn.setAttribute('aria-label', '切换到添加剪藏');
+            if (recordEntry) recordEntry.style.display = 'none';
             addClipSection.style.display = 'none';
             searchSection.style.display = 'block';
             searchResultsPage.style.display = 'none';
@@ -68,7 +70,9 @@ function formatClipDateTime(date) {
         } else {
             currentMode = 'add-clip';
             toggleBtn.classList.remove('active');
-            toggleText.textContent = '🔍 切换到信息检索';
+            toggleBtn.title = '切换到信息检索';
+            toggleBtn.setAttribute('aria-label', '切换到信息检索');
+            if (recordEntry) recordEntry.style.display = '';
             addClipSection.style.display = 'block';
             searchSection.style.display = 'none';
             searchResultsPage.style.display = 'none';
@@ -213,6 +217,13 @@ function formatClipDateTime(date) {
             }
             if (seq !== fetchSeq) return; // 已有更新的请求，丢弃本次过期结果
 
+            // 墓碑过滤：删除未完全落库（本地索引残留）前客户端先行隐藏，避免「删除后闪回」
+            clips = (clips || []).filter(c => !c || c.id == null || !softDeletedIds.has(String(c.id)));
+            // 墓碑释放：后端数据已不再包含该 id → 从墓碑集合移除（撤销窗口自动关闭）
+            for (const id of Array.from(softDeletedIds)) {
+                if (!clips.some(c => String(c.id) === id)) softDeletedIds.delete(id);
+            }
+
             if (workflowStatus) {
                 clips = clips.filter(clip => resolveWorkflowStatus(clip) === workflowStatus);
             }
@@ -263,12 +274,20 @@ function formatClipDateTime(date) {
         container.innerHTML = skeleton;
     }
 
+    var lastRenderedIds = ''; // 上次渲染的 id 序列，用于判断内容是否变化（避免轮询刷新重复播动画）
+    var listTransitionSeq = 0; // 渲染令牌：内容未变时丢弃过期渲染，避免重复重建
+
     /** 渲染剪藏列表（按可见数量分页 + 加载更多 + 展开状态恢复 + pending 轮询） */
     function renderClipList(clips) {
         lastFilteredClips = clips;
         const clipItemsContainer = document.getElementById('clip-items');
         const clipCountElement = document.getElementById('clip-count');
         clipCache.clear();
+
+        // 内容变更检测：仅在列表内容真正变化时播放过渡/交错入场动画（轮询刷新内容不变则不打扰）
+        const idsKey = clips.map(c => (c && c.id != null ? String(c.id) : '')).join(',');
+        const changed = idsKey !== lastRenderedIds;
+        lastRenderedIds = idsKey;
 
         // 保存当前展开的剪藏 ID，重建后恢复
         const expandedIds = new Set();
@@ -278,15 +297,36 @@ function formatClipDateTime(date) {
         });
 
         clipCountElement.textContent = clips.length;
-        clipItemsContainer.innerHTML = '';
+
+        // ---- 单次抽屉滑入过渡 ----
+        // 内容变化时只做一次入场（switching 滑入 + item-entrance 交错），不做独立退场，
+        // 避免「先退场再入场」被感知为两次刷新；整段在同一帧内渲染，无空白间隙、体感连贯。
+        const renderSeq = ++listTransitionSeq; // 本次渲染令牌（丢弃过期渲染）
 
         if (clips.length === 0) {
-            clipItemsContainer.innerHTML = `
-                    <div class="empty-state">
-                        <h3>暂无剪藏内容</h3>
-                        <p>开始添加你的第一个剪藏吧！</p>
+            // 待整理为空 ≠ 已清空：可能从未有过剪藏，用中性表述并引导创建
+            const wf = (document.getElementById('workflow-filter') || {});
+            const isEmptyInbox = wf.value === 'inbox';
+            const emptyHtml = `
+                    <div class="empty-state list-empty">
+                        <div class="list-empty-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
+                        </div>
+                        <h3>${isEmptyInbox ? '暂无待整理的剪藏' : '暂无剪藏内容'}</h3>
+                        <p>${isEmptyInbox ? '剪藏内容会自动归入待整理，稍后可一键 AI 整理为笔记' : '开始添加你的第一个剪藏吧！'}</p>
                     </div>
                 `;
+            const doRenderEmpty = () => {
+                if (renderSeq !== listTransitionSeq) return; // 已被更新的渲染接管
+                clipItemsContainer.innerHTML = emptyHtml;
+                // 空态卡片自带 clipListIn 入场动画；容器不再叠加位移动画，避免双重滑动
+                if (changed) {
+                    clipCountElement.classList.remove('pop');
+                    void clipCountElement.offsetWidth;
+                    clipCountElement.classList.add('pop');
+                }
+            };
+            doRenderEmpty();
             return;
         }
 
@@ -312,6 +352,7 @@ function formatClipDateTime(date) {
         });
         groups.sort((a, b) => (a.key === '__uncat__' ? -1 : b.key === '__uncat__' ? 1 : 0));
 
+        let itemSeq = 0;
         groups.forEach(g => {
             const groupEl = document.createElement('div');
             groupEl.className = 'clip-group';
@@ -324,56 +365,76 @@ function formatClipDateTime(date) {
             head.addEventListener('click', () => groupEl.classList.toggle('collapsed'));
             const body = document.createElement('div');
             body.className = 'clip-group-body';
-            g.clips.forEach(clip => body.appendChild(createClipItem(clip, false)));
+            g.clips.forEach(clip => {
+                const item = createClipItem(clip, false);
+                item.style.setProperty('--i', itemSeq++); // 交错入场序号
+                body.appendChild(item);
+            });
             groupEl.appendChild(head);
             groupEl.appendChild(body);
             fragment.appendChild(groupEl);
         });
-        clipItemsContainer.appendChild(fragment);
+        // ---- 单次抽屉滑入过渡：不独立退场，入场与数据替换同帧完成，避免被感知为两次刷新 ----
+        const doRender = () => {
+            if (renderSeq !== listTransitionSeq) return; // 被更新的渲染接管时丢弃
+            clipItemsContainer.innerHTML = '';
+            clipItemsContainer.appendChild(fragment);
+            // 入场：抽屉侧滑淡入 + 条目交错入场 + 计数徽章弹跳（先移除再重放，保证每次都重播）
+            if (changed) {
+                clipItemsContainer.classList.remove('switching', 'item-entrance');
+                void clipItemsContainer.offsetWidth; // 重排重放动画
+                clipItemsContainer.classList.add('switching', 'item-entrance');
+                clipCountElement.classList.remove('pop');
+                void clipCountElement.offsetWidth;
+                clipCountElement.classList.add('pop');
+            }
 
-        // 批量预取关联数据（2 个请求替代 N×2），完成后由缓存驱动渲染
-        const shownIds = shown.filter(c => c && c.id != null).map(c => c.id);
-        batchLoadClipRelations(shownIds).finally(() => {
-            shown.forEach(clip => {
-                if (clip && clip.id != null) {
-                    renderLinkedKnowledge(clip.id);
-                    renderPlanBacklinks(clip.id);
-                }
-            });
-            // 恢复之前展开的剪藏详情（缓存已填充，零新增请求）
-            expandedIds.forEach(id => {
-                const detail = document.querySelector(`.clip-detail[data-clip-id="${id}"]`);
-                if (detail) {
-                    detail.classList.add('expanded');
-                    detail.querySelectorAll('.content-text.truncated').forEach(el => el.classList.add('expanded'));
-                    const btn = detail.closest('.clip-item')?.querySelector(`.expand-btn[data-clip-id="${id}"]`);
-                    if (btn) {
-                        btn.classList.add('expanded');
-                        const text = btn.querySelector('.text');
-                        if (text) text.textContent = '收起';
+            // 批量预取关联数据（2 个请求替代 N×2），完成后由缓存驱动渲染
+            const shownIds = shown.filter(c => c && c.id != null).map(c => c.id);
+            batchLoadClipRelations(shownIds).finally(() => {
+                shown.forEach(clip => {
+                    if (clip && clip.id != null) {
+                        renderLinkedKnowledge(clip.id);
+                        renderPlanBacklinks(clip.id);
                     }
-                    renderLinkedKnowledge(parseInt(id));
-                    renderPlanBacklinks(parseInt(id));
-                }
+                });
+                // 恢复之前展开的剪藏详情（缓存已填充，零新增请求）
+                expandedIds.forEach(id => {
+                    const detail = document.querySelector(`.clip-detail[data-clip-id="${id}"]`);
+                    if (detail) {
+                        detail.classList.add('expanded');
+                        detail.querySelectorAll('.content-text.truncated').forEach(el => el.classList.add('expanded'));
+                        const btn = detail.closest('.clip-item')?.querySelector(`.expand-btn[data-clip-id="${id}"]`);
+                        if (btn) {
+                            btn.classList.add('expanded');
+                            const text = btn.querySelector('.text');
+                            if (text) text.textContent = '收起';
+                        }
+                        renderLinkedKnowledge(parseInt(id));
+                        renderPlanBacklinks(parseInt(id));
+                    }
+                });
             });
-        });
 
-        // 加载更多（客户端分页，保留现有筛选/排序逻辑）
-        if (clips.length > visibleClipCount) {
-            const loadMoreBtn = document.createElement('button');
-            loadMoreBtn.className = 'btn-secondary load-more-btn';
-            loadMoreBtn.textContent = `加载更多（剩余 ${clips.length - visibleClipCount} 条）`;
-            loadMoreBtn.addEventListener('click', () => {
-                visibleClipCount += CLIP_PAGE_SIZE;
-                renderClipList(lastFilteredClips);
-            });
-            clipItemsContainer.appendChild(loadMoreBtn);
-        }
+            // 加载更多（客户端分页，保留现有筛选/排序逻辑）
+            if (clips.length > visibleClipCount) {
+                const loadMoreBtn = document.createElement('button');
+                loadMoreBtn.className = 'btn-secondary load-more-btn';
+                loadMoreBtn.textContent = `加载更多（剩余 ${clips.length - visibleClipCount} 条）`;
+                loadMoreBtn.addEventListener('click', () => {
+                    visibleClipCount += CLIP_PAGE_SIZE;
+                    renderClipList(lastFilteredClips);
+                });
+                clipItemsContainer.appendChild(loadMoreBtn);
+            }
 
-        // 存在 pending 剪藏 → 2.5s 后自动轮询刷新（异步 AI 分析完成自动出现）
-        if (clips.some(c => c.analysisStatus === 'pending')) {
-            schedulePendingPoll();
-        }
+            // 存在 pending 剪藏 → 2.5s 后自动轮询刷新（异步 AI 分析完成自动出现）
+            if (clips.some(c => c.analysisStatus === 'pending')) {
+                schedulePendingPoll();
+            }
+        };
+
+        doRender();
     }
 
     /** 调度 pending 剪藏的自动轮询（防堆积） */
@@ -531,14 +592,16 @@ function formatClipDateTime(date) {
                         </button>
                     </div>
                 </div>
-                ${clip.imagePaths && clip.imagePaths.length > 0 ? '<div class="clip-thumb-row"><img class="clip-thumb" src="' + window.MediaKit.render.mediaUrl(clip.imagePaths[0]) + '?thumb=1" alt="缩略图" loading="lazy"></div>' : ''}
-                <div class="clip-summary ${summaryClass}" title="${escapeHtml(displaySummary)}">${escapeHtml(displaySummary)}</div>
-                <div class="clip-meta">
-                    <span class="meta-item meta-type">类型: ${getTypeLabel(clip.type)}</span>
-                    <span class="meta-item">流程: ${getWorkflowStatusLabel(normalizedWorkflow)}</span>
-                    <span class="meta-item">分类: ${clip.category ? getCategoryLabel(clip.category) : '未分类'}</span>
-                    <span class="meta-item">来源: ${clip.source}</span>
-                    <span class="meta-item">创建时间: ${createdAt}</span>
+                <div class="clip-main">
+                    <div class="clip-main-text">
+                        <div class="clip-summary ${summaryClass}" title="${escapeHtml(displaySummary)}">${escapeHtml(displaySummary)}</div>
+                        <div class="clip-meta">
+                            <span class="meta-item meta-type">类型: ${getTypeLabel(clip.type)}</span>
+                            <span class="meta-item">来源: ${clip.source}</span>
+                            <span class="meta-item">创建时间: ${createdAt}</span>
+                        </div>
+                    </div>
+                    ${clip.imagePaths && clip.imagePaths.length > 0 ? '<img class="clip-thumb" src="' + window.MediaKit.render.mediaUrl(clip.imagePaths[0]) + '?thumb=1" alt="缩略图" loading="lazy">' : ''}
                 </div>
                 ${tagsHtml}
                 <div class="clip-detail" data-clip-id="${clip.id}">
@@ -1343,4 +1406,4 @@ img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ddd;pa
             submitBtn.textContent = '提问';
         }
     }
-
+

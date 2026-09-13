@@ -27,6 +27,20 @@ async function fetchTopics(keyword) {
     allTopics = topics.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     if (allTopics.length === 0) {
+      // 兜底：后端 knowledge-base 尚无数据时，从本地索引（与知识图谱「仅知识」同源）拉取存量知识展示，
+      // 避免「列表空但图谱有」的目录不一致。存量仍在旧版 knowledge/ 目录，后端迁移完成后自动合并。
+      // 仅无搜索/分类筛选时兜底，与后端 /api/knowledge/list 兜底条件保持一致。
+      const fallback = (keyword || currentCategory) ? null : await fetchLegacyFallback();
+      if (fallback && fallback.length) {
+        allTopics = fallback;
+        list.innerHTML = `
+          <div class="legacy-fallback-banner">
+            <span>⚠️ 已展示本地索引中的存量知识 ${fallback.length} 条（与知识图谱同源）。后端数据迁移完成后将自动合并，无需手动处理。</span>
+          </div>`;
+        loadMore();
+        CutShelterScroll.restore('knowledge');
+        return;
+      }
       list.innerHTML = `
         <div class="empty-state">
           <div style="font-size:3rem;margin-bottom:16px;">&#128236;</div>
@@ -46,6 +60,30 @@ async function fetchTopics(keyword) {
         <h3>加载失败</h3>
         <p>请检查后端服务是否正常运行</p>
       </div>`;
+  }
+}
+
+// 兜底：后端 knowledge-base 尚无数据时，从本地索引（与知识图谱同源）拉取存量知识
+async function fetchLegacyFallback() {
+  const bridge = window.electronAPI && window.electronAPI.localIndex;
+  if (!bridge || typeof bridge.graph !== 'function') return null;
+  try {
+    const res = await bridge.graph({ includeTypes: 'knowledge' });
+    if (!res || !res.success || !Array.isArray(res.nodes)) return null;
+    return res.nodes
+      .filter(n => n.type === 'knowledge' && !n.canvas)
+      .map(n => ({
+        id: String(n.id).replace(/^knowledge:/, ''),
+        title: n.title,
+        summary: n.summary,
+        createdAt: null,
+        tags: n.tags || [],
+        sourceCount: n.sourceCount || 0,
+        linkedCount: n.linkedCount || 0
+      }));
+  } catch (error) {
+    console.error('获取本地索引存量知识失败:', error);
+    return null;
   }
 }
 
@@ -115,6 +153,16 @@ function injectMetaStyles() {
       font-size: 0.8rem;
       color: var(--text-muted);
       margin-right: 12px;
+    }
+    .legacy-fallback-banner {
+      margin: 12px 4px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      background: color-mix(in srgb, var(--app-warning, #f59e0b) 10%, transparent);
+      border: 1px solid color-mix(in srgb, var(--app-warning, #f59e0b) 35%, transparent);
+      line-height: 1.6;
     }
   `;
   document.head.appendChild(style);
