@@ -505,15 +505,21 @@ function updateFloatBar() {
     const bar = document.getElementById('float-bar');
     const countNum = document.getElementById('float-bar-count-num');
     const btn = document.getElementById('float-bar-synthesize-btn');
+    const organizeBtn = document.getElementById('float-bar-organize-btn');
+    const deleteBtn = document.getElementById('float-bar-delete-btn');
     const count = selectedClipIds.size;
 
     countNum.textContent = count;
     if (count > 0) {
         bar.classList.add('visible');
         btn.disabled = count < 2;
+        if (organizeBtn) organizeBtn.disabled = false;
+        if (deleteBtn) deleteBtn.disabled = false;
     } else {
         bar.classList.remove('visible');
         btn.disabled = true;
+        if (organizeBtn) organizeBtn.disabled = true;
+        if (deleteBtn) deleteBtn.disabled = true;
     }
 }
 
@@ -571,6 +577,69 @@ async function synthesizeKnowledge() {
     }
 }
 
+/** 批量整理：对选中的剪藏逐条执行 AI 整理（不弹单条 toast） */
+async function batchOrganizeClips() {
+    const ids = Array.from(selectedClipIds);
+    if (ids.length === 0) { showToast('请先选择剪藏'); return; }
+    const btn = document.getElementById('float-bar-organize-btn');
+    const btnText = document.getElementById('float-bar-organize-text');
+    btn.disabled = true;
+    const original = btnText.textContent;
+    btnText.textContent = '整理中…';
+    try {
+        await Promise.all(ids.map(id =>
+            axios.post(`${API_BASE_URL}/organize/${id}`, { mode: 'auto' })
+        ));
+        const count = ids.length;
+        clearAllSelection();
+        if (typeof fetchClips === 'function') fetchClips();
+        showToast(`已批量整理 ${count} 条，归入已整理`);
+    } catch (error) {
+        console.error('批量整理失败:', error);
+        showToast('批量整理失败，请稍后重试');
+    } finally {
+        btn.disabled = false;
+        btnText.textContent = original;
+    }
+}
+
+/** 批量删除：逐条删除选中的剪藏，支持单次撤销恢复 */
+async function batchDeleteClips() {
+    const ids = Array.from(selectedClipIds);
+    if (ids.length === 0) { showToast('请先选择剪藏'); return; }
+    // 删除前缓存数据用于撤销
+    const clips = ids.map(id => clipCache.get(String(id))).filter(Boolean);
+    const btn = document.getElementById('float-bar-delete-btn');
+    const btnText = document.getElementById('float-bar-delete-text');
+    btn.disabled = true;
+    const original = btnText.textContent;
+    btnText.textContent = '删除中…';
+    try {
+        await Promise.all(ids.map(id => axios.delete(`${API_BASE_URL}/${id}`)));
+        const count = ids.length;
+        clearAllSelection();
+        if (typeof fetchClips === 'function') fetchClips();
+        if (clips.length > 0 && typeof showActionToast === 'function') {
+            showActionToast(`已删除 ${count} 条`, '撤销', function () {
+                Promise.all(clips.map(c => {
+                    if (typeof undoDeleteClip === 'function') return undoDeleteClip(c);
+                    return Promise.resolve();
+                })).then(() => {
+                    if (typeof fetchClips === 'function') fetchClips();
+                });
+            });
+        } else {
+            showToast(`已删除 ${count} 条`);
+        }
+    } catch (error) {
+        console.error('批量删除失败:', error);
+        showToast('批量删除失败，请稍后重试');
+    } finally {
+        btn.disabled = false;
+        btnText.textContent = original;
+    }
+}
+
 // ====== Toast ======
 function showToast(msg) {
   if (window.UI && UI.toast) {
@@ -582,9 +651,9 @@ function showToast(msg) {
   const t = document.createElement('div');
   t.className = 'clip-toast';
   t.textContent = msg;
-  t.style.cssText = 'position:fixed;top:20px;right:20px;background:var(--card);color:var(--fg);padding:10px 20px;border-radius:10px;border:1px solid var(--border);z-index:9999;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,0.15);animation:slideIn 0.3s ease-out;';
+  t.style.cssText = 'position:fixed;top:20px;right:20px;background:var(--card);color:var(--fg);padding:10px 20px;border-radius:10px;border:1px solid var(--border);z-index:9999;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,0.15);animation:slideIn var(--app-duration-slow) var(--app-ease-smooth);';
   document.body.appendChild(t);
-  setTimeout(() => { t.style.animation = 'slideOut 0.3s ease-in forwards'; setTimeout(() => t.remove(), 300); }, 2000);
+  setTimeout(() => { t.style.animation = 'slideOut var(--app-duration-slow) var(--app-ease-smooth) forwards'; setTimeout(() => t.remove(), 300); }, 2000);
 }
 
 // ====== 关联数据批量缓存（N+1 → 每页 2 个批量请求）======

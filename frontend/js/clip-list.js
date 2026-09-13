@@ -231,6 +231,8 @@ function formatClipDateTime(date) {
                 (getClipCreatedDate(b)?.getTime() || 0) - (getClipCreatedDate(a)?.getTime() || 0)
             );
             renderClipList(filteredClips);
+            // 列表渲染完成后展示每日回看横幅（沉底旧收藏）
+            if (typeof showDailyReviewBanner === 'function') showDailyReviewBanner();
             CutShelterScroll.restore('clip');
         } catch (error) {
             if (seq !== fetchSeq) return; // 过期请求的失败也忽略
@@ -290,12 +292,42 @@ function formatClipDateTime(date) {
 
         const shown = clips.slice(0, visibleClipCount);
         const fragment = document.createDocumentFragment();
+
+        // 按标签折叠分组：无标签 → 「未分类」（置顶），其余按首个标签分组
+        const groups = [];
+        const groupMap = {};
         shown.forEach(clip => {
             if (clip && clip.id != null) {
                 clipCache.set(String(clip.id), clip);
             }
-            const clipItem = createClipItem(clip, false);
-            fragment.appendChild(clipItem);
+            const tag = (Array.isArray(clip.tags) && clip.tags.length > 0 && clip.tags[0])
+                ? String(clip.tags[0]).trim()
+                : '';
+            const groupKey = tag || '__uncat__';
+            if (!groupMap[groupKey]) {
+                groupMap[groupKey] = { key: groupKey, label: tag || '未分类', clips: [] };
+                groups.push(groupMap[groupKey]);
+            }
+            groupMap[groupKey].clips.push(clip);
+        });
+        groups.sort((a, b) => (a.key === '__uncat__' ? -1 : b.key === '__uncat__' ? 1 : 0));
+
+        groups.forEach(g => {
+            const groupEl = document.createElement('div');
+            groupEl.className = 'clip-group';
+            const head = document.createElement('div');
+            head.className = 'clip-group-head';
+            head.title = '点击折叠/展开分组';
+            head.innerHTML = '<span class="clip-group-caret">▾</span><span class="clip-group-name"></span><span class="clip-group-count"></span>';
+            head.querySelector('.clip-group-name').textContent = g.label;
+            head.querySelector('.clip-group-count').textContent = g.clips.length + ' 条';
+            head.addEventListener('click', () => groupEl.classList.toggle('collapsed'));
+            const body = document.createElement('div');
+            body.className = 'clip-group-body';
+            g.clips.forEach(clip => body.appendChild(createClipItem(clip, false)));
+            groupEl.appendChild(head);
+            groupEl.appendChild(body);
+            fragment.appendChild(groupEl);
         });
         clipItemsContainer.appendChild(fragment);
 
@@ -415,8 +447,19 @@ function formatClipDateTime(date) {
             : '未知时间';
 
         const categoryLabel = normalizedWorkflow === 'inbox'
-            ? '收件箱（待整理）'
+            ? '收件箱'
             : (clip.category ? getCategoryLabel(clip.category) : '未分类');
+
+        // 状态彩色徽章：待整理（橙）/ 已整理（绿）/ 其它（灰）
+        let statusText = '待整理', statusCls = 'status-inbox';
+        if (normalizedWorkflow === 'organized') {
+            statusText = '已整理';
+            statusCls = 'status-organized';
+        } else if (normalizedWorkflow !== 'inbox') {
+            statusText = getWorkflowStatusLabel(normalizedWorkflow) || '仅存储';
+            statusCls = 'status-store';
+        }
+        const statusBadgeHtml = `<span class="clip-status-badge ${statusCls}">${statusText}</span>`;
 
         let tagsHtml = '';
         if (clip.tags && clip.tags.length > 0) {
@@ -466,6 +509,7 @@ function formatClipDateTime(date) {
                             <label for="check-${clip.id}" class="check-visual" title="选择用于合成知识"></label>
                         </div>
                         ${getSourceBadge(clip.source)}
+                        ${statusBadgeHtml}
                         <span class="category-badge">📁 ${categoryLabel}</span>
                         ${clip.myThoughts ? '<span class="category-badge thoughts-badge">💭 有思考</span>' : ''}
                         ${Array.isArray(clip.annotations) && clip.annotations.length > 0 ? `<span class="category-badge anno-badge" title="该剪藏带 ${clip.annotations.length} 条网页标注，可在知识模块标注透视查看">📝 标 ${clip.annotations.length}</span>` : ''}
@@ -1131,6 +1175,14 @@ img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ddd;pa
     function openAskModal() {
         document.getElementById('ask-modal').style.display = 'flex';
         const q = document.getElementById('ask-question');
+        // 更新上下文指示：选中记录时 AI 聚焦选中内容，否则看全库
+        const contextText = document.getElementById('ask-context-text');
+        if (contextText) {
+            const n = typeof selectedClipIds !== 'undefined' ? selectedClipIds.size : 0;
+            contextText.textContent = n > 0
+                ? `正在看选中的 ${n} 条记录`
+                : '正在看你的整个剪藏库';
+        }
         setTimeout(() => q.focus(), 50);
     }
 
@@ -1158,17 +1210,36 @@ img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ddd;pa
             const link = src.sourceUrl
                 ? `<a class="ask-source-link" href="${escapeHtml(src.sourceUrl)}" target="_blank" rel="noopener noreferrer" title="打开原网页">↗</a>`
                 : '';
+            // 来源可一键整理为笔记（复用快速整理流程）
+            const organizeBtn = src.id
+                ? `<button class="ask-source-organize" type="button" data-clip-id="${src.id}" title="对该来源执行 AI 整理">整理为笔记</button>`
+                : '';
             return `
                 <div class="ask-source-item">
                     <span class="ask-source-index">[${index}]</span>
                     <span class="ask-source-title">${title}</span>
                     ${createdAt ? `<span class="ask-source-time">${createdAt}</span>` : ''}
                     ${link}
+                    ${organizeBtn}
                 </div>`;
         }).join('');
         sourcesBox.innerHTML = items.length > 0
             ? `<div class="ask-sources-label">来源（${items.length}）</div>${items}`
             : '';
+        // 绑定来源「整理为笔记」
+        sourcesBox.querySelectorAll('.ask-source-organize').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const clipId = btn.dataset.clipId;
+                if (!clipId || typeof quickOrganizeClip !== 'function') return;
+                btn.disabled = true;
+                btn.textContent = '整理中...';
+                quickOrganizeClip(clipId).finally(() => {
+                    btn.disabled = false;
+                    btn.textContent = '✓ 已整理';
+                    btn.classList.add('done');
+                });
+            });
+        });
     }
 
     /** 防抖增量渲染 Markdown，避免每个 delta 都全量重渲染 */

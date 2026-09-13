@@ -280,15 +280,87 @@
     }
 
     async function deleteClip(id) {
+        // 删除前缓存原数据，用于「撤销」恢复（误删可找回）
+        const undoClip = clipCache.get(String(id)) || null;
         try {
             const response = await axios.delete(`${API_BASE_URL}/${id}`);
             if (response.data.status === 'success') {
-                fetchClips();
+                // 先播放卡片移除动画，动画结束（240ms）后再全量刷新列表，
+                // 避免重建 DOM 打断动画；同时保证删除即时可见，无需手动切换筛选
+                animateRemoveClipItem(id, function () { fetchClips(); });
+                if (undoClip) {
+                    showActionToast('已删除', '撤销', function () { undoDeleteClip(undoClip); });
+                } else {
+                    showToast('已删除');
+                }
             }
         } catch (error) {
             console.error('删除剪藏失败:', error);
             showToast('删除失败，请稍后重试');
         }
+    }
+
+    /** 删除动画：卡片淡出右移后移除，动画结束回调（供 fetchClips 全量重建） */
+    function animateRemoveClipItem(id, onDone) {
+        const anchor = document.getElementById('check-area-' + id);
+        const item = anchor ? anchor.closest('.clip-item') : null;
+        if (!item) {
+            if (onDone) onDone();
+            return;
+        }
+        item.classList.add('clip-item-removing');
+        setTimeout(function () {
+            item.remove();
+            if (onDone) onDone();
+        }, 240);
+    }
+
+    /** 撤销删除：用缓存的原数据重新入库（POST /add，后端去重时视为已恢复） */
+    function undoDeleteClip(clip) {
+        const payload = {
+            type: clip.type || 'text',
+            content: clip.bodyContent || clip.content || '',
+            title: clip.title || '',
+            summary: clip.summary || '',
+            category: clip.category || '',
+            source: clip.source || '',
+            sourceUrl: clip.sourceUrl || '',
+            tags: Array.isArray(clip.tags) ? clip.tags : [],
+            myThoughts: clip.myThoughts || '',
+            useAiTags: false
+        };
+        return axios.post(`${API_BASE_URL}/add`, payload).then(function (res) {
+            const st = res.data && res.data.status;
+            showToast(st === 'success' ? '已恢复删除的剪藏' : '已恢复（与原内容合并）');
+            fetchClips();
+        }).catch(function () {
+            showToast('恢复失败，请检查后端服务');
+        });
+    }
+
+    /** 带动作按钮的提示 toast（UI.toast 不支持按钮，独立实现；如「撤销」「去写作」） */
+    function showActionToast(msg, actionLabel, onAction) {
+        const existing = document.querySelector('.clip-toast-undo');
+        if (existing) existing.remove();
+        const t = document.createElement('div');
+        t.className = 'clip-toast-undo';
+        t.innerHTML = '<span class="clip-toast-undo-text"></span><button type="button" class="clip-toast-undo-btn"></button>';
+        t.querySelector('.clip-toast-undo-text').textContent = msg;
+        const btn = t.querySelector('.clip-toast-undo-btn');
+        btn.textContent = actionLabel || '撤销';
+        document.body.appendChild(t);
+        const dismiss = function () {
+            if (!t.isConnected) return;
+            clearTimeout(t._timer);
+            t.style.transition = 'opacity .2s ease, transform .2s ease';
+            t.style.opacity = '0';
+            setTimeout(function () { t.remove(); }, 220);
+        };
+        btn.addEventListener('click', function () {
+            dismiss();
+            if (onAction) onAction();
+        });
+        t._timer = setTimeout(dismiss, 6000);
     }
 
     function openOrganizeActionModal(scope = 'inbox', clipId = null, preferredMode = 'auto') {
@@ -328,6 +400,10 @@
             if (response.data.status === 'success') {
                 showNotification('当前剪藏已完成AI整理', true);
                 await fetchClips();
+                // 闭环：一键跳转写作区打开该剪藏（复用 openClipInEditor 消息机制）
+                showActionToast('已整理为笔记', '去写作', function () {
+                    window.parent.postMessage({ type: 'openClipInEditor', clipId }, '*');
+                });
             }
         } catch (error) {
             console.error('快速整理失败:', error);
@@ -592,6 +668,203 @@
     function hideLoading() {
         const overlay = document.getElementById('loading-overlay');
         overlay.style.display = 'none';
+    }
+
+    // ===== 每日回看（沉底旧收藏回顾） =====
+    var dailyReviewItems = [];
+    var dailyReviewIdx = 0;
+    var dailyReviewStats = { keep: 0, archive: 0, skip: 0, keepTitles: [] };
+    var DAILY_REVIEW_KEY = 'daily_review_dismissed_v1';
+    var DAILY_REVIEW_STATS_KEY = 'daily_review_stats_v1';
+
+    /** 从剪藏缓存中挑选「沉底」旧内容：待整理优先，其次最久未回看（旧的在前） */
+    function collectDailyReviewItems() {
+        const items = [];
+        clipCache.forEach(function (clip) {
+            if (!clip || clip.type === 'todo') return;
+            if (!clip.content && !clip.summary && !clip.bodyContent && !clip.analysis) return;
+            items.push(clip);
+        });
+        items.sort(function (a, b) {
+            const wa = resolveWorkflowStatus(a) === 'inbox' ? 0 : 1;
+            const wb = resolveWorkflowStatus(b) === 'inbox' ? 0 : 1;
+            if (wa !== wb) return wa - wb;
+            const da = getClipCreatedDate(a);
+            const db = getClipCreatedDate(b);
+            return (da ? da.getTime() : 0) - (db ? db.getTime() : 0);
+        });
+        return items.slice(0, 3);
+    }
+
+    /** 本周回顾统计（localStorage 持久化，按天累计） */
+    function getDailyReviewStats() {
+        try { return JSON.parse(localStorage.getItem(DAILY_REVIEW_STATS_KEY) || '{}'); } catch (e) { return {}; }
+    }
+    function todayKey() { return new Date().toISOString().slice(0, 10); }
+    function recordDailyReview(stats) {
+        const store = getDailyReviewStats();
+        const key = todayKey();
+        const prev = store[key] || { keep: 0, archive: 0, skip: 0, count: 0 };
+        prev.keep += stats.keep || 0;
+        prev.archive += stats.archive || 0;
+        prev.skip += stats.skip || 0;
+        prev.count += stats.count || 0;
+        store[key] = prev;
+        try { localStorage.setItem(DAILY_REVIEW_STATS_KEY, JSON.stringify(store)); } catch (e) {}
+    }
+    function getWeekReviewStats() {
+        const store = getDailyReviewStats();
+        const now = new Date();
+        const day = (now.getDay() + 6) % 7; // 周一=0
+        const monday = new Date(now);
+        monday.setDate(now.getDate() - day);
+        monday.setHours(0, 0, 0, 0);
+        const sums = { keep: 0, archive: 0, skip: 0, count: 0, days: 0 };
+        const seen = new Set();
+        Object.keys(store).forEach(function (k) {
+            const d = new Date(k + 'T00:00:00');
+            if (isNaN(d.getTime()) || d < monday || d > now) return;
+            sums.keep += store[k].keep || 0;
+            sums.archive += store[k].archive || 0;
+            sums.skip += store[k].skip || 0;
+            sums.count += store[k].count || 0;
+            seen.add(k);
+        });
+        sums.days = seen.size;
+        return sums;
+    }
+
+    function showDailyReviewBanner() {
+        const banner = document.getElementById('daily-review');
+        if (!banner) return;
+        if (localStorage.getItem(DAILY_REVIEW_KEY) === '1') { banner.style.display = 'none'; return; }
+        const items = collectDailyReviewItems();
+        if (items.length === 0) { banner.style.display = 'none'; return; }
+        document.getElementById('daily-review-count').textContent = items.length;
+        // 本周回顾进度提示（已有回顾记录时展示）
+        const week = getWeekReviewStats();
+        const subEl = banner.querySelector('.daily-review-sub');
+        if (subEl && week.count > 0) {
+            subEl.textContent = '本周已回看 ' + week.count + ' 条 · 保留 ' + week.keep + ' · 归档 ' + week.archive;
+        }
+        banner.style.display = 'flex';
+    }
+
+    function dismissDailyReview() {
+        localStorage.setItem(DAILY_REVIEW_KEY, '1');
+        const banner = document.getElementById('daily-review');
+        if (banner) banner.style.display = 'none';
+    }
+
+    function openDailyReview() {
+        dailyReviewItems = collectDailyReviewItems();
+        dailyReviewIdx = 0;
+        dailyReviewStats = { keep: 0, archive: 0, skip: 0 };
+        if (dailyReviewItems.length === 0) {
+            showToast('今天没有可回看的旧收藏');
+            return;
+        }
+        document.getElementById('daily-footer').style.display = 'flex';
+        renderDailyReview();
+        document.getElementById('daily-review-modal').style.display = 'flex';
+    }
+
+    function closeDailyReview() {
+        document.getElementById('daily-review-modal').style.display = 'none';
+    }
+
+    function renderDailyReview() {
+        const item = dailyReviewItems[dailyReviewIdx];
+        const total = dailyReviewItems.length;
+        document.getElementById('daily-progress-fill').style.width = ((dailyReviewIdx + 1) / total * 100) + '%';
+        document.getElementById('daily-progress-txt').textContent = (dailyReviewIdx + 1) + ' / ' + total;
+        const title = escapeHtml(item.title || item.summary || item.content || '未命名');
+        const snippet = escapeHtml(String(item.summary || item.content || '').slice(0, 120));
+        const date = getClipCreatedDate(item);
+        const dateText = date ? (typeof formatClipDateTime === 'function' ? formatClipDateTime(date) : '') : '';
+        const typeLabel = escapeHtml(item.type || '剪藏');
+        document.getElementById('daily-card').innerHTML =
+            '<div class="daily-card-type"><span class="daily-dot" style="background:var(--primary)"></span>' + typeLabel + '</div>' +
+            '<div class="daily-card-title">' + title + '</div>' +
+            (snippet ? '<div class="daily-card-snippet">' + snippet + '</div>' : '') +
+            (dateText ? '<div class="daily-card-meta">收藏于 ' + dateText + '</div>' : '');
+    }
+
+    function dailyAction(action) {
+        const item = dailyReviewItems[dailyReviewIdx];
+        if (!item) return;
+        if (action === 'keep') {
+            dailyReviewStats.keep++;
+            dailyReviewStats.keepTitles.push(item.title || item.summary || '未命名');
+            showToast('已标记为有用');
+        } else if (action === 'archive') {
+            dailyReviewStats.archive++;
+            if (item.id && typeof deleteClip === 'function') deleteClip(item.id);
+        } else {
+            dailyReviewStats.skip++;
+        }
+        dailyReviewIdx++;
+        if (dailyReviewIdx >= dailyReviewItems.length) {
+            document.getElementById('daily-footer').style.display = 'none';
+            recordDailyReview({
+                keep: dailyReviewStats.keep,
+                archive: dailyReviewStats.archive,
+                skip: dailyReviewStats.skip,
+                count: dailyReviewItems.length
+            });
+            const week = getWeekReviewStats();
+            const keepTitles = dailyReviewStats.keepTitles || [];
+            const keepList = keepTitles.length
+                ? '<div class="daily-keep-list"><div class="daily-keep-label">本周标记为有用</div>' +
+                  keepTitles.map(t => '<div class="daily-keep-item">' + escapeHtml(t) + '</div>').join('') +
+                  '</div>'
+                : '';
+            document.getElementById('daily-card').innerHTML =
+                '<div class="daily-done">' +
+                '<div class="daily-done-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-9"/></svg></div>' +
+                '<div class="daily-done-title">今日回看完成</div>' +
+                '<div class="daily-done-sub">保留了 <b>' + dailyReviewStats.keep + '</b> 条 · 归档了 <b>' + dailyReviewStats.archive + '</b> 条</div>' +
+                '</div>' +
+                '<div class="daily-week-stats">' +
+                '<div class="daily-week-title">本周回顾</div>' +
+                '<div class="daily-week-grid">' +
+                '<div class="daily-week-item"><span class="daily-week-num">' + week.count + '</span><span class="daily-week-label">回看条数</span></div>' +
+                '<div class="daily-week-item"><span class="daily-week-num">' + week.keep + '</span><span class="daily-week-label">标记有用</span></div>' +
+                '<div class="daily-week-item"><span class="daily-week-num">' + week.archive + '</span><span class="daily-week-label">归档整理</span></div>' +
+                '<div class="daily-week-item"><span class="daily-week-num">' + week.days + '</span><span class="daily-week-label">回看天数</span></div>' +
+                '</div>' +
+                keepList +
+                '<button type="button" class="btn-primary daily-export-btn" onclick="exportWeeklyReview()">导出周报素材</button>' +
+                '</div>';
+            document.getElementById('daily-progress-fill').style.width = '100%';
+            document.getElementById('daily-progress-txt').textContent = dailyReviewItems.length + ' / ' + dailyReviewItems.length;
+        } else {
+            renderDailyReview();
+        }
+    }
+
+    /** 导出周报素材：本周回顾统计 + 标记有用的条目标题，复制到剪贴板 */
+    function exportWeeklyReview() {
+        const week = getWeekReviewStats();
+        const keepTitles = dailyReviewStats.keepTitles || [];
+        let md = '# 本周回顾素材\n\n';
+        md += '> 由碎碎记每日回看生成\n\n';
+        md += '- 本周回看 **' + week.count + '** 条（' + week.days + ' 天）\n';
+        md += '- 标记有用 **' + week.keep + '** 条\n';
+        md += '- 归档整理 **' + week.archive + '** 条\n';
+        if (keepTitles.length) {
+            md += '\n## 本周标记为有用的内容\n\n';
+            keepTitles.forEach(function (t, i) { md += (i + 1) + '. ' + t + '\n'; });
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(md).then(function () {
+                showToast('周报素材已复制到剪贴板');
+            }).catch(function () {
+                showToast('复制失败，请手动复制');
+            });
+        } else {
+            showToast('当前环境不支持复制，请在桌面客户端中使用');
+        }
     }
 
     // 错误提示函数
