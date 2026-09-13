@@ -129,7 +129,7 @@ check(
 const SHELL_PAGES = ['frontend/index.html', 'frontend/settings.html'];
 const CORE_PAGES = ['frontend/editor.html', 'frontend/workspace.html', 'frontend/clip.html'];
 const MODULE_PAGES = [
-  'frontend/knowledge.html', 'frontend/knowledge-detail.html', 'frontend/knowledge-editor.html',
+  'frontend/canvas.html', 'frontend/knowledge.html', 'frontend/knowledge-detail.html', 'frontend/knowledge-editor.html',
   'frontend/knowledge-graph.html', 'frontend/learning-plan.html', 'frontend/pdf.html',
   'frontend/tools.html', 'frontend/data-observability.html', 'frontend/vault.html',
   'frontend/wiki.html', 'frontend/todo.html'

@@ -58,22 +58,10 @@
         }
         body.platform-darwin .titlebar { padding-left: 76px; }
         body.platform-win32 .titlebar { padding-right: 148px; }
-        .titlebar-brand {
-            display: flex;
-            align-items: center;
-            padding: 0 8px;
-            flex-shrink: 0;
-            -webkit-app-region: no-drag;
-        }
-        .titlebar-brand svg {
-            width: 18px;
-            height: 18px;
-            flex-shrink: 0;
-        }
         .titlebar-nav {
             display: flex;
-            align-items: center;
-            gap: 4px;
+            align-items: stretch;
+            gap: 2px;
             height: 100%;
             min-width: 0;
             /* 固定子模块直接平铺，过宽时横向滚动兜底（隐藏滚动条） */
@@ -82,6 +70,110 @@
             scrollbar-width: none;
             flex: 0 1 auto;
             -webkit-app-region: no-drag;
+        }
+        /* 左侧侧边栏：竖向导航 + 分组（覆盖横向 titlebar-nav 布局） */
+        .titlebar-nav.sidebar {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 2px;
+            width: 208px;
+            flex: 0 0 208px;
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+            scrollbar-width: thin;
+            background: var(--app-surface-subtle);
+            border-right: 1px solid var(--app-border);
+            padding: 10px 8px;
+            transition: width var(--app-duration-normal) var(--app-ease-smooth),
+                        flex-basis var(--app-duration-normal) var(--app-ease-smooth),
+                        padding var(--app-duration-normal) var(--app-ease-smooth);
+        }
+        /* 折叠态：侧边栏收起，内容区全宽 */
+        .app-layout.sidebar-collapsed .titlebar-nav.sidebar {
+            width: 0;
+            flex: 0 0 0;
+            padding: 0;
+            border-right: none;
+            overflow: hidden;
+        }
+        /* 标题栏展开按钮（折叠态显示） */
+        .titlebar-sidebar-open {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            margin: 0 4px;
+            border: none;
+            border-radius: 7px;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            -webkit-app-region: no-drag;
+            flex-shrink: 0;
+            transition: background var(--app-duration-fast) ease, color var(--app-duration-fast) ease;
+        }
+        .titlebar-sidebar-open:hover {
+            background: var(--app-surface-hover);
+            color: var(--text);
+        }
+        .titlebar-sidebar-open svg { width: 15px; height: 15px; }
+        /* 侧边栏收起按钮（品牌行右侧） */
+        .side-brand {
+            position: relative;
+        }
+        .side-collapse-btn {
+            margin-left: auto;
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted, #999);
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: background var(--app-duration-fast) ease, color var(--app-duration-fast) ease;
+        }
+        .side-collapse-btn:hover {
+            background: var(--app-surface-hover);
+            color: var(--text);
+        }
+        .side-collapse-btn svg { width: 14px; height: 14px; }
+        .side-section {
+            padding: 16px 10px 5px;
+            font-size: 10.5px;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--text-muted, #999);
+            user-select: none;
+            flex-shrink: 0;
+        }
+        .side-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px 12px;
+            font-size: 13.5px;
+            font-weight: 700;
+            color: var(--text);
+            user-select: none;
+            flex-shrink: 0;
+        }
+        .side-brand svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+        .side-brand-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .titlebar-nav::-webkit-scrollbar { display: none; }
         .titlebar-nav .nav-btn {
@@ -103,6 +195,21 @@
             min-width: 0;
             white-space: nowrap;
         }
+        /* 侧边栏内按钮：全宽、左对齐、圆角高亮 */
+        .titlebar-nav.sidebar .nav-btn {
+            height: 34px;
+            width: 100%;
+            padding: 0 10px;
+            flex: 0 0 auto;
+            justify-content: flex-start;
+            gap: 9px;
+            border-radius: 7px;
+            font-size: 0.78rem;
+        }
+        .titlebar-nav.sidebar .nav-btn svg {
+            width: 16px;
+            height: 16px;
+        }
         .titlebar-nav .nav-btn .nav-label {
             overflow: hidden;
             text-overflow: ellipsis;
@@ -113,8 +220,15 @@
             color: var(--text);
             background: rgba(0,0,0,0.04);
         }
+        .titlebar-nav.sidebar .nav-btn:hover {
+            background: var(--app-surface-hover);
+        }
         .titlebar-nav .nav-btn.active {
             color: var(--primary);
+        }
+        .titlebar-nav.sidebar .nav-btn.active {
+            color: var(--primary);
+            background: var(--app-primary-soft);
         }
         .titlebar-nav .nav-btn.active::after {
             content: '';
@@ -125,6 +239,15 @@
             height: 2px;
             background: var(--primary);
             border-radius: 1px 1px 0 0;
+        }
+        .titlebar-nav.sidebar .nav-btn.active::after {
+            left: 0;
+            right: auto;
+            top: 22%;
+            bottom: 22%;
+            width: 3px;
+            height: auto;
+            border-radius: 0 3px 3px 0;
         }
         .titlebar-nav .nav-btn:focus-visible {
             outline: 2px solid var(--primary);
@@ -649,7 +772,10 @@
             /* 窄屏：导航收为 icon-only（「更多」溢出菜单与 ⌘K 按钮保留） */
             .titlebar-nav .nav-btn { padding: 0 10px; font-size: 0.75rem; }
             .titlebar-nav .nav-btn .nav-label { display: none; }
-            .titlebar-brand { padding: 0 8px; font-size: 0.78rem; }
+            /* 侧边栏为竖向布局，窄屏下保留文字标签，仅收窄栏宽 */
+            .titlebar-nav.sidebar { width: 172px; flex: 0 0 172px; }
+            .titlebar-nav.sidebar .nav-btn { padding: 0 10px; font-size: 0.78rem; }
+            .titlebar-nav.sidebar .nav-btn .nav-label { display: inline; }
             .container {
                 grid-template-columns: 1fr;
                 grid-template-rows: 1fr 1fr;
@@ -936,49 +1062,16 @@
 </div>
 <!-- ====== 自定义标题栏（Obsidian 风格） ====== -->
 <div class="titlebar" id="titlebar">
-    <div class="titlebar-brand" title="碎碎记 CutShelter">
-        <svg viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-    </div>
+    <!-- 展开侧边栏（折叠态时显示） -->
+    <button class="titlebar-sidebar-open" id="sidebarOpenBtn" title="展开侧边栏" aria-label="展开侧边栏" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
     <div class="backend-global-indicator" id="backendGlobalIndicator" title="后端服务状态，点击启动">
         <span class="backend-global-dot stopped" id="backendGlobalDot"></span>
         <span class="backend-global-label" id="backendGlobalLabel">未启动</span>
         <button class="backend-global-start-btn" id="backendGlobalStartBtn" title="启动本地后端服务，建立数据读写通道">启动后端</button>
     </div>
-    <nav class="titlebar-nav" id="titlebarNav">
-        <button class="nav-btn active" data-view="editor" title="编辑器主页：查看与编辑剪藏内容">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/>
-            </svg>
-            <span class="nav-label">编辑</span>
-        </button>
-        <button class="nav-btn" data-view="workspace" title="工作台：工作区概览、规则筛选与产品概览">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M8 4v16"/>
-            </svg>
-            <span class="nav-label">工作台</span>
-        </button>
-        <button class="nav-btn" data-view="clip" title="剪藏与待办：管理收集的内容与待办事项">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-                <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
-            </svg>
-            <span class="nav-label">剪藏</span>
-        </button>
-        <button class="nav-btn" data-view="tools" title="工具模块：PDF 等各类小工具聚合">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"/>
-            </svg>
-            <span class="nav-label">工具</span>
-        </button>
-        <button class="nav-btn" data-view="settings" title="应用设置：调整偏好与全局配置">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-            </svg>
-            <span class="nav-label">设置</span>
-        </button>
-    </nav>
+    <!-- 导航已迁移到左侧侧边栏（#titlebarNav），顶栏保持系统拖拽 + 全局操作 -->
     <div class="titlebar-spacer"></div>
     <!-- 全局命令面板入口按钮（⌘K，搜「动作」） -->
     <button class="titlebar-cmd-btn" id="cmdPaletteBtn" title="命令面板（⌘K）">
@@ -996,10 +1089,66 @@
 </div>
 
 <div class="app-layout">
+    <!-- 左侧侧边栏导航（工作流 / 沉淀 / 系统 分组） -->
+    <nav class="titlebar-nav sidebar" id="titlebarNav">
+        <div class="side-brand" title="碎碎记 CutShelter">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span class="side-brand-name">碎碎记</span>
+            <button class="side-collapse-btn" id="sidebarToggleBtn" title="收起侧边栏" aria-label="收起侧边栏">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+        </div>
+        <div class="side-section">工作流</div>
+        <button class="nav-btn active" data-view="clip" title="收件箱：管理收集的内容与待办事项">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z"/>
+            </svg>
+            <span class="nav-label">收件箱</span>
+        </button>
+        <button class="nav-btn" data-view="editor" title="写作：查看与编辑剪藏内容">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+            </svg>
+            <span class="nav-label">写作</span>
+        </button>
+        <button class="nav-btn" data-view="canvas" title="画布：自由摆放便签、图片、链接与引用节点，手动连线组织思路">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>
+            </svg>
+            <span class="nav-label">画布</span>
+        </button>
+        <div class="side-section" id="sidePinnedSection">沉淀</div>
+        <!-- 用户固定的子模块（知识/Wiki/密码/牛马/学习计划/数据观测）动态插入此分组 -->
+        <div class="side-section">系统</div>
+        <button class="nav-btn" data-view="workspace" title="工作台：工作区概览、规则筛选与产品概览">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M8 4v16"/>
+            </svg>
+            <span class="nav-label">工作台</span>
+        </button>
+        <button class="nav-btn" data-view="tools" title="工具模块：PDF 等各类小工具聚合">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"/>
+            </svg>
+            <span class="nav-label">工具</span>
+        </button>
+        <button class="nav-btn" data-view="settings" title="应用设置：调整偏好与全局配置">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+            <span class="nav-label">设置</span>
+        </button>
+    </nav>
     <div class="main-content" id="mainContent">
         <!-- 编辑器首页 -->
         <div class="view-panel" id="editorView">
             <iframe id="editorFrame" data-src="editor.html" style="width:100%;height:100%;border:none;"></iframe>
+        </div>
+        <!-- 画布（无限画布：自由摆放便签/图片/链接/引用节点） -->
+        <div class="view-panel view-panel-hidden" id="graphView">
+            <iframe id="graphFrame" data-src="canvas.html" style="width:100%;height:100%;border:none;"></iframe>
         </div>
         <div class="view-panel view-panel-hidden" id="workspaceView">
             <iframe id="workspaceFrame" data-src="workspace.html" style="width:100%;height:100%;border:none;"></iframe>
@@ -1182,7 +1331,7 @@
           pendingClipId = event.data.clipId;
           pendingClipAction = 'openClipInEditor';
           renderView('editor');
-          window.history.pushState({ view: 'editor' }, '', '/');
+          window.history.pushState({ view: 'editor' }, '', '/editor');
           sendPendingClipToEditor();
         }
         if (event.data && event.data.type === 'editor-shortcuts-changed') {
@@ -1200,7 +1349,7 @@
               window.electronAPI.openFileByPath(fullPath).then(function(result) {
                 if (result && !result.canceled) {
                   renderView('editor');
-                  window.history.pushState({ view: 'editor' }, '', '/');
+                  window.history.pushState({ view: 'editor' }, '', '/editor');
                   sendToEditor({ type: 'openFileData', fileData: result });
                 }
               }).catch(function(err) {
@@ -1209,7 +1358,7 @@
                 pendingClipId = clipId;
                 pendingClipAction = 'openClipInNewTab';
                 renderView('editor');
-                window.history.pushState({ view: 'editor' }, '', '/');
+                window.history.pushState({ view: 'editor' }, '', '/editor');
                 sendPendingClipToEditor();
               });
             });
@@ -1218,7 +1367,7 @@
             pendingClipId = event.data.clipId;
             pendingClipAction = 'openClipInNewTab';
             renderView('editor');
-            window.history.pushState({ view: 'editor' }, '', '/');
+            window.history.pushState({ view: 'editor' }, '', '/editor');
             sendPendingClipToEditor();
           }
         }
@@ -1228,7 +1377,7 @@
           window.electronAPI.openFileByPath(filePath).then(function(result) {
             if (result && !result.canceled) {
               renderView('editor');
-              window.history.pushState({ view: 'editor' }, '', '/');
+              window.history.pushState({ view: 'editor' }, '', '/editor');
               sendToEditor({ type: 'openFileData', fileData: result });
             }
           }).catch(function(err) {
@@ -1274,7 +1423,7 @@
         }
         if (event.data && event.data.type === 'openTextData') {
           renderView('editor');
-          window.history.pushState({ view: 'editor' }, '', '/');
+          window.history.pushState({ view: 'editor' }, '', '/editor');
           sendToEditor({ type: 'openTextData', text: event.data.text || '', title: event.data.title || '' });
         }
         if (event.data && event.data.type === 'navigateClip') {
@@ -1337,11 +1486,24 @@
       const MODULE_BACK_VIEWS = ['knowledge', 'wiki', 'vault', 'agent', 'learning-plan', 'data-observability'];
 
       let activeIframe = null;
-      let currentView = 'editor';
+      let currentView = 'clip';
       let pendingClipId = null;
       let pendingClipAction = null;
       let editorReady = false;
       let activeWorkspaceId = localStorage.getItem('active_workspace_id') || '';
+
+      // ===== 侧边栏折叠（记忆用户偏好） =====
+      const appLayoutEl = document.querySelector('.app-layout');
+      const sidebarOpenBtn = document.getElementById('sidebarOpenBtn');
+      function setSidebarCollapsed(collapsed) {
+        if (appLayoutEl) appLayoutEl.classList.toggle('sidebar-collapsed', collapsed);
+        if (sidebarOpenBtn) sidebarOpenBtn.style.display = collapsed ? 'flex' : 'none';
+        try { localStorage.setItem('sidebar_collapsed', collapsed ? '1' : '0'); } catch (e) {}
+      }
+      const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+      if (sidebarToggleBtn) sidebarToggleBtn.addEventListener('click', () => setSidebarCollapsed(true));
+      if (sidebarOpenBtn) sidebarOpenBtn.addEventListener('click', () => setSidebarCollapsed(false));
+      setSidebarCollapsed(localStorage.getItem('sidebar_collapsed') === '1');
       const todoFrame = document.getElementById('todoFrame');
       const clipFrame = document.getElementById('clipFrame');
 
@@ -1349,6 +1511,7 @@
 
       const viewMap = {
         editor: editorView,
+        canvas: document.getElementById('graphView'),
         workspace: workspaceView,
         clip: clipView,
         knowledge: knowledgeView,
@@ -1362,6 +1525,7 @@
       };
       const VIEW_IFRAME = {
         editor: [editorFrame],
+        canvas: [document.getElementById('graphFrame')],
         workspace: [workspaceFrame],
         clip: [todoFrame, clipFrame],
         knowledge: [knowledgeFrame],
@@ -1507,7 +1671,7 @@
             loadAgentFrame(AGENT_PORT, true);   // 就绪后确保面板加载/重载
             break;
           case 'need-install':
-            // 未装 dsh：CutShelter 不再代装，提示用户自助安装后重试
+            // 未装 dsh：碎碎记不再代装，提示用户自助安装后重试
             setAgentStatus('off', '未检测到 DSH');
             showAgentProgress(p.message, { error: true });
             if (agentFrame) agentFrame.src = 'about:blank';
@@ -1653,9 +1817,10 @@
 
       function pathToView(path) {
         const clean = path.replace(/\/$/, '');
-        if (clean === '' || clean === '/editor') return 'editor';
+        if (clean === '' || clean === '/clip') return 'clip';
+        if (clean === '/editor') return 'editor';
+        if (clean === '/canvas') return 'canvas';
         if (clean === '/workspace') return 'workspace';
-        if (clean === '/clip') return 'clip';
         if (clean === '/knowledge') return 'knowledge';
         if (clean === '/wiki') return 'wiki';
         if (clean === '/settings') return 'settings';
@@ -1664,7 +1829,7 @@
         if (clean === '/tools') return 'tools';
         if (clean === '/agent') return 'agent';
         if (clean === '/data-observability') return 'data-observability';
-        return 'editor';
+        return 'clip';
       }
 
       navBtns.forEach(btn => {
@@ -1672,7 +1837,7 @@
           const view = btn.dataset.view;
           renderView(view);
           if (window.history.pushState) {
-            window.history.pushState({ view }, '', view === 'editor' ? '/' : `/${view}`);
+            window.history.pushState({ view }, '', view === 'clip' ? '/' : `/${view}`);
           }
         });
       });
@@ -1710,18 +1875,23 @@
           btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + def.svg + '</svg><span class="nav-label">' + (it.label || def.label) + '</span>';
           btn.addEventListener('click', function () {
             renderView(it.view);
-            if (window.history.pushState) window.history.pushState({ view: it.view }, '', '/' + it.view);
+            if (window.history.pushState) window.history.pushState({ view: it.view }, '', it.view === 'clip' ? '/' : '/' + it.view);
           });
-          // 插入到 settings 之前（即最后一个一级主入口前），保持「工具之后、设置之前」
-          const settingsBtn = navEl.querySelector('.nav-btn[data-view="settings"]');
-          if (settingsBtn) navEl.insertBefore(btn, settingsBtn);
-          else navEl.appendChild(btn);
+          // 插入到「沉淀」分组（侧边栏），保持子模块归类；找不到分组时回退到 settings 之前
+          const pinnedAnchor = navEl.querySelector('#sidePinnedSection');
+          if (pinnedAnchor) {
+            pinnedAnchor.insertAdjacentElement('afterend', btn);
+          } else {
+            const settingsBtn = navEl.querySelector('.nav-btn[data-view="settings"]');
+            if (settingsBtn) navEl.insertBefore(btn, settingsBtn);
+            else navEl.appendChild(btn);
+          }
         });
         // 让当前视图的高亮保持正确
         renderView(currentView);
       }
       // 固定的菜单头主入口（不参与固定模块，避免重复）
-      const FIXED_HEADER_VIEWS = ['editor', 'workspace', 'clip', 'tools', 'settings'];
+      const FIXED_HEADER_VIEWS = ['clip', 'editor', 'canvas', 'workspace', 'tools', 'settings'];
       // 被「显示到顶栏」固定的子模块视图集合；处于该集合的视图从顶栏进入，无需再显示返回工具按钮
       let pinnedHeaderViews = [];
       // 初次加载时从主进程配置读取 navHeaderTools 并渲染
@@ -2299,7 +2469,7 @@
               }
               // 映射到编辑区：新标签页打开文件内容
               renderView('editor');
-              window.history.pushState({ view: 'editor' }, '', '/');
+              window.history.pushState({ view: 'editor' }, '', '/editor');
               sendToEditor({ type: 'openFileData', fileData: result });
             } catch (err) {
               console.error('[System] 剪藏文件失败:', err);
@@ -2340,7 +2510,7 @@
               }
               // 映射到编辑区：新标签页打开文件内容
               renderView('editor');
-              window.history.pushState({ view: 'editor' }, '', '/');
+              window.history.pushState({ view: 'editor' }, '', '/editor');
               sendToEditor({ type: 'openFileData', fileData: result });
             } catch (err) {
               console.error('[System] AI 解析文件失败:', err);
@@ -2368,7 +2538,7 @@
               var result = await window.electronAPI.openFileByPath(filePath);
               if (!result || result.canceled) return;
               renderView('editor');
-              window.history.pushState({ view: 'editor' }, '', '/');
+              window.history.pushState({ view: 'editor' }, '', '/editor');
               sendToEditor({ type: 'openFileData', fileData: result });
             } catch (err) {
               console.error('[System] 打开文件失败:', err);
@@ -2401,7 +2571,7 @@
                   showToast('PDF OCR 完成：' + filePath.split(/[/\\]/).pop());
                 }
                 renderView('editor');
-                window.history.pushState({ view: 'editor' }, '', '/');
+                window.history.pushState({ view: 'editor' }, '', '/editor');
                 sendToEditor({ type: 'openTextData', text: data.text || '', title: title });
               } else {
                 showToast('PDF OCR 失败：' + (data.error || '未知错误'), true);
@@ -2442,16 +2612,17 @@
 
         // 一级主入口图标（PINNABLE_NAV 子模块复用其自身 def.svg）
         const NAV_ICONS = {
-          editor: '<path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+          clip: '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z"/>',
+          editor: '<path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>',
+          canvas: '<path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>',
           workspace: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M8 4v16"/>',
-          clip: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
           tools: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"/>',
           settings: '<circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>'
         };
 
         function goView(view) {
           renderView(view);
-          if (window.history.pushState) window.history.pushState({ view: view }, '', view === 'editor' ? '/' : '/' + view);
+          if (window.history.pushState) window.history.pushState({ view: view }, '', view === 'clip' ? '/' : '/' + view);
         }
 
         function iconSvg(paths) {

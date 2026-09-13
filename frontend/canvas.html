@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>画布 - 碎碎记</title>
+    <script src="libs/d3.min.js"></script>
+    <style>
+        :root {
+            --primary: var(--app-primary);
+            --primary-light: var(--app-primary-soft);
+            --primary-dark: var(--app-primary-hover);
+            --background: var(--app-bg);
+            --surface: var(--app-surface);
+            --text: var(--app-text);
+            --text-secondary: var(--app-text-secondary);
+            --text-muted: var(--app-text-muted);
+            --border: var(--app-border);
+            --radius: var(--app-radius);
+            --radius-sm: var(--app-radius-sm);
+            --shadow: var(--app-shadow-sm);
+            --shadow-hover: var(--app-shadow-md);
+            --transition: var(--app-duration-normal) var(--app-ease-smooth);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'IBM Plex Sans', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--background);
+            color: var(--text);
+            line-height: 1.6;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Nav */
+        .nav {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px 12px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            flex-shrink: 0;
+        }
+        .nav .title {
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+        .nav .nav-hint {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-left: auto;
+        }
+
+        /* Graph Container */
+        .graph-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: var(--background);
+        }
+        .graph-container svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Loading */
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: var(--text-muted);
+            z-index: 10;
+        }
+        .loading .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Empty State */
+        .empty-state {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: var(--text-muted);
+            z-index: 10;
+        }
+        .empty-state .icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+        }
+        .empty-state h3 {
+            font-size: 1.2rem;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+        .empty-state p {
+            font-size: 0.9rem;
+        }
+
+        /* Legend */
+        .legend {
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
+            display: flex;
+            gap: 14px;
+            padding: 8px 14px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            z-index: 50;
+            box-shadow: var(--shadow);
+        }
+        .legend-item { display: inline-flex; align-items: center; gap: 5px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+        .lmark { width: 16px; height: 0; display: inline-block; border-top: 2px solid; }
+
+        /* 小地图 */
+        .minimap {
+            position: absolute;
+            right: 16px;
+            bottom: 16px;
+            width: 200px;
+            height: 140px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            box-shadow: var(--shadow-hover);
+            z-index: 60;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .minimap .minimap-head {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            padding: 5px 10px;
+            border-bottom: 1px solid var(--border);
+        }
+        .minimap .minimap-svg {
+            flex: 1;
+            width: 100%;
+            height: calc(100% - 26px);
+            display: block;
+        }
+        .minimap-node { fill: var(--app-primary); }
+        .minimap-node.note-node { fill: #fbbf24; }
+        .minimap-node.link-node { fill: #22d3ee; }
+        .minimap-node.image-node { fill: #a78bfa; }
+        .minimap-node.ref-node { fill: #14b8a6; }
+        .minimap-link { stroke: var(--app-border); stroke-width: 1; opacity: 0.6; }
+        .minimap-viewport {
+            fill: rgba(86, 156, 255, 0.12);
+            stroke: var(--primary);
+            stroke-width: 1.5;
+            cursor: grab;
+        }
+        .minimap-viewport.dragging { cursor: grabbing; }
+
+        /* 画布卡片节点 */
+        .node rect {
+            stroke: var(--surface);
+            stroke-width: 2px;
+            cursor: pointer;
+            transition: stroke-width var(--app-duration-normal) ease;
+        }
+        .node:hover rect { stroke-width: 3px; }
+        .node .canvas-card-text {
+            font-size: 11px;
+            fill: #1f2937;
+            text-anchor: middle;
+            pointer-events: none;
+            user-select: none;
+        }
+        .node .canvas-ref-text { fill: #ffffff; }
+        .node.selected-node rect {
+            stroke: #ff9800 !important;
+            stroke-width: 3px !important;
+        }
+        .node.linking rect {
+            stroke: #ff9800 !important;
+            stroke-width: 3px !important;
+            stroke-dasharray: 4 3;
+        }
+
+        /* 手动连线 */
+        .link-manual { stroke: #a78bfa; stroke-opacity: 0.7; stroke-width: 1.6px; }
+        .link-manual.dimmed { stroke-opacity: 0.08; }
+        .temp-link { stroke: #ff9800; stroke-width: 1.6px; stroke-dasharray: 5 4; pointer-events: none; }
+
+        /* 分组 frame */
+        .group-frame-rect {
+            fill: var(--app-primary-soft);
+            fill-opacity: 0.18;
+            stroke: var(--primary);
+            stroke-opacity: 0.55;
+            stroke-width: 1.4px;
+            stroke-dasharray: 6 4;
+            pointer-events: none;
+        }
+        .group-frame-title {
+            font-size: 11px;
+            fill: var(--primary);
+            font-weight: 600;
+            text-anchor: start;
+            user-select: none;
+            cursor: grab;
+            paint-order: stroke;
+            stroke: var(--surface);
+            stroke-width: 3px;
+            stroke-linejoin: round;
+        }
+        .group-frame.selected-frame .group-frame-rect {
+            stroke-opacity: 1;
+            fill-opacity: 0.3;
+        }
+
+        /* 框选矩形 */
+        .box-select-rect {
+            fill: var(--primary);
+            fill-opacity: 0.08;
+            stroke: var(--primary);
+            stroke-dasharray: 5 4;
+            stroke-width: 1.2px;
+            pointer-events: none;
+        }
+
+        /* Canvas context menu */
+        .canvas-menu {
+            position: fixed;
+            z-index: 300;
+            min-width: 180px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            box-shadow: var(--shadow-hover);
+            padding: 6px;
+            display: flex;
+            flex-direction: column;
+        }
+        .canvas-menu button {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            padding: 8px 12px;
+            border: none;
+            background: transparent;
+            color: var(--text);
+            font-size: 0.85rem;
+            text-align: left;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .canvas-menu button:hover { background: var(--border); }
+        .canvas-menu button.danger { color: #ef4444; }
+        .canvas-menu button.danger:hover { background: rgba(239,68,68,0.1); }
+        .canvas-menu .divider { height: 1px; background: var(--border); margin: 4px 6px; }
+
+        /* Canvas modal */
+        .canvas-modal-mask {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.35);
+            z-index: 400;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .canvas-modal {
+            width: 380px;
+            max-width: calc(100vw - 40px);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: var(--shadow-hover);
+            padding: 18px 20px;
+        }
+        .canvas-modal-title { font-size: 1rem; font-weight: 600; margin-bottom: 14px; }
+        .canvas-modal-body { margin-bottom: 16px; }
+        .canvas-modal-body input, .canvas-modal-body textarea {
+            width: 100%;
+            padding: 9px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--background);
+            color: var(--text);
+            font-size: 0.9rem;
+            font-family: inherit;
+            outline: none;
+            resize: none;
+        }
+        .canvas-modal-body input:focus, .canvas-modal-body textarea:focus { border-color: var(--primary); }
+        .canvas-modal-body textarea { min-height: 80px; line-height: 1.5; }
+        .canvas-modal-body .field-label { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; }
+        .ref-picker-list { max-height: 220px; overflow-y: auto; margin-top: 10px; border: 1px solid var(--border); border-radius: 8px; }
+        .ref-picker-item { padding: 8px 12px; cursor: pointer; font-size: 0.85rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; gap: 8px; }
+        .ref-picker-item:last-child { border-bottom: none; }
+        .ref-picker-item:hover, .ref-picker-item.selected { background: var(--border); }
+        .ref-picker-item .rtype { color: var(--text-muted); font-size: 0.72rem; flex-shrink: 0; }
+        .ref-picker-item .rtitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .canvas-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+        .modal-btn { padding: 7px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); cursor: pointer; font-size: 0.85rem; transition: var(--transition); }
+        .modal-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .modal-btn.ok { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .modal-btn.ok:hover { background: var(--primary-dark); }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+        * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+
+        @media (max-width: 768px) {
+            .nav { padding: 10px 16px; gap: 6px 8px; flex-wrap: wrap; }
+            .nav .nav-hint { display: none; }
+        }
+    </style>
+    <link rel="stylesheet" href="styles/design-tokens.css">
+    <link rel="stylesheet" href="styles/ui-common.css">
+    <script src="js/theme-core.js"></script>
+    <script src="js/theme-bridge.js"></script>
+    <script>(function(){var b=window.CutShelterThemeBridge;b.init({root:document.documentElement});b.listen();})();</script>
+</head>
+<body>
+    <nav class="nav">
+        <span class="title">画布</span>
+        <span class="nav-hint">右键空白新建节点 · 双击编辑 · 选中节点右键连线 · 拖动自由摆放 · 空格拖动平移 · 滚轮缩放 · 框选可组成分组</span>
+    </nav>
+
+    <div class="graph-container" id="graphContainer">
+        <div class="loading" id="loadingEl">
+            <div class="spinner"></div>
+            <p>加载中...</p>
+        </div>
+        <div class="empty-state" id="emptyEl" style="display:none;">
+            <div class="icon">🪧</div>
+            <h3 id="emptyTitle">暂无画布节点</h3>
+            <p id="emptyDesc">右键空白处新建便签 / 链接 / 图片，或引用已有内容节点</p>
+        </div>
+        <div class="legend">
+            <div class="legend-item"><span class="dot" style="background:#fbbf24;"></span>便签</div>
+            <div class="legend-item"><span class="dot" style="background:#22d3ee;"></span>链接</div>
+            <div class="legend-item"><span class="dot" style="background:#a78bfa;"></span>图片</div>
+            <div class="legend-item"><span class="dot" style="background:#14b8a6;"></span>引用</div>
+            <div class="legend-item"><span class="lmark" style="border-top-color:#a78bfa;"></span>手动连线</div>
+        </div>
+
+        <!-- 小地图：大画布快速定位 -->
+        <div class="minimap" id="minimap" style="display:none;">
+            <div class="minimap-head">定位</div>
+            <svg class="minimap-svg" id="minimapSvg"></svg>
+        </div>
+    </div>
+
+    <!-- 画布右键菜单（空白处） -->
+    <div class="canvas-menu" id="canvasMenu" style="display:none;">
+        <button data-action="add-note">📝 新建便签</button>
+        <button data-action="add-link">🔗 新建链接</button>
+        <button data-action="add-image">🖼️ 新建图片</button>
+        <div class="divider"></div>
+        <button data-action="add-ref">📌 引用已有节点</button>
+    </div>
+    <!-- 节点右键菜单 -->
+    <div class="canvas-menu" id="nodeMenu" style="display:none;">
+        <button data-action="link-from">🔗 从此节点连线</button>
+        <button data-action="edit-node">✏️ 编辑内容</button>
+        <div class="divider"></div>
+        <button data-action="group" id="groupAction" style="display:none;">📦 组成分组</button>
+        <button data-action="delete-node" class="danger">🗑️ 删除节点</button>
+    </div>
+    <!-- 连线右键菜单 -->
+    <div class="canvas-menu" id="edgeMenu" style="display:none;">
+        <button data-action="delete-edge" class="danger">🗑️ 删除连线</button>
+    </div>
+    <!-- 分组 frame 右键菜单 -->
+    <div class="canvas-menu" id="groupMenu" style="display:none;">
+        <button data-action="rename-group">✏️ 重命名分组</button>
+        <div class="divider"></div>
+        <button data-action="dissolve-group" class="danger">💠 解散分组</button>
+    </div>
+
+    <!-- 画布节点 新建/编辑/引用 弹窗 -->
+    <div class="canvas-modal-mask" id="canvasModalMask" style="display:none;">
+        <div class="canvas-modal">
+            <div class="canvas-modal-title" id="canvasModalTitle"></div>
+            <div class="canvas-modal-body" id="canvasModalBody"></div>
+            <div class="canvas-modal-actions">
+                <button class="modal-btn" id="canvasModalCancel">取消</button>
+                <button class="modal-btn ok" id="canvasModalOk">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="canvas.js"></script>
+    <script>
+      (function() {
+        const THEME_KEY = 'app_theme_v1';
+        const APPEARANCE_KEY = 'app_appearance_v1';
+        function getEffective() {
+          const app = localStorage.getItem(APPEARANCE_KEY) || 'notion';
+          if (app === 'system') return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'notion';
+          return app;
+        }
+        function apply() {
+          const t = getEffective();
+          document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : (t === 'regular' ? 'regular' : 'notion'));
+          if (typeof window.onThemeChange === 'function') window.onThemeChange();
+        }
+        window.applyTheme = apply;
+        apply();
+        window.addEventListener('storage', function(e) {
+          if (e.key === THEME_KEY || e.key === APPEARANCE_KEY) apply();
+        });
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+          if ((localStorage.getItem(APPEARANCE_KEY) || 'notion') === 'system') apply();
+        });
+      })();
+    </script>
+</body>
+</html>
