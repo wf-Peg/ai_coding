@@ -400,7 +400,8 @@ svg { display: block; }
 .dl-btn { justify-content: center; }
 .dl-steps { font-size: 12px; color: var(--app-text-muted); line-height: 1.6; }
 .dl-steps code { font-family: var(--font-mono); font-size: 11.5px; background: var(--app-surface-hover); border: 1px solid var(--app-border); border-radius: 4px; padding: 1px 5px; color: var(--app-text); }
-.dl-ver { font-family: var(--font-mono); font-size: 12px; color: var(--app-text-muted); margin-top: auto; padding-top: 6px; }
+.dl-actions { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+.dl-ver { font-family: var(--font-mono); font-size: 12px; color: var(--app-text-muted); padding-top: 2px; }
 
 /* ============ 响应式 ============ */
 @media (max-width: 960px) {
@@ -549,8 +550,10 @@ svg { display: block; }
         <div class="dl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 3v18"/></svg></div>
         <h3 class="dl-title">Windows</h3>
         <p class="dl-desc">安装版向导式安装；另有便携版，解压即用、无需安装。</p>
-        <a class="btn btn-primary dl-btn" data-dl="setup" href="https://github.com/wf-Peg/ai_coding/releases/latest" target="_blank" rel="noopener">下载 Windows 安装版</a>
-        <a class="btn btn-ghost dl-btn" data-dl="portable" href="https://github.com/wf-Peg/ai_coding/releases/latest" target="_blank" rel="noopener">便携版（免安装）</a>
+        <div class="dl-actions">
+          <a class="btn btn-primary dl-btn" data-dl="setup" href="https://github.com/wf-Peg/ai_coding/releases/latest" target="_blank" rel="noopener">下载 Windows 安装版</a>
+          <a class="btn btn-ghost dl-btn" data-dl="portable" href="https://github.com/wf-Peg/ai_coding/releases/latest" target="_blank" rel="noopener">便携版（免安装）</a>
+        </div>
         <div class="dl-ver">v—</div>
       </div>
 
@@ -559,8 +562,10 @@ svg { display: block; }
         <div class="dl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a8 8 0 0 0-8 8v6a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1H5a6 6 0 0 1 7-5.9zM12 5a8 8 0 0 1 8 8v6a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a6 6 0 0 0-7-5.9z"/></svg></div>
         <h3 class="dl-title">macOS</h3>
         <p class="dl-desc">按芯片架构选择对应的 .dmg 安装包。</p>
-        <a class="btn btn-primary dl-btn" data-dl="mac-arm" href="https://github.com/wf-Peg/ai_coding/releases/latest" target="_blank" rel="noopener">Apple 芯片（M 系列）</a>
-        <a class="btn btn-ghost dl-btn" data-dl="mac-x64" href="https://github.com/wf-Peg/ai_coding/releases/latest" target="_blank" rel="noopener">Intel</a>
+        <div class="dl-actions">
+          <a class="btn btn-primary dl-btn" data-dl="mac-arm" href="https://github.com/wf-Peg/ai_coding/releases/latest" target="_blank" rel="noopener">Apple 芯片（M 系列）</a>
+          <a class="btn btn-ghost dl-btn" data-dl="mac-x64" href="https://github.com/wf-Peg/ai_coding/releases/latest" target="_blank" rel="noopener">Intel</a>
+        </div>
         <div class="dl-ver">v—</div>
       </div>
 
@@ -569,8 +574,10 @@ svg { display: block; }
         <div class="dl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3h4v4h4v4h4V3h-3V0H10v3z"/><path d="M3 14h4v4h4v4H3v-3H0v-5h3z"/><rect x="14" y="14" width="4" height="4" rx="1"/></svg></div>
         <h3 class="dl-title">浏览器插件</h3>
         <p class="dl-desc">Web Clipper，网页内容一键进收件箱，稍后统一整理。</p>
-        <a class="btn btn-primary dl-btn" data-dl="clipper" href="https://github.com/wf-Peg/ai_coding/releases/latest" target="_blank" rel="noopener">下载 Web Clipper (.zip)</a>
         <div class="dl-steps">安装：Chrome / Edge 打开 <code>chrome://extensions</code>，开启「开发者模式」→「加载已解压的扩展程序」，解压本 zip 后选择其目录。</div>
+        <div class="dl-actions">
+          <a class="btn btn-primary dl-btn" data-dl="clipper" href="https://github.com/wf-Peg/ai_coding/releases/latest" target="_blank" rel="noopener">下载 Web Clipper (.zip)</a>
+        </div>
         <div class="dl-ver">v—</div>
       </div>
     </div>
@@ -1032,7 +1039,8 @@ svg { display: block; }
 })();
 
 (function () {
-  // 下载区：从 GitHub 最新 Release 动态解析各安装包 / 插件 zip 的直链
+  // 下载区：从 GitHub Latest 优先解析各端安装包直链；
+  // 若某端（如 Windows）在最新版里还没有增量安装包，则向下游扫描历史已发布 Release 取「存量安装包」补全。
   var REPO = 'wf-Peg/ai_coding';
   var DOWNLOAD_BASE = 'https://github.com/' + REPO + '/releases/download/';
   var LATEST_PAGE = 'https://github.com/' + REPO + '/releases/latest';
@@ -1045,40 +1053,58 @@ svg { display: block; }
     'mac-x64': /CutShelter-.*x64\.dmg$/i,
     clipper:   /CutShelter-webclipper-.*\.zip$/i
   };
+  var filled = {}; // key -> {url, tag}（仅记录首个/最新命中，不回溯覆盖）
+
+  function match(rel) {
+    var tag = rel.tag_name || '';
+    (rel.assets || []).forEach(function (a) {
+      var name = a.name || '';
+      Object.keys(RE).forEach(function (key) {
+        if (filled[key]) return; // 已有更近的版本，跳过
+        if (RE[key].test(name)) filled[key] = { url: DOWNLOAD_BASE + tag + '/' + encodeURIComponent(name), tag: tag };
+      });
+    });
+    return tag;
+  }
 
   function setFallback() {
+    document.querySelectorAll('.dl-btn').forEach(function (b) { b.setAttribute('href', LATEST_PAGE); });
+    document.querySelectorAll('.dl-ver').forEach(function (v) { v.textContent = FALLBACK_VER; });
+  }
+
+  function apply() {
     document.querySelectorAll('.dl-btn').forEach(function (b) {
-      b.setAttribute('href', LATEST_PAGE);
+      var k = b.getAttribute('data-dl');
+      b.setAttribute('href', filled[k] ? filled[k].url : LATEST_PAGE);
     });
-    document.querySelectorAll('.dl-ver').forEach(function (v) {
-      v.textContent = FALLBACK_VER;
+    // 每张卡显示该卡内已解析到的版本号（来源于哪个 release 就显示哪个版本）
+    document.querySelectorAll('.dl-card').forEach(function (card) {
+      var tag = '';
+      card.querySelectorAll('.dl-btn').forEach(function (b) {
+        var f = filled[b.getAttribute('data-dl')];
+        if (f && !tag) tag = f.tag;
+      });
+      var verEl = card.querySelector('.dl-ver');
+      if (verEl) verEl.textContent = tag ? ('v' + tag.replace(/^v/i, '')) : FALLBACK_VER;
     });
   }
 
+  function json(url) {
+    return fetch(url, { headers: { Accept: 'application/vnd.github+json' } })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  }
+
   try {
-    fetch('https://api.github.com/repos/' + REPO + '/releases/latest', {
-      headers: { Accept: 'application/vnd.github+json' }
-    })
-      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-      .then(function (rel) {
-        var tag = rel.tag_name || '';
-        var ver = tag.replace(/^v/i, '');
-        var assets = rel.assets || [];
-        assets.forEach(function (asset) {
-          var name = asset.name || '';
-          Object.keys(RE).forEach(function (key) {
-            if (!RE[key].test(name)) return;
-            var btn = document.querySelector('.dl-btn[data-dl="' + key + '"]');
-            if (btn) btn.setAttribute('href', DOWNLOAD_BASE + tag + '/' + encodeURIComponent(name));
-          });
-        });
-        if (ver) {
-          document.querySelectorAll('.dl-ver').forEach(function (v) {
-            v.textContent = '最新 v' + ver;
-          });
-        } else {
-          setFallback();
+    json('https://api.github.com/repos/' + REPO + '/releases/latest')
+      .then(function (latest) {
+        match(latest);
+        if (Object.keys(filled).length < Object.keys(RE).length) {
+          return json('https://api.github.com/repos/' + REPO + '/releases?per_page=100');
         }
+      })
+      .then(function (list) {
+        if (list && list.length) list.forEach(match); // 最新→旧 补全缺失端
+        apply();
       })
       .catch(setFallback);
   } catch (e) {
