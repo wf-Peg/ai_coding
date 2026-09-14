@@ -4313,7 +4313,7 @@
     ['新建标签', 'Ctrl+T'], ['新建文件', 'Ctrl+N'], ['打开文件', 'Ctrl+O'],
     ['跳转到行', 'Ctrl+G（不区分大小写）'], ['保存', 'Ctrl+S'], ['格式化(自动识别)', 'Ctrl+Shift+L'], ['转换面板', 'Ctrl+Shift+X'],
     ['Markdown 预览', 'Ctrl+Shift+M'], ['编辑器设置', 'Ctrl+,'], ['全屏', 'F11'],
-    ['命令面板', 'Ctrl+P / Ctrl+K'], ['终端跟随目录', 'Alt+T'], ['撤销', 'Ctrl+Z'],
+    ['命令面板', 'Ctrl+P'], ['终端跟随目录', 'Alt+T'], ['撤销', 'Ctrl+Z'],
     ['重做', 'Ctrl+Shift+Z'], ['字体放大', 'Ctrl+='], ['字体缩小', 'Ctrl+-'],
     ['插入图片', 'Ctrl+Shift+I'], ['唤起浏览器控制台', 'Ctrl+F12'], ['双击选词同词高亮', '双击'],
     ['AceJump 跳跃导航', 'Ctrl+;'], ['返回编辑位置', 'Ctrl+Alt+←'], ['前进编辑位置', 'Ctrl+Alt+→']
@@ -8270,7 +8270,18 @@
   EditorShortcuts.registerHandler('aceJump', function() { acejump('word', false); });
   // 命令面板：捕获阶段接管 Ctrl+K，防止 ACE 内置 Ctrl+K（删除到行尾/查找下一个）吃掉按键；
   // 捕获期 preventDefault+stopImmediatePropagation 保证 Windows 上按键既不会被菜单加速键之外的 ACE 绑定劫持。
-  EditorShortcuts.registerHandler('commandPalette', function() { triggerCommandPalette(); });
+  // Ctrl+K 唤起"顶层全局命令面板"（父窗口 globalCmdPalette）；编辑器内快捷操作面板由 Ctrl+P 承担。
+  // 焦点在编辑/画布区时经 postMessage 通知父窗口打开全局命令面板；浏览器直开/无父窗口时降级回编辑器内命令面板。
+  function openOuterCommandPalette() {
+    try {
+      if (window.parent && window.parent.postMessage) {
+        window.parent.postMessage({ type: 'openGlobalCmdPalette' }, '*');
+      } else {
+        triggerCommandPalette();
+      }
+    } catch (e) { triggerCommandPalette(); }
+  }
+  EditorShortcuts.registerHandler('commandPalette', function() { openOuterCommandPalette(); });
 
   // ═══ 应用级命令（跨模块：父窗口导航 + 全局功能）───
   // 编辑器以 iframe 嵌入主窗口，通过 window.parent.postMessage 通知 index.html 切换视图，

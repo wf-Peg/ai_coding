@@ -116,3 +116,9 @@ electron/repro-ipc/
 
 # jlink 精简 JRE 构建产物（打包时由 build-jlink-slim.mjs 生成）
 jre-slim/
+
+# Cloudflare Pages 本地运行状态（wrangler dev 生成，可重建不提交）
+.wrangler/
+
+# UI 调试临时页面（.tmp-*.html，一次性产物）
+**/.tmp-*.html

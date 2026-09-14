@@ -2573,7 +2573,7 @@ function createMainWindow(config) {
   const menuTemplate = [
     {
       label: 'Clip', submenu: [
-        { label: 'Command Palette', accelerator: 'CmdOrCtrl+K', click: () => focusGlobalCmdPalette() },
+        { label: '全局命令面板', accelerator: 'CmdOrCtrl+K', click: () => focusGlobalCmdPalette() },
         { label: 'AceJump', accelerator: 'CmdOrCtrl+;', click: () => focusAceJump() },
         { type: 'separator' },
         { label: 'Global Search', accelerator: globalSearchAccelerator, click: () => focusGlobalSearch() },
@@ -4968,7 +4968,7 @@ function collectShortcutAudit() {
   };
   // 业务菜单项统一为中文展示名（默认映射，缺失时回落原生 label）
   const MENU_ZH = {
-    'Command Palette': '命令面板', 'AceJump': 'AceJump', 'Global Search': '全局搜索',
+    'Command Palette': '全局命令面板', 'AceJump': 'AceJump', 'Global Search': '全局搜索',
     'Settings': '设置', 'View Log': '查看日志', 'About': '关于'
   };
   const menu = [];

@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#2383e2">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/anniversary-192.png">
+<title>🎂 纪念日</title>
+<link rel="stylesheet" href="styles/design-tokens.css">
+<style>
+  /* ===== 纪念日 / 倒数日 页面样式（仅消费 --app-* 全局令牌，无硬编码色值）===== */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--app-bg);
+    color: var(--app-text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+    min-height: 100vh;
+  }
+  button { font: inherit; cursor: pointer; }
+  input, select { font: inherit; }
+
+  .av-page { max-width: 1080px; margin: 0 auto; padding: 20px 18px 96px; }
+
+  /* 顶栏 */
+  .av-topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .av-topbar h1 { font-size: 20px; margin: 0; font-weight: 650; letter-spacing: .5px; }
+  .av-actions { margin-left: auto; display: flex; gap: 8px; }
+  .av-btn {
+    background: var(--app-surface);
+    color: var(--app-text);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    min-width: 96px;
+    height: 32px;
+    padding: 0 14px;
+    white-space: nowrap;
+    transition: background var(--app-duration-fast) var(--app-ease-smooth), border-color var(--app-duration-fast) var(--app-ease-smooth);
+  }
+  .av-btn:hover { background: var(--app-surface-hover); border-color: var(--app-border-strong); }
+  .av-btn.primary { background: var(--app-primary); border-color: var(--app-primary); color: #fff; }
+  .av-btn.primary:hover { background: var(--app-primary-hover); }
+
+  /* 搜索 */
+  .av-search { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .av-search input {
+    flex: 1; max-width: 280px; height: 32px;
+    background: var(--app-surface); color: var(--app-text);
+    border: 1px solid var(--app-border); border-radius: var(--app-radius);
+    padding: 0 12px; outline: none;
+    transition: border-color var(--app-duration-fast) var(--app-ease-smooth), box-shadow var(--app-duration-fast) var(--app-ease-smooth);
+  }
+  .av-search input:focus { border-color: var(--app-primary); box-shadow: 0 0 0 3px var(--app-primary-soft); }
+
+  /* 分区标题 */
+  .av-section { display: flex; align-items: center; gap: 8px; margin: 20px 0 10px; font-size: 13px; font-weight: 600; color: var(--app-text-secondary); }
+  .av-section .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--app-text-muted); }
+  .av-section .count { margin-left: auto; font-weight: 500; color: var(--app-text-muted); }
+
+  /* 卡片网格 */
+  .av-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+  }
+  .av-card {
+    position: relative;
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-lg);
+    padding: 14px 14px 12px;
+    display: flex; flex-direction: column; gap: 6px;
+    transition: border-color var(--app-duration-fast) var(--app-ease-smooth), box-shadow var(--app-duration-fast) var(--app-ease-smooth);
+  }
+  .av-card:hover { border-color: var(--app-border-strong); box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+  html[data-theme="dark"] .av-card:hover { box-shadow: 0 2px 14px rgba(0,0,0,.45); }
+  .av-card.pinned::before {
+    content: '📌'; position: absolute; top: 8px; right: 10px; font-size: 13px; opacity: .85;
+  }
+  .av-card.dropping { animation: avDropOut 240ms var(--app-ease-smooth) forwards; overflow: hidden; }
+  @keyframes avDropOut {
+    from { transform: translateX(0) scaleX(1); opacity: 1; }
+    to   { transform: translateX(64px) scaleX(.45); opacity: 0; }
+  }
+
+  .av-card-top { display: flex; align-items: center; gap: 6px; }
+  .av-card-icon { font-size: 20px; line-height: 1; }
+  .av-card-title { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; min-width: 0; padding-right: 22px; }
+  .av-card-days { font-size: 26px; font-weight: 700; letter-spacing: .5px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .av-card-date { font-size: 12px; color: var(--app-text-muted); font-variant-numeric: tabular-nums; }
+  .av-card-foot { margin-top: 4px; display: flex; align-items: center; gap: 6px; }
+  .av-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; padding: 2px 8px; border-radius: 999px;
+    background: var(--app-surface-subtle); color: var(--app-text-secondary);
+    border: 1px solid var(--app-border); max-width: 140px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .av-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .av-badge.today { background: var(--app-primary-soft); color: var(--app-primary); border-color: transparent; }
+  .av-badge.upcoming { background: var(--app-warning-soft); color: var(--app-warning); border-color: transparent; }
+  .av-badge.passed { background: var(--app-surface-subtle); color: var(--app-text-secondary); }
+  .av-card-ops { margin-left: auto; display: flex; gap: 2px; opacity: 0; transition: opacity var(--app-duration-fast) var(--app-ease-smooth); }
+  .av-card:hover .av-card-ops, .av-card:focus-within .av-card-ops { opacity: 1; }
+  .av-icon-btn {
+    width: 26px; height: 26px; border: none; border-radius: var(--app-radius-sm);
+    background: transparent; color: var(--app-text-secondary); font-size: 13px; padding: 0;
+    transition: background var(--app-duration-fast) var(--app-ease-smooth), color var(--app-duration-fast) var(--app-ease-smooth);
+  }
+  .av-icon-btn:hover { background: var(--app-surface-hover); color: var(--app-text); }
+  .av-icon-btn.danger:hover { color: #fff; background: #e5484d; }
+
+  /* 空态 */
+  .av-empty { text-align: center; color: var(--app-text-muted); padding: 64px 0; }
+  .av-empty .big { font-size: 40px; margin-bottom: 10px; }
+
+  /* 浮动新增按钮 */
+  .av-fab {
+    position: fixed; right: 22px; bottom: 24px; z-index: 20;
+    width: 52px; height: 52px; border-radius: 50%;
+    background: var(--app-primary); color: #fff; border: none;
+    font-size: 26px; line-height: 1;
+    box-shadow: 0 6px 18px rgba(0,0,0,.18);
+    transition: transform var(--app-duration-fast) var(--app-ease-smooth), background var(--app-duration-fast) var(--app-ease-smooth);
+  }
+  .av-fab:hover { background: var(--app-primary-hover); transform: translateY(-2px); }
+
+  /* 弹窗 */
+  .av-mask {
+    position: fixed; inset: 0; z-index: 40;
+    background: rgba(0,0,0,.35);
+    display: none; align-items: center; justify-content: center; padding: 18px;
+  }
+  .av-mask.show { display: flex; }
+  .av-modal {
+    width: 100%; max-width: 400px;
+    background: var(--app-surface-hover); /* 浮层用最亮表面，暗色下层级感明确 */
+    border: 1px solid var(--app-border-strong);
+    border-radius: var(--app-radius-lg);
+    padding: 20px; box-shadow: 0 12px 36px rgba(0,0,0,.22);
+  }
+  .av-modal h3 { margin: 0 0 14px; font-size: 16px; }
+  .av-field { margin-bottom: 12px; }
+  .av-field label { display: block; font-size: 12px; color: var(--app-text-secondary); margin-bottom: 4px; }
+  .av-field input[type="text"], .av-field input[type="date"], .av-field input[type="number"], .av-field select {
+    width: 100%; height: 34px;
+    background: var(--app-surface); color: var(--app-text);
+    border: 1px solid var(--app-border); border-radius: var(--app-radius);
+    padding: 0 10px; outline: none;
+    transition: border-color var(--app-duration-fast) var(--app-ease-smooth), box-shadow var(--app-duration-fast) var(--app-ease-smooth);
+  }
+  .av-field input:focus, .av-field select:focus { border-color: var(--app-primary); box-shadow: 0 0 0 3px var(--app-primary-soft); }
+  .av-type-row { display: flex; gap: 8px; }
+  .av-type-row button {
+    flex: 1; height: 34px; border-radius: var(--app-radius);
+    border: 1px solid var(--app-border); background: var(--app-surface); color: var(--app-text-secondary);
+    transition: all var(--app-duration-fast) var(--app-ease-smooth);
+  }
+  .av-type-row button.on { background: var(--app-primary); border-color: var(--app-primary); color: #fff; }
+  .av-check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--app-text-secondary); }
+  .av-check-row input { accent-color: var(--app-primary); width: 15px; height: 15px; }
+  .av-modal-ops { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+  /* 通知横幅（页面内顶置） */
+  .av-banner {
+    display: none; align-items: center; gap: 10px;
+    background: var(--app-warning-soft); color: var(--app-warning);
+    border: 1px solid transparent; border-radius: var(--app-radius);
+    padding: 8px 12px; font-size: 13px; margin-bottom: 14px;
+  }
+  html[data-theme="dark"] .av-banner { border-color: var(--app-border-strong); }
+  .av-banner.show { display: flex; }
+
+  /* Toast（底部，含撤销） */
+  .av-toast-host {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+    z-index: 60; display: flex; flex-direction: column; gap: 8px; align-items: center;
+  }
+  .av-toast {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--app-surface-hover); border: 1px solid var(--app-border-strong);
+    color: var(--app-text); border-radius: var(--app-radius);
+    padding: 10px 14px; font-size: 13px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.28);
+    animation: avToastIn var(--app-duration-panel) var(--app-ease-smooth);
+  }
+  @keyframes avToastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .av-toast .undo { border: none; background: var(--app-primary); color: #fff; border-radius: var(--app-radius-sm); padding: 4px 12px; white-space: nowrap; }
+
+  /* 响应式：窄屏 */
+  @media (max-width: 480px) {
+    .av-page { padding: 14px 12px 96px; }
+    .av-actions { width: 100%; }
+    .av-actions .av-btn { flex: 1; min-width: 0; }
+    .av-card-ops { opacity: 1; }
+  }
+  @media (max-width: 768px) {
+    .av-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="av-page">
+  <div class="av-topbar">
+    <h1>🎂 纪念日</h1>
+    <div class="av-actions">
+      <button class="av-btn" id="avImportBtn" title="从 JSON 文件导入">导入</button>
+      <button class="av-btn" id="avExportBtn" title="导出为 JSON 备份">导出</button>
+    </div>
+  </div>
+  <input type="file" id="avImportFile" accept="application/json,.json" style="display:none">
+
+  <div class="av-banner" id="avBanner">
+    <span>🔔</span>
+    <span id="avBannerText"></span>
+  </div>
+
+  <div class="av-search">
+    <input type="search" id="avSearch" placeholder="搜索标题 / 分类…">
+  </div>
+
+  <div id="avSections"></div>
+  <div class="av-empty" id="avEmpty" style="display:none">
+    <div class="big">🎂</div>
+    <div>还没有纪念日，点右下角「＋」添加第一个吧</div>
+  </div>
+</div>
+
+<button class="av-fab" id="avAddBtn" title="新增纪念日 / 倒数日">＋</button>
+
+<!-- 新增 / 编辑弹窗 -->
+<div class="av-mask" id="avMask">
+  <div class="av-modal" role="dialog" aria-modal="true">
+    <h3 id="avModalTitle">新增</h3>
+    <div class="av-field">
+      <label>类型</label>
+      <div class="av-type-row" id="avTypeRow">
+        <button type="button" data-type="countdown" class="on">⏳ 倒数日</button>
+        <button type="button" data-type="anniversary">🎈 纪念日</button>
+      </div>
+    </div>
+    <div class="av-field">
+      <label>标题</label>
+      <input type="text" id="avFldTitle" maxlength="60" placeholder="如：我们在一起 / 项目上线">
+    </div>
+    <div class="av-field">
+      <label>日期</label>
+      <input type="date" id="avFldDate">
+    </div>
+    <div class="av-field">
+      <label>分类</label>
+      <input type="text" id="avFldCategory" list="avCats" maxlength="20" placeholder="可选，如：恋爱 / 纪念日 / 节日">
+      <datalist id="avCats"></datalist>
+    </div>
+    <div class="av-field">
+      <label>提前提醒天数</label>
+      <input type="number" id="avFldRemind" min="0" max="365" step="1" title="0 = 仅当天提醒">
+      <span style="font-size:11px;color:var(--app-text-muted)">0 = 仅当天提醒</span>
+    </div>
+    <label class="av-check-row">
+      <input type="checkbox" id="avFldPinned"> 置顶此条目
+    </label>
+    <div class="av-modal-ops">
+      <button class="av-btn" id="avCancelBtn">取消</button>
+      <button class="av-btn primary" id="avSaveBtn">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="av-toast-host" id="avToastHost"></div>
+
+<script src="js/anniversary-shared.js"></script>
+<script>
+(function () {
+  'use strict';
+  var S = window.AnniversaryShared;
+  var $ = function (id) { return document.getElementById(id); };
+
+  var data = { ver: 1, updatedAt: '', entries: [] };
+  var editingId = null;       // 编辑中的条目 id（新增为 null）
+  var editingType = 'countdown';
+
+  // ── 主题 ──
+  function resolveTheme() {
+    var appearance = localStorage.getItem('app_appearance_v1') || 'notion';
+    if (appearance === 'dark') return 'dark';
+    if (appearance === 'regular') return 'regular';
+    if (appearance === 'system') {
+      return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'notion';
+    }
+    return 'notion';
+  }
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+  }
+  window.addEventListener('message', function (e) {
+    if (e.data && e.data.action === 'themeChange') applyTheme(e.data.theme);
+  });
+  applyTheme(resolveTheme());
+
+  // ── 帮助函数 ──
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function toast(msg, undoFn) {
+    var host = $('avToastHost');
+    var el = document.createElement('div');
+    el.className = 'av-toast';
+    if (undoFn) {
+      var btn = document.createElement('button');
+      btn.className = 'undo';
+      btn.textContent = '撤销';
+      btn.addEventListener('click', function () { undoFn(); el.remove(); });
+      el.append(document.createTextNode(msg), btn);
+    } else {
+      el.textContent = msg;
+    }
+    host.appendChild(el);
+    setTimeout(function () { el.classList.add('hide'); el.style.opacity = '0'; el.style.transform = 'translateY(8px)'; }, 6000);
+    setTimeout(function () { el.remove(); }, 6400);
+  }
+  function showBanner(text) {
+    $('avBannerText').textContent = text;
+    $('avBanner').classList.add('show');
+  }
+  function hideBanner() { $('avBanner').classList.remove('show'); }
+
+  // ── 数据 ──
+  function reload() { data = S.load() || { ver: 1, updatedAt: '', entries: [] }; }
+  function persist() { S.save(data); }
+
+  // 分组：置顶 > 今天/临期 > 未来 > 已过
+  function classify(e, s) {
+    if (e.pinned) return { key: 'pinned', title: '📌 置顶' };
+    if (s.upcoming) return { key: 'upcoming', title: '🔔 今天 / 临期' };
+    if (s.diff < 0) return { key: 'future', title: '⏳ 未来' };
+    return { key: 'past', title: '🎈 已过' };
+  }
+  function render() {
+    var kw = $('avSearch').value.trim().toLowerCase();
+    var list = data.entries
+      .filter(function (e) { return !e._drop; })
+      .filter(function (e) {
+        if (!kw) return true;
+        return (e.title || '').toLowerCase().indexOf(kw) >= 0 || (e.category || '').toLowerCase().indexOf(kw) >= 0;
+      })
+      .map(function (e) { var s = S.toReminderState(e, S.todayStr()); return { e: e, s: s }; });
+
+    var order = ['pinned', 'upcoming', 'future', 'past'];
+    var groups = {};
+    list.forEach(function (o) {
+      var g = classify(o.e, o.s);
+      (groups[g.key] = groups[g.key] || []).push({ e: o.e, s: o.s, title: g.title });
+    });
+    order.forEach(function (k) {
+      if (groups[k]) groups[k].sort(function (a, b) { return Math.abs(a.s.diff) - Math.abs(b.s.diff); });
+    });
+
+    var root = $('avSections');
+    root.innerHTML = '';
+    var shown = 0;
+    order.forEach(function (k) {
+      var arr = groups[k];
+      if (!arr || !arr.length) return;
+      shown += arr.length;
+      var sec = document.createElement('div');
+      sec.className = 'av-section';
+      sec.innerHTML = '<span class="dot"></span><span></span><span class="count"></span>';
+      sec.querySelectorAll('span')[1].textContent = arr[0].title;
+      sec.querySelector('.count').textContent = arr.length + ' 项';
+      root.appendChild(sec);
+      var grid = document.createElement('div');
+      grid.className = 'av-grid';
+      arr.forEach(function (o) { grid.appendChild(cardHTML(o.e, o.s)); });
+      root.appendChild(grid);
+    });
+
+    $('avEmpty').style.display = shown ? 'none' : 'flex';
+
+    // 分类 datalist
+    var cats = {};
+    data.entries.forEach(function (e) { if (e && e.category) cats[e.category] = 1; });
+    $('avCats').innerHTML = Object.keys(cats).map(function (c) { return '<option value="' + esc(c) + '">'; }).join('');
+    updateBanner();
+  }
+
+  function cardHTML(e, s) {
+    var el = document.createElement('article');
+    el.className = 'av-card' + (e.pinned ? ' pinned' : '');
+    el.dataset.id = e.id;
+    var cat = e.category
+      ? '<span class="av-badge ' + s.cls + '"><span class="dot"></span>' + esc(e.category) + '</span>'
+      : '';
+    el.innerHTML =
+      '<div class="av-card-top">' +
+        '<span class="av-card-icon">' + (e.type === 'anniversary' ? '🎈' : '⏳') + '</span>' +
+        '<span class="av-card-title">' + esc(e.title) + '</span>' +
+        '<span class="av-card-ops">' +
+          '<button class="av-icon-btn" data-op="pin" title="' + (e.pinned ? '取消置顶' : '置顶') + '">' + (e.pinned ? '📌' : '📍') + '</button>' +
+          '<button class="av-icon-btn" data-op="edit" title="编辑">✏️</button>' +
+          '<button class="av-icon-btn danger" data-op="del" title="删除">🗑</button>' +
+        '</span>' +
+      '</div>' +
+      '<div class="av-card-days">' + esc(s.label) + '</div>' +
+      '<div class="av-card-date">' + esc(e.date) + '</div>' +
+      (cat ? '<div class="av-card-foot">' + cat + '</div>' : '');
+    return el;
+  }
+
+  // ── 删除（240ms 淡出+右侧收缩，toast 撤销 6s）──
+  var undoCache = [];
+  function removeEntry(id) {
+    var idx = data.entries.findIndex(function (e) { return e.id === id; });
+    if (idx < 0) return;
+    var orig = data.entries[idx];
+    var clone = {};
+    for (var k in orig) clone[k] = orig[k]; // 干净克隆：置 _drop 会改原对象，撤销需干净副本
+    var card = document.querySelector('.av-card[data-id="' + CSS.escape(id) + '"]');
+    undoCache = undoCache.filter(function (u) { return u.id !== id; });
+    undoCache.push({ id: id, idx: idx, entry: clone });
+    orig._drop = true;
+    if (card) card.classList.add('dropping');
+    // 240ms 动画结束后真正移除并刷新列表
+    var t = setTimeout(function () {
+      data.entries = data.entries.filter(function (e) { return e !== orig; });
+      persist(); render();
+    }, 240);
+    toast('已删除「' + (clone.title || '') + '」', function () {
+      clearTimeout(t);
+      var u = undoCache.find(function (x) { return x.id === id; });
+      if (!u) return;
+      data.entries = data.entries.filter(function (e) { return e !== orig && e !== u.entry; });
+      if (!data.entries.some(function (e) { return e.id === u.id; })) {
+        data.entries.splice(Math.min(u.idx, data.entries.length), 0, u.entry);
+      }
+      undoCache = undoCache.filter(function (x) { return x.id !== id; });
+      persist(); render();
+    });
+    // 6 秒后清撤销缓存
+    setTimeout(function () { undoCache = undoCache.filter(function (x) { return x.id !== id; }); }, 6000);
+  }
+
+  // ── 弹窗 ──
+  function openModal(type, entry) {
+    editingType = type;
+    editingId = entry ? entry.id : null;
+    $('avModalTitle').textContent = entry ? '编辑' : '新增';
+    $('avFldTitle').value = entry ? entry.title : '';
+    $('avFldDate').value = entry ? entry.date : S.todayStr();
+    $('avFldCategory').value = entry ? (entry.category || '') : '';
+    $('avFldRemind').value = entry ? (entry.remind == null ? S.DEFAULT_REMIND : entry.remind) : S.DEFAULT_REMIND;
+    $('avFldPinned').checked = entry ? !!entry.pinned : false;
+    syncTypeRow();
+    $('avMask').classList.add('show');
+    $('avFldTitle').focus();
+  }
+  function closeModal() {
+    $('avMask').classList.remove('show');
+    editingId = null;
+  }
+  function syncTypeRow() {
+    var btns = $('avTypeRow').querySelectorAll('button');
+    btns.forEach(function (b) { b.classList.toggle('on', b.dataset.type === editingType); });
+  }
+  function saveModal() {
+    var title = $('avFldTitle').value.trim();
+    var date = $('avFldDate').value;
+    if (!title) { toast('请输入标题'); return; }
+    if (!S.parseLocalDate(date)) { toast('请选择有效日期'); return; }
+    var remind = Math.max(0, Math.min(365, parseInt($('avFldRemind').value, 10) || S.DEFAULT_REMIND));
+    reload();
+    var entry;
+    if (editingId) {
+      entry = data.entries.find(function (e) { return e.id === editingId; });
+      if (!entry) return closeModal();
+    } else {
+      entry = S.newEntry();
+      data.entries.push(entry);
+    }
+    entry.type = editingType;
+    entry.title = title;
+    entry.date = date;
+    entry.category = $('avFldCategory').value.trim();
+    entry.remind = remind;
+    entry.pinned = $('avFldPinned').checked;
+    entry.updatedAt = new Date().toISOString();
+    persist(); render(); closeModal();
+    toast(editingId ? '已保存' : '已新增');
+  }
+
+  // ── 导入 / 导出 ──
+  function exportJSON() {
+    var name = 'anniversary-backup-' + S.todayStr().replace(/-/g, '') + '.json';
+    var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 400);
+    toast('已导出 ' + name);
+  }
+  function importJSON(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var incoming = JSON.parse(reader.result);
+        if (!S.validate(incoming)) throw new Error('invalid');
+        data = S.mergeImport(S.load() || { ver: 1, entries: [] }, incoming);
+        persist(); render();
+        toast('导入成功，共 ' + data.entries.length + ' 条');
+      } catch (err) { toast('导入失败：文件格式不正确'); }
+    };
+    reader.readAsText(file);
+  }
+
+  // ── 提醒（页面打开 / 定时器 / 聚焦时）──
+  function checkReminders() {
+    if (!('Notification' in window)) return;
+    var today = S.todayStr();
+    var hit = [];
+    data.entries.forEach(function (e) {
+      if (!e || e._drop) return;
+      var s = S.toReminderState(e, today);
+      if (!s.upcoming) return;
+      if (S.wasNotifiedToday(e.id, today)) return;
+      S.markNotified(e.id, today);
+      hit.push({ title: e.title, label: s.label, date: e.date });
+    });
+    if (!hit.length) return;
+    var first = hit[0];
+    try {
+      if (Notification.permission === 'granted') {
+        new Notification('🎂 ' + first.title, { body: first.label + ' · ' + first.date, silent: false });
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(function (p) {
+          if (p === 'granted') new Notification('🎂 ' + first.title, { body: first.label + ' · ' + first.date, silent: false });
+        }).catch(function () {});
+      }
+    } catch (e) { /* 环境不支持通知，静默 */ }
+  }
+  function updateBanner() {
+    var today = S.todayStr();
+    var ups = S.getUpcoming(data.entries, today, 7);
+    if (ups.length) {
+      showBanner('今天 / 临期 ' + ups.length + ' 条：' + ups.slice(0, 3).map(function (o) { return o.title; }).join('、') + (ups.length > 3 ? ' 等' : ''));
+    } else {
+      hideBanner();
+    }
+  }
+
+  // ── 事件 ──
+  document.addEventListener('click', function (ev) {
+    var opBtn = ev.target.closest('[data-op]');
+    if (opBtn) {
+      var id = opBtn.closest('.av-card').dataset.id;
+      var op = opBtn.dataset.op;
+      var entry = data.entries.find(function (e) { return e.id === id; });
+      if (!entry) return;
+      if (op === 'edit') { openModal(entry.type, entry); }
+      else if (op === 'del') { removeEntry(id); }
+      else if (op === 'pin') { entry.pinned = !entry.pinned; entry.updatedAt = new Date().toISOString(); persist(); render(); }
+      return;
+    }
+    if (ev.target.closest('#avAddBtn')) { openModal('countdown', null); return; }
+    if (ev.target.closest('#avCancelBtn') || ev.target === $('avMask')) { closeModal(); return; }
+    if (ev.target.closest('#avSaveBtn')) { saveModal(); return; }
+  });
+  $('avTypeRow').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button[data-type]');
+    if (!b) return;
+    editingType = b.dataset.type;
+    syncTypeRow();
+  });
+  $('avSearch').addEventListener('input', function () { render(); });
+  $('avExportBtn').addEventListener('click', exportJSON);
+  $('avImportBtn').addEventListener('click', function () { $('avImportFile').click(); });
+  $('avImportFile').addEventListener('change', function () {
+    if (this.files && this.files[0]) importJSON(this.files[0]);
+    this.value = '';
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && $('avMask').classList.contains('show')) closeModal();
+  });
+  window.addEventListener('focus', function () { checkReminders(); updateBanner(); });
+  var dayTimer = setInterval(function () { checkReminders(); updateBanner(); }, 10 * 60 * 1000);
+
+  // ── 初始化 ──
+  reload();
+  render();
+  checkReminders();
+})();
+</script>
+</body>
+</html>

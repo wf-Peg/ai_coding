@@ -115,6 +115,20 @@
   };
   SYSTEM_TOOLS.push(SYSTEM_SHORTCUT_AUDIT);
 
+  // ── 系统工具：纪念日 / 倒数日（本地 src 工具，overlay iframe 直接加载 self 页面）──
+  const SYSTEM_ANNIVERSARY = {
+    id: 'anniversary',
+    name: '纪念日',
+    icon: '🎂',
+    category: '生活工具',
+    description: '纪念日 / 倒数日：置顶、分类与临期提醒，JSON 导入导出',
+    keywords: ['纪念日', '倒数日', '倒计时', '生日', 'anniversary', 'countdown'],
+    builtin: true,
+    system: true,
+    src: 'anniversary.html'
+  };
+  SYSTEM_TOOLS.push(SYSTEM_ANNIVERSARY);
+
   // ── 顶层模块子工具（使用频率较低，移入工具模块作为子工具入口）──
   // 点击后通过 postMessage 让主框架跳转到对应视图，避免嵌套 iframe 破坏页面与父窗口的通信
   const MODULE_TOOLS = [
@@ -642,6 +656,19 @@
     const api = (window.parent && window.parent.electronAPI) || window.electronAPI;
     // 快捷键检测：独立面板（非截图工具配置）
     if (t.id === 'shortcut-audit-system') { renderShortcutAudit(); return; }
+    // 本地 src 工具（如「纪念日」）：overlay iframe 直接加载同源页面
+    if (t.src) {
+      $('overlayTitle').textContent = (t.icon || '🧰') + ' ' + t.name;
+      currentPromptId = t.id;
+      currentTool = null;
+      showLiveBlock(false);
+      $('openExternalBtn').style.display = 'none';
+      const frame = $('toolFrame');
+      frame.onload = () => { forwardThemeToTool(); };
+      frame.src = t.src;
+      $('overlay').classList.add('show');
+      return;
+    }
     let shot = 'F1', paste = 'F2', hideMain = true, enabled = true, ocrText = '查询中...';
     if (api && api.screenshotGetShortcuts) {
       try {

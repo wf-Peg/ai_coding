@@ -1346,6 +1346,10 @@
 
       // 监听 iframe 子页面的主题变更消息
       window.addEventListener('message', event => {
+        // iframe 编辑器内部的 Ctrl+K 请求打开顶层全局命令面板（编辑器内快捷面板由 Ctrl+P 承担）
+        if (event.data && event.data.type === 'openGlobalCmdPalette') {
+          if (typeof window.openGlobalCmdPalette === 'function') window.openGlobalCmdPalette();
+        }
         if (event.data && event.data.type === 'themeChanged') {
           applyTheme(event.data.theme, false);
         }
@@ -1534,7 +1538,7 @@
       const appLayoutEl = document.querySelector('.app-layout');
       const sidebarOpenBtn = document.getElementById('sidebarOpenBtn');
       const sidebarNav = document.querySelector('.titlebar-nav.sidebar');
-      const SIDEBAR_MIN_W = 168;   // 兜底：最窄 168px，导航图标+文字仍完整可见
+      const SIDEBAR_MIN_W = 120;   // 兜底：最窄 120px（图标16px+间距9px+文字），导航标签仍完整可见
       const SIDEBAR_MAX_W = 340;
       function getSidebarWidth() {
         let w = 208;
@@ -1567,6 +1571,10 @@
         sidebarResizer.addEventListener('pointerdown', function(e) {
           if (e.button !== 0) return;
           e.preventDefault();
+          // 捕获指针：主内容区全是 iframe，指针一越过 resizer 进入 iframe 后，
+          // 父文档就收不到 pointermove（拖拽卡手/中断）；setPointerCapture 会把
+          // 后续事件持续重定向到 resizer，跨 iframe 依旧跟手。
+          try { sidebarResizer.setPointerCapture(e.pointerId); } catch (err) {}
           const startX = e.clientX;
           const startW = getSidebarWidth();
           let liveW = startW; // 拖拽过程中的当前宽度，用于手势跟手 + 松手时持久化，避免回读旧存档造成“弹回”
@@ -1577,6 +1585,7 @@
             setSidebarWidth(liveW, true); // 夹取后在范围内持久化（宽度来自本次拖拽而非旧存档）
             sidebarResizer.classList.remove('dragging');
             if (appLayoutEl) appLayoutEl.classList.remove('sidebar-resizing');
+            try { sidebarResizer.releasePointerCapture(e.pointerId); } catch (err) {}
             window.removeEventListener('pointermove', onMove);
             window.removeEventListener('pointerup', onStop);
             window.removeEventListener('pointercancel', onStop);
@@ -2919,6 +2928,8 @@
           palette.classList.add('open');
           input.focus();
         }
+        // 暴露给外部（iframe 编辑器 Ctrl+K 请求打开全局命令面板、统一 search 面板等复用）
+        window.openGlobalCmdPalette = open;
         function close() {
           palette.classList.remove('open');
           input.blur();
@@ -2945,17 +2956,12 @@
         if (kbd) kbd.textContent = shortcutText;
         if (openBtn) openBtn.title = '命令面板（' + (isMac ? '⌘K' : 'Ctrl+K') + '）';
 
-        // 主进程菜单加速键（CmdOrCtrl+K）→ IPC 事件（iframe 焦点场景兜底，逻辑同全局搜索）。
-        // 焦点在编辑器时转回编辑器自己的命令面板（经 triggerCommandPalette 去重，兼容 Ctrl+K/P）；
-        // 编辑器不可用时回退顶层命令面板。
+        // 主进程菜单加速键（CmdOrCtrl+K）→ 统一唤起顶层全局命令面板。
+        // 焦点在编辑器/画布区时，编辑器捕获阶段先接管 Ctrl+K 并经 openGlobalCmdPalette postMessage 直达此处，
+        // 与菜单路径殊途同归、均打开同一顶层面板（open 幂等，重复触发无副作用）。
         if (window.electronAPI && window.electronAPI.onFocusGlobalCmdPalette) {
           window.electronAPI.onFocusGlobalCmdPalette(function () {
-            const ef = document.getElementById('editorFrame');
-            if (ef && ef.contentWindow) {
-              ef.contentWindow.postMessage({ action: 'focusCommandPalette' }, '*');
-            } else {
-              open();
-            }
+            open();
           });
         }
         // 浏览器/父窗口焦点场景兜底：⌘K / Ctrl+K
