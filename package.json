@@ -1,6 +1,6 @@
 {
   "name": "clip-demo",
-  "version": "1.0.14",
+  "version": "1.0.15",
   "description": "碎碎记（CutShelter）- 剪藏与知识管理",
   "main": "electron/main.js",
   "engines": {
@@ -16,6 +16,7 @@
     "test:editor-shortcuts": "node --test electron/editor-shortcuts.test.js",
     "test:editor-pure": "node --test electron/editor-pure.test.js",
     "test:ace-jump": "node --test electron/ace-jump.test.js",
+    "test:anniversary": "node --test electron/anniversary-shared.test.js",
     "test:editor-nav": "node --test electron/editor-pure.test.js electron/ace-jump.test.js",
     "postinstall": "electron-builder install-app-deps",
     "generate-icons": "node scripts/generate-icons.js",
