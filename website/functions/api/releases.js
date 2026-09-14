@@ -19,9 +19,15 @@ const REQUEST_HEADERS = {
   'User-Agent': 'cutshelter-site',
 };
 
-export async function onRequest(_context) {
+export async function onRequest(context) {
   try {
-    const res = await fetch(`${GITHUB_API}/releases?per_page=100`, { headers: REQUEST_HEADERS });
+    // 若配置了 GITHUB_TOKEN（CF Pages 环境变量），走认证 API（5000 次/小时，
+    // 不受匿名 60 次/小时限流），可实时取最新版；未配置则回退匿名请求。
+    const headers = { ...REQUEST_HEADERS };
+    if (context.env && context.env.GITHUB_TOKEN) {
+      headers.Authorization = `Bearer ${context.env.GITHUB_TOKEN}`;
+    }
+    const res = await fetch(`${GITHUB_API}/releases?per_page=100`, { headers });
     if (!res.ok) {
       return new Response(
         JSON.stringify({ error: `github ${res.status}` }),

@@ -3,228 +3,271 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>🎂 纪念日</title>
+<title>纪念日</title>
 <link rel="stylesheet" href="styles/design-tokens.css">
 <style>
-  /* ===== 纪念日 / 倒数日 页面样式（仅消费 --app-* 全局令牌，无硬编码色值）===== */
+  /* ===== 纪念日 / 倒数日。克制设计：中性承载表面、排版传达层次、单焦点色 ===== */
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body {
     background: var(--app-bg);
     color: var(--app-text);
-    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
     min-height: 100vh;
   }
   button { font: inherit; cursor: pointer; }
   input, select { font: inherit; }
 
-  .av-page { max-width: 1080px; margin: 0 auto; padding: 20px 18px 96px; }
+  .av-page { max-width: 960px; margin: 0 auto; padding: 28px 22px 100px; }
 
-  /* 顶栏 */
-  .av-topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
-  .av-topbar h1 { font-size: 20px; margin: 0; font-weight: 650; letter-spacing: .5px; }
-  .av-actions { margin-left: auto; display: flex; gap: 8px; }
+  /* 顶栏：纯文字，无图标 */
+  .av-topbar { display: flex; align-items: baseline; gap: 16px; padding-bottom: 20px; border-bottom: 1px solid var(--app-border); margin-bottom: 22px; flex-wrap: wrap; }
+  .av-topbar h1 { font-size: 18px; font-weight: 600; letter-spacing: .2px; margin: 0; }
+  .av-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
   .av-btn {
-    background: var(--app-surface);
-    color: var(--app-text);
-    border: 1px solid var(--app-border);
-    border-radius: var(--app-radius);
-    min-width: 96px;
-    height: 32px;
-    padding: 0 14px;
-    white-space: nowrap;
-    transition: background var(--app-duration-fast) var(--app-ease-smooth), border-color var(--app-duration-fast) var(--app-ease-smooth);
+    background: transparent; color: var(--app-text-secondary);
+    border: 1px solid transparent; border-radius: var(--app-radius-sm);
+    height: 30px; padding: 0 12px; white-space: nowrap;
+    font-size: 13px;
+    transition: color var(--app-duration-fast) var(--app-ease-smooth), background var(--app-duration-fast) var(--app-ease-smooth), border-color var(--app-duration-fast) var(--app-ease-smooth);
   }
-  .av-btn:hover { background: var(--app-surface-hover); border-color: var(--app-border-strong); }
-  .av-btn.primary { background: var(--app-primary); border-color: var(--app-primary); color: #fff; }
-  .av-btn.primary:hover { background: var(--app-primary-hover); }
+  .av-btn:hover { background: var(--app-surface-hover); color: var(--app-text); }
+  .av-btn.primary { background: var(--app-primary); color: #fff; border-color: var(--app-primary); }
+  .av-btn.primary:hover { background: var(--app-primary-hover); color: #fff; }
+
+  /* 头部信息条：安静，无渐变、无色块统计 */
+  .av-hero { display: flex; align-items: baseline; gap: 12px; margin-bottom: 26px; flex-wrap: wrap; }
+  .av-hero-date { font-size: 30px; font-weight: 650; letter-spacing: -.3px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .av-hero-info { font-size: 13px; color: var(--app-text-muted); }
+  .av-hero-summary { margin-left: auto; font-size: 13px; color: var(--app-text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
   /* 搜索 */
-  .av-search { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .av-search { margin-bottom: 20px; }
   .av-search input {
-    flex: 1; max-width: 280px; height: 32px;
-    background: var(--app-surface); color: var(--app-text);
-    border: 1px solid var(--app-border); border-radius: var(--app-radius);
-    padding: 0 12px; outline: none;
+    width: 100%; max-width: 320px; height: 34px;
+    background: transparent; color: var(--app-text);
+    border: 1px solid var(--app-border); border-radius: var(--app-radius-sm);
+    padding: 0 12px; outline: none; font-size: 13px;
     transition: border-color var(--app-duration-fast) var(--app-ease-smooth), box-shadow var(--app-duration-fast) var(--app-ease-smooth);
   }
-  .av-search input:focus { border-color: var(--app-primary); box-shadow: 0 0 0 3px var(--app-primary-soft); }
+  .av-search input::placeholder { color: var(--app-text-muted); }
+  .av-search input:focus { border-color: var(--app-border-strong); box-shadow: 0 0 0 3px var(--app-primary-soft); }
 
-  /* 分区标题 */
-  .av-section { display: flex; align-items: center; gap: 8px; margin: 20px 0 10px; font-size: 13px; font-weight: 600; color: var(--app-text-secondary); }
-  .av-section .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--app-text-muted); }
-  .av-section .count { margin-left: auto; font-weight: 500; color: var(--app-text-muted); }
+  /* 分区标题：文字 + 计数，去 emoji、去装饰点 */
+  .av-section {
+    display: flex; align-items: baseline; gap: 10px; margin: 26px 0 12px;
+    font-size: 13px; font-weight: 600; color: var(--app-text-secondary); letter-spacing: .3px;
+  }
+  .av-section .line { flex: 1; height: 1px; background: var(--app-border); align-self: center; }
+  .av-section .count { font-weight: 400; color: var(--app-text-muted); font-variant-numeric: tabular-nums; }
 
   /* 卡片网格 */
-  .av-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 12px;
-  }
+  .av-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
   .av-card {
     position: relative;
     background: var(--app-surface);
     border: 1px solid var(--app-border);
-    border-radius: var(--app-radius-lg);
-    padding: 14px 14px 12px;
-    display: flex; flex-direction: column; gap: 6px;
-    transition: border-color var(--app-duration-fast) var(--app-ease-smooth), box-shadow var(--app-duration-fast) var(--app-ease-smooth);
+    border-radius: var(--app-radius);
+    padding: 16px 16px 14px;
+    box-shadow: var(--app-shadow-xs);
+    transition: transform var(--app-duration-normal) var(--app-ease-smooth), box-shadow var(--app-duration-normal) var(--app-ease-smooth), border-color var(--app-duration-normal) var(--app-ease-smooth);
   }
-  .av-card:hover { border-color: var(--app-border-strong); box-shadow: 0 2px 10px rgba(0,0,0,.06); }
-  html[data-theme="dark"] .av-card:hover { box-shadow: 0 2px 14px rgba(0,0,0,.45); }
-  .av-card.pinned::before {
-    content: '📌'; position: absolute; top: 8px; right: 10px; font-size: 13px; opacity: .85;
-  }
+  .av-card:hover { transform: translateY(-1px); box-shadow: var(--app-shadow-sm); border-color: var(--app-border-strong); }
+  .av-card.pinned { border-left: 2px solid var(--app-primary); }
   .av-card.dropping { animation: avDropOut 240ms var(--app-ease-smooth) forwards; overflow: hidden; }
   @keyframes avDropOut {
     from { transform: translateX(0) scaleX(1); opacity: 1; }
     to   { transform: translateX(64px) scaleX(.45); opacity: 0; }
   }
 
-  .av-card-top { display: flex; align-items: center; gap: 6px; }
-  .av-card-icon { font-size: 20px; line-height: 1; }
-  .av-card-title { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; min-width: 0; padding-right: 22px; }
-  .av-card-days { font-size: 26px; font-weight: 700; letter-spacing: .5px; line-height: 1.2; font-variant-numeric: tabular-nums; }
-  .av-card-date { font-size: 12px; color: var(--app-text-muted); font-variant-numeric: tabular-nums; }
-  .av-card-foot { margin-top: 4px; display: flex; align-items: center; gap: 6px; }
-  .av-badge {
-    display: inline-flex; align-items: center; gap: 5px;
-    font-size: 11px; padding: 2px 8px; border-radius: 999px;
-    background: var(--app-surface-subtle); color: var(--app-text-secondary);
-    border: 1px solid var(--app-border); max-width: 140px;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .av-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-  .av-badge.today { background: var(--app-primary-soft); color: var(--app-primary); border-color: transparent; }
-  .av-badge.upcoming { background: var(--app-warning-soft); color: var(--app-warning); border-color: transparent; }
-  .av-badge.passed { background: var(--app-surface-subtle); color: var(--app-text-secondary); }
+  /* 卡片头：标题 + 操作（hover 呈现） */
+  .av-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .av-card-title { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; min-width: 0; }
+
   .av-card-ops { margin-left: auto; display: flex; gap: 2px; opacity: 0; transition: opacity var(--app-duration-fast) var(--app-ease-smooth); }
   .av-card:hover .av-card-ops, .av-card:focus-within .av-card-ops { opacity: 1; }
   .av-icon-btn {
-    width: 26px; height: 26px; border: none; border-radius: var(--app-radius-sm);
-    background: transparent; color: var(--app-text-secondary); font-size: 13px; padding: 0;
+    width: 28px; height: 28px; border: none; border-radius: var(--app-radius-sm);
+    background: transparent; color: var(--app-text-muted); padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
     transition: background var(--app-duration-fast) var(--app-ease-smooth), color var(--app-duration-fast) var(--app-ease-smooth);
   }
+  .av-icon-btn svg { width: 15px; height: 15px; }
   .av-icon-btn:hover { background: var(--app-surface-hover); color: var(--app-text); }
-  .av-icon-btn.danger:hover { color: #fff; background: #e5484d; }
+  .av-icon-btn.danger:hover { color: #fff; background: var(--app-danger); }
+
+  /* 主视觉：大数字，单色，靠字重与字号突出 */
+  .av-card-num { font-size: 38px; font-weight: 650; line-height: 1.05; letter-spacing: -.5px; color: var(--app-text); font-variant-numeric: tabular-nums; }
+  .av-card-num .u { font-size: 16px; font-weight: 500; color: var(--app-text-muted); margin-left: 4px; letter-spacing: 0; }
+  .av-card.today .av-card-num { color: var(--app-primary); }
+  .av-card.passed .av-card-num { color: var(--app-text-secondary); }
+  .av-card-sub { font-size: 12px; color: var(--app-text-muted); margin-top: 2px; }
+  .av-card-date { font-size: 12px; color: var(--app-text-muted); font-variant-numeric: tabular-nums; }
+
+  .av-card-foot { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--app-border); display: flex; align-items: center; gap: 6px; }
+  .av-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12px; padding: 2px 9px; border-radius: 999px;
+    color: var(--app-text-secondary); background: var(--app-surface-subtle);
+    border: 1px solid transparent; font-weight: 500;
+    max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .av-badge.today { color: var(--app-primary); background: var(--app-primary-soft); }
+  .av-badge.upcoming { color: var(--app-warning); background: var(--app-warning-soft); }
+  .av-badge.passed { color: var(--app-text-muted); background: transparent; }
 
   /* 空态 */
-  .av-empty { text-align: center; color: var(--app-text-muted); padding: 64px 0; }
-  .av-empty .big { font-size: 40px; margin-bottom: 10px; }
+  .av-empty { text-align: center; color: var(--app-text-muted); padding: 60px 0 40px; }
+  .av-empty .icon { color: var(--app-text-muted); opacity: .6; margin-bottom: 14px; }
+  .av-empty .icon svg { width: 40px; height: 40px; }
+  .av-empty .t { color: var(--app-text-secondary); font-weight: 500; margin-bottom: 4px; }
 
-  /* 浮动新增按钮 */
+  /* 浮动新增按钮：纯色 + 轻阴影 */
   .av-fab {
-    position: fixed; right: 22px; bottom: 24px; z-index: 20;
-    width: 52px; height: 52px; border-radius: 50%;
+    position: fixed; right: 24px; bottom: 26px; z-index: 20;
+    width: 50px; height: 50px; border-radius: 50%;
     background: var(--app-primary); color: #fff; border: none;
-    font-size: 26px; line-height: 1;
-    box-shadow: 0 6px 18px rgba(0,0,0,.18);
-    transition: transform var(--app-duration-fast) var(--app-ease-smooth), background var(--app-duration-fast) var(--app-ease-smooth);
+    font-size: 24px; line-height: 1;
+    box-shadow: var(--app-shadow-sm);
+    transition: transform var(--app-duration-fast) var(--app-ease-smooth), box-shadow var(--app-duration-fast) var(--app-ease-smooth);
   }
-  .av-fab:hover { background: var(--app-primary-hover); transform: translateY(-2px); }
+  .av-fab:hover { transform: translateY(-1px); box-shadow: var(--app-shadow-md); }
 
   /* 弹窗 */
   .av-mask {
     position: fixed; inset: 0; z-index: 40;
-    background: rgba(0,0,0,.35);
+    background: var(--app-modal-backdrop);
     display: none; align-items: center; justify-content: center; padding: 18px;
   }
   .av-mask.show { display: flex; }
   .av-modal {
-    width: 100%; max-width: 400px;
-    background: var(--app-surface-hover); /* 浮层用最亮表面，暗色下层级感明确 */
+    width: 100%; max-width: 380px;
+    background: var(--app-surface-hover);
     border: 1px solid var(--app-border-strong);
-    border-radius: var(--app-radius-lg);
-    padding: 20px; box-shadow: 0 12px 36px rgba(0,0,0,.22);
+    border-radius: var(--app-radius);
+    padding: 22px;
+    box-shadow: var(--app-shadow-panel);
   }
-  .av-modal h3 { margin: 0 0 14px; font-size: 16px; }
-  .av-field { margin-bottom: 12px; }
-  .av-field label { display: block; font-size: 12px; color: var(--app-text-secondary); margin-bottom: 4px; }
+  .av-modal h3 { margin: 0 0 18px; font-size: 15px; font-weight: 600; }
+  .av-field { margin-bottom: 14px; }
+  .av-field label { display: block; font-size: 12px; color: var(--app-text-secondary); margin-bottom: 5px; }
   .av-field input[type="text"], .av-field input[type="date"], .av-field input[type="number"], .av-field select {
-    width: 100%; height: 34px;
+    width: 100%; height: 36px;
     background: var(--app-surface); color: var(--app-text);
-    border: 1px solid var(--app-border); border-radius: var(--app-radius);
-    padding: 0 10px; outline: none;
+    border: 1px solid var(--app-border); border-radius: var(--app-radius-sm);
+    padding: 0 11px; outline: none; font-size: 13px;
     transition: border-color var(--app-duration-fast) var(--app-ease-smooth), box-shadow var(--app-duration-fast) var(--app-ease-smooth);
   }
-  .av-field input:focus, .av-field select:focus { border-color: var(--app-primary); box-shadow: 0 0 0 3px var(--app-primary-soft); }
+  .av-field input:focus, .av-field select:focus { border-color: var(--app-border-strong); box-shadow: 0 0 0 3px var(--app-primary-soft); }
   .av-type-row { display: flex; gap: 8px; }
   .av-type-row button {
-    flex: 1; height: 34px; border-radius: var(--app-radius);
-    border: 1px solid var(--app-border); background: var(--app-surface); color: var(--app-text-secondary);
+    flex: 1; height: 36px; border-radius: var(--app-radius-sm);
+    border: 1px solid var(--app-border); background: var(--app-surface); color: var(--app-text-secondary); font-size: 13px;
     transition: all var(--app-duration-fast) var(--app-ease-smooth);
   }
-  .av-type-row button.on { background: var(--app-primary); border-color: var(--app-primary); color: #fff; }
+  .av-type-row button.on { background: var(--app-primary-soft); border-color: var(--app-primary); color: var(--app-primary); font-weight: 500; }
   .av-check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--app-text-secondary); }
   .av-check-row input { accent-color: var(--app-primary); width: 15px; height: 15px; }
-  .av-modal-ops { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  .av-modal-ops { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+  .av-modal-ops .av-btn { border: 1px solid var(--app-border); }
 
-  /* 通知横幅（页面内顶置） */
+  /* 通知横幅 */
   .av-banner {
-    display: none; align-items: center; gap: 10px;
-    background: var(--app-warning-soft); color: var(--app-warning);
-    border: 1px solid transparent; border-radius: var(--app-radius);
-    padding: 8px 12px; font-size: 13px; margin-bottom: 14px;
+    display: none; align-items: center; gap: 8px;
+    color: var(--app-warning);
+    font-size: 13px; margin-bottom: 18px;
   }
-  html[data-theme="dark"] .av-banner { border-color: var(--app-border-strong); }
+  .av-banner .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
   .av-banner.show { display: flex; }
 
-  /* Toast（底部，含撤销） */
-  .av-toast-host {
-    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
-    z-index: 60; display: flex; flex-direction: column; gap: 8px; align-items: center;
+  /* 发送到手机（二维码） */
+  .av-qr { display: flex; justify-content: center; padding: 4px 0 15px; }
+  .av-qr img { width: 168px; height: 168px; background: #fff; padding: 5px; border-radius: 8px; }
+  .av-qr-hint { font-size: 13px; color: var(--app-text-secondary); text-align: center; margin: 0 0 12px; }
+  .av-qr-url {
+    font-size: 12px; color: var(--app-text-muted); text-align: center; word-break: break-all;
+    background: var(--app-surface); border: 1px dashed var(--app-border);
+    border-radius: var(--app-radius-sm); padding: 6px 10px; font-variant-numeric: tabular-nums;
   }
+
+  /* Toast */
+  .av-toast-host { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 60; display: flex; flex-direction: column; gap: 8px; align-items: center; }
   .av-toast {
-    display: flex; align-items: center; gap: 12px;
+    display: flex; align-items: center; gap: 10px;
     background: var(--app-surface-hover); border: 1px solid var(--app-border-strong);
-    color: var(--app-text); border-radius: var(--app-radius);
-    padding: 10px 14px; font-size: 13px;
-    box-shadow: 0 10px 30px rgba(0,0,0,.28);
+    color: var(--app-text); border-radius: var(--app-radius-sm);
+    padding: 9px 14px; font-size: 13px;
+    box-shadow: var(--app-shadow-panel);
     animation: avToastIn var(--app-duration-panel) var(--app-ease-smooth);
   }
   @keyframes avToastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-  .av-toast .undo { border: none; background: var(--app-primary); color: #fff; border-radius: var(--app-radius-sm); padding: 4px 12px; white-space: nowrap; }
+  .av-toast .undo { border: none; background: var(--app-primary); color: #fff; border-radius: var(--app-radius-sm); padding: 3px 10px; font-size: 13px; white-space: nowrap; }
 
-  /* 响应式：窄屏 */
   @media (max-width: 480px) {
-    .av-page { padding: 14px 12px 96px; }
-    .av-actions { width: 100%; }
-    .av-actions .av-btn { flex: 1; min-width: 0; }
+    .av-page { padding: 18px 14px 96px; }
+    .av-hero-summary { margin-left: 0; white-space: normal; }
+    .av-actions .av-btn { padding: 0 8px; }
     .av-card-ops { opacity: 1; }
   }
-  @media (max-width: 768px) {
+  @media (max-width: 720px) {
     .av-grid { grid-template-columns: 1fr 1fr; }
   }
+</style>
+<style>
+  /* 克制线性图标（stroke） */
+  .ic { display: inline-flex; }
+  .ic svg { stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .ic.filled svg { fill: currentColor; stroke: none; }
 </style>
 </head>
 <body>
 <div class="av-page">
   <div class="av-topbar">
-    <h1>🎂 纪念日</h1>
+    <h1>纪念日</h1>
     <div class="av-actions">
-      <button class="av-btn" id="avImportBtn" title="从 JSON 文件导入">导入</button>
-      <button class="av-btn" id="avExportBtn" title="导出为 JSON 备份">导出</button>
+      <button class="av-btn" id="avPhoneBtn">发送到手机</button>
+      <button class="av-btn" id="avImportBtn">导入</button>
+      <button class="av-btn" id="avExportBtn">导出</button>
     </div>
   </div>
   <input type="file" id="avImportFile" accept="application/json,.json" style="display:none">
 
-  <div class="av-banner" id="avBanner">
-    <span>🔔</span>
-    <span id="avBannerText"></span>
+  <div class="av-hero">
+    <div class="av-hero-date" id="avHeroDate"></div>
+    <div class="av-hero-info" id="avHeroInfo"></div>
+    <div class="av-hero-summary" id="avHeroSummary"></div>
   </div>
 
+  <div class="av-banner" id="avBanner"><span class="dot"></span><span id="avBannerText"></span></div>
+
   <div class="av-search">
-    <input type="search" id="avSearch" placeholder="搜索标题 / 分类…">
+    <input type="search" id="avSearch" placeholder="搜索标题 / 分类">
   </div>
 
   <div id="avSections"></div>
   <div class="av-empty" id="avEmpty" style="display:none">
-    <div class="big">🎂</div>
-    <div>还没有纪念日，点右下角「＋」添加第一个吧</div>
+    <div class="icon ic"><svg viewBox="0 0 24 24"><path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></svg></div>
+    <div class="t">还没有纪念日</div>
+    <div>点右下角「+」添加第一个</div>
   </div>
 </div>
 
-<button class="av-fab" id="avAddBtn" title="新增纪念日 / 倒数日">＋</button>
+<button class="av-fab" id="avAddBtn" title="新增纪念日 / 倒数日">+</button>
+
+<!-- 发送到手机（二维码）弹窗 -->
+<div class="av-mask" id="avQrMask">
+  <div class="av-modal" role="dialog" aria-modal="true">
+    <h3>发送到手机</h3>
+    <div class="av-qr"><img id="avQrImg" alt="用手机扫码打开纪念日"></div>
+    <p class="av-qr-hint">用手机扫一扫，即可在手机上打开「纪念日」，随时记录重要日子。</p>
+    <div class="av-qr-url" id="avQrUrl"></div>
+    <div class="av-modal-ops">
+      <button class="av-btn" id="avQrCopyBtn">复制链接</button>
+      <button class="av-btn" id="avQrCloseBtn">关闭</button>
+    </div>
+  </div>
+</div>
 
 <!-- 新增 / 编辑弹窗 -->
 <div class="av-mask" id="avMask">
@@ -233,8 +276,8 @@
     <div class="av-field">
       <label>类型</label>
       <div class="av-type-row" id="avTypeRow">
-        <button type="button" data-type="countdown" class="on">⏳ 倒数日</button>
-        <button type="button" data-type="anniversary">🎈 纪念日</button>
+        <button type="button" data-type="countdown" class="on">倒数日</button>
+        <button type="button" data-type="anniversary">纪念日</button>
       </div>
     </div>
     <div class="av-field">
@@ -247,13 +290,12 @@
     </div>
     <div class="av-field">
       <label>分类</label>
-      <input type="text" id="avFldCategory" list="avCats" maxlength="20" placeholder="可选，如：恋爱 / 纪念日 / 节日">
+      <input type="text" id="avFldCategory" list="avCats" maxlength="20" placeholder="可选，如：恋爱 / 节日">
       <datalist id="avCats"></datalist>
     </div>
     <div class="av-field">
       <label>提前提醒天数</label>
       <input type="number" id="avFldRemind" min="0" max="365" step="1" title="0 = 仅当天提醒">
-      <span style="font-size:11px;color:var(--app-text-muted)">0 = 仅当天提醒</span>
     </div>
     <label class="av-check-row">
       <input type="checkbox" id="avFldPinned"> 置顶此条目
@@ -268,6 +310,7 @@
 <div class="av-toast-host" id="avToastHost"></div>
 
 <script src="js/anniversary-shared.js"></script>
+<script src="js/qrcode-generator.js"></script>
 <script>
 (function () {
   'use strict';
@@ -275,8 +318,16 @@
   var $ = function (id) { return document.getElementById(id); };
 
   var data = { ver: 1, updatedAt: '', entries: [] };
-  var editingId = null;       // 编辑中的条目 id（新增为 null）
+  var editingId = null;
   var editingType = 'countdown';
+
+  // 克制线性 SVG 图标（置顶 / 编辑 / 删除）
+  function svg(type, filled) {
+    var fill = filled ? ' class="filled"' : '';
+    if (type === 'pin') return '<span class="ic' + fill + '"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/></svg></span>';
+    if (type === 'edit') return '<span class="ic"><svg viewBox="0 0 24 24"><path d="M17 3a2.83 2.83 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></span>';
+    return '<span class="ic"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14"/></svg></span>';
+  }
 
   // ── 主题 ──
   function resolveTheme() {
@@ -288,12 +339,8 @@
     }
     return 'notion';
   }
-  function applyTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-  }
-  window.addEventListener('message', function (e) {
-    if (e.data && e.data.action === 'themeChange') applyTheme(e.data.theme);
-  });
+  function applyTheme(theme) { document.documentElement.setAttribute('data-theme', theme); }
+  window.addEventListener('message', function (e) { if (e.data && e.data.action === 'themeChange') applyTheme(e.data.theme); });
   applyTheme(resolveTheme());
 
   // ── 帮助函数 ──
@@ -314,26 +361,81 @@
       el.textContent = msg;
     }
     host.appendChild(el);
-    setTimeout(function () { el.classList.add('hide'); el.style.opacity = '0'; el.style.transform = 'translateY(8px)'; }, 6000);
+    setTimeout(function () { el.style.opacity = '0'; el.style.transform = 'translateY(8px)'; }, 6000);
     setTimeout(function () { el.remove(); }, 6400);
   }
-  function showBanner(text) {
-    $('avBannerText').textContent = text;
-    $('avBanner').classList.add('show');
-  }
+  function showBanner(text) { $('avBannerText').textContent = text; $('avBanner').classList.add('show'); }
   function hideBanner() { $('avBanner').classList.remove('show'); }
+
+  // ── 发送到手机 ──
+  var qrUrl = null;
+  function openPhone() {
+    var url = location.href;
+    if (qrUrl !== url) {
+      qrUrl = url;
+      var img = $('avQrImg');
+      try {
+        var qr = window.qrcode(0, 'M');
+        qr.addData(url); qr.make();
+        img.src = qr.createDataURL(6, 2);
+        img.style.display = '';
+      } catch (e) { img.style.display = 'none'; }
+    }
+    $('avQrUrl').textContent = url;
+    $('avQrMask').classList.add('show');
+  }
+  function closePhone() { $('avQrMask').classList.remove('show'); }
+  function copyPhoneLink() {
+    var url = location.href;
+    var done = function () { toast('链接已复制'); };
+    var fallback = function () {
+      var t = document.createElement('textarea');
+      t.value = url; t.setAttribute('readonly', ''); t.style.position = 'fixed'; t.style.opacity = '0';
+      document.body.appendChild(t); t.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      t.remove(); done();
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, fallback);
+    else fallback();
+  }
 
   // ── 数据 ──
   function reload() { data = S.load() || { ver: 1, updatedAt: '', entries: [] }; }
   function persist() { S.save(data); }
 
-  // 分组：置顶 > 今天/临期 > 未来 > 已过
   function classify(e, s) {
-    if (e.pinned) return { key: 'pinned', title: '📌 置顶' };
-    if (s.upcoming) return { key: 'upcoming', title: '🔔 今天 / 临期' };
-    if (s.diff < 0) return { key: 'future', title: '⏳ 未来' };
-    return { key: 'past', title: '🎈 已过' };
+    if (e.pinned) return { key: 'pinned', title: '置顶' };
+    if (s.upcoming) return { key: 'upcoming', title: '今天 · 临期' };
+    if (s.diff < 0) return { key: 'future', title: '未来' };
+    return { key: 'past', title: '已过' };
   }
+
+  // 主视觉块：数字 + 单位 + 状态
+  function dayBlock(s) {
+    if (s.cls === 'today') return '<div class="av-card-num">今天</div><div class="av-card-sub">值得铭记</div>';
+    if (s.cls === 'upcoming') return '<div class="av-card-num">' + s.remaining + '<span class="u">天</span></div><div class="av-card-sub">剩余</div>';
+    return '<div class="av-card-num">' + Math.abs(s.diff) + '<span class="u">天</span></div><div class="av-card-sub">已过</div>';
+  }
+
+  // 头部信息条
+  var WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+  function updateHero(list) {
+    var up = 0, fut = 0, past = 0;
+    list.forEach(function (o) {
+      if (o.s.upcoming) up++;
+      else if (o.s.diff < 0) fut++;
+      else past++;
+    });
+    var d = new Date();
+    $('avHeroDate').textContent = (d.getMonth() + 1) + '月' + d.getDate() + '日';
+    $('avHeroInfo').textContent = WEEK[d.getDay()];
+    var parts = [];
+    if (up) parts.push(up + ' 个临近');
+    if (fut) parts.push(fut + ' 个未来');
+    if (past) parts.push(past + ' 个已过');
+    $('avHeroSummary').textContent = parts.join(' · ') || '';
+  }
+
   function render() {
     var kw = $('avSearch').value.trim().toLowerCase();
     var list = data.entries
@@ -343,6 +445,8 @@
         return (e.title || '').toLowerCase().indexOf(kw) >= 0 || (e.category || '').toLowerCase().indexOf(kw) >= 0;
       })
       .map(function (e) { var s = S.toReminderState(e, S.todayStr()); return { e: e, s: s }; });
+
+    updateHero(list);
 
     var order = ['pinned', 'upcoming', 'future', 'past'];
     var groups = {};
@@ -363,8 +467,8 @@
       shown += arr.length;
       var sec = document.createElement('div');
       sec.className = 'av-section';
-      sec.innerHTML = '<span class="dot"></span><span></span><span class="count"></span>';
-      sec.querySelectorAll('span')[1].textContent = arr[0].title;
+      sec.innerHTML = '<span class="t"></span><span class="line"></span><span class="count"></span>';
+      sec.querySelector('span.t').textContent = arr[0].title;
       sec.querySelector('.count').textContent = arr.length + ' 项';
       root.appendChild(sec);
       var grid = document.createElement('div');
@@ -375,7 +479,6 @@
 
     $('avEmpty').style.display = shown ? 'none' : 'flex';
 
-    // 分类 datalist
     var cats = {};
     data.entries.forEach(function (e) { if (e && e.category) cats[e.category] = 1; });
     $('avCats').innerHTML = Object.keys(cats).map(function (c) { return '<option value="' + esc(c) + '">'; }).join('');
@@ -384,41 +487,39 @@
 
   function cardHTML(e, s) {
     var el = document.createElement('article');
-    el.className = 'av-card' + (e.pinned ? ' pinned' : '');
+    el.className = 'av-card ' + s.cls + (e.pinned ? ' pinned' : '');
     el.dataset.id = e.id;
     var cat = e.category
-      ? '<span class="av-badge ' + s.cls + '"><span class="dot"></span>' + esc(e.category) + '</span>'
+      ? '<span class="av-badge ' + s.cls + '">' + esc(e.category) + '</span>'
       : '';
     el.innerHTML =
       '<div class="av-card-top">' +
-        '<span class="av-card-icon">' + (e.type === 'anniversary' ? '🎈' : '⏳') + '</span>' +
         '<span class="av-card-title">' + esc(e.title) + '</span>' +
         '<span class="av-card-ops">' +
-          '<button class="av-icon-btn" data-op="pin" title="' + (e.pinned ? '取消置顶' : '置顶') + '">' + (e.pinned ? '📌' : '📍') + '</button>' +
-          '<button class="av-icon-btn" data-op="edit" title="编辑">✏️</button>' +
-          '<button class="av-icon-btn danger" data-op="del" title="删除">🗑</button>' +
+          '<button class="av-icon-btn" data-op="pin" title="' + (e.pinned ? '取消置顶' : '置顶') + '">' + svg('pin', e.pinned) + '</button>' +
+          '<button class="av-icon-btn" data-op="edit" title="编辑">' + svg('edit') + '</button>' +
+          '<button class="av-icon-btn danger" data-op="del" title="删除">' + svg('trash') + '</button>' +
         '</span>' +
       '</div>' +
-      '<div class="av-card-days">' + esc(s.label) + '</div>' +
+      dayBlock(s) +
       '<div class="av-card-date">' + esc(e.date) + '</div>' +
       (cat ? '<div class="av-card-foot">' + cat + '</div>' : '');
     return el;
   }
 
-  // ── 删除（240ms 淡出+右侧收缩，toast 撤销 6s）──
+  // ── 删除 ──
   var undoCache = [];
   function removeEntry(id) {
     var idx = data.entries.findIndex(function (e) { return e.id === id; });
     if (idx < 0) return;
     var orig = data.entries[idx];
     var clone = {};
-    for (var k in orig) clone[k] = orig[k]; // 干净克隆：置 _drop 会改原对象，撤销需干净副本
+    for (var k in orig) clone[k] = orig[k];
     var card = document.querySelector('.av-card[data-id="' + CSS.escape(id) + '"]');
     undoCache = undoCache.filter(function (u) { return u.id !== id; });
     undoCache.push({ id: id, idx: idx, entry: clone });
     orig._drop = true;
     if (card) card.classList.add('dropping');
-    // 240ms 动画结束后真正移除并刷新列表
     var t = setTimeout(function () {
       data.entries = data.entries.filter(function (e) { return e !== orig; });
       persist(); render();
@@ -434,7 +535,6 @@
       undoCache = undoCache.filter(function (x) { return x.id !== id; });
       persist(); render();
     });
-    // 6 秒后清撤销缓存
     setTimeout(function () { undoCache = undoCache.filter(function (x) { return x.id !== id; }); }, 6000);
   }
 
@@ -452,10 +552,7 @@
     $('avMask').classList.add('show');
     $('avFldTitle').focus();
   }
-  function closeModal() {
-    $('avMask').classList.remove('show');
-    editingId = null;
-  }
+  function closeModal() { $('avMask').classList.remove('show'); editingId = null; }
   function syncTypeRow() {
     var btns = $('avTypeRow').querySelectorAll('button');
     btns.forEach(function (b) { b.classList.toggle('on', b.dataset.type === editingType); });
@@ -511,7 +608,7 @@
     reader.readAsText(file);
   }
 
-  // ── 提醒（页面打开 / 定时器 / 聚焦时）──
+  // ── 提醒 ──
   function checkReminders() {
     if (!('Notification' in window)) return;
     var today = S.todayStr();
@@ -528,10 +625,10 @@
     var first = hit[0];
     try {
       if (Notification.permission === 'granted') {
-        new Notification('🎂 ' + first.title, { body: first.label + ' · ' + first.date, silent: false });
+        new Notification('纪念日', { body: first.title + ' · ' + first.label, silent: false });
       } else if (Notification.permission !== 'denied') {
         Notification.requestPermission().then(function (p) {
-          if (p === 'granted') new Notification('🎂 ' + first.title, { body: first.label + ' · ' + first.date, silent: false });
+          if (p === 'granted') new Notification('纪念日', { body: first.title + ' · ' + first.label, silent: false });
         }).catch(function () {});
       }
     } catch (e) { /* 环境不支持通知，静默 */ }
@@ -540,10 +637,8 @@
     var today = S.todayStr();
     var ups = S.getUpcoming(data.entries, today, 7);
     if (ups.length) {
-      showBanner('今天 / 临期 ' + ups.length + ' 条：' + ups.slice(0, 3).map(function (o) { return o.title; }).join('、') + (ups.length > 3 ? ' 等' : ''));
-    } else {
-      hideBanner();
-    }
+      showBanner('临近 ' + ups.length + ' 个：' + ups.slice(0, 3).map(function (o) { return o.title; }).join('、') + (ups.length > 3 ? ' 等' : ''));
+    } else { hideBanner(); }
   }
 
   // ── 事件 ──
@@ -560,6 +655,9 @@
       return;
     }
     if (ev.target.closest('#avAddBtn')) { openModal('countdown', null); return; }
+    if (ev.target.closest('#avPhoneBtn')) { openPhone(); return; }
+    if (ev.target.closest('#avQrCopyBtn')) { copyPhoneLink(); return; }
+    if (ev.target.closest('#avQrCloseBtn') || ev.target === $('avQrMask')) { closePhone(); return; }
     if (ev.target.closest('#avCancelBtn') || ev.target === $('avMask')) { closeModal(); return; }
     if (ev.target.closest('#avSaveBtn')) { saveModal(); return; }
   });
@@ -577,10 +675,13 @@
     this.value = '';
   });
   document.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Escape' && $('avMask').classList.contains('show')) closeModal();
+    if (ev.key === 'Escape') {
+      if ($('avMask').classList.contains('show')) closeModal();
+      if ($('avQrMask').classList.contains('show')) closePhone();
+    }
   });
   window.addEventListener('focus', function () { checkReminders(); updateBanner(); });
-  var dayTimer = setInterval(function () { checkReminders(); updateBanner(); }, 10 * 60 * 1000);
+  setInterval(function () { checkReminders(); updateBanner(); }, 10 * 60 * 1000);
 
   // ── 初始化 ──
   reload();
