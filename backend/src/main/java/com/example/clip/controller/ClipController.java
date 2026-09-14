@@ -251,6 +251,36 @@ public class ClipController {
     }
 
     /**
+     * 文本 AI 总结
+     * <p>
+     * POST /api/clip/text-summary body: {"content": "..."}
+     * <p>
+     * 对传入的文本做 AI 一句话/要点总结，供「OCR 提取文字 → 自动总结」链路使用。
+     * 失败时返回空 summary 而非抛错，避免拖垮上游 OCR 主流程。
+     *
+     * @param request 含待总结文本的 tag 请求（复用 content 字段）
+     * @return 包含 summary 字段的 Map
+     */
+    @PostMapping("/text-summary")
+    public ResponseEntity<Map<String, Object>> textSummary(@RequestBody(required = false) TagRequest request) {
+        String content = request == null ? "" : request.getContent();
+        content = content == null ? "" : content.trim();
+        if (content.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "summary", ""));
+        }
+        try {
+            String summary = aiService.generateSummary(content);
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "summary", summary == null ? "" : summary.trim()
+            ));
+        } catch (Exception e) {
+            log.warn("[API] /text-summary failed: {}", e.getMessage());
+            return ResponseEntity.ok(Map.of("status", "error", "summary", ""));
+        }
+    }
+
+    /**
      * AI 智能整理
      * <p>
      * POST /api/clip/smart-organize

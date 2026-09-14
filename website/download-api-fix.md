@@ -1,6 +1,14 @@
-# 官网下载区 403 问题与修复方案（待开发）
+# 官网下载区 403 问题与修复方案
 
-> 状态：已排查定位，暂不改动线上，供后续开发实施。
+> 状态：已按方案 C（Pages Function 代理 + 内置直链兜底）完成代码实施并已部署线上，下载按钮在真实浏览器中验证可直接下载。
+
+## 线上验证结果（2026-09-14）
+
+- 已部署：`npm run deploy:site` 成功，`Uploading Functions bundle`，生产域 `cutshelter.pages.dev`。
+- 实测：线上 `/api/releases` 也返回 `{"error":"github 403"}`（502）——**Cloudflare 出口 IP 同样被 GitHub 匿名限流**（正是方案 A 末尾警告的情况，CF 出口共享 IP 很容易打爆 60 次/小时限额）。
+- 兜底生效：在 502 前提下，真实浏览器（线上）5 个下载按钮 href 仍均为 `releases/download/v1.0.14/<资产>` 直链，未回落到 releases 页，**可直接触发下载**。console 无错误。
+- 结论：下载功能已止血（内置直链兜底保证可下载）。
+- ⚠️ 遗留：`/api/releases` 因出口限流持续 502，「自动取最新版直链」的能力暂未生效，版本停在内置的 `v1.0.14`，需发版时手动同步 `BUILTIN`。若要让接口恢复实时新版，可在 CF Pages 配置 GitHub Token 环境变量（`GITHUB_TOKEN`）走认证 API（5000 次/小时）。
 
 ## 问题现象
 
@@ -41,12 +49,16 @@ json('https://api.github.com/repos/wf-Peg/ai_coding/releases/latest')
 - 优点：彻底无 403、无依赖。
 - 缺点：每次发新版本要手动更新一次页面并重新部署。
 
-### 方案 C：A + B 结合（最稳）
+### 方案 C：A + B 结合（最稳）🔨 本次已实施
 
-- Pages 函数为主，页面内保留一张"当前版本直链"作为函数失败时的兜底，双保险。
+- Pages Function 为主（`website/functions/api/releases.js`，返回 `{latest, list}` 并带 `s-maxage` 边缘缓存），前端改走同域 `/api/releases`，访客 IP 不再受限；发新版本无需改页面。
+- 页面内保留一张「当前版本直链」（`website/index.html` 的 `BUILTIN` map，当前为 `v1.0.14`）作为函数失败时的兜底，双保险。—— ⚠️ 发新版本时需手动同步 `BUILTIN_TAG` 与 `BUILTIN` 的资产名。
 
 ## 待办（后续开发）
 
-- [ ] 选定方案并实施到 `website/`
-- [ ] 重新部署官网（`npm run deploy:site`，需 `CLOUDFLARE_API_TOKEN`）
-- [ ] 验证 PC/手机不同网络条件下下载 Windows 免安装版均能直接触发下载
+- [x] 选定方案 C 并实施到 `website/`
+- [x] 调整 `deploy:site`：改为 `cd website && wrangler pages deploy .`，确保 `functions/` 随部署收录
+- [x] 本地 `wrangler pages dev` 冒烟验证：函数路由返回 JSON（GitHub 403 时透传 502，前端走内置直链），下载按钮 href 均解析为 `download/v1.0.14/<资产>` 直链
+- [x] 重新部署官网（`npm run deploy:site`，已上线）
+- [x] 验证下载 Windows 免安装版等：线上真实浏览器下按钮均解析为 `download/` 直链，可直接下载
+- [ ]（可选）配置 CF Pages `GITHUB_TOKEN` 环境变量，使 `/api/releases` 走认证 API 恢复实时取最新版

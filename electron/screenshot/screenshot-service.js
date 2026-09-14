@@ -75,7 +75,7 @@ function loadScreenshotConfig() {
   } catch (e) { return { enabled: true, screenshot: 'F1', paste: 'F2', hideMain: true, saveDir: '' }; }
 }
 
-/** 注册全局快捷键（独立注册，不影响现有 Alt+X 的 unregisterAll 流程） */
+/** 注册全局快捷键（独立注册，不影响主进程全局唤起键的 unregisterAll 流程） */
 function registerShortcuts() {
   const { globalShortcut } = deps;
   const cfg = loadScreenshotConfig();

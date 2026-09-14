@@ -683,6 +683,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   getShortcutConfig: () => ipcRenderer.invoke('get-shortcut-config'),
   setShortcutConfig: (config) => ipcRenderer.invoke('set-shortcut-config', config),
+  /** 收集菜单/全局快捷键清单（快捷键检测工具用，编辑器键位由渲染层读 localStorage 补充） */
+  auditShortcuts: () => ipcRenderer.invoke('shortcut:audit'),
+  /** 监听全局快捷键注册失败（被系统或其它应用占用）事件 */
+  onShortcutOccupied: (callback) => ipcRenderer.on('shortcut:occupied', (event, accelerator) => callback(accelerator)),
 
   // ===================== 系统右键菜单事件监听 =====================
 

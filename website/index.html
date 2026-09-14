@@ -1045,6 +1045,16 @@ svg { display: block; }
   var DOWNLOAD_BASE = 'https://github.com/' + REPO + '/releases/download/';
   var LATEST_PAGE = 'https://github.com/' + REPO + '/releases/latest';
   var FALLBACK_VER = '前往 Releases 查看';
+  // 内置当前版本直链兜底：/api/releases 不可用（如函数未部署、CF 异常）时仍能直接触发下载，
+  // 避免像原 api.github.com 被限流那样整体回落到 releases 页。发新版本时记得同步更新。
+  var BUILTIN_TAG = 'v1.0.14';
+  var BUILTIN = {
+    setup:     DOWNLOAD_BASE + 'v1.0.14/CutShelter-Setup-1.0.14.exe',
+    portable:  DOWNLOAD_BASE + 'v1.0.14/CutShelter-portable-1.0.14-win-x64.zip',
+    'mac-arm': DOWNLOAD_BASE + 'v1.0.14/CutShelter-1.0.14-arm64.dmg',
+    'mac-x64': DOWNLOAD_BASE + 'v1.0.14/CutShelter-1.0.14-x64.dmg',
+    clipper:   DOWNLOAD_BASE + 'v1.0.14/CutShelter-webclipper-1.0.14.zip'
+  };
   // data-dl -> 资产文件名匹配
   var RE = {
     setup:     /CutShelter-Setup-.*\.exe$/i,
@@ -1067,48 +1077,51 @@ svg { display: block; }
     return tag;
   }
 
-  function setFallback() {
-    document.querySelectorAll('.dl-btn').forEach(function (b) { b.setAttribute('href', LATEST_PAGE); });
-    document.querySelectorAll('.dl-ver').forEach(function (v) { v.textContent = FALLBACK_VER; });
+  // 下载地址解析顺序：API 真实直链 > 内置直链 > GitHub 页面
+  function hrefFor(k) { return (filled[k] && filled[k].url) || BUILTIN[k] || LATEST_PAGE; }
+  function tagFor(k) {
+    if (filled[k] && filled[k].tag) return filled[k].tag;
+    return BUILTIN[k] ? BUILTIN_TAG : '';
   }
 
   function apply() {
     document.querySelectorAll('.dl-btn').forEach(function (b) {
       var k = b.getAttribute('data-dl');
-      b.setAttribute('href', filled[k] ? filled[k].url : LATEST_PAGE);
+      b.setAttribute('href', hrefFor(k));
     });
-    // 每张卡显示该卡内已解析到的版本号（来源于哪个 release 就显示哪个版本）
+    // 每张卡显示对应版本的下载（来源于真实解析则显示真实版本，否则显示内置兜底版本）
     document.querySelectorAll('.dl-card').forEach(function (card) {
       var tag = '';
       card.querySelectorAll('.dl-btn').forEach(function (b) {
-        var f = filled[b.getAttribute('data-dl')];
-        if (f && !tag) tag = f.tag;
+        var t = tagFor(b.getAttribute('data-dl'));
+        if (t && !tag) tag = t;
       });
       var verEl = card.querySelector('.dl-ver');
-      if (verEl) verEl.textContent = tag ? ('v' + tag.replace(/^v/i, '')) : FALLBACK_VER;
+      if (verEl) verEl.textContent = tag || FALLBACK_VER;
     });
   }
 
   function json(url) {
-    return fetch(url, { headers: { Accept: 'application/vnd.github+json' } })
+    return fetch(url)
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
   }
 
+  apply(); // 先用内置直链渲染（同步兜底，马上可用），异步再用 API 解析出的真实直链覆盖
+
   try {
-    json('https://api.github.com/repos/' + REPO + '/releases/latest')
-      .then(function (latest) {
-        match(latest);
-        if (Object.keys(filled).length < Object.keys(RE).length) {
-          return json('https://api.github.com/repos/' + REPO + '/releases?per_page=100');
+    // 同域 Cloudflare Pages Function 代理，规避 api.github.com 匿名限流 403
+    json('/api/releases')
+      .then(function (data) {
+        if (data && data.latest) match(data.latest);
+        if (data && data.list && data.list.length &&
+            Object.keys(filled).length < Object.keys(RE).length) {
+          data.list.forEach(match); // 最新→旧 补全缺失端
         }
-      })
-      .then(function (list) {
-        if (list && list.length) list.forEach(match); // 最新→旧 补全缺失端
         apply();
       })
-      .catch(setFallback);
+      .catch(function () { apply(); }); // API 失败 → 保持内置直链兜底
   } catch (e) {
-    setFallback();
+    apply();
   }
 })();
 </script>

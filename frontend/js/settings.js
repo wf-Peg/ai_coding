@@ -154,6 +154,19 @@ async function loadConfig() {
     onProviderChange();
     loadMascotConfig();
 
+    // 剪贴板即时助手（桌面端监听/频率，存储于 Electron config.json）
+    const eapi = getElectronAPI();
+    if (eapi && eapi.getConfig) {
+      try {
+        const ec = await eapi.getConfig();
+        const ca = (ec && ec.clipboardAssistant) || {};
+        const clipToggle = document.getElementById('clipboardAssistantToggle');
+        if (clipToggle) clipToggle.checked = ca.enabled !== false;
+        const freqSelect = document.getElementById('clipboardPollInterval');
+        if (freqSelect) freqSelect.value = String(ca.pollIntervalMs || 1500);
+      } catch (e2) { console.warn('[settings] 读取剪贴板助手配置失败:', e2); }
+    }
+
     // 邮件配置
     document.getElementById('mailEnabled').checked = config.mailEnabled === true;
     document.getElementById('mailHost').value = config.mailHost || '';
@@ -544,6 +557,44 @@ function handleMascotHistoryClick(event) {
   }
 }
 
+// 同步剪贴板即时助手配置到 Electron config.json（开关 + 监听频率，保存后热更新轮询）；非桌面端静默跳过
+async function syncClipboardAssistantToElectron() {
+  const api = getElectronAPI();
+  if (!api || !api.getConfig || !api.saveConfig) return;
+  const toggle = document.getElementById('clipboardAssistantToggle');
+  if (!toggle) return;
+  const freq = document.getElementById('clipboardPollInterval');
+  const pollIntervalMs = parseInt(freq ? freq.value : '1500', 10) || 1500;
+  try {
+    const ec = await api.getConfig();
+    const prev = (ec.clipboardAssistant && typeof ec.clipboardAssistant === 'object') ? ec.clipboardAssistant : {};
+    ec.clipboardAssistant = {
+      enabled: toggle.checked,
+      pollIntervalMs: pollIntervalMs,
+      cooldownMs: prev.cooldownMs || 10000
+    };
+    await api.saveConfig(ec);
+  } catch (e) {
+    console.warn('[settings] 同步剪贴板助手配置失败:', e);
+  }
+}
+
+// 剪切板监听即时生效：开关/频率变更时立即同步到桌面端并提示
+async function saveClipboardAssistant() {
+  const api = getElectronAPI();
+  if (!api || !api.getConfig || !api.saveConfig) {
+    showToast('剪切板监听为桌面端功能，需在碎碎记（CutShelter）应用中使用', true);
+    return;
+  }
+  const enabled = document.getElementById('clipboardAssistantToggle').checked;
+  try {
+    await syncClipboardAssistantToElectron();
+    showToast(enabled ? '剪切板监听已启用' : '剪切板监听已关闭');
+  } catch (e) {
+    showToast('剪切板监听配置保存失败：' + (e.message || ''), true);
+  }
+}
+
 // 保存配置
 async function saveConfig() {
   const saveBtn = document.getElementById('saveBtn');
@@ -645,6 +696,9 @@ async function saveConfig() {
           }
         }
       }
+
+      // 同步剪贴板即时助手配置到 Electron config.json（开关 + 监听频率，热更新轮询）
+      syncClipboardAssistantToElectron();
 
       const msg = (oldStoragePath && oldStoragePath !== newStoragePath)
         ? '配置已保存，请重启后端使存储路径生效'
@@ -901,6 +955,20 @@ function toggleVisibility(inputId) {
   input.type = input.type === 'password' ? 'text' : 'password';
 }
 
+// 在系统默认浏览器打开外部链接（注册/文档等）；优先走主进程 IPC shell.openExternal，失败回退 window.open
+function openExternalLink(url) {
+  if (!url) return false;
+  const api = getElectronAPI();
+  if (api && typeof api.openExternal === 'function') {
+    api.openExternal(url).then((res) => {
+      if (!res || res.ok === false) window.open(url, '_blank');
+    }).catch(() => window.open(url, '_blank'));
+  } else {
+    window.open(url, '_blank');
+  }
+  return false;
+}
+
 function showToast(message, isError = false) {
   if (window.UI && UI.toast) {
     UI.toast(message, { type: isError ? 'error' : 'info', duration: isError ? 4000 : 2000 });
@@ -977,7 +1045,7 @@ async function loadShortcutConfig() {
   try {
     const config = await api.getShortcutConfig();
     document.getElementById('shortcutEnabled').checked = config.enabled;
-    document.getElementById('shortcutKey').value = config.accelerator || 'Alt+X';
+    document.getElementById('shortcutKey').value = config.accelerator || 'Control+Alt+X';
     document.getElementById('shortcutKeyRow').style.display = config.enabled ? '' : 'none';
   } catch (e) {}
 }
@@ -1011,7 +1079,7 @@ async function cancelShortcutRecording() {
   if (api && api.setShortcutConfig && recordingPreviousEnabled) {
     try {
       const val = input.value.trim();
-      const accelerator = (val && val !== '按下组合键...') ? val : 'Alt+X';
+      const accelerator = (val && val !== '按下组合键...') ? val : 'Control+Alt+X';
       await api.setShortcutConfig({ enabled: true, accelerator });
     } catch (e) {}
   }
@@ -1056,7 +1124,7 @@ document.addEventListener('click', (e) => {
 
 async function onShortcutChange() {
   const enabled = document.getElementById('shortcutEnabled').checked;
-  const accelerator = document.getElementById('shortcutKey').value.trim() || 'Alt+X';
+  const accelerator = document.getElementById('shortcutKey').value.trim() || 'Control+Alt+X';
   document.getElementById('shortcutKeyRow').style.display = enabled ? '' : 'none';
   const api = getElectronAPI();
   if (!api || !api.setShortcutConfig) return;
@@ -1230,6 +1298,11 @@ async function initUpdateUI() {
       document.getElementById('updateNowBtn').style.display = 'block';
       document.getElementById('cancelUpdateBtn').style.display = 'none';
       isUpdating = false;
+    });
+
+    // 全局快捷键注册失败（被系统或其它应用占用）时提示
+    electronAPI.onShortcutOccupied && electronAPI.onShortcutOccupied((accelerator) => {
+      showToast('全局快捷键「' + accelerator + '」已被占用，无法注册。请到快捷键设置更换一个组合键。', true);
     });
   } catch (e) {
     console.error('[Update] Init UI failed:', e);

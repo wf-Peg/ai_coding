@@ -630,6 +630,21 @@
             padding-bottom: 0 !important;
         }
 
+        /* ── 分区标题（应用配置内的优先级分组） ── */
+        .config-partition {
+            margin: 18px 0 6px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            border-left: 3px solid var(--accent);
+            background: color-mix(in srgb, var(--surface) 60%, transparent);
+            border-radius: 4px;
+        }
+        .config-partition:first-of-type {
+            margin-top: 0;
+        }
+
         /* ── Sticky 保存按钮 ── */
         .save-section {
             padding-bottom: 0 !important;
@@ -888,13 +903,15 @@
             </div>
             <div class="setting-row" id="shortcutKeyRow">
                 <div class="setting-label">
-                    <div class="setting-title">快捷键组合</div>
-                    <div class="setting-desc">支持 Ctrl / Alt / Shift + 字母键</div>
+                    <div class="setting-title">全局唤起快捷键</div>
+                    <div class="setting-desc" title="点击右侧输入框，按下任意组合键即可录制；改键即时生效。macOS 建议使用不带 ⌘ 的组合（如 Ctrl+Alt/X，即 ⌃⌥X），避免与系统菜单快捷键冲突导致无法全局触发。">点击右侧输入框并按下组合键录制即可生效</div>
                 </div>
                 <div class="setting-control">
                     <input type="text" id="shortcutKey" class="shortcut-input" 
-                           placeholder="Alt+X" onclick="startShortcutRecording()"
-                           style="width:200px;text-align:center;" readonly>
+                           placeholder="点击录制…如 Ctrl+Alt+X"
+                           title="全局「唤起/隐藏窗口」快捷键。点击输入框后按下组合键即可录制；若该键已被系统或其它应用占用，会弹出提示。macOS 建议用不带 ⌘ 的组合（如 Ctrl+Alt/X = ⌃⌥X），它不会被应用菜单快捷键抢占、全局触发更稳定。"
+                           onclick="startShortcutRecording()"
+                           style="width:260px;text-align:center;" readonly>
                 </div>
             </div>
         </div>
@@ -1110,6 +1127,8 @@
                 <span class="section-badge needs-save">保存后生效</span>
             </div>
 
+            <!-- 模型与 API -->
+            <div class="config-partition">模型与 API</div>
             <!-- AI 模型配置 -->
             <div class="config-subsection">
                 <div class="config-subsection-title collapsible" onclick="toggleSection(this)">
@@ -1167,7 +1186,7 @@
                                     <button class="btn btn-outline" onclick="toggleVisibility('dashscopeApiKey')">显示</button>
                                 </div>
                                 <div style="margin-top:4px;font-size:11px;color:var(--app-text-muted);">
-                                    <a href="https://dashscope.console.aliyun.com/apiKey" target="_blank" style="color:var(--accent);">前往阿里云控制台获取 API Key →</a>
+                                    <a href="https://dashscope.console.aliyun.com/apiKey" onclick="openExternalLink('https://dashscope.console.aliyun.com/apiKey');return false;" style="color:var(--accent);cursor:pointer;">前往阿里云控制台获取 API Key →</a>
                                 </div>
                             </div>
                             <div class="form-group">
@@ -1189,7 +1208,7 @@
                                     <button class="btn btn-outline" onclick="toggleVisibility('deepseekApiKey')">显示</button>
                                 </div>
                                 <div style="margin-top:4px;font-size:11px;color:var(--app-text-muted);">
-                                    <a href="https://platform.deepseek.com/sign_in" target="_blank" style="color:var(--accent);">前往 DeepSeek 注册获取 API Key →</a>
+                                    <a href="https://platform.deepseek.com/sign_in" onclick="openExternalLink('https://platform.deepseek.com/sign_in');return false;" style="color:var(--accent);cursor:pointer;">前往 DeepSeek 注册获取 API Key →</a>
                                 </div>
                             </div>
                             <div class="form-group">
@@ -1214,7 +1233,10 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">API Key</label>
-                            <input type="password" id="customApiKey" class="setting-input" placeholder="sk-xxx">
+                            <div class="input-row">
+                                <input type="password" id="customApiKey" class="setting-input" placeholder="sk-xxx">
+                                <button class="btn btn-outline" onclick="toggleVisibility('customApiKey')">显示</button>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label class="form-label">模型名称</label>
@@ -1228,6 +1250,8 @@
                 </div>
             </div>
 
+            <!-- AI 与工具 -->
+            <div class="config-partition">AI 与工具</div>
             <!-- 小记图标配置 -->
             <div class="config-subsection mascot-config-section">
                 <div class="config-subsection-title collapsible" onclick="toggleSection(this)">
@@ -1294,7 +1318,7 @@
                             </div>
                         </label>
                         <div class="form-hint" style="margin-top:6px;font-size:12px;color:var(--text-secondary);">
-                            用于学习计划模块搜索真实学习资源，从 <a href="https://dashboard.exa.ai/api-keys" target="_blank" style="color:var(--accent);">dashboard.exa.ai</a> 获取 API Key
+                            用于学习计划模块搜索真实学习资源，从 <a href="https://dashboard.exa.ai/api-keys" onclick="openExternalLink('https://dashboard.exa.ai/api-keys');return false;" style="color:var(--accent);cursor:pointer;">dashboard.exa.ai</a> 获取 API Key
                         </div>
                     </div>
                     <div class="form-group">
@@ -1362,6 +1386,8 @@
                 </div>
             </div>
 
+            <!-- 数据与本地 -->
+            <div class="config-partition">数据与本地</div>
             <!-- 邮件通知 -->
             <div class="config-subsection">
                 <div class="config-subsection-title collapsible" onclick="toggleSection(this)">
@@ -1567,6 +1593,40 @@
                         </div>
                         <div class="setting-control">
                             <span style="font-size:0.85rem;color:var(--text-secondary);">纯文本</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section" id="clipboardAssistantSection">
+                    <div class="section-title">
+                        📋 剪切板监听
+                        <span class="section-badge immediate">即时生效</span>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-label">
+                            <div class="setting-title">启用剪切板助手</div>
+                            <div class="setting-desc">监听复制内容，弹出「记录到剪藏」气泡并可一键入库，同时记录剪切板历史</div>
+                        </div>
+                        <div class="setting-control">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="clipboardAssistantToggle" onchange="saveClipboardAssistant()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="setting-row" style="border-bottom: none;">
+                        <div class="setting-label">
+                            <div class="setting-title">监听频率</div>
+                            <div class="setting-desc">过高会占用少量系统资源，默认 1.5 秒；频率修改即时生效</div>
+                        </div>
+                        <div class="setting-control">
+                            <select id="clipboardPollInterval" onchange="saveClipboardAssistant()" style="width: 200px;">
+                                <option value="500">0.5 秒（最快）</option>
+                                <option value="1000">1 秒</option>
+                                <option value="1500">1.5 秒（推荐）</option>
+                                <option value="2000">2 秒</option>
+                                <option value="3000">3 秒</option>
+                            </select>
                         </div>
                     </div>
                 </div>

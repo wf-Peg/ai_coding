@@ -98,6 +98,30 @@
             border-right: none;
             overflow: hidden;
         }
+        /* 侧边栏拖拽分隔条（展开态可视/可拖；折叠态隐藏） */
+        .sidebar-resizer {
+            flex: 0 0 6px;
+            width: 6px;
+            cursor: col-resize;
+            background: transparent;
+            position: relative;
+            z-index: 5;
+            -webkit-app-region: no-drag;
+            touch-action: none;
+            user-select: none;
+            transition: background var(--app-duration-fast) ease;
+        }
+        .sidebar-resizer:hover,
+        .sidebar-resizer.dragging {
+            background: var(--app-primary-soft);
+        }
+        .app-layout.sidebar-collapsed .sidebar-resizer {
+            display: none;
+        }
+        /* 拖拽中禁用侧边栏宽度过渡，保证跟手不拖尾 */
+        .app-layout.sidebar-resizing .titlebar-nav.sidebar {
+            transition: none;
+        }
         /* 标题栏展开按钮（折叠态显示） */
         .titlebar-sidebar-open {
             display: flex;
@@ -1141,6 +1165,7 @@
             <span class="nav-label">设置</span>
         </button>
     </nav>
+    <div class="sidebar-resizer" id="sidebarResizer" role="separator" aria-orientation="vertical" title="拖拽调整侧边栏宽度"></div>
     <div class="main-content" id="mainContent">
         <!-- 编辑器首页 -->
         <div class="view-panel" id="editorView">
@@ -1508,14 +1533,59 @@
       // ===== 侧边栏折叠（记忆用户偏好） =====
       const appLayoutEl = document.querySelector('.app-layout');
       const sidebarOpenBtn = document.getElementById('sidebarOpenBtn');
+      const sidebarNav = document.querySelector('.titlebar-nav.sidebar');
+      const SIDEBAR_MIN_W = 168;   // 兜底：最窄 168px，导航图标+文字仍完整可见
+      const SIDEBAR_MAX_W = 340;
+      function getSidebarWidth() {
+        let w = 208;
+        try { w = parseInt(localStorage.getItem('sidebar_width'), 10) || 208; } catch (e) {}
+        return Math.max(SIDEBAR_MIN_W, Math.min(SIDEBAR_MAX_W, w));
+      }
+      function setSidebarWidth(w, persist) {
+        if (!sidebarNav) return;
+        w = Math.max(SIDEBAR_MIN_W, Math.min(SIDEBAR_MAX_W, w));
+        sidebarNav.style.width = w + 'px';
+        sidebarNav.style.flexBasis = w + 'px';
+        if (persist) { try { localStorage.setItem('sidebar_width', String(w)); } catch (e) {} }
+      }
       function setSidebarCollapsed(collapsed) {
         if (appLayoutEl) appLayoutEl.classList.toggle('sidebar-collapsed', collapsed);
         if (sidebarOpenBtn) sidebarOpenBtn.style.display = collapsed ? 'flex' : 'none';
+        // 内联 width/flexBasis 优先级高于折叠类，折叠时需强制归零、展开时恢复记录宽度
+        if (sidebarNav) {
+          if (collapsed) { sidebarNav.style.width = '0'; sidebarNav.style.flexBasis = '0'; }
+          else setSidebarWidth(getSidebarWidth(), false);
+        }
         try { localStorage.setItem('sidebar_collapsed', collapsed ? '1' : '0'); } catch (e) {}
       }
       const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
       if (sidebarToggleBtn) sidebarToggleBtn.addEventListener('click', () => setSidebarCollapsed(true));
       if (sidebarOpenBtn) sidebarOpenBtn.addEventListener('click', () => setSidebarCollapsed(false));
+      // 侧边栏宽度拖拽（展开态生效；折叠态 resizer 已隐藏）
+      const sidebarResizer = document.getElementById('sidebarResizer');
+      if (sidebarResizer && sidebarNav) {
+        sidebarResizer.addEventListener('pointerdown', function(e) {
+          if (e.button !== 0) return;
+          e.preventDefault();
+          const startX = e.clientX;
+          const startW = getSidebarWidth();
+          let liveW = startW; // 拖拽过程中的当前宽度，用于手势跟手 + 松手时持久化，避免回读旧存档造成“弹回”
+          sidebarResizer.classList.add('dragging');
+          if (appLayoutEl) appLayoutEl.classList.add('sidebar-resizing');
+          const onMove = function(ev) { liveW = startW + (ev.clientX - startX); setSidebarWidth(liveW, false); };
+          const onStop = function() {
+            setSidebarWidth(liveW, true); // 夹取后在范围内持久化（宽度来自本次拖拽而非旧存档）
+            sidebarResizer.classList.remove('dragging');
+            if (appLayoutEl) appLayoutEl.classList.remove('sidebar-resizing');
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onStop);
+            window.removeEventListener('pointercancel', onStop);
+          };
+          window.addEventListener('pointermove', onMove);
+          window.addEventListener('pointerup', onStop);
+          window.addEventListener('pointercancel', onStop);
+        });
+      }
       setSidebarCollapsed(localStorage.getItem('sidebar_collapsed') === '1');
       const todoFrame = document.getElementById('todoFrame');
       const clipFrame = document.getElementById('clipFrame');
@@ -2875,9 +2945,18 @@
         if (kbd) kbd.textContent = shortcutText;
         if (openBtn) openBtn.title = '命令面板（' + (isMac ? '⌘K' : 'Ctrl+K') + '）';
 
-        // 主进程菜单加速键（CmdOrCtrl+K）→ IPC 事件（iframe 焦点场景兜底，逻辑同全局搜索）
+        // 主进程菜单加速键（CmdOrCtrl+K）→ IPC 事件（iframe 焦点场景兜底，逻辑同全局搜索）。
+        // 焦点在编辑器时转回编辑器自己的命令面板（经 triggerCommandPalette 去重，兼容 Ctrl+K/P）；
+        // 编辑器不可用时回退顶层命令面板。
         if (window.electronAPI && window.electronAPI.onFocusGlobalCmdPalette) {
-          window.electronAPI.onFocusGlobalCmdPalette(open);
+          window.electronAPI.onFocusGlobalCmdPalette(function () {
+            const ef = document.getElementById('editorFrame');
+            if (ef && ef.contentWindow) {
+              ef.contentWindow.postMessage({ action: 'focusCommandPalette' }, '*');
+            } else {
+              open();
+            }
+          });
         }
         // 浏览器/父窗口焦点场景兜底：⌘K / Ctrl+K
         document.addEventListener('keydown', function (e) {

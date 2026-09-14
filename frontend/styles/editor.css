@@ -542,7 +542,37 @@ select {
 }
 
 .editor-workspace.markdown-preview {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  /* 抽屉式预览：编辑区保持原列宽不动（不再改 grid-template-columns），
+     右侧预览以绝对定位抽屉浮层载入，避免两个画面一起重排/刷新 */
+  position: relative;
+}
+
+/* MD 预览抽屉的拖拽把手：默认隐藏；抽屉（非全屏）时定位在抽屉左边缘用于调整宽度。
+   兜底：JS 把抽屉宽 clamp 到 [230px, 容器宽-230px]，编辑区最窄也保留 230px。 */
+.editor-workspace > .md-split-resizer {
+  display: none;
+  cursor: col-resize;
+  touch-action: none;
+  background: var(--app-border);
+  transition: background var(--app-duration-fast) ease;
+}
+.editor-workspace.markdown-preview:not(.markdown-fullscreen) > .md-split-resizer {
+  display: block;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(100% - var(--md-drawer-width, 58%));
+  width: 6px;
+  z-index: 13;
+}
+.editor-workspace.markdown-preview > .md-split-resizer:hover,
+.editor-workspace.md-resizing > .md-split-resizer {
+  background: var(--app-primary);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-primary) 40%, transparent);
+}
+/* 拖拽期间关掉 grid 过渡，避免分隔线落后于指针 */
+.editor-workspace.md-resizing {
+  transition: none !important;
 }
 
 .editor-pane {
@@ -597,9 +627,13 @@ select {
 .editor-workspace.markdown-preview:not(.markdown-fullscreen) > .tags-pane {
   display: none !important;
 }
-.editor-workspace.comparing > .main-pane,
-.editor-workspace.markdown-preview > .main-pane {
+.editor-workspace.comparing > .main-pane {
   grid-column: 1;
+  grid-row: 1;
+}
+/* 抽屉式预览：编辑区保持第 2 列（1fr 全宽）原位不动，预览浮层覆盖其上 */
+.editor-workspace.markdown-preview > .main-pane {
+  grid-column: 2;
   grid-row: 1;
 }
 
@@ -613,6 +647,43 @@ select {
   flex-direction: column;
   background: var(--app-surface);
   overflow: hidden;
+}
+/* 抽屉式预览：绝对定位覆盖编辑区右侧。不改网格列宽 → 编辑区保持原尺寸不重排，
+   从根本上消除“两个画面先后刷新”的视觉跳动 */
+.editor-workspace.markdown-preview > .markdown-pane {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--md-drawer-width, 58%);
+  z-index: 12;
+  border-left: 1px solid var(--app-border-strong);
+  /* 浮层层级：用主题最亮表面（浅色透明光照 / 深色更亮表面）+ 强描边，拉开与编辑区层次 */
+  background: var(--app-surface-hover);
+  box-shadow: -6px 0 24px color-mix(in srgb, #000 20%, transparent);
+}
+/* 打开预览：抽屉从右侧滑入（不反向播放，关闭为瞬时隐藏） */
+.editor-workspace.markdown-preview > .markdown-pane {
+  animation: md-drawer-in var(--app-duration-panel) var(--app-ease-smooth) forwards;
+}
+@keyframes md-drawer-in {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+/* 预览内容在面板滑入后稍作延迟淡入，柔和衔接，呼应“过渡再渲染” */
+.editor-workspace.markdown-preview > .markdown-pane .markdown-body {
+  animation: md-content-in var(--app-duration-panel) var(--app-ease-smooth) both;
+  animation-delay: 90ms;
+}
+@keyframes md-content-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .editor-workspace.markdown-preview > .markdown-pane,
+  .editor-workspace.markdown-preview > .markdown-pane .markdown-body {
+    animation: none;
+  }
 }
 
 .markdown-pane[hidden] {
@@ -644,7 +715,19 @@ select {
   font-size: 14px;
   line-height: 1.7;
   color: var(--app-text);
+  /* 内容随分屏宽度自适应：长行宽下约束阅读宽度居中，窄时占满并允许内联元素收缩 */
+  width: 100%;
+  max-width: 920px;
+  margin: 0 auto;
+  box-sizing: border-box;
 }
+/* 预览内容元素自适应：图片/代码/表格等在大分屏或小分屏下都不溢出 */
+.markdown-body img { max-width: 100%; height: auto; }
+.markdown-body pre,
+.markdown-body code { white-space: pre-wrap; word-break: break-word; }
+.markdown-body pre { max-width: 100%; overflow-x: auto; }
+.markdown-body table { display: block; max-width: 100%; width: max-content; overflow-x: auto; }
+.markdown-body blockquote { word-break: break-word; }
 
 /* Markdown 渲染内容样式 */
 .markdown-body h1,
@@ -948,6 +1031,34 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
   background: var(--app-surface-subtle);
   font-size: 10px;
   user-select: none;
+  /* 非全屏/窄窗口时底部栏挤压变形修复：强制单行不换行，超宽时靠 flex 收缩 + 省略号兜底，
+     而非把按钮/编码行撑出可视区或压扁 */
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow: hidden;
+}
+/* 可被压缩的文本型状态项：允许收缩并以省略号截断，保住编码/行尾/右侧操作区不被挤压变形 */
+.editor-statusbar > .status-btn,
+.editor-statusbar > .status-select,
+.editor-statusbar > #statusLang,
+.editor-statusbar > #statusTabSize,
+.editor-statusbar > #cursorStatus,
+.editor-statusbar > #selectionStatus,
+.editor-statusbar > #multiCursorStatus,
+.editor-statusbar > #matchStatus {
+  flex-shrink: 0;
+  min-width: 0;
+}
+.editor-statusbar > #statusLang,
+.editor-statusbar > #statusTabSize,
+.editor-statusbar > #cursorStatus,
+.editor-statusbar > #selectionStatus,
+.editor-statusbar > #multiCursorStatus,
+.editor-statusbar > #matchStatus {
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status-btn {
@@ -1063,7 +1174,8 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
 }
 
 .status-spacer {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 8px;
 }
 
 #statusLang,
@@ -1626,6 +1738,14 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
     grid-template-rows: 1fr 1fr;
   }
 
+  /* 窄窗口预览改为上下堆叠，横向拖拽分隔线无意义，隐藏并清除自定义分屏宽度 */
+  .editor-workspace.markdown-preview > .md-split-resizer {
+    display: none;
+  }
+  .editor-workspace.md-resizing > .md-split-resizer {
+    background: var(--app-primary);
+  }
+
   .editor-workspace.show-ai-chat,
   .editor-workspace.show-filetree.show-ai-chat,
   .editor-workspace.show-history.show-ai-chat,
@@ -1820,20 +1940,26 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
   grid-template-columns: 280px minmax(0, 1fr) var(--ai-chat-width);
 }
 
-/* 对比 / 预览模式与左侧抽屉同开时，抽屉不挤压对比布局（覆盖 show-* 的列宽） */
+/* 对比模式与左侧抽屉同开时，抽屉不挤压对比布局（覆盖 show-* 的列宽） */
 .editor-workspace.comparing.show-filetree,
 .editor-workspace.comparing.show-history,
 .editor-workspace.comparing.show-recent,
 .editor-workspace.comparing.show-fav,
 .editor-workspace.comparing.show-outline,
-.editor-workspace.comparing.show-tags,
-.editor-workspace.markdown-preview.show-filetree,
-.editor-workspace.markdown-preview.show-history,
-.editor-workspace.markdown-preview.show-recent,
-.editor-workspace.markdown-preview.show-fav,
-.editor-workspace.markdown-preview.show-outline,
-.editor-workspace.markdown-preview.show-tags {
+.editor-workspace.comparing.show-tags {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+/* 抽屉式预览：无论左侧抽屉 / AI 面板的 show-* 类是否残留，都强制编辑区全宽，
+   预览为绝对定位浮层（--md-drawer-width）覆盖其上，不占用网格列 → 编辑区零重排 */
+.editor-workspace.markdown-preview:not(.markdown-fullscreen),
+.editor-workspace.markdown-preview:not(.markdown-fullscreen).show-filetree,
+.editor-workspace.markdown-preview:not(.markdown-fullscreen).show-history,
+.editor-workspace.markdown-preview:not(.markdown-fullscreen).show-recent,
+.editor-workspace.markdown-preview:not(.markdown-fullscreen).show-fav,
+.editor-workspace.markdown-preview:not(.markdown-fullscreen).show-outline,
+.editor-workspace.markdown-preview:not(.markdown-fullscreen).show-tags {
+  grid-template-columns: 0fr minmax(0, 1fr) 0fr;
 }
 
 /* ── Markdown 预览全屏：预览独占整个工作区（覆盖所有并排布局类） ── */
@@ -1861,10 +1987,16 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
   display: none !important;
 }
 .editor-workspace.markdown-fullscreen > .markdown-pane {
-  grid-column: 1;
-  grid-row: 1;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: auto;
   border-left: 0;
   border-top: 0;
+  box-shadow: none;
+  animation: none;
 }
 
 /* ── Markdown 预览全屏：反链/大纲/标签以右侧悬浮覆盖层出现 ──

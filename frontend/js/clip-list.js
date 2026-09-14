@@ -491,6 +491,25 @@ function formatClipDateTime(date) {
                 </div>`;
     }
 
+    /** 是否含图片：优先 imagePaths，其次 content/bodyContent 内嵌 media 引用 */
+    function clipHasImage(clip) {
+        if (!clip) return false;
+        if (Array.isArray(clip.imagePaths) && clip.imagePaths.length > 0) return true;
+        const body = clip.bodyContent || clip.content || '';
+        return /media\/\d{4}\/[\w.-]+\.\w{1,10}/.test(body);
+    }
+
+    /** 解析列表缩略图 URL：优先 imagePaths[0]，缺失时从 content 内嵌 media 引用兜底 */
+    function resolveThumbSrc(clip) {
+        let rel = (Array.isArray(clip && clip.imagePaths) && clip.imagePaths.length) ? clip.imagePaths[0] : '';
+        if (!rel && clip) {
+            const m = (clip.bodyContent || clip.content || '').match(/media\/\d{4}\/[\w.-]+\.\w{1,10}/);
+            rel = m ? m[0] : '';
+        }
+        if (!rel) return '';
+        return window.MediaKit.render.mediaUrl(rel) + '?thumb=1';
+    }
+
     function createClipItem(clip, isSearch) {
         const clipItem = document.createElement('div');
         clipItem.className = 'clip-item';
@@ -547,6 +566,7 @@ function formatClipDateTime(date) {
         const originalContent = clip.bodyContent || clip.content || '';
         const analysisContent = clip.analysis || '';
         const analysisState = getAnalysisState(clip);
+        const hasImage = clipHasImage(clip);
         const fanButtons = [
             buildFanActionButton('edit-in-editor', clip.id, '在编辑器打开原文', renderFanActionIcon('editInEditor')),
             buildFanActionButton('organize-auto', clip.id, '快速AI整理', renderFanActionIcon('organizeAuto')),
@@ -555,6 +575,9 @@ function formatClipDateTime(date) {
             buildFanActionButton('dispatch', clip.id, '投递到AI', renderFanActionIcon('dispatch')),
             buildFanActionButton('export', clip.id, '导出', renderFanActionIcon('export')),
         ];
+        if (hasImage && window.electronAPI && typeof window.electronAPI.ocrRecognize === 'function') {
+            fanButtons.push(buildFanActionButton('ocr', clip.id, 'OCR提取文字', renderFanActionIcon('ocr')));
+        }
         if (!isStoreOnly) {
             fanButtons.push(buildFanActionButton('divergent', clip.id, '发散性总结', renderFanActionIcon('divergent')));
         }
@@ -601,7 +624,7 @@ function formatClipDateTime(date) {
                             <span class="meta-item">创建时间: ${createdAt}</span>
                         </div>
                     </div>
-                    ${clip.imagePaths && clip.imagePaths.length > 0 ? '<img class="clip-thumb" src="' + window.MediaKit.render.mediaUrl(clip.imagePaths[0]) + '?thumb=1" alt="缩略图" loading="lazy">' : ''}
+                    ${resolveThumbSrc(clip) ? '<img class="clip-thumb" src="' + resolveThumbSrc(clip) + '" alt="缩略图" loading="lazy">' : ''}
                 </div>
                 ${tagsHtml}
                 <div class="clip-detail" data-clip-id="${clip.id}">
@@ -917,6 +940,8 @@ function formatClipDateTime(date) {
                 return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
             case 'delete':
                 return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>';
+            case 'ocr':
+                return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8h10M7 12h7M7 16h4"/></svg>';
             default:
                 return '<svg class="fan-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>';
         }
@@ -926,7 +951,7 @@ function formatClipDateTime(date) {
         event.stopPropagation();
         closeAllMoreActions();
         const label = getMoreActionLabel(action);
-        if (action === 'organize-manual' || action === 'edit-in-editor' || action === 'dispatch' || action === 'export') {
+        if (action === 'organize-manual' || action === 'edit-in-editor' || action === 'dispatch' || action === 'export' || action === 'ocr') {
             performMoreAction(action, clipId)
         } else {
             showActionConfirm(`确定执行「${label}」吗？`, () => performMoreAction(action, clipId));
@@ -956,6 +981,9 @@ function formatClipDateTime(date) {
             case 'export':
                 exportClipById(clipId, 'md');
                 break;
+            case 'ocr':
+                ocrClipImage(clipId);
+                break;
             case 'delete':
                 deleteClip(clipId);
                 break;
@@ -980,6 +1008,8 @@ function formatClipDateTime(date) {
                 return '投递到 AI';
             case 'export':
                 return '导出';
+            case 'ocr':
+                return 'OCR提取文字';
             case 'delete':
                 return '删除';
             default:

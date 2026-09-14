@@ -201,7 +201,7 @@ public class ClipService {
         ClipContent clipContent = new ClipContent(content, type, source, category);
 
         // 处理图片：新链路 imagePaths（权威清单，content 已含光标处插入的 Markdown 引用）+ 旧 base64 兼容解析
-        if ("ai-text".equals(type) || "store-only".equals(type)) {
+        if ("ai-text".equals(type) || "store-only".equals(type) || "image".equals(type)) {
             List<String> validImagePaths = new ArrayList<>();
 
             // 新链路：校验 imagePaths 存在于 media 根目录，作为权威引用清单
@@ -249,7 +249,8 @@ public class ClipService {
         // AI 分析统一改为异步：先以 pending 状态入库并立即返回，后台线程执行分析后更新为 ready/failed
         switch (type != null ? type : "ai-text") {
             case "store-only":
-                // 仅存储模式：先尝试识别 AI 结构化内容，匹配则自动填充字段
+            case "image":
+                // 仅存储模式（含插图剪藏）：先尝试识别 AI 结构化内容，匹配则自动填充字段
                 if (!tryParseStructuredContent(clipContent)) {
                     // 非结构化内容，原文即摘要
                     clipContent.setSummary(content != null ? content : "");
@@ -1032,22 +1033,23 @@ public class ClipService {
         // 如果请求中明确指定了工作流状态，优先使用
         if (request.getWorkflowStatus() != null && !request.getWorkflowStatus().isBlank()) {
             String requestedStatus = request.getWorkflowStatus().trim().toLowerCase();
-            // 非 store-only 类型出现在 inbox 不合理，强制改为 organized
-            if (WORKFLOW_INBOX.equals(requestedStatus) && !"store-only".equals(requestType)) {
+            // 非收件箱类型出现在 inbox 不合理，强制改为 organized（store-only/image 插图可在 inbox）
+            if (WORKFLOW_INBOX.equals(requestedStatus)
+                    && !"store-only".equals(requestType) && !"image".equals(requestType)) {
                 return WORKFLOW_ORGANIZED;
             }
             return requestedStatus;
         }
 
-        // store-only 类型默认进入 inbox 等待整理
-        if ("store-only".equals(requestType)) {
+        // 待整理/插图类型默认进入 inbox 等待整理
+        if ("store-only".equals(requestType) || "image".equals(requestType)) {
             return WORKFLOW_INBOX;
         }
 
         // 兼容旧逻辑：category=inbox 且 store-only 类型 → inbox
         if (request.getCategory() != null
                 && INBOX_CATEGORY.equalsIgnoreCase(request.getCategory().trim())
-                && "store-only".equals(requestType)) {
+                && ("store-only".equals(requestType) || "image".equals(requestType))) {
             return WORKFLOW_INBOX;
         }
         // 其他情况默认已整理

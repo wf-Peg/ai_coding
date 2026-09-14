@@ -531,6 +531,38 @@
         });
     }
 
+    /** 已保存剪藏重新 OCR：识别首图文字，追加到 content 并经编辑接口落库 */
+    async function ocrClipImage(clipId) {
+        const clip = clipCache.get(String(clipId));
+        if (!clip) { showToast('未找到该剪藏'); return; }
+        const rel = (
+            (Array.isArray(clip.imagePaths) && clip.imagePaths.length) ? clip.imagePaths[0]
+                : ((clip.bodyContent || clip.content || '').match(/media\/\d{4}\/[\w.-]+\.\w{1,10}/) || [null])[0]
+        );
+        if (!rel) { showToast('未找到该剪藏的图片'); return; }
+        try {
+            const dataUrl = await loadImageDataUrl(rel);
+            const text = await recognizeImage(dataUrl);
+            if (!text) return;
+            // OCR 识别后追加 AI 总结（与表单 OCR 链路一致，对标 NoteGen 截图→文字→总结）
+            const summary = await requestTextSummary(text);
+            const base = (clip.bodyContent || clip.content || '').trim();
+            let appended = text;
+            if (summary) appended += '\n\n**AI 总结**：' + summary;
+            const newContent = base ? base + '\n\n' + appended : appended;
+            showLoading('正在保存 OCR 结果…', '写入剪藏内容');
+            try {
+                await axios.post(`${API_BASE_URL}/organize/${clipId}`, { mode: 'manual', content: newContent });
+                showToast('已识别 ' + text.length + ' 字' + (summary ? '，并生成 AI 总结' : '') + '，保存成功');
+                await fetchClips();
+            } finally {
+                hideLoading();
+            }
+        } catch (e) {
+            showToast('OCR 失败：' + (e && e.message ? e.message : '请稍后重试'));
+        }
+    }
+
     async function doOrganizeContent() {
         const organizeBtn = document.getElementById('organize-btn');
         const originalHTML = organizeBtn.innerHTML; // 含图标，恢复需用 innerHTML 防止图标丢失

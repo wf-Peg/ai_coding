@@ -58,6 +58,7 @@
     favorite:     { label: '常用文件收藏', shortcut: 'Ctrl+Shift+A' },
     overview:     { label: '内容概览', shortcut: 'Ctrl+Shift+Y' },
     aceJump:      { label: 'AceJump 跳跃导航', shortcut: 'Ctrl+;' },
+    commandPalette: { label: '命令面板 / 快捷操作', shortcut: 'Ctrl+K' },
     posBack:      { label: '返回上一编辑位置', shortcut: 'Ctrl+Alt+ArrowLeft' },
     posForward:   { label: '前进到下一编辑位置', shortcut: 'Ctrl+Alt+ArrowRight' }
   };

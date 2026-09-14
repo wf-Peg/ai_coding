@@ -97,7 +97,7 @@
     'aiChatSendBtn', 'aiChatStopBtn', 'aiChatClearBtn', 'aiChatCloseBtn', 'aiChatStatus',
     'aiChatResizeHandle', 'aiPetBtn', 'editorContextMenu', 'aiSearchContextBtn', 'smartIngestContextBtn', 'aiImportPasswordContextBtn',
     'offlineTranslateContextBtn', 'onlineTranslateContextBtn', 'addCustomMappingContextBtn', 'addToDictLibContextBtn', 'aiContextAnalysisContextBtn',
-    'manageDictionaryContextBtn', 'aiChatContextBtn', 'joinLineEndsContextBtn', 'formatContextBtn', 'toggleWordWrapContextBtn',
+    'manageDictionaryContextBtn', 'aiChatContextBtn', 'joinLineEndsContextBtn', 'formatContextBtn', 'toggleWordWrapContextBtn', 'insertWikilinkContextBtn',
     'dictModal', 'dictSourceInput', 'dictTargetInput', 'dictAddBtn', 'dictList', 'dictLibList', 'dictTabMapping', 'dictTabLibrary',
     'templateModal', 'templateNameInput', 'templateContentInput', 'templateSaveBtn', 'templateEditCancelBtn', 'templateList',
     'wikilinkPickerModal', 'wikilinkPickerHint', 'wikilinkPickerList',
@@ -1707,6 +1707,33 @@
   let markdownRenderTimer = null;
   let mdPreviewLastHash = ''; // Phase 3：预览重绘去重（内容未变不重绘）
 
+  // ── Markdown 预览分屏：卷动宽度兜底常量与函数。必须放在 IIFE 顶层（与 toggleMarkdownPreview 同作用域），
+  //    否则嵌套在 initializeAiChat 内会造成 toggleMarkdownPreview → applyMdSplitRatio ReferenceError → 预览空白。
+  const MD_SPLIT_MIN_PX = 230;       // 兜底：任一侧最窄 230px，菜单/内容字体不被收没
+  const MD_SPLIT_KEY = 'md_preview_split_v1';
+  function getMdSplitRatio() {
+    let r = 0.5;
+    try { r = parseFloat(localStorage.getItem(MD_SPLIT_KEY)) || 0.5; } catch (e) {}
+    return Math.max(0.28, Math.min(0.72, r));
+  }
+  // 按占比把抽屉宽度写入 --md-drawer-width；drawer 为预览抽屉占视觉的份额。
+  // 兜底：clamp 到 [MD_SPLIT_MIN_PX, 容器宽-MD_SPLIT_MIN_PX]，编辑区最窄也保留 230px
+  function applyMdSplitRatio(ratio, persist) {
+    const ws = elements.editorWorkspace;
+    if (!ws || !ws.classList.contains('markdown-preview')) return;
+    ratio = Math.max(0.28, Math.min(0.72, ratio));
+    if (persist) { try { localStorage.setItem(MD_SPLIT_KEY, String(ratio)); } catch (e) {} }
+    const w = ws.clientWidth || 1000;
+    const maxDrawer = Math.max(MD_SPLIT_MIN_PX, w - MD_SPLIT_MIN_PX);
+    const drawer = Math.max(MD_SPLIT_MIN_PX, Math.min(maxDrawer, Math.round(w * ratio)));
+    ws.style.setProperty('--md-drawer-width', drawer + 'px');
+  }
+  function resetMdSplitGrid() {
+    const ws = elements.editorWorkspace;
+    ws.style.removeProperty('--md-drawer-width');
+    ws.classList.remove('md-resizing');
+  }
+
   function toggleMarkdownPreview(forceOpen) {
     const shouldOpen = forceOpen !== undefined ? forceOpen : elements.markdownPane.hidden;
     if (shouldOpen && isPaneOpen(elements.aiChatPane)) setAiChatPanelOpen(false);
@@ -1721,6 +1748,9 @@
     elements.editorWorkspace.classList.toggle('markdown-preview', shouldOpen);
     elements.markdownBtn.classList.toggle('active', shouldOpen);
     updateStartWritingGuide();
+    // 分屏宽度：进入时套用上次比例，退出时清掉 inline grid，避免残留影响其它布局
+    if (shouldOpen) applyMdSplitRatio(getMdSplitRatio(), false);
+    else resetMdSplitGrid();
 
     // 进入 Markdown 预览时退出对比模式
     if (shouldOpen && !elements.comparePane.hidden) {
@@ -2574,6 +2604,8 @@
     elements.joinLineEndsContextBtn.hidden = false;
     // 管理词典始终可用
     elements.manageDictionaryContextBtn.hidden = false;
+    // 插入双向链接始终可用（无需选中）
+    elements.insertWikilinkContextBtn.hidden = false;
     // 自动换行：始终可用，刷新菜单项勾选状态与文字
     elements.toggleWordWrapContextBtn.hidden = false;
     if (typeof toggleWordWrapContextSync === 'function') toggleWordWrapContextSync();
@@ -2769,6 +2801,12 @@
     if (action === 'compare') {
       toggleCompare();
       mainEditor.focus();
+      return;
+    }
+    // 插入双向链接：光标处插入 [[]] 并唤起模糊补全列表
+    if (action === 'insertWikilink') {
+      mainEditor.focus();
+      insertWikilinkFromCommand();
       return;
     }
     mainEditor.focus();
@@ -3087,6 +3125,8 @@
       h3: '<span class="ctx-icon head-mark">H3</span>',
       image: svgSlashIcon('<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>'),
       link: svgSlashIcon('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>'),
+      // 双向链接：双括号式图标（区别于普通链接）
+      wikilink: svgSlashIcon('<path d="M8 4 4 12l4 8"/><path d="M16 4l4 8-4 8"/><line x1="13" y1="4" x2="11" y2="20"/>'),
       code: svgSlashIcon('<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>'),
       table: svgSlashIcon('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/>'),
       quote: svgSlashIcon('<path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/><path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/>'),
@@ -3106,6 +3146,7 @@
       { group: '插入', items: [
         { id: 'image', title: '插入图片', keywords: 'image 图片 插图', icon: 'image', insert: '![]()' },
         { id: 'link', title: '插入链接', keywords: 'link 链接 url', icon: 'link', insert: '[]()' },
+        { id: 'wikilink', title: '双向链接', keywords: 'wikilink link 双链 双向 linknote 跳转 [[', icon: 'wikilink', insert: '[[]]' },
         { id: 'code', title: '代码块', keywords: 'code 代码 block', icon: 'code', insert: '```\n\n```' },
         { id: 'table', title: '插入表格', keywords: 'table 表格', icon: 'table', insert: '| 列1 | 列2 |\n| --- | --- |\n|  |  |' },
         { id: 'quote', title: '引用', keywords: 'quote 引用 blockquote', icon: 'quote', insert: '> ' },
@@ -3301,6 +3342,20 @@
         insertTemplateByName(item.templateName);
         return;
       }
+      if (item.mode === 'wikilink' || item.id === 'wikilink') {
+        // 双向链接：删除 "/" 前缀后插入 [[ ]]，光标居中并唤起模糊补全列表
+        const cur = mainEditor.getCursorPosition();
+        const line2 = mainEditor.session.getLine(cur.row);
+        const before2 = line2.slice(0, cur.column);
+        const m2 = /(^|\s)\//.exec(before2);
+        const startCol2 = m2 ? m2.index + m2[0].length - 1 : cur.column;
+        const range2 = new Range(cur.row, startCol2, cur.row, cur.column);
+        closeSlashMenu();
+        mainEditor.session.replace(range2, '');
+        mainEditor.focus();
+        insertWikilinkAtCursor(range2.start);
+        return;
+      }
       const cur = mainEditor.getCursorPosition();
       const line = mainEditor.session.getLine(cur.row);
       const before = line.slice(0, cur.column);
@@ -3442,6 +3497,50 @@
       }
       modal.classList.remove('is-visible');
       showToast('AI 修改已接受并应用到编辑器');
+    });
+
+    const mdResizer = document.getElementById('mdSplitResizer');
+    if (mdResizer) {
+      mdResizer.addEventListener('pointerdown', function(e) {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        const ws = elements.editorWorkspace;
+        // 仅抽屉态（非全屏）生效；≤680px 堆叠布局下 resizer 已被 CSS 隐藏，不会触发
+        if (!ws.classList.contains('markdown-preview') || ws.classList.contains('markdown-fullscreen')) return;
+        ws.classList.add('md-resizing');
+        const rect = ws.getBoundingClientRect();
+        let ratio = getMdSplitRatio();
+        const onMove = function(ev) {
+          if (rect.width <= 0) return;
+          // 手指/指针即抽屉左边缘：右侧剩余宽度 = (右边界 - 指针x)
+          const drawer = Math.max(0, rect.right - ev.clientX);
+          ratio = drawer / rect.width;
+          applyMdSplitRatio(ratio, false);
+        };
+        const onUp = function() {
+          ws.classList.remove('md-resizing');
+          try { localStorage.setItem(MD_SPLIT_KEY, String(ratio)); } catch (err) {}
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+          window.removeEventListener('pointercancel', onUp);
+          setTimeout(function() { try { mainEditor.resize(); } catch (err) {} }, 0);
+        };
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+        window.addEventListener('pointercancel', onUp);
+      });
+    }
+    // 窗口尺寸变化时按当前占比重算左右列像素宽度，避免固定 px 列溢出或留缝
+    var mdResizeTimer = null;
+    window.addEventListener('resize', function() {
+      if (mdResizeTimer) return;
+      mdResizeTimer = setTimeout(function() {
+        mdResizeTimer = null;
+        var ws = elements.editorWorkspace;
+        if (ws && ws.classList.contains('markdown-preview') && !ws.classList.contains('markdown-fullscreen')) {
+          applyMdSplitRatio(getMdSplitRatio(), false);
+        }
+      }, 120);
     });
 
     let dragStartX = 0;
@@ -5035,6 +5134,16 @@
         acejump('word', false);
       } catch (err) {
         console.error('[AceJump] 唤出失败:', err.message, err.stack || '');
+      }
+    } else if (data.action === 'focusCommandPalette') {
+      // 主进程菜单加速键 / before-input-event 最低层兜底 → IPC → 父窗口转发到编辑器：
+      // 焦点在编辑区时唤起编辑器命令面板（经 triggerCommandPalette 去重，兼容 Ctrl+K/P）
+      try {
+        hideStartWritingGuide();
+        mainEditor.focus();
+        triggerCommandPalette();
+      } catch (err) {
+        console.error('[CommandPalette] 唤起失败:', err.message, err.stack || '');
       }
     } else if (data.type === 'shortcut-debug') {
       // 主进程 SHORTCUT_DEBUG=1 时由父窗口广播到 iframe：开启本窗口快捷键诊断日志
@@ -7083,6 +7192,7 @@
   // ══════════════════════════════════════════════════════════
   var wikilinkState = { targets: [], modules: [], loaded: false };
   var registeredWikilinkCompleter = null;
+  var wikilinkMatchCache = null;   // 补全/模糊匹配的轻量预计算缓存（重建于索引加载后，避免每次击键全量扫描）
   var currentLinkTab = 'backlinks';   // 双向链接面板当前激活 tab：backlinks | outgoing
 
   /** 当前文档真实文件名（含扩展名，非 md 文件标题显示准确） */
@@ -7124,6 +7234,7 @@
       wikilinkState.targets = [];
       wikilinkState.modules = [];
       wikilinkState.loaded = true;
+      wikilinkMatchCache = null;
       return;
     }
     try {
@@ -7131,10 +7242,12 @@
       wikilinkState.targets = (res && res.targets) || [];
       wikilinkState.modules = (res && res.modules) || [];
       wikilinkState.loaded = true;
+      wikilinkMatchCache = null;
     } catch (e) {
       wikilinkState.targets = [];
       wikilinkState.modules = [];
       wikilinkState.loaded = true;
+      wikilinkMatchCache = null;
     }
   }
 
@@ -7273,48 +7386,42 @@
         var line = session.getLine(pos.row).slice(0, pos.column);
         var m = line.match(/\[\[([^\[\]]*)$/);
         if (!m) { callback(null, []); return; }
-        var query = m[1].toLowerCase();
+        var qlower = (m[1] || '').toLowerCase();
         var results = [];
-        var targets = wikilinkState.targets || [];
-        // 统计同名 fileName 冲突（同名文件需额外给出 [[相对路径]] 精确候选消歧）
-        var nameCounts = {};
-        for (var i = 0; i < targets.length; i++) {
-          var fn = targets[i].fileName || targets[i].basename;
-          nameCounts[fn] = (nameCounts[fn] || 0) + 1;
-        }
+        var rows = ensureWikilinkMatchCache().rows || [];
         var seen = {};
-        for (var j = 0; j < targets.length; j++) {
-          var t = targets[j];
-          var fn = t.fileName || t.basename;
-          if (seen[fn]) continue; // 同名文件只补一个（foo.md 与 foo.sql 可分别补出）
-          seen[fn] = true;
-          var hay = (fn + ' ' + (t.basename || '') + ' ' + (t.relativePath || '')).toLowerCase();
-          if (query && hay.indexOf(query) === -1) continue;
-          // md 用 basename（Obsidian 原生语法），非 md 用 fileName（含扩展名显式消歧）
-          var label = /\.(md|mdown|markdown)$/i.test(fn) ? t.basename : fn;
-          var meta = (t.moduleName || t.moduleId || '') + '/' + (t.relativePath || '');
+        var MAX = 30; // 结果上限：防止目标量大时下拉框/排序开销过大（性能）
+        for (var j = 0; j < rows.length && results.length < MAX; j++) {
+          var row = rows[j];
+          if (!row || seen[row.label]) continue; // 同名/同 label 只补一个
+          // 前向模糊评分：label 权重最高，其次全文 hay（basename+fileName+相对路径）
+          var bSc = fuzzyScore(qlower, row.label);
+          var hSc = fuzzyScore(qlower, row.hay);
+          if (qlower && bSc < 0 && hSc < 0) continue;
+          seen[row.label] = true;
+          var score = bSc >= 0 ? 1000 + bSc : 500 + hSc;
           results.push({
             // caption 需包含 `[[` 前缀，否则会被 ACE 的 setFilter 过滤掉
-            caption: '[[' + label + ']]',
+            caption: '[[' + row.label + ']]',
             // value 必须保留 `[[` 前缀：当前 identifierRegexps 回溯出的前缀含 `[[`，
             // ACE 会整体替换该前缀（如 `[[xx` → `[[label]]`）。若 value 去掉 `[[`，
             // 替换后两根 `[[` 会被吞掉，得到 `label]]`。
-            value: '[[' + label + ']]',
-            meta: meta,
-            score: (t.basename || fn).toLowerCase().indexOf(query) === 0 ? 1000 : 500
+            value: '[[' + row.label + ']]',
+            meta: row.meta,
+            score: score
           });
           // 同名冲突 → 额外给出 [[相对路径]] 精确候选用于歧义消除
-          if (nameCounts[fn] > 1 && t.relativePath && t.relativePath.indexOf('/') !== -1) {
+          if (row.nameCount > 1 && row.t.relativePath && row.t.relativePath.indexOf('/') !== -1) {
             results.push({
-              caption: '[[' + t.relativePath + ']]',
-              value: '[[' + t.relativePath + ']]',
-              meta: (t.moduleName || t.moduleId || '') + ' 精确路径',
+              caption: '[[' + row.t.relativePath + ']]',
+              value: '[[' + row.t.relativePath + ']]',
+              meta: (row.t.moduleName || row.t.moduleId || '') + ' 精确路径',
               score: 900
             });
           }
         }
         results.sort(function(a, b) { return b.score - a.score; });
-        callback(null, results.slice(0, 30));
+        callback(null, results.slice(0, MAX));
       }
     };
 
@@ -7324,6 +7431,85 @@
     } else if (mainEditor.completers) {
       mainEditor.completers.push(completer);
     }
+  }
+
+  // ── 双向链接预计算缓存：每个目标归一化一次 label / 检索 hay / 同名冲突数，
+  //    供 ACE completer 与自定义插值器复用，避免每次击键对全量 targets 重复扫描（性能）──
+  function rebuildWikilinkMatchCache() {
+    var targets = wikilinkState.targets || [];
+    var nameCounts = {};
+    for (var i = 0; i < targets.length; i++) {
+      var fn = targets[i].fileName || targets[i].basename;
+      nameCounts[fn + '\u0000' + (/\.(md|mdown|markdown)$/i.test(fn) ? 'md' : 'raw')] = (nameCounts[fn + '\u0000' + (/\.(md|mdown|markdown)$/i.test(fn) ? 'md' : 'raw')] || 0) + 1;
+    }
+    var rows = [];
+    for (var j = 0; j < targets.length; j++) {
+      var t = targets[j];
+      var fn2 = t.fileName || t.basename;
+      var isMd = /\.(md|mdown|markdown)$/i.test(fn2);
+      var label = isMd ? t.basename : fn2;                    // md 用 basename（Obsidian 原生），非 md 用含扩展名文件名消歧
+      var countKey = fn2 + '\u0000' + (isMd ? 'md' : 'raw');
+      rows.push({
+        t: t,
+        fn: fn2,
+        label: label,
+        isMd: isMd,
+        nameCount: nameCounts[countKey] || 1,
+        hay: (fn2 + ' ' + (t.basename || '') + ' ' + (t.relativePath || '')).toLowerCase(),
+        meta: (t.moduleName || t.moduleId || '') + '/' + (t.relativePath || '')
+      });
+    }
+    return rows;
+  }
+  function ensureWikilinkMatchCache() {
+    if (!wikilinkMatchCache || !wikilinkMatchCache.rows) {
+      wikilinkMatchCache = { rows: rebuildWikilinkMatchCache() };
+    }
+    return wikilinkMatchCache;
+  }
+
+  /** 主动唤起 ACE 实时自动补全（[[ 已就位时弹出模糊列表） */
+  function triggerAceAutocomplete() {
+    try { mainEditor.execCommand('startAutocomplete'); } catch (e) { /* 忽略：非致命 */ }
+  }
+
+  /**
+   * 在锚点处插入双向链接骨架 `[[]]`，光标置于括号中间并唤起模糊补全列表。
+   * anchorPos：插入基准位置（默认当前光标）。若光标已在 `[[` 之后则不再重复包裹，直接唤起补全。
+   */
+  function insertWikilinkAtCursor(anchorPos) {
+    if (!mainEditor) return;
+    var ensureLoaded = function() {
+      if (wikilinkState.loaded) { doInsertWikilink(anchorPos); return; }
+      buildLinkIndex().then(function() { doInsertWikilink(anchorPos); }).catch(function() { doInsertWikilink(anchorPos); });
+    };
+    ensureLoaded();
+  }
+
+  function doInsertWikilink(anchorPos) {
+    if (!mainEditor) return;
+    var pos = anchorPos || mainEditor.getCursorPosition();
+    var line = mainEditor.session.getLine(pos.row);
+    // 已处于 [[ 后的链接输入态：直接唤起补全，不重复插入括号
+    if (/\[\[[^\[\]\n]*$/.test(line.slice(0, pos.column))) {
+      mainEditor.moveCursorTo(pos.row, pos.column);
+      mainEditor.focus();
+      triggerAceAutocomplete();
+      return;
+    }
+    // 插入 [[ ]] 骨架，光标置于中间（[[|]]）
+    mainEditor.session.insert(pos, '[[]]');
+    mainEditor.moveCursorTo(pos.row, pos.column + 2);
+    mainEditor.focus();
+    triggerAceAutocomplete();
+  }
+
+  /** 右键菜单「插入双向链接」入口 / 其它命令调用 */
+  async function insertWikilinkFromCommand() {
+    if (!wikilinkState.loaded) {
+      try { await buildLinkIndex(); } catch (e) { /* 索引加载失败仍允许插入骨架 */ }
+    }
+    doInsertWikilink(null);
   }
 
   /** 更新双向链接 tab 数量徽标（0 / null → 隐藏） */
@@ -8082,6 +8268,9 @@
   registerCommand('acejump-select', 'AceJump 跳跃（选区）', '✂', function() { acejump('word', true); }, '', '从当前光标延伸选区到目标位置（单词模式）');
   // 捕获阶段统一分发：Ctrl/Cmd+; 唤起（EditorShortcuts 可配置回退）
   EditorShortcuts.registerHandler('aceJump', function() { acejump('word', false); });
+  // 命令面板：捕获阶段接管 Ctrl+K，防止 ACE 内置 Ctrl+K（删除到行尾/查找下一个）吃掉按键；
+  // 捕获期 preventDefault+stopImmediatePropagation 保证 Windows 上按键既不会被菜单加速键之外的 ACE 绑定劫持。
+  EditorShortcuts.registerHandler('commandPalette', function() { triggerCommandPalette(); });
 
   // ═══ 应用级命令（跨模块：父窗口导航 + 全局功能）───
   // 编辑器以 iframe 嵌入主窗口，通过 window.parent.postMessage 通知 index.html 切换视图，
@@ -8135,6 +8324,17 @@
     elements.commandPalette.hidden = true;
     elements.commandPalette.setAttribute('aria-hidden', 'true');
     mainEditor.focus();
+  }
+
+  var lastCmdPaletteTriggerT = 0;
+  // 命令面板唤起：同一组合键（⌘/Ctrl+K、⌘/Ctrl+P）会被主进程菜单加速键 IPC + 渲染层捕获 + 父窗口转发
+  // 在极短时间内重复触发，用 80ms 去重（toggle 语义会让第二次触发变成"取消"，导致面板刚出就关，形同无响应）。
+  function triggerCommandPalette() {
+    var now = Date.now();
+    if (now - lastCmdPaletteTriggerT < 80) return;
+    lastCmdPaletteTriggerT = now;
+    if (quickOpenVisible) closeQuickSwitcher();
+    if (paletteOpen) closeCommandPalette(); else openCommandPalette();
   }
 
   // ── 命令使用次数（Phase 1 命令面板增强：空查询按最近使用优先）──
@@ -8247,14 +8447,15 @@
     if (paletteOpen && !elements.commandPalette.contains(e.target)) closeCommandPalette();
   });
 
-  // Ctrl/Cmd+P / Ctrl/Cmd+K 唤起命令面板（排除 Shift/Alt，避免与其它 Ctrl+Shift 快捷键冲突）
+  // Ctrl/Cmd+P / Ctrl/Cmd+K 唤起命令面板（排除 Shift/Alt，避免与其它 Ctrl+Shift 快捷键冲突）。
+  // Ctrl+K 已由 EditorShortcuts 在捕获阶段接管（防 ACE 内置 Ctrl+K 删除到行尾等命令吃掉）；
+  // 此处统一走带 80ms 去重的 triggerCommandPalette，避免与菜单加速键/IPC/转发多路径重复触发。
   document.addEventListener('keydown', function(e) {
     const key = (e.key || '').toLowerCase();
     const isTrigger = key === 'p' || key === 'k';
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && isTrigger) {
       e.preventDefault();
-      if (quickOpenVisible) closeQuickSwitcher();
-      if (paletteOpen) closeCommandPalette(); else openCommandPalette();
+      triggerCommandPalette();
     }
   });
 

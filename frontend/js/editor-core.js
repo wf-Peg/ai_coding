@@ -45,6 +45,22 @@
     }
     if (/^<\?xml\b|^<[A-Za-z_][\w:.-]*(?:\s|>|\/)/.test(sample)) return 'xml';
     if (/\b(select|insert|update|delete|create|alter|drop)\b/i.test(sample)) return 'sql';
+
+    // 无扩展名/强信号时，按内容启发式识别常见语言 —— 仅影响高亮（不格式化）。
+    // 误判成本低：右上角语言下拉可手动覆盖。顺序：HTML→CSS→JS→Python→YAML→Markdown。
+    const s = sample;
+    // HTML：以 <!DOCTYPE html 或 <html 开头
+    if (/^\s*<!DOCTYPE\s+html\b|^\s*<html[\s>]/i.test(s)) return 'html';
+    // CSS：行首选择器后紧跟 {，且命中 property: value; 规则体
+    if (/^\s*[.#]?[a-zA-Z][\w-]*\s*\{[^}]*:\s*[^;{}]+;/m.test(s)) return 'css';
+    // JavaScript：箭头函数 / console.xxx / function 声明 / 行首 const|let|var 赋值
+    if (/=>|console\.\w+\(|function\s+\w+\s*\(|(?:^|\n)\s*(?:const|let|var)\s+\w+\s*=/.test(s)) return 'javascript';
+    // Python：def/class/import/from 行首声明
+    if (/^\s*(?:def|class|import)\s+\w|^\s*from\s+\w+\s+import/m.test(s)) return 'python';
+    // YAML：至少两行 `key: value`，且不是 CSS 规则体
+    if ((s.match(/^\s*[\w-]+\s*:\s*\S/m) || []).length >= 2 && !/^\s*[.#]?\w+\s*\{/m.test(s)) return 'yaml';
+    // Markdown：# 标题 / **粗体** / [text](url) / - 列表
+    if (/^#{1,6}\s/m.test(s) || /\*\*[^*\n]+\*\*/.test(s) || /\[[^\]]+\]\([^)]+\)/.test(s) || /^\s*[-+*]\s+\S/m.test(s)) return 'markdown';
     return 'text';
   }
 

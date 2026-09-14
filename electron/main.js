@@ -351,7 +351,8 @@ const DEFAULT_CONFIG = {
   dshBinPath: '',               // DSH CLI 路径（空 = 自动探测：DSH_BIN env → 内置 node_modules → npx 缓存 → npx）
   dshAgentNpxSpec: '@deepseek-ai/dsh@0.1.0-rc.7', // dsh 安装命令的固定兜底 spec（在线同步失败时的最后手段，可被配置/环境变量覆盖）
   dshSync: { version: '', ts: 0 }, // dsh 最新版本在线同步缓存（version + 时间戳，TTL=DSH_SYNC_TTL）
-  builtinTemplates: DEFAULT_BUILTIN_TEMPLATES  // 内置模板：存储于配置文件，可编辑；删除 = 恢复默认
+  builtinTemplates: DEFAULT_BUILTIN_TEMPLATES,  // 内置模板：存储于配置文件，可编辑；删除 = 恢复默认
+  clipboardAssistant: { enabled: true, pollIntervalMs: 1500, cooldownMs: 10000 } // 剪贴板即时助手：开关 + 监听频率 + 气泡冷却（可配置）
 };
 
 // ===== dsh 安装命令在线同步（npm 优先 + GitHub README 兜底）=====
@@ -2473,7 +2474,9 @@ function createMainWindow(config) {
     if (!input || input.type !== 'keyDown') return;
     const isMac = process.platform === 'darwin';
     const isAceJumpCombo = input.key === ';' && (isMac ? !!input.meta : !!input.control);
-    if (isAceJumpCombo || process.env.SHORTCUT_DEBUG === '1') {
+    const modPressed = isMac ? !!input.meta : !!input.control;
+    const isCmdPaletteCombo = !input.shift && !input.alt && modPressed && (String(input.key || '').toLowerCase() === 'k' || String(input.key || '').toLowerCase() === 'p');
+    if (isAceJumpCombo || isCmdPaletteCombo || process.env.SHORTCUT_DEBUG === '1') {
       console.log('[ShortcutDebug] before-input-event', JSON.stringify({
         type: input.type, key: input.key, code: input.code,
         meta: !!input.meta, control: !!input.control, shift: !!input.shift, alt: !!input.alt,
@@ -2483,6 +2486,12 @@ function createMainWindow(config) {
     if (isAceJumpCombo) {
       event.preventDefault();
       focusAceJump();
+    }
+    // 命令面板最低层兜底：菜单加速键/渲染层 keydown 若被系统或 ACE 在更低层吃掉，
+    // before-input-event 是主进程能观察到它的最后一级（同上 AceJump）。
+    if (isCmdPaletteCombo) {
+      event.preventDefault();
+      focusGlobalCmdPalette();
     }
   });
 
@@ -2531,7 +2540,7 @@ function createMainWindow(config) {
   // ===== 关闭窗口拦截 =====
   // 当用户点击关闭按钮时，行为取决于 closeToTray 状态：
   //   null  → 弹出对话框询问
-  //   true  → 最小化到任务栏（与 Alt+X 一致，按钮与运行横线保留）
+  //   true  → 最小化到任务栏（与全局唤起键一致，按钮与运行横线保留）
   //   false → 直接退出程序
   mainWindow.on('close', (event) => {
     if (!isQuitting) {
@@ -4677,7 +4686,7 @@ function setupIPC() {
   // ===== 无边框窗口控制 =====
   // 这些 IPC 由前端标题栏的按钮触发
 
-  // 最小化窗口 → 最小化到任务栏（与 Alt+X 行为一致，任务栏按钮常驻、运行横线保留）
+  // 最小化窗口 → 最小化到任务栏（与全局唤起键行为一致，任务栏按钮常驻、运行横线保留）
   ipcMain.handle('window-minimize', () => { mainWindow?.minimize(); });
 
   // 最大化/还原窗口切换
@@ -4881,7 +4890,10 @@ function setupIPC() {
 // ==================== 剪贴板 & 全局快捷键 ====================
 
 // 全局快捷键状态
-let shortcutAccelerator = 'Alt+X';
+// 默认 Control+Alt+X（mac=⌃⌥X / win=Ctrl+Alt+X）：两修饰符且不含 Cmd——
+// macOS 应用/系统菜单快捷键几乎全以 ⌘ 开头，不带 ⌘ 的全局组合很少被抢占，
+// 注册稳定，也不会被前台应用菜单优先吞掉。
+let shortcutAccelerator = 'Control+Alt+X';
 let shortcutEnabled = true;
 
 /** 注册全局快捷键 */
@@ -4898,7 +4910,7 @@ function registerGlobalShortcut() {
         createMainWindow(config);
         return;
       }
-      // Alt+X 为"切换最小化/唤醒"：可见时最小化到任务栏（按钮与运行横线保留），
+      // 全局快捷键为"切换最小化/唤醒"：可见时最小化到任务栏（按钮与运行横线保留），
       // 最小化或隐藏时唤醒。不用 hide()，避免任务栏按钮和横线消失造成"应用被杀"错觉。
       if (mainWindow.isVisible() && !mainWindow.isMinimized()) {
         log.info('[Shortcut] Minimize to taskbar:', shortcutAccelerator);
@@ -4908,8 +4920,23 @@ function registerGlobalShortcut() {
         showMainWindow();
       }
     });
-    if (!ret) log.warn('[Shortcut] Registration failed:', shortcutAccelerator);
-  } catch (e) { log.warn('[Shortcut] Error:', e.message); }
+    if (!ret) {
+      log.warn('[Shortcut] Registration failed:', shortcutAccelerator);
+      // 广播"被占用"事件，渲染层（设置页/主界面）弹出提示，避免静默失效
+      try {
+        BrowserWindow.getAllWindows().forEach((w) => {
+          if (!w.isDestroyed()) w.webContents.send('shortcut:occupied', shortcutAccelerator);
+        });
+      } catch (e) { log.warn('[Shortcut] broadcast occupied:', e.message); }
+    }
+  } catch (e) {
+    log.warn('[Shortcut] Error:', e.message);
+    try {
+      BrowserWindow.getAllWindows().forEach((w) => {
+        if (!w.isDestroyed()) w.webContents.send('shortcut:occupied', shortcutAccelerator);
+      });
+    } catch (e2) { log.warn('[Shortcut] broadcast occupied(err):', e2.message); }
+  }
   // 联动注册截图小工具快捷键（F1/F2），避免 unregisterAll 清掉后丢失
   try { screenshotService.refreshShortcuts(); } catch (e) { log.warn('[Shortcut] screenshot shortcuts:', e.message); }
 }
@@ -4919,6 +4946,78 @@ function unregisterGlobalShortcut() {
   globalShortcut.unregisterAll();
 }
 
+// ═════════════════════════════════════════════════════════
+// 快捷键审计：收集菜单 accelerator 与全局快捷键（globalShortcut）清单，
+// 供「工具模块→快捷键检测」面板总览。冲突判定与归一化在渲染层完成，
+// 主进程负责收集 + 探测真实 globalShortcut 的注册/占用状态。
+// ═════════════════════════════════════════════════════════
+function collectShortcutAudit() {
+  const isMacP = process.platform === 'darwin';
+  // 系统 role 菜单项的中文名与默认快捷键（仅用于展示；自定义 accelerator 优先）
+  const ROLE_ZH = {
+    undo: '撤销', redo: '重做', cut: '剪切', copy: '复制', paste: '粘贴', selectAll: '全选',
+    quit: '退出', resetZoom: '重置缩放', zoomIn: '放大', zoomOut: '缩小',
+    togglefullscreen: '切换全屏', toggleDevTools: '开发者工具', reload: '重新加载', forceReload: '强制重新加载'
+  };
+  const ROLE_ACCEL = {
+    undo: 'CmdOrCtrl+Z', redo: isMacP ? 'Cmd+Shift+Z' : 'Ctrl+Y',
+    cut: 'CmdOrCtrl+X', copy: 'CmdOrCtrl+C', paste: 'CmdOrCtrl+V', selectAll: 'CmdOrCtrl+A',
+    resetZoom: 'CmdOrCtrl+0', zoomIn: isMacP ? 'Cmd+Plus' : 'Ctrl+Plus', zoomOut: isMacP ? 'Cmd+Minus' : 'Ctrl+Minus',
+    togglefullscreen: isMacP ? 'Ctrl+Cmd+F' : 'F11', toggleDevTools: isMacP ? 'Cmd+Option+I' : 'Ctrl+Shift+I',
+    quit: isMacP ? 'Cmd+Q' : ''
+  };
+  // 业务菜单项统一为中文展示名（默认映射，缺失时回落原生 label）
+  const MENU_ZH = {
+    'Command Palette': '命令面板', 'AceJump': 'AceJump', 'Global Search': '全局搜索',
+    'Settings': '设置', 'View Log': '查看日志', 'About': '关于'
+  };
+  const menu = [];
+  try {
+    const appMenu = Menu.getApplicationMenu();
+    const walk = (leafItems, group) => {
+      (leafItems || []).forEach((it) => {
+        if (!it) return;
+        if (it.submenu && it.submenu.items) { walk(it.submenu.items, it.label || group); return; }
+        let accelerator = it.accelerator;
+        let feature = it.label;
+        if (it.role) {
+          if (!feature) feature = ROLE_ZH[it.role] || it.role;
+          if (!accelerator) accelerator = ROLE_ACCEL[it.role] || '';
+        }
+        if (feature && MENU_ZH[feature]) feature = MENU_ZH[feature];
+        if (accelerator) menu.push({ feature: feature || it.label || it.role || '', accelerator, scope: 'menu', group });
+      });
+    };
+    walk(appMenu && appMenu.items, '');
+  } catch (e) { log.warn('[ShortcutAudit] menu collect:', e && e.message); }
+
+  // 真实 globalShortcut（本应用确实注册的系统级快捷键）：全局唤起 / 截图 / 贴图。
+  // 全局搜索是菜单 accelerator，不是 globalShortcut，不在此探测，避免误报"占用"。
+  let cfg = {};
+  try { cfg = loadConfig(); } catch (e) { /* 使用默认 */ }
+  const screenshotEnabled = cfg.screenshotEnabled !== false;
+  const candidate = [
+    { feature: '全局唤起窗口', accelerator: shortcutAccelerator, enabled: !!shortcutEnabled },
+    { feature: '截图', accelerator: (cfg.screenshotShortcut || 'F1'), enabled: screenshotEnabled },
+    { feature: '贴图', accelerator: (cfg.pasteShortcut || 'F2'), enabled: screenshotEnabled }
+  ];
+  const global = candidate.map((g) => {
+    let registered = false;
+    try { registered = globalShortcut.isRegistered(g.accelerator); } catch (e) { registered = false; }
+    // enabled 但未注册成功 → 可能被系统/其它应用占用；未启用 → 不算风险
+    const status = !g.enabled ? 'disabled' : (registered ? 'registered' : 'occupied');
+    return { feature: g.feature, accelerator: g.accelerator, scope: 'global', enabled: !!g.enabled, registered, status };
+  });
+
+  return {
+    platform: process.platform,
+    menu,
+    global,
+    editor: null // 编辑器键位由渲染层读 localStorage 补充
+  };
+}
+ipcMain.handle('shortcut:audit', () => collectShortcutAudit());
+
 /** 从 config.json 加载快捷键配置 */
 function loadShortcutFromConfig() {
   try {
@@ -4926,7 +5025,7 @@ function loadShortcutFromConfig() {
       const config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
       if (config.shortcut) {
         shortcutEnabled = config.shortcut.enabled !== false;
-        shortcutAccelerator = config.shortcut.accelerator || 'CommandOrControl+Shift+Z';
+        shortcutAccelerator = config.shortcut.accelerator || 'Control+Alt+X';
       }
     }
   } catch (e) { log.warn('[Shortcut] Failed to load config:', e.message); }
@@ -4949,9 +5048,22 @@ let lastClipboardPromptAt = 0;             // 上次提示时间戳（冷却）
 let pendingClipboard = null;               // 当前气泡待确认的剪贴内容
 let clipboardToastWin = null;              // 当前气泡窗
 let clipboardDismissTimer = null;          // 气泡自动关闭定时器
-const CLIPBOARD_POLL_MS = 1500;
-const CLIPBOARD_COOLDOWN_MS = 10000;
+const CLIPBOARD_POLL_MS = 1500;      // 默认监听频率（兜底）
+const CLIPBOARD_COOLDOWN_MS = 10000; // 默认气泡冷却（兜底）
 const CLIPBOARD_TOAST_LIFETIME_MS = 3500;
+
+/** 读取可配置的剪贴板助手参数（config.clipboardAssistant），无常量写死，带钳制 */
+function getClipboardAssistantCfg() {
+  let cfg = { enabled: true, pollIntervalMs: CLIPBOARD_POLL_MS, cooldownMs: CLIPBOARD_COOLDOWN_MS };
+  try {
+    const c = loadConfig().clipboardAssistant;
+    if (c && typeof c === 'object') cfg = Object.assign(cfg, c);
+    const clampNum = (v, d, min, max) => (typeof v === 'number' && isFinite(v) ? Math.min(max, Math.max(min, v)) : d);
+    cfg.pollIntervalMs = clampNum(cfg.pollIntervalMs, CLIPBOARD_POLL_MS, 500, 60000);
+    cfg.cooldownMs = clampNum(cfg.cooldownMs, CLIPBOARD_COOLDOWN_MS, 1000, 60000);
+  } catch (e) { /* 配置读取失败时回落默认 */ }
+  return cfg;
+}
 
 // ═══════════════════════════════════════════════════════════
 // 剪贴板历史（即时助手旁路）
@@ -5083,7 +5195,8 @@ function pollClipboard() {
     // 历史与气泡解耦：冷却期内不弹窗，但历史照常入库（保证"复制过必有痕"）
     try { addClipboardHistory(content); } catch (e) { log.warn('[ClipboardAssistant] history add error:', e.message); }
     const now = Date.now();
-    if (now - lastClipboardPromptAt < CLIPBOARD_COOLDOWN_MS) return; // 冷却
+    const cooldownMs = getClipboardAssistantCfg().cooldownMs;
+    if (now - lastClipboardPromptAt < cooldownMs) return; // 冷却（可配置）
     lastClipboardPromptAt = now;
     showClipboardToast(content);
   } catch (e) {
@@ -5100,7 +5213,7 @@ function startClipboardPolling() {
     const key = clipboardSignature(c);
     if (key) { lastClipboardKey = key; lastClipboardPromptAt = Date.now(); }
   } catch (e) { log.warn('[ClipboardAssistant] prime error:', e.message); }
-  clipboardPollTimer = setInterval(pollClipboard, CLIPBOARD_POLL_MS);
+  clipboardPollTimer = setInterval(pollClipboard, getClipboardAssistantCfg().pollIntervalMs);
 }
 
 function stopClipboardPolling() {
@@ -5922,11 +6035,40 @@ function destroyTransientToasts() {
 }
 
 /**
- * 弹出系统原生通知（Windows 使用 node-notifier，macOS 使用 Electron Notification）。
+ * 读取并缓存 frontend/styles/design-tokens.css，供弹出的通知气泡内联注入。
+ * 让气泡与整套产品共享同一份 --app-* 全局令牌（亮/暗主题由 data-theme 切换），
+ * 避免在气泡内硬编码颜色而脱离主题。读取失败时返回空串（退化为基础样式）。
+ * @returns {string} design-tokens.css 的原始文本
+ */
+let _designTokensCssCache = null;
+function getDesignTokensCss() {
+  if (_designTokensCssCache !== null) return _designTokensCssCache;
+  try {
+    _designTokensCssCache = fs.readFileSync(
+      path.join(__dirname, '..', 'frontend', 'styles', 'design-tokens.css'),
+      'utf8'
+    );
+    if (!_designTokensCssCache.includes('--app-primary')) {
+      log.warn('[Toast] design-tokens.css 内容异常，token 缺失');
+      _designTokensCssCache = '';
+    }
+  } catch (e) {
+    _designTokensCssCache = '';
+    log.warn('[Toast] design-tokens.css 读取失败:', e.message);
+  }
+  return _designTokensCssCache;
+}
+
+/**
+ * 弹出通知气泡（透明无边框 BrowserWindow，右下角悬浮）。
+ * 样式走与产品一致的 design-tokens.css 全局令牌，随主窗口主题（notion/regular/dark）自适应。
  * @param {string} title - 通知标题
  * @param {string} body - 通知正文
  */
-function showNotification(title, body) {
+async function showNotification(title, body) {
+  // 从主窗口读取生效主题，并内联注入全局令牌，使气泡随主题正确渲染（默认浅色兜底）
+  const appearance = await resolveAppTheme();
+  const tokensCss = getDesignTokensCss();
   return new Promise((resolve) => {
     const { screen } = require('electron');
     const display = screen.getPrimaryDisplay();
@@ -5965,32 +6107,39 @@ function showNotification(title, body) {
     const safeBody = (body || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
     const html = `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="${appearance}">
 <head>
 <meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- 内联注入整套产品的全局主题令牌（frontend/styles/design-tokens.css），
+     上方 data-theme 与 tokens 中的 html[data-theme] 块联动，气泡随主题自适应 -->
+<style>${tokensCss}</style>
 <style>
-  :root {
-    /* 主题令牌（对齐 frontend/styles/design-tokens.css） */
-    --app-duration-panel: 250ms;
-    --app-ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
-    /* 待办提醒强调色：与 design-tokens 的 --app-reminder-accent（亮/暗）同源 */
-    --app-reminder-accent: #f0a030;
-    --app-reminder-accent-2: #ff6b3a;
-  }
   * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+  :root {
+    /* toast 卡片局部语义令牌：浅色主题用平整表面；深色主题改抬升为更亮表面 +
+       更亮描边（层级感在深底上才明显），仍只消费 --app-* 全局令牌 */
+    --toast-card-bg: var(--app-surface);
+    --toast-card-border: var(--app-card-border);
+    --toast-card-shadow: var(--app-shadow-panel), var(--app-shadow-xl);
+  }
+  html[data-theme="dark"] {
+    --toast-card-bg: var(--app-surface-hover);
+    --toast-card-border: var(--app-border-strong);
+    --toast-card-shadow: var(--app-shadow-panel), var(--app-shadow-xl);
+  }
   body {
     background: transparent;
     height: 100vh;
     overflow: hidden;
-    font-family: 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+    font-family: var(--app-font);
   }
   .card {
-    background: linear-gradient(135deg, rgba(28, 28, 34, 0.97), rgba(20, 20, 26, 0.97));
+    background: var(--toast-card-bg);
     /* 透明窗口 + 圆角卡片不用 backdrop-filter，否则圆角外侧透明区被合成器采样成灰色模糊边 */
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.03);
+    border-radius: var(--app-radius-lg);
+    border: 1px solid var(--toast-card-border);
+    box-shadow: var(--toast-card-shadow);
     height: 100%;
     display: flex;
     overflow: hidden;
@@ -5999,32 +6148,35 @@ function showNotification(title, body) {
   }
   .accent-bar {
     width: 4px;
-    background: linear-gradient(180deg, var(--app-reminder-accent), var(--app-reminder-accent-2));
+    background: var(--app-reminder-accent);
     flex-shrink: 0;
+    opacity: 0.92;
   }
   .content {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 18px 20px 16px 18px;
+    padding: 16px 18px 14px 16px;
     min-width: 0;
   }
   .header-row {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 8px;
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--app-border);
   }
   .bell-icon {
     width: 28px; height: 28px;
-    border-radius: 8px;
-    background: linear-gradient(135deg, rgba(240, 160, 48, 0.25), rgba(255, 107, 58, 0.15));
+    border-radius: var(--app-radius-sm);
+    background: color-mix(in srgb, var(--app-reminder-accent) 18%, transparent);
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
   }
   .bell-icon svg {
     width: 16px; height: 16px;
-    stroke: #f0a030;
+    stroke: var(--app-reminder-accent);
     fill: none;
     stroke-width: 2;
     stroke-linecap: round;
@@ -6033,7 +6185,7 @@ function showNotification(title, body) {
   .title {
     font-size: 12px;
     font-weight: 500;
-    color: #f0a030;
+    color: var(--app-reminder-accent);
     letter-spacing: 0.5px;
     flex: 1;
     overflow: hidden;
@@ -6042,22 +6194,23 @@ function showNotification(title, body) {
   }
   .close-btn {
     width: 24px; height: 24px;
-    border-radius: 6px;
+    border-radius: var(--app-radius-sm);
     display: flex; align-items: center; justify-content: center;
     cursor: pointer;
-    color: rgba(255, 255, 255, 0.3);
-    transition: all 0.2s;
+    color: var(--app-text-muted);
+    transition: background var(--app-duration-fast) var(--app-ease-smooth),
+                color var(--app-duration-fast) var(--app-ease-smooth);
     flex-shrink: 0;
   }
   .close-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.8);
+    background: var(--app-surface-hover);
+    color: var(--app-text-secondary);
   }
   .close-btn svg { width: 12px; height: 12px; }
   .body-text {
     font-size: 14px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.95);
+    color: var(--app-text);
     line-height: 1.4;
     flex: 1;
     display: -webkit-box;
@@ -6065,14 +6218,12 @@ function showNotification(title, body) {
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
-  .meta-text {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.4);
-    margin-top: 6px;
-  }
   @keyframes slideIn {
     from { transform: translateX(420px) scale(0.95); opacity: 0; }
     to { transform: translateX(0) scale(1); opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .card { animation: none; }
   }
 </style>
 </head>
@@ -6090,7 +6241,6 @@ function showNotification(title, body) {
         </div>
       </div>
       <div class="body-text">${safeBody}</div>
-      <div class="meta-text">Click the close button to dismiss</div>
     </div>
   </div>
   <script>

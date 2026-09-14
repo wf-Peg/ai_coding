@@ -302,6 +302,7 @@
         </div>
         <div class="markdown-body" id="markdownBody"></div>
       </div>
+      <div class="md-split-resizer" id="mdSplitResizer" role="separator" aria-orientation="vertical" title="拖拽调整 Markdown 预览分屏宽度" aria-label="调整预览分屏宽度"></div>
       <div class="editor-pane compare-pane" id="comparePane" hidden>
         <div class="compare-file-name" id="compareFileName">对比内容</div>
         <div id="compareEditor" class="ace-host" aria-label="对比编辑器"></div>
@@ -647,6 +648,10 @@
     <button type="button" data-context-action="selectAll" role="menuitem">
       <svg class="ctx-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 4v16"/><path d="M15 4v16"/><path d="M4 9h16"/><path d="M4 15h16"/></svg>
       <span class="ctx-label">全选</span>
+    </button>
+    <button type="button" data-context-action="insertWikilink" role="menuitem" id="insertWikilinkContextBtn" title="在光标处插入双向链接 [[ ]]，自动弹出模糊搜索可跳转目标">
+      <svg class="ctx-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4 4 12l4 8"/><path d="M16 4l4 8-4 8"/><line x1="13" y1="4" x2="11" y2="20"/></svg>
+      <span class="ctx-label">插入双向链接</span>
     </button>
     <button type="button" data-context-action="joinLineEnds" role="menuitem" id="joinLineEndsContextBtn" title="删除每行末尾换行符，将被截断的行合并为整行">
       <svg class="ctx-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h11"/><path d="M3 12h11"/><path d="M3 18h7"/><path d="m14 15 3 3 3-3"/><path d="M17 18V6"/></svg>

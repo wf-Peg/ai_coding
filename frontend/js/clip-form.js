@@ -89,17 +89,20 @@
 
     /** 快速记录：预置剪藏类型并引导，提升首屏记录效率（对标 NoteGen 剪藏种类） */
     function quickRecord(mode) {
-        const typeSel = document.getElementById('type');
+        // OCR 快速记录归一为 image 类型：type select 只有 store-only/ai-text/link-ai/doc-ai/image，
+        // 直接传 'ocr' 会把 select 置空 → 图片区被隐藏、提交类型为空，图片"存不上"且无缩略图。
+        const type = mode === 'ocr' ? 'image' : mode;
+        const KNOWN_TYPES = ['store-only', 'ai-text', 'link-ai', 'doc-ai', 'image'];
+        expandForm(KNOWN_TYPES.indexOf(type) >= 0 ? type : 'store-only');
         const content = document.getElementById('content');
-        expandForm(mode === 'store-only' ? 'store-only' : mode);
         if (mode === 'store-only') {
             content.placeholder = '粘贴文本内容，快速剪藏…（Ctrl+V）';
-        } else if (mode === 'image') {
+        } else if (mode === 'image' || mode === 'ocr') {
             content.placeholder = '图片剪藏：上传图片后可「OCR 提取文字」';
         } else if (mode === 'link-ai') {
             content.placeholder = '输入链接 URL，AI 解析后收藏（如 https://example.com/article）';
-        } else if (mode === 'ocr') {
-            content.placeholder = '图片剪藏：上传图片后可「OCR 提取文字」';
+        }
+        if (mode === 'ocr') {
             setTimeout(function () {
                 const input = document.getElementById('image-input');
                 if (input) input.click();
@@ -107,27 +110,69 @@
         }
     }
 
-    /** 插图 OCR：对已上传的第一张图片离线识别文字，结果填入内容（复用通用离线 OCR，独立于截图工具） */
-    async function runImageOcr() {
-        const first = uploadedImages.find(i => i.status === 'done' && i.dataUrl);
-        if (!first) { showToast('请先上传图片再执行 OCR'); return; }
+    /** 将存储的 media 相对路径图片加载为 dataUrl（供已保存剪藏的 OCR 复用；当前会话图直接传 dataUrl） */
+    async function loadImageDataUrl(relPath) {
+        if (!relPath) return null;
+        if (relPath.indexOf('data:') === 0) return relPath;
+        const url = window.MediaKit.render.mediaUrl(relPath);
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('图片加载失败（HTTP ' + resp.status + '）');
+        const blob = await resp.blob();
+        return await new Promise(function (resolve, reject) {
+            const reader = new FileReader();
+            reader.onload = function () { resolve(reader.result); };
+            reader.onerror = function () { reject(new Error('图片读取失败')); };
+            reader.readAsDataURL(blob);
+        });
+    }
+
+    /** 执行 OCR：识别 dataUrl 图片并返回识别文本（表单 / 已保存剪藏共用）；失败或不可用返回空串 */
+    async function recognizeImage(dataUrl) {
         const api = window.electronAPI;
-        if (!api || typeof api.ocrRecognize !== 'function') { showToast('OCR 仅桌面客户端可用'); return; }
+        if (!api || typeof api.ocrRecognize !== 'function') { showToast('OCR 仅桌面客户端可用'); return ''; }
+        if (typeof api.ocrStatus === 'function') {
+            const st = await api.ocrStatus();
+            if (st && st.available === false) { showToast('OCR 不可用：' + (st.reason || '模型未就绪')); return ''; }
+        }
+        showToast('OCR 识别中…');
+        const res = await api.ocrRecognize(dataUrl);
+        if (res.status === 'success' && res.text) {
+            return res.text.trim();
+        }
+        showToast('OCR 失败：' + (res.message || '未识别到文字'));
+        return '';
+    }
+
+    /** 对识别文本请求后端 AI 总结；失败或无效时返回 ''，不拖垮 OCR 主流程 */
+    async function requestTextSummary(text) {
+        if (!text || !text.trim()) return '';
         try {
-            if (typeof api.ocrStatus === 'function') {
-                const st = await api.ocrStatus();
-                if (st && st.available === false) { showToast('OCR 不可用：' + (st.reason || '模型未就绪')); return; }
+            const resp = await axios.post(`${API_BASE_URL}/text-summary`, { content: text });
+            if (resp.data && resp.data.status === 'success' && resp.data.summary) {
+                return resp.data.summary.trim();
             }
-            showToast('OCR 识别中…');
-            const res = await api.ocrRecognize(first.dataUrl);
-            if (res.status === 'success' && res.text) {
-                const content = document.getElementById('content');
-                content.value = (content.value ? content.value + '\n' : '') + res.text.trim();
-                content.dispatchEvent(new Event('input'));
-                showToast('已识别 ' + res.text.trim().length + ' 字，填入内容');
-            } else {
-                showToast('OCR 失败：' + (res.message || '未识别到文字'));
-            }
+            return '';
+        } catch (e) {
+            return '';
+        }
+    }
+
+    /** 插图 OCR：对已上传的图片离线识别文字，结果填入内容（复用通用离线 OCR，独立于截图工具） */
+    async function runImageOcr() {
+        const img = uploadedImages.find(i => i.path || i.dataUrl);
+        if (!img) { showToast('请先上传图片再执行 OCR'); return; }
+        try {
+            const dataUrl = img.dataUrl || (await loadImageDataUrl(img.path));
+            const text = await recognizeImage(dataUrl);
+            if (!text) return;
+            // OCR 识别文字后再请求 AI 总结，形成「识别原文 + AI 总结」的完整记录（对标 NoteGen 截图→文字→总结）
+            const summary = await requestTextSummary(text);
+            const content = document.getElementById('content');
+            let composed = text;
+            if (summary) composed += '\n\n**AI 总结**：' + summary;
+            content.value = (content.value ? content.value + '\n' : '') + composed;
+            content.dispatchEvent(new Event('input'));
+            showToast('已识别 ' + text.length + ' 字' + (summary ? '，并生成 AI 总结' : ''));
         } catch (e) {
             showToast('OCR 失败：' + (e && e.message ? e.message : '请稍后重试'));
         }

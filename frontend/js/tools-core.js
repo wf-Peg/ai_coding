@@ -102,6 +102,19 @@
   };
   const SYSTEM_TOOLS = [SYSTEM_SCREENSHOT];
 
+  // ── 系统工具：快捷键检测（扫描菜单/全局/编辑器快捷键冲突与系统占用风险）──
+  const SYSTEM_SHORTCUT_AUDIT = {
+    id: 'shortcut-audit-system',
+    name: '快捷键检测',
+    icon: '⌨️',
+    category: '系统工具',
+    description: '扫描菜单 / 全局 / 编辑器快捷键冲突与系统占用风险',
+    keywords: ['快捷键', '快捷键冲突', 'hotkey', 'shortcut', '加速键', '键位'],
+    builtin: true,
+    system: true
+  };
+  SYSTEM_TOOLS.push(SYSTEM_SHORTCUT_AUDIT);
+
   // ── 顶层模块子工具（使用频率较低，移入工具模块作为子工具入口）──
   // 点击后通过 postMessage 让主框架跳转到对应视图，避免嵌套 iframe 破坏页面与父窗口的通信
   const MODULE_TOOLS = [
@@ -627,6 +640,8 @@
 
   async function openSystemTool(t) {
     const api = (window.parent && window.parent.electronAPI) || window.electronAPI;
+    // 快捷键检测：独立面板（非截图工具配置）
+    if (t.id === 'shortcut-audit-system') { renderShortcutAudit(); return; }
     let shot = 'F1', paste = 'F2', hideMain = true, enabled = true, ocrText = '查询中...';
     if (api && api.screenshotGetShortcuts) {
       try {
@@ -785,6 +800,224 @@
       closeBtn.onclick = function (ev) {
         recordingSysKey = null;
         if (window.__sysKeyHandler) window.removeEventListener('keydown', window.__sysKeyHandler);
+        if (orig) orig.call(closeBtn, ev); else $('promptModal').style.display = 'none';
+      };
+    }
+  }
+
+// ── 快捷键检测面板 ──
+  function escHtml(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  const SCOPE_LABEL = { menu: '菜单', global: '全局', editor: '编辑器' };
+  const SCOPE_COLOR = { menu: '#3f8cff', global: '#a855f7', editor: '#16a34a' };
+  function scopeBadge(scope) {
+    const c = SCOPE_COLOR[scope] || '#6b7280';
+    return '<span style="display:inline-block;font-size:10.5px;line-height:1;padding:3px 7px;border-radius:999px;background:' + c + '1a;color:' + c + ';border:1px solid ' + c + '55;margin-left:6px;vertical-align:2px">' +
+      escHtml(SCOPE_LABEL[scope] || scope) + '</span>';
+  }
+  // ── 键位展示小工具 ──
+  function accelParts(acc, isMac) {
+    return String(acc || '').split('+').map(function (p) {
+      p = p.trim();
+      if (isMac) {
+        if (/^(Command|CmdOrCtrl|CommandOrControl|Cmd|Meta)$/.test(p)) return '⌘';
+        if (/^(Control|Ctrl)$/.test(p)) return '⌃';
+        if (/^(Alt|Option)$/.test(p)) return '⌥';
+        if (p === 'Shift') return '⇧';
+      } else {
+        if (/^(Command|CmdOrCtrl|CommandOrControl|Cmd|Control|Ctrl|Meta)$/.test(p)) return 'Ctrl';
+        if (/^(Alt|Option)$/.test(p)) return 'Alt';
+        if (p === 'Shift') return 'Shift';
+      }
+      return p.length === 1 ? p.toUpperCase() : p;
+    });
+  }
+  function accelKey(acc, isMac) {
+    const parts = accelParts(acc, isMac);
+    return '<span style="display:inline-flex;align-items:center;gap:3px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--app-text);white-space:nowrap">' +
+      parts.map(function (p) {
+        return '<kbd style="padding:2px 6px;min-width:22px;text-align:center;border:1px solid var(--app-border);border-bottom-width:2px;border-radius:5px;background:var(--app-bg);box-shadow:inset 0 -1px 0 var(--app-border)">' + escHtml(p) + '</kbd>';
+      }).join('<span style="opacity:.35;font-weight:700">+</span>') + '</span>';
+  }
+  function dotBadge(color, txt, title) {
+    return '<span' + (title ? ' title="' + escHtml(title) + '"' : '') + ' style="display:inline-flex;align-items:center;gap:5px;cursor:' + (title ? 'help' : 'default') + ';font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:' + color + '1a;color:' + color + ';white-space:nowrap"><span style="width:6px;height:6px;border-radius:50%;background:' + color + '"></span>' + escHtml(txt) + '</span>';
+  }
+  function statusBadge(entry, dupMap) {
+    const s = entry.state;
+    if (s === 'ok') return dotBadge('#16a34a', '正常');
+    if (s === 'conflict') return dotBadge('#ef4444', '冲突', '同一组合键被多个不同功能占用');
+    if (s === 'dup') return dotBadge('#6b7280', '同功能 ×' + (dupMap[entry._norm] || 2));
+    if (s === 'occupied') return dotBadge('#f59e0b', '占用风险');
+    if (s === 'disabled') return dotBadge('#9ca3af', '未启用');
+    if (s === 'registered') return dotBadge('#16a34a', '已注册');
+    return '';
+  }
+  function shortcutRow(entry, dupMap, isMac, conflictMap) {
+    const accent = entry.state === 'conflict' ? '#ef4444' : (entry.state === 'occupied' ? '#f59e0b' : 'var(--app-border)');
+    const titleColor = entry.state === 'conflict' ? '#ef4444' : 'var(--app-text)';
+    const groups = (entry.scope === 'menu' && entry.group)
+      ? '<span style="margin-left:6px;font-size:10px;color:var(--app-text-muted)">· ' + escHtml(entry.group) + '</span>' : '';
+    let status = statusBadge(entry, dupMap);
+    if (entry.state === 'conflict') {
+      const others = (conflictMap[entry._norm] || []).filter(f => f._fkey !== entry._fkey);
+      const names = others.map(f => f.feature).join('」「');
+      status += '<button data-cf-combo="' + escHtml(entry._norm) +
+        '" title="与「' + escHtml(names) + '」共用 ' + escHtml(entry._norm) + '，点击查看冲突详情" ' +
+        'style="margin-left:6px;padding:2px 9px;font-size:11px;border-radius:999px;border:1px solid #ef4444aa;background:#ef44441a;color:#ef4444;cursor:pointer;white-space:nowrap">查看冲突</button>';
+    }
+    return '<div style="display:flex;align-items:center;gap:10px;padding:6px 10px;border:1px solid ' + accent + '66;border-left:3px solid ' + accent + ';border-radius:8px;margin:4px 0;background:var(--app-surface)">' +
+      '<div style="flex:1;min-width:0;font-size:13px;color:' + titleColor + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(entry.feature) + scopeBadge(entry.scope) + groups + '</div>' +
+      '<div style="display:flex;align-items:center;gap:8px;flex:0 0 auto">' + accelKey(entry.accelerator, isMac) + status + '</div>' +
+      '</div>';
+  }
+  function shortcutSection(title, color, entries, dupMap, isMac, conflictMap) {
+    let html = '<div style="margin:12px 0 6px;display:flex;align-items:center;gap:8px">' +
+      '<span style="font-size:12.5px;font-weight:700;color:var(--app-text)">' + escHtml(title) + '</span>' +
+      '<span style="background:' + color + '1a;color:' + color + ';border-radius:999px;padding:1px 9px;font-size:10.5px;font-weight:600">' + entries.length + '</span>' +
+      '</div>';
+    if (!entries.length) return html + '<div style="color:var(--app-text-muted);font-size:11.5px;padding:6px 2px">（无匹配项）</div>';
+    return html + entries.map(function (e) { return shortcutRow(e, dupMap, isMac, conflictMap); }).join('');
+  }
+
+  function renderShortcutAudit() {
+    // 弹窗标题按工具动态设置（复用开发提示词弹窗容器）
+    const titleEl = $('promptModalTitle');
+    if (titleEl) titleEl.textContent = '⌨️ 快捷键检测';
+    const root = $('promptContent');
+    root.innerHTML =
+      '<div style="display:flex;gap:8px;margin-bottom:8px">' +
+        '<input id="saSearch" type="text" placeholder="🔍 搜索功能名或快捷键…" style="flex:1;min-width:0;height:34px;padding:0 12px;border:1px solid var(--app-border);border-radius:8px;background:var(--app-surface);color:var(--app-text);font-size:13px;outline:none">' +
+        '<button id="saRerun" style="flex:0 0 auto;height:34px;padding:0 16px;background:var(--app-primary,#3f8cff);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:600">重新检测</button>' +
+      '</div>' +
+      '<div id="saSummary" style="font-size:12px;line-height:1.9;color:var(--app-text-secondary);margin-bottom:4px">正在扫描…</div>' +
+      '<div id="saBody"></div>';
+
+    let reportData = null;
+    const isMac = () => reportData && (reportData.platform === 'darwin' || !reportData.platform);
+
+    const buildDupMap = () => {
+      const m = {};
+      (reportData.duplicates || []).forEach((d) => { m[d.combo] = d.count; });
+      return m;
+    };
+    const buildConflictMap = () => {
+      const m = {};
+      (reportData.conflicts || []).forEach((c) => { m[c.combo] = c.features; });
+      return m;
+    };
+    // 冲突详情浮层：列出同一组合键下的所有功能及其来源，说明冲突原因
+    const showConflictDetail = (combo) => {
+      const grp = (reportData.conflicts || []).find(c => c.combo === combo);
+      if (!grp) return;
+      const mask = document.createElement('div');
+      mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99990;display:flex;align-items:center;justify-content:center;';
+      mask.addEventListener('click', (e) => { if (e.target === mask) mask.remove(); });
+      const panel = document.createElement('div');
+      panel.style.cssText = 'background:var(--app-surface);color:var(--app-text);border:1px solid var(--app-border);border-radius:12px;padding:18px 20px;min-width:340px;max-width:460px;box-shadow:0 12px 40px rgba(0,0,0,.35);';
+      const rows = grp.features.map((f, i) =>
+        '<div style="display:flex;align-items:center;gap:8px;padding:' + (i ? '8px 0 0' : '0') + '">' +
+          '<span style="flex:1;min-width:0;font-size:13px;color:var(--app-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(f.feature) + scopeBadge(f.scope) + '</span>' +
+          '<span style="flex:0 0 auto">' + accelKey(f.accelerator, isMac()) + '</span>' +
+        '</div>');
+      panel.innerHTML =
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">' +
+          '<span style="width:8px;height:8px;border-radius:50%;background:#ef4444;box-shadow:0 0 8px #ef4444"></span>' +
+          '<span style="font-size:14px;font-weight:700;color:#ef4444">快捷键冲突</span>' +
+          '<span style="margin-left:auto;font-size:12px;color:var(--app-text-muted)">' + grp.features.length + ' 个功能共用此组合键</span>' +
+        '</div>' +
+        '<div style="border:1px solid var(--app-border);border-radius:8px;padding:12px;margin-bottom:10px">' +
+          '<div style="display:flex;align-items:center;justify-content:center;margin-bottom:8px">' + accelKey(combo, isMac()) + '</div>' +
+          rows.join('') +
+        '</div>' +
+        '<div style="font-size:12px;line-height:1.7;color:var(--app-text-secondary);border-top:1px dashed var(--app-border);padding-top:10px">' +
+          '同一组合键被 ' + grp.features.length + ' 个不同功能占用。按下该键时行为不明确，请修改其中某个功能绑定的键位以消除冲突。' +
+        '</div>' +
+        '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">' +
+          '<button data-cf-x style="padding:7px 16px;border-radius:8px;border:1px solid var(--app-border);background:transparent;color:var(--app-text);cursor:pointer;font-size:12.5px">关闭</button>' +
+        '</div>';
+      panel.querySelector('[data-cf-x]').addEventListener('click', () => mask.remove());
+      mask.appendChild(panel);
+      document.body.appendChild(mask);
+    }
+
+    const render = (query) => {
+      const body = $('saBody');
+      const dupMap = buildDupMap();
+      const conflictMap = buildConflictMap();
+      const q = (query || '').trim().toLowerCase();
+      const hit = (e) => {
+        if (!q) return true;
+        return String(e.feature || '').toLowerCase().indexOf(q) >= 0 ||
+               String(e.accelerator || '').toLowerCase().indexOf(q) >= 0 ||
+               accelParts(e.accelerator, isMac()).join('').toLowerCase().indexOf(q) >= 0;
+      };
+      const fmenu = reportData.menu.filter(hit);
+      const fglobal = reportData.global.filter(hit);
+      const feditor = reportData.editor.filter(hit);
+      let html = shortcutSection('菜单快捷键', '#3f8cff', fmenu, dupMap, isMac(), conflictMap);
+      html += shortcutSection('全局快捷键', '#a855f7', fglobal, dupMap, isMac(), conflictMap);
+      html += shortcutSection('编辑器快捷键', '#16a34a', feditor, dupMap, isMac(), conflictMap);
+      if (!fmenu.length && !fglobal.length && !feditor.length) {
+        html = '<div style="padding:18px;text-align:center;color:var(--app-text-muted);font-size:12.5px;border:1px dashed var(--app-border);border-radius:8px">未找到匹配「' + escHtml(q) + '」的快捷键</div>';
+      }
+      body.innerHTML = html;
+    };
+
+    const renderSummary = () => {
+      const s = $('saSummary');
+      if (!s || !reportData) return;
+      const d = reportData, c = (n, col) => '<b style="color:' + col + '">' + n + '</b>';
+      s.innerHTML =
+        '共 ' + c(d.total, 'var(--app-text)') + ' 个快捷键 · ' +
+        '冲突 ' + c(d.conflictCount, '#ef4444') + ' · ' +
+        '占用风险 ' + c(d.occupiedCount, '#f59e0b') + ' · ' +
+        '同功能多绑定 ' + c(d.dupCount, '#6b7280') + ' 组 · ' +
+        '<span style="opacity:.75">全局未启用 ' + c(d.disabledCount, '#9ca3af') + '</span>';
+    };
+
+    const bindSearch = () => {
+      const input = document.getElementById('saSearch');
+      if (!input || input.dataset.bound) return;
+      input.dataset.bound = '1';
+      input.addEventListener('input', () => render(input.value));
+    };
+
+    const init = () => {
+      // 事件委托：冲突行的「查看冲突」按钮（面板 innerHTML 会重建，用 body 委托稳定）
+      if (!document.body.dataset.cfBound) {
+        document.body.dataset.cfBound = '1';
+        document.body.addEventListener('click', (e) => {
+          const btn = e.target && e.target.closest && e.target.closest('[data-cf-combo]');
+          if (btn) { showConflictDetail(btn.getAttribute('data-cf-combo') || ''); }
+        });
+      }
+      window.ShortcutAudit.report()
+        .then((r) => { reportData = r; renderSummary(); render(($('saSearch') || {}).value || ''); bindSearch(); })
+        .catch((e) => {
+          const s = document.getElementById('saSummary');
+          if (s) s.innerHTML = '<span style="color:#ef4444">检测失败：' + escHtml(e && e.message || e) + '</span>';
+        });
+    };
+
+    const rerun = document.getElementById('saRerun');
+    if (rerun) rerun.addEventListener('click', () => {
+      const s = document.getElementById('saSummary');
+      if (s) s.textContent = '正在扫描…';
+      init();
+    });
+    init();
+
+    currentPromptId = null;
+    $('promptModal').style.display = 'flex';
+    const copyBtn = $('copyPromptBtn');
+    if (copyBtn) copyBtn.style.display = 'none';
+    // 面板关闭时清理并复原弹窗标题
+    const closeBtn = $('promptClose');
+    if (closeBtn) {
+      const orig = closeBtn.onclick;
+      closeBtn.onclick = function (ev) {
+        if (titleEl) titleEl.textContent = '📋 开发提示词';
         if (orig) orig.call(closeBtn, ev); else $('promptModal').style.display = 'none';
       };
     }
