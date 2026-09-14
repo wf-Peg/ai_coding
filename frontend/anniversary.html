@@ -123,17 +123,6 @@
   .av-empty .icon svg { width: 40px; height: 40px; }
   .av-empty .t { color: var(--app-text-secondary); font-weight: 500; margin-bottom: 4px; }
 
-  /* 浮动新增按钮：纯色 + 轻阴影 */
-  .av-fab {
-    position: fixed; right: 24px; bottom: 26px; z-index: 20;
-    width: 50px; height: 50px; border-radius: 50%;
-    background: var(--app-primary); color: #fff; border: none;
-    font-size: 24px; line-height: 1;
-    box-shadow: var(--app-shadow-sm);
-    transition: transform var(--app-duration-fast) var(--app-ease-smooth), box-shadow var(--app-duration-fast) var(--app-ease-smooth);
-  }
-  .av-fab:hover { transform: translateY(-1px); box-shadow: var(--app-shadow-md); }
-
   /* 弹窗 */
   .av-mask {
     position: fixed; inset: 0; z-index: 40;
@@ -229,6 +218,7 @@
       <button class="av-btn" id="avPhoneBtn">发送到手机</button>
       <button class="av-btn" id="avImportBtn">导入</button>
       <button class="av-btn" id="avExportBtn">导出</button>
+      <button class="av-btn primary" id="avAddBtn" title="新增纪念日 / 倒数日">＋ 新增</button>
     </div>
   </div>
   <input type="file" id="avImportFile" accept="application/json,.json" style="display:none">
@@ -249,11 +239,9 @@
   <div class="av-empty" id="avEmpty" style="display:none">
     <div class="icon ic"><svg viewBox="0 0 24 24"><path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></svg></div>
     <div class="t">还没有纪念日</div>
-    <div>点右下角「+」添加第一个</div>
+    <div>点击右上角「新增」添加第一个</div>
   </div>
 </div>
-
-<button class="av-fab" id="avAddBtn" title="新增纪念日 / 倒数日">+</button>
 
 <!-- 发送到手机（二维码）弹窗 -->
 <div class="av-mask" id="avQrMask">
@@ -368,35 +356,44 @@
   function hideBanner() { $('avBanner').classList.remove('show'); }
 
   // ── 发送到手机 ──
+  // 手机无法访问 localhost，需经 /__lan_ip 拿到电脑局域网地址拼出“手机可达链接”
+  function getPhoneUrl(cb) {
+    fetch('/__lan_ip', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
+      if (d && d.ip) cb('http://' + d.ip + ':' + d.port + location.pathname);
+      else cb(location.href);
+    }).catch(function () { cb(location.href); });
+  }
   var qrUrl = null;
   function openPhone() {
-    var url = location.href;
-    if (qrUrl !== url) {
-      qrUrl = url;
-      var img = $('avQrImg');
-      try {
-        var qr = window.qrcode(0, 'M');
-        qr.addData(url); qr.make();
-        img.src = qr.createDataURL(6, 2);
-        img.style.display = '';
-      } catch (e) { img.style.display = 'none'; }
-    }
-    $('avQrUrl').textContent = url;
-    $('avQrMask').classList.add('show');
+    getPhoneUrl(function (url) {
+      if (qrUrl !== url) {
+        qrUrl = url;
+        var img = $('avQrImg');
+        try {
+          var qr = window.qrcode(0, 'M');
+          qr.addData(url); qr.make();
+          img.src = qr.createDataURL(6, 2);
+          img.style.display = '';
+        } catch (e) { img.style.display = 'none'; }
+      }
+      $('avQrUrl').textContent = url;
+      $('avQrMask').classList.add('show');
+    });
   }
   function closePhone() { $('avQrMask').classList.remove('show'); }
   function copyPhoneLink() {
-    var url = location.href;
-    var done = function () { toast('链接已复制'); };
-    var fallback = function () {
-      var t = document.createElement('textarea');
-      t.value = url; t.setAttribute('readonly', ''); t.style.position = 'fixed'; t.style.opacity = '0';
-      document.body.appendChild(t); t.select();
-      try { document.execCommand('copy'); } catch (e) {}
-      t.remove(); done();
-    };
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, fallback);
-    else fallback();
+    getPhoneUrl(function (url) {
+      var done = function () { toast('链接已复制'); };
+      var fallback = function () {
+        var t = document.createElement('textarea');
+        t.value = url; t.setAttribute('readonly', ''); t.style.position = 'fixed'; t.style.opacity = '0';
+        document.body.appendChild(t); t.select();
+        try { document.execCommand('copy'); } catch (e) {}
+        t.remove(); done();
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, fallback);
+      else fallback();
+    });
   }
 
   // ── 数据 ──

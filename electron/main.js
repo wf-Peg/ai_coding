@@ -1852,6 +1852,13 @@ function startFrontendServer(config) {
     const serve = serveStatic(frontendDir, { index: ['index.html'], fallthrough: false });
 
     const server = http.createServer((req, res) => {
+      // 「发送到手机」探测本机局域网地址，返回手机可达的 LAN 服务器（frontendPort + 1）
+      const reqPath0 = new URL(req.url || '/', `http://127.0.0.1:${config.frontendPort}`).pathname;
+      if (reqPath0 === '/__lan_ip') {
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(JSON.stringify({ ip: getLanIP(), port: (config.frontendPort || 3001) + PHONE_PORT_OFFSET }));
+        return;
+      }
       // 代理 /api/* 请求到后端
       const urlPath = req.url || '';
       if (urlPath.startsWith('/api/')) {
@@ -1944,6 +1951,89 @@ function stopFrontendServer() {
     frontendServer.close();
     frontendServer = null;
   }
+  stopPhoneServer();
+}
+
+/**
+ * 本机第一个非回环 IPv4（供「发送到手机」生成局域网可达地址）
+ * 屏蔽 169.254.* 自动私有地址（无路由时 macOS/iOS 的假地址）
+ */
+function getLanIP() {
+  const nets = os.networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name] || []) {
+      if (net.family === 'IPv4' && !net.internal && !net.address.startsWith('169.254.')) {
+        return net.address;
+      }
+    }
+  }
+  return '';
+}
+
+/** 仅供局域网手机访问的独立服务器（同 loopback 前端口号 +1，仅托管静态资源，不带 /api 代理） */
+let phoneServer = null;
+const PHONE_PORT_OFFSET = 1;
+
+/**
+ * 启动「发送到手机」局域网服务器：
+ * 绑定 0.0.0.0 使同一 Wi-Fi 下的手机可访问，仅服务前端静态文件，
+ * 不代理 /api 后端，避免把本地数据/接口暴露到局域网。
+ * @param {Object} config - 用户配置（含前端端口）
+ * @returns {Promise<boolean>}
+ */
+function startPhoneServer(config) {
+  return new Promise((resolve, reject) => {
+    const frontendDir = getFrontendDir();
+    if (!frontendDir) { reject(new Error('Cannot find frontend files for phone server')); return; }
+    if (!serveStatic) serveStatic = require('serve-static');
+    const serve = serveStatic(frontendDir, { index: ['index.html'], fallthrough: false });
+    const port = (config.frontendPort || 3001) + PHONE_PORT_OFFSET;
+
+    const server = http.createServer((req, res) => {
+      const urlPath = new URL(req.url, `http://0.0.0.0:${port}`).pathname;
+      // 「发送到手机」探测本机局域网地址
+      if (urlPath === '/__lan_ip') {
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(JSON.stringify({ ip: getLanIP(), port }));
+        return;
+      }
+      // 仅托管真实存在的静态文件，不提供 /api 代理与 SPA 回退
+      const filePath = path.join(frontendDir, urlPath);
+      try {
+        if (fs.existsSync(filePath) && !fs.statSync(filePath).isDirectory()) {
+          return serve(req, res, finalhandler ? finalhandler(req, res) : undefined);
+        }
+      } catch (_) { /* fallthrough */ }
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Not Found');
+    });
+
+    server.listen(port, '0.0.0.0', () => {
+      phoneServer = server;
+      log.info(`Phone LAN server: http://0.0.0.0:${port}`);
+      resolve(true);
+    });
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') reject(new Error(`Phone port ${port} is already in use`));
+      else reject(err);
+    });
+  });
+}
+
+function stopPhoneServer() {
+  if (phoneServer) {
+    phoneServer.close();
+    phoneServer = null;
+  }
+}
+
+/**
+ * 一键启动 loopback 主前端服务 + 「发送到手机」局域网服务。
+ * LAN 服务失败不阻塞主服务（仅降级，桌面端功能不受影响）。
+ */
+async function startFrontendServers(config) {
+  await startFrontendServer(config);
+  await startPhoneServer(config).catch((e) => log.warn('[Phone] LAN server failed: ' + e.message));
 }
 
 // ==================== 系统托盘 ====================
@@ -4653,7 +4743,7 @@ function setupIPC() {
 
     // 重新启动前端服务
     try {
-      await startFrontendServer(config);
+      await startFrontendServers(config);
     } catch (e) {
       return { success: false, message: `Frontend restart failed: ${e.message}` };
     }
@@ -6672,7 +6762,7 @@ app.whenReady().then(async () => {
 
       try {
         stepLadder('fe.before');
-        await startFrontendServer(newConfig);
+        await startFrontendServers(newConfig);
         stepLadder('fe.after');
 
         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -6744,7 +6834,7 @@ app.whenReady().then(async () => {
       // 先起前端服务（本地静态服务，很快），再立即建窗 —— 让窗口尽快出现（加载前端壳），
       // 系统右键菜单与后端均改为「建窗后」按需启动/触发，不再阻塞首窗。
       stepLadder('fe.before');
-      await startFrontendServer(config);
+      await startFrontendServers(config);
       stepLadder('fe.after');
 
       // 立即建主窗口（前端服务已就绪，loadWithRetry 对偶发未就绪会自动重试）

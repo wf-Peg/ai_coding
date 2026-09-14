@@ -3,6 +3,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 const PORT = process.env.PORT || 3001;
 const ROOT = __dirname;
@@ -18,9 +19,29 @@ const MIME = {
   '.woff2': 'font/woff2'
 };
 
+// 本机第一个非回环 IPv4（供「发送到手机」生成局域网可达地址）
+function getLanIP() {
+  const nets = os.networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name] || []) {
+      if (net.family === 'IPv4' && !net.internal && !net.address.startsWith('169.254.')) {
+        return net.address;
+      }
+    }
+  }
+  return '';
+}
+
 function serve(req, res) {
   let urlPath = new URL(req.url, `http://127.0.0.1:${PORT}`).pathname;
   if (urlPath === '/') urlPath = '/index.html';
+
+  // 「发送到手机」探测本机局域网地址
+  if (urlPath === '/__lan_ip') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify({ ip: getLanIP(), port: PORT }));
+    return;
+  }
 
   const filePath = path.join(ROOT, urlPath);
 
