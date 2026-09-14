@@ -1,6 +1,23 @@
 # 剪藏（Clip）— 信息检索与知识管理系统
 
+> 🧭 **官网**：[https://cutshelter.pages.dev](https://cutshelter.pages.dev) · 在线体验产品界面与交互演示
+
 基于 Spring Boot 和多 LLM 提供者架构的个人信息管理与知识库系统，支持剪藏、AI分析、专题管理、待办时间线、日报/周报生成、Git同步，并提供 Electron 桌面应用打包。
+
+## 产品界面
+
+| 收件箱 · 剪藏 | 写作 · 编辑器 |
+| :---: | :---: |
+| <img src="docs/screenshots/01-inbox.png" alt="收件箱" width="480"/> | <img src="docs/screenshots/02-editor.png" alt="编辑器" width="480"/> |
+
+| 知识图谱 · 无限画布 | AI 助手 · 小记 |
+| :---: | :---: |
+| <img src="docs/screenshots/03-knowledge-graph.png" alt="知识图谱" width="480"/> | <img src="docs/screenshots/04-ai-assistant.png" alt="AI 助手" width="480"/> |
+
+**为什么选择碎碎记**（本地优先 · 剪藏闭环 · AI + DSH 集成 · 知识图谱，对标 YouMind / Notion / NoteGen）
+
+<img src="docs/screenshots/06-why.png" alt="为什么选择碎碎记" width="960"/>
+
 
 ## 功能特性
 
@@ -20,6 +37,7 @@
 - ✅ 专题管理（创建/编辑/关联剪藏/分区展示）
 - ✅ 待办时间线管理（创建/编辑/删除/剪藏转待办）
 - ✅ 多LLM模型支持（DashScope / DeepSeek / 智能路由）
+- ✅ DSH（DeepSeek Harness）集成：AI Agent 调用知识库、会话成果自动落库
 - ✅ Prompt自定义配置
 - ✅ 主题切换（Notion风格 / 常规风格）
 - ✅ Git同步与仓库配置

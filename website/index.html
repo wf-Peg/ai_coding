@@ -50,11 +50,13 @@
 html { scroll-behavior: smooth; scroll-padding-top: 72px; }
 body {
   font-family: var(--font-sans);
-  background: var(--app-bg);
+  background:
+    radial-gradient(1200px 520px at 18% -8%, var(--app-primary-soft), transparent 60%),
+    var(--app-bg);
   color: var(--app-text);
   -webkit-font-smoothing: antialiased;
   font-size: 15px;
-  line-height: 1.65;
+  line-height: 1.7;
 }
 a { color: var(--app-primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -106,7 +108,7 @@ svg { display: block; }
   color: var(--app-primary); text-transform: uppercase;
 }
 .sec-kicker::before { content: ""; width: 18px; height: 2px; border-radius: 1px; background: var(--app-primary); }
-.sec-title { font-size: 28px; font-weight: 650; letter-spacing: -0.01em; margin-top: 10px; line-height: 1.3; }
+.sec-title { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; margin-top: 10px; line-height: 1.3; }
 .sec-desc { color: var(--app-text-secondary); margin-top: 10px; max-width: 640px; font-size: 14.5px; }
 
 /* 滚动渐入 */
@@ -123,8 +125,8 @@ svg { display: block; }
   font-size: 12.5px; color: var(--app-text-secondary); font-weight: 500;
 }
 .hero-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--app-success); }
-.hero h1 { font-size: 42px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.22; margin-top: 20px; }
-.hero h1 .en { color: var(--app-text-muted); font-size: 26px; font-weight: 600; display: block; margin-top: 4px; }
+.hero h1 { font-size: 46px; font-weight: 750; letter-spacing: -0.025em; line-height: 1.18; margin-top: 20px; }
+.hero h1 .en { color: var(--app-text-muted); font-size: 26px; font-weight: 600; display: block; margin-top: 6px; }
 .hero-slogan { font-size: 17px; color: var(--app-text); font-weight: 550; margin-top: 16px; }
 .hero-desc { color: var(--app-text-secondary); margin-top: 12px; font-size: 14.5px; max-width: 480px; }
 .hero-cta { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
@@ -138,14 +140,14 @@ svg { display: block; }
 .btn:hover { text-decoration: none; }
 .btn svg { width: 15px; height: 15px; }
 .btn-primary { background: var(--app-primary); border-color: var(--app-primary); color: #fff; }
-.btn-primary:hover { background: var(--app-primary-hover); border-color: var(--app-primary-hover); box-shadow: var(--app-shadow-md); }
+.btn-primary:hover { background: var(--app-primary-hover); border-color: var(--app-primary-hover); box-shadow: var(--app-shadow-lg); transform: translateY(-1px); }
 .btn-ghost:hover { border-color: var(--app-border-strong); background: var(--app-surface-hover); }
 .hero-trust { margin-top: 22px; display: flex; gap: 20px; flex-wrap: wrap; }
 .hero-trust span { font-size: 12.5px; color: var(--app-text-muted); display: inline-flex; align-items: center; gap: 6px; }
 .hero-trust svg { width: 13px; height: 13px; color: var(--app-success); }
 
 /* ---- 产品界面示意（CSS 绘制，非图片） ---- */
-.appmock { background: var(--app-surface); border: 1px solid var(--app-border); border-radius: var(--app-radius-lg); box-shadow: var(--app-shadow-lg); overflow: hidden; }
+.appmock { background: var(--app-surface); border: 1px solid var(--app-border-strong); border-radius: var(--app-radius-lg); box-shadow: var(--app-shadow-xl); overflow: hidden; }
 .mock-titlebar { height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 14px; background: var(--app-surface-subtle); border-bottom: 1px solid var(--app-border); }
 .mock-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--app-border-strong); }
 .mock-dot:nth-child(1) { background: #e8c0bd; } .mock-dot:nth-child(2) { background: #e8dcae; } .mock-dot:nth-child(3) { background: #bfe0c3; }
@@ -210,7 +212,7 @@ svg { display: block; }
   overflow: hidden;
   transition: transform var(--app-duration-normal) var(--app-ease-smooth), box-shadow var(--app-duration-normal) var(--app-ease-smooth), border-color var(--app-duration-normal) var(--app-ease-smooth);
 }
-.exp-mock:hover { transform: translateY(-3px); box-shadow: var(--app-shadow-md); border-color: var(--app-border-strong); }
+.exp-mock:hover { transform: translateY(-4px); box-shadow: var(--app-shadow-lg); border-color: var(--app-border-strong); }
 .exp-mock-head { display: flex; align-items: center; gap: 6px; padding: 9px 12px; background: var(--app-surface-subtle); border-bottom: 1px solid var(--app-border); }
 .exp-mock-head .md { width: 8px; height: 8px; border-radius: 50%; background: var(--app-border-strong); }
 .exp-mock-title { font-size: 12px; color: var(--app-text-muted); font-weight: 550; margin-left: 4px; }
@@ -270,12 +272,14 @@ svg { display: block; }
   padding: 26px 24px;
   transition: transform var(--app-duration-normal) var(--app-ease-smooth), box-shadow var(--app-duration-normal) var(--app-ease-smooth), border-color var(--app-duration-normal) var(--app-ease-smooth);
 }
-.feature:hover { transform: translateY(-3px); box-shadow: var(--app-shadow-md); border-color: var(--app-border-strong); }
+.feature:hover { transform: translateY(-4px); box-shadow: var(--app-shadow-lg); border-color: var(--app-border-strong); }
 .feature-icon {
   width: 38px; height: 38px; border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
-  background: var(--app-primary-soft); color: var(--app-primary); margin-bottom: 14px;
+  background: linear-gradient(135deg, var(--app-primary-soft), transparent); color: var(--app-primary); margin-bottom: 14px;
+  transition: transform var(--app-duration-fast) var(--app-ease-smooth);
 }
+.feature:hover .feature-icon { transform: scale(1.06); }
 .feature-icon svg { width: 19px; height: 19px; }
 .feature h3 { font-size: 15.5px; font-weight: 650; }
 .feature p { font-size: 13.5px; color: var(--app-text-secondary); margin-top: 7px; line-height: 1.6; }
@@ -287,7 +291,7 @@ svg { display: block; }
   border: 1px solid var(--app-border); border-radius: var(--app-radius-lg); padding: 22px 20px;
   transition: transform var(--app-duration-normal) var(--app-ease-smooth), box-shadow var(--app-duration-normal) var(--app-ease-smooth);
 }
-.wf-step:hover { transform: translateY(-3px); box-shadow: var(--app-shadow-md); }
+.wf-step:hover { transform: translateY(-4px); box-shadow: var(--app-shadow-lg); }
 .wf-num {
   width: 28px; height: 28px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
@@ -361,7 +365,7 @@ svg { display: block; }
   padding: 24px; text-align: center;
   transition: transform var(--app-duration-normal) var(--app-ease-smooth), box-shadow var(--app-duration-normal) var(--app-ease-smooth);
 }
-.trust-card:hover { transform: translateY(-3px); box-shadow: var(--app-shadow-md); }
+.trust-card:hover { transform: translateY(-4px); box-shadow: var(--app-shadow-lg); }
 .trust-card .tc-ic {
   width: 44px; height: 44px; margin: 0 auto 12px; border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
@@ -370,6 +374,32 @@ svg { display: block; }
 .trust-card .tc-ic svg { width: 21px; height: 21px; }
 .trust-card h3 { font-size: 15px; font-weight: 650; }
 .trust-card p { font-size: 13px; color: var(--app-text-secondary); margin-top: 7px; line-height: 1.6; }
+
+/* ============ 为什么选择碎碎记 ============ */
+.whys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.why {
+  background: linear-gradient(180deg, var(--app-surface), var(--app-surface-subtle));
+  border: 1px solid var(--app-border); border-radius: var(--app-radius-lg);
+  padding: 24px 22px;
+  transition: transform var(--app-duration-normal) var(--app-ease-smooth), box-shadow var(--app-duration-normal) var(--app-ease-smooth), border-color var(--app-duration-normal) var(--app-ease-smooth);
+}
+.why:hover { transform: translateY(-4px); box-shadow: var(--app-shadow-lg); border-color: var(--app-border-strong); }
+.why-ic {
+  width: 42px; height: 42px; border-radius: 11px; margin-bottom: 14px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--app-primary-soft), transparent); color: var(--app-primary);
+}
+.why-ic svg { width: 20px; height: 20px; }
+.why h3 { font-size: 15.5px; font-weight: 650; }
+.why p { font-size: 13.5px; color: var(--app-text-secondary); margin-top: 7px; line-height: 1.65; }
+
+.compare { margin-top: 26px; background: var(--app-surface); border: 1px solid var(--app-border); border-radius: var(--app-radius-lg); overflow: hidden; box-shadow: var(--app-shadow-sm); }
+.compare-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.compare-table th, .compare-table td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--app-border); }
+.compare-table thead th { font-size: 12px; color: var(--app-text-muted); font-weight: 600; background: var(--app-surface-subtle); }
+.compare-table tbody tr:last-child td { border-bottom: none; }
+.compare-table td:first-child { color: var(--app-text-muted); font-weight: 500; white-space: nowrap; }
+.compare-table td.hl { color: var(--app-primary); font-weight: 600; }
 
 /* ============ 页脚 ============ */
 .footer { border-top: 1px solid var(--app-border); background: var(--app-surface); margin-top: 64px; padding: 34px 24px 40px; }
@@ -388,11 +418,11 @@ svg { display: block; }
   padding: 22px 20px;
   transition: transform var(--app-duration-normal) var(--app-ease-smooth), box-shadow var(--app-duration-normal) var(--app-ease-smooth), border-color var(--app-duration-normal) var(--app-ease-smooth);
 }
-.dl-card:hover { transform: translateY(-3px); box-shadow: var(--app-shadow-md); border-color: var(--app-border-strong); }
+.dl-card:hover { transform: translateY(-4px); box-shadow: var(--app-shadow-lg); border-color: var(--app-border-strong); }
 .dl-icon {
   width: 38px; height: 38px; border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
-  background: var(--app-primary-soft); color: var(--app-primary); margin-bottom: 2px;
+  background: linear-gradient(135deg, var(--app-primary-soft), transparent); color: var(--app-primary); margin-bottom: 2px;
 }
 .dl-icon svg { width: 19px; height: 19px; }
 .dl-title { font-size: 15.5px; font-weight: 650; }
@@ -408,6 +438,7 @@ svg { display: block; }
   .hero-inner { grid-template-columns: 1fr; gap: 40px; }
   .hero { padding-top: 56px; }
   .features { grid-template-columns: repeat(2, 1fr); }
+  .whys { grid-template-columns: repeat(2, 1fr); }
   .workflow { grid-template-columns: repeat(2, 1fr); }
   .clip-types { grid-template-columns: repeat(2, 1fr); }
   .trust-cards { grid-template-columns: 1fr; }
@@ -420,6 +451,7 @@ svg { display: block; }
   .nav-links .nav-cta { display: inline-flex; }
   .hero h1 { font-size: 32px; }
   .features { grid-template-columns: 1fr; }
+  .whys { grid-template-columns: 1fr; }
   .workflow { grid-template-columns: 1fr; }
   .dl-grid { grid-template-columns: 1fr; }
   .doc-grid { grid-template-columns: 1fr; }
@@ -429,6 +461,11 @@ svg { display: block; }
   .mock-side { display: none; }
   .exp-frame-bar .exp-hint { display: none; }
   .exp-frame iframe { height: 520px; }
+}
+/* 对比表在窄屏横向滚动，避免破版 */
+@media (max-width: 860px) {
+  .compare { overflow-x: auto; }
+  .compare-table { min-width: 720px; }
 }
 </style>
 </head>
@@ -705,6 +742,66 @@ svg { display: block; }
         <h3>多主题编辑器</h3>
         <p>Markdown 写作与代码编辑一体，支持语法高亮、格式化、版本对比，本地纯文本保存。</p>
       </div>
+      <div class="feature reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8.5 8 9.6 9.6 0 0 1-4.5-1.4L3 20l1.8-3.9A8.5 8.5 0 1 1 21 12z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/><path d="M3 3l18 18"/></svg></div>
+        <h3>DSH 集成 · AI 干活</h3>
+        <p>DeepSeek Harness Agent 接入：内嵌「AI 干活」面板，让 AI 用你的知识库干活，干完自动落库沉淀。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 为什么选择碎碎记 ============ -->
+<section class="section" id="why">
+  <div class="container">
+    <div class="sec-head reveal">
+      <span class="sec-kicker">Why CutShelter</span>
+      <h2 class="sec-title">为什么是你长期沉淀的第一个选择</h2>
+      <p class="sec-desc">从捕捉到整理再到 Agent 帮你干活，碎碎记把「本地隐私」「剪藏闭环」「AI 能力」「知识组织」串成一条主线，而不是几个割裂的功能。</p>
+    </div>
+
+    <div class="whys">
+      <div class="why reveal">
+        <div class="why-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+        <h3>本地优先 · 隐私</h3>
+        <p>数据以 Markdown / JSON 纯文本存于本地，离线可用、不绑定云端账号。你的知识始终属于你。</p>
+      </div>
+      <div class="why reveal">
+        <div class="why-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+        <h3>剪藏全链路闭环</h3>
+        <p>截图 / 粘贴 / 链接 / 插图 / 文档 → 先进收件箱 → 一键 AI 整理 → 写作与知识库，收藏不中断思路。</p>
+      </div>
+      <div class="why reveal">
+        <div class="why-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8.5 8 9.6 9.6 0 0 1-4.5-1.4L3 20l1.8-3.9A8.5 8.5 0 1 1 21 12z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/><path d="M3 3l18 18"/></svg></div>
+        <h3>AI 助手 + DSH 深度集成</h3>
+        <p>AI 回答附来源、可一键整理；DSH Agent 直接读写你的知识库，干完自动落库沉淀。</p>
+      </div>
+      <div class="why reveal">
+        <div class="why-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="7" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="17" r="2"/><path d="m7 7 3 2M17 8l-3 2M8 16l2.5-2M16 15l-2.5-2.5"/></svg></div>
+        <h3>无限画布 × 知识图谱</h3>
+        <p>双链关联 + 可视化画布，把碎片知识连成一张可导航、可延伸的第二大脑。</p>
+      </div>
+    </div>
+
+    <div class="compare reveal">
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th>能力维度</th>
+            <th>碎碎记 CutShelter</th>
+            <th>YouMind</th>
+            <th>Notion</th>
+            <th>NoteGen</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>定位</td><td class="hl">本地优先 · 剪藏与知识管理</td><td>AI 研究 / 阅读收藏</td><td>云端全能工作空间</td><td>Markdown 知识库</td></tr>
+          <tr><td>存储与离线</td><td class="hl">纯文本本地存储，可离线</td><td>云端</td><td>云端（在线优先）</td><td>本地文件</td></tr>
+          <tr><td>剪藏闭环</td><td class="hl">收件箱 → 一键 AI 整理 → 写作</td><td>收藏整理</td><td>网页剪藏</td><td>轻量收藏</td></tr>
+          <tr><td>AI 能力</td><td class="hl">AI 助手附来源 + DSH Agent 落库</td><td>AI 问答</td><td>AI 写作</td><td>AI 辅助写作</td></tr>
+          <tr><td>知识组织</td><td class="hl">双链 + 无限画布 + 知识图谱</td><td>图谱</td><td>数据库 / 双链</td><td>双链 / 图谱</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </section>
@@ -760,6 +857,7 @@ svg { display: block; }
         <a href="#doc-knowledge">知识库与知识图谱</a>
         <a href="#doc-assistant">AI 助手</a>
         <a href="#doc-tools">工具模块</a>
+        <a href="#doc-dsh">DSH 集成</a>
         <a href="#doc-extension">浏览器插件</a>
         <a href="#privacy">数据与隐私</a>
       </div>
@@ -937,6 +1035,30 @@ svg { display: block; }
         </div>
       </div>
 
+      <!-- DSH 集成 -->
+      <div class="doc-sec" id="doc-dsh">
+        <h2><span class="d-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8.5 8 9.6 9.6 0 0 1-4.5-1.4L3 20l1.8-3.9A8.5 8.5 0 1 1 21 12z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/><path d="M3 3l18 18"/></svg></span>DSH 集成（AI 干活的底座）</h2>
+        <p>碎碎记内置 <strong>DeepSeek Harness（DSH）</strong> 集成，让 AI Agent 能直接检索与写入你的知识库——「AI 用你的知识库干活，干完自动落库沉淀」。</p>
+        <div class="doc-grid">
+          <div>
+            <h3>内嵌「AI 干活」面板</h3>
+            <p>桌面端侧栏进入即用，DeepSeek Harness 面板按需启动、可复用，离线打包可用，无需额外安装。</p>
+          </div>
+          <div>
+            <h3>MCP 桥 · 13 个工具</h3>
+            <p>剪藏检索/新增/删除、待办管理、学习计划、Wiki 索引、周报状态、Tools Hub——Agent 可直接读写你的知识库。</p>
+          </div>
+          <div>
+            <h3>会话成果自动落库</h3>
+            <p>Agent 完成一段有保留价值的工作后，成果摘要自动成为一条剪藏（source=dsh），沉淀进知识库。</p>
+          </div>
+          <div>
+            <h3>技能包一键安装</h3>
+            <p>内置 cut-shelter 技能，让 DSH 按剪藏知识库的读写规范操作，行为更可控。</p>
+          </div>
+        </div>
+      </div>
+
       <!-- 浏览器插件 -->
       <div class="doc-sec" id="doc-extension">
         <h2><span class="d-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span>浏览器插件</h2>
@@ -1011,7 +1133,7 @@ svg { display: block; }
     </span>
     <span class="footer-note">
       <span>本地优先 · 数据 100% 属于你</span>
-      <span class="footer-ver">v1.0.16</span>
+      <span class="footer-ver">v1.0.15</span>
     </span>
   </div>
 </footer>
@@ -1047,13 +1169,13 @@ svg { display: block; }
   var FALLBACK_VER = '前往 Releases 查看';
   // 内置当前版本直链兜底：/api/releases 不可用（如函数未部署、CF 异常）时仍能直接触发下载，
   // 避免像原 api.github.com 被限流那样整体回落到 releases 页。发新版本时记得同步更新。
-  var BUILTIN_TAG = 'v1.0.14';
+  var BUILTIN_TAG = 'v1.0.15';
   var BUILTIN = {
-    setup:     DOWNLOAD_BASE + 'v1.0.14/CutShelter-Setup-1.0.14.exe',
-    portable:  DOWNLOAD_BASE + 'v1.0.14/CutShelter-portable-1.0.14-win-x64.zip',
-    'mac-arm': DOWNLOAD_BASE + 'v1.0.14/CutShelter-1.0.14-arm64.dmg',
-    'mac-x64': DOWNLOAD_BASE + 'v1.0.14/CutShelter-1.0.14-x64.dmg',
-    clipper:   DOWNLOAD_BASE + 'v1.0.14/CutShelter-webclipper-1.0.14.zip'
+    setup:     DOWNLOAD_BASE + 'v1.0.15/CutShelter-Setup-1.0.15.exe',
+    portable:  DOWNLOAD_BASE + 'v1.0.15/CutShelter-portable-1.0.15-win-x64.zip',
+    'mac-arm': DOWNLOAD_BASE + 'v1.0.15/CutShelter-1.0.15-arm64.dmg',
+    'mac-x64': DOWNLOAD_BASE + 'v1.0.15/CutShelter-1.0.15-x64.dmg',
+    clipper:   DOWNLOAD_BASE + 'v1.0.15/CutShelter-webclipper-1.0.15.zip'
   };
   // data-dl -> 资产文件名匹配
   var RE = {
