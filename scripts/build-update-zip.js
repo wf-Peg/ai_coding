@@ -41,47 +41,73 @@ if (!fs.existsSync(resourcesDir)) {
 
 console.log(`[update-zip] Creating update package: ${path.basename(outZip)} (withJre=${withJre})`);
 
-// 1. 组装暂存目录（仅包含需要进入更新包的条目）
-fs.rmSync(stagingRoot, { recursive: true, force: true });
-fs.mkdirSync(stagingResources, { recursive: true });
+// 普通/开发打包可设 SKIP_UPDATE_ZIP=1 跳过更新包，仅在发版时生成
+if (process.env.SKIP_UPDATE_ZIP === '1') {
+  console.log('[update-zip] SKIP_UPDATE_ZIP=1，跳过更新包生成（此包仅在发版分发时需要）');
+  process.exit(0);
+}
 
 let skipped = 0;
 let copiedBytes = 0;
+const winUnpacked = path.join(distDir, 'win-unpacked');
 
-function copyEntry(src, dest) {
-  if (fs.statSync(src).isDirectory()) {
-    fs.mkdirSync(dest, { recursive: true });
-    for (const child of fs.readdirSync(src, { withFileTypes: true })) {
-      copyEntry(path.join(src, child.name), path.join(dest, child.name));
-    }
-  } else {
-    fs.copyFileSync(src, dest);
-    copiedBytes += fs.statSync(src).size;
+// 快速路径：用系统 tar(bsdtar，Windows10+ 自带) 直接从 win-unpacked 打 zip，
+// 避免先整份复制到 staging 再压缩，省掉一份资源目录的磁盘读写。
+function buildFastWithTar() {
+  if (process.platform !== 'win32') return false;
+  try {
+    const excludes = ['--exclude=resources/frontend/clip-backend.jar'];
+    if (!withJre) excludes.push('--exclude=resources/jre');
+    execSync(`tar -a -cf "${outZip}" -C "${winUnpacked}" ${excludes.map((e) => `"${e}"`).join(' ')} resources`, { stdio: 'inherit' });
+    return fs.existsSync(outZip) && fs.statSync(outZip).size > 0;
+  } catch (e) {
+    fs.rmSync(outZip, { force: true });
+    console.warn(`[update-zip] tar 快速打包不可用，回退 staging + Compress-Archive: ${e.message}`);
+    return false;
   }
 }
 
-const topEntries = fs.readdirSync(resourcesDir, { withFileTypes: true });
-for (const e of topEntries) {
-  if (!withJre && e.name === 'jre') {
-    console.log(`[update-zip] skip jre/ (unchanged between versions; use --with-jre to include)`);
-    skipped += 1;
-    continue;
-  }
-  copyEntry(path.join(resourcesDir, e.name), path.join(stagingResources, e.name));
-}
-
-// 剔除 frontend 下的重复 JAR（若有残留）
-const dupJar = path.join(stagingResources, 'frontend', 'clip-backend.jar');
-if (fs.existsSync(dupJar)) {
-  fs.rmSync(dupJar, { force: true });
-  console.log('[update-zip] removed duplicate frontend/clip-backend.jar from update package');
-}
-
-// 2. 压缩（顶层包含 resources/ 目录）
-if (process.platform === 'win32') {
-  execSync(`powershell -NoProfile -Command "Compress-Archive -Path '${stagingResources}' -DestinationPath '${outZip}' -Force"`, { stdio: 'inherit' });
+if (buildFastWithTar()) {
+  console.log(`[update-zip] 已用 tar 快速打包（免 staging 复制）: ${path.basename(outZip)}`);
 } else {
-  execSync(`cd "${stagingRoot}" && zip -rq "${outZip}" resources`, { stdio: 'inherit' });
+  // 回退：组装暂存目录（仅含需进入更新包的条目），再用 Compress-Archive 压缩
+  fs.rmSync(stagingRoot, { recursive: true, force: true });
+  fs.mkdirSync(stagingResources, { recursive: true });
+
+  function copyEntry(src, dest) {
+    if (fs.statSync(src).isDirectory()) {
+      fs.mkdirSync(dest, { recursive: true });
+      for (const child of fs.readdirSync(src, { withFileTypes: true })) {
+        copyEntry(path.join(src, child.name), path.join(dest, child.name));
+      }
+    } else {
+      fs.copyFileSync(src, dest);
+      copiedBytes += fs.statSync(src).size;
+    }
+  }
+
+  const topEntries = fs.readdirSync(resourcesDir, { withFileTypes: true });
+  for (const e of topEntries) {
+    if (!withJre && e.name === 'jre') {
+      console.log(`[update-zip] skip jre/ (unchanged between versions; use --with-jre to include)`);
+      skipped += 1;
+      continue;
+    }
+    copyEntry(path.join(resourcesDir, e.name), path.join(stagingResources, e.name));
+  }
+
+  // 剔除 frontend 下的重复 JAR（若有残留）
+  const dupJar = path.join(stagingResources, 'frontend', 'clip-backend.jar');
+  if (fs.existsSync(dupJar)) {
+    fs.rmSync(dupJar, { force: true });
+    console.log('[update-zip] removed duplicate frontend/clip-backend.jar from update package');
+  }
+
+  if (process.platform === 'win32') {
+    execSync(`powershell -NoProfile -Command "Compress-Archive -Path '${stagingResources}' -DestinationPath '${outZip}' -Force"`, { stdio: 'inherit' });
+  } else {
+    execSync(`cd "${stagingRoot}" && zip -rq "${outZip}" resources`, { stdio: 'inherit' });
+  }
 }
 
 // 3. 生成 SHA-256 校验文件（格式同 sha256sum）

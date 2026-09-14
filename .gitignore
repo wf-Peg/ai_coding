@@ -116,6 +116,8 @@ electron/repro-ipc/
 
 # jlink 精简 JRE 构建产物（打包时由 build-jlink-slim.mjs 生成）
 jre-slim/
+# 精简运行时的备份包（由 build-jlink-slim.mjs 生成，用于切分支后快速恢复）
+jre-slim-backup/
 
 # Cloudflare Pages 本地运行状态（wrangler dev 生成，可重建不提交）
 .wrangler/

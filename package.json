@@ -1,6 +1,6 @@
 {
   "name": "clip-demo",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "description": "碎碎记（CutShelter）- 剪藏与知识管理",
   "main": "electron/main.js",
   "engines": {
