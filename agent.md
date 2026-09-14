@@ -23,20 +23,14 @@ frontend/    → 纯静态 HTML/CSS/JS，无构建工具
 electron/    → Electron 主进程
 ```
 
-## 代码索引（人 + AI 双通道）
+## 代码索引（精简）
 
-- **静态地图**：`CODE_INDEX.md` 提供全项目「文件 → 类/函数/方法/路由 + 起始行号」骨架，供人和 AI 快速定位。**生成物**，改代码后用 `npm run codeindex:gen` 重新生成。
-- **精确查询（推荐 AI 用，走 CLI 按需）**：`codegraph` 已为本仓库建好本地索引，按需精确拿「定义/调用方/影响范围」，避免整文件读取、降低 token 消耗：
-  ```bash
-  codegraph query "符号名"      # 紧凑：符号定位 → 文件:行号（优先用）
-  codegraph callers "符号"      # 紧凑：谁调用了它
-  codegraph impact "符号"       # 紧凑：改动影响范围
-  codegraph context "任务" --no-code --max-nodes 20  # 受限探索：默认省略源码大块+限节点
-  npm run codeindex:status     # 索引状态
-  ```
-  ⚠️ **Token 预算**：`codegraph explore` / `context` 不带限制会一次性返回大量逐字源码（实测约 4K token/次）。仅在确需跨文件定位时用并务必带瘦身参数（`--no-code`、`--max-nodes` / `--max-files`）；启动阶段先走 `query`/`callers`/`impact` 这类紧凑查询，避免会话 Context 残留膨胀。
-- **不要启用 codegraph 的 MCP 服务器（`codegraph serve --mcp`）**：其工具 schema 会每轮注入系统上下文、且 explore 返回体大，会导致每次提问 token 明显上涨。需要索引时用上 CLI 按需调用即可（无 schema 常驻、返回受控）。
-  索引为本地自动同步（fs.watch），代码变更后无需手动 rerun；索引库在 `.codegraph/`（已 gitignore）。
+本项目第一方源码约 11 万行、309 文件，但风险集中在少数大文件（editor.js 8K、main.js 6K、CSS 各 4K）。检索以 Trae 原生能力为主，不依赖外部索引工具：
+
+- **符号定位**：直接用 `Grep`（`files_with_matches`/`count` 优先；确需内容时 `--no-code` 对照行号）→ 文件:行号；大文件用 `Read offset/limit` 切片，禁止整文件读取。
+- **跨文件影响分析**：派 **Explore 子代理**（只取回结论摘要 + 关键文件:行号，不全文入主会话）。
+- **CODE_INDEX.md**：`代码索引` 静态地图仅作为**人读辅助**，可容忍过期。改代码后可 `npm run codeindex:gen` 重新生成，但不参与 AI 决策主链路，不依赖其准确性。
+- **codegraph（按需、最后手段）**仅在确有 >3K 行大文件跨文件定位需求时用 CLI 按需查询（`codegraph query/callers/impact`，紧凑返回）。**不要启用其 MCP 服务器（`codegraph serve --mcp`）**——工具 schema 每轮注入 + explore 返回体大（实测 ~4K token/次）会显著拉高每轮 token。默认交给上面的 Grep/Explore 路线即可。
 
 ## Token 节省（省积分模式）
 

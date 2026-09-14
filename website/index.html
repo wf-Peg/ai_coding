@@ -1048,7 +1048,7 @@ svg { display: block; }
   // data-dl -> 资产文件名匹配
   var RE = {
     setup:     /CutShelter-Setup-.*\.exe$/i,
-    portable:  /CutShelter-portable-.*win-x64\.exe$/i,
+    portable:  /CutShelter-portable-.*win-x64\.(?:exe|zip)$/i,
     'mac-arm': /CutShelter-.*arm64\.dmg$/i,
     'mac-x64': /CutShelter-.*x64\.dmg$/i,
     clipper:   /CutShelter-webclipper-.*\.zip$/i

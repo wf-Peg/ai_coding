@@ -590,7 +590,16 @@ function getJavaCommand() {
     }
   }
 
-  // 未找到嵌入式 JRE，回退到系统安装的 Java
+  // 未找到嵌入式 JRE：
+  // - 打包版（isPackaged）必须自带 JRE，绝不能回退系统 java。因为目标机（尤其测试/部署环境）
+  //   可能根本没装 Java，回退后 spawn('java') 会以难懂的 ENOENT 失败，无法定位是"包缺 JRE"。
+  //   这里直接抛清晰错误，让启动环节立刻暴露根因，提示用含 JRE 的完整包重新部署。
+  // - 开发模式（!isPackaged）才允许回退到系统安装的 Java，便于本机联调。
+  if (isPackaged) {
+    const errMsg = '打包版未找到内嵌 JRE (resources/jre)，后端将无法启动。请使用含 JRE 的完整安装包重新部署。';
+    log.error(errMsg);
+    throw new Error(errMsg);
+  }
   log.info('No embedded JRE found, using system java');
   return 'java';
 }
