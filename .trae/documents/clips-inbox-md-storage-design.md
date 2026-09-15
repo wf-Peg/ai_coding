@@ -38,48 +38,51 @@
 
 ## 三、目标
 
-新增一项轻量能力：**单条收件箱剪藏可即时生成"frontmatter + `## 原文/摘要/分析/标签`"的 Markdown 视图**，支持：
-- 在剪藏详情里"以 Markdown 查看/复制"；
-- 可作为后续"整理/导出"的原料。
+新增一项轻量能力：**单条剪藏可即时生成 Markdown 视图**，并支持按需落盘知识库：
+- 剪藏详情区「📄 导出 MD」按钮 → 弹窗预览 Markdown（YAML frontmatter + 章节结构）；
+- 弹窗内可「📋 复制 MD」到剪贴板，或「📁 落盘到知识库」（与整理归档同一目录约定，Obsidian 可直接索引）。
 
 不迁移既有数据、不改 JSON 存取层、不改异步 AI 回写逻辑。
 
 ---
 
-## 四、改动方案（Proportional，最小必要）
+## 四、改动方案（最终实现，2026-09-16 对齐后落地）
 
-### 1. 后端：新增 `ClipMarkdownService`（新建文件）
+### 1. 后端：新增 `ClipMarkdownService`（新建文件，已完成）
 路径：`backend/src/main/java/com/example/clip/service/ClipMarkdownService.java`
 
-`String buildMarkdown(ClipContent clip)`，职责：
-1. `ObsidianExportFormatter.generateClipFrontmatter(date, tags, categoryName, sourceUrl, siteName, analysisStatus, summary, divergent, thoughts)` 生成 frontmatter。
-2. 正文按你给的默认结构拼接：
-   - `# {title || 剪藏}`
-   - `## 原文` + `clip.content`（**保持 `media/{yyMM}/{uuid}.{ext}` 原样**，供应用内 MediaKit 渲染，不做 assets 重写；重写只发生在 Obsidian 归档 `exportClipToVault`，二者场景不同，勿复用那块逻辑）
-   - `## 摘要` + `clip.summary`（无则省略该段）
-   - `## 分析` + `clip.analysis`（无则省略）——analysis 内部已有 `###` 子标题/表格，作为 `##` 段下的内容天然兼容
-   - `## 发散总结` + `clip.divergentSummary`（无则省略）
-   - `## 我的思考` + `clip.myThoughts`（无则省略）
-   - `## 标签` + `formatTagsInline(clip.tags)`
-   - `🔗 来源：[sourceUrl][]`（有则追加）
-3. 所有缺失字段按"空则不输出该段"处理，保持 MD 干净。
+- `String buildMarkdown(ClipContent clip)`：
+  - frontmatter 采用**新形态**（对齐「写作区智能剪藏」预览，独立于 organize 旧 FM）：
+    `title` / `tags`(flow 列表，空不输出) / `type: clip` / `status`(workflowStatus，空回退 inbox) / `created`(yyyy-MM-dd HH:mm) / `source`(sourceUrl 非空才输出)
+  - 正文：`# 标题` + 按序章节 `## 原文/摘要/分析/发散总结/标签/我的思考`（空章节跳过）+ `🔗 来源：[url](url)`
+  - 私有 helpers：`appendSection`（空跳过）、`yamlScalar`（含冒号/井号/引号/列表起始符时双引号）、`topCategoryLabel`（复用 `AiService.CATEGORY_TREE` 值 → 顶层中文名，兜底返还原值）、`sanitizeDirName`、`shortIdOf`（8 位 hex 短 id，与 organize 一致）
+- `String exportToVault(ClipContent clip, String markdown)`：落盘 `{organizedStoragePath}/clips/{yyyy}/{MM}/{一级分类目录}/{yyMMdd}_{短id}.md`，返回相对知识库根路径。目录/文件名约定与 `ContentOrganizeService.exportClipToVault` 完全一致（复制简版映射，未动其公共 API —— 决策 A3）。
+- 依赖注入：`@Value("${clip.organized-storage.path:./clip-organized}")`。
 
-依赖注入：`ObsidianExportFormatter`。分类中文名映射保留在 `ContentOrganizeService.getCategoryName()`，为复用可将该私有方法抽为静态工具（或在本服务内复制一套简版映射——复制 2 行映射更轻，二选一由执行者按最小侵入决定，推荐复制简单映射避免动 `ContentOrganizeService` 的公共 API）。
-
-### 2. 后端：`ClipController` 增加端点
-在 [ClipController.java](file:///l:/归档/30_Projects (行动项目)/31_Work (主要工作)/code/ai_coding/backend/src/main/java/com/example/clip/controller/ClipController.java) 增加：
+### 2. 后端：`ClipController` 双模式端点（已完成）
 ```
-GET /api/clip/{id}/markdown
+GET /api/clip/{id}/export-markdown          → 预览：JSON {id, markdown, saved:false, path:null}
+GET /api/clip/{id}/export-markdown?save=1   → 落盘：JSON {id, markdown, saved:true, path:"clips/2026/05/..."}
 ```
-返回 `text/plain; charset=utf-8` 的 MD 字符串；`id` 不存在返回 404；失败 500。实现：`clipService.getClipById(id)` → `clipMarkdownService.buildMarkdown(clip)`。（注意：受 Electron proxy 超时白名单影响——不需要新增白名单，走普通 GET 即可，参照 `divergent-summary/{id}` 同款实现风格。）
+- `id` 不存在 → 404（`getClipById` 返回 null 即 `notFound()`）；异常 → 500 `{error}`。
+- 落盘路径为相对知识库根（organizedStoragePath）的路径，前端直接展示。
+- 普通快速 GET，**无需** Electron 代理超时豁免（与 `divergent-summary/{id}` 同理）。
 
-### 3. 前端：剪藏详情加"Markdown"入口
-在 [clip-actions.js](file:///l:/归档/30_Projects (行动项目)/31_Work (主要工作)/code/ai_coding/frontend/js/clip-actions.js) 的 `createClipItem()` 操作区（现有"整理/发散总结/OCR"按钮旁）新增一个按钮（如"`📋 Markdown`"）：
-- 点击 → `GET {API_BASE_URL}/clip/{id}/markdown`；
-- 成功后用 `MediaKit.render.renderMarkdown(md)` 在弹层预览事务后 `copyToClipboard(md)`（复用已有 `copyToClipboard`）；
-- 失败 `showToast`，参照 `generateDivergentSummary` 的 try/catch 风格。
+### 3. 后端：organize 归档 FM 补 `analysis`（已完成）
+- `ObsidianExportFormatter.generateClipFrontmatter` 新增 `String analysis` 参数（summary 之后）与 `case "analysis"`（输出格式同 summary，`yamlEscapeValue`）。
+- `ObsidianExportConfig.clipFrontmatterFields` 默认列表在 `summary` 后插入 `analysis`。
+- `ContentOrganizeService.exportClipToVault` 调用点传入 `clip.getAnalysis()`。
 
-弹层复用现有遮罩样式（`clip.html` 已有弹层机制），无需新增全局 UI 组件。
+### 4. 后端：captureMethod 白名单修复（已完成）
+- `ClipService.SUPPORTED_CAPTURE_METHODS` 追加 `"editor-document"`、`"editor-selection"`，不再被 `normalizeCaptureMethod` 归一化为 `popup`。
+
+### 5. 前端：剪藏详情「导出 MD」入口 + 预览弹窗（已完成）
+- `clip-list.js`：`createClipItem()` 的 `.clip-detail` 顶部新增按钮 `📄 导出 MD`（`onclick="openExportMdModal(${clip.id})"`）；文件尾部新增 4 个全局函数：
+  - `openExportMdModal(clipId)`：GET 预览端点 → `MediaKit.render.renderMarkdown` 渲染进弹窗；
+  - `closeExportMdModal()`；
+  - `copyExportMd()`：复用全局 `copyToClipboard` 复制缓存 MD；
+  - `saveExportMdToVault()`：GET `?save=1` → `showToast` 展示返回路径。
+- `clip.html`：新增 `#export-md-modal` 弹窗（modal-header「导出 MD 预览」+ 关闭、modal-body 含 hint + `#export-md-preview` 滚动区、modal-footer 含「📋 复制 MD / 📁 落盘到知识库 / 关闭」三按钮）。
 
 ---
 
@@ -91,17 +94,22 @@ GET /api/clip/{id}/markdown
 
 ---
 
-## 六、假设与决策
+## 六、假设与决策（2026-09-16 与用户对齐后拍板）
 - **A1**：MD 视图的图片引用保持 `media/...` 原样（应用内渲染），与 Obsidian assets 重写分离。→ 决策。
 - **A2**：缺失字段的段直接不输出（保持 MD 干净）。→ 决策。
 - **A3**：分类中文名映射以最小侵入复用（复制简版），不重构 `ContentOrganizeService`。→ 决策。
-- **A4**：前端只加"查看/复制 MD"一个入口，不做批量。→ 决策（符合你"做核心好用功能、不过度复杂"偏好）。
+- **A4**：前端只加"导出 MD"一个入口，不做批量。→ 决策。
+- **D1（端点形态）**：`GET /api/clip/{id}/export-markdown` 双模式 —— 默认返回 MD 预览（JSON 包装），`save=1` 落盘知识库并返回相对路径。→ 用户已选「预览 + 落盘双模式」。
+- **D2（前端入口）**：放在**剪藏详情弹窗/详情区**（`.clip-detail` 顶部「📄 导出 MD」按钮），与"整理/编辑"同层。→ 用户已选「剪藏详情弹窗」。
+- **D3（frontmatter 两套形态）**：新导出端点用**新形态**（title/tags/type/status/created + 章节，对齐写作区智能剪藏预览）；现有 organize 归档 FM **仅补 `analysis` 字段**，其余字段不动。→ 用户已选「导出新形态 + 归档补 analysis」。
+- **D4（captureMethod）**：白名单补 `editor-document`/`editor-selection`，否则写作区智能剪藏带 `captureMethod=editor-*` 的请求会被归一化为 `popup`。→ 用户已选「修复白名单」。
 
 ---
 
-## 七、验证步骤
-1. 后端重启后 `GET /api/clip/{id}/markdown` 返回含 `---frontmatter---`、`## 原文`、`## 摘要`、`## 分析`、`## 标签` 的有效 MD；不存在 id 返回 404。
-2. 找一个含"分析（内嵌 `###` 标题 + 表格）+ 标签 + 图片引用"的收件箱剪藏，确认 MD 结构正确、图片在应用内可渲染。
-3. 前端详情点"Markdown"按钮 → 弹层正确渲染 MD → 点复制后剪切板内容与原 MD 一致。
-4. 回归：`organize`（日报）、`weekly-report`、单剪藏"整理/编辑"、`divergent-summary`、OC均不受影响，`clip-storage` 内 JSON 无任何变更。
-```
+## 七、验证记录（2026-09-16 已全部通过）
+1. ✅ `GET /api/clip/38/export-markdown` → 200，frontmatter（title/tags/type/status/created/source）+ `## 原文/摘要/标签` + `🔗 来源` 结构正确，空字段段（分析/发散/思考）正确跳过。
+2. ✅ `GET /api/clip/38/export-markdown?save=1` → 200 `{saved:true, path:"clips/2026/05/default/20260519_00000026.md"}`，落盘文件 UTF-8 内容与预览一致（测试后已清理）。
+3. ✅ 不存在 id（99999999）→ 404。
+4. ✅ `POST /api/clip/add`（captureMethod=editor-document）→ 入库后 `GET /api/clip/{id}` 返回 `captureMethod=editor-document`（不再归一化为 popup）；测试剪藏已 DELETE 清理、无残留。
+5. ✅ `mvn -q package -DskipTests` 编译通过（含 organize 归档补 analysis 的签名/调用点/默认字段三处改动）；后端已重启为新 jar，前端 3001 / 后端 8081 均 200。
+6. 回归面：organize（日报）、weekly-report、单剪藏"整理/编辑"、divergent-summary 均未改动调用链，JSON 存储层零变更。
