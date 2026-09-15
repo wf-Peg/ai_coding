@@ -1,0 +1,154 @@
+/* ===== 工作台 · 组件面板（widget board）样式 =====
+ * 颜色/圆角/阴影全部引用 --ws-* / --app-* token，适配浅色与深色主题。
+ */
+
+/* ── 自定义工具栏（挂 overview hero 右侧） ── */
+.wb-toolbar { display: inline-flex; align-items: center; gap: 8px; }
+.wb-edit-btn { display: inline-flex; align-items: center; gap: 7px; flex: none; padding: 9px 13px; border: 1px solid var(--ws-border); border-radius: var(--app-radius); background: var(--ws-surface); color: var(--ws-text); cursor: pointer; font: inherit; transition: border-color var(--app-duration-fast) ease, color var(--app-duration-fast) ease, background var(--app-duration-fast) ease; white-space: nowrap; }
+.wb-edit-btn:hover { border-color: var(--ws-primary); color: var(--ws-primary); }
+.wb-edit-btn.on { background: var(--ws-primary); border-color: var(--ws-primary); color: #fff; }
+
+/* ── 组件网格板 ── */
+/* 与旧的 flex 布局解耦：自身为定位上下文，高度由 relayout 动态设置 */
+.wb-board { position: relative; width: 100%; min-height: 120px; margin-bottom: 20px; }
+
+/* ── 单个组件卡片 ── */
+.wb-card {
+  position: absolute;
+  top: 0; left: 0;
+  box-sizing: border-box;
+  display: flex; flex-direction: column;
+  border: 1px solid var(--ws-border);
+  border-radius: var(--app-radius-lg);
+  background: var(--ws-surface);
+  box-shadow: var(--app-shadow);
+  overflow: hidden;
+  transition: box-shadow var(--app-duration-fast) ease, border-color var(--app-duration-fast) ease;
+}
+.wb-card:hover { border-color: var(--ws-border); }
+.wb-board.edit-on .wb-card { border-color: var(--ws-primary); border-style: dashed; box-shadow: 0 0 0 3px var(--ws-primary-soft); }
+
+/* 卡片头：标题 + 拖动把手（编辑态）+ 删除（编辑态） */
+.wb-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid var(--ws-border);
+  user-select: none;
+}
+.wb-title { margin: 0; font-size: 13px; font-weight: 650; color: var(--ws-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.wb-head .wb-tag { flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 999px; background: var(--ws-primary-soft); color: var(--ws-primary); font-size: 11px; font-weight: 500; white-space: nowrap; }
+
+/* 编辑控件：默认隐藏，编辑态显示 */
+.wb-drag, .wb-remove, .wb-resize { display: none; }
+.wb-board.edit-on .wb-drag, .wb-board.edit-on .wb-remove, .wb-board.edit-on .wb-resize { display: flex; }
+.wb-drag {
+  flex: none; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: var(--app-radius-sm);
+  color: var(--ws-muted); cursor: move; background: var(--ws-subtle);
+}
+.wb-drag svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.wb-drag:hover { color: var(--ws-primary); background: var(--ws-primary-soft); }
+.wb-remove {
+  align-items: center; justify-content: center;
+  width: 24px; height: 24px; border: 0; border-radius: var(--app-radius-sm);
+  background: transparent; color: var(--ws-faint); cursor: pointer; font-size: 15px; line-height: 1;
+}
+.wb-remove:hover { color: #fff; background: var(--ws-danger); }
+.wb-resize {
+  position: absolute; right: 0; bottom: 0;
+  width: 18px; height: 18px; cursor: nwse-resize;
+  align-items: center; justify-content: center;
+  color: var(--ws-faint); background: linear-gradient(135deg, transparent 50%, var(--ws-muted) 50%);
+  border-bottom-right-radius: var(--app-radius-lg);
+  opacity: .7;
+}
+.wb-resize:hover { opacity: 1; }
+
+/* 组件主体 */
+.wb-body { flex: 1; min-height: 0; padding: 10px 14px 14px; position: relative; overflow: hidden; }
+
+body.wb-dragging { cursor: grabbing !important; }
+body.wb-dragging .wb-card { user-select: none; }
+body.wb-dragging .wb-card.dragging, body.wb-dragging .wb-card:active { z-index: 20; }
+
+/* ── 空板占位 ── */
+.wb-empty { position: relative; border: 1px dashed var(--ws-border); border-radius: var(--app-radius-lg); padding: 60px 20px; text-align: center; color: var(--ws-muted); line-height: 2; }
+.wb-empty span { color: var(--ws-faint); font-size: 12px; }
+
+/* ── 纪念日提醒组件内容 ── */
+.av-box { display: flex; flex-direction: column; height: 100%; gap: 8px; }
+.av-summary { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 2px 9px; border-radius: 999px; background: var(--ws-primary-soft); color: var(--ws-primary); font-size: 12px; font-weight: 500; }
+.av-summary b { font-weight: 700; }
+.av-rows { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 7px; overflow: auto; }
+.av-row {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 10px; border-radius: var(--app-radius);
+  background: var(--ws-subtle); cursor: pointer;
+  transition: background var(--app-duration-fast) ease;
+}
+.av-row:hover { background: var(--ws-primary-soft); }
+.av-row .av-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+.av-row .av-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ws-text); font-size: 13px; }
+.av-row .av-d { flex: none; color: var(--ws-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.av-row.today .av-d { color: var(--ws-primary); font-weight: 600; }
+.av-row.up .av-d { color: var(--ws-muted); }
+.av-empty { margin: auto; text-align: center; color: var(--ws-faint); font-size: 12px; line-height: 1.8; }
+.av-more { color: var(--ws-faint); font-size: 11px; text-align: center; }
+
+/* 数据概览（占位整行）内的统计卡沿用原 ov-dash-card，这里做等宽分布 */
+.ov-dash-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; height: 100%; align-content: center; }
+.ov-dash-card {
+  padding: 14px 16px; border: 1px solid var(--ws-border); border-radius: var(--app-radius);
+  background: var(--ws-subtle);
+}
+.ov-dash-card-value { font-size: 30px; font-weight: 650; line-height: 1.1; color: var(--ws-text); font-variant-numeric: tabular-nums; }
+.ov-dash-card-label { font-size: 13px; color: var(--ws-text); margin-top: 4px; }
+.ov-dash-card-sub { font-size: 11px; color: var(--ws-faint); margin-top: 2px; }
+
+/* 图表组件主体 */
+.wb-chart { position: absolute; inset: 8px 12px 12px; }
+.wb-chart canvas { width: 100% !important; height: 100% !important; }
+
+/* 活动列表组件 */
+.wb-activity { height: 100%; overflow: auto; }
+.wb-activity-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-bottom: 1px solid var(--ws-border);
+}
+.wb-activity-item:last-child { border-bottom: 0; }
+.wb-activity-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+.wb-activity-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ws-text); font-size: 13px; }
+.wb-activity-time { flex: none; color: var(--ws-faint); font-size: 11px; white-space: nowrap; }
+
+/* ── 添加组件面板 ── */
+.wb-palette {
+  position: fixed; inset: 0; z-index: 400;
+  background: rgba(0,0,0,.18);
+  display: none; align-items: center; justify-content: center; padding: 18px;
+}
+.wb-palette.show { display: flex; }
+.wb-palette-card {
+  width: 100%; max-width: 420px; box-sizing: border-box;
+  background: var(--ws-surface); border: 1px solid var(--ws-border);
+  border-radius: var(--app-radius-lg); box-shadow: var(--app-shadow);
+  padding: 18px;
+}
+.wb-palette-card h3 { margin: 0 0 12px; font-size: 15px; font-weight: 600; color: var(--ws-text); }
+.wb-palette-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.wb-palette-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; border: 1px solid var(--ws-border); border-radius: var(--app-radius);
+  background: var(--ws-subtle); color: var(--ws-text); cursor: pointer; font: inherit; text-align: left;
+  transition: border-color var(--app-duration-fast) ease, background var(--app-duration-fast) ease;
+}
+.wb-palette-item:hover { border-color: var(--ws-primary); background: var(--ws-primary-soft); }
+.wb-palette-item.disabled { opacity: .45; cursor: default; }
+.wb-palette-item.disabled:hover { border-color: var(--ws-border); background: var(--ws-subtle); }
+.wb-palette-item .p-title { font-size: 13px; }
+.wb-palette-item .p-desc { color: var(--ws-faint); font-size: 11px; }
+.wb-palette-footer { margin-top: 14px; display: flex; justify-content: flex-end; }
+
+@media (max-width: 720px) {
+  .ov-dash-row { grid-template-columns: repeat(2, 1fr); }
+  .wb-palette-list { grid-template-columns: 1fr; }
+}

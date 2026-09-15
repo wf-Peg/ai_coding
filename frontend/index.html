@@ -45,7 +45,7 @@
            整条标题栏为系统拖拽区（-webkit-app-region: drag）；内部交互区（品牌/导航/搜索/按钮）设为 no-drag。
            平台留白：
            - macOS（platform-darwin）：左侧让出系统红黄绿交通灯（hiddenInset 内嵌于左上）。
-           - Windows（platform-win32）：右侧让出右上角系统 Overlay 按钮（最小化/最大化/关闭）。 */
+           - Windows（platform-win32）：无边框，右上角由前端自绘按钮接管（window-controls）。 */
         .titlebar {
             height: var(--titlebar-height);
             background: var(--titlebar-bg);
@@ -57,7 +57,6 @@
             -webkit-app-region: drag;
         }
         body.platform-darwin .titlebar { padding-left: 76px; }
-        body.platform-win32 .titlebar { padding-right: 148px; }
         .titlebar-nav {
             display: flex;
             align-items: stretch;
@@ -397,6 +396,34 @@
             from { opacity: 0; transform: scale(0.96); }
             to   { opacity: 1; transform: scale(1); }
         }
+
+        /* ====== 自绘窗口控制按钮（仅 Windows 显示，融入标题栏整体） ====== */
+        .window-controls {
+            display: flex;
+            align-items: stretch;
+            height: 100%;
+            flex: none;
+            margin-left: auto;
+            -webkit-app-region: no-drag;
+        }
+        body.platform-darwin .window-controls { display: none; }  /* macOS 由系统交通灯接管，隐藏自绘按钮 */
+        .win-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 46px;
+            height: 100%;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary, #888);
+            cursor: pointer;
+            transition: background var(--app-duration-fast, 0.12s) ease, color var(--app-duration-fast, 0.12s) ease;
+        }
+        .win-btn svg { width: 10px; height: 10px; display: block; }
+        .win-btn:hover { background: var(--win-btn-hover, rgba(127,127,127,0.12)); color: var(--text, #333); }
+        .win-btn:active { background: color-mix(in srgb, var(--win-btn-hover, rgba(127,127,127,0.12)) 70%, #000); }
+        .win-btn.win-close:hover { background: var(--win-btn-close-hover, #e81123); color: #fff; }
+        .win-btn.win-close:active { background: var(--win-btn-close-active, #bf0f1d); }
 
         /* 面板头部：查询词 + 结果计数 */
         .gsearch-panel-head {
@@ -1110,6 +1137,19 @@
         </div>
         <div class="gsearch-panel" id="globalSearchPanel"></div>
     </div>
+    <!-- 自绘窗口控制按钮：仅 Windows 显示，macOS 由系统交通灯接管 -->
+    <div class="window-controls" id="windowControls">
+        <button class="win-btn win-minimize" id="btnMinimize" title="最小化" aria-label="最小化">
+            <svg viewBox="0 0 10 10"><path d="M0 5h10" stroke="currentColor" stroke-width="1"/></svg>
+        </button>
+        <button class="win-btn win-maximize" id="btnMaximize" title="最大化" aria-label="最大化">
+            <svg class="icon-max" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+            <svg class="icon-restore" viewBox="0 0 10 10" style="display:none"><rect x="0.5" y="2.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1"/><path d="M2.5 0.5h7v7" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+        </button>
+        <button class="win-btn win-close" id="btnClose" title="关闭" aria-label="关闭">
+            <svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10" stroke="currentColor" stroke-width="1"/></svg>
+        </button>
+    </div>
 </div>
 
 <div class="app-layout">
@@ -1315,8 +1355,7 @@
         }
         // 广播主题变更到所有 iframe 子页面
         broadcastThemeChange(theme, motion);
-        // 同步 Windows 原生标题栏 Overlay 按钮颜色到当前主题
-        if (window.syncTitleBarOverlay) window.syncTitleBarOverlay();
+        // 自绘窗口按钮的颜色由 CSS 变量驱动随主题自动变化，无需额外同步
       }
 
       function notifyAllFrames(message) {
@@ -2132,6 +2171,19 @@
           editorFrame.contentWindow.postMessage({ action: 'focusAceJump' }, '*');
         });
       }
+      // 主进程菜单加速键（CmdOrCtrl+P）→ 编辑器内命令面板（历史功能对齐）。
+      // 编辑器视图可见时转发 iframe 唤起编辑器命令面板；其他视图时回退打开顶层全局命令面板。
+      if (window.electronAPI && window.electronAPI.onFocusEditorCmdPalette) {
+        window.electronAPI.onFocusEditorCmdPalette(() => {
+          console.log('[CmdPalette] 主窗口收到 focus-editor-cmd-palette IPC');
+          if (window.__debugShortcutLog) window.__debugShortcutLog('收到主进程 focus-editor-cmd-palette IPC');
+          if (currentView === 'editor' && editorFrame && editorFrame.contentWindow) {
+            editorFrame.contentWindow.postMessage({ action: 'focusCommandPalette' }, '*');
+          } else if (typeof window.openGlobalCmdPalette === 'function') {
+            window.openGlobalCmdPalette();
+          }
+        });
+      }
       // SHORTCUT_DEBUG=1 启动：主进程下发诊断开关，设置本窗口标志并广播给各 iframe
       if (window.electronAPI && window.electronAPI.onShortcutDebug) {
         window.electronAPI.onShortcutDebug((v) => {
@@ -2526,26 +2578,37 @@
           });
         });
 
-        // ===== 平台类 + 原生标题栏 Overlay 主题同步 =====
-        // 标题栏已改为系统原生拖拽（app-region），自绘按钮/拖拽/最大化图标逻辑一并移除。
-        // 平台类供分平台 CSS（mac 交通灯让位 / win Overlay 让位）。
+        // ===== 平台类 + 自绘窗口控制按钮 =====
+        // 标题栏为系统拖拽区（app-region）。平台类供分平台 CSS：mac 交通灯靠左让位、win 自绘按钮靠右接管。
         if (window.electronAPI && window.electronAPI.platform) {
           document.body.classList.add('platform-' + window.electronAPI.platform);
         }
 
-        // 同步 Windows titleBarOverlay 按钮颜色到当前主题（macOS 为 no-op）。
-        // 在应用加载完成与每次主题切换后调用。
-        const titlebarEl = document.getElementById('titlebar');
-        function syncTitleBarOverlay() {
-          if (!window.electronAPI || !window.electronAPI.setTitleBarOverlay) return;
-          const cs = getComputedStyle(titlebarEl);
-          const color = cs.getPropertyValue('--titlebar-bg').trim() || '#2d2d2d';
-          const txt = getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#d4d4d4';
-          window.electronAPI.setTitleBarOverlay({ color, symbolColor: txt });
+        // 自绘窗口控制按钮：仅 Windows 生效（mac 由系统红黄绿交通灯接管，按钮组已在 CSS 中隐藏并在此移除）。
+        function initWindowControls() {
+          const wc = document.getElementById('windowControls');
+          const isMac = window.electronAPI && window.electronAPI.platform === 'darwin';
+          if (isMac) { if (wc && wc.parentNode) wc.parentNode.removeChild(wc); return; }
+          if (!window.electronAPI) return;
+
+          const minBtn = document.getElementById('btnMinimize');
+          const maxBtn = document.getElementById('btnMaximize');
+          const closeBtn = document.getElementById('btnClose');
+          minBtn.addEventListener('click', function() { window.electronAPI.windowMinimize(); });
+          maxBtn.addEventListener('click', function() { window.electronAPI.windowMaximize(); });
+          closeBtn.addEventListener('click', function() { window.electronAPI.windowClose(); });
+
+          // 最大化/还原图标切换
+          const iconMax = maxBtn.querySelector('.icon-max');
+          const iconRestore = maxBtn.querySelector('.icon-restore');
+          function syncMaxIcon(m) {
+            iconMax.style.display = m ? 'none' : '';
+            iconRestore.style.display = m ? '' : 'none';
+          }
+          if (window.electronAPI.onWindowMaximized) window.electronAPI.onWindowMaximized(syncMaxIcon);
+          if (window.electronAPI.windowIsMaximized) window.electronAPI.windowIsMaximized().then(syncMaxIcon);
         }
-        // 暴露到全局，供 applyTheme 主题切换时调用
-        window.syncTitleBarOverlay = syncTitleBarOverlay;
-        syncTitleBarOverlay();
+        initWindowControls();
 
         // ===== Ctrl/Cmd+Shift+R 强制刷新（忽略缓存） =====
         document.addEventListener('keydown', (e) => {

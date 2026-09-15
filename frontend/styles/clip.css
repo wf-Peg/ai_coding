@@ -1641,12 +1641,6 @@
         }
 
         /* 条目交错入场（i 由 JS 在渲染时写入，仅内容变化时播放） */
-        .clip-items.item-entrance .clip-group {
-            animation: clipGroupIn var(--app-duration-normal) var(--app-ease-smooth) both;
-        }
-        .clip-items.item-entrance .clip-group-head {
-            animation: clipGroupHeadIn var(--app-duration-normal) var(--app-ease-smooth) both;
-        }
         .clip-items.item-entrance .clip-item {
             animation: clipItemIn calc(var(--app-duration-slow) * 1.2) var(--app-ease-smooth) both;
             animation-delay: calc(var(--i, 0) * var(--app-duration-normal) * 0.18);
@@ -1654,14 +1648,6 @@
         @keyframes clipItemIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes clipGroupIn {
-            from { opacity: 0; transform: translateY(7px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes clipGroupHeadIn {
-            from { opacity: 0.35; }
-            to { opacity: 1; }
         }
 
         /* 计数徽章：柔和浮现（与抽屉动画同缓动，去弹跳过冲） */
@@ -1714,56 +1700,6 @@
             height: 24px;
         }
 
-        /* 标签折叠分组 */
-        .clip-group {
-            margin-bottom: 8px;
-        }
-        .clip-group-head {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 10px;
-            border-radius: 8px;
-            cursor: pointer;
-            color: var(--text-secondary);
-            font-size: 0.82rem;
-            font-weight: 600;
-            transition: background var(--app-duration-fast) var(--app-ease-smooth);
-            user-select: none;
-        }
-        .clip-group-head:hover {
-            background: var(--surface-hover);
-            color: var(--text);
-        }
-        .clip-group-caret {
-            color: var(--text-muted);
-            font-size: 0.7rem;
-            transition: transform var(--app-duration-fast) var(--app-ease-smooth);
-            display: inline-block;
-        }
-        .clip-group.collapsed .clip-group-caret {
-            transform: rotate(-90deg);
-        }
-        .clip-group-count {
-            margin-left: auto;
-            font-size: 0.72rem;
-            color: var(--text-muted);
-            font-weight: 500;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 1px 8px;
-            line-height: 1.6;
-        }
-        .clip-group.collapsed .clip-group-body {
-            display: none;
-        }
-        .clip-group-body {
-            display: flex;
-            flex-direction: column;
-            gap: 24px;
-        }
-
         .clip-item {
             position: relative;
             background: transparent;
@@ -1773,6 +1709,11 @@
             transition: background var(--app-duration-normal) var(--app-ease-smooth), border-color var(--app-duration-normal) var(--app-ease-smooth),
             opacity var(--app-duration-panel) var(--app-ease-smooth), transform var(--app-duration-panel) var(--app-ease-smooth);
             border: 1px solid transparent;
+        }
+
+        /* 「更多」菜单打开时提升条目层级：悬浮到下一个剪藏时不被新条目覆盖，菜单仍可点选 */
+        .clip-item.more-open {
+            z-index: 50;
         }
 
         /* 左侧主色指示条：hover / 选中时点亮 */
@@ -4484,9 +4425,45 @@
 .daily-card-snippet { font-size: 0.85rem; color: var(--text-secondary); margin-top: 8px; line-height: 1.6; }
 .daily-card-meta { font-size: 0.74rem; color: var(--text-muted, var(--text-secondary)); margin-top: 12px; }
 .daily-done { text-align: center; padding: 24px 12px; }
+.daily-done-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 12px;
+    border-radius: 50%;
+    background: rgba(var(--app-primary-rgb, 59, 130, 246), 0.12);
+    color: var(--primary);
+}
+.daily-done-icon svg { width: 28px; height: 28px; }
 .daily-done-title { font-size: 1rem; font-weight: 700; color: var(--text); }
 .daily-done-sub { font-size: 0.82rem; color: var(--text-secondary); margin-top: 6px; }
 .daily-done-sub b { color: var(--primary); }
+.daily-card-content {
+    margin-top: 12px;
+    max-height: 42vh;
+    overflow-y: auto;
+    font-size: 0.88rem;
+    line-height: 1.7;
+    color: var(--text);
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+    word-break: break-word;
+}
+.daily-card-content img,
+.daily-card-img img {
+    max-width: 100%;
+    border-radius: 8px;
+    cursor: zoom-in;
+}
+.daily-card-img {
+    margin-top: 10px;
+    text-align: center;
+}
+.daily-card-img img {
+    max-height: 40vh;
+}
 
 /* 本周回顾统计卡 */
 .daily-week-stats {
@@ -4657,6 +4634,103 @@
 .modal-close:focus-visible {
     outline: 2px solid color-mix(in srgb, var(--app-primary) 60%, transparent);
     outline-offset: 2px;
+}
+
+/* ===== 剪藏图片大图预览（放大 / 下载） ===== */
+.clip-image-viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity var(--app-duration-panel) var(--app-ease-smooth), visibility 0s linear var(--app-duration-panel);
+}
+.clip-image-viewer.open {
+    visibility: visible;
+    opacity: 1;
+    transition: opacity var(--app-duration-panel) var(--app-ease-smooth);
+}
+.clip-image-viewer-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(2px);
+}
+.clip-image-viewer-dialog {
+    position: relative;
+    max-width: 92vw;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+.clip-image-viewer-img {
+    max-width: 92vw;
+    max-height: 80vh;
+    border-radius: 10px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+    background: #fff;
+    object-fit: contain;
+}
+.clip-image-viewer-close {
+    position: absolute;
+    top: -14px;
+    right: -14px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(20, 20, 28, 0.75);
+    color: #fff;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--app-duration-fast) var(--app-ease-smooth);
+}
+.clip-image-viewer-close:hover {
+    background: rgba(229, 72, 77, 0.9);
+}
+.clip-image-viewer-tools {
+    display: flex;
+    gap: 8px;
+}
+.clip-image-viewer-btn {
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: none;
+    background: var(--primary, #3b82f6);
+    color: #fff;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: opacity var(--app-duration-fast) var(--app-ease-smooth);
+}
+.clip-image-viewer-btn:hover {
+    opacity: 0.85;
+}
+
+/* 列表详情补图（剪贴板截图类）：可点击放大 */
+.clip-extra-images {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+.clip-extra-img {
+    flex: 1 1 120px;
+    max-width: 260px;
+}
+.clip-extra-img .detail-viewer-img,
+.clip-detail .content-text img {
+    max-width: 100%;
+    border-radius: 8px;
+    cursor: zoom-in;
 }
 
 /* ===== 减少动效偏好：原则上关闭/弱化动画，保留可读性与可操作性 ===== */

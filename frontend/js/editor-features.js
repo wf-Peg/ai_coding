@@ -36,7 +36,23 @@
     autosaveDebounce:   { label: '自动保存防抖（编辑停止 2s 保存）', default: true },
     dirtyCacheGate:     { label: '缓存/工作区仅变更时落盘', default: true },
     tabBarIncremental:  { label: '标签栏增量渲染', default: true },
-    mdPreviewDiff:      { label: 'Markdown 预览内容未变不重绘', default: true }
+    mdPreviewDiff:      { label: 'Markdown 预览内容未变不重绘', default: true },
+    // Phase 4：写作区丝滑度（借鉴 UltraEdit / Notepad++）
+    imeComposition:     { label: '中文输入法友好（composition 期间暂停跟随任务）', default: true },
+    mdAdaptiveDebounce: { label: 'Markdown 预览自适应防抖', default: true },
+    statusRaf:          { label: '状态栏更新合并到帧', default: true },
+    previewScrollFollow:{ label: 'Markdown 预览滚动跟随', default: true },
+    previewClickLocate: { label: '预览点击反向定位到编辑区', default: true },
+    largeFileAutocompleteOff: { label: '大文件关闭自动补全', default: true },
+    longLineWrap:       { label: '超长行自动换行', default: true },
+    largeFileOpenHint:  { label: '大文件打开提示与异步加载', default: true },
+    searchHighlightLimit:{ label: '大文件搜索高亮上限', default: true },
+    autosaveSilent:     { label: '自动保存成功静默提示', default: true },
+    middleClickCloseTab:{ label: '标签中键关闭', default: true },
+    gutterSelectLine:   { label: '行号点击选中整行', default: true },
+    docStatsZoom:       { label: '状态栏全文行数/字符数与缩放百分比', default: true },
+    paneEnterAnim:      { label: '抽屉面板入场动效统一', default: true },
+    resizeObserver:     { label: '容器尺寸变化即时 resize', default: true }
   };
 
   function readOverrides() {

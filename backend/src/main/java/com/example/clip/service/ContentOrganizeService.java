@@ -364,7 +364,7 @@ public class ContentOrganizeService {
             String frontmatter = obsidianExportFormatter.generateClipFrontmatter(
                     date, tags, topCategoryName,
                     clip.getSourceUrl(), clip.getSiteName(), clip.getAnalysisStatus(),
-                    clip.getSummary(), clip.getDivergentSummary(), clip.getMyThoughts());
+                    clip.getSummary(), clip.getAnalysis(), clip.getDivergentSummary(), clip.getMyThoughts());
 
             StringBuilder sb = new StringBuilder(frontmatter);
             sb.append("# ").append(clip.getTitle() != null ? clip.getTitle() : "剪藏").append("\n\n");

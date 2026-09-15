@@ -333,46 +333,15 @@ function formatClipDateTime(date) {
         const shown = clips.slice(0, visibleClipCount);
         const fragment = document.createDocumentFragment();
 
-        // 按标签折叠分组：无标签 → 「未分类」（置顶），其余按首个标签分组
-        const groups = [];
-        const groupMap = {};
+        // 平铺渲染：直接按时间倒序（fetchClips 已排序，最新在前）渲染每条剪藏，不做标签分组
+        let itemSeq = 0;
         shown.forEach(clip => {
             if (clip && clip.id != null) {
                 clipCache.set(String(clip.id), clip);
             }
-            const tag = (Array.isArray(clip.tags) && clip.tags.length > 0 && clip.tags[0])
-                ? String(clip.tags[0]).trim()
-                : '';
-            const groupKey = tag || '__uncat__';
-            if (!groupMap[groupKey]) {
-                groupMap[groupKey] = { key: groupKey, label: tag || '未分类', clips: [] };
-                groups.push(groupMap[groupKey]);
-            }
-            groupMap[groupKey].clips.push(clip);
-        });
-        groups.sort((a, b) => (a.key === '__uncat__' ? -1 : b.key === '__uncat__' ? 1 : 0));
-
-        let itemSeq = 0;
-        groups.forEach(g => {
-            const groupEl = document.createElement('div');
-            groupEl.className = 'clip-group';
-            const head = document.createElement('div');
-            head.className = 'clip-group-head';
-            head.title = '点击折叠/展开分组';
-            head.innerHTML = '<span class="clip-group-caret">▾</span><span class="clip-group-name"></span><span class="clip-group-count"></span>';
-            head.querySelector('.clip-group-name').textContent = g.label;
-            head.querySelector('.clip-group-count').textContent = g.clips.length + ' 条';
-            head.addEventListener('click', () => groupEl.classList.toggle('collapsed'));
-            const body = document.createElement('div');
-            body.className = 'clip-group-body';
-            g.clips.forEach(clip => {
-                const item = createClipItem(clip, false);
-                item.style.setProperty('--i', itemSeq++); // 交错入场序号
-                body.appendChild(item);
-            });
-            groupEl.appendChild(head);
-            groupEl.appendChild(body);
-            fragment.appendChild(groupEl);
+            const item = createClipItem(clip, false);
+            item.style.setProperty('--i', itemSeq++); // 交错入场序号
+            fragment.appendChild(item);
         });
         // ---- 单次抽屉滑入过渡：不独立退场，入场与数据替换同帧完成，避免被感知为两次刷新 ----
         const doRender = () => {
@@ -510,6 +479,19 @@ function formatClipDateTime(date) {
         return window.MediaKit.render.mediaUrl(rel) + '?thumb=1';
     }
 
+    /** 详情补图：imagePaths 里的图（剪贴板截图类正文只有文字）以可点击大图追加到原文下方 */
+    function buildExtraImagesHtml(clip) {
+        if (!clip || !Array.isArray(clip.imagePaths) || clip.imagePaths.length === 0) return '';
+        const imgs = clip.imagePaths
+            .filter(function (rel) { return rel; })
+            .map(function (rel) {
+                const url = window.MediaKit.render.mediaUrl(rel);
+                return '<div class="clip-extra-img detail-viewer-img-wrap"><img class="detail-viewer-img" src="' + url + '" alt="剪藏图片" loading="lazy"></div>';
+            })
+            .join('');
+        return imgs ? '<div class="clip-extra-images">' + imgs + '</div>' : '';
+    }
+
     function createClipItem(clip, isSearch) {
         const clipItem = document.createElement('div');
         clipItem.className = 'clip-item';
@@ -628,9 +610,13 @@ function formatClipDateTime(date) {
                 </div>
                 ${tagsHtml}
                 <div class="clip-detail" data-clip-id="${clip.id}">
+                    <div class="clip-detail-actions" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                        <button class="btn-secondary" type="button" onclick="openExportMdModal(${clip.id})" style="padding:6px 12px;font-size:0.8rem;">📄 导出 MD</button>
+                    </div>
                     <div class="content-section">
                         <h4>原文</h4>
                         <div class="content-text truncated">${renderContent(originalContent, clip.id)}</div>
+                        ${buildExtraImagesHtml(clip)}
                     ${clip.sourceUrl ? `
                     <div class="source-link" style="margin-top: 8px; display:flex; flex-direction:column; gap:4px;">
                         <span style="font-size:0.78rem;color:var(--text-secondary);word-break:break-all;">
@@ -876,6 +862,10 @@ function formatClipDateTime(date) {
                 trigger.classList.remove('expanded');
             }
         });
+        // 关闭所有「更多」菜单后清除高亮层级，避免残留遮盖后续条目
+        document.querySelectorAll('.clip-item.more-open').forEach(item => {
+            item.classList.remove('more-open');
+        });
     }
 
     /** URL ?id= 直达：等列表渲染完成后自动展开对应剪藏详情（列表分页时自动点「加载更多」） */
@@ -912,9 +902,14 @@ function formatClipDateTime(date) {
         if (shouldOpen) {
             drawer.classList.add('open');
             btn.classList.add('expanded');
+            // 打开菜单的条目提升自身层级，避免被后续条目覆盖（悬浮到下一个剪藏时仍能点中本菜单）
+            const item = btn.closest('.clip-item');
+            if (item) item.classList.add('more-open');
         } else {
             drawer.classList.remove('open');
             btn.classList.remove('expanded');
+            const item = btn.closest('.clip-item');
+            if (item) item.classList.remove('more-open');
         }
     }
 
@@ -1170,15 +1165,72 @@ function formatClipDateTime(date) {
         const body = clip.bodyContent || clip.content || '';
         const stripMd = s => String(s).replace(/[#>*`_~[\](!)<>|]/g, '').replace(/\n{3,}/g, '\n\n');
 
+        // 内置图片（剪贴板截图类 imagePaths + 原文内嵌 media 引用）：内联为 data URI，保证导出文件脱离应用也能看图
+        downloadWithImages(clip, format, meta, body, stripMd, rawTitle, safeTitle, date);
+    }
+
+    /** 收集剪藏图片（去重）：返回值 [{rel, abs}]，rel 为正文相对引用，abs 为绝对媒体 URL */
+    function collectClipMediaRefs(clip) {
+        const seen = new Set();
+        const out = [];
+        const add = rel => {
+            if (!rel) return;
+            const abs = window.MediaKit.render.mediaUrl(rel);
+            if (seen.has(abs)) return;
+            seen.add(abs);
+            out.push({ rel: rel, abs: abs });
+        };
+        const body = clip.bodyContent || clip.content || '';
+        const imgRefs = body.match(/media\/\d{4}\/[\w.-]+\.\w{1,10}/g);
+        if (imgRefs) imgRefs.forEach(add);
+        if (Array.isArray(clip.imagePaths)) clip.imagePaths.forEach(add);
+        return out;
+    }
+
+    async function downloadWithImages(clip, format, meta, body, stripMd, rawTitle, safeTitle, date) {
+        showToast('正在处理导出（含图片）…');
+        const refs = collectClipMediaRefs(clip);
         let content, mime;
+
         if (format === 'md') {
-            content = meta + body;
+            let md = meta + body;
+            for (const it of refs) {
+                const uri = await fetchDataUri(it.abs);
+                if (!uri) continue;
+                md = md.split(it.rel).join(uri);
+                // 正文里可能已是「绝对 mediaUrl」形式，一并替换
+                md = md.split(it.abs).join(uri);
+            }
+            if (refs.length) {
+                md += '\n\n<!-- 剪藏图片 -->\n';
+                for (const it of refs) {
+                    const uri = await fetchDataUri(it.abs);
+                    if (uri) md += '\n![剪藏图片](' + uri + ')\n';
+                }
+            }
+            content = md;
             mime = 'text/markdown;charset=utf-8';
         } else if (format === 'txt') {
-            content = stripMd(meta) + stripMd(body);
+            let txt = stripMd(meta) + stripMd(body);
+            if (refs.length) txt += '\n\n[剪藏图片：导出为 HTML/Markdown 可内嵌原图]\n';
+            content = txt;
             mime = 'text/plain;charset=utf-8';
         } else {
-            const htmlBody = window.MediaKit.render.renderMarkdown(meta + body);
+            let htmlBody = window.MediaKit.render.renderMarkdown(meta + body);
+            for (const it of refs) {
+                const uri = await fetchDataUri(it.abs);
+                if (!uri) continue;
+                htmlBody = htmlBody.split(it.abs).join(uri);
+                htmlBody = htmlBody.split(window.MediaKit.render.mediaUrl(it.rel)).join(uri);
+            }
+            if (refs.length) {
+                let sec = '<h2>剪藏图片</h2>';
+                for (const it of refs) {
+                    const uri = await fetchDataUri(it.abs);
+                    if (uri) sec += '<p><img src="' + uri + '" alt="剪藏图片"></p>';
+                }
+                htmlBody += sec;
+            }
             content = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(rawTitle)}</title>
 <style>body{max-width:860px;margin:40px auto;padding:0 20px;font-family:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;line-height:1.7;color:#333}
 blockquote{color:#666;border-left:4px solid #ddd;margin-left:0;padding-left:16px}
@@ -1199,6 +1251,113 @@ img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ddd;pa
         setTimeout(() => URL.revokeObjectURL(url), 1000);
         showToast(`已导出 ${format.toUpperCase()}`);
     }
+
+    /** 绝对媒体 URL → data URI；失败返回空串（不阻塞导出） */
+    async function fetchDataUri(abs) {
+        if (typeof globalThis.fetch !== 'function') return '';
+        try {
+            if (/^data:/i.test(abs)) return abs;
+            const blob = await fetch(abs).then(r => { if (!r.ok) throw new Error(r.status); return r.blob(); });
+            return await blobToDataUri(blob);
+        } catch (e) {
+            console.warn('导出图片内联失败:', e);
+            return '';
+        }
+    }
+
+    // ==================== 剪藏图片放大 / 下载 ====================
+
+    /** 打开大图预览：淡入遮罩 + 居中大图 + 底部放大/下载/关闭操作 */
+    function openClipImageViewer(src, alt) {
+        const viewer = document.getElementById('clip-image-viewer');
+        if (!viewer) return;
+        const img = viewer.querySelector('.clip-image-viewer-img');
+        viewer.dataset.src = src || '';
+        img.src = src || '';
+        img.alt = alt || '剪藏图片';
+        viewer.classList.add('open');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeClipImageViewer() {
+        const viewer = document.getElementById('clip-image-viewer');
+        if (!viewer) return;
+        viewer.classList.remove('open');
+        viewer.dataset.src = '';
+        document.body.style.overflow = '';
+    }
+
+    /** 下载预览中的大图：mediaUrl 为跨源请求，用 fetch→blob→data URI 保守内联下载 */
+    async function downloadImageViewerImage() {
+        const viewer = document.getElementById('clip-image-viewer');
+        if (!viewer) return;
+        const src = viewer.dataset.src || (viewer.querySelector('.clip-image-viewer-img') || {}).src || '';
+        if (!src) { showToast('无可用图片'); return; }
+        showToast('正在下载图片…');
+        try {
+            let href = src;
+            let ext = 'png';
+            const extM = src.match(/\.(png|jpe?g|gif|webp|bmp|svg)(?:$|\?)/i);
+            if (extM) ext = extM[1] === 'jpeg' ? 'jpg' : extM[1].toLowerCase();
+            if (/^data:/i.test(src)) {
+                const m = src.match(/^data:image\/(\w+);/i);
+                if (m && m[1] === 'jpeg') ext = 'jpg';
+                else if (m && m[1] !== 'png') ext = m[1];
+            } else {
+                const blob = await fetch(src).then(r => r.blob());
+                href = await blobToDataUri(blob);
+                const tm = (blob.type || '').match(/image\/(\w+)/);
+                if (tm && tm[1]) ext = tm[1] === 'jpeg' ? 'jpg' : tm[1];
+            }
+            const a = document.createElement('a');
+            a.href = href;
+            a.download = '剪藏图片-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.' + ext;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            showToast('图片已下载');
+        } catch (e) {
+            console.error('下载图片失败:', e);
+            showToast('下载失败，请重试');
+        }
+    }
+
+    function blobToDataUri(blob) {
+        return new Promise(function (resolve, reject) {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    }
+
+    /** 给指定容器内的图片绑定大图预览（兼容每日回看 renderDailyReview 的调用约定） */
+    function bindDetailImageClicks(host) {
+        // 统一由 document 级事件委托处理，此处仅确保宿主内图片具备可预览样式（无宿主时忽略）
+        if (!host) return;
+        host.querySelectorAll('img').forEach(function (img) {
+            img.classList.add('detail-viewer-img');
+        });
+    }
+
+    // document 级委托：列表详情 / 每日回看 里的剪藏图片点击 → 大图预览
+    document.addEventListener('click', function (e) {
+        if (window.getSelection && window.getSelection().toString()) return; // 拖选文本不触发
+        const img = e.target.closest('.clip-detail img, .daily-card-content img, .daily-card-img img, .clip-extra-images img');
+        if (!img || !img.src) return;
+        if (e.target.closest('a')) return; // 链接内的图片交给链接处理
+        e.preventDefault();
+        openClipImageViewer(img.getAttribute('src'), img.alt || '剪藏图片');
+    });
+
+    // 大图预览弹窗按钮：关闭 / 点击遮罩关闭
+    document.addEventListener('click', function (e) {
+        const viewer = document.getElementById('clip-image-viewer');
+        if (!viewer) return;
+        if (e.target === viewer || e.target.classList.contains('clip-image-viewer-backdrop')) {
+            closeClipImageViewer();
+        }
+    });
 
     // ==================== 全库问答 ====================
     // 入口：剪藏列表「问我的剪藏库」按钮；后端 /api/clip/ask/stream SSE 流式检索 + 回答
@@ -1434,6 +1593,57 @@ img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ddd;pa
             if (askStreamAbortController === controller) askStreamAbortController = null;
             submitBtn.disabled = false;
             submitBtn.textContent = '提问';
+        }
+    }
+
+    // ===== 单剪藏 Markdown 导出（预览 / 复制 / 落盘知识库） =====
+    let exportMdClipId = null;
+    let exportMdMarkdown = '';
+
+    async function openExportMdModal(clipId) {
+        exportMdClipId = clipId;
+        exportMdMarkdown = '';
+        const preview = document.getElementById('export-md-preview');
+        if (!preview) return;
+        preview.innerHTML = '<p style="color: var(--text-secondary);">加载中...</p>';
+        document.getElementById('export-md-modal').style.display = 'flex';
+        try {
+            const res = await axios.get(`${window.API_BASE_URL}/${clipId}/export-markdown`);
+            if (!res || !res.data || !res.data.markdown) {
+                throw new Error('导出内容为空');
+            }
+            exportMdMarkdown = res.data.markdown;
+            preview.innerHTML = window.MediaKit.render.renderMarkdown(exportMdMarkdown);
+        } catch (error) {
+            preview.innerHTML = `<p style="color: var(--error);">导出失败：${escapeHtml(error && error.message ? error.message : '服务不可用')}</p>`;
+        }
+    }
+
+    function closeExportMdModal() {
+        document.getElementById('export-md-modal').style.display = 'none';
+    }
+
+    function copyExportMd() {
+        if (!exportMdMarkdown) {
+            showToast('预览尚未加载完成，请稍后再试');
+            return;
+        }
+        copyToClipboard(exportMdMarkdown);
+    }
+
+    async function saveExportMdToVault() {
+        if (!exportMdClipId) return;
+        try {
+            const res = await axios.get(`${window.API_BASE_URL}/${exportMdClipId}/export-markdown`, { params: { save: true } });
+            if (res && res.data && res.data.path) {
+                showToast(`已落盘知识库：${res.data.path}`);
+            } else {
+                showToast('落盘失败，请重试');
+            }
+        } catch (error) {
+            const errMsg = (error && error.response && error.response.data && error.response.data.error)
+                || (error && error.message) || '服务不可用';
+            showToast(`落盘失败：${escapeHtml(errMsg)}`);
         }
     }
 

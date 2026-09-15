@@ -38,6 +38,18 @@
     </div>
 </div>
 
+<!-- 剪藏图片大图预览：放大 / 下载 -->
+<div id="clip-image-viewer" class="clip-image-viewer">
+    <div class="clip-image-viewer-backdrop" onclick="closeClipImageViewer()"></div>
+    <div class="clip-image-viewer-dialog">
+        <button class="clip-image-viewer-close" onclick="closeClipImageViewer()" title="关闭" aria-label="关闭">✕</button>
+        <img class="clip-image-viewer-img" src="" alt="剪藏图片">
+        <div class="clip-image-viewer-tools">
+            <button class="clip-image-viewer-btn" onclick="downloadImageViewerImage()">⬇ 下载图片</button>
+        </div>
+    </div>
+</div>
+
 <div id="ask-modal" class="modal ask-panel-mode" style="display: none;">
     <div class="modal-content" style="max-width: 760px; max-height: 86vh;">
         <div class="modal-header">
@@ -178,6 +190,25 @@
     </div>
 </div>
 
+<!-- 单剪藏 Markdown 导出弹窗：预览 / 复制 / 落盘知识库 -->
+<div id="export-md-modal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 720px; max-height: 86vh;">
+        <div class="modal-header">
+            <h3>导出 MD 预览</h3>
+            <button class="modal-close" type="button" onclick="closeExportMdModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p class="modal-hint" style="font-size: 0.8rem; color: var(--text-secondary); margin: 0 0 8px;">YAML frontmatter + 章节结构，可复制到剪贴板，或在知识库落盘为 .md 文件（Obsidian 可直接索引）</p>
+            <div id="export-md-preview" class="markdown-content" style="max-height: 48vh; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: var(--surface);"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" type="button" onclick="copyExportMd()">📋 复制 MD</button>
+            <button class="btn-primary" type="button" onclick="saveExportMdToVault()">📁 落盘到知识库</button>
+            <button class="btn-secondary" type="button" onclick="closeExportMdModal()">关闭</button>
+        </div>
+    </div>
+</div>
+
 <!-- 每日回看弹窗 -->
 <div id="daily-review-modal" class="modal" style="display: none;">
     <div class="modal-content" style="max-width: 540px; max-height: 86vh;">
@@ -194,7 +225,6 @@
         </div>
         <div class="modal-footer" id="daily-footer">
             <button class="btn-secondary" type="button" onclick="dailyAction('skip')">跳过</button>
-            <button class="btn-secondary" type="button" onclick="dailyAction('archive')">归档</button>
             <button class="btn-primary" type="button" onclick="dailyAction('keep')">仍有用</button>
         </div>
     </div>

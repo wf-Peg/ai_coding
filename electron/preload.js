@@ -280,6 +280,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onFocusGlobalCmdPalette: (callback) => ipcRenderer.on('focus-global-cmd-palette', () => callback()),
 
   /**
+   * 监听主进程请求打开编辑器内命令面板（⌘/Ctrl+P before-input-event 兜底触发，历史功能对齐）
+   * @param {Function} callback - 无参回调
+   */
+  onFocusEditorCmdPalette: (callback) => ipcRenderer.on('focus-editor-cmd-palette', () => callback()),
+
+  /**
    * 监听主进程请求唤起编辑器 AceJump（⌘/Ctrl+; 菜单加速键触发）
    * @param {Function} callback - 无参回调
    */

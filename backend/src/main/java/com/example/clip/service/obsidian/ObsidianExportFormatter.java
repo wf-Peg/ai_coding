@@ -172,13 +172,14 @@ public class ObsidianExportFormatter {
      * @param siteName      来源站点（可为空）
      * @param analysisStatus AI 分析状态（pending/ready/failed/empty，可为空）
      * @param summary       AI 摘要（可为空，空则不输出）
+     * @param analysis      AI 分析（可为空，空则不输出）
      * @param divergent     AI 发散总结（可为空，空则不输出）
      * @param thoughts      我的思考（可为空，空则不输出）
      * @return {@code ---\n...\n---\n\n} 格式的 YAML frontmatter 字符串
      */
     public String generateClipFrontmatter(LocalDate date, List<String> tags, String categoryName,
                                            String sourceUrl, String siteName, String analysisStatus,
-                                           String summary, String divergent, String thoughts) {
+                                           String summary, String analysis, String divergent, String thoughts) {
         StringBuilder sb = new StringBuilder();
         sb.append("---\n");
 
@@ -234,6 +235,11 @@ public class ObsidianExportFormatter {
                 case "summary":
                     if (summary != null && !summary.trim().isEmpty()) {
                         sb.append("summary: \"").append(yamlEscapeValue(summary)).append("\"\n");
+                    }
+                    break;
+                case "analysis":
+                    if (analysis != null && !analysis.trim().isEmpty()) {
+                        sb.append("analysis: \"").append(yamlEscapeValue(analysis)).append("\"\n");
                     }
                     break;
                 case "divergent":

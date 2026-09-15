@@ -787,7 +787,10 @@ function generateApplicationYml(config) {
         }
       }
     },
-    server: { port: config.backendPort },
+    // 仅绑定本地回环 127.0.0.1，避免 Spring Boot 默认监听 0.0.0.0（所有网卡）
+    // 导致 Windows 防火墙每次启动都对 java.exe 弹出「允许访问」确认框。
+    // 前端 server 已通过 127.0.0.1 代理 /api 访问后端，无需对外暴露。
+    server: { port: config.backendPort, address: '127.0.0.1' },
     clip: {
       storage: { path: clipStoragePath },
       'organized-storage': { path: path.join(config.storagePath, 'clip-organized') },
@@ -1859,6 +1862,33 @@ function startFrontendServer(config) {
         res.end(JSON.stringify({ ip: getLanIP(), port: (config.frontendPort || 3001) + PHONE_PORT_OFFSET }));
         return;
       }
+      // 写作区 Markdown 图片本地绝对路径（D:/xxx.png、file:///…）渲染兜底：
+      // 前端把 src 重写为 /__local_file?path=…，此处仅回环监听、仅放行图片扩展名（防误用）。
+      if (reqPath0 === '/__local_file') {
+        const u = new URL(req.url || '/', `http://127.0.0.1:${config.frontendPort}`);
+        const target = u.searchParams.get('path') || '';
+        const ext = path.extname(target).toLowerCase().replace('.', '');
+        const IMG_MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+          webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml', ico: 'image/x-icon', avif: 'image/avif' };
+        if (!IMG_MIME[ext]) {
+          res.writeHead(415, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end('{"error":"unsupported type"}');
+          return;
+        }
+        try {
+          const p = path.resolve(target);
+          if (!fs.existsSync(p) || fs.statSync(p).isDirectory()) {
+            res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+            res.end('Not Found');
+            return;
+          }
+          res.writeHead(200, { 'Content-Type': IMG_MIME[ext], 'Cache-Control': 'no-store' });
+          fs.createReadStream(p).pipe(res);
+        } catch (e) {
+          if (!res.headersSent) { res.writeHead(500); res.end('Internal Server Error'); }
+        }
+        return;
+      }
       // 代理 /api/* 请求到后端
       const urlPath = req.url || '';
       if (urlPath.startsWith('/api/')) {
@@ -1866,7 +1896,8 @@ function startFrontendServer(config) {
         const isWikiQuery = urlPath.startsWith('/api/wiki/query');
         const isWikiLint = urlPath.startsWith('/api/wiki/lint');
         const isClipAskStream = urlPath.startsWith('/api/clip/ask/stream');
-        const noTimeout = isAiStream || isWikiQuery || isWikiLint || isClipAskStream;
+        const isClipDetect = urlPath.startsWith('/api/clip/detect-structured');
+        const noTimeout = isAiStream || isWikiQuery || isWikiLint || isClipAskStream || isClipDetect;
         const proxyReq = http.request({
           hostname: '127.0.0.1',
           port: config.backendPort,
@@ -2462,7 +2493,8 @@ async function showCloseDialog(win) {
 
 /**
  * 创建主窗口
- * 系统原生标题栏（macOS hiddenInset / Windows hidden + titleBarOverlay），前端仅作为拖拽区
+ * macOS：系统原生标题栏 hiddenInset，红黄绿交通灯内嵌左上，前端作为拖拽区（不作为改动对象）。
+ * Windows：无边框 frame:false，由前端自绘最小化/最大化/关闭按钮，Aero Snap 由 app-region 拖拽保留。
  * 注册 close 和 minimize 事件处理以实现托盘功能
  * 
  * @param {Object} config - 用户配置
@@ -2475,11 +2507,9 @@ function createMainWindow(config) {
     width: 1200, height: 800,
     minWidth: 900, minHeight: 600,
     title: '碎碎记',
-    // macOS：系统原生标题栏，红黄绿交通灯以 hiddenInset 内嵌于左上，前端作为拖拽区。
-    // Windows：隐藏标题栏 + 系统 Overlay 按钮（最小化/最大化/关闭），前端作拖拽区（Aero Snap 由系统接管）。
-    titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
-    // Windows 原生 Overlay 按钮默认暗色；亮/蓝主题由 window-set-overlay IPC 实时同步（见下）
-    ...(isWin ? { titleBarOverlay: { color: '#2d2d2d', symbolColor: '#d4d4d4', height: 38 } } : {}),
+    // macOS：系统原生标题栏，红黄绿交通灯以 hiddenInset 内嵌于左上，前端作为拖拽区（不作为改动对象）。
+    // Windows：无边框 + 前端自绘最小化/最大化/关闭按钮（融入主题、消除 DPI 错位溢出），Aero Snap 由 app-region 拖拽保留。
+    ...(isWin ? { frame: false } : { titleBarStyle: 'hiddenInset' }),
     icon: appIconPath,
     webPreferences: {
       nodeIntegration: false,          // 安全：禁用 Node.js 集成
@@ -2565,8 +2595,11 @@ function createMainWindow(config) {
     const isMac = process.platform === 'darwin';
     const isAceJumpCombo = input.key === ';' && (isMac ? !!input.meta : !!input.control);
     const modPressed = isMac ? !!input.meta : !!input.control;
-    const isCmdPaletteCombo = !input.shift && !input.alt && modPressed && (String(input.key || '').toLowerCase() === 'k' || String(input.key || '').toLowerCase() === 'p');
-    if (isAceJumpCombo || isCmdPaletteCombo || process.env.SHORTCUT_DEBUG === '1') {
+    // Ctrl+K → 顶层全局命令面板（菜单加速键语义）；Ctrl+P → 编辑器内命令面板（历史功能对齐）。
+    // 两者分开处理：Ctrl+P 不再统一打向全局，避免画布区"快捷操作"面板被主进程拦截掉。
+    const isCmdPaletteCombo = !input.shift && !input.alt && modPressed && (String(input.key || '').toLowerCase() === 'k');
+    const isEditorCmdPaletteCombo = !input.shift && !input.alt && modPressed && (String(input.key || '').toLowerCase() === 'p');
+    if (isAceJumpCombo || isCmdPaletteCombo || isEditorCmdPaletteCombo || process.env.SHORTCUT_DEBUG === '1') {
       console.log('[ShortcutDebug] before-input-event', JSON.stringify({
         type: input.type, key: input.key, code: input.code,
         meta: !!input.meta, control: !!input.control, shift: !!input.shift, alt: !!input.alt,
@@ -2582,6 +2615,12 @@ function createMainWindow(config) {
     if (isCmdPaletteCombo) {
       event.preventDefault();
       focusGlobalCmdPalette();
+    }
+    // Ctrl+P：焦点在写作画布时转发编辑器内命令面板（不打开顶层全局面板）；
+    // 目标视图/转发决策交给渲染层（index.html），非写作视图回退顶层全局面板。
+    if (isEditorCmdPaletteCombo) {
+      event.preventDefault();
+      focusEditorCmdPalette();
     }
   });
 
@@ -2759,6 +2798,16 @@ function focusGlobalCmdPalette() {
   if (!mainWindow.isVisible()) mainWindow.show();
   mainWindow.focus();
   mainWindow.webContents.send('focus-global-cmd-palette');
+}
+
+// 唤起编辑器内命令面板（⌘/Ctrl+P before-input-event 触发；历史功能对齐）。
+// 仅负责窗口聚焦与 IPC 下发；视图判断/转发编辑器 iframe 由渲染层 index.html 完成。
+function focusEditorCmdPalette() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  if (!mainWindow.isVisible()) mainWindow.show();
+  mainWindow.focus();
+  mainWindow.webContents.send('focus-editor-cmd-palette');
 }
 
 // 唤起编辑器 AceJump（⌘/Ctrl+; 菜单加速键触发；走主进程兜底，避开中文输入法/焦点被抢占导致渲染层 keydown 收不到）
@@ -4803,10 +4852,9 @@ function setupIPC() {
     return { success: false, message: 'Main window not found' };
   });
 
-  // ===== 原生标题栏 Overlay 主题同步 =====
-  // 主窗口使用系统原生标题栏（macOS hiddenInset / Windows hidden + titleBarOverlay）。
-  // Windows 的 titleBarOverlay 按钮（最小化/最大化/关闭）底色与符号色需跟随前端当前主题，
-  // 由渲染进程在加载完成与每次主题切换时通过本 IPC 同步；macOS 无 Overlay，此处为 no-op。
+  // ===== 原生标题栏 Overlay 主题同步（已废弃，保守保留为 no-op） =====
+  // Windows 已恢复前端自绘按钮（frame:false），不再使用系统 titleBarOverlay，渲染进程也不再调用 setTitleBarOverlay。
+  // macOS 用系统 hiddenInset 交通灯，无需本 IPC。此 handler 保留仅作兼容，实际不再被触发。
   ipcMain.on('window-set-overlay', (event, overlay) => {
     if (process.platform === 'win32' && mainWindow && !mainWindow.isDestroyed()) {
       try {

@@ -21,6 +21,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Comparator;
@@ -64,7 +66,8 @@ public class ClipService {
     public static final String WORKFLOW_ORGANIZED = "organized";
     /** 支持的浏览器捕获方式白名单，用于校验和规范化 */
     private static final Set<String> SUPPORTED_CAPTURE_METHODS = Set.of(
-            "popup", "context-menu", "shortcut", "floating-button", "system-share", "system-clip"
+            "popup", "context-menu", "shortcut", "floating-button", "system-share", "system-clip",
+            "editor-document", "editor-selection"
     );
 
     /** 剪藏文本内容最大长度（字符），防止超大请求导致内存/AI token 超限 */
@@ -363,6 +366,11 @@ public class ClipService {
         if (request.getSummary() != null && !request.getSummary().trim().isEmpty()) {
             clipContent.setSummary(request.getSummary());
         }
+        // 覆盖 AI 分析：写作区智能剪藏正则解析出的「## 分析」章节随请求传入，
+        // 避免 store-only 分支把 analysis 置空
+        if (request.getAnalysis() != null && !request.getAnalysis().trim().isEmpty()) {
+            clipContent.setAnalysis(request.getAnalysis());
+        }
 
         // 单次落盘：元数据已合并到同一对象
         return storageService.saveClip(clipContent);
@@ -387,7 +395,8 @@ public class ClipService {
             return false;
         }
 
-        boolean hasSummary = content.matches("(?s).*#{1,3}\\s*核心摘要.*");
+        // 摘要兼容「## 摘要」与「## 核心摘要」两种写法（写作区拼装内容常用「## 摘要」）
+        boolean hasSummary = content.matches("(?s).*#{1,3}\\s*(核心摘要|摘要).*");
         boolean hasAnalysis = content.matches("(?s).*#{1,3}\\s*分析.*");
         // 至少包含摘要或分析才算结构化内容
         if (!hasSummary && !hasAnalysis) {
@@ -398,6 +407,9 @@ public class ClipService {
 
         if (hasSummary) {
             String summary = extractMarkdownSection(content, "核心摘要");
+            if (summary == null || summary.trim().isEmpty()) {
+                summary = extractMarkdownSection(content, "摘要");
+            }
             if (summary != null && !summary.trim().isEmpty()) {
                 clipContent.setSummary(summary.trim());
             }
@@ -464,31 +476,7 @@ public class ClipService {
         if (tagSection == null || tagSection.trim().isEmpty()) {
             return null;
         }
-
-        List<String> tags = new ArrayList<>();
-
-        // 反引号格式：`标签`
-        Pattern backtickPattern = Pattern.compile("`([^`]+)`");
-        Matcher backtickMatcher = backtickPattern.matcher(tagSection);
-        while (backtickMatcher.find()) {
-            String tag = backtickMatcher.group(1).trim();
-            if (!tag.isEmpty() && !tags.contains(tag)) {
-                tags.add(tag);
-            }
-        }
-
-        // 如果反引号没匹配到，尝试列表格式
-        if (tags.isEmpty()) {
-            Pattern listPattern = Pattern.compile("^[-*+]\\s+(.+)$", Pattern.MULTILINE);
-            Matcher listMatcher = listPattern.matcher(tagSection);
-            while (listMatcher.find()) {
-                String tag = listMatcher.group(1).trim();
-                if (!tag.isEmpty() && !tags.contains(tag)) {
-                    tags.add(tag);
-                }
-            }
-        }
-
+        List<String> tags = parseTagSection(tagSection);
         return tags.isEmpty() ? null : tags;
     }
 
@@ -1033,9 +1021,12 @@ public class ClipService {
         // 如果请求中明确指定了工作流状态，优先使用
         if (request.getWorkflowStatus() != null && !request.getWorkflowStatus().isBlank()) {
             String requestedStatus = request.getWorkflowStatus().trim().toLowerCase();
-            // 非收件箱类型出现在 inbox 不合理，强制改为 organized（store-only/image 插图可在 inbox）
+            // 非收件箱类型出现在 inbox 不合理，强制改为 organized。
+            // 例外：store-only/image 插图可在 inbox；写作区智能剪藏（ai-text 显式指定 inbox）
+            // 也可留在收件箱，等待异步深度分析补全后再人工整理
             if (WORKFLOW_INBOX.equals(requestedStatus)
-                    && !"store-only".equals(requestType) && !"image".equals(requestType)) {
+                    && !"store-only".equals(requestType) && !"image".equals(requestType)
+                    && !"ai-text".equals(requestType)) {
                 return WORKFLOW_ORGANIZED;
             }
             return requestedStatus;
@@ -1584,5 +1575,299 @@ public class ClipService {
             }
         }
         return count;
+    }
+
+    // ==================== 写作区智能剪藏：结构化自动识别 ====================
+
+    /** 结构化章节标题别名 → 规范键。规范键：原文 / summary / analysis / tags / thoughts */
+    private static final Map<String, String> SECTION_HEADER_MAP = buildSectionHeaderMap();
+
+    /** 章节标题识别：`#{1,4} 名称`（可带尾部冒号），名称必须命中别名表 */
+    private static final Pattern SECTION_HEADER_PATTERN = Pattern.compile("^#{1,4}\\s*([^#].*?)\\s*[：:]?\\s*$");
+
+    private static Map<String, String> buildSectionHeaderMap() {
+        Map<String, String> map = new LinkedHashMap<>();
+        map.put("原文", "原文");
+        map.put("正文", "原文");
+        map.put("摘要", "summary");
+        map.put("核心摘要", "summary");
+        map.put("分析", "analysis");
+        map.put("深度分析", "analysis");
+        map.put("标签", "tags");
+        map.put("我的思考", "thoughts");
+        map.put("想法", "thoughts");
+        return map;
+    }
+
+    /**
+     * 智能剪藏自动识别：正则优先、LLM 兜底，只检测不落库。
+     * <p>
+     * 返回键：detected(Boolean)、method("regex"/"llm")、content、title、summary、
+     * analysis、tags(List)、myThoughts、mdPreview。
+     * 正则命中任一落地章节（摘要/分析/标签）即免 AI 直判成功；
+     * 不命中时调用 LLM 轻量抽取 title/summary/tags，取到 summary 或 tags 即成功；
+     * 均失败返回 detected=false。
+     * </p>
+     *
+     * @param content 待检测文本
+     * @return 检测结果 Map（永不返回 null）
+     */
+    public Map<String, Object> detectStructured(String content) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (content == null || content.trim().isEmpty()) {
+            result.put("detected", false);
+            return result;
+        }
+        // ① 正则优先：章节识别（## 原文/摘要/分析/标签 等，零 AI 消耗）
+        Map<String, String> sections = parseStructuredSections(content);
+        boolean regexHit = sections.containsKey("summary") || sections.containsKey("analysis") || sections.containsKey("tags");
+        if (regexHit) {
+            List<String> tags = parseTagSection(sections.get("tags"));
+            // 兼容「## 原文」缺席：有则存该节，无则存全文原样（永不丢字）
+            String original = sections.getOrDefault("原文", content);
+            String summary = sections.get("summary");
+            String analysis = sections.get("analysis");
+            String thoughts = sections.get("thoughts");
+            result.put("detected", true);
+            result.put("method", "regex");
+            result.put("content", original);
+            result.put("title", extractPreviewTitle(content));
+            result.put("summary", summary);
+            result.put("analysis", analysis);
+            result.put("tags", tags);
+            result.put("myThoughts", thoughts);
+            result.put("mdPreview", buildClipMarkdownPreview(
+                    (String) result.get("title"), original, summary, analysis, thoughts, tags));
+            return result;
+        }
+        // ② LLM 兜底：轻量抽取 title/summary/tags（不要求回传原文，降低 token）
+        Map<String, Object> triad = aiService.extractClipTriad(content);
+        if (triad != null) {
+            List<String> tags = new ArrayList<>();
+            if (triad.get("tags") instanceof List) {
+                for (Object t : (List<?>) triad.get("tags")) {
+                    if (t != null && !t.toString().trim().isEmpty() && tags.size() < 10) {
+                        tags.add(t.toString().trim());
+                    }
+                }
+            }
+            String summary = mapString(triad, "summary");
+            String title = mapString(triad, "title");
+            if (summary != null || !tags.isEmpty()) {
+                if (title == null) {
+                    title = extractPreviewTitle(content);
+                }
+                result.put("detected", true);
+                result.put("method", "llm");
+                result.put("content", content);
+                result.put("title", title);
+                result.put("summary", summary);
+                result.put("analysis", null);
+                result.put("tags", tags);
+                result.put("myThoughts", null);
+                result.put("mdPreview", buildClipMarkdownPreview(title, content, summary, null, null, tags));
+                return result;
+            }
+        }
+        result.put("detected", false);
+        return result;
+    }
+
+    /**
+     * 按行扫描章节标题，切分出各章节正文。
+     * <p>
+     * 第一个标题出现前的行（前言）忽略；同规范键重复出现时后者覆盖前者。
+     * </p>
+     *
+     * @param content 全文
+     * @return 规范键 → 章节正文（可能为空 Map）
+     */
+    private Map<String, String> parseStructuredSections(String content) {
+        Map<String, String> sections = new LinkedHashMap<>();
+        if (content == null || content.trim().isEmpty()) {
+            return sections;
+        }
+        String currentKey = null;
+        StringBuilder currentBody = new StringBuilder();
+        for (String line : content.split("\\r?\\n")) {
+            String key = matchSectionHeader(line);
+            if (key != null) {
+                if (currentKey != null && currentBody.length() > 0) {
+                    sections.put(currentKey, currentBody.toString().trim());
+                }
+                currentKey = key;
+                currentBody = new StringBuilder();
+            } else if (currentKey != null) {
+                if (currentBody.length() > 0) {
+                    currentBody.append('\n');
+                }
+                currentBody.append(line);
+            }
+        }
+        if (currentKey != null && currentBody.length() > 0) {
+            sections.put(currentKey, currentBody.toString().trim());
+        }
+        return sections;
+    }
+
+    /** 判断一行是否为结构化章节标题；命中返回规范键，否则返回 null */
+    private String matchSectionHeader(String line) {
+        if (line == null) {
+            return null;
+        }
+        Matcher matcher = SECTION_HEADER_PATTERN.matcher(line.trim());
+        if (!matcher.matches()) {
+            return null;
+        }
+        return SECTION_HEADER_MAP.get(matcher.group(1).trim());
+    }
+
+    /**
+     * 从「标签」章节正文解析标签列表。
+     * <p>
+     * 支持反引号格式（`a` `b`）、列表格式（- a）、逗号/顿号分隔。
+     * </p>
+     *
+     * @param sectionText 章节正文
+     * @return 标签列表（可能为空，永不返回 null）
+     */
+    private List<String> parseTagSection(String sectionText) {
+        List<String> tags = new ArrayList<>();
+        if (sectionText == null || sectionText.trim().isEmpty()) {
+            return tags;
+        }
+        Matcher backtickMatcher = Pattern.compile("`([^`]+)`").matcher(sectionText);
+        while (backtickMatcher.find()) {
+            String tag = backtickMatcher.group(1).trim();
+            if (!tag.isEmpty() && !tags.contains(tag)) {
+                tags.add(tag);
+            }
+        }
+        if (tags.isEmpty()) {
+            for (String line : sectionText.split("\\r?\\n")) {
+                String cleaned = line.replaceFirst("^\\s*[-*+]\\s+", "").trim();
+                for (String piece : cleaned.split("[,，、]")) {
+                    String tag = piece.trim();
+                    if (!tag.isEmpty() && !tags.contains(tag)) {
+                        tags.add(tag);
+                    }
+                }
+            }
+        }
+        return tags;
+    }
+
+    /** 预取标题：正文首个非标题行（≤80 字），截断超长；无则返回 null */
+    private String extractPreviewTitle(String content) {
+        if (content == null) {
+            return null;
+        }
+        for (String line : content.split("\\r?\\n")) {
+            String candidate = line.trim();
+            if (candidate.isEmpty() || candidate.startsWith("#") || candidate.startsWith("`")) {
+                continue;
+            }
+            return candidate.length() > 80 ? candidate.substring(0, 80) : candidate;
+        }
+        return null;
+    }
+
+    /**
+     * 构造 MD 视图预览（混合方案 B：元数据进 YAML frontmatter，正文按章节展开），
+     * 与后续「剪藏导出为知识库 MD」产物形态对齐；当前用于智能剪藏确认弹窗。
+     */
+    public String buildClipMarkdownPreview(String title, String original, String summary,
+                                           String analysis, String thoughts, List<String> tags) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("---\n");
+        sb.append("title: ").append(yamlScalar(title)).append('\n');
+        if (tags != null && !tags.isEmpty()) {
+            sb.append("tags: [").append(
+                    tags.stream().map(this::yamlScalar).collect(Collectors.joining(", "))).append("]\n");
+        }
+        sb.append("type: clip\n");
+        sb.append("status: inbox\n");
+        sb.append("created: ").append(
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))).append('\n');
+        sb.append("---\n\n");
+        if (original != null && !original.trim().isEmpty()) {
+            sb.append("## 原文\n\n").append(original.trim()).append("\n\n");
+        }
+        if (summary != null && !summary.trim().isEmpty()) {
+            sb.append("## 摘要\n\n").append(summary.trim()).append("\n\n");
+        }
+        if (analysis != null && !analysis.trim().isEmpty()) {
+            sb.append("## 分析\n\n").append(analysis.trim()).append("\n\n");
+        }
+        if (tags != null && !tags.isEmpty()) {
+            sb.append("## 标签\n\n")
+                    .append(tags.stream().map(t -> "`" + t + "`").collect(Collectors.joining(" ")))
+                    .append('\n');
+        }
+        if (thoughts != null && !thoughts.trim().isEmpty()) {
+            sb.append("## 我的思考\n\n").append(thoughts.trim()).append("\n\n");
+        }
+        return sb.toString();
+    }
+
+    /** YAML 标量安全化：含特殊字符/空格时加引号 */
+    private String yamlScalar(String value) {
+        if (value == null) {
+            return "''";
+        }
+        String clean = value.replace('\n', ' ').trim();
+        if (clean.isEmpty()) {
+            return "''";
+        }
+        if (clean.contains(":") || clean.contains("#") || clean.contains("[") || clean.contains("]")
+                || clean.contains("'") || clean.contains(" ")) {
+            return "\"" + clean.replace("\"", "'") + "\"";
+        }
+        return clean;
+    }
+
+    /** 从 LLM 返回 Map 安全取值：null / 空白 / "null" 一律视为缺失 */
+    private String mapString(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        if (value == null) {
+            return null;
+        }
+        String text = value.toString().trim();
+        if (text.isEmpty() || "null".equalsIgnoreCase(text)) {
+            return null;
+        }
+        return text;
+    }
+
+    /**
+     * 内容全等查重（写作区专用）：编辑来源、≥50 字符才参与。
+     * <p>
+     * 写作区剪藏无 sourceUrl，双指纹（content + sourceUrl）永不命中，需按
+     * content trim 全等兜底。真实命中场景仅「连点误存」与「隔天原样重存」；
+     * ≥50 字符保护避免误伤短文本「改字重存」。
+     * </p>
+     *
+     * @param content 待检内容
+     * @return 已存在的重复剪藏；无重复或内容过短返回 null
+     */
+    public ClipContent findDuplicateByContent(String content) {
+        if (content == null || content.trim().length() < 50) {
+            return null;
+        }
+        String normalized = content.trim();
+        for (ClipContent existing : storageService.getAllClips()) {
+            String source = existing.getSource();
+            String captureMethod = existing.getCaptureMethod();
+            boolean fromEditor = (source != null && source.equalsIgnoreCase("editor"))
+                    || (captureMethod != null && captureMethod.toLowerCase().startsWith("editor-"));
+            if (!fromEditor) {
+                continue;
+            }
+            String existingContent = existing.getContent();
+            if (existingContent != null && existingContent.trim().equals(normalized)) {
+                return existing;
+            }
+        }
+        return null;
     }
 }

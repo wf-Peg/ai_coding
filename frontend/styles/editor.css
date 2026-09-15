@@ -81,6 +81,27 @@ select {
   transition: border-color var(--app-duration-fast) ease, background var(--app-duration-fast) ease, color var(--app-duration-fast) ease;
 }
 
+/* 预览头部「跟随」按钮激活态 */
+.inline-btn.active {
+  color: var(--app-primary);
+  border-color: var(--app-primary);
+  background: color-mix(in srgb, var(--app-primary-soft) 65%, transparent);
+}
+
+/* 抽屉面板入场动效统一（C4）：打开时内容淡入轻滑，与悬浮层过渡风格一致 */
+.editor-pane.pane-enter > * {
+  animation: pane-fade-slide var(--app-duration-panel) var(--app-ease-smooth);
+}
+@keyframes pane-fade-slide {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .editor-pane.pane-enter > * {
+    animation: none;
+  }
+}
+
 .tool-btn {
   min-height: 32px;
   padding: 0 11px;
@@ -1045,7 +1066,9 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
 .editor-statusbar > #cursorStatus,
 .editor-statusbar > #selectionStatus,
 .editor-statusbar > #multiCursorStatus,
-.editor-statusbar > #matchStatus {
+.editor-statusbar > #matchStatus,
+.editor-statusbar > #docStats,
+.editor-statusbar > #zoomStatus {
   flex-shrink: 0;
   min-width: 0;
 }
@@ -1054,7 +1077,9 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
 .editor-statusbar > #cursorStatus,
 .editor-statusbar > #selectionStatus,
 .editor-statusbar > #multiCursorStatus,
-.editor-statusbar > #matchStatus {
+.editor-statusbar > #matchStatus,
+.editor-statusbar > #docStats,
+.editor-statusbar > #zoomStatus {
   flex-shrink: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1114,6 +1139,34 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
   height: 2px;
   border-radius: 2px;
   background: var(--app-primary);
+}
+
+/* 自动保存静默态：仅用底部小圆点反馈，不闪烁文字（C1） */
+.status-btn.saving::after,
+.status-btn.saved::after,
+.status-btn.failed::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -2px;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.status-btn.saving::after {
+  background: var(--app-primary);
+  animation: autosave-pulse 1s ease-in-out infinite;
+}
+.status-btn.saved::after {
+  background: #4ade80;
+}
+.status-btn.failed::after {
+  background: var(--app-danger, #e5484d);
+}
+@keyframes autosave-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
 }
 
 /* 状态栏按钮分组分隔 */
@@ -1581,6 +1634,56 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
   white-space: nowrap;
 }
 
+/* 编辑区命令改键：键位胶囊输入框、分组副标题与「可配置」小标记 */
+.ace-sc-input {
+  font-family: var(--app-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  color: var(--app-primary);
+  background: color-mix(in srgb, var(--app-primary) 12%, var(--app-surface));
+  border: 1px solid color-mix(in srgb, var(--app-primary) 35%, var(--app-border));
+  border-radius: 6px;
+  padding: 2px 7px;
+  min-width: 130px;
+  max-width: 180px;
+  text-align: center;
+  outline: none;
+  cursor: pointer;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.ace-sc-input:hover { border-color: var(--app-primary); }
+.ace-sc-input.recording {
+  border-color: var(--app-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary) 28%, transparent);
+  background: var(--app-surface);
+  cursor: text;
+}
+.ace-sc-input.conflict {
+  color: var(--app-danger);
+  border-color: var(--app-danger);
+  background: color-mix(in srgb, var(--app-danger) 12%, var(--app-surface));
+}
+.ace-sc-tag {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--app-primary);
+  background: color-mix(in srgb, var(--app-primary) 12%, var(--app-surface));
+  border: 1px solid color-mix(in srgb, var(--app-primary) 30%, var(--app-border));
+  border-radius: 999px;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+.ace-sc-hint {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--app-text-muted);
+}
+.shortcut-group-sub {
+  font-size: 11px;
+  color: var(--app-text-secondary);
+  padding: 6px 2px 4px;
+}
+
 /* 高级设置：键盘模式快捷键说明操作条 */
 .mode-shortcut-bar {
   display: flex;
@@ -2038,6 +2141,16 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
 .editor-workspace.markdown-preview.markdown-fullscreen.show-outline > .outline-pane:hover,
 .editor-workspace.markdown-preview.markdown-fullscreen.show-tags > .tags-pane:hover {
   background: color-mix(in srgb, var(--app-surface-subtle) 88%, transparent);
+}
+
+/* 全屏悬浮抽屉打开时：预览区右缘让位（抽屉宽度 + 30px 间隙），滚动条不被抽屉压住。
+   --md-off 由拖动逻辑写入 workspace（见 editor.js onFloatingDrawerDragStart），
+   抽屉左移时预览区右缘跟随收缩，保证滚动条始终处于抽屉左侧可见区。 */
+.editor-workspace.markdown-preview.markdown-fullscreen.show-backlinks > .markdown-pane,
+.editor-workspace.markdown-preview.markdown-fullscreen.show-outline > .markdown-pane,
+.editor-workspace.markdown-preview.markdown-fullscreen.show-tags > .markdown-pane {
+  right: calc(clamp(280px, 34vw, 460px) + 30px - var(--md-off, 0px));
+  transition: right var(--app-duration-panel) var(--app-ease-smooth);
 }
 
 /* 头部作为横向拖动把手（按钮/tabs 仍可点击） */
@@ -4690,4 +4803,118 @@ a.wikilink.wikilink-missing:hover {
   12% { opacity: 1; transform: translate(-50%, -50%); }
   82% { opacity: 1; }
   100% { opacity: 0; transform: translate(-50%, -50%); }
+}
+
+/* ═══════════ 剪藏下拉双动作（⚡智能剪藏 / 📝详细剪藏） ═══════════ */
+.clip-split {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0;
+}
+.clip-split .tool-btn.accent {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.clip-caret-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  padding: 0;
+  border: 1px solid var(--app-border);
+  border-left: 0;
+  border-radius: 0 var(--app-radius-sm) var(--app-radius-sm) 0;
+  background: var(--app-surface-hover);
+  color: var(--app-text);
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1;
+}
+.clip-caret-btn:hover {
+  background: var(--app-surface);
+}
+.clip-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  min-width: 210px;
+  padding: 6px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow-md);
+}
+.clip-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  border: none;
+  background: none;
+  color: var(--app-text);
+  border-radius: var(--app-radius-sm);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+.clip-menu-item:hover {
+  background: var(--app-surface-hover);
+}
+
+/* ═══════════ 智能剪藏确认 / 兜底弹窗 ═══════════ */
+.smart-clip-modal-card {
+  width: min(560px, 96vw);
+  height: min(72vh, 660px);
+  max-height: 86vh;
+}
+.smart-clip-modal-card .panel-header {
+  flex-shrink: 0;
+}
+.smart-clip-method-hint {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--app-text-secondary);
+  padding: 7px 10px;
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface-hover);
+}
+.smart-clip-preview {
+  flex: 1 1 auto;
+  min-height: 120px;
+  overflow-y: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-subtle);
+  font-size: 13px;
+}
+.smart-clip-preview pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  font-family: inherit;
+}
+/* 窄滚动条：与剪藏页样式区保持一致 */
+.smart-clip-preview::-webkit-scrollbar { width: 5px; }
+.smart-clip-preview::-webkit-scrollbar-thumb { border-radius: 4px; background: var(--app-border-strong, var(--app-border)); }
+.smart-clip-preview::-webkit-scrollbar-track { background: transparent; }
+
+/* Toast 动作按钮（撤销剪藏） */
+.ui-toast__action {
+  margin-left: 8px;
+  padding: 3px 10px;
+  border: 1px solid currentColor;
+  border-radius: var(--app-radius-sm);
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ui-toast__action:hover {
+  opacity: 0.85;
 }

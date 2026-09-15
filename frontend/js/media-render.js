@@ -21,7 +21,7 @@
     'p', 'div', 'strong', 'em', 'code', 'pre', 'blockquote',
     'ul', 'ol', 'li', 'a', 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
     'br', 'hr', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'span',
-    'svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polygon',
+    'input', 'svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polygon',
     'polyline', 'text', 'tspan', 'defs', 'marker', 'use', 'foreignObject',
     'style', 'clipPath', 'title', 'desc'
   ]);
@@ -29,6 +29,8 @@
   /** 允许的属性白名单（D-K） */
   var ALLOWED_ATTRS = new Set([
     'src', 'href', 'alt', 'title', 'class',
+    // GFM 待办复选框（marked 渲染 `<input disabled="" type="checkbox" checked="">`）
+    'type', 'checked', 'disabled',
     // 双链 wikilink 目标（Obsidian basename / 库内相对路径）
     'data-target',
     // SVG 展示属性
@@ -40,7 +42,7 @@
   ]);
 
   /** class 前缀白名单 */
-  var ALLOWED_CLASS_PREFIXES = ['language-', 'markdown-content', 'media-image', 'callout', 'mermaid', 'wikilink'];
+  var ALLOWED_CLASS_PREFIXES = ['language-', 'markdown-content', 'media-image', 'callout', 'mermaid', 'wikilink', 'task-list'];
 
   /** 判断相对路径是否指向 media 资源 */
   function isMediaRelative(path) {
@@ -65,15 +67,30 @@
     return apiRoot + '/' + String(rel).replace(/^\/+/, '');
   }
 
-  /** 重写 HTML 中 src/href 指向 media 相对路径的资源 */
+  /** Windows 绝对路径 / file:/// → 前端服务器本地文件路由（仅 src） */
+  function localFileUrl(p) {
+    var clean = String(p).replace(/^file:\/\/\//, '').replace(/\\/g, '/');
+    return '/__local_file?path=' + encodeURIComponent(clean);
+  }
+
+  /** 重写 HTML 中 src/href 指向 media 相对路径的资源，以及 src 指向本地绝对路径（D:/…、file:///…）的图片 */
   function rewriteImageSrc(html) {
     if (!html) return html;
-    return html.replace(
-      /(src|href)=["']([^"']*media\/\d{4}\/[\w.-]+\.\w{1,10})["']/gi,
-      function (match, attr, path) {
-        return attr + '="' + mediaUrl(path) + '"';
-      }
-    );
+    return html
+      .replace(
+        /(src|href)=["']([^"']*media\/\d{4}\/[\w.-]+\.\w{1,10})["']/gi,
+        function (match, attr, path) {
+          return attr + '="' + mediaUrl(path) + '"';
+        }
+      )
+      // 本地绝对路径 → /__local_file 前端服务器路由。锚定引号后的单个字母盘符（X:），
+      // 不会误命中 https://（其冒号前是多个字母）。
+      .replace(
+        /(src)=["'](file:\/\/\/[^"']+|(?:[A-Za-z]:[\\/])[^"']+)["']/gi,
+        function (match, attr, p) {
+          return attr + '="' + localFileUrl(p) + '"';
+        }
+      );
   }
 
   /** class 是否允许保留 */

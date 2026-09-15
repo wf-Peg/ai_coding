@@ -148,7 +148,14 @@
         </button>
 
         <div class="toolbar-sep" aria-hidden="true"></div>
-        <button class="tool-btn accent" id="clipBtn">存入剪藏</button>
+        <div class="clip-split">
+          <button class="tool-btn accent" id="clipBtn" title="智能剪藏：自动识别结构化内容后存入收件箱">⚡ 智能剪藏</button>
+          <button class="clip-caret-btn" id="clipCaretBtn" title="更多剪藏方式" aria-haspopup="menu" aria-expanded="false">▾</button>
+          <div class="clip-menu" id="clipMenu" role="menu" hidden>
+            <button class="clip-menu-item" id="smartClipMenuItem" role="menuitem">⚡ 智能剪藏（自动识别）</button>
+            <button class="clip-menu-item" id="detailClipMenuItem" role="menuitem">📝 详细剪藏（手动填写）</button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -297,6 +304,7 @@
           <span>Markdown 预览</span>
           <div class="markdown-header-actions">
             <button class="inline-btn" id="mdFullscreenBtn" title="预览全屏">⛶ 全屏</button>
+            <button class="inline-btn active" id="mdFollowBtn" title="编辑区滚动时预览同步跟随（点击切换）">跟随</button>
             <button class="inline-btn" id="closeMarkdownBtn">关闭预览</button>
           </div>
         </div>
@@ -375,6 +383,8 @@
       <span id="selectionStatus">0 字符</span>
       <span id="multiCursorStatus" hidden></span>
       <span id="matchStatus">未选择词语</span>
+      <span id="docStats" title="全文行数与字符数">0 行 · 0 字</span>
+      <span id="zoomStatus" title="当前字号缩放（Ctrl+滚轮 或 Ctrl+=/- 调整）">100%</span>
       <button class="status-btn" id="autosaveStatus" title="自动保存已开启：每 10 秒保存一次，点击关闭">自动保存</button>
       <span class="status-spacer"></span>
       <button class="status-btn" id="terminalBtn" title="在当前目录打开系统终端（Alt+T）">
@@ -509,6 +519,40 @@
       <div class="panel-actions">
         <button class="tool-btn" data-close-modal="clipModal">取消</button>
         <button class="tool-btn primary" id="submitClipBtn">保存到剪藏</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- 智能剪藏确认弹窗（AI 解析成功，展示 MD 视图预览） -->
+  <div class="modal-backdrop" id="smartClipConfirmModal">
+    <section class="modal-card smart-clip-modal-card" role="dialog" aria-modal="true" aria-labelledby="smartClipConfirmTitle">
+      <div class="panel-header">
+        <div>
+          <h2 id="smartClipConfirmTitle">解析成功，是否存入剪藏</h2>
+        </div>
+        <button class="icon-close" data-close-modal="smartClipConfirmModal" aria-label="关闭">×</button>
+      </div>
+      <div class="smart-clip-method-hint" id="smartClipMethodHint">已通过 AI 智能解析，预览为落库后的 Markdown 视图</div>
+      <div class="smart-clip-preview markdown-body" id="smartClipPreview" tabindex="0"></div>
+      <div class="modal-note" id="smartClipAsyncHint">深度分析将在保存后由 AI 自动补全，无需等待；保存后可在提示条中随时撤销。</div>
+      <div class="panel-actions">
+        <button class="tool-btn" data-close-modal="smartClipConfirmModal">放弃</button>
+        <button class="tool-btn primary" id="smartClipSaveBtn">存入剪藏</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- 智能剪藏兜底弹窗（未检测到落地字段） -->
+  <div class="modal-backdrop" id="smartClipFallbackModal">
+    <section class="modal-card fallback-modal-card" role="dialog" aria-modal="true" aria-labelledby="smartClipFallbackTitle">
+      <div class="panel-header">
+        <div><h2 id="smartClipFallbackTitle">未检测到剪藏所需落地字段</h2></div>
+        <button class="icon-close" data-close-modal="smartClipFallbackModal" aria-label="关闭">×</button>
+      </div>
+      <div class="modal-note">当前内容不是结构化格式，AI 也未提取到摘要/标签等落地字段。仍可按原文存入收件箱，稍后手动整理。</div>
+      <div class="panel-actions">
+        <button class="tool-btn" data-close-modal="smartClipFallbackModal">取消</button>
+        <button class="tool-btn primary" id="smartClipFallbackSaveBtn">仍按原文存入收件箱</button>
       </div>
     </section>
   </div>
@@ -806,7 +850,7 @@
       <div class="panel-header">
         <div>
           <h2 id="shortcutModalTitle">快捷键速查</h2>
-          <p id="shortcutModalSub">可在系统设置 → 编辑器快捷键 中修改可配置项</p>
+          <p id="shortcutModalSub">可配置快捷键可在系统设置中修改；编辑区命令可在本弹窗直接改键</p>
         </div>
         <button class="icon-close" data-close-modal="shortcutModal" aria-label="关闭">×</button>
       </div>
@@ -818,6 +862,16 @@
         <div class="shortcut-group">
           <div class="shortcut-group-title">可配置快捷键</div>
           <div class="shortcut-table" id="shortcutConfigurableList"></div>
+        </div>
+        <div class="shortcut-group" id="shortcutAceGroup">
+          <div class="shortcut-group-title">编辑区命令（可配置）<span class="ace-sc-hint">点击键位直接改键</span></div>
+          <div class="shortcut-group-sub">文本编辑类（编辑区聚焦生效）</div>
+          <div class="shortcut-table" id="aceShortcutTextList"></div>
+          <div class="shortcut-group-sub">核心操作类（编辑器内任意焦点生效，仅写作区）</div>
+          <div class="shortcut-table" id="aceShortcutCoreList"></div>
+          <div class="panel-actions" style="justify-content:flex-end">
+            <button class="tool-btn" id="aceShortcutResetBtn">恢复默认</button>
+          </div>
         </div>
         <div class="shortcut-group">
           <div class="shortcut-group-title">固定快捷键</div>
@@ -879,6 +933,12 @@
   <script src="libs/ace/mode-yaml.js"></script>
   <script src="libs/ace/mode-css.js"></script>
   <script src="libs/ace/mode-html.js"></script>
+  <!-- 剪藏/文档常用模式静态预加载：避免打开 markdown 等文件时临时动态加载语法文件造成卡顿 -->
+  <script src="libs/ace/mode-markdown.js"></script>
+  <script src="libs/ace/mode-text.js"></script>
+  <script src="libs/ace/mode-json.js"></script>
+  <script src="libs/ace/mode-xml.js"></script>
+  <script src="libs/ace/mode-sql.js"></script>
   <script src="libs/ace/worker-javascript.js"></script>
   <script src="libs/ace/worker-css.js"></script>
   <script src="libs/ace/worker-html.js"></script>

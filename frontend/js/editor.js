@@ -82,13 +82,16 @@
     'documentName', 'documentPath', 'modifiedDot', 'clipSourceBadge', 'languageSelect',
     'encodingLabel', 'encodingConfidence', 'lineEndingSelect', 'cursorStatus',
     'selectionStatus', 'multiCursorStatus', 'matchStatus', 'runtimeStatus', 'compareToolbar', 'comparePane',
-    'editorWorkspace', 'compareFileName', 'diffCounter', 'markdownPane', 'markdownBody', 'mdFullscreenBtn', 'closeMarkdownBtn', 'markdownBtn', 'compareBtn', 'transformPanel',
+    'editorWorkspace', 'compareFileName', 'diffCounter', 'markdownPane', 'markdownBody', 'mdFullscreenBtn', 'mdFollowBtn', 'closeMarkdownBtn', 'markdownBtn', 'compareBtn', 'transformPanel',
     'breadcrumbBar',
     'transformOperation', 'transformPreview', 'encodingModal', 'encodingSelect',
     'encodingNote', 'clipModal', 'clipModalTitle', 'clipScopeDescription', 'discardModal',
     'clipTitleInput', 'clipModeSelect', 'clipCategorySelect', 'clipTagsInput',
     'clipThoughtsInput', 'includeFileNameCheck', 'submitClipBtn', 'browserFileInput', 'toast',
-    'statusLang', 'statusTabSize', 'settingsModal', 'fontSizeSlider', 'fontSizeLabel', 'tabSizeSelect',
+    'clipCaretBtn', 'clipMenu', 'smartClipMenuItem', 'detailClipMenuItem',
+    'smartClipConfirmModal', 'smartClipMethodHint', 'smartClipPreview', 'smartClipAsyncHint', 'smartClipSaveBtn',
+    'smartClipFallbackModal', 'smartClipFallbackSaveBtn',
+    'statusLang', 'statusTabSize', 'docStats', 'zoomStatus', 'settingsModal', 'fontSizeSlider', 'fontSizeLabel', 'tabSizeSelect',
     'fullscreenBtn', 'fileTreePane', 'fileTreeTitle', 'fileTreeBody', 'closeFileTreeBtn', 'selectDirBtn',
     'autosaveStatus', 'historyCount', 'historyList', 'closeHistoryBtn',
     'undoHistoryBtn', 'redoHistoryBtn', 'clearHistoryBtn', 'mainPane', 'historyPane', 'recentPane',
@@ -458,10 +461,19 @@
       });
       updateErrorMarkerStatus();
     });
-    // 行号点击跳转到错误（由 gutter 点击触发）
+    // 行号点击：有语法错误 → 跳转错误；无错误 → 选中整行（D2，Notepad++ 行为）
     editor.renderer.on('gutterClick', function(e) {
       if (!featureOn('errorMarkers')) return;
-      openErrorAtRow(e.getDocumentPosition().row);
+      const row = e.getDocumentPosition().row;
+      const errors = (mainEditor.session.getAnnotations() || [])
+        .filter(function(a) { return a.type === 'error' && (a.row === row || a.row === row - 1 || a.row === row + 1); });
+      if (errors.length) { openErrorAtRow(row); return; }
+      if (featureOn('gutterSelectLine')) {
+        try {
+          mainEditor.selection.setSelectionRange(new Range(row, 0, row + 1, 0));
+        } catch (e) { /* 忽略 */ }
+        mainEditor.focus();
+      }
     });
   }
 
@@ -1214,25 +1226,32 @@
   }
 
   function setEditorContent(text, options = {}) {
-    state.suppressChange = true;
-    mainEditor.setValue(text || '', -1);
-    state.suppressChange = false;
-    state.content = text || '';
-    state.lineEnding = options.lineEnding || EditorCore.detectLineEnding(text || '');
-    state.encoding = options.encoding || state.encoding;
-    state.encodingConfidence = options.encodingConfidence || '';
-    state.fileName = options.fileName || state.fileName;
-    state.displayPath = options.displayPath || '';
-    state.expectedMtimeMs = options.expectedMtimeMs ?? null;
-    state.fileToken = options.fileToken ?? null;
-    state.browserBytes = options.browserBytes || null;
-    setLanguage(options.language || EditorCore.detectLanguage(state.fileName, text));
-    setModified(false);
-    updateStartWritingGuide();
-    mainEditor.focus();
-    applyLargeFileMode(text);
-    // 载入新文件后刷新双向链接面板（当前激活 tab；面板可见时生效）
-    scheduleBacklinksRefresh();
+    // C2：大文件打开提示 + 下一帧应用，避免 setValue 阻塞首帧导致界面短暂无响应
+    const bigHint = featureOn('largeFileOpenHint') && new TextEncoder().encode(text || '').length > 2 * 1024 * 1024;
+    if (bigHint) showToast('正在打开大文件，请稍候…');
+    const apply = function () {
+      state.suppressChange = true;
+      mainEditor.setValue(text || '', -1);
+      state.suppressChange = false;
+      state.content = text || '';
+      state.lineEnding = options.lineEnding || EditorCore.detectLineEnding(text || '');
+      state.encoding = options.encoding || state.encoding;
+      state.encodingConfidence = options.encodingConfidence || '';
+      state.fileName = options.fileName || state.fileName;
+      state.displayPath = options.displayPath || '';
+      state.expectedMtimeMs = options.expectedMtimeMs ?? null;
+      state.fileToken = options.fileToken ?? null;
+      state.browserBytes = options.browserBytes || null;
+      setLanguage(options.language || EditorCore.detectLanguage(state.fileName, text));
+      setModified(false);
+      updateStartWritingGuide();
+      mainEditor.focus();
+      applyLargeFileMode(text);
+      if (featureOn('docStatsZoom')) scheduleDocStatsUpdate();
+      // 载入新文件后刷新双向链接面板（当前激活 tab；面板可见时生效）
+      scheduleBacklinksRefresh();
+    };
+    if (bigHint) requestAnimationFrame(apply); else apply();
   }
 
   // Phase 3：大文件降级策略——按内容字节数调整编辑器选项。
@@ -1240,12 +1259,27 @@
   function applyLargeFileMode(text) {
     if (!featureOn('largeFileDegrade')) return;
     const bytes = new TextEncoder().encode(text || '').length;
+    state.lastContentBytes = bytes; // C3 搜索高亮上限依据
     const isLarge2M = bytes > 2 * 1024 * 1024;
     const isLarge5M = bytes > 5 * 1024 * 1024;
+    const isLarge6M = bytes > 6 * 1024 * 1024;
     // >2MB：关闭 worker（降低 tokenize/校验开销；语法模式与普通高亮保留，ACE 高亮本身不依赖 worker）
     try {
       mainEditor.setOption('useWorker', !isLarge2M);
       compareEditor.setOption('useWorker', !isLarge2M);
+    } catch (e) { /* 忽略 */ }
+    // A2：>2MB 关闭自动补全（实时/手动），恢复时还原用户原偏好
+    try {
+      if (origAutocompletePref === null) {
+        origAutocompletePref = {
+          live: mainEditor.getOption('enableLiveAutocompletion'),
+          basic: mainEditor.getOption('enableBasicAutocompletion')
+        };
+      }
+      if (featureOn('largeFileAutocompleteOff')) {
+        mainEditor.setOption('enableLiveAutocompletion', !isLarge2M && !!origAutocompletePref.live);
+        mainEditor.setOption('enableBasicAutocompletion', !isLarge2M && !!origAutocompletePref.basic);
+      }
     } catch (e) { /* 忽略 */ }
     // >5MB：关闭自动换行与选中词同步高亮
     if (isLarge5M) {
@@ -1261,8 +1295,73 @@
       compareEditor.setOption('highlightSelectedWord', true);
     }
     state.__degraded5M = !!isLarge5M;
+    // >6MB：降级为纯文本模式，跳过完整 markdown/代码高亮，避免大文件输入卡顿
+    if (isLarge6M) {
+      const currentLang = elements.languageSelect ? elements.languageSelect.value : 'text';
+      if (currentLang !== 'text') {
+        // 记住降级前的真实语言，切回小文件时恢复
+        state.__largeModeLang = currentLang;
+        setLanguage('text');
+      }
+      if (!state.__degradedText) showToast('已进入轻量模式：超大文件已关闭语法高亮');
+      state.__degradedText = true;
+    } else if (state && state.__degradedText) {
+      const backup = state.__largeModeLang || 'markdown';
+      setLanguage(backup);
+      state.__degradedText = false;
+      delete state.__largeModeLang;
+    }
     if (isLarge2M) showToast('已进入轻量模式：超大文件已降低高亮/换行开销');
+    // B3：超长行检测（>8k 字符/行）→ 临时开启换行避免横向滚动卡顿
+    applyLongLineMode(text, isLarge5M);
   }
+
+  // A2：记录用户原有自动补全偏好，便于大文件降级后还原
+  var origAutocompletePref = null;
+
+  // B3：超长行自动换行——扫描文档行，发现超长行临时开启 wrap，恢复后还原
+  var longLineModeActive = false;
+  var prevWrapPref = null;
+  var longLineCheckTimer = null;
+  function applyLongLineMode(text, isLarge5M) {
+    if (!featureOn('longLineWrap')) return;
+    if (isLarge5M) return; // 超大文件跳过扫描，避免扫描本身拖慢
+    if (longLineCheckTimer) return;
+    longLineCheckTimer = setTimeout(function() {
+      longLineCheckTimer = null;
+      var hasLong = false;
+      try {
+        var doc = mainEditor.session.getDocument();
+        var total = doc.getLength();
+        var step = Math.max(1, Math.floor(total / 4000)); // 大文件抽样控制开销
+        for (var r = 0; r < total; r += step) {
+          if ((doc.getLine(r) || '').length > 8192) { hasLong = true; break; }
+        }
+      } catch (e) { hasLong = false; }
+      if (hasLong && !longLineModeActive) {
+        longLineModeActive = true;
+        prevWrapPref = mainEditor.getOption('wrap');
+        mainEditor.setOption('wrap', 'free');
+        showToast('检测到超长行：已临时开启自动换行');
+      } else if (!hasLong && longLineModeActive) {
+        longLineModeActive = false;
+        mainEditor.setOption('wrap', prevWrapPref || 'off');
+      }
+    }, 800);
+  }
+
+  // C3：大文件搜索高亮上限——保留结果跳转，限制全文档高亮标记数
+  (function initSearchHighlightLimit() {
+    if (!featureOn('searchHighlightLimit')) return;
+    var session = mainEditor.session;
+    var origHighlight = session.highlight.bind(session);
+    session.highlight = function (re, maxMatches, range) {
+      if (state && state.lastContentBytes > 5 * 1024 * 1024) {
+        if (!maxMatches || maxMatches > 1000) maxMatches = 1000;
+      }
+      return origHighlight(re, maxMatches, range);
+    };
+  })();
 
   /**
    * P1 直接开始写作：根据当前文档是否为空切换居中引导层显隐。
@@ -1772,8 +1871,11 @@
   const FLOATING_DRAWER_IDS = ['backlinksPane', 'outlinePane', 'tagsPane'];
 
   // 横向偏移（负数=向左移）写入 CSS 变量 --md-off；transform 仅在
-  // markdown-fullscreen 悬浮覆盖规则中引用该变量，退出全屏即归位，不影响其余布局
+  // markdown-fullscreen 悬浮覆盖规则中引用该变量，退出全屏即归位，不影响其余布局。
+  // 变量写入 workspace（公共祖先）而非抽屉元素自身，使兄弟节点 markdown-pane
+  // 的 right 让位规则也能读到（全屏抽屉打开时预览区让位滚动条）。
   function resetFloatingDrawers() {
+    if (elements.editorWorkspace) elements.editorWorkspace.style.removeProperty('--md-off');
     FLOATING_DRAWER_IDS.forEach(id => {
       const pane = document.getElementById(id);
       if (pane) pane.style.removeProperty('--md-off');
@@ -1801,13 +1903,13 @@
     if (!pane || !ws.classList.contains('markdown-fullscreen')) return;
     if (pane.getAttribute('aria-hidden') !== 'false') return;
     const startX = e.clientX;
-    const startOff = parseFloat(pane.style.getPropertyValue('--md-off')) || 0;
+    const startOff = parseFloat(ws.style.getPropertyValue('--md-off')) || 0;
     // 允许拖到最左，左右各留 12px 边距，不拖出可视区
     const minOff = Math.min(0, -(ws.getBoundingClientRect().width - pane.getBoundingClientRect().width - 24));
     if (header.setPointerCapture) header.setPointerCapture(e.pointerId);
     const onMove = (ev) => {
       const off = Math.max(minOff, Math.min(0, startOff + (ev.clientX - startX)));
-      pane.style.setProperty('--md-off', off + 'px');
+      ws.style.setProperty('--md-off', off + 'px');
     };
     const onUp = () => {
       header.removeEventListener('pointermove', onMove);
@@ -1833,9 +1935,17 @@
     setTimeout(() => mainEditor.resize(), 0);
   }
 
+  let lastMdChangeAt = 0;
   function scheduleMarkdownRender() {
+    // A1：中文输入法组合期间暂停渲染，compositionend 后再补一次
+    if (isComposing()) return;
+    // A3：自适应防抖——连续击键拉长到 500ms，停顿 200ms 即渲染
+    var now = Date.now();
+    var gap = now - lastMdChangeAt;
+    lastMdChangeAt = now;
     clearTimeout(markdownRenderTimer);
-    markdownRenderTimer = setTimeout(renderMarkdownPreview, 300);
+    var delay = featureOn('mdAdaptiveDebounce') ? (gap < 80 ? 500 : 200) : 300;
+    markdownRenderTimer = setTimeout(renderMarkdownPreview, delay);
   }
 
   function renderMarkdownPreview() {
@@ -1861,7 +1971,71 @@
     } catch (error) {
       elements.markdownBody.innerHTML = '<p style="color:var(--app-danger);">渲染失败：' + error.message + '</p>';
     }
+    // B1：渲染完成后按当前编辑滚动比例重新对齐预览
+    if (featureOn('previewScrollFollow') && mdFollowEnabled) requestAnimationFrame(syncMarkdownPreviewScroll);
   }
+
+  // ── B1：Markdown 预览滚动跟随（编辑区滚动 → 预览按比例同步）──
+  var mdFollowEnabled = true;
+  function syncMarkdownPreviewScroll() {
+    if (!featureOn('previewScrollFollow')) return;
+    if (!mdFollowEnabled || elements.markdownPane.hidden) return;
+    if (isComposing()) return;
+    var body = elements.markdownBody;
+    if (!body) return;
+    // 用可见行区间估算滚动比例（兼容 wrap，无需内部最大滚动值）
+    var first = mainEditor.session.getFirstVisibleRow();
+    var last = mainEditor.session.getLastVisibleRow();
+    var total = mainEditor.session.getLength();
+    if (!total) return;
+    var ratio = (first + (last - first) / 2) / total;
+    var maxBody = body.scrollHeight - body.clientHeight;
+    if (maxBody <= 0) return;
+    body.scrollTop = Math.min(maxBody, ratio * maxBody);
+  }
+  function toggleMdFollow() {
+    mdFollowEnabled = !mdFollowEnabled;
+    if (elements.mdFollowBtn) {
+      elements.mdFollowBtn.classList.toggle('active', mdFollowEnabled);
+      elements.mdFollowBtn.textContent = mdFollowEnabled ? '跟随' : '跟随关';
+    }
+    if (mdFollowEnabled) syncMarkdownPreviewScroll();
+  }
+  mainEditor.session.on('changeScrollTop', syncMarkdownPreviewScroll);
+  if (elements.mdFollowBtn) elements.mdFollowBtn.addEventListener('click', toggleMdFollow);
+
+  // ── C4：抽屉面板入场动效统一（打开时内容淡入轻滑，与悬浮层过渡风格一致）──
+  (function initPaneEnterAnimation() {
+    if (!featureOn('paneEnterAnim') || !elements.editorWorkspace) return;
+    var paneIds = ['fileTreePane', 'historyPane', 'recentPane', 'favPane', 'backlinksPane', 'outlinePane', 'tagsPane'];
+    var observer = new MutationObserver(function (muts) {
+      muts.forEach(function (m) {
+        if (m.type === 'attributes' && m.attributeName === 'aria-hidden' && m.target.getAttribute('aria-hidden') === 'false') {
+          var pane = m.target;
+          pane.classList.remove('pane-enter');
+          void pane.offsetWidth; // 强制 reflow 重启动画
+          pane.classList.add('pane-enter');
+        }
+      });
+    });
+    paneIds.forEach(function (id) {
+      var pane = document.getElementById(id);
+      if (pane) observer.observe(pane, { attributes: true, attributeFilter: ['aria-hidden'] });
+    });
+  })();
+
+  // ── E1：容器尺寸变化即时 resize（抽屉开合/分屏调整瞬间消除错位闪烁）──
+  (function initResizeObserver() {
+    if (!featureOn('resizeObserver') || typeof ResizeObserver === 'undefined') return;
+    var target = elements.editorWorkspace;
+    if (!target) return;
+    var ro = new ResizeObserver(function () {
+      mainEditor.resize(true);
+      if (elements.comparePane && !elements.comparePane.hidden) compareEditor.resize(true);
+    });
+    ro.observe(target);
+    window.__editorResizeObserver = ro;
+  })();
 
   async function toggleCompare(forceOpen) {
     const shouldOpen = forceOpen !== undefined ? forceOpen : elements.comparePane.hidden;
@@ -3806,6 +3980,35 @@
     }
   }
 
+  // D3：全文行数/字符数 与 缩放百分比状态（写作时感知篇幅与字号）
+  var docStatsTimer = null;
+  function scheduleDocStatsUpdate() {
+    if (isComposing()) return;
+    clearTimeout(docStatsTimer);
+    docStatsTimer = setTimeout(updateDocStats, 300);
+  }
+  function updateDocStats() {
+    if (!elements.docStats) return;
+    if (isComposing()) return;
+    var text = mainEditor.getValue();
+    elements.docStats.textContent = mainEditor.session.getLength() + ' 行 · ' + text.length + ' 字';
+  }
+  function updateZoomStatus() {
+    if (!elements.zoomStatus) return;
+    var size = mainEditor.getFontSize();
+    var n = typeof size === 'number' ? size : (parseFloat(size) || 13);
+    elements.zoomStatus.textContent = Math.round((n / 13) * 100) + '%';
+  }
+  // 钩住所有 setFontSize 路径（滑块/Ctrl+=/Ctrl+-/Ctrl+滚轮/设置恢复），统一刷新缩放百分比
+  if (featureOn('docStatsZoom')) {
+    var origSetFontSize = mainEditor.setFontSize.bind(mainEditor);
+    mainEditor.setFontSize = function (size) {
+      origSetFontSize(size);
+      updateZoomStatus();
+    };
+    updateZoomStatus();
+  }
+
   // 确保 ACE 多选（multi_select）模块已加载并启用（独立函数，不修改 createEditor 默认选项）
   let aceMultiSelectEnsured = false;
   function ensureAceMultiSelect() {
@@ -3819,6 +4022,227 @@
     } catch (e) {
       // 模块缺失时静默降级为单光标，不影响其它功能
     }
+  }
+
+  // ═══ IDEA 式多光标与智能选中（Alt+J / Alt+Shift+J / Ctrl+Alt+J / Alt+W / Esc）═══
+  // 词边界采用"分隔符区分"语义：空白与标点（ASCII + 全角）视为分隔符，
+  // 中文按连续非分隔符成词（与用户习惯的 IDEA Ctrl+W 一致）。
+  var ALTJ_SEP_RE = /[\s.,;:!?()\[\]{}<>"'`~@#$%^&*+\-=|\\/，。；：！？、（）【】《》〈〉「」『』“”‘’…·—–]/;
+  var ALTJ_SENT_RE = /[。！？.!?]/;
+
+  /** 取 (row, col) 处按分隔符界定的词范围 */
+  function altjTokenRangeAt(session, row, col) {
+    var line = session.getLine(row) || '';
+    var s = col, e = col;
+    while (s > 0 && !ALTJ_SEP_RE.test(line.charAt(s - 1))) s--;
+    while (e < line.length && !ALTJ_SEP_RE.test(line.charAt(e))) e++;
+    return new Range(row, s, row, e);
+  }
+
+  /**
+   * 从 (fromRow, fromCol) 起向后查找下一个 needle（大小写敏感、精确匹配）。
+   * 单行 needle 走逐行 indexOf 快速扫描；跨行 needle 回退全文检索。
+   */
+  function altjFindNext(session, needle, fromRow, fromCol, wrap) {
+    var lineCount = session.getLength();
+    if (needle.indexOf('\n') === -1) {
+      var row = fromRow, col = fromCol, steps = 0;
+      while (steps <= lineCount) {
+        var line = session.getLine(row) || '';
+        var idx = line.indexOf(needle, col);
+        if (idx !== -1) return new Range(row, idx, row, idx + needle.length);
+        row++; col = 0; steps++;
+        if (row >= lineCount) {
+          if (!wrap) return null;
+          row = 0;
+        }
+      }
+      return null;
+    }
+    var full = session.getValue();
+    var startOff = session.doc && session.doc.positionToIndex
+      ? session.doc.positionToIndex({ row: fromRow, column: fromCol }) : 0;
+    var off = full.indexOf(needle, startOff);
+    if (off === -1 && wrap) off = full.indexOf(needle, 0);
+    if (off === -1) return null;
+    var s = session.doc.indexToPosition(off);
+    var e = session.doc.indexToPosition(off + needle.length);
+    return new Range(s.row, s.column, e.row, e.column);
+  }
+
+  /** 当前待匹配文本：无选区取光标处词，否则取最后选区的文本 */
+  function altjTargetText(editor) {
+    var sel = editor.selection;
+    var pos = editor.getCursorPosition();
+    if (sel.isEmpty()) {
+      var tk = altjTokenRangeAt(editor.session, pos.row, pos.column);
+      return tk.end.column > tk.start.column ? editor.session.getTextRange(tk) : '';
+    }
+    var ranges = sel.getAllRanges();
+    return editor.session.getTextRange(ranges[ranges.length - 1]);
+  }
+
+  /** Alt+J：无选区先选中光标处词；已有选区则追加下一个相同文本为多光标 */
+  function altjSelectNext(editor) {
+    ensureAceMultiSelect();
+    var sel = editor.selection;
+    var pos = editor.getCursorPosition();
+    if (sel.isEmpty()) {
+      var tk = altjTokenRangeAt(editor.session, pos.row, pos.column);
+      if (tk.end.column > tk.start.column) sel.setSelectionRange(tk);
+      return;
+    }
+    var ranges = sel.getAllRanges();
+    var last = ranges[ranges.length - 1];
+    var text = editor.session.getTextRange(last);
+    if (!text) return;
+    var found = altjFindNext(editor.session, text, last.end.row, last.end.column, true);
+    // 防误判：找到的区间与最后选区完全相同（全文仅此一处时 wrap 回到自身）则忽略
+    if (found && !(found.start.row === last.start.row && found.start.column === last.start.column
+      && found.end.row === last.end.row && found.end.column === last.end.column)) {
+      sel.addRange(found, false);
+      editor.renderer.scrollSelectionIntoView(found.start, found.end, 0.5);
+    }
+  }
+
+  /** Alt+Shift+J：撤销最后一个选中项（回退一步） */
+  function altjUnselectPrev(editor) {
+    ensureAceMultiSelect();
+    var sel = editor.selection;
+    var ranges = sel.getAllRanges();
+    if (ranges.length <= 1) return;
+    var kept = ranges.slice(0, ranges.length - 1);
+    sel.clearSelection();
+    kept.forEach(function (r) { sel.addRange(r, false); });
+    var last = kept[kept.length - 1];
+    editor.renderer.scrollSelectionIntoView(last.start, last.end, 0.5);
+  }
+
+  /** Ctrl+Alt+J：选中所有相同项（转为多光标） */
+  function altjSelectAll(editor) {
+    ensureAceMultiSelect();
+    var text = altjTargetText(editor);
+    if (!text) return;
+    var full = editor.session.getValue();
+    var found = [];
+    var off = 0;
+    while ((off = full.indexOf(text, off)) !== -1) {
+      var s = editor.session.doc.indexToPosition(off);
+      var e = editor.session.doc.indexToPosition(off + text.length);
+      found.push(new Range(s.row, s.column, e.row, e.column));
+      off += text.length;
+      if (text.length === 0) break; // 防空匹配死循环
+    }
+    if (found.length) {
+      var sel = editor.selection;
+      sel.clearSelection();
+      found.forEach(function (r) { sel.addRange(r, false); });
+      var last = found[found.length - 1];
+      editor.renderer.scrollSelectionIntoView(last.start, last.end, 0.5);
+    }
+  }
+
+  /** 单段选区按分隔符扩展一级：词 → 句子(含句末标点) → 整行 → 段落 */
+  function altwExpandRange(session, range) {
+    var tk2 = altjTokenRangeAt(session, range.start.row, range.start.column);
+    var isToken = range.start.row === tk2.start.row && range.end.row === tk2.end.row
+      && range.start.column === tk2.start.column && range.end.column === tk2.end.column;
+    if (isToken) {
+      // 词 → 句子（同句内按句末标点扩展，包含句末标点）
+      var line = session.getLine(range.start.row) || '';
+      var s = range.start.column, e = range.end.column;
+      while (s > 0 && !ALTJ_SENT_RE.test(line.charAt(s - 1))) s--;
+      while (e < line.length && !ALTJ_SENT_RE.test(line.charAt(e))) e++;
+      if (e < line.length && ALTJ_SENT_RE.test(line.charAt(e))) e++;
+      return new Range(range.start.row, s, range.end.row, e);
+    }
+    var singleLine = range.start.row === range.end.row;
+    var lineLen = (session.getLine(range.start.row) || '').length;
+    var isWholeLine = singleLine && range.start.column === 0 && range.end.column === lineLen;
+    if (singleLine && !isWholeLine) {
+      // 句子/部分选区 → 整行
+      return new Range(range.start.row, 0, range.end.row, lineLen);
+    }
+    // 整行（或多行）→ 段落：向上下扩展到空行边界
+    var startRow = range.start.row, endRow = range.end.row;
+    var total = session.getLength();
+    while (startRow > 0 && (session.getLine(startRow - 1) || '').trim() !== '') startRow--;
+    while (endRow < total - 1 && (session.getLine(endRow + 1) || '').trim() !== '') endRow++;
+    return new Range(startRow, 0, endRow, (session.getLine(endRow) || '').length);
+  }
+
+  /** Alt+W：按分隔符逐级扩展选区 词 → 句子 → 整行 → 段落；多光标时每个光标独立扩展 */
+  function altwSmartSelect(editor) {
+    var sel = editor.selection;
+    var session = editor.session;
+    var ranges = sel.getAllRanges();
+    if (!ranges.length) return;
+    if (sel.isEmpty()) {
+      // L0 → 词
+      var pos = editor.getCursorPosition();
+      var tk = altjTokenRangeAt(session, pos.row, pos.column);
+      if (tk.end.column > tk.start.column) sel.setSelectionRange(tk);
+      return;
+    }
+    var expanded = ranges.map(function (r) { return altwExpandRange(session, r); });
+    sel.clearSelection();
+    expanded.forEach(function (r) { sel.addRange(r, false); });
+    var last = expanded[expanded.length - 1];
+    editor.renderer.scrollSelectionIntoView(last.start, last.end, 0.5);
+  }
+
+  /** VS Code 语义大小写切换：全大写（不含小写）→ 全小写；其余情况（含小写/混合）→ 全大写 */
+  function toggleCaseText(text) {
+    if (!text) return text;
+    if (/[A-Z]/.test(text) && !/[a-z]/.test(text)) return text.toLowerCase();
+    return text.toUpperCase();
+  }
+
+  /** 逆扩展一级（Alt+Shift+W，确定性）：
+   *  词 → 光标（空选区）；句子/部分行 → 起点处词；
+   *  整行 → 起点所在句子（到首个句末标点为止；无句末标点则回退起点处词，防卡死）；
+   *  多行/段落 → 起点行整行 */
+  function altwShrinkRange(session, range) {
+    var startRow = range.start.row, startCol = range.start.column;
+    var tk = altjTokenRangeAt(session, startRow, startCol);
+    var isToken = range.start.row === tk.start.row && range.start.column === tk.start.column
+      && range.end.row === tk.end.row && range.end.column === tk.end.column;
+    if (isToken) {
+      // 词 → 光标（空选区）
+      return new Range(startRow, startCol, startRow, startCol);
+    }
+    var singleLine = range.start.row === range.end.row;
+    var lineLen = (session.getLine(startRow) || '').length;
+    var isWholeLine = singleLine && range.start.column === 0 && range.end.column === lineLen;
+    if (singleLine && !isWholeLine) {
+      // 句子/部分行 → 起点处词
+      return tk;
+    }
+    if (isWholeLine) {
+      // 整行 → 起点所在句子（到首个句末标点为止）
+      var line = session.getLine(startRow) || '';
+      var e = lineLen;
+      for (var i = 0; i < lineLen; i++) {
+        if (ALTJ_SENT_RE.test(line.charAt(i))) { e = i + 1; break; }
+      }
+      if (e >= lineLen) return tk; // 无句末标点（结果=整行）→ 回退起点处词
+      return new Range(startRow, 0, startRow, e);
+    }
+    // 多行/段落 → 起点行整行
+    return new Range(startRow, 0, startRow, lineLen);
+  }
+
+  /** Alt+Shift+W：逆扩展选区；多光标时每个光标独立收缩 */
+  function altwShrinkSelection(editor) {
+    var sel = editor.selection;
+    var session = editor.session;
+    var ranges = sel.getAllRanges();
+    if (!ranges.length || sel.isEmpty()) return; // 空选区无可收缩
+    var shrunk = ranges.map(function (r) { return altwShrinkRange(session, r); });
+    sel.clearSelection();
+    shrunk.forEach(function (r) { sel.addRange(r, false); });
+    var last = shrunk[shrunk.length - 1];
+    editor.renderer.scrollSelectionIntoView(last.start, last.end, 0.5);
   }
 
   function updateStatusBar() {
@@ -3898,6 +4322,202 @@
       contextAfter: fullText.slice(end, Math.min(fullText.length, end + 500)),
       selection: true
     };
+  }
+
+  let smartClipPending = null;
+
+  function closeClipMenu() {
+    elements.clipMenu.hidden = true;
+    elements.clipCaretBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function toggleClipMenu(event) {
+    if (event) event.stopPropagation();
+    const willOpen = elements.clipMenu.hidden;
+    elements.clipMenu.hidden = !willOpen;
+    elements.clipCaretBtn.setAttribute('aria-expanded', String(willOpen));
+  }
+
+  async function smartClip() {
+    // 编辑既有剪藏时走原表单更新流程，避免智能直存覆盖原条目
+    if (state.clipId) { openClipModal(); return; }
+    const context = buildClipContext();
+    if (!context.content.trim()) { showToast('没有可保存的内容', true); return; }
+    const btn = document.getElementById('clipBtn');
+    btn.disabled = true;
+    btn.textContent = '⚡ 识别中…';
+    try {
+      const response = await fetch(`${API_BASE_URL}/detect-structured`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: context.content })
+      });
+      if (!response.ok) throw new Error(await response.text() || `HTTP ${response.status}`);
+      const detection = await response.json();
+      if (detection && detection.detected) {
+        if (detection.method === 'regex') {
+          // 正则命中：分层免确认，直接入库
+          await saveSmartClip(detection);
+        } else {
+          openSmartClipConfirm(detection);
+        }
+      } else {
+        smartClipPending = detection || {};
+        openModal(elements.smartClipFallbackModal);
+      }
+    } catch (error) {
+      handleError('智能剪藏识别失败', error);
+      openClipModal(); // 识别异常时回退到详细剪藏表单，保证内容不丢
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '⚡ 智能剪藏';
+    }
+  }
+
+  function openSmartClipConfirm(detection) {
+    smartClipPending = detection;
+    elements.smartClipMethodHint.textContent = detection.method === 'llm'
+      ? '已通过 AI 智能解析，预览为落库后的 Markdown 视图'
+      : '已识别结构化章节，预览为落库后的 Markdown 视图';
+    try {
+      elements.smartClipPreview.innerHTML = window.MediaKit && window.MediaKit.render
+        ? window.MediaKit.render.renderMarkdown(detection.mdPreview || '')
+        : (detection.mdPreview || '').replace(/</g, '&lt;');
+    } catch (error) {
+      elements.smartClipPreview.textContent = detection.mdPreview || '';
+    }
+    openModal(elements.smartClipConfirmModal);
+  }
+
+  async function saveSmartClip(detection) {
+    const method = detection.method || 'regex';
+    const type = method === 'llm' ? 'ai-text' : 'store-only';
+    const context = buildClipContext();
+    const payload = {
+      content: detection.content || context.content,
+      title: detection.title || (state.fileName ? state.fileName.replace(/\.[^.]+$/, '') : '') || '编辑器内容',
+      type,
+      source: 'editor',
+      category: null,
+      tags: detection.tags || [],
+      summary: detection.summary || null,
+      analysis: detection.analysis || null,
+      myThoughts: detection.myThoughts || null,
+      useAiTags: false,
+      workflowStatus: 'inbox',
+      captureMethod: context.selection ? 'editor-selection' : 'editor-document',
+      selectedText: context.selectedText,
+      contextBefore: context.contextBefore,
+      contextAfter: context.contextAfter,
+      contentFormat: elements.languageSelect.value,
+      sourceFileName: state.fileName || null,
+      sourceEncoding: state.encoding,
+      sourceLineEnding: state.lineEnding
+    };
+    elements.smartClipSaveBtn.disabled = true;
+    try {
+      const saved = await postSmartClip(payload);
+      if (saved) {
+        closeModal(elements.smartClipConfirmModal);
+        closeModal(elements.smartClipFallbackModal);
+      }
+    } finally {
+      elements.smartClipSaveBtn.disabled = false;
+    }
+  }
+
+  async function saveSmartClipFallback() {
+    const context = buildClipContext();
+    const payload = {
+      content: context.content,
+      title: (state.fileName ? state.fileName.replace(/\.[^.]+$/, '') : '') || '编辑器内容',
+      type: 'store-only',
+      source: 'editor',
+      category: null,
+      tags: [],
+      summary: context.content,
+      analysis: null,
+      myThoughts: null,
+      useAiTags: false,
+      workflowStatus: 'inbox',
+      captureMethod: context.selection ? 'editor-selection' : 'editor-document',
+      selectedText: context.selectedText,
+      contextBefore: context.contextBefore,
+      contextAfter: context.contextAfter,
+      contentFormat: elements.languageSelect.value,
+      sourceFileName: state.fileName || null,
+      sourceEncoding: state.encoding,
+      sourceLineEnding: state.lineEnding
+    };
+    elements.smartClipFallbackSaveBtn.disabled = true;
+    try {
+      const saved = await postSmartClip(payload);
+      if (saved) closeModal(elements.smartClipFallbackModal);
+    } finally {
+      elements.smartClipFallbackSaveBtn.disabled = false;
+    }
+  }
+
+  async function postSmartClip(payload) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/add`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error(await response.text() || `HTTP ${response.status}`);
+      const result = await response.json();
+      if (result && result.status === 'duplicate') {
+        showToast('已存在相同剪藏，未重复保存', false, 'warning');
+        return false;
+      }
+      state.clipId = result.id || state.clipId;
+      state.clipType = payload.type;
+      state.clipMetadata = {
+        title: payload.title,
+        category: payload.category,
+        tags: payload.tags,
+        myThoughts: payload.myThoughts
+      };
+      updateDocumentIdentity();
+      showUndoToast(state.clipId);
+      window.parent.postMessage({ type: 'editorClipSaved', clipId: state.clipId }, '*');
+      FrontendLogger.info('[Editor] Smart clip saved', state.clipId, payload.content.length);
+      return true;
+    } catch (error) {
+      handleError('保存剪藏失败', error);
+      return false;
+    }
+  }
+
+  function showUndoToast(clipId) {
+    if (window.UI && UI.toast) {
+      const toastEl = UI.toast(clipId ? `剪藏 #${clipId} 已保存` : '剪藏已保存', { type: 'success', duration: 6000 });
+      const action = document.createElement('button');
+      action.className = 'ui-toast__action';
+      action.textContent = '撤销';
+      action.addEventListener('click', () => undoSmartClip(clipId));
+      toastEl.appendChild(action);
+      return;
+    }
+    showToast(clipId ? `剪藏 #${clipId} 已保存` : '剪藏已保存', false, 'success');
+  }
+
+  async function undoSmartClip(clipId) {
+    if (!clipId) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/${clipId}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error(await response.text() || `HTTP ${response.status}`);
+      if (String(state.clipId) === String(clipId)) {
+        state.clipId = null;
+        state.clipType = null;
+        state.clipMetadata = null;
+        updateDocumentIdentity();
+      }
+      showToast('已撤销剪藏，内容未入库', false, 'success');
+    } catch (error) {
+      handleError('撤销剪藏失败', error);
+    }
   }
 
   async function openClipModal() {
@@ -4131,7 +4751,8 @@
       state.clipType = clip.type || 'store-only';
       updateDocumentIdentity();
       renderTabBar();
-      renderAiChat();
+      // 首屏优先：AI 侧栏渲染移到下一帧，避免拖慢正文首屏
+      requestAnimationFrame(function () { renderAiChat(); });
       mainEditor.focus();
       showToast(`已打开剪藏 #${clip.id}`);
       // 写入「来自收件箱」最近分组（写作侧一键回看）
@@ -4216,9 +4837,40 @@
       clearTimeout(sharedState.diffTimer);
       sharedState.diffTimer = setTimeout(updateDiff, 180);
     }
+    if (featureOn('docStatsZoom')) scheduleDocStatsUpdate();
+    // B3：粘贴长文本场景，内容变化后防抖复查超长行
+    if (featureOn('longLineWrap') && state && state.lastContentBytes <= 2 * 1024 * 1024) applyLongLineMode();
   });
-  mainEditor.selection.on('changeCursor', updateCursorStatus);
-  mainEditor.selection.on('changeSelection', updateCursorStatus);
+
+  // A1：中文输入法友好——composition 期间暂停「跟随」任务（预览/反链/自动保存/字数），结束再补一次
+  let composing = false;
+  if (featureOn('imeComposition') && mainEditor.container) {
+    mainEditor.container.addEventListener('compositionstart', function () { composing = true; });
+    mainEditor.container.addEventListener('compositionend', function () {
+      composing = false;
+      if (!elements.markdownPane.hidden) scheduleMarkdownRender();
+      scheduleBacklinksRefresh();
+      if (autosaveChangeHandler) autosaveChangeHandler();
+      if (featureOn('docStatsZoom')) scheduleDocStatsUpdate();
+    });
+  }
+  function isComposing() { return composing; }
+
+  // A4：状态栏更新合并到帧——高频移动/拖选只在本帧内更新一次
+  let cursorStatusRaf = 0;
+  function scheduleCursorStatus() {
+    if (cursorStatusRaf) return;
+    cursorStatusRaf = requestAnimationFrame(function () {
+      cursorStatusRaf = 0;
+      updateCursorStatus();
+    });
+  }
+  mainEditor.selection.on('changeCursor', function () {
+    if (featureOn('statusRaf')) scheduleCursorStatus(); else updateCursorStatus();
+  });
+  mainEditor.selection.on('changeSelection', function () {
+    if (featureOn('statusRaf')) scheduleCursorStatus(); else updateCursorStatus();
+  });
   mainEditor.container.addEventListener('dblclick', () => setTimeout(syncSelectedWord, 0));
   compareEditor.container.addEventListener('dblclick', () => {
     const word = compareEditor.getSelectedText();
@@ -4231,6 +4883,18 @@
   document.getElementById('saveFileBtn').addEventListener('click', () => saveFile(false));
   document.getElementById('saveAsBtn').addEventListener('click', () => saveFile(true));
   elements.tabNewBtn.addEventListener('click', createNewTab);
+
+  // D1：标签中键关闭（Notepad++ 行为，未保存走既有确认逻辑）
+  if (featureOn('middleClickCloseTab') && elements.tabBar) {
+    elements.tabBar.addEventListener('auxclick', function (e) {
+      if (e.button !== 1) return;
+      var item = e.target && e.target.closest ? e.target.closest('.tab-item') : null;
+      if (!item) return;
+      e.preventDefault();
+      var idx = parseInt(item.dataset.tabIndex, 10);
+      if (!isNaN(idx) && tabs[idx]) closeTab(idx);
+    });
+  }
   document.getElementById('formatBtn').addEventListener('click', formatCurrentContentAuto);
   document.getElementById('transformBtn').addEventListener('click', openTransformPanel);
   document.getElementById('closeTransformBtn').addEventListener('click', closeTransformPanel);
@@ -4310,19 +4974,30 @@
   // 在系统终端中打开当前文件所在目录（无则回退知识库根目录）
   // ── 快捷键速查弹窗：可配置项读 EditorShortcuts 实际生效值，固定键静态展示 ──
   var shortcutFixedRows = [
-    ['新建标签', 'Ctrl+T'], ['新建文件', 'Ctrl+N'], ['打开文件', 'Ctrl+O'],
-    ['跳转到行', 'Ctrl+G（不区分大小写）'], ['保存', 'Ctrl+S'], ['格式化(自动识别)', 'Ctrl+Shift+L'], ['转换面板', 'Ctrl+Shift+X'],
-    ['Markdown 预览', 'Ctrl+Shift+M'], ['编辑器设置', 'Ctrl+,'], ['全屏', 'F11'],
-    ['命令面板', 'Ctrl+P'], ['终端跟随目录', 'Alt+T'], ['撤销', 'Ctrl+Z'],
+    ['新建标签', 'Ctrl+T', 'newTab'], ['新建文件', 'Ctrl+N', 'newFile'], ['打开文件', 'Ctrl+O', 'openFile'],
+    ['跳转到行', 'Ctrl+G（不区分大小写）'], ['保存', 'Ctrl+S', 'save'], ['格式化(自动识别)', 'Ctrl+Shift+L', 'formatDoc'], ['转换面板', 'Ctrl+Shift+X'],
+    ['Markdown 预览', 'Ctrl+Shift+M', 'markdownPreview'], ['编辑器设置', 'Ctrl+,'], ['全屏', 'F11'],
+    ['命令面板', 'Ctrl+P'], ['终端跟随目录', 'Alt+T', 'terminal'], ['撤销', 'Ctrl+Z'],
     ['重做', 'Ctrl+Shift+Z'], ['字体放大', 'Ctrl+='], ['字体缩小', 'Ctrl+-'],
-    ['插入图片', 'Ctrl+Shift+I'], ['唤起浏览器控制台', 'Ctrl+F12'], ['双击选词同词高亮', '双击'],
-    ['AceJump 跳跃导航', 'Ctrl+;'], ['返回编辑位置', 'Ctrl+Alt+←'], ['前进编辑位置', 'Ctrl+Alt+→']
+    ['插入图片', 'Ctrl+Shift+I', 'insertImage'], ['唤起浏览器控制台', 'Ctrl+F12'], ['双击选词同词高亮', '双击'],
+    ['AceJump 跳跃导航', 'Ctrl+;'], ['返回编辑位置', 'Ctrl+Alt+←'], ['前进编辑位置', 'Ctrl+Alt+→'],
+    ['选中下一个相同项', 'Alt+J', 'selectNextOccurrence'], ['撤销上一个选中', 'Alt+Shift+J', 'unselectPreviousOccurrence'], ['选中所有相同项', 'Ctrl+Alt+J', 'selectAllOccurrences'],
+    ['智能选中（词/句/行/段）', 'Alt+W', 'expandSmartSelection'], ['收起多光标', 'Esc'],
+    ['大小写切换', 'Ctrl+Shift+U', 'toggleCase'], ['收缩选区（逆扩展）', 'Alt+Shift+W', 'shrinkSmartSelection'], ['删除整行', 'Ctrl+Shift+K', 'deleteLine'],
+    ['复制行', 'Shift+Alt+↑/↓'], ['移动行', 'Alt+↑/↓'], ['添加光标', 'Ctrl+Alt+↑/↓']
   ].filter(function (row) { return row; });
   function buildShortcutRows(rows) {
+    var EAS = window.EditorAceShortcuts;
     return rows.map(function (r) {
+      var combo = r[1];
+      var tag = '';
+      if (r[2] && EAS && EAS.get(r[2])) {
+        combo = EAS.get(r[2]);
+        tag = '<span class="ace-sc-tag">可配置</span>';
+      }
       return '<div class="shortcut-row">'
         + '<span class="shortcut-name">' + r[0] + '</span>'
-        + '<kbd class="shortcut-keys">' + platformShortcut(r[1]) + '</kbd>'
+        + '<kbd class="shortcut-keys">' + platformShortcut(combo) + '</kbd>' + tag
         + '</div>';
     }).join('');
   }
@@ -4375,7 +5050,15 @@
     ['redo', '重做', 'Ctrl+Shift+Z'],
     ['togglecomment', '整行注释/取消', 'Ctrl+/'],
     ['indent', '缩进', 'Tab'],
-    ['outdent', '取消缩进', 'Shift+Tab']
+    ['outdent', '取消缩进', 'Shift+Tab'],
+    ['selectNextOccurrence', '选中下一个相同项（多光标）', 'Alt+J'],
+    ['unselectPreviousOccurrence', '撤销上一个选中项', 'Alt+Shift+J'],
+    ['selectAllOccurrences', '选中所有相同项', 'Ctrl+Alt+J'],
+    ['expandSmartSelection', '智能选中（词/句/行/段）', 'Alt+W'],
+    ['collapseMultiCursor', '收起多光标', 'Esc'],
+    ['toggleCase', '大小写切换', 'Ctrl+Shift+U'],
+    ['shrinkSmartSelection', '收缩选区（逆扩展）', 'Alt+Shift+W'],
+    ['deleteLine', '删除整行', 'Ctrl+Shift+K']
   ];
   function resolveAceModeRows() {
     var rows = [];
@@ -4414,12 +5097,13 @@
       elements.shortcutModeGroup.hidden = true;
       elements.shortcutGroups.querySelectorAll('.shortcut-group#shortcutModeGroup ~ .shortcut-group').forEach(function (g) { g.hidden = false; });
       var subEl = document.getElementById('shortcutModalSub');
-      if (subEl) subEl.textContent = '可在系统设置 → 编辑器快捷键 中修改可配置项';
+      if (subEl) subEl.textContent = '可配置快捷键可在系统设置中修改；编辑区命令可在本弹窗直接改键';
       var configRows = Object.keys(EditorShortcuts.DEFAULTS).map(function (action) {
         return [EditorShortcuts.labelOf(action), EditorShortcuts.get(action)];
       });
       elements.shortcutConfigurableList.innerHTML = buildShortcutRows(configRows);
       elements.shortcutFixedList.innerHTML = buildShortcutRows(shortcutFixedRows);
+      renderAceShortcutGroups();
     }
   }
   function openShortcutHelp(mode) {
@@ -4431,6 +5115,143 @@
   elements.keyboardModeHelpBtn.addEventListener('click', function () {
     openShortcutHelp(elements.keyboardModeHelpSelect.value);
   });
+  // ── 编辑区命令改键录制（速查弹窗内，复刻 settings.js startEsRecording 模式）──
+  // 录制态由 aceShortcutRecordingInput 标记：dispatchCapture 与 aceShortcutDispatch
+  // 开头均检查该标记直接放行，保证按键直达此处不被分发器吞掉。
+  function aceScIdOf(input) { return input && input.dataset ? (input.dataset.aceId || '') : ''; }
+  function aceScResetValue(input) {
+    var id = aceScIdOf(input);
+    var EAS = window.EditorAceShortcuts;
+    input.value = (EAS && id && EAS.get(id)) || '';
+  }
+  function renderAceShortcutGroups() {
+    var EAS = window.EditorAceShortcuts;
+    var textList = document.getElementById('aceShortcutTextList');
+    var coreList = document.getElementById('aceShortcutCoreList');
+    if (!EAS || !textList || !coreList) return;
+    var build = function (ids) {
+      return ids.map(function (id) {
+        return '<div class="shortcut-row">'
+          + '<span class="shortcut-name">' + (EAS.ACE_DEFAULTS[id] || {}).label + '</span>'
+          + '<input type="text" class="ace-sc-input" readonly spellcheck="false" data-ace-id="' + id + '" value="' + EAS.get(id) + '" placeholder="点击录制">'
+          + '</div>';
+      }).join('');
+    };
+    var ids = Object.keys(EAS.ACE_DEFAULTS);
+    textList.innerHTML = build(ids.filter(function (id) { return EAS.ACE_DEFAULTS[id].aceOnly; }));
+    coreList.innerHTML = build(ids.filter(function (id) { return !EAS.ACE_DEFAULTS[id].aceOnly; }));
+    refreshAceScConflicts();
+  }
+  function refreshAceScConflicts() {
+    var EAS = window.EditorAceShortcuts;
+    if (!EAS) return;
+    var conflicts = EAS.findConflicts(EAS.getAll());
+    document.querySelectorAll('.ace-sc-input').forEach(function (input) {
+      if (input.classList.contains('recording')) return;
+      var combo = input.value.trim();
+      input.classList.toggle('conflict', !!combo && conflicts.indexOf(aceScIdOf(input)) >= 0);
+    });
+  }
+  function commitAceScRecording(input) {
+    if (aceShortcutRecordingInput !== input) return;
+    aceShortcutRecordingInput = null;
+    window.__aceShortcutRecording = false; // 同步解除 dispatchCapture 的录制守卫
+    input.classList.remove('recording');
+    input.placeholder = '点击录制';
+    var id = aceScIdOf(input);
+    var EAS = window.EditorAceShortcuts;
+    if (!EAS || !id) return;
+    var combo = input.value.trim();
+    var map = EAS.getAll();
+    if (!combo) {
+      // 空值 = 恢复该命令默认键位
+      map[id] = undefined;
+      EAS.save(map);
+      applyAceShortcutOverrides();
+      renderShortcutHelp();
+      showToast('已恢复默认键位');
+      return;
+    }
+    if (!EditorShortcuts.parse(combo)) {
+      showToast('无效组合键');
+      aceScResetValue(input);
+      refreshAceScConflicts();
+      return;
+    }
+    if (EAS.isReserved(combo)) {
+      // Review Bug③：Ctrl+;/K/P 被主进程 before-input-event 拦截，渲染进程收不到完整按键
+      showToast('Ctrl+;/K/P 为系统级固定键，不可用于编辑区改键');
+      input.classList.add('conflict');
+      aceScResetValue(input);
+      return;
+    }
+    map[id] = combo;
+    EAS.save(map);
+    applyAceShortcutOverrides();
+    renderShortcutHelp();
+    showToast('快捷键已保存');
+  }
+  function aceScRecordKeydown(e) {
+    if (!aceShortcutRecordingInput) return;
+    e.preventDefault();
+    e.stopImmediatePropagation(); // Review 建议⑦：阻断弹窗自身 Esc 关闭监听，防止误关弹窗
+    var input = aceShortcutRecordingInput;
+    var key = e.key;
+    if (key === 'Escape') {
+      aceShortcutRecordingInput = null;
+      window.__aceShortcutRecording = false; // 同步解除 dispatchCapture 的录制守卫
+      input.classList.remove('recording');
+      input.value = input.dataset.prevValue || '';
+      input.placeholder = '点击录制';
+      refreshAceScConflicts();
+      return;
+    }
+    if (key === 'Backspace' || key === 'Delete') {
+      input.value = '';
+      commitAceScRecording(input);
+      return;
+    }
+    var combo = EditorShortcuts.normalizeCombo(e);
+    if (!combo) return; // 无效按键（裸字母/纯修饰键）忽略，继续录制
+    input.value = combo;
+    commitAceScRecording(input);
+  }
+  document.addEventListener('keydown', aceScRecordKeydown, true);
+  document.addEventListener('click', function (e) {
+    var input = e.target && e.target.closest ? e.target.closest('.ace-sc-input') : null;
+    if (!input) return;
+    if (aceShortcutRecordingInput && aceShortcutRecordingInput !== input) {
+      // 切换录制目标：先取消旧录制
+      var prev = aceShortcutRecordingInput;
+      prev.classList.remove('recording');
+      prev.value = prev.dataset.prevValue || '';
+      prev.placeholder = '点击录制';
+    }
+    aceShortcutRecordingInput = input;
+    window.__aceShortcutRecording = true; // 同步启用 dispatchCapture 的录制守卫
+    input.dataset.prevValue = input.value;
+    input.classList.add('recording');
+    input.classList.remove('conflict');
+    input.value = '';
+    input.placeholder = '请按下新组合键…';
+    input.focus();
+  });
+  var aceScResetBtn = document.getElementById('aceShortcutResetBtn');
+  if (aceScResetBtn) {
+    aceScResetBtn.addEventListener('click', function () {
+      var EAS = window.EditorAceShortcuts;
+      if (!EAS) return;
+      if (aceShortcutRecordingInput) {
+        aceShortcutRecordingInput.classList.remove('recording');
+        aceShortcutRecordingInput = null;
+        window.__aceShortcutRecording = false; // 同步解除 dispatchCapture 的录制守卫
+      }
+      EAS.reset();
+      applyAceShortcutOverrides();
+      renderShortcutHelp();
+      showToast('编辑区命令已恢复默认键位');
+    });
+  }
   elements.keyboardModeHelpSelect.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
@@ -4645,49 +5466,23 @@
   if (imageInsertBtn) {
     imageInsertBtn.addEventListener('click', () => editorImageInput.click());
   }
-  // 快捷键 Ctrl+Shift+I 唤起图片插入（与工具栏按钮一致；窗口捕获阶段执行，
-  // 避免焦点在 ACE 编辑区时被其自身 keydown 处理吞掉导致弹不出文件选择器）
-  window.addEventListener('keydown', function (e) {
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && (e.key || '').toLowerCase() === 'i') {
-      const t = (e.target && e.target.tagName) || '';
-      // 仅跳过「非 ACE」的普通输入区。ACE 编辑区隐藏内容是 textarea，会被上面的正则误判，
-      // 导致焦点在编辑器内时 Ctrl+Shift+I 失效；因此这里需放行位于 .ace_editor 内的事件
-      const inAce = !!(e.target && e.target.closest && e.target.closest('.ace_editor'));
-      if (!inAce && /^(INPUT|TEXTAREA|SELECT)$/.test(t)) return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      if (editorImageInput) editorImageInput.click();
-    }
-  }, true);
-  // 快捷键 Ctrl/Cmd+Shift+M 唤起 Markdown 预览（窗口捕获阶段优先，
-  // 避免与 ACE 默认的「括号跳转 jumpToMatching」冲突、在编辑区内只切预览）
-  window.addEventListener('keydown', function (e2) {
-    const mod = (e2.ctrlKey || e2.metaKey) && !e2.altKey;
-    if (mod && e2.shiftKey && (e2.key || '').toLowerCase() === 'm') {
-      const t = (e2.target && e2.target.tagName) || '';
-      if (/^(TEXTAREA)$/.test(t) && e2.target !== mainEditor.textInput.getElement()) return; // 其它文本域不拦截
-      e2.preventDefault();
-      e2.stopImmediatePropagation();
-      toggleMarkdownPreview();
-    }
-  }, true);
-  // 快捷键 Ctrl/Cmd+G（跳转到行，不区分大小写）与 Ctrl/Cmd+Shift+L（自动识别格式化）
-  // 统一在窗口捕获阶段接管，保证编辑区内焦点也能触发，不受 ACE 自身 keydown 处理顺序影响。
+  // 快捷键 Ctrl+Shift+I（插入图片）/ Ctrl+Shift+M（Markdown 预览）已收敛到
+  // 下方 aceShortcutDispatch 统一捕获分发（core 类命令，可配置改键）。
+  // 快捷键 Ctrl/Cmd+G（跳转到行，不区分大小写）统一在窗口捕获阶段接管，
+  // 保证编辑区内焦点也能触发，不受 ACE 自身 keydown 处理顺序影响。
   window.addEventListener('keydown', function (e3) {
     const mod = (e3.ctrlKey || e3.metaKey) && !e3.altKey;
     if (!mod) return;
     const key = (e3.key || '').toLowerCase();
     const isGotoLine = key === 'g' && !e3.shiftKey;       // Ctrl/Cmd+G → 跳转到行
-    const isFormat = key === 'l' && e3.shiftKey;           // Ctrl/Cmd+Shift+L → 自动识别格式化
-    if (!isGotoLine && !isFormat) return;
+    if (!isGotoLine) return;
     // 普通输入区不拦截；ACE 编辑区（.ace_editor）与跳转行输入框放行
     const inAce = !!(e3.target && e3.target.closest && e3.target.closest('.ace_editor'));
     const t = (e3.target && e3.target.tagName) || '';
     if (/^(INPUT|TEXTAREA|SELECT)$/.test(t) && !inAce && e3.target.id !== 'gotoLineInput') return;
     e3.preventDefault();
     e3.stopImmediatePropagation();
-    if (isGotoLine) openGotoLineDialog();
-    else formatCurrentContentAuto();
+    openGotoLineDialog();
   }, true);
 
   // —— 跳转到行弹窗 ——
@@ -4738,6 +5533,21 @@
   //  若本处理器只在冒泡阶段执行，ACE 已先插入 text/plain，随后本处再插入 Markdown，
   //  会导致同一内容被插入两遍（纯文本 + 带标记的 Markdown），粘贴区出现重复内容且
   //  Markdown 标记被渲染成彩色/高亮，表现为"字体/背景颜色错乱"（Bug 修复）。
+  // 判断剪贴板 HTML 是否"真富文本"：含块级结构（标题/列表/表格/引用/代码块）或
+  // 链接/图片，或"格式化标签 + 块容器"组合（Word/网页加粗等）。
+  // 仅内联包裹（span/code/font 等）的纯文本 → 视为普通文本，走 ACE 默认粘贴，
+  // 避免空格被包进反引号、下划线被转义为 \_（Bug 修复）。
+  function isRichClipboardHtml(html) {
+    try {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const body = doc.body;
+      if (body.querySelector('h1,h2,h3,h4,h5,h6,ul,ol,li,table,thead,tbody,tr,td,th,blockquote,pre')) return true;
+      if (body.querySelector('a[href],img')) return true;
+      const fmt = body.querySelector('strong,em,b,i,u,s,del');
+      const block = body.querySelector('p,div');
+      return !!(fmt && block);
+    } catch (e) { return false; }
+  }
   if (mainEditor && mainEditor.container) {
     mainEditor.container.addEventListener('paste', (e) => {
       const cd = e.clipboardData;
@@ -4757,10 +5567,10 @@
         handleEditorImageFiles(files);
         return;
       }
-      // ② 富文本粘贴 → Markdown（仅当转换结果与纯文本确有差异时才接管）
+      // ② 富文本粘贴 → Markdown（仅当 HTML 确为"真富文本"时才接管，避免纯文本被过度转义）
       if (typeof TurndownService !== 'undefined') {
         const html = cd.getData('text/html');
-        if (html && /<[a-z][\s\S]*>/.test(html)) {
+        if (html && isRichClipboardHtml(html)) {
           try {
             const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
             const md = (turndown.turndown(html) || '').replace(/^\n+|\n+$/g, '');
@@ -4788,7 +5598,15 @@
   });
   document.getElementById('reopenEncodingBtn').addEventListener('click', reopenWithEncoding);
   document.getElementById('setSaveEncodingBtn').addEventListener('click', setSaveEncoding);
-  document.getElementById('clipBtn').addEventListener('click', openClipModal);
+  document.getElementById('clipBtn').addEventListener('click', smartClip);
+  elements.clipCaretBtn.addEventListener('click', toggleClipMenu);
+  elements.smartClipMenuItem.addEventListener('click', () => { closeClipMenu(); smartClip(); });
+  elements.detailClipMenuItem.addEventListener('click', () => { closeClipMenu(); openClipModal(); });
+  elements.smartClipSaveBtn.addEventListener('click', () => { if (smartClipPending) saveSmartClip(smartClipPending); });
+  elements.smartClipFallbackSaveBtn.addEventListener('click', saveSmartClipFallback);
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.clip-split')) closeClipMenu();
+  });
   elements.submitClipBtn.addEventListener('click', submitClip);
   elements.browserFileInput.addEventListener('change', async event => {
     const file = event.target.files[0];
@@ -4991,13 +5809,8 @@
 
   document.addEventListener('keydown', event => {
     const modifier = event.ctrlKey || event.metaKey;
-    if (modifier && event.key.toLowerCase() === 'n') {
-      event.preventDefault();
-      createNewTab();
-    } else if (modifier && event.key.toLowerCase() === 't') {
-      event.preventDefault();
-      createNewTab();
-    } else if (modifier && event.key.toLowerCase() === 'w') {
+    // Ctrl+T/N/O、Ctrl+S（保存）已收敛到 aceShortcutDispatch 统一捕获分发（可配置改键）
+    if (modifier && event.key.toLowerCase() === 'w') {
       event.preventDefault();
       closeTab(activeTabIndex);
     } else if (modifier && event.key === 'Tab') {
@@ -5006,13 +5819,10 @@
         ? (activeTabIndex - 1 + tabs.length) % tabs.length
         : (activeTabIndex + 1) % tabs.length;
       switchToTab(next);
-    } else if (modifier && !event.shiftKey && event.key.toLowerCase() === 'o') {
-      // Ctrl/Cmd+O 打开文件对话框（文件搜索已让给 Ctrl/Cmd+Shift+O）
+    } else if (modifier && event.shiftKey && event.key.toLowerCase() === 's') {
+      // Ctrl+Shift+S 另存为（固定；普通 Ctrl+S 保存走 aceShortcutDispatch）
       event.preventDefault();
-      openMainFile();
-    } else if (modifier && event.key.toLowerCase() === 's') {
-      event.preventDefault();
-      saveFile(event.shiftKey);
+      saveFile(true);
     } else if (modifier && (event.key === '=' || event.key === '+')) {
       // Ctrl+= 放大字体
       event.preventDefault();
@@ -5032,7 +5842,7 @@
       elements.fontSizeLabel.textContent = next + 'px';
       showToast('字体大小: ' + next + 'px');
     } else if (modifier && event.key === ',') {
-      // Ctrl+, 打开设置
+      // Ctrl+, 打开设置（固定；保留文档级监听以便编辑器外焦点也可唤起）
       event.preventDefault();
       document.getElementById('settingsBtn').click();
     }
@@ -5229,13 +6039,7 @@
     }
   });
 
-  // Alt+T 在系统终端中打开当前文件所在目录
-  document.addEventListener('keydown', function(e) {
-    if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.key || '').toLowerCase() === 't') {
-      e.preventDefault();
-      openTerminalInDir();
-    }
-  });
+  // Alt+T 终端跟随目录已收敛到 aceShortcutDispatch 统一捕获分发（可配置改键）
 
   // 兼容旧键位：Alt+- / Alt+Shift+- 前后跳转（新主键位 Ctrl/Cmd+Alt+←/→ 走 EditorShortcuts 统一分发）
   document.addEventListener('keydown', function(e) {
@@ -5357,7 +6161,8 @@
       return;
     }
 
-    elements.autosaveStatus.textContent = '保存中...';
+    // C1：自动保存静默化——成功路径不闪烁文字，仅用状态圆点反馈（失败仍 Toast）
+    if (!featureOn('autosaveSilent')) elements.autosaveStatus.textContent = '保存中...';
     elements.autosaveStatus.classList.add('saving');
     elements.autosaveStatus.classList.remove('saved');
 
@@ -5376,7 +6181,7 @@
         }));
         lastSavedContent = currentContent;
         setModified(false);
-        elements.autosaveStatus.textContent = '已自动保存';
+        if (!featureOn('autosaveSilent')) elements.autosaveStatus.textContent = '已自动保存';
         elements.autosaveStatus.classList.remove('saving');
         elements.autosaveStatus.classList.add('saved');
         clearTimeout(autosaveStatusResetTimer);
@@ -5398,7 +6203,7 @@
             lastSavedContent = currentContent;
             state.expectedMtimeMs = result.mtimeMs ?? state.expectedMtimeMs;
             setModified(false);
-            elements.autosaveStatus.textContent = '已自动保存';
+            if (!featureOn('autosaveSilent')) elements.autosaveStatus.textContent = '已自动保存';
             elements.autosaveStatus.classList.remove('saving');
             elements.autosaveStatus.classList.add('saved');
             clearTimeout(autosaveStatusResetTimer);
@@ -5454,6 +6259,8 @@
     // 未开启时沿用原 10s 固定间隔；triggerAutosave 本身语义不变）
     if (featureOn('autosaveDebounce') && !autosaveChangeHandler) {
       autosaveChangeHandler = function onChange() {
+        // A1：中文输入法组合期间暂停自动保存，compositionend 后再补一次
+        if (isComposing()) return;
         if (autosaveDebounceTimer) clearTimeout(autosaveDebounceTimer);
         autosaveDebounceTimer = setTimeout(function() {
           autosaveDebounceTimer = null;
@@ -7723,6 +8530,8 @@
   var backlinksRefreshTimer = null;
   function scheduleBacklinksRefresh() {
     if (!backlinksVisible) return;
+    // A1：中文输入法组合期间暂停刷新，compositionend 后再补一次
+    if (isComposing()) return;
     if (backlinksRefreshTimer) clearTimeout(backlinksRefreshTimer);
     backlinksRefreshTimer = setTimeout(function() {
       backlinksRefreshTimer = null;
@@ -7743,10 +8552,36 @@
   // 预览区 .wikilink 点击委托
   elements.markdownBody.addEventListener('click', function(e) {
     var a = e.target && e.target.closest ? e.target.closest('a.wikilink') : null;
-    if (!a) return;
-    e.preventDefault();
-    openWikilink(a.getAttribute('data-target'));
+    if (a) {
+      e.preventDefault();
+      openWikilink(a.getAttribute('data-target'));
+      return;
+    }
+    // B2：预览点击反向定位——点击正文段落/标题，在编辑区定位到对应文本
+    if (featureOn('previewClickLocate') && !isComposing()) {
+      if (e.target && e.target.closest && e.target.closest('a, button, img, svg, input, select, textarea, .mermaid')) return;
+      var text = (e.target && e.target.textContent || '').trim();
+      if (!text) return;
+      locateInEditor(text);
+    }
   });
+
+  // B2 辅助：在编辑区查找文本并定位（找不到则静默）
+  function locateInEditor(text) {
+    var needle = text.slice(0, 60);
+    if (!needle) return;
+    var range;
+    try {
+      range = mainEditor.session.find(needle, {
+        backwards: false, wrap: true, caseSensitive: false, wholeWord: false, regExp: false
+      });
+    } catch (err) { return; }
+    if (range) {
+      mainEditor.selection.setSelectionRange(range);
+      mainEditor.renderer.scrollCursorIntoView(range.start, 0.5);
+      mainEditor.focus();
+    }
+  }
 
   // 反链面板按钮 + 存入知识库
   elements.closeBacklinksBtn.addEventListener('click', function() { toggleBacklinks(false); });
@@ -8228,6 +9063,149 @@
   registerCommand('pos-forward', '前进到下一编辑位置', '↷', function() { jumpPosHistoryForward(); }, 'Ctrl+Alt+ArrowRight');
   registerCommand('wrap-selection', '包裹选区 ( \' [ { ` " )', '⤾', function() { openWrapSelectionPicker(); });
 
+  // ═══ IDEA 式多光标命令（Alt+J / Alt+Shift+J / Ctrl+Alt+J / Alt+W / Alt+Shift+W /
+  //      Ctrl+Shift+U 大小写 / Ctrl+Shift+K 删行 / Esc 收起多光标）═══
+  // 键位读 EditorAceShortcuts（速查弹窗可改键）；与上方 altj*/altw* 辅助函数配套。
+  // 单一绑定机制：仅走 ACE 命令管理器 bindKey（应用未打包键盘处理器模块，Ace 为唯一实际模式）。
+  // 注册前显式解除 ACE 内置同键命令（findprevious=Ctrl+Shift+K / tolowercase=Ctrl+Shift+U）
+  // 的键位绑定，避免 "Repeated keybinding" 警告与隐式覆盖依赖。
+  (function initAltJCommands() {
+    if (!mainEditor || !mainEditor.commands) return;
+    var EAS = window.EditorAceShortcuts || null;
+    function aceBind(combo) {
+      // 'Ctrl+Alt+J' → 'Ctrl-Alt-J'；mac: Ctrl+ → Cmd+
+      var win = String(combo).split('+').join('-');
+      var mac = String(combo).replace(/^Ctrl\+/i, 'Cmd+').split('+').join('-');
+      return { win: win, mac: mac, sender: 'editor' };
+    }
+    // 释放 ACE 内置同键命令的 bindKey（命令本体保留：搜索框按钮等仍可 exec）
+    ['findprevious', 'tolowercase'].forEach(function (name) {
+      try {
+        var cmds = mainEditor.commands;
+        var cmd = cmds && cmds.byName && cmds.byName[name];
+        if (!cmd || !cmd.bindKey) return;
+        cmds.removeCommand(cmd);
+        cmd.bindKey = {};
+        cmds.addCommand(cmd, true);
+      } catch (e) { /* 忽略：解绑失败不影响新增命令 */ }
+    });
+    var getBind = function (id, fallback) {
+      var combo = EAS ? EAS.get(id) : '';
+      return combo || fallback;
+    };
+    // 8 个可配置命令（Esc 收起多光标固定不可配置）
+    var defs = [
+      { name: 'selectNextOccurrence',       bind: aceBind(getBind('selectNextOccurrence', 'Alt+J')),       exec: altjSelectNext },
+      { name: 'unselectPreviousOccurrence', bind: aceBind(getBind('unselectPreviousOccurrence', 'Alt+Shift+J')), exec: altjUnselectPrev },
+      { name: 'selectAllOccurrences',       bind: aceBind(getBind('selectAllOccurrences', 'Ctrl+Alt+J')),  exec: altjSelectAll },
+      { name: 'expandSmartSelection',       bind: aceBind(getBind('expandSmartSelection', 'Alt+W')),       exec: altwSmartSelect },
+      { name: 'shrinkSmartSelection',       bind: aceBind(getBind('shrinkSmartSelection', 'Alt+Shift+W')), exec: altwShrinkSelection },
+      { name: 'toggleCase',                 bind: aceBind(getBind('toggleCase', 'Ctrl+Shift+U')),
+        multiSelectAction: 'forEach',
+        exec: function (editor) {
+          var sel = editor.selection;
+          var ranges = sel.getAllRanges();
+          ranges.forEach(function (r) {
+            if (r.isEmpty()) return; // 无选区跳过
+            editor.session.replace(r, toggleCaseText(editor.session.getTextRange(r)));
+          });
+        } },
+      { name: 'deleteLine',                 bind: aceBind(getBind('deleteLine', 'Ctrl+Shift+K')),
+        multiSelectAction: 'forEachLine',
+        exec: function (editor) { editor.removeLines(); } },
+      { name: 'collapseMultiCursor', bind: { win: 'Esc', mac: 'Esc', sender: 'editor' },
+        exec: function (editor) {
+          // 仅多光标时收起为单光标；单光标时让位，不拦截 Esc 的其它用途
+          var sel = editor && editor.selection;
+          if (!sel) return;
+          try { if (sel.getAllRanges().length > 1) sel.toSingleRange(); } catch (e) { /* 忽略 */ }
+        } }
+    ];
+    defs.forEach(function (d) {
+      try {
+        mainEditor.commands.addCommand({
+          name: d.name,
+          bindKey: d.bind,
+          exec: d.exec,
+          multiSelectAction: d.multiSelectAction
+        });
+      } catch (e) { /* 单条绑定失败不影响其它命令 */ }
+    });
+  })();
+
+  /** 弹窗改键后调用：按存储值重绑 7 个 aceOnly 命令（removeCommand → 改 bindKey → addCommand） */
+  function applyAceShortcutOverrides() {
+    if (!mainEditor || !mainEditor.commands) return;
+    var EAS = window.EditorAceShortcuts;
+    if (!EAS) return;
+    var rebinds = {
+      selectNextOccurrence: altjSelectNext,
+      unselectPreviousOccurrence: altjUnselectPrev,
+      selectAllOccurrences: altjSelectAll,
+      expandSmartSelection: altwSmartSelect,
+      shrinkSmartSelection: altwShrinkSelection
+    };
+    var comboToAce = function (combo) {
+      var win = String(combo).split('+').join('-');
+      var mac = String(combo).replace(/^Ctrl\+/i, 'Cmd+').split('+').join('-');
+      return { win: win, mac: mac, sender: 'editor' };
+    };
+    Object.keys(rebinds).forEach(function (id) {
+      var combo = EAS.get(id);
+      if (!combo) return;
+      try {
+        var cmds = mainEditor.commands;
+        var cmd = cmds && cmds.byName && cmds.byName[id];
+        if (!cmd) return;
+        cmds.removeCommand(cmd);
+        cmd.bindKey = comboToAce(combo);
+        cmds.addCommand(cmd, true);
+      } catch (e) { /* 忽略 */ }
+    });
+    // toggleCase / deleteLine 带 multiSelectAction，单独重绑
+    try {
+      var cmds2 = mainEditor.commands;
+      var tc = cmds2 && cmds2.byName && cmds2.byName['toggleCase'];
+      if (tc) {
+        cmds2.removeCommand(tc);
+        tc.bindKey = comboToAce(EAS.get('toggleCase'));
+        cmds2.addCommand(tc, true);
+      }
+      var dl = cmds2 && cmds2.byName && cmds2.byName['deleteLine'];
+      if (dl) {
+        cmds2.removeCommand(dl);
+        dl.bindKey = comboToAce(EAS.get('deleteLine'));
+        cmds2.addCommand(dl, true);
+      }
+    } catch (e) { /* 忽略 */ }
+  }
+  // 命令面板条目（Ctrl+P 直达）
+  registerCommand('select-next-occurrence', '选中下一个相同项', '🔁', function() { altjSelectNext(mainEditor); }, 'Alt+J', 'IDEA 式多光标：无选区先选中光标处词，再追加下一个相同文本');
+  registerCommand('unselect-previous-occurrence', '撤销上一个选中项', '↩', function() { altjUnselectPrev(mainEditor); }, 'Alt+Shift+J', '撤销最后一次追加的相同项选中');
+  registerCommand('select-all-occurrences', '选中所有相同项', '🪄', function() { altjSelectAll(mainEditor); }, 'Ctrl+Alt+J', '把文档中所有相同文本一次性转为多光标');
+  registerCommand('expand-smart-selection', '智能选中（词/句/行/段）', '⇲', function() { altwSmartSelect(mainEditor); }, 'Alt+W', '按分隔符逐级扩展选区：词 → 句子 → 整行 → 段落');
+  registerCommand('shrink-smart-selection', '收缩选区（逆扩展）', '⇱', function() { mainEditor.execCommand('shrinkSmartSelection'); }, 'Alt+Shift+W', '按分隔符逐级收缩选区：段落 → 整行 → 句子 → 词 → 光标');
+  registerCommand('toggle-case', '大小写切换', '🔠', function() { mainEditor.execCommand('toggleCase'); }, 'Ctrl+Shift+U', 'VS Code 语义：全大写转小写，其余转大写（多光标独立）');
+  registerCommand('delete-line', '删除整行', '🗑', function() { mainEditor.execCommand('deleteLine'); }, 'Ctrl+Shift+K', '删除光标所在整行（多光标逐行删除）');
+
+  /** 命令面板渲染前同步可配置命令的最新键位（编辑区命令在速查弹窗改键后即时反映） */
+  function syncPaletteShortcuts() {
+    var EAS = window.EditorAceShortcuts;
+    if (!EAS) return;
+    var map = {
+      'new': 'newTab', 'open': 'openFile', 'save': 'save', 'markdown': 'markdownPreview',
+      'select-next-occurrence': 'selectNextOccurrence',
+      'unselect-previous-occurrence': 'unselectPreviousOccurrence',
+      'select-all-occurrences': 'selectAllOccurrences',
+      'expand-smart-selection': 'expandSmartSelection',
+      'shrink-smart-selection': 'shrinkSmartSelection',
+      'toggle-case': 'toggleCase', 'delete-line': 'deleteLine'
+    };
+    commandRegistry.forEach(function (c) {
+      if (map[c.id]) c.shortcut = EAS.get(map[c.id]);
+    });
+  }
+
   // ═══ AceJump 跳跃导航（Phase 4，对标 IDEA AceJump）───
   // 触发进入跳跃模式：word/char/line 三种 + 选区语义。独立脚本 ace-jump.js，
   // 未引入或异常时静默无效果（不影响现有功能）。
@@ -8362,6 +9340,7 @@
 
   function renderCommandList(query) {
     var q = (query || '').trim().toLowerCase();
+    syncPaletteShortcuts(); // 可配置命令（编辑区命令）改键后面板实时显示新键位
     // 数据源按模式区分：template 模式下过滤模板条目，command 模式过滤命令注册表
     var source = paletteMode === 'template' ? paletteTemplateEntries : commandRegistry;
     if (featureOn('cmdPaletteEnhanced')) {
@@ -8673,6 +9652,56 @@
 
   // 全部右下角抽屉快捷键已注册完毕，开启捕获阶段全局分发（幂等）
   EditorShortcuts.startCapture();
+
+  // ── 编辑区核心操作类命令统一捕获分发（可配置改键）──
+  // 接管原分散硬编码核心操作：Ctrl+T/N/O、Ctrl+S、Ctrl+Shift+L（格式化）、
+  // Ctrl+Shift+M（预览）、Alt+T（终端）、Ctrl+Shift+I（插入图片）；
+  // 默认键位与原行为一致，改键入口=写作区快捷键速查弹窗「编辑区命令」分组。
+  // 优先级：本监听器在 startCapture() 之后注册 → dispatchCapture 先执行并
+  // stopImmediatePropagation；此处再以 matchAny 双保险，命中系统级 13 项直接让位。
+  var aceShortcutRecordingInput = null; // 弹窗内改键录制中的 input（非空=录制态）
+  var ACE_CORE_ACTIONS = {
+    newTab:          function () { createNewTab(); },
+    newFile:         function () { createNewTab(); },
+    openFile:        function () { openMainFile(); },
+    save:            function () { saveFile(false); },
+    formatDoc:       function () { formatCurrentContentAuto(); },
+    markdownPreview: function () { toggleMarkdownPreview(); },
+    terminal:        function () { openTerminalInDir(); },
+    insertImage:     function () { if (editorImageInput) editorImageInput.click(); }
+  };
+  // guard 语义忠实复刻原硬编码逻辑：
+  //   skipEditableAceExcept=INPUT/TEXTAREA/SELECT 且不在 .ace_editor 内则跳过
+  //   skipTextareaNonAce=TEXTAREA 且非 ACE 文本域则跳过；其余动作无跳过
+  function aceSkipGuard(e, guard) {
+    if (!guard) return false;
+    var t = (e.target && e.target.tagName) || '';
+    var inAce = !!(e.target && e.target.closest && typeof e.target.closest === 'function' && e.target.closest('.ace_editor'));
+    if (guard === 'skipEditableAceExcept') return /^(INPUT|TEXTAREA|SELECT)$/.test(t) && !inAce;
+    if (guard === 'skipTextareaNonAce') return t === 'TEXTAREA' && !inAce;
+    return false;
+  }
+  function aceShortcutDispatch(e) {
+    if (aceShortcutRecordingInput) return; // 改键录制中：按键需直达录制 input，不得被分发器吞掉
+    var EAS = window.EditorAceShortcuts;
+    if (!EAS || e.defaultPrevented) return;
+    if (EditorShortcuts.matchAny(e)) return; // 系统级 13 项优先（双保险，冲突时系统级生效）
+    var hit = '';
+    Object.keys(ACE_CORE_ACTIONS).forEach(function (id) {
+      if (!hit && EditorShortcuts.match(e, EAS.get(id))) hit = id;
+    });
+    if (!hit) return;
+    var def = EAS.ACE_DEFAULTS[hit] || {};
+    if (aceSkipGuard(e, def.guard)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    try {
+      ACE_CORE_ACTIONS[hit]();
+    } catch (err) {
+      console.warn('[ShortcutDebug] 编辑区命令分发失败:', hit, err);
+    }
+  }
+  window.addEventListener('keydown', aceShortcutDispatch, true);
 
   // ── 模板系统：列表/读取/插入/变量替换 ──
   // 日期格式化：支持 strftime 风格 token（YYYY/YY/MM/M/DD/D/HH/H/mm/ss），最长优先替换避免 YY 误吞 YYYY

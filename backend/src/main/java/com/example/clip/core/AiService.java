@@ -1569,4 +1569,53 @@ public class AiService {
             return null;
         }
     }
+
+    /**
+     * 轻量剪藏字段抽取：仅提取 title / summary / tags 三个落地字段。
+     * <p>
+     * 与 {@link #extractFields} 的区别：不要求回传文本原文（content），
+     * 输入截断至 4000 字符、prompt 精简，显著降低 token 消耗。
+     * 供写作区「智能剪藏」自动识别兜底使用：正则不命中结构化章节时调用，
+     * 只要取到 summary 或 tags 任一落地字段即可确认「解析成功」。
+     * </p>
+     *
+     * @param text 待抽取文本
+     * @return 字段映射（title / summary / tags）；失败返回 null
+     */
+    public Map<String, Object> extractClipTriad(String text) {
+        try {
+            final int MAX_INPUT_CHARS = 4000;
+            String input = (text == null) ? "" : text;
+            if (input.length() > MAX_INPUT_CHARS) {
+                input = input.substring(0, MAX_INPUT_CHARS);
+            }
+            String systemPrompt = "你是一个剪藏字段提取助手。请从用户给出的文本中提取剪藏所需的最小字段，以 JSON 返回。\n" +
+                "\n" +
+                "需要提取的字段：\n" +
+                "- title（标题，≤30字；无明确标题时概括内容主旨）\n" +
+                "- summary（一句话摘要，≤100字）\n" +
+                "- tags（字符串数组，3-6 个关键词）\n" +
+                "\n" +
+                "规则：\n" +
+                "1. 只返回 JSON 对象，不要包含 markdown 代码块标记，不要返回文本原文（content）\n" +
+                "2. 无法确定的字段用 null\n" +
+                "3. tags 必须是字符串数组\n" +
+                "4. 不要添加任何额外解释";
+
+            String response = llmProvider.chatForTier(systemPrompt, input, "simple");
+            if (response == null) return null;
+
+            String cleaned = response.trim();
+            if (cleaned.startsWith("```")) {
+                cleaned = cleaned.replaceAll("```[a-z]*", "").trim();
+            }
+
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            return mapper.readValue(cleaned, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            logger.error("[AI] extractClipTriad failed: {}", e.getMessage());
+            return null;
+        }
+    }
 }

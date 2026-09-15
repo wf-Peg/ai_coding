@@ -41,6 +41,9 @@ public class ClipRequest {
     /** 摘要（一句话概括内容，不应为原文；由 agent 或前端传入，覆盖后端 fallback 逻辑） */
     private String summary;
 
+    /** AI 深度分析（Markdown，可选）；写作区智能剪藏正则解析出「## 分析」章节时随请求传入落库 */
+    private String analysis;
+
     /** 来源 URL */
     private String sourceUrl;
 
@@ -168,6 +171,14 @@ public class ClipRequest {
 
     public void setSummary(String summary) {
         this.summary = summary;
+    }
+
+    public String getAnalysis() {
+        return analysis;
+    }
+
+    public void setAnalysis(String analysis) {
+        this.analysis = analysis;
     }
 
     public String getSourceUrl() {

@@ -65,7 +65,7 @@ public class ObsidianExportConfig {
      */
     private List<String> clipFrontmatterFields = new ArrayList<>(
             List.of("date", "updated", "type", "category", "tags", "source", "site",
-                    "analysis_status", "summary", "divergent", "thoughts"));
+                    "analysis_status", "summary", "analysis", "divergent", "thoughts"));
 
     public List<String> getFrontmatterFields() {
         return frontmatterFields;

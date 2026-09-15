@@ -241,6 +241,7 @@
 
   /** 捕获阶段分发函数：遍历已注册 handler，命中则执行 */
   function dispatchCapture(e) {
+    if (window.__aceShortcutRecording) return; // 编辑区改键录制中：按键需直达录制 input，不得被分发器吞掉
     Object.keys(_handlers).forEach(function (action) {
       if (e.defaultPrevented) return; // 已被更高优先级处理，跳过
       // match 的第二个参数需传实际组合键（get(action)），不能传 action 名
@@ -265,6 +266,128 @@
     window.addEventListener('keydown', dispatchCapture, true);
   }
 
+  /** 当前事件是否命中任一功能级（系统级 13 项）组合；命中返回 action 名，否则空串 */
+  function matchAny(e) {
+    var hit = '';
+    Object.keys(DEFAULTS).forEach(function (k) {
+      if (!hit && match(e, get(k))) hit = k;
+    });
+    return hit;
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // 编辑区命令快捷键注册表（EditorAceShortcuts）
+  // - aceOnly=true（文本编辑类）：仅编辑区聚焦生效，走 ACE 命令管理器 bindKey；
+  //   应用未打包键盘处理器模块、Ace 为唯一实际模式，故不做窗口捕获兜底。
+  // - aceOnly=false（核心操作类）：编辑器窗口内任意焦点生效，由 editor.js
+  //   的 aceShortcutDispatch（window 捕获）统一分发；guard 为可选跳过规则名。
+  // 存储：localStorage['editor_ace_shortcuts_v1']，与设置模块存储相互独立。
+  // 改键入口：写作区快捷键速查弹窗「编辑区命令（可配置）」分组。
+  // ══════════════════════════════════════════════════════════
+  var ACE_STORAGE_KEY = 'editor_ace_shortcuts_v1';
+  var ACE_DEFAULTS = {
+    // ── 文本编辑类（仅编辑区聚焦生效）──
+    selectNextOccurrence:       { label: '选中下一个相同项',       shortcut: 'Alt+J',       aceOnly: true },
+    unselectPreviousOccurrence: { label: '撤销上一个选中',         shortcut: 'Alt+Shift+J', aceOnly: true },
+    selectAllOccurrences:       { label: '选中所有相同项',         shortcut: 'Ctrl+Alt+J',  aceOnly: true },
+    expandSmartSelection:       { label: '智能选中（词/句/行/段）', shortcut: 'Alt+W',      aceOnly: true },
+    toggleCase:                 { label: '大小写切换',             shortcut: 'Ctrl+Shift+U', aceOnly: true },
+    shrinkSmartSelection:       { label: '收缩选区（逆扩展）',     shortcut: 'Alt+Shift+W', aceOnly: true },
+    deleteLine:                 { label: '删除整行',               shortcut: 'Ctrl+Shift+K', aceOnly: true },
+    // ── 核心操作类（编辑器窗口内任意焦点生效）──
+    newTab:         { label: '新建标签',             shortcut: 'Ctrl+T' },
+    newFile:        { label: '新建文件',             shortcut: 'Ctrl+N' },
+    openFile:       { label: '打开文件',             shortcut: 'Ctrl+O' },
+    save:           { label: '保存',                 shortcut: 'Ctrl+S' },
+    formatDoc:      { label: '格式化（自动识别）',   shortcut: 'Ctrl+Shift+L', guard: 'skipEditableAceExcept' },
+    markdownPreview:{ label: 'Markdown 预览',        shortcut: 'Ctrl+Shift+M', guard: 'skipTextareaNonAce' },
+    terminal:       { label: '终端跟随目录',         shortcut: 'Alt+T' },
+    insertImage:    { label: '插入图片',             shortcut: 'Ctrl+Shift+I', guard: 'skipEditableAceExcept' }
+  };
+
+  // main.js before-input-event 主进程级拦截的固定键：不可作编辑区改键目标
+  var ACE_RESERVED_COMBOS = ['Ctrl+;', 'Ctrl+K', 'Ctrl+P'];
+
+  function aceReadOverrides() {
+    try {
+      var raw = JSON.parse(localStorage.getItem(ACE_STORAGE_KEY) || '{}');
+      var out = {};
+      Object.keys(ACE_DEFAULTS).forEach(function (k) {
+        if (raw && typeof raw[k] === 'string' && raw[k].trim()) out[k] = raw[k].trim();
+      });
+      return out;
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function aceGet(action) {
+    var overrides = aceReadOverrides();
+    if (action in overrides) return overrides[action];
+    return (ACE_DEFAULTS[action] || {}).shortcut || '';
+  }
+
+  function aceGetAll() {
+    var overrides = aceReadOverrides();
+    var out = {};
+    Object.keys(ACE_DEFAULTS).forEach(function (k) {
+      out[k] = overrides[k] || ACE_DEFAULTS[k].shortcut;
+    });
+    return out;
+  }
+
+  function aceLabelOf(action) {
+    return (ACE_DEFAULTS[action] || {}).label || action;
+  }
+
+  function aceSave(map) {
+    var clean = {};
+    Object.keys(ACE_DEFAULTS).forEach(function (k) {
+      var v = map && map[k];
+      if (typeof v === 'string' && v.trim()) clean[k] = v.trim();
+    });
+    if (Object.keys(clean).length > 0) {
+      localStorage.setItem(ACE_STORAGE_KEY, JSON.stringify(clean));
+    } else {
+      localStorage.removeItem(ACE_STORAGE_KEY);
+    }
+  }
+
+  function aceReset() {
+    localStorage.removeItem(ACE_STORAGE_KEY);
+  }
+
+  /** 组合键是否为主进程拦截的系统级固定键（Ctrl+;/K/P） */
+  function aceIsReserved(combo) {
+    return ACE_RESERVED_COMBOS.indexOf(combo) >= 0;
+  }
+
+  /**
+   * 编辑区命令冲突检测：返回冲突的编辑区 action 集合（含本注册表内重复 + 与功能级交叉）
+   * map 为 {action: combo} 候选覆盖（未提供的 action 取默认值参与检测）
+   */
+  function aceFindConflicts(map) {
+    var eff = {};
+    Object.keys(ACE_DEFAULTS).forEach(function (k) {
+      eff[k] = (map && map[k]) || ACE_DEFAULTS[k].shortcut;
+    });
+    var sysSeen = {};
+    Object.keys(DEFAULTS).forEach(function (k) {
+      var c = get(k);
+      if (c) sysSeen[c] = true;
+    });
+    var seen = {};
+    var dup = {};
+    Object.keys(eff).forEach(function (k) {
+      var combo = eff[k];
+      if (!combo) return;
+      if (seen[combo]) { dup[k] = true; dup[seen[combo]] = true; }
+      else seen[combo] = k;
+      if (sysSeen[combo]) dup[k] = true; // 与系统级 13 项冲突（仅提示，系统级优先）
+    });
+    return Object.keys(dup);
+  }
+
   window.EditorShortcuts = {
     DEFAULTS: DEFAULTS,
     STORAGE_KEY: STORAGE_KEY,
@@ -273,6 +396,7 @@
     labelOf: labelOf,
     parse: parse,
     match: match,
+    matchAny: matchAny,
     save: save,
     reset: reset,
     normalizeCombo: normalizeCombo,
@@ -287,4 +411,17 @@
   };
   // 供 editor.js / ace-jump.js 复用同一诊断开关（避免再次判断 URL/localStorage）
   window.__debugShortcutLog = debugLog;
+
+  // 编辑区命令快捷键注册表（写作区速查弹窗改键）
+  window.EditorAceShortcuts = {
+    ACE_DEFAULTS: ACE_DEFAULTS,
+    ACE_STORAGE_KEY: ACE_STORAGE_KEY,
+    get: aceGet,
+    getAll: aceGetAll,
+    labelOf: aceLabelOf,
+    save: aceSave,
+    reset: aceReset,
+    isReserved: aceIsReserved,
+    findConflicts: aceFindConflicts
+  };
 })();

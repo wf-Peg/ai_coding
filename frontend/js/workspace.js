@@ -161,146 +161,194 @@
 
       /* ── Overview View Functions ── */
 
-      function renderOverviewDashboard(stats) {
-        var el = $('ovDashboardCards');
-        if (!stats) {
-          el.innerHTML = '<div class="ov-dash-card"><div class="ov-dash-card-value">--</div><div class="ov-dash-card-label">加载中...</div></div>';
-          return;
-        }
-        var cards = [
-          { value: stats.total || 0, label: '总记录数', sub: '全部类型' },
-          { value: stats.clip || 0, label: '剪藏', sub: '内容剪辑' },
-          { value: stats.knowledge || 0, label: '知识', sub: '知识条目' },
-          { value: stats.todo || 0, label: '待办', sub: '待办事项' },
-          { value: stats['learning-plan'] || 0, label: '学习', sub: '学习计划' }
-        ];
-        el.innerHTML = cards.map(function(c) {
-          return '<div class="ov-dash-card"><div class="ov-dash-card-value">' + c.value + '</div><div class="ov-dash-card-label">' + escapeHtml(c.label) + '</div>' + (c.sub ? '<div class="ov-dash-card-sub">' + escapeHtml(c.sub) + '</div>' : '') + '</div>';
-        }).join('');
+      // 缓存最近一次 overview 接口数据，供各组件读取
+      let overviewCache = null; // { typeDist, contents, dashboardStats, summary }
+      const overviewChartInstances = {}; // 图表组件实例：widgetId -> Chart
+      var overviewDetailChartInstance = null;
+
+      function overviewEmptyBox(text) {
+        return '<div class="av-empty">' + text + '</div>';
       }
 
-      function renderOverviewCharts(typeDistribution, contents, workspaceSummary) {
-        var ctxType = document.getElementById('ovTypeChart');
-        var ctxTrend = document.getElementById('ovTrendChart');
-        var ctxCoverage = document.getElementById('ovCoverageChart');
-        if (!ctxType || !ctxTrend || !ctxCoverage) return;
-
-        if (typeof Chart === 'undefined') {
-          [ctxType, ctxTrend, ctxCoverage].forEach(function(c) {
-            var parent = c.parentElement;
-            parent.innerHTML = '<div class="empty-state" style="height:180px;display:flex;align-items:center;justify-content:center">图表库加载中...</div>';
+      // 纪念日提醒组件
+      function renderAnniversaryWidget(el, ctx) {
+        var S = window.AnniversaryShared;
+        if (!S) { el.innerHTML = overviewEmptyBox('纪念日模块未加载'); return; }
+        var data = S.load() || { entries: [] };
+        var today = S.todayStr();
+        var upcoming = S.getUpcoming(data.entries, today, 7) || [];
+        var todayArr = upcoming.filter(function (o) { return o.remaining === 0; });
+        var upArr = upcoming.filter(function (o) { return o.remaining > 0; });
+        var html = '<div class="av-box">';
+        if (todayArr.length || upArr.length) {
+          html += '<div class="av-summary">今天 <b>' + todayArr.length + '</b> · 临期 <b>' + upArr.length + '</b></div><div class="av-rows">';
+          todayArr.forEach(function (o, i) {
+            html += '<div class="av-row today" data-date="' + o.date + '"><span class="av-dot" style="background:var(--ws-primary)"></span><span class="av-t">' + escapeHtml(o.title) + '</span><span class="av-d">今天</span></div>';
           });
-          return;
+          upArr.slice(0, 6).forEach(function (o) {
+            html += '<div class="av-row up" data-date="' + o.date + '"><span class="av-dot" style="background:var(--ws-muted)"></span><span class="av-t">' + escapeHtml(o.title) + '</span><span class="av-d">' + escapeHtml(o.label) + '</span></div>';
+          });
+          html += '</div>';
+        } else {
+          html += '<div class="av-empty">还没有临近的纪念日<br>去「纪念日」页添加第一个</div>';
         }
+        html += '</div>';
+        el.innerHTML = html;
+      }
 
-        // Destroy existing chart instances
-        if (overviewChartInstances) {
-          Object.values(overviewChartInstances).forEach(function(c) { if (c) c.destroy(); });
-        }
+      // 数据概览（统计卡）组件
+      function renderStatWidget(el, ctx) {
+        var s = overviewCache ? overviewCache.dashboardStats : null;
+        var labels = [
+          { label: '总记录数', sub: '全部类型', val: 'total' },
+          { label: '剪藏', sub: '内容剪辑', val: 'clip' },
+          { label: '知识', sub: '知识条目', val: 'knowledge' },
+          { label: '待办', sub: '待办事项', val: 'todo' },
+          { label: '学习', sub: '学习计划', val: 'learning-plan' }
+        ];
+        var html = '<div class="ov-dash-row">';
+        labels.forEach(function (c) {
+          var v = s ? (s[c.val] || 0) : null;
+          html += '<div class="ov-dash-card"><div class="ov-dash-card-value">' + (v == null ? '--' : v) +
+            '</div><div class="ov-dash-card-label">' + c.label + '</div><div class="ov-dash-card-sub">' + c.sub + '</div></div>';
+        });
+        html += '</div>';
+        el.innerHTML = html;
+      }
 
-        var typeLabels = { clip: '剪藏', knowledge: '知识', todo: '待办', 'learning-plan': '学习' };
-        var typeColors = { clip: '#2383e2', knowledge: '#f59e0b', todo: '#10b981', 'learning-plan': '#876de2' };
-        var dist = typeDistribution || {};
-        var types = Object.keys(typeLabels).filter(function(t) { return t in dist; });
-        var labels = types.map(function(t) { return typeLabels[t]; });
-        var values = types.map(function(t) { return dist[t]; });
-        var colors = types.map(function(t) { return typeColors[t] || '#888'; });
+      function makeChartSlot(el) {
+        var box = document.createElement('div');
+        box.className = 'wb-chart';
+        box.innerHTML = '<canvas></canvas>';
+        el.appendChild(box);
+        return box.querySelector('canvas');
+      }
+      function chartFallback(el, text) {
+        el.innerHTML = '<div class="av-empty">' + text + '</div>';
+      }
 
-        // 类型分布 - 环形图
-        overviewChartInstances.typeChart = new Chart(ctxType, {
+      function renderTypeChartWidget(el, ctx) {
+        var dist = (overviewCache && overviewCache.typeDist) || {};
+        if (typeof Chart === 'undefined') { chartFallback(el, '图表库加载中…'); return; }
+        var labels = { clip: '剪藏', knowledge: '知识', todo: '待办', 'learning-plan': '学习' };
+        var colors = { clip: '#2383e2', knowledge: '#f59e0b', todo: '#10b981', 'learning-plan': '#876de2' };
+        var types = Object.keys(labels).filter(function (t) { return t in dist; });
+        if (overviewChartInstances['chart-type']) { overviewChartInstances['chart-type'].destroy(); overviewChartInstances['chart-type'] = null; }
+        el.innerHTML = '';
+        if (!types.length) { chartFallback(el, '暂无数据'); return; }
+        var canvas = makeChartSlot(el);
+        overviewChartInstances['chart-type'] = new Chart(canvas, {
           type: 'doughnut',
           data: {
-            labels: labels,
-            datasets: [{ data: values, backgroundColor: colors, borderWidth: 0 }]
+            labels: types.map(function (t) { return labels[t]; }),
+            datasets: [{ data: types.map(function (t) { return dist[t]; }), backgroundColor: types.map(function (t) { return colors[t]; }), borderWidth: 0 }]
           },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { padding: 12, boxWidth: 12, font: { size: 11 } } } }
-          }
-        });
-
-        // 近期活跃趋势 - 折线图（按最近 7 天内容更新时间统计，真实数据）
-        var now = new Date();
-        var days = [];
-        var dayValues = [];
-        var dayKeys = [];
-        for (var i = 6; i >= 0; i--) {
-          var d = new Date(now);
-          d.setDate(d.getDate() - i);
-          dayKeys.push(d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate());
-          days.push((d.getMonth() + 1) + '/' + d.getDate());
-          dayValues.push(0);
-        }
-        (contents || []).forEach(function(c) {
-          var ts = c.updatedAt || c.createdAt;
-          if (!ts) return;
-          var dd = new Date(ts);
-          if (Number.isNaN(dd.getTime())) return;
-          var k = dd.getFullYear() + '-' + (dd.getMonth() + 1) + '-' + dd.getDate();
-          var idx = dayKeys.indexOf(k);
-          if (idx >= 0) dayValues[idx]++;
-        });
-        var hasTrendData = dayValues.some(function(v) { return v > 0; });
-        overviewChartInstances.trendChart = new Chart(ctxTrend, {
-          type: 'line',
-          data: {
-            labels: days,
-            datasets: [{ label: '活跃内容数', data: dayValues, borderColor: '#2383e2', backgroundColor: 'rgba(35,131,226,0.08)', fill: true, tension: 0.3, pointRadius: 3, pointBackgroundColor: '#2383e2' }]
-          },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false }, title: hasTrendData ? undefined : { display: true, text: '近 7 天无活跃记录', color: 'var(--ws-faint)', font: { size: 11 }, padding: { top: 50 } } },
-            scales: { y: { beginAtZero: true, ticks: { precision: 0, font: { size: 10 } } }, x: { ticks: { font: { size: 10 } } } }
-          }
-        });
-
-        // 工作台内容覆盖 - 柱状图（工作台类型分布，真实数据）
-        var wsTypes = Object.entries((workspaceSummary && workspaceSummary.types) || {});
-        var wsTypeLabels = { general: '通用', project: '项目', learning: '学习' };
-        var coverageLabels = wsTypes.map(function(e) { return wsTypeLabels[e[0]] || e[0]; });
-        var coverageValues = wsTypes.map(function(e) { return e[1]; });
-        var coverageColors = ['#2383e2', '#876de2', '#f59e0b', '#10b981', '#e74c3c'];
-        overviewChartInstances.coverageChart = new Chart(ctxCoverage, {
-          type: 'bar',
-          data: {
-            labels: coverageLabels,
-            datasets: [{ label: '工作台数量', data: coverageValues, backgroundColor: coverageColors, borderRadius: 4, borderSkipped: false }]
-          },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false }, title: coverageValues.length ? undefined : { display: true, text: '暂无工作台数据', color: 'var(--ws-faint)', font: { size: 11 }, padding: { top: 50 } } },
-            scales: { y: { beginAtZero: true, ticks: { precision: 0, font: { size: 10 } } }, x: { ticks: { font: { size: 10 } } } }
-          }
+          options: { responsive: true, maintainAspectRatio: false, cutout: '62%',
+            plugins: { legend: { position: 'bottom', labels: { padding: 10, boxWidth: 12, font: { size: 11 } } } } }
         });
       }
 
-      function renderRecentActivities(contents) {
-        var el = $('contentList');
-        if (!contents || !contents.length) {
-          el.innerHTML = '<div class="empty-state" style="padding:30px 20px;color:var(--ws-muted);text-align:center">近七天无活动数据</div>';
-          return;
+      function renderTrendChartWidget(el, ctx) {
+        var contents = (overviewCache && overviewCache.contents) || [];
+        if (typeof Chart === 'undefined') { chartFallback(el, '图表库加载中…'); return; }
+        if (overviewChartInstances['chart-trend']) { overviewChartInstances['chart-trend'].destroy(); overviewChartInstances['chart-trend'] = null; }
+        el.innerHTML = '';
+        var now = new Date(), days = [], dayValues = [], dayKeys = [];
+        for (var i = 6; i >= 0; i--) {
+          var d = new Date(now); d.setDate(d.getDate() - i);
+          dayKeys.push(d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate());
+          days.push((d.getMonth() + 1) + '/' + d.getDate()); dayValues.push(0);
         }
-        var sorted = contents.slice().sort(function(a, b) {
+        contents.forEach(function (c) {
+          var ts = c.updatedAt || c.createdAt; if (!ts) return;
+          var dd = new Date(ts); if (Number.isNaN(dd.getTime())) return;
+          var k = dd.getFullYear() + '-' + (dd.getMonth() + 1) + '-' + dd.getDate();
+          var idx = dayKeys.indexOf(k); if (idx >= 0) dayValues[idx]++;
+        });
+        var hasData = dayValues.some(function (v) { return v > 0; });
+        var canvas = makeChartSlot(el);
+        overviewChartInstances['chart-trend'] = new Chart(canvas, {
+          type: 'line',
+          data: { labels: days, datasets: [{ label: '活跃内容数', data: dayValues, borderColor: '#2383e2', backgroundColor: 'rgba(35,131,226,0.08)', fill: true, tension: 0.3, pointRadius: 3, pointBackgroundColor: '#2383e2' }] },
+          options: { responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, title: hasData ? undefined : { display: true, text: '近 7 天无活跃记录', color: 'var(--ws-faint)', font: { size: 11 }, padding: { top: 40 } } },
+            scales: { y: { beginAtZero: true, ticks: { precision: 0, font: { size: 10 } } }, x: { ticks: { font: { size: 10 } } } } }
+        });
+      }
+
+      function renderActivityWidget(el, ctx) {
+        var contents = (overviewCache && overviewCache.contents) || [];
+        if (!contents.length) { el.innerHTML = '<div class="av-empty">近七天无活动数据</div>'; return; }
+        var sorted = contents.slice().sort(function (a, b) {
           return (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || '');
         });
-        var items = sorted.slice(0, 8).map(function(c) {
-          var typeLabel = ({ clip: '剪藏', knowledge: '知识', todo: '待办', 'learning-plan': '学习' })[c.type] || c.type || '内容';
+        var html = '<div class="wb-activity">';
+        sorted.slice(0, 8).forEach(function (c) {
+          var typeLabel = LABELS[c.type] || '内容';
           var dotColor = ({ clip: '#2383e2', knowledge: '#f59e0b', todo: '#10b981', 'learning-plan': '#876de2' })[c.type] || '#888';
-          return '<div style="padding:12px 22px;border-bottom:1px solid var(--ws-border);display:flex;align-items:center;gap:10px">' +
-            '<span style="width:8px;height:8px;border-radius:50%;flex:none;background:' + dotColor + '"></span>' +
-            '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(c.title || '无标题') + ' — ' + typeLabel + '</span>' +
-            '<span style="flex:none;color:var(--ws-faint);font-size:11px;white-space:nowrap">' + escapeHtml(formatDateTime(c.updatedAt || c.createdAt)) + '</span></div>';
-        }).join('');
-        el.innerHTML = items;
+          html += '<div class="wb-activity-item"><span class="wb-activity-dot" style="background:' + dotColor + '"></span>' +
+            '<span class="wb-activity-title">' + esc(c.title || '无标题') + ' — ' + typeLabel + '</span>' +
+            '<span class="wb-activity-time">' + esc(formatDateTime(c.updatedAt || c.createdAt)) + '</span></div>';
+        });
+        html += '</div>';
+        el.innerHTML = html;
       }
 
-      var overviewChartInstances = {};
-      var overviewDetailChartInstance = null;
+      // 注册 overview 组件到组件面板
+      function registerOverviewWidgets() {
+        if (!window.WB) return;
+        window.WB.register({ id: 'anniversary', title: '纪念日提醒', defaultSize: { w: 2, h: 2 }, minSize: { w: 1, h: 1 }, render: renderAnniversaryWidget });
+        window.WB.register({ id: 'stat-cards', title: '数据概览', defaultSize: { w: 4, h: 1 }, minSize: { w: 2, h: 1 }, render: renderStatWidget });
+        window.WB.register({ id: 'chart-type', title: '内容类型分布', defaultSize: { w: 2, h: 2 }, minSize: { w: 1, h: 1 }, render: renderTypeChartWidget, destroy: destroyChartWidget });
+        window.WB.register({ id: 'chart-trend', title: '近期活跃趋势', defaultSize: { w: 2, h: 2 }, minSize: { w: 1, h: 1 }, render: renderTrendChartWidget, destroy: destroyChartWidget });
+        window.WB.register({ id: 'recent-activity', title: '最近活动', defaultSize: { w: 2, h: 2 }, minSize: { w: 1, h: 1 }, render: renderActivityWidget });
+        window.WB.mount($('overviewWidgets'), { cols: 4, rowH: 170 });
+      }
+      function destroyChartWidget(el) {
+        if (overviewChartInstances['chart-type']) { overviewChartInstances['chart-type'].destroy(); overviewChartInstances['chart-type'] = null; }
+        if (overviewChartInstances['chart-trend']) { overviewChartInstances['chart-trend'].destroy(); overviewChartInstances['chart-trend'] = null; }
+      }
+
+      // ── 编辑态 / 添加组件面板 ──
+      function openEditMode() {
+        var on = window.WB.isEditing();
+        window.WB.setEditMode(!on);
+        $('widgetEditBtn').classList.toggle('on', !on);
+        $('widgetEditBtnText').textContent = on ? '自定义' : '完成';
+        if (!on) openPalette(); else closePalette();
+      }
+      function openPalette() {
+        var list = $('widgetPaletteList');
+        var placed = window.WB.getWidgets().map(function (e) { return e.id; });
+        list.innerHTML = '';
+        var meta = {
+          'anniversary': ['纪念日提醒', '今天/临期/已过的纪念日一览'],
+          'stat-cards': ['数据概览', '剪藏、知识、待办等统计卡'],
+          'chart-type': ['内容类型分布', '各类型内容占比环形图'],
+          'chart-trend': ['近期活跃趋势', '近 7 天内容活跃折线图'],
+          'recent-activity': ['最近活动', '最近更新的内容列表']
+        };
+        window.WB.getRegistered().forEach(function (id) {
+          var m = meta[id] || [id, ''];
+          var used = placed.indexOf(id) >= 0;
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'wb-palette-item' + (used ? ' disabled' : '');
+          btn.disabled = used;
+          btn.innerHTML = '<span class="p-title">' + m[0] + '</span><span class="p-desc">' + m[1] + '</span>';
+          btn.addEventListener('click', function () { if (used) return; window.WB.addWidget(id); renderPalette(); });
+          list.appendChild(btn);
+        });
+        $('widgetPalette').classList.add('show');
+      }
+      function renderPalette() {
+        if ($('widgetPalette').classList.contains('show')) openPalette();
+      }
+      function closePalette() { $('widgetPalette').classList.remove('show'); }
 
       async function loadOverview() {
         const requestId = ++overviewRequestId;
         $('refreshButton').disabled = true;
-        renderOverviewDashboard(null);
         try {
           const r = await fetch('/api/workspace/overview', { headers: { Accept: 'application/json' } });
           if (!r.ok) throw new Error('请求失败（' + r.status + '）');
@@ -309,23 +357,21 @@
           const summary = data.workspaceSummary || {};
           var typeDist = summary.typeDistribution || {};
           var dashboardStats = { total: 0, clip: 0, knowledge: 0, todo: 0, 'learning-plan': 0 };
-          Object.keys(typeDist).forEach(function(t) { dashboardStats[t] = typeDist[t]; dashboardStats.total += typeDist[t]; });
+          Object.keys(typeDist).forEach(function (t) { dashboardStats[t] = typeDist[t]; dashboardStats.total += typeDist[t]; });
           if (!Object.keys(typeDist).length && data.contents) {
-            data.contents.forEach(function(c) {
+            data.contents.forEach(function (c) {
               var t = c.type;
               if (t in dashboardStats) dashboardStats[t]++;
               dashboardStats.total++;
             });
           }
-          renderOverviewDashboard(dashboardStats);
-          renderOverviewCharts(typeDist, data.contents || [], summary);
-          renderRecentActivities(data.contents || []);
+          overviewCache = { typeDist: typeDist, contents: data.contents || [], dashboardStats: dashboardStats, summary: summary };
+          if (window.WB) window.WB.refreshAll();
           CutShelterScroll.restore('workspace');
         } catch (e) {
           if (requestId !== overviewRequestId) return;
-          renderOverviewDashboard({ total: 0, clip: 0, knowledge: 0, todo: 0, 'learning-plan': 0 });
-          var listEl = $('contentList');
-          if (listEl) listEl.innerHTML = '<div class="error-message" style="margin:16px">加载失败：' + escapeHtml(e.message || '后端服务不可用') + '</div>';
+          overviewCache = { typeDist: {}, contents: [], dashboardStats: null, summary: {} };
+          if (window.WB) window.WB.refreshAll();
         } finally {
           if (requestId !== overviewRequestId) return;
           $('refreshButton').disabled = false;
@@ -3507,6 +3553,15 @@
 
       /* ── Init ── */
       (async function init() {
+        registerOverviewWidgets();
+        var widgetEditBtn = $('widgetEditBtn');
+        if (widgetEditBtn) widgetEditBtn.addEventListener('click', openEditMode);
+        var palette = $('widgetPalette');
+        var paletteClose = $('widgetPaletteClose');
+        if (paletteClose) paletteClose.addEventListener('click', closePalette);
+        if (palette) {
+          palette.addEventListener('click', function (e) { if (e.target === palette) closePalette(); });
+        }
         await loadWorkspaces();
         showView('overview');
       })();

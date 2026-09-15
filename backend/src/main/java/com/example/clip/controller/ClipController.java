@@ -5,6 +5,7 @@ import com.example.clip.core.AiService;
 import com.example.clip.core.ChatMessage;
 import com.example.clip.core.ChatStreamHandle;
 import com.example.clip.core.ChatStreamListener;
+import com.example.clip.dto.ClipDetectRequest;
 import com.example.clip.dto.ClipEditRequest;
 import com.example.clip.dto.ClipRequest;
 import com.example.clip.dto.ClipResponse;
@@ -17,6 +18,7 @@ import com.example.clip.model.Annotation;
 import com.example.clip.model.TodoContent;
 import com.example.clip.service.AppConfigService;
 import com.example.clip.service.ClipService;
+import com.example.clip.service.ClipMarkdownService;
 import com.example.clip.service.ContentOrganizeService;
 import com.example.clip.service.PromptConfigService;
 import com.example.clip.service.SearchService;
@@ -98,6 +100,9 @@ public class ClipController {
     private final AppConfigService appConfigService;
     @Autowired(required = false)
     private UserActionEventRecorder actionEventRecorder;
+    /** 单剪藏 Markdown 视图/导出服务（混合方案 B：JSON 权威存储，MD 为视图/导出产物） */
+    @Autowired
+    private ClipMarkdownService clipMarkdownService;
 
     /**
      * 构造函数，通过依赖注入初始化所有服务组件
@@ -145,6 +150,10 @@ public class ClipController {
         log.info("[API] /add called, type={}, useAiTags={}", request.getType(), request.getUseAiTags());
         // 去重：内容 + 来源 URL 一致时返回已有记录，避免重复剪藏
         ClipContent duplicate = clipService.findDuplicate(request);
+        // 写作区无 sourceUrl（双指纹永不命中），补充内容全等查重（编辑来源、≥50 字）
+        if (duplicate == null && "editor".equalsIgnoreCase(request.getSource())) {
+            duplicate = clipService.findDuplicateByContent(request.getContent());
+        }
         if (duplicate != null) {
             // 摘录留痕：同一段文字重复摘录但携带新标注时，把标注合并进已有条目，不新开剪藏
             if (request.getAnnotations() != null && !request.getAnnotations().isEmpty()) {
@@ -170,21 +179,15 @@ public class ClipController {
                 "tag", clip.getTags() == null || clip.getTags().isEmpty() ? "" : clip.getTags().get(0)));
         String savedType = clip.getType();
 
-        // "store-only" 类型仅存储，不处理标签逻辑
-        if (!"store-only".equals(savedType)) {
-            // 用户提供了手动标签：覆盖 AI 生成的标签
-            if (request.getTags() != null && !request.getTags().isEmpty()) {
-                clip.setTags(request.getTags());
-                clipService.saveClip(clip);
-            }
-            // 用户未提供手动标签且关闭了 AI 标签：清除 service 层可能生成的标签
-            else if (request.getUseAiTags() == null || !request.getUseAiTags()) {
-                // 注意：此处已在上层 else if 的上下文中，tags 必然为空，内层判断为冗余保护
-                if (request.getTags() == null || request.getTags().isEmpty()) {
-                    clip.setTags(new java.util.ArrayList<>());
-                    clipService.saveClip(clip);
-                }
-            }
+        // 用户提供了手动标签：覆盖 AI 生成的标签（store-only 类型同样生效——写作区智能剪藏携带解析标签）
+        if (request.getTags() != null && !request.getTags().isEmpty()) {
+            clip.setTags(request.getTags());
+            clipService.saveClip(clip);
+        }
+        // "store-only" 仅存储不做清除逻辑；其余类型用户未提供标签且关闭 AI 标签时清除 service 层标签
+        else if (!"store-only".equals(savedType) && (request.getUseAiTags() == null || !request.getUseAiTags())) {
+            clip.setTags(new java.util.ArrayList<>());
+            clipService.saveClip(clip);
         }
 
         // 如果请求中携带了 workspaceId，自动创建成员关系关联到工作台
@@ -214,6 +217,25 @@ public class ClipController {
         clipService.triggerAsyncAnalysis(clip);
 
         return ResponseEntity.ok(new ClipResponse(clip.getId(), "success"));
+    }
+
+    /**
+     * 智能剪藏结构化检测
+     * <p>
+     * POST /api/clip/detect-structured
+     * <p>
+     * 写作区「智能剪藏」自动识别入口：正则优先命中结构化章节
+     * （## 原文/摘要/分析/标签 等，零 AI 消耗），不命中时 LLM 轻量抽取
+     * title/summary/tags 兜底；都不成功返回 detected=false。
+     * 仅检测不落库；命中时附带 mdPreview（MD 视图预览，含 YAML frontmatter，
+     * 与导出知识库的产物形态对齐）。
+     *
+     * @param request 待检测文本
+     * @return detected/method/内容字段/mdPreview
+     */
+    @PostMapping("/detect-structured")
+    public ResponseEntity<?> detectStructured(@RequestBody ClipDetectRequest request) {
+        return ResponseEntity.ok(clipService.detectStructured(request.getContent()));
     }
 
     /**
@@ -394,6 +416,43 @@ public class ClipController {
     public ResponseEntity<ClipContent> getClipById(@PathVariable(name = "id") Long id) {
         ClipContent clip = clipService.getClipById(id);
         return clip == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(clip);
+    }
+
+    /**
+     * 单剪藏 Markdown 导出（双模式，混合方案 B：MD 作为视图/导出产物）
+     * <ul>
+     *   <li>默认：仅返回 MD 字符串（{@code markdown} 字段），供预览/复制；</li>
+     *   <li>{@code save=true}：同时落盘到知识库 clips 目录，返回相对路径（{@code path}）。</li>
+     * </ul>
+     * 生成逻辑见 {@link ClipMarkdownService#buildMarkdown(ClipContent)}，
+     * frontmatter 对齐智能剪藏预览形态；不修改 workflowStatus 与 JSON 存储。
+     */
+    @GetMapping("/{id}/export-markdown")
+    public ResponseEntity<?> exportMarkdown(@PathVariable(name = "id") Long id,
+                                            @RequestParam(name = "save", defaultValue = "false") boolean save) {
+        ClipContent clip = clipService.getClipById(id);
+        if (clip == null) {
+            return ResponseEntity.notFound().build();
+        }
+        try {
+            String markdown = clipMarkdownService.buildMarkdown(clip);
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("id", clip.getId());
+            result.put("markdown", markdown);
+            result.put("saved", false);
+            result.put("path", null);
+            if (save) {
+                String relativePath = clipMarkdownService.exportToVault(clip, markdown);
+                result.put("saved", true);
+                result.put("path", relativePath);
+            }
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("[API] export markdown failed, clipId={}", id, e);
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("error", "导出失败: " + e.getMessage());
+            return ResponseEntity.status(500).body(error);
+        }
     }
 
     /**
