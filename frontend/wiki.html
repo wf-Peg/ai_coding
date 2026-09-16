@@ -418,6 +418,16 @@
             margin: 10px 0;
         }
 
+        /* Info / pending message */
+        .info-msg {
+            padding: 10px 14px;
+            background: var(--primary-light);
+            color: var(--primary);
+            border-radius: 8px;
+            font-size: 0.88rem;
+            margin: 10px 0;
+        }
+
         /* Section divider */
         .section-divider {
             height: 1px;
@@ -829,6 +839,24 @@
             el.innerHTML = '<div class="success-msg">' + escapeHtml(msg) + '</div>';
         }
 
+        function showInfo(containerId, msg) {
+            const el = document.getElementById(containerId);
+            if (!el) return;
+            el.innerHTML = '<div class="info-msg">' + escapeHtml(msg) + '</div>';
+        }
+
+        // ============== 入库任务轮询 ==============
+        // 异步入库的通用轮询：每 2s 查询一次 job 状态，完成后返回 job 视图。
+        async function pollIngestJob(jobId) {
+            const deadline = Date.now() + 10 * 60 * 1000; // 最多轮询 10 分钟
+            while (Date.now() < deadline) {
+                await new Promise(r => setTimeout(r, 2000));
+                const job = await fetchJson(API_BASE + '/api/wiki/ingest/jobs/' + encodeURIComponent(jobId));
+                if (job.status === 'completed' || job.status === 'failed') return job;
+            }
+            throw new Error('入库仍在后台处理中，可稍后在结果区点击刷新查看');
+        }
+
         async function fetchJson(url, options) {
             const resp = await fetch(url, options);
             if (!resp.ok) {
@@ -1150,9 +1178,16 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ content: content, url: url, title: title })
                 });
-                if (data.status === 'success') {
-                    showSuccess('quickIngestResult', '入库完成：' + (data.message || '') 
-                        + (data.dedupSkipped > 0 ? '（命中增量编译，已跳过 AI 重编 ' + data.dedupSkipped + ' 条）' : ''));
+                if (data.status === 'queued' && data.jobId) {
+                    showInfo('quickIngestResult', '已受理，后台处理中…');
+                    const job = await pollIngestJob(data.jobId);
+                    if (job.status === 'completed' && job.stats) {
+                        const s = job.stats;
+                        showSuccess('quickIngestResult', '入库完成：' + (s.message || '')
+                            + (s.dedupSkipped > 0 ? '（命中增量编译，已跳过 AI 重编 ' + s.dedupSkipped + ' 条）' : ''));
+                    } else {
+                        showError('quickIngestResult', job.error || (job.stats && job.stats.message) || '入库失败');
+                    }
                     // 刷新队列/索引页
                     refreshQueue();
                     if (document.getElementById('tab-index').classList.contains('active')) { refreshIndex(); refreshPages(); }
@@ -1241,8 +1276,20 @@
             triggerIngestBtn.disabled = true;
             try {
                 const data = await fetchJson(API_BASE + '/api/wiki/ingest/trigger', { method: 'POST' });
-                renderIngestResult(data);
-                await refreshQueue();
+                if (data.status === 'queued' && data.jobId) {
+                    document.getElementById('ingestResultCard').style.display = 'block';
+                    showInfo('ingestStats', '已受理 ' + (data.queueSize || 0) + ' 个文件，后台处理中…');
+                    const job = await pollIngestJob(data.jobId);
+                    if (job.status === 'completed' && job.stats) {
+                        renderIngestResult(job.stats);
+                    } else {
+                        showError('ingestStats', job.error || (job.stats && job.stats.message) || '入库失败');
+                    }
+                    await refreshQueue();
+                } else {
+                    document.getElementById('ingestResultCard').style.display = 'block';
+                    showError('ingestStats', data.message || '摄入失败');
+                }
             } catch (e) {
                 document.getElementById('ingestResultCard').style.display = 'block';
                 showError('ingestStats', '摄入失败: ' + e.message);
