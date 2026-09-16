@@ -549,8 +549,9 @@
         <div><h2 id="smartClipFallbackTitle">未检测到剪藏所需落地字段</h2></div>
         <button class="icon-close" data-close-modal="smartClipFallbackModal" aria-label="关闭">×</button>
       </div>
-      <div class="modal-note">当前内容不是结构化格式，AI 也未提取到摘要/标签等落地字段。仍可按原文存入收件箱，稍后手动整理。</div>
+      <div class="modal-note">当前内容不是结构化格式，AI 也未提取到摘要/标签等落地字段。可复制识别提示词到任意大模型生成结构化 JSON，将答案贴回本编辑器后再点智能剪藏；或仍按原文存入收件箱，稍后手动整理。</div>
       <div class="panel-actions">
+        <button class="tool-btn" id="smartClipCopyPromptBtn" title="复制「识别提示词 + 当前原文」，粘贴到任意大模型生成结构化 JSON，把答案贴回本编辑器后再点智能剪藏">复制识别提示词</button>
         <button class="tool-btn" data-close-modal="smartClipFallbackModal">取消</button>
         <button class="tool-btn primary" id="smartClipFallbackSaveBtn">仍按原文存入收件箱</button>
       </div>

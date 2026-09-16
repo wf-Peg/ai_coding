@@ -90,7 +90,7 @@
     'clipThoughtsInput', 'includeFileNameCheck', 'submitClipBtn', 'browserFileInput', 'toast',
     'clipCaretBtn', 'clipMenu', 'smartClipMenuItem', 'detailClipMenuItem',
     'smartClipConfirmModal', 'smartClipMethodHint', 'smartClipPreview', 'smartClipAsyncHint', 'smartClipSaveBtn',
-    'smartClipFallbackModal', 'smartClipFallbackSaveBtn',
+    'smartClipFallbackModal', 'smartClipFallbackSaveBtn', 'smartClipCopyPromptBtn',
     'statusLang', 'statusTabSize', 'docStats', 'zoomStatus', 'settingsModal', 'fontSizeSlider', 'fontSizeLabel', 'tabSizeSelect',
     'fullscreenBtn', 'fileTreePane', 'fileTreeTitle', 'fileTreeBody', 'closeFileTreeBtn', 'selectDirBtn',
     'autosaveStatus', 'historyCount', 'historyList', 'closeHistoryBtn',
@@ -335,6 +335,40 @@
         showToast('字体大小: ' + next + 'px');
       }, 600);
     }, { passive: false });
+  })();
+
+  // ════════════════════════════════════════════
+  // 预览区滚轮缩放（Ctrl + 滚轮整块内容等比缩放，独立于编辑区字号缩放）
+  // ════════════════════════════════════════════
+  (function enableMdWheelZoom() {
+    if (!elements.markdownBody) return;
+    const MD_ZOOM_KEY = 'md_preview_zoom_v1';
+    const MIN_Z = 0.5, MAX_Z = 2.5, STEP = 0.1;
+    let mdZoom = 1;
+    try { mdZoom = parseFloat(localStorage.getItem(MD_ZOOM_KEY)) || 1; } catch (e) {}
+    mdZoom = Math.max(MIN_Z, Math.min(MAX_Z, mdZoom));
+
+    function applyMdZoom(persist) {
+      elements.markdownBody.style.zoom = String(mdZoom);
+      if (persist) { try { localStorage.setItem(MD_ZOOM_KEY, String(mdZoom)); } catch (e) {} }
+    }
+    applyMdZoom(false);
+
+    let zoomToastTimer = null;
+    function onMdWheel(e) {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const next = Math.max(MIN_Z, Math.min(MAX_Z, mdZoom + (e.deltaY > 0 ? -STEP : STEP)));
+      if (next === mdZoom) return;
+      mdZoom = next;
+      applyMdZoom(true);
+      clearTimeout(zoomToastTimer);
+      zoomToastTimer = setTimeout(() => {
+        showToast('预览缩放: ' + Math.round(mdZoom * 100) + '%');
+      }, 300);
+    }
+    elements.markdownBody.addEventListener('wheel', onMdWheel, { passive: false });
   })();
 
   // ════════════════════════════════════════════
@@ -1968,6 +2002,8 @@
       if (window.MediaKit.render.renderMermaid) {
         window.MediaKit.render.renderMermaid(elements.markdownBody);
       }
+      // Obsidian 风：预览中的待办复选框可直接点击切换 - [ ] / - [x]
+      enablePreviewCheckboxes();
     } catch (error) {
       elements.markdownBody.innerHTML = '<p style="color:var(--app-danger);">渲染失败：' + error.message + '</p>';
     }
@@ -1975,24 +2011,156 @@
     if (featureOn('previewScrollFollow') && mdFollowEnabled) requestAnimationFrame(syncMarkdownPreviewScroll);
   }
 
-  // ── B1：Markdown 预览滚动跟随（编辑区滚动 → 预览按比例同步）──
-  var mdFollowEnabled = true;
-  function syncMarkdownPreviewScroll() {
-    if (!featureOn('previewScrollFollow')) return;
-    if (!mdFollowEnabled || elements.markdownPane.hidden) return;
-    if (isComposing()) return;
-    var body = elements.markdownBody;
+  // ── 点击预览定位到源码行：从渲染 DOM 反推源文档行号 ──
+  // 以 markdown-body 的顶层块顺序近似对应源文档的非空行顺序；若点是列表项，
+  // 用它在全文档 li 中的顺序索引，落到对应该任务项的源码行（更精准）。
+  function previewClickToSourceRow(el) {
+    const body = elements.markdownBody;
+    if (!body) return null;
+    const lines = mainEditor.getValue().split('\n');
+    const nonEmpty = [];
+    for (let i = 0; i < lines.length; i++) if (lines[i].trim() !== '') nonEmpty.push(i);
+    if (!nonEmpty.length) return null;
+
+    // 点击元素所在顶层块（在 markdown-body 直属子节点里的下标）
+    let cur = el;
+    while (cur && cur.parentNode !== body) cur = cur.parentNode;
+    if (!cur || !cur.parentNode) return null;
+    const blocks = [].slice.call(body.children);
+    const bi = blocks.indexOf(cur);
+    if (bi < 0) return null;
+    let row = nonEmpty[Math.min(bi, nonEmpty.length - 1)];
+
+    // 列表项细化：点击落在 li 上时，用该 li 在全文档 li 中的顺序索引，
+    // 映射到源文档第 idx 个任务行（- [ ] / - [x]），比对顶部块定位更准。
+    const li = el.closest ? el.closest('li') : null;
+    if (li) {
+      const allLi = [].slice.call(body.querySelectorAll('li'));
+      const liIdx = allLi.indexOf(li);
+      if (liIdx >= 0) {
+        const taskRows = [];
+        for (let i = 0; i < lines.length; i++) {
+          if (/^[ \t]*[-*+]\s+\[[ xX]\]/.test(lines[i])) taskRows.push(i);
+        }
+        if (liIdx < taskRows.length) row = taskRows[liIdx];
+        else row = nonEmpty[Math.min(liIdx, nonEmpty.length - 1)];
+      }
+    }
+    return row;
+  }
+
+  // ── Obsidian 风：预览中待办复选框点击切换（- [ ] ↔ - [x]）+ 点击文本定位源码 ──
+  // 本 marked 版把 GFM 任务列表渲染为 <li><input type="checkbox">（li 不带 task-list-item 类），
+  // 故用 li > input 定位；去掉 disabled 使其可交互，并通过
+  // 「预览内复选框顺序索引 ↔ 源文档任务行顺序索引」一一对应，点击后回写主编辑器对应行并重渲染。
+  let mdTaskToggleReady = false;
+  let mdClickEditReady = false;
+  function enablePreviewCheckboxes() {
+    const body = elements.markdownBody;
     if (!body) return;
-    // 用可见行区间估算滚动比例（兼容 wrap，无需内部最大滚动值）
+    body.querySelectorAll('li > input[type="checkbox"]').forEach((cb) => {
+      cb.disabled = false;
+      const li = cb.parentElement;
+      if (!li) return;
+      // 直接内联去掉圆点（优先级最高、必生效），并补类兜底，规避任何 CSS 覆盖/加载顺序问题
+      li.classList.add('md-task-item');
+      li.style.listStyle = 'none';
+      li.style.listStyleImage = 'none';
+    });
+    if (mdTaskToggleReady) return;
+    mdTaskToggleReady = true;
+    body.addEventListener('change', function (e) {
+      const cb = e.target;
+      if (!cb || cb.tagName !== 'INPUT' || cb.type !== 'checkbox') return;
+      // 该复选框在整份预览任务列表中的顺序索引
+      const cbs = body.querySelectorAll('li > input[type="checkbox"]');
+      let idx = -1;
+      for (let i = 0; i < cbs.length; i++) {
+        if (cbs[i] === cb) { idx = i; break; }
+      }
+      if (idx < 0) return;
+      const lines = mainEditor.getValue().split('\n');
+      const taskRows = [];
+      for (let i = 0; i < lines.length; i++) {
+        if (/^[ \t]*[-*+]\s+\[[ xX]\]/.test(lines[i])) taskRows.push(i);
+      }
+      const row = taskRows[idx];
+      if (row === undefined) return;
+      const checked = cb.checked ? 'x' : ' ';
+      const newLine = lines[row].replace(/^([ \t]*[-*+]\s+)\[[ xX]\]/, (m, p) => p + '[' + checked + ']');
+      if (newLine === lines[row]) return;
+      mainEditor.session.replace(new Range(row, 0, row, lines[row].length), newLine);
+      mainEditor.clearSelection();
+    });
+
+    // 点击预览文本 → 定位到左侧源码对应行并聚焦编辑（跳过分发类交互目标）
+    if (mdClickEditReady) return;
+    mdClickEditReady = true;
+    body.addEventListener('click', function (e) {
+      const t = e.target;
+      // 跳过复选框、链接、按钮、wikilink、Mermaid SVG 等自带交互的元素，避免抢走其行为
+      if (!t || (t.closest && t.closest('input, button, a, select, textarea, .wikilink, svg, code'))) return;
+      const row = previewClickToSourceRow(t);
+      if (row === undefined || row === null) return;
+      mainEditor.gotoLine(row + 1, 0, false); // gotoLine 行号为 1 基
+      mainEditor.focus();
+    });
+  }
+
+  // ── B1：Markdown 预览滚动跟随（编辑区↔预览 双向按比例互同步）──
+  var mdFollowEnabled = true;
+  // 滚动同步锁计数：任一方向程序化滚动期间抑制反向回调，避免互相触发抖动/死循环。
+  // 用「两个 rAF 帧」持锁，覆盖异步派发的原生 scroll 事件，防止 A->B->A 回环。
+  var mdFollowLock = 0;
+  function lockMdFollow() {
+    mdFollowLock += 1;
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { mdFollowLock -= 1; });
+    });
+  }
+  function isMdFollowLocked() { return mdFollowLock > 0; }
+
+  // 用可见行区间估算编辑区当前滚动比例（兼容 wrap，无需内部最大滚动值）
+  function mdRatioFromEditor() {
     var first = mainEditor.session.getFirstVisibleRow();
     var last = mainEditor.session.getLastVisibleRow();
     var total = mainEditor.session.getLength();
-    if (!total) return;
-    var ratio = (first + (last - first) / 2) / total;
+    if (!total) return null;
+    return (first + (last - first) / 2) / total;
+  }
+
+  // 编辑区滚动 → 预览按比例同步
+  function syncMarkdownPreviewScroll() {
+    if (!featureOn('previewScrollFollow')) return;
+    if (!mdFollowEnabled || elements.markdownPane.hidden) return;
+    if (isComposing() || isMdFollowLocked()) return;
+    var body = elements.markdownBody;
+    if (!body) return;
+    var ratio = mdRatioFromEditor();
+    if (ratio == null) return;
     var maxBody = body.scrollHeight - body.clientHeight;
     if (maxBody <= 0) return;
+    lockMdFollow();
     body.scrollTop = Math.min(maxBody, ratio * maxBody);
   }
+
+  // 预览滚动 → 编辑区按比例同步（双向）
+  function syncEditorFromPreview() {
+    if (!featureOn('previewScrollFollow')) return;
+    if (!mdFollowEnabled || elements.markdownPane.hidden) return;
+    if (isComposing() || isMdFollowLocked()) return;
+    var body = elements.markdownBody;
+    if (!body) return;
+    var maxBody = body.scrollHeight - body.clientHeight;
+    if (maxBody <= 0) return;
+    var ratio = body.scrollTop / maxBody;
+    var total = mainEditor.session.getLength();
+    if (!total) return;
+    lockMdFollow();
+    // 预览占比 → 目标行号定位（居中对齐、不带动画，避免滞后）
+    mainEditor.scrollToLine(Math.max(0, Math.round(ratio * (total - 1))), true, false);
+  }
+
   function toggleMdFollow() {
     mdFollowEnabled = !mdFollowEnabled;
     if (elements.mdFollowBtn) {
@@ -2001,7 +2169,18 @@
     }
     if (mdFollowEnabled) syncMarkdownPreviewScroll();
   }
+
+  // 编辑区滚动源有两处，需都接上：
+  // 1) session 的 changeScrollTop：只有 PageUp/Down、Ctrl+方向等走 session 的滚动才触发。
+  // 2) 编辑器竖向滚动条元素（.ace_scrollbar-v）的原生 scroll：鼠标滚轮/触控板由
+  //    renderer 更新该元素 scrollTop 并派发原生 scroll 事件，是滚轮跟随缺失的根因。
   mainEditor.session.on('changeScrollTop', syncMarkdownPreviewScroll);
+  (function bindMdEditorScrollSource() {
+    var vbar = mainEditor.container.querySelector('.ace_scrollbar-v');
+    var el = vbar || (mainEditor.renderer && mainEditor.renderer.$vScrollBar && mainEditor.renderer.$vScrollBar.element);
+    if (el) el.addEventListener('scroll', syncMarkdownPreviewScroll, { passive: true });
+  })();
+  if (elements.markdownBody) elements.markdownBody.addEventListener('scroll', syncEditorFromPreview, { passive: true });
   if (elements.mdFollowBtn) elements.mdFollowBtn.addEventListener('click', toggleMdFollow);
 
   // ── C4：抽屉面板入场动效统一（打开时内容淡入轻滑，与悬浮层过渡风格一致）──
@@ -4355,8 +4534,8 @@
       if (!response.ok) throw new Error(await response.text() || `HTTP ${response.status}`);
       const detection = await response.json();
       if (detection && detection.detected) {
-        if (detection.method === 'regex') {
-          // 正则命中：分层免确认，直接入库
+        if (detection.method === 'regex' || detection.method === 'json') {
+          // 正则/JSON 命中：分层免确认，直接入库（JSON 为用户粘贴的结构化答案，字段明确）
           await saveSmartClip(detection);
         } else {
           openSmartClipConfirm(detection);
@@ -4371,6 +4550,58 @@
     } finally {
       btn.disabled = false;
       btn.textContent = '⚡ 智能剪藏';
+    }
+  }
+
+  // 智能识别精简提示词：与后端 AiService.extractClipTriad 对齐（含 few-shot 范例）
+  const SMART_CLIP_EXTRACT_PROMPT = `# Role
+你是剪藏内容的结构化提取助手，仅负责把输入内容转换为剪藏落地字段。
+
+# Task
+从输入内容中提取 3 个字段，以 JSON 返回：
+- title：标题，≤30 字；无明确标题时按内容主旨概括
+- summary：一句话摘要，≤100 字，主动概括核心信息，严禁复制原文
+- tags：关键词数组，3-6 个，精准且不重复
+
+# Rules
+1. 只返回 JSON 对象，禁止 markdown 代码块标记与任何额外文字
+2. 无法确定的字段返回 null
+3. tags 必须是字符串数组
+4. summary 必须主动概括，禁止逐句复述原文
+
+# Example
+输入：
+熊掌记团队发布了新的 macOS 编辑器 Lettera 公测版。它支持所见即所得 Markdown 写作、以文件夹为工作区、导出 PDF/ePub 等格式，目前通过 TestFlight 分发，暂不支持中文。
+
+输出：
+{"title":"Lettera：macOS 原生轻量级 Markdown 编辑器开启公测","summary":"熊掌记团队发布 macOS 原生轻量级 Markdown 编辑器 Lettera，支持所见即所得写作、文件夹工作区与多格式导出，公测期暂不支持中文。","tags":["Lettera","Markdown编辑器","macOS","写作工具","公测"]}`;
+
+  async function copySmartClipPrompt() {
+    const context = buildClipContext();
+    const content = context.content.trim();
+    if (!content) {
+      showToast('没有可复制的内容', true);
+      return;
+    }
+    // 打包「提示词 + 原文」，用户粘贴到任意大模型即可直接使用，无需手动拼接
+    const text = `${SMART_CLIP_EXTRACT_PROMPT}\n\n# Input\n${content}\n\n请仅输出 JSON 对象。`;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // 降级：旧渲染环境使用 document.execCommand 复制
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+      }
+      showToast('识别提示词与原文已复制，粘贴到任意大模型生成 JSON 后贴回本编辑器');
+    } catch (error) {
+      handleError('复制提示词失败', error);
     }
   }
 
@@ -5604,6 +5835,7 @@
   elements.detailClipMenuItem.addEventListener('click', () => { closeClipMenu(); openClipModal(); });
   elements.smartClipSaveBtn.addEventListener('click', () => { if (smartClipPending) saveSmartClip(smartClipPending); });
   elements.smartClipFallbackSaveBtn.addEventListener('click', saveSmartClipFallback);
+  elements.smartClipCopyPromptBtn.addEventListener('click', copySmartClipPrompt);
   document.addEventListener('click', (event) => {
     if (!event.target.closest('.clip-split')) closeClipMenu();
   });

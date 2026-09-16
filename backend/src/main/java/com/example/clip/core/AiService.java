@@ -1589,18 +1589,27 @@ public class AiService {
             if (input.length() > MAX_INPUT_CHARS) {
                 input = input.substring(0, MAX_INPUT_CHARS);
             }
-            String systemPrompt = "你是一个剪藏字段提取助手。请从用户给出的文本中提取剪藏所需的最小字段，以 JSON 返回。\n" +
+            String systemPrompt = "# Role\n" +
+                "你是剪藏内容的结构化提取助手，仅负责把输入内容转换为剪藏落地字段。\n" +
                 "\n" +
-                "需要提取的字段：\n" +
-                "- title（标题，≤30字；无明确标题时概括内容主旨）\n" +
-                "- summary（一句话摘要，≤100字）\n" +
-                "- tags（字符串数组，3-6 个关键词）\n" +
+                "# Task\n" +
+                "从输入内容中提取 3 个字段，以 JSON 返回：\n" +
+                "- title：标题，≤30 字；无明确标题时按内容主旨概括\n" +
+                "- summary：一句话摘要，≤100 字，主动概括核心信息，严禁复制原文\n" +
+                "- tags：关键词数组，3-6 个，精准且不重复\n" +
                 "\n" +
-                "规则：\n" +
-                "1. 只返回 JSON 对象，不要包含 markdown 代码块标记，不要返回文本原文（content）\n" +
-                "2. 无法确定的字段用 null\n" +
+                "# Rules\n" +
+                "1. 只返回 JSON 对象，禁止 markdown 代码块标记与任何额外文字\n" +
+                "2. 无法确定的字段返回 null\n" +
                 "3. tags 必须是字符串数组\n" +
-                "4. 不要添加任何额外解释";
+                "4. summary 必须主动概括，禁止逐句复述原文\n" +
+                "\n" +
+                "# Example\n" +
+                "输入：\n" +
+                "熊掌记团队发布了新的 macOS 编辑器 Lettera 公测版。它支持所见即所得 Markdown 写作、以文件夹为工作区、导出 PDF/ePub 等格式，目前通过 TestFlight 分发，暂不支持中文。\n" +
+                "\n" +
+                "输出：\n" +
+                "{\"title\":\"Lettera：macOS 原生轻量级 Markdown 编辑器开启公测\",\"summary\":\"熊掌记团队发布 macOS 原生轻量级 Markdown 编辑器 Lettera，支持所见即所得写作、文件夹工作区与多格式导出，公测期暂不支持中文。\",\"tags\":[\"Lettera\",\"Markdown编辑器\",\"macOS\",\"写作工具\",\"公测\"]}";
 
             String response = llmProvider.chatForTier(systemPrompt, input, "simple");
             if (response == null) return null;

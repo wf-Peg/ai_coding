@@ -110,19 +110,34 @@
         }
     }
 
-    /** 将存储的 media 相对路径图片加载为 dataUrl（供已保存剪藏的 OCR 复用；当前会话图直接传 dataUrl） */
+    /** 将图片源转换为 dataUrl（供 OCR 复用）。支持：真 data URL / blob: URL / media 相对路径 */
     async function loadImageDataUrl(relPath) {
         if (!relPath) return null;
+        // data URL 已可直接交给主进程解析，直通返回
         if (relPath.indexOf('data:') === 0) return relPath;
+        // blob: URL 仅在渲染进程内可读，需转换为 data URL 后再给主进程（nativeImage 不认 blob: 协议）
+        if (relPath.indexOf('blob:') === 0) {
+            return await blobToDataUrl(relPath);
+        }
         const url = window.MediaKit.render.mediaUrl(relPath);
         const resp = await fetch(url);
         if (!resp.ok) throw new Error('图片加载失败（HTTP ' + resp.status + '）');
         const blob = await resp.blob();
-        return await new Promise(function (resolve, reject) {
-            const reader = new FileReader();
-            reader.onload = function () { resolve(reader.result); };
-            reader.onerror = function () { reject(new Error('图片读取失败')); };
-            reader.readAsDataURL(blob);
+        return await blobToDataUrl('', blob);
+    }
+
+    /** 将 Blob（或 blob: URL）读取为 data URL */
+    function blobToDataUrl(blobUrl, blob) {
+        return new Promise(async function (resolve, reject) {
+            try {
+                const b = blob || await (await fetch(blobUrl)).blob();
+                const reader = new FileReader();
+                reader.onload = function () { resolve(reader.result); };
+                reader.onerror = function () { reject(new Error('图片读取失败')); };
+                reader.readAsDataURL(b);
+            } catch (e) {
+                reject(new Error('图片读取失败：' + (e && e.message ? e.message : e)));
+            }
         });
     }
 
@@ -130,16 +145,29 @@
     async function recognizeImage(dataUrl) {
         const api = window.electronAPI;
         if (!api || typeof api.ocrRecognize !== 'function') { showToast('OCR 仅桌面客户端可用'); return ''; }
+        // 预检：引擎/模型是否就绪，未就绪时给出可操作的引导提示
         if (typeof api.ocrStatus === 'function') {
             const st = await api.ocrStatus();
-            if (st && st.available === false) { showToast('OCR 不可用：' + (st.reason || '模型未就绪')); return ''; }
+            if (st && st.available === false) {
+                const clue = (st.reason || '').indexOf('模型缺失') >= 0
+                    ? '，可前往 工具→截图工具 一键安装' : '';
+                showToast('OCR 不可用：' + (st.reason || '模型未就绪') + clue);
+                return '';
+            }
         }
         showToast('OCR 识别中…');
         const res = await api.ocrRecognize(dataUrl);
         if (res.status === 'success' && res.text) {
+            console.log('[OCR] 本次识别 ' + res.text.trim().length + ' 字');
             return res.text.trim();
         }
-        showToast('OCR 失败：' + (res.message || '未识别到文字'));
+        if (res.status === 'error' && (res.message || '').indexOf('无图片数据') >= 0) {
+            console.warn('[OCR] 输入图片数据为空', dataUrl ? dataUrl.slice(0, 24) : 'none');
+            showToast('OCR 失败：未获取到有效图片数据');
+            return '';
+        }
+        console.warn('[OCR] 识别未产出文本或失败：', (res && res.message) || '空结果');
+        showToast('OCR 失败：' + (res.message || '未识别到文字（可能图片无文本或过模糊）'));
         return '';
     }
 
@@ -159,10 +187,17 @@
 
     /** 插图 OCR：对已上传的图片离线识别文字，结果填入内容（复用通用离线 OCR，独立于截图工具） */
     async function runImageOcr() {
-        const img = uploadedImages.find(i => i.path || i.dataUrl);
-        if (!img) { showToast('请先上传图片再执行 OCR'); return; }
+        // 优先取已上传完成（有 path）的图片，上传中（compressing/uploading）不可 OCR
+        const doneImg = uploadedImages.find(i => i.status === 'done' && i.path);
+        const anyImg = uploadedImages.find(i => i.path || i.dataUrl);
+        if (!anyImg) { showToast('请先上传图片再执行 OCR'); return; }
+        if (!doneImg) { showToast('请等待图片上传完成后重试'); return; }
+        const img = doneImg;
         try {
-            const dataUrl = img.dataUrl || (await loadImageDataUrl(img.path));
+            // 用已落库的相对路径生成 dataURL（走媒体接口），稳定且可被主进程解析；dataUrl 仅作兜底
+            const dataUrl = await loadImageDataUrl(img.path);
+            if (!dataUrl) { showToast('OCR 失败：图片数据加载失败'); return; }
+            console.log('[OCR] 源类型=' + (img.path ? 'path' : 'blob') + ' 长度=' + dataUrl.length);
             const text = await recognizeImage(dataUrl);
             if (!text) return;
             // OCR 识别文字后再请求 AI 总结，形成「识别原文 + AI 总结」的完整记录（对标 NoteGen 截图→文字→总结）

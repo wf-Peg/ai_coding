@@ -563,13 +563,13 @@ select {
 }
 
 .editor-workspace.markdown-preview {
-  /* 抽屉式预览：编辑区保持原列宽不动（不再改 grid-template-columns），
-     右侧预览以绝对定位抽屉浮层载入，避免两个画面一起重排/刷新 */
+  /* 平铺预览：编辑区居左、md 渲染区居右各占约一半；
+     relative 作为分隔条（absolute）与全屏悬浮层的定位锚点 */
   position: relative;
 }
 
-/* MD 预览抽屉的拖拽把手：默认隐藏；抽屉（非全屏）时定位在抽屉左边缘用于调整宽度。
-   兜底：JS 把抽屉宽 clamp 到 [230px, 容器宽-230px]，编辑区最窄也保留 230px。 */
+/* MD 预览分隔条：默认隐藏；预览（非全屏）时定位在编辑区/预览分界处用于调整宽度。
+   兜底：JS 把预览宽 clamp 到 [230px, 容器宽-230px]，编辑区最窄也保留 230px。 */
 .editor-workspace > .md-split-resizer {
   display: none;
   cursor: col-resize;
@@ -582,7 +582,7 @@ select {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: calc(100% - var(--md-drawer-width, 58%));
+  left: calc(100% - var(--md-drawer-width, 50%));
   width: 6px;
   z-index: 13;
 }
@@ -648,13 +648,14 @@ select {
 .editor-workspace.markdown-preview:not(.markdown-fullscreen) > .tags-pane {
   display: none !important;
 }
+/* 对比模式：编辑区占左列 */
 .editor-workspace.comparing > .main-pane {
   grid-column: 1;
   grid-row: 1;
 }
-/* 抽屉式预览：编辑区保持第 2 列（1fr 全宽）原位不动，预览浮层覆盖其上 */
-.editor-workspace.markdown-preview > .main-pane {
-  grid-column: 2;
+/* 平铺预览：编辑区移到左列，右侧让给 md 渲染区 */
+.editor-workspace.markdown-preview:not(.markdown-fullscreen) > .main-pane {
+  grid-column: 1;
   grid-row: 1;
 }
 
@@ -669,46 +670,41 @@ select {
   background: var(--app-surface);
   overflow: hidden;
 }
-/* 抽屉式预览：绝对定位覆盖编辑区右侧。不改网格列宽 → 编辑区保持原尺寸不重排，
-   从根本上消除“两个画面先后刷新”的视觉跳动 */
-.editor-workspace.markdown-preview > .markdown-pane {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: var(--md-drawer-width, 58%);
-  z-index: 12;
+/* 平铺预览：预览居右为普通网格列，铺满右侧分区（不再是绝对定位覆盖层）。 */
+.editor-workspace.markdown-preview:not(.markdown-fullscreen) > .markdown-pane {
+  grid-column: 2;
+  grid-row: 1;
+  width: auto;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  z-index: auto;
   border-left: 1px solid var(--app-border-strong);
-  /* 浮层层级：用主题最亮表面（浅色透明光照 / 深色更亮表面）+ 强描边，拉开与编辑区层次 */
-  background: var(--app-surface-hover);
-  box-shadow: -6px 0 24px color-mix(in srgb, #000 20%, transparent);
-}
-/* 打开预览：抽屉从右侧滑入（不反向播放，关闭为瞬时隐藏） */
-.editor-workspace.markdown-preview > .markdown-pane {
-  animation: md-drawer-in var(--app-duration-panel) var(--app-ease-smooth) forwards;
-}
-@keyframes md-drawer-in {
-  from { transform: translateX(100%); }
-  to   { transform: translateX(0); }
-}
-/* 预览内容在面板滑入后稍作延迟淡入，柔和衔接，呼应“过渡再渲染” */
-.editor-workspace.markdown-preview > .markdown-pane .markdown-body {
-  animation: md-content-in var(--app-duration-panel) var(--app-ease-smooth) both;
-  animation-delay: 90ms;
-}
-@keyframes md-content-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .editor-workspace.markdown-preview > .markdown-pane,
-  .editor-workspace.markdown-preview > .markdown-pane .markdown-body {
-    animation: none;
-  }
+  background: var(--app-surface);
+  box-shadow: none;
+  animation: none;
 }
 
 .markdown-pane[hidden] {
   display: none !important;
+}
+
+/* 预览中待办复选框可点击（切换 - [ ] / - [x]）。
+   本 marked 版把任务项渲染为 <li><input type="checkbox">，不带 task-list-item 类；
+   JS 渲染后会给任务 li 补 md-task-item 类并内联去圆点，此处再补 CSS + ::marker 兜底。 */
+.markdown-body li.md-task-item {
+  list-style: none !important;
+  list-style-type: none !important;
+  list-style-image: none !important;
+}
+.markdown-body li.md-task-item::marker {
+  content: none !important;
+}
+.markdown-body li.md-task-item input[type="checkbox"] {
+  margin: 0 4px 0 0;
+  cursor: pointer;
+  accent-color: var(--app-accent, #2d8cf0);
+  vertical-align: -1px;
 }
 
 .markdown-header {
@@ -736,10 +732,10 @@ select {
   font-size: 14px;
   line-height: 1.7;
   color: var(--app-text);
-  /* 内容随分屏宽度自适应：长行宽下约束阅读宽度居中，窄时占满并允许内联元素收缩 */
+  /* 铺满分区：不再居中收窄，宽屏/全屏下不留左右空白 */
   width: 100%;
-  max-width: 920px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
   box-sizing: border-box;
 }
 /* 预览内容元素自适应：图片/代码/表格等在大分屏或小分屏下都不溢出 */
@@ -913,14 +909,22 @@ select {
 .markdown-body .callout-success .callout-title { color: #22c55e; }
 
 /* ── 编辑器滚动条 ── */
-.editor-app ::-webkit-scrollbar { width: 5px; height: 5px; }
+.editor-app ::-webkit-scrollbar { width: 8px; height: 8px; }
 .editor-app ::-webkit-scrollbar-track { background: transparent; }
 .editor-app ::-webkit-scrollbar-thumb {
-  background: var(--app-border);
+  background: var(--app-text-muted);
   border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
-.editor-app ::-webkit-scrollbar-thumb:hover { background: var(--app-text-muted); }
-.editor-app * { scrollbar-width: thin; scrollbar-color: var(--app-border) transparent; }
+.editor-app ::-webkit-scrollbar-thumb:hover {
+  background: var(--app-text);
+  background-clip: padding-box;
+}
+.editor-app * { scrollbar-width: thin; scrollbar-color: var(--app-text-muted) transparent; }
+
+/* Ace 使用原生滚动条（.ace_scrollbar-v overflow-y:scroll），
+   本处无需自定义 inner 底色；滚动条外观统一由上方 ::-webkit-scrollbar 规则负责。 */
 
 .markdown-body strong {
   font-weight: 600;
@@ -1841,6 +1845,18 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
     grid-template-rows: 1fr 1fr;
   }
 
+  /* 窄屏上下堆叠：编辑区上、预览下 */
+  .editor-workspace.markdown-preview:not(.markdown-fullscreen) > .main-pane {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .editor-workspace.markdown-preview:not(.markdown-fullscreen) > .markdown-pane {
+    grid-column: 1;
+    grid-row: 2;
+    border-left: 0;
+    border-top: 1px solid var(--app-border-strong);
+  }
+
   /* 窄窗口预览改为上下堆叠，横向拖拽分隔线无意义，隐藏并清除自定义分屏宽度 */
   .editor-workspace.markdown-preview > .md-split-resizer {
     display: none;
@@ -2053,8 +2069,8 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
-/* 抽屉式预览：无论左侧抽屉 / AI 面板的 show-* 类是否残留，都强制编辑区全宽，
-   预览为绝对定位浮层（--md-drawer-width）覆盖其上，不占用网格列 → 编辑区零重排 */
+/* 平铺预览：无论左侧抽屉 / AI 面板的 show-* 类是否残留，都强制为编辑区左、预览右的两列网格。
+   --md-drawer-width 由 applyMdSplitRatio 写入像素宽（缺省 50%），预览作为真实网格列铺满右侧。 */
 .editor-workspace.markdown-preview:not(.markdown-fullscreen),
 .editor-workspace.markdown-preview:not(.markdown-fullscreen).show-filetree,
 .editor-workspace.markdown-preview:not(.markdown-fullscreen).show-history,
@@ -2062,7 +2078,7 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
 .editor-workspace.markdown-preview:not(.markdown-fullscreen).show-fav,
 .editor-workspace.markdown-preview:not(.markdown-fullscreen).show-outline,
 .editor-workspace.markdown-preview:not(.markdown-fullscreen).show-tags {
-  grid-template-columns: 0fr minmax(0, 1fr) 0fr;
+  grid-template-columns: minmax(0, 1fr) var(--md-drawer-width, 50%);
 }
 
 /* ── Markdown 预览全屏：预览独占整个工作区（覆盖所有并排布局类） ── */

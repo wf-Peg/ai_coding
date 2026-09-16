@@ -9,6 +9,9 @@ import com.example.clip.dto.OrganizeInboxRequest;
 import com.example.clip.model.Annotation;
 import com.example.clip.model.ClipContent;
 import com.example.clip.utils.ImageUtils;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1640,7 +1643,43 @@ public class ClipService {
                     (String) result.get("title"), original, summary, analysis, thoughts, tags));
             return result;
         }
-        // ② LLM 兜底：轻量抽取 title/summary/tags（不要求回传原文，降低 token）
+        // ② JSON 通道：识别粘贴回写作区的外部 AI 答案（{"title":..,"summary":..,"tags":[..]}），零 AI 消耗
+        Map<String, Object> jsonFields = parseClipJsonBlock(content);
+        if (jsonFields != null) {
+            List<String> tags = new ArrayList<>();
+            if (jsonFields.get("tags") instanceof List) {
+                for (Object t : (List<?>) jsonFields.get("tags")) {
+                    if (t != null && !t.toString().trim().isEmpty() && tags.size() < 10) {
+                        tags.add(t.toString().trim());
+                    }
+                }
+            }
+            String summary = mapString(jsonFields, "summary");
+            String title = mapString(jsonFields, "title");
+            if (summary != null || !tags.isEmpty()) {
+                if (title == null) {
+                    title = extractPreviewTitle(content);
+                }
+                // 剥离 JSON 块后的剩余文本作为原文；若用户只贴了 JSON 无原文，保留全文不丢字
+                String original = stripJsonBlock(content);
+                if (original == null || original.trim().isEmpty()) {
+                    original = content;
+                    logger.warn("[智能剪藏] 识别到 JSON 结构化答案但未找到可剥离的原文，按全文保存");
+                }
+                original = original.trim();
+                result.put("detected", true);
+                result.put("method", "json");
+                result.put("content", original);
+                result.put("title", title);
+                result.put("summary", summary);
+                result.put("analysis", null);
+                result.put("tags", tags);
+                result.put("myThoughts", null);
+                result.put("mdPreview", buildClipMarkdownPreview(title, original, summary, null, null, tags));
+                return result;
+            }
+        }
+        // ③ LLM 兜底：轻量抽取 title/summary/tags（不要求回传原文，降低 token）
         Map<String, Object> triad = aiService.extractClipTriad(content);
         if (triad != null) {
             List<String> tags = new ArrayList<>();
@@ -1720,6 +1759,118 @@ public class ClipService {
             return null;
         }
         return SECTION_HEADER_MAP.get(matcher.group(1).trim());
+    }
+
+    /** 代码块包裹的 JSON：```json\n{...}\n``` */
+    private static final Pattern JSON_BLOCK_CODED_PATTERN = Pattern.compile("```(?:json)?\\s*\\n?(\\{[\\s\\S]*?\\})\\s*```");
+
+    /**
+     * 从文本中识别剪藏 JSON 块（含 title/summary/tags 任一字段），解析成功返回字段 Map。
+     * <p>
+     * 供「外部 AI 答案粘贴回写作区 → 智能剪藏一键识别」链路使用：
+     * 优先 {@code ```json} 代码块形态；裸 JSON 从后往前尝试每个 {@code {} 起始，
+     * 取首个能解析且含目标字段的候选，避免原文中混有花括号时误判。
+     * </p>
+     *
+     * @param content 编辑器全文（可能混有原文与 JSON 块）
+     * @return 字段 Map；未识别到合法 JSON 块返回 null
+     */
+    private Map<String, Object> parseClipJsonBlock(String content) {
+        int[] span = findClipJsonSpan(content);
+        if (span == null) {
+            return null;
+        }
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        String candidate = content.substring(span[0], span[1]).trim();
+        // 代码块形态：定位 span 含围栏本身，剥离围栏后重试解析内层 JSON
+        if (!isClipJson(mapper, candidate)) {
+            Matcher inner = JSON_BLOCK_CODED_PATTERN.matcher(candidate);
+            if (inner.matches()) {
+                candidate = inner.group(1).trim();
+            }
+        }
+        try {
+            return mapper.readValue(candidate, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            logger.debug("[智能剪藏] JSON 块解析失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 剥离文本中的 JSON 块，返回剩余原文（可能为空字符串）。
+     * <p>
+     * 与 {@link #parseClipJsonBlock} 共用定位逻辑，确保剥离与解析命中的是同一块 JSON。
+     * </p>
+     *
+     * @param content 编辑器全文
+     * @return 剥离 JSON 块后的剩余文本
+     */
+    private String stripJsonBlock(String content) {
+        if (content == null) {
+            return "";
+        }
+        int[] span = findClipJsonSpan(content);
+        if (span == null) {
+            return content.trim();
+        }
+        String before = content.substring(0, span[0]);
+        String after = content.substring(span[1]);
+        return (before + after).trim();
+    }
+
+    /**
+     * 定位文本中的剪藏 JSON 块，返回 int[]{start, endExclusive}；未找到返回 null。
+     * <p>
+     * 优先代码块包裹形态；裸 JSON 从后往前尝试每个 {@code {} 起始位置，
+     * 取首个解析成功且含 title/summary/tags 任一字段的候选。
+     * </p>
+     */
+    private int[] findClipJsonSpan(String content) {
+        if (content == null) {
+            return null;
+        }
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        // ① 代码块包裹的 JSON（最高优先级）
+        Matcher coded = JSON_BLOCK_CODED_PATTERN.matcher(content);
+        while (coded.find()) {
+            if (isClipJson(mapper, coded.group(1))) {
+                return new int[]{coded.start(), coded.end()};
+            }
+        }
+        // ② 裸 JSON：从后往前尝试每个 { 起始，解析到全文最后一个 }
+        int lastClose = content.lastIndexOf('}');
+        if (lastClose < 0) {
+            return null;
+        }
+        List<Integer> starts = new ArrayList<>();
+        int idx = 0;
+        while ((idx = content.indexOf('{', idx)) >= 0) {
+            if (idx < lastClose) {
+                starts.add(idx);
+            }
+            idx++;
+        }
+        for (int i = starts.size() - 1; i >= 0; i--) {
+            int s = starts.get(i);
+            if (isClipJson(mapper, content.substring(s, lastClose + 1))) {
+                return new int[]{s, lastClose + 1};
+            }
+        }
+        return null;
+    }
+
+    /** 判断文本是否为含 title/summary/tags 任一字段的剪藏 JSON */
+    private boolean isClipJson(ObjectMapper mapper, String text) {
+        try {
+            Map<String, Object> fields = mapper.readValue(text.trim(), new TypeReference<Map<String, Object>>() {});
+            return fields != null
+                    && (fields.containsKey("title") || fields.containsKey("summary") || fields.containsKey("tags"));
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /**

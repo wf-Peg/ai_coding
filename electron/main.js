@@ -4733,10 +4733,16 @@ function setupIPC() {
       } else if (payload && payload.dataUrl) {
         img = nativeImage.createFromDataURL(payload.dataUrl);
       }
-      if (!img || img.isEmpty()) return { status: 'error', message: '无图片数据' };
+      if (!img || img.isEmpty()) {
+        // 记录输入图片信息（含前缀/长度），便于排查「无图片数据」类问题；dataUrl 本身过长不落盘
+        const dv = payload && payload.dataUrl ? String(payload.dataUrl) : '';
+        console.log('[OCR] 输入图片无法解析：dataUrl 前缀=' + dv.slice(0, 12) + ' 长度=' + dv.length);
+        return { status: 'error', message: '无图片数据' };
+      }
       const st = svc.status();
       if (!st.available) return { status: 'error', message: st.reason || 'OCR 不可用' };
       const result = await svc.recognize(img.toPNG());
+      console.log('[OCR] 识别成功 字数=' + (result && result.text ? result.text.length : 0));
       return { status: 'success', text: (result && result.text) || '', lines: (result && result.lines) || [] };
     } catch (err) {
       return { status: 'error', message: err.message };
