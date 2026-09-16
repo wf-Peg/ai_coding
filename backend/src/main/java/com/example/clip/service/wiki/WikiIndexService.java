@@ -17,6 +17,11 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -75,8 +80,24 @@ public class WikiIndexService {
         TYPE_TO_SECTION.put("source", "Sources");
     }
 
+    /** index.md 防抖合并时间：批量入库的连续更新只落盘一次，避免每次 updateIndex 全量重写 index.md（万级写放大） */
+    private static final long INDEX_FLUSH_DELAY_MS = 1500;
+
     private final WikiConfig config;
     private final WikiPageService pageService;
+
+    /** 待落盘的索引更新队列（updateIndex 只入队，防抖合并后一次写盘） */
+    private final LinkedBlockingQueue<IndexUpdate> pendingIndexUpdates = new LinkedBlockingQueue<>();
+    private final ScheduledExecutorService indexFlusher =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "wiki-index-flusher");
+                t.setDaemon(true);
+                return t;
+            });
+    private final AtomicBoolean flushScheduled = new AtomicBoolean(false);
+
+    /** 一次待落盘的索引更新：目标 section 标题 + 页面名 + 新条目行 */
+    private record IndexUpdate(String sectionTitle, String pageName, String newEntry) {}
 
     /**
      * 构造器注入。
@@ -92,13 +113,15 @@ public class WikiIndexService {
     /**
      * 更新 index.md 中指定页面的条目。
      * <p>
-     * 若条目已存在则更新该行，否则在对应 section 末尾追加；同时刷新顶部统计信息。
+     * 幂等：若条目已存在则替换该行，否则在对应 section 末尾追加。
+     * <b>写盘防抖</b>：更新先入队，延迟 {@value #INDEX_FLUSH_DELAY_MS}ms 合并后一次写入
+     * （批量入库/连续归档时避免每次都全量重写 index.md，详见 {@link #flushIndex()}）。
      * </p>
      *
-     * @param pageType     页面类型
-     * @param pageName     页面名称（不含扩展名）
-     * @param summary      页面摘要
-     * @param updatedDate  更新日期字符串（yyyy-MM-dd）
+     * @param pageType    页面类型
+     * @param pageName    页面名称（不含扩展名）
+     * @param summary     页面摘要
+     * @param updatedDate 更新日期字符串（yyyy-MM-dd）
      */
     public void updateIndex(String pageType, String pageName, String summary, String updatedDate) {
         try {
@@ -108,19 +131,51 @@ public class WikiIndexService {
                 Files.createDirectories(parent);
             }
 
-            String existing = pageService.readPage(indexPath);
-            if (existing == null || existing.isEmpty()) {
-                existing = "# Wiki Index\n\n";
-            }
-
             String sectionTitle = TYPE_TO_SECTION.getOrDefault(pageType, capitalize(pageType));
             String newEntry = "- [[" + pageName + "]] — " + summary + " (updated: " + updatedDate + ")";
 
-            String updated = rebuildIndex(existing, sectionTitle, pageName, newEntry);
-            pageService.updatePage(indexPath, updated);
-            log.info("[Wiki] Updated index for [{}/{}]", pageType, pageName);
+            pendingIndexUpdates.add(new IndexUpdate(sectionTitle, pageName, newEntry));
+            scheduleFlush();
+            log.info("[Wiki] Index update queued for [{}/{}]", pageType, pageName);
         } catch (IOException e) {
-            log.error("[Wiki] Failed to update index [{}/{}]: {}", pageType, pageName, e.getMessage());
+            log.error("[Wiki] Failed to queue index update [{}/{}]: {}", pageType, pageName, e.getMessage());
+        }
+    }
+
+    /**
+     * 立即合并写出所有待落盘的索引更新（供测试/维护调用）。
+     * <p>
+     * 将队列中的多条更新按顺序 apply 到当前 index.md 内容后<b>一次</b>写盘；
+     * 写盘失败时回队，避免丢失更新。
+     * </p>
+     */
+    public synchronized void flushIndex() {
+        flushScheduled.set(false);
+        List<IndexUpdate> batch = new ArrayList<>();
+        pendingIndexUpdates.drainTo(batch);
+        if (batch.isEmpty()) {
+            return;
+        }
+        try {
+            String existing = pageService.readPage(getIndexPath());
+            if (existing == null || existing.isEmpty()) {
+                existing = "# Wiki Index\n\n";
+            }
+            for (IndexUpdate u : batch) {
+                existing = rebuildIndex(existing, u.sectionTitle(), u.pageName(), u.newEntry());
+            }
+            pageService.updatePage(getIndexPath(), existing);
+            log.info("[Wiki] Flushed {} index update(s) to index.md", batch.size());
+        } catch (Exception e) {
+            // 失败回队，保证不丢更新
+            pendingIndexUpdates.addAll(batch);
+            log.error("[Wiki] Flush index failed, requeued {} update(s): {}", batch.size(), e.getMessage(), e);
+        }
+    }
+
+    private void scheduleFlush() {
+        if (flushScheduled.compareAndSet(false, true)) {
+            indexFlusher.schedule(this::flushIndex, INDEX_FLUSH_DELAY_MS, TimeUnit.MILLISECONDS);
         }
     }
 

@@ -235,4 +235,85 @@ public class WikiQueryController {
         result.put("pages", pages);
         return ResponseEntity.ok(result);
     }
+
+    /**
+     * 读取单个 Wiki 页面内容（供「可核对引用」前端点开原文）。
+     * <p>
+     * 优先精确匹配类型目录；若精确匹配不到，则按 entity → concept → synthesis → source
+     * 顺序在页面名集合中查找，便于按名称打开 wiki-link 目标。
+     * </p>
+     *
+     * @param name 页面名（不含扩展名，兼容 [[ ]] 引用）或 `type/name`
+     * @return {@code {status, name, type, content}}；未找到时返回 status=error
+     */
+    @GetMapping("/page")
+    public ResponseEntity<Map<String, Object>> getPage(@RequestParam String name) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (name == null || name.trim().isEmpty()) {
+            result.put("status", "error");
+            result.put("message", "page name is required");
+            return ResponseEntity.badRequest().body(result);
+        }
+        String pageName = name.trim();
+        String typeHint = null;
+        // 支持 "type/name" 形式
+        if (pageName.contains("/")) {
+            int idx = pageName.indexOf('/');
+            typeHint = pageName.substring(0, idx);
+            pageName = pageName.substring(idx + 1);
+        }
+        // 去除可能的 .md 后缀
+        if (pageName.endsWith(".md")) {
+            pageName = pageName.substring(0, pageName.length() - 3);
+        }
+
+        List<String> order = typeHint != null
+                ? List.of(typeHint)
+                : List.of("entity", "concept", "synthesis", "source");
+
+        String foundContent = null;
+        String foundType = null;
+        for (String pageType : order) {
+            List<Path> files = wikiPageService.listPages(pageType);
+            if (files == null) {
+                continue;
+            }
+            // 精确文件名匹配（含 .md）
+            Path exact = wikiPageService.getPagePath(pageType, pageName);
+            if (java.nio.file.Files.exists(exact)) {
+                foundContent = wikiPageService.readPage(exact);
+                foundType = pageType;
+                break;
+            }
+            // 名称模糊匹配（忽略空格/大小写差异）
+            final String query = pageName.toLowerCase();
+            final String exactQuery = pageName;
+            List<Path> matched = files.stream()
+                    .filter(f -> {
+                        String fn = f.getFileName().toString();
+                        if (fn.endsWith(".md")) fn = fn.substring(0, fn.length() - 3);
+                        return fn.equalsIgnoreCase(exactQuery)
+                                || fn.replace(" ", "").equalsIgnoreCase(query);
+                    })
+                    .toList();
+            if (!matched.isEmpty()) {
+                foundContent = wikiPageService.readPage(matched.get(0));
+                foundType = pageType;
+                break;
+            }
+        }
+
+        if (foundContent != null) {
+            result.put("status", "success");
+            result.put("name", pageName);
+            result.put("type", foundType);
+            result.put("content", foundContent);
+            return ResponseEntity.ok(result);
+        }
+
+        result.put("status", "error");
+        result.put("name", name);
+        result.put("message", "Wiki page not found: " + name);
+        return ResponseEntity.ok(result);
+    }
 }

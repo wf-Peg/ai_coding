@@ -1,5 +1,6 @@
 package com.example.clip.controller;
 
+import com.example.clip.config.WikiConfig;
 import com.example.clip.service.wiki.BatchIngestService;
 import com.example.clip.service.wiki.VaultWatchService;
 import org.slf4j.Logger;
@@ -7,8 +8,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -37,17 +43,21 @@ public class WikiIngestController {
 
     private final BatchIngestService batchIngestService;
     private final VaultWatchService vaultWatchService;
+    private final WikiConfig wikiConfig;
 
     /**
      * 构造器注入。
      *
      * @param batchIngestService 批量入库服务
      * @param vaultWatchService  Vault 监视服务
+     * @param wikiConfig         Wiki 配置
      */
     public WikiIngestController(BatchIngestService batchIngestService,
-                                VaultWatchService vaultWatchService) {
+                                VaultWatchService vaultWatchService,
+                                WikiConfig wikiConfig) {
         this.batchIngestService = batchIngestService;
         this.vaultWatchService = vaultWatchService;
+        this.wikiConfig = wikiConfig;
     }
 
     /**
@@ -131,5 +141,95 @@ public class WikiIngestController {
         log.info("[Wiki] trigger-batch invoked with {} file(s)", files.size());
         Map<String, Object> stats = batchIngestService.ingestBatch(files);
         return ResponseEntity.ok(stats);
+    }
+
+    /**
+     * 快速入库：粘贴文本 / 提交 URL → 生成 source 页 → 复用批量编译管道。
+     * <p>
+     * 对标 KaaS 借鉴项 5.4（多来源直进 Wiki 编译管道）。
+     * 请求体中 {@code content} 为原始文本，{@code url} 为来源地址（可选），
+     * {@code title} 为文件名（可选，默认取时间戳）。
+     * 写入 source 页后立即调用 {@link BatchIngestService#ingestBatch} 单文件编译，
+     * 并复用增量编译去重（同一内容二次提交会自动跳过 AI 重编）。
+     * </p>
+     *
+     * @param body 请求体 {@code {content, url?, title?}}
+     * @return 入库统计 Map
+     */
+    @PostMapping("/quick")
+    public ResponseEntity<Map<String, Object>> quickIngest(@RequestBody Map<String, Object> body) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        String content = body != null ? (String) body.get("content") : null;
+        String url = body != null ? (String) body.get("url") : null;
+        String title = body != null ? (String) body.get("title") : null;
+
+        if (content == null || content.trim().isEmpty()) {
+            result.put("status", "error");
+            result.put("message", "content is required (paste text or leave URL note)");
+            return ResponseEntity.badRequest().body(result);
+        }
+
+        try {
+            // 1. 生成 source 页文件（带 frontmatter：source URL + title）
+            Path sourcesDir = Paths.get(wikiConfig.getVaultPath())
+                    .resolve(wikiConfig.getSourcesDirName());
+            if (!Files.exists(sourcesDir)) {
+                Files.createDirectories(sourcesDir);
+            }
+            String safeTitle = sanitizeForFilename(title, LocalDateTime.now()
+                    .format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")));
+            Path sourceFile = sourcesDir.resolve(safeTitle + ".md");
+            // 避免覆盖已存在文件：追加序号
+            int n = 1;
+            while (Files.exists(sourceFile)) {
+                sourceFile = sourcesDir.resolve(safeTitle + "-" + (n++) + ".md");
+            }
+
+            StringBuilder md = new StringBuilder();
+            md.append("---\n");
+            if (url != null && !url.trim().isEmpty()) {
+                md.append("source: ").append(url.trim()).append("\n");
+            }
+            md.append("title: ").append(safeTitle).append("\n");
+            md.append("date: ").append(LocalDateTime.now().toLocalDate()).append("\n");
+            md.append("tag: wiki-quick\n");
+            md.append("---\n\n");
+            md.append(content.trim()).append("\n");
+            Files.writeString(sourceFile, md.toString(), StandardCharsets.UTF_8);
+            log.info("[Wiki] Quick-ingest wrote source file: {}", sourceFile);
+
+            // 2. 复用批量编译管道（单文件）
+            Map<String, Object> stats = batchIngestService.ingestBatch(List.of(sourceFile));
+
+            // 3. 标记为已处理并补齐统计
+            vaultWatchService.markAsProcessed(sourceFile);
+            result.put("status", "success");
+            result.put("sourceFile", sourceFile.toString());
+            result.putAll(stats);
+            return ResponseEntity.ok(result);
+        } catch (IOException e) {
+            log.error("[Wiki] Quick-ingest failed: {}", e.getMessage(), e);
+            result.put("status", "error");
+            result.put("message", "Quick ingest failed: " + e.getMessage());
+            return ResponseEntity.ok(result);
+        }
+    }
+
+    /**
+     * 将标题清理为合法文件名片段。
+     *
+     * @param title   原始标题
+     * @param fallback 标题为空时使用的默认值
+     * @return 合法文件名
+     */
+    private String sanitizeForFilename(String title, String fallback) {
+        if (title == null || title.trim().isEmpty()) {
+            return fallback;
+        }
+        String t = title.trim().replaceAll("[\\\\/:*?\"<>|]", "_");
+        if (t.length() > 60) {
+            t = t.substring(0, 60);
+        }
+        return t;
     }
 }

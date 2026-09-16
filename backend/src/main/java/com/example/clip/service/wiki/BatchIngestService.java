@@ -65,6 +65,7 @@ public class BatchIngestService {
     private final WikiConfig wikiConfig;
     private final VaultWatchService vaultWatchService;
     private final MocGeneratorService mocGeneratorService;
+    private final CompiledCorpusRegistry compiledCorpusRegistry;
 
     /**
      * 当前 ingest 批次的输入字符数累计（粗略估算，用于 token 消耗近似）。
@@ -96,7 +97,8 @@ public class BatchIngestService {
                               ObsidianExportFormatter obsidianExportFormatter,
                               WikiConfig wikiConfig,
                               VaultWatchService vaultWatchService,
-                              MocGeneratorService mocGeneratorService) {
+                              MocGeneratorService mocGeneratorService,
+                              CompiledCorpusRegistry compiledCorpusRegistry) {
         this.aiService = aiService;
         this.wikiPageService = wikiPageService;
         this.wikiIndexService = wikiIndexService;
@@ -104,6 +106,7 @@ public class BatchIngestService {
         this.wikiConfig = wikiConfig;
         this.vaultWatchService = vaultWatchService;
         this.mocGeneratorService = mocGeneratorService;
+        this.compiledCorpusRegistry = compiledCorpusRegistry;
     }
 
     /**
@@ -134,6 +137,12 @@ public class BatchIngestService {
         // 确保 Wiki 目录结构存在
         wikiPageService.initWikiStructure();
 
+        // 增量编译：确保已编译注册表已加载，并重置本次跳过统计
+        if (!compiledCorpusRegistry.isLoaded()) {
+            compiledCorpusRegistry.load();
+        }
+        compiledCorpusRegistry.resetDedupSkipped();
+
         // 重置 token 估算累计
         currentIngestInputChars = 0;
         currentIngestOutputChars = 0;
@@ -146,21 +155,61 @@ public class BatchIngestService {
         int processedCount = 0;
 
         try {
-            // 1. 读取所有源文件内容
-            List<String> contents = new ArrayList<>();
-            List<String> sourceUrls = new ArrayList<>();
-            List<String> sourceFileNames = new ArrayList<>();
+            // 1. 读取所有源文件内容（增量编译：先按内容校验和去重，命中已编译的直接跳过）
+            Map<Path, String> contentByFile = new LinkedHashMap<>();
             for (Path file : sourceFiles) {
                 String content = readSourceFile(file);
-                contents.add(content);
-                sourceUrls.add(parseSourceUrl(content));
+                String hash = compiledCorpusRegistry.checksum(content);
+                if (compiledCorpusRegistry.isCompiled(hash)) {
+                    log.info("[Wiki] Content unchanged (hash={}), skipping re-compile for {}",
+                            hash, file);
+                    compiledCorpusRegistry.incrementDedupSkipped();
+                    skipped++;
+                    continue;
+                }
+                contentByFile.put(file, content);
+            }
+
+            // 若全部命中增量跳过，直接收尾返回（不调用 LLM）
+            if (contentByFile.isEmpty()) {
+                for (Path file : sourceFiles) {
+                    try {
+                        vaultWatchService.markAsProcessed(file);
+                    } catch (Exception e) {
+                        log.warn("[Wiki] Failed to mark file as processed [{}]: {}", file, e.getMessage());
+                    }
+                }
+                // 增量跳过也刷新最近 ingest 时间戳，避免超时误触发
+                vaultWatchService.markIngestTriggered();
+                stats.put("status", "success");
+                stats.put("sourceCount", processedCount);
+                stats.put("pagesUpdated", 0);
+                stats.put("newEntities", 0);
+                stats.put("newConcepts", 0);
+                stats.put("contradictions", 0);
+                stats.put("skipped", skipped);
+                stats.put("dedupSkipped", skipped);
+                stats.put("tokenEstimate", 0);
+                stats.put("inputChars", 0);
+                stats.put("outputChars", 0);
+                stats.put("message", "All " + skipped + " sources unchanged, skipped re-compile (incremental)");
+                log.info("[Wiki] All sources unchanged, incremental ingest skipped {} file(s)", skipped);
+                return stats;
+            }
+
+            List<Path> activeFiles = new ArrayList<>(contentByFile.keySet());
+            List<String> contents = new ArrayList<>(contentByFile.values());
+            List<String> sourceUrls = new ArrayList<>(activeFiles.size());
+            List<String> sourceFileNames = new ArrayList<>(activeFiles.size());
+            for (Path file : activeFiles) {
+                sourceUrls.add(parseSourceUrl(contentByFile.get(file)));
                 sourceFileNames.add(file.getFileName().toString());
             }
 
             // 2. 批量抽取实体与概念（一次 LLM 调用）
             List<WikiExtractionResult> extractions = aiService.batchExtractEntitiesAndConcepts(contents);
             log.info("[Wiki] Batch extraction returned {} results for {} sources",
-                    extractions.size(), sourceFiles.size());
+                    extractions.size(), activeFiles.size());
 
             // 批量抽取阶段 token 估算：输入 = 所有源文件内容长度之和
             // 输出 = 粗略估算每个 extraction 结果约 200 字符
@@ -170,7 +219,7 @@ public class BatchIngestService {
             // 3. 处理每个抽取结果
             for (WikiExtractionResult result : extractions) {
                 int idx = result.getIndex();
-                if (idx < 0 || idx >= sourceFiles.size()) {
+                if (idx < 0 || idx >= activeFiles.size()) {
                     log.warn("[Wiki] Extraction result index {} out of range, skipping", idx);
                     continue;
                 }
@@ -220,16 +269,20 @@ public class BatchIngestService {
 
             // 4. 更新日志
             wikiIndexService.appendLog("ingest",
-                    "Batch ingest: " + sourceFiles.size() + " sources, " + pagesUpdated + " pages updated");
+                    "Batch ingest: " + activeFiles.size() + " sources, " + pagesUpdated + " pages updated");
 
-            // 5. 标记所有源文件为已处理
-            for (Path file : sourceFiles) {
+            // 5. 标记所有源文件为已处理，并登记本次实际编译的内容校验和
+            for (Path file : activeFiles) {
                 try {
                     vaultWatchService.markAsProcessed(file);
+                    String hash = compiledCorpusRegistry.checksum(contentByFile.get(file));
+                    compiledCorpusRegistry.markCompiled(hash);
                 } catch (Exception e) {
                     log.warn("[Wiki] Failed to mark file as processed [{}]: {}", file, e.getMessage());
                 }
             }
+            // 增量编译：已编译注册表落盘
+            compiledCorpusRegistry.persist();
 
             // 6. 生成所有 MOC 索引页（失败不影响 ingest 结果）
             try {
@@ -248,6 +301,7 @@ public class BatchIngestService {
             stats.put("newConcepts", newConcepts);
             stats.put("contradictions", contradictions);
             stats.put("skipped", skipped);
+            stats.put("dedupSkipped", compiledCorpusRegistry.getDedupSkipped());
             // token 消耗估算：粗略按 4 字符 ≈ 1 token
             stats.put("tokenEstimate", (currentIngestInputChars + currentIngestOutputChars) / 4);
             stats.put("inputChars", currentIngestInputChars);

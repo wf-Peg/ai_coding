@@ -287,8 +287,8 @@
           var typeLabel = LABELS[c.type] || '内容';
           var dotColor = ({ clip: '#2383e2', knowledge: '#f59e0b', todo: '#10b981', 'learning-plan': '#876de2' })[c.type] || '#888';
           html += '<div class="wb-activity-item"><span class="wb-activity-dot" style="background:' + dotColor + '"></span>' +
-            '<span class="wb-activity-title">' + esc(c.title || '无标题') + ' — ' + typeLabel + '</span>' +
-            '<span class="wb-activity-time">' + esc(formatDateTime(c.updatedAt || c.createdAt)) + '</span></div>';
+            '<span class="wb-activity-title">' + escapeHtml(c.title || '无标题') + ' — ' + typeLabel + '</span>' +
+            '<span class="wb-activity-time">' + escapeHtml(formatDateTime(c.updatedAt || c.createdAt)) + '</span></div>';
         });
         html += '</div>';
         el.innerHTML = html;
