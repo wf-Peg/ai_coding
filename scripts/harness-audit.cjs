@@ -32,6 +32,7 @@ function warn(file, msg) {
 }
 
 // 解析 frontmatter：返回 { fields, body }；不合法则返回 null
+// 支持嵌套键（缩进行归入父键）：generated/sources 等映射只判存在性，不校验其子值
 function parseFrontmatter(text) {
   if (!text.startsWith("---")) return null;
   const end = text.indexOf("\n---", 3);
@@ -39,11 +40,15 @@ function parseFrontmatter(text) {
   const fm = text.slice(3, end);
   const fields = {};
   for (const line of fm.split("\n")) {
+    if (/^\s/.test(line)) continue; // 嵌套行：归父键，父键已在上层登记
     const m = line.match(/^([a-zA-Z][\w-]*):\s*(.*)$/);
     if (m) fields[m[1]] = m[2].trim();
   }
   return fields;
 }
+
+// 允许空值的嵌套型键（存在即视为齐全）
+const NESTED_KEYS = new Set(["generated", "sources"]);
 
 function listRecords(dir, depth) {
   // 递归收集非下划线开头、非 README 的 .md
@@ -84,7 +89,12 @@ function audit(kind, recDir, indexFile) {
       continue;
     }
     for (const f of REQUIRED) {
-      if (!fm[f]) err(`${rel}`, `frontmatter 缺字段: ${f}`);
+      const present = Object.prototype.hasOwnProperty.call(fm, f);
+      if (!present) {
+        err(`${rel}`, `frontmatter 缺字段: ${f}`);
+      } else if (!NESTED_KEYS.has(f) && !fm[f]) {
+        err(`${rel}`, `frontmatter 字段为空: ${f}`);
+      }
     }
   }
 
