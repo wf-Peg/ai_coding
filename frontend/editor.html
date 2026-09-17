@@ -180,10 +180,12 @@
     <section class="editor-workspace" id="editorWorkspace">
       <div class="editor-pane filetree-pane" id="fileTreePane" aria-hidden="true">
         <div class="filetree-header">
-          <span id="fileTreeTitle">文件浏览器</span>
+          <span id="fileTreeTitle" title="">文件浏览器</span>
           <div class="filetree-header-actions">
-            <button class="inline-btn" id="selectDirBtn" title="选择目录浏览">选择目录</button>
-            <button class="inline-btn" id="closeFileTreeBtn">关闭</button>
+            <button class="inline-btn" id="fileTreeHomeBtn" title="回到知识库根">🏠</button>
+            <button class="inline-btn" id="fileTreeRefreshBtn" title="刷新文件树">↻</button>
+            <button class="inline-btn" id="selectDirBtn" title="选择目录浏览">📂</button>
+            <button class="inline-btn" id="closeFileTreeBtn" title="收起文件树">◀</button>
           </div>
         </div>
         <div class="filetree-body" id="fileTreeBody"></div>

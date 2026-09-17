@@ -59,7 +59,7 @@ clip:
   organized-storage:
     path: ./clip-organized  # 日报总结文件存放目录
   clip-weekly-report:
-    path: ./weeklyReport   # 周报文件存放目录
+    path: ./weekly-report   # 周报文件存放目录
 
 # Exa 搜索配置（用于学习计划模块资源搜索）
 exa:
@@ -107,4 +107,5 @@ wiki:
   page-types: [entity, concept, synthesis, source]  # 支持的页面类型列表
   sync-enabled: true  # 是否启用 Web Clipper 源文件同步
   sync-interval-seconds: 60  # Web Clipper 同步扫描间隔（秒）
+  ingest-concurrency: 4  # 入库时页面生成的并发度（1=串行，实际夹在 [1,16] 内）
 

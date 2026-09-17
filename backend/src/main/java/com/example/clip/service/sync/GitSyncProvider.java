@@ -99,8 +99,9 @@ public class GitSyncProvider implements SyncProvider {
     /**
      * 组装 Git 方案特有的状态字段。
      * <p>
-     * {@code remoteUrl/branch} 来自 Git 配置；{@code workingDir} 为同步工作目录；
-     * {@code dirs} 为同步范围内关键子目录清单（剪藏/日报/周报/tmp）。
+     * {@code remoteUrl/branch} 来自应用内配置；{@code workingDir/dirs} 为同步工作目录与范围。
+     * 新增检测字段：{@code detectedRemoteUrl}（本机已配的 origin）、{@code localBranch}（当前分支）、
+     * {@code identityConfigured}（commit 身份是否就绪）、{@code authMode}（认证方式：token/local/none）。
      * </p>
      *
      * @return 状态字段 Map
@@ -108,9 +109,21 @@ public class GitSyncProvider implements SyncProvider {
     private Map<String, Object> buildFields() {
         Map<String, Object> fields = new LinkedHashMap<>();
         GitConfig cfg = gitService.getGitConfig();
-        fields.put("remoteUrl", cfg == null ? null : cfg.getRemoteUrl());
-        fields.put("branch", cfg == null ? null : cfg.getBranch());
+        String cfgRemote = cfg == null ? null : cfg.getRemoteUrl();
+        String cfgBranch = cfg == null ? null : cfg.getBranch();
+        boolean hasToken = cfg != null && cfg.getToken() != null && !cfg.getToken().isEmpty();
+
         Path parent = fileStorageService.getStorageParentPath();
+        String localRemote = gitService.getLocalRemoteUrl(parent);
+        String localBranch = gitService.getLocalBranch(parent);
+        boolean identity = gitService.hasLocalIdentity(parent);
+
+        fields.put("remoteUrl", cfgRemote);
+        fields.put("branch", cfgBranch);
+        fields.put("detectedRemoteUrl", localRemote);
+        fields.put("localBranch", localBranch);
+        fields.put("identityConfigured", identity);
+        fields.put("authMode", hasToken ? "token" : (localRemote != null && !localRemote.isEmpty() ? "local" : "none"));
         fields.put("workingDir", parent == null ? null : parent.toString());
         fields.put("dirs", fileStorageService.getSyncDirs());
         return fields;

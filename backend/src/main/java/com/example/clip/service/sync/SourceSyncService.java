@@ -17,7 +17,10 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -89,6 +92,18 @@ public class SourceSyncService {
 
     /** 最近一次同步完成的时间戳（毫秒） */
     private volatile long lastSyncTime = 0;
+
+    /** 最近一次整体同步的失败原因（目录缺失/异常等）；无错误时为 null */
+    private volatile String lastError = null;
+
+    /** 最近失败的文件清单（"文件名: 原因"），有界上限 {@link #FAILED_FILES_MAX} */
+    private final Deque<String> failedFiles = new ArrayDeque<>();
+
+    /** 上次解析失败的文件名（用于精确计算待同步数，避免“失败的永远 pending”） */
+    private final Set<String> failedFileNames = Collections.synchronizedSet(new HashSet<>());
+
+    /** 失败文件清单最大保留条数 */
+    private static final int FAILED_FILES_MAX = 20;
 
     /**
      * 构造器注入。
@@ -174,7 +189,11 @@ public class SourceSyncService {
                 result.put("syncedCount", 0);
                 result.put("skippedCount", 0);
                 result.put("totalScanned", 0);
-                result.put("message", "sources directory not found: " + sourcesDir);
+                String reason = "sources 目录不存在: " + sourcesDir;
+                lastError = reason;
+                result.put("lastError", reason);
+                result.put("failedFiles", new ArrayList<>());
+                result.put("message", reason);
                 lastSyncTime = System.currentTimeMillis();
                 return result;
             }
@@ -216,22 +235,39 @@ public class SourceSyncService {
                     clip.setSourceFilePath("sources/" + fileName);
                     fileStorageService.saveClip(clip);
                     markAsSynced(fileName, hash);
+                    failedFileNames.remove(fileName);
                     syncedCount++;
                     log.info("[Sync] Synced source file: {}", fileName);
                 } catch (Exception e) {
+                    // 记录单文件失败：写入失败清单与失败名集合，供状态接口透明展示，避免“一直 pending 无解释”
                     log.error("[Sync] Failed to sync source file [{}]: {}", fileName, e.getMessage());
+                    String reason = fileName + ": " + e.getMessage();
+                    synchronized (failedFiles) {
+                        failedFiles.addLast(reason);
+                        while (failedFiles.size() > FAILED_FILES_MAX) {
+                            failedFiles.removeFirst();
+                        }
+                    }
+                    failedFileNames.add(fileName);
                 }
             }
             lastSyncTime = System.currentTimeMillis();
+            // 本次扫描整体成功（目录存在），清空旧的整体错误标记；单文件失败仍走 failedFiles
+            lastError = null;
             result.put("syncedCount", syncedCount);
             result.put("skippedCount", skippedCount);
             result.put("totalScanned", files.size());
+            result.put("lastError", lastError);
+            result.put("failedFiles", new ArrayList<>(failedFiles));
             result.put("message", "sync completed: " + syncedCount + " synced, " + skippedCount + " skipped");
             return result;
         } catch (Exception e) {
             log.error("[Sync] Failed to sync sources: {}", e.getMessage(), e);
             result.put("status", "error");
             result.put("message", "sync failed: " + e.getMessage());
+            lastError = "sync failed: " + e.getMessage();
+            result.put("lastError", lastError);
+            result.put("failedFiles", new ArrayList<>(failedFiles));
             return result;
         }
     }
@@ -330,7 +366,8 @@ public class SourceSyncService {
     /**
      * 返回当前同步状态。
      *
-     * @return Map 包含 syncedCount/pendingCount/lastSyncTime/sourcesDir
+     * @return Map 包含 syncedCount/pendingCount/lastSyncTime/sourcesDir；
+     *         并补充 enabled/intervalSeconds/vaultPath/wikiDirName/lastError/failedFiles 诊断字段
      */
     public Map<String, Object> getStatus() {
         Map<String, Object> status = new LinkedHashMap<>();
@@ -340,11 +377,20 @@ public class SourceSyncService {
         if (Files.exists(sourcesDir) && Files.isDirectory(sourcesDir)) {
             totalFiles = listMarkdownFiles(sourcesDir).size();
         }
-        int pendingCount = Math.max(0, totalFiles - syncedCount);
+        // 真实待同步 = 磁盘文件数 - 已同步文件数 - 上次失败文件数（失败的已可见，不计入待同步）
+        int alreadyHandled = syncedCount + failedFileNames.size();
+        int pendingCount = Math.max(0, totalFiles - alreadyHandled);
         status.put("syncedCount", syncedCount);
         status.put("pendingCount", pendingCount);
+        status.put("failedCount", failedFileNames.size());
         status.put("lastSyncTime", lastSyncTime);
         status.put("sourcesDir", sourcesDir.toString());
+        status.put("enabled", wikiConfig.isSyncEnabled());
+        status.put("intervalSeconds", wikiConfig.getSyncIntervalSeconds());
+        status.put("vaultPath", wikiConfig.getVaultPath());
+        status.put("wikiDirName", wikiConfig.getWikiDirName());
+        status.put("lastError", lastError);
+        status.put("failedFiles", new ArrayList<>(failedFiles));
         return status;
     }
 

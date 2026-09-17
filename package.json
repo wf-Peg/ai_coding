@@ -18,6 +18,7 @@
     "test:ace-jump": "node --test electron/ace-jump.test.js",
     "test:anniversary": "node --test electron/anniversary-shared.test.js",
     "test:editor-nav": "node --test electron/editor-pure.test.js electron/ace-jump.test.js",
+    "test:storage": "node --test electron/storage-inspect.test.js",
     "postinstall": "electron-builder install-app-deps",
     "generate-icons": "node scripts/generate-icons.js",
     "codeindex:gen": "node scripts/generate-code-index.mjs",

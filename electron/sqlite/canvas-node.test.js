@@ -13,6 +13,7 @@ const path = require('path');
 const os = require('os');
 
 const cn = require('./canvas-node');
+const cd = require('./canvas-doc');
 const canvasLayout = require('./canvas-layout');
 const graph = require('./graph');
 
@@ -133,4 +134,67 @@ test('clearAll：清空画布节点/边/坐标', () => {
   assert.equal(cn.listNodes(db).length, 0);
   assert.equal(cn.listEdges(db).length, 0);
   assert.equal(canvasLayout.positions(db).size, 0);
+});
+
+test('saveStructure：批量缩进/反缩进一次落库（大纲结构真源）', () => {
+  cn.clearAll(db);
+  const doc = cd.DEFAULT_DOC_ID;
+  const a = cn.createNode(db, { kind: 'note', text: 'A' });
+  const b = cn.createNode(db, { kind: 'note', text: 'B' });
+  const c = cn.createNode(db, { kind: 'note', text: 'C' });
+
+  // B、C 变成 A 的子节点
+  const res = cn.saveStructure(db, doc, [
+    { id: a.id, parentId: null, orderIndex: 0 },
+    { id: b.id, parentId: a.id, orderIndex: 0 },
+    { id: c.id, parentId: a.id, orderIndex: 1 }
+  ]);
+  assert.equal(res.success, true);
+  assert.equal(res.saved, 3);
+
+  const rows = cn.listNodes(db, doc);
+  assert.equal(rows.find((n) => n.id === b.id).parentId, a.id);
+  assert.equal(rows.find((n) => n.id === c.id).orderIndex, 1);
+  assert.deepEqual(cn.descendantIds(db, a.id).sort(), [b.id, c.id].sort());
+
+  // 反缩进：C 回到根级
+  assert.equal(cn.saveStructure(db, doc, [{ id: c.id, parentId: null, orderIndex: 2 }]).success, true);
+  assert.equal(cn.listNodes(db, doc).find((n) => n.id === c.id).parentId, null);
+});
+
+test('saveStructure：环检测 / 自父 / 跨文档父节点一律整体拒绝', () => {
+  cn.clearAll(db);
+  db.exec('DELETE FROM canvas_doc');
+  cd.ensureDefaultDoc(db);
+  const other = cd.createDoc(db, { title: '另一个文档' });
+  const a = cn.createNode(db, { kind: 'note', text: 'A' });
+  const b = cn.createNode(db, { kind: 'note', text: 'B' });
+  const foreign = cn.createNode(db, { kind: 'note', text: 'X', docId: other.id });
+
+  assert.equal(cn.saveStructure(db, cd.DEFAULT_DOC_ID, [{ id: a.id, parentId: a.id }]).success, false, '自父拒绝');
+  assert.equal(cn.saveStructure(db, cd.DEFAULT_DOC_ID, [{ id: a.id, parentId: foreign.id }]).success, false, '跨文档父拒绝');
+
+  // 造环：B 先挂 A，再让 A 挂 B
+  assert.equal(cn.saveStructure(db, cd.DEFAULT_DOC_ID, [{ id: b.id, parentId: a.id }]).success, true);
+  const cyc = cn.saveStructure(db, cd.DEFAULT_DOC_ID, [{ id: a.id, parentId: b.id }]);
+  assert.equal(cyc.success, false);
+  assert.match(cyc.message, /环/);
+  assert.equal(cn.listNodes(db, cd.DEFAULT_DOC_ID).find((n) => n.id === a.id).parentId, null, '拒绝后不产生部分写入');
+});
+
+test('deleteNode：连带删除整棵子树并清理连线与坐标', () => {
+  cn.clearAll(db);
+  const a = cn.createNode(db, { kind: 'note', text: 'A' });
+  const b = cn.createNode(db, { kind: 'note', text: 'B', parentId: a.id });
+  const c = cn.createNode(db, { kind: 'note', text: 'C', parentId: b.id });
+  const keep = cn.createNode(db, { kind: 'note', text: 'K' });
+  cn.createEdge(db, a.id, keep.id);
+
+  assert.deepEqual(cn.descendantIds(db, a.id).sort(), [b.id, c.id].sort());
+  assert.equal(cn.deleteNode(db, a.id), true);
+  const left = cn.listNodes(db, cd.DEFAULT_DOC_ID);
+  assert.deepEqual(left.map((n) => n.id), [keep.id], '子树整体删除，非子树节点保留');
+  assert.equal(cn.listEdges(db).length, 0, '级联清理连线');
+  assert.equal(canvasLayout.positions(db).has(b.id), false, '级联清理坐标');
+  assert.equal(cn.deleteNode(db, a.id), false, '重复删除命中失败');
 });

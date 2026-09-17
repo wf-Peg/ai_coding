@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="styles/ui-common.css">
     <script src="js/theme-core.js"></script>
     <script src="js/theme-bridge.js"></script>
+    <script src="js/menu-tab-shortcut.js"></script>
     <script>
         (function () { window.CutShelterThemeBridge.init({ root: document.documentElement }); })();
     </script>
@@ -516,6 +517,67 @@
             padding: 8px 12px; background: #fef3c7; border-radius: 6px; border-left: 3px solid #f59e0b;
             margin-top: 12px;
         }
+        /* 知识库目录规范：只读体检 */
+        .inspect-guide {
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--background);
+        }
+        .inspect-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .inspect-table th, .inspect-table td {
+            text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--border);
+        }
+        .inspect-table th { color: var(--text-secondary); font-weight: 600; }
+        .inspect-table td { color: var(--text); vertical-align: top; }
+        .inspect-table code, .inspect-tip code { font-family: 'SF Mono', 'Consolas', monospace; font-size: 11px; }
+        .inspect-tip {
+            margin-top: 8px; font-size: 12px; color: var(--text-secondary); line-height: 1.7;
+            padding: 8px 12px; background: #eff6ff; border-radius: 6px; border-left: 3px solid #3b82f6;
+        }
+        .inspect-hint { font-size: 12px; color: var(--text-muted); margin-left: 8px; }
+        .inspect-result { margin-top: 10px; }
+        .inspect-summary {
+            display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;
+        }
+        .inspect-stat {
+            font-size: 12px; padding: 4px 10px; border-radius: 12px;
+            background: var(--background); border: 1px solid var(--border); color: var(--text-secondary);
+        }
+        .inspect-readonly-banner {
+            font-size: 12px; padding: 6px 10px; border-radius: 6px;
+            background: #ecfdf5; border-left: 3px solid #10b981; color: #047857; margin-bottom: 8px;
+        }
+        .inspect-item {
+            font-size: 13px; padding: 8px 10px; margin-bottom: 8px; border-radius: 6px;
+            border-left: 3px solid #94a3b8; background: var(--background);
+        }
+        .inspect-item.warn { border-left-color: #f59e0b; }
+        .inspect-item.info { border-left-color: #3b82f6; }
+        .inspect-item-title { font-weight: 600; color: var(--text); }
+        .inspect-item-sev {
+            font-size: 11px; padding: 1px 6px; border-radius: 8px; margin-left: 6px; vertical-align: 1px;
+        }
+        .inspect-item.warn .inspect-item-sev { background: #fef3c7; color: #92400e; }
+        .inspect-item.info .inspect-item-sev { background: #eff6ff; color: #1d4ed8; }
+        .inspect-item-detail { color: var(--text-secondary); font-size: 12px; margin-top: 2px; }
+        .inspect-paths {
+            font-family: 'SF Mono', 'Consolas', monospace; font-size: 11px; color: var(--text-muted);
+            margin-top: 4px; word-break: break-all; line-height: 1.5;
+        }
+        .inspect-empty { font-size: 12px; color: var(--text-muted); }
+        /* 搜索覆盖区 */
+        .zone-list { display: flex; flex-direction: column; gap: 4px; }
+        .zone-item {
+            display: flex; align-items: center; gap: 8px; font-size: 12px;
+            padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
+        }
+        .zone-item.searchable { background: #ecfdf5; border-left: 3px solid #10b981; color: #047857; }
+        .zone-item.excluded { background: #f1f5f9; border-left: 3px solid #94a3b8; color: #64748b; }
+        .zone-item-name { font-family: 'SF Mono', 'Consolas', monospace; font-size: 11px; font-weight: 600; }
+        .zone-item-reason { color: inherit; opacity: 0.85; }
+        .reindex-result { font-size: 12px; color: var(--text-secondary); margin-left: 8px; }
+        .btn-sm { padding: 2px 10px; font-size: 12px; }
         .readonly-path {
             padding: 10px 14px;
             border: 1px solid var(--border);
@@ -1441,21 +1503,19 @@
                     <div class="form-group">
                         <label class="form-label">远程仓库 URL</label>
                         <input type="text" id="gitRemoteUrl" placeholder="https://github.com/user/repo.git" />
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">用户名</label>
-                        <input type="text" id="gitUsername" placeholder="Git 用户名" />
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">密码 / Token</label>
-                        <div class="input-row">
-                            <input type="password" id="gitPassword" placeholder="Git 密码或访问令牌" />
-                            <button class="btn btn-outline" onclick="toggleVisibility('gitPassword')">显示</button>
-                        </div>
+                        <div class="form-hint">默认使用本机 Git 认证（SSH / 凭据 / 全局身份）；若本机已配置好远程，可留空直接用本地配置。</div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">分支</label>
                         <input type="text" id="gitBranch" placeholder="main" style="max-width:200px;" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">访问令牌 Token（可选）</label>
+                        <div class="input-row">
+                            <input type="password" id="gitToken" placeholder="Personal Access Token" autocomplete="off" />
+                            <button class="btn btn-outline" onclick="toggleVisibility('gitToken')">显示</button>
+                        </div>
+                        <div class="form-hint">仅当本机凭据无法认证时需要。将以 HTTPS + Token 方式认证；SSH 地址不启用。</div>
                     </div>
                     <div class="subsection-actions">
                         <button class="btn btn-outline" id="testGitBtn" onclick="testGit()">测试连接</button>
@@ -1500,6 +1560,67 @@
                     </div>
                     <div class="path-hint" style="margin-top:8px;">
                         ⚠️ 修改存储路径后需重启后端生效。保存时可将旧数据打包归档为 zip 文件。
+                    </div>
+                    <div class="path-hint" style="margin-top:8px; border-left-color:#4f8cff;">
+                        📌 外部迁移的 md 知识库放入存储根目录后无需重启：程序会自动发现并索引。
+                        也可点「重新索引知识库」立即重建。
+                        <button class="btn btn-outline btn-sm" id="reindexKbBtn" onclick="reindexKnowledgeBase()" style="margin-top:6px;">重新索引知识库</button>
+                        <span class="reindex-result" id="reindexResult"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 知识库目录规范（只读体检 + 迁移建议） -->
+            <div class="config-subsection">
+                <div class="config-subsection-title collapsible" onclick="toggleSection(this)">
+                    <span class="toggle-icon collapsed">▼</span>
+                    📐 知识库目录规范
+                    <span class="section-badge">只读</span>
+                </div>
+                <div class="subsection-body collapsed">
+                    <div class="form-group">
+                        <label class="form-label">目录规范速览</label>
+                        <div class="inspect-guide">
+                            <table class="inspect-table">
+                                <thead><tr><th>一级目录</th><th>语义</th><th>是否纳入索引</th></tr></thead>
+                                <tbody>
+                                    <tr><td><code>clip-storage/</code></td><td>剪藏/待办/学习计划/话题/媒体 + 知识（<code>knowledge-base/</code>）</td><td>是（JSON + 其中 md）</td></tr>
+                                    <tr><td><code>clip-organized/</code></td><td>整理结果、notes、templates、clips/{年}/{月}/{分类}</td><td>是（md）</td></tr>
+                                    <tr><td><code>weekly-report/</code></td><td>周报</td><td>否（排除集内）</td></tr>
+                                    <tr><td><code>obsidian-vault/</code></td><td>Wiki 结构化文档</td><td>是（md）</td></tr>
+                                    <tr><td><code>tmp/</code></td><td>编辑器「另存为/导出 md」默认落点</td><td>是（md，Ctrl+Shift+F/O 可搜）</td></tr>
+                                    <tr><td><code>.tmp/</code></td><td>编辑器标签页恢复缓存</td><td>否（缓存）</td></tr>
+                                    <tr><td>其它自建一级目录</td><td>用户自己的 md 知识库</td><td>是（md）</td></tr>
+                                </tbody>
+                            </table>
+                            <div class="inspect-tip">
+                                <strong>手动迁移 md 知识库建议：</strong>
+                                ① 一级目录用语义化英文 kebab-case（如 <code>my-notes</code>、<code>reading</code>），避免空格、全角字符、<code>#%&amp;{}</code>、首尾点；
+                                ② 目录名 ≤ 40 字符、层级 ≤ 3（根/主题/子主题）；
+                                ③ 别把 md 放进 <code>docs</code>/<code>test</code>/<code>build</code>/<code>dist</code>——这些名字在索引排除集内，其中的 md 不会被收录；
+                                ④ 同名文件只留一份（本软件按内容哈希提示重复项）；
+                                ⑤ 复制进根目录后无需重启，自动发现；也可点「重新索引知识库」。
+                                <br><strong>目录收敛说明：</strong>知识统一存 <code>knowledge-base/</code>（旧 <code>knowledge/</code> 启动时自动迁移，只读保留）；周报统一 <code>weekly-report/</code>；剪藏分类目录统一英文标识（如 <code>work/work-company</code>），历史中文目录启动时自动重命名。
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">搜索覆盖区（全局搜索 Ctrl+Shift+F/O 收录的一级目录）</label>
+                        <div class="subsection-actions">
+                            <button class="btn btn-outline btn-sm" onclick="loadSearchZone()">刷新</button>
+                            <span class="inspect-hint">绿色=可搜索（知识库放这里才能被搜到）；灰色=排除（其中的 md 不会被搜索）</span>
+                        </div>
+                        <div class="inspect-result" id="searchZoneResult">
+                            <span class="inspect-empty">点击「刷新」查看当前搜索覆盖区</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">只读体检</label>
+                        <div class="subsection-actions">
+                            <button class="btn btn-outline" id="runStorageInspectBtn" onclick="runStorageInspect()">开始体检</button>
+                            <span class="inspect-hint">仅扫描并输出问题清单与建议动作，不会修改任何文件</span>
+                        </div>
+                        <div class="inspect-result" id="storageInspectResult"></div>
                     </div>
                 </div>
             </div>

@@ -177,8 +177,7 @@ async function loadConfig() {
 
     // Git 配置
     document.getElementById('gitRemoteUrl').value = config.gitRemoteUrl || '';
-    document.getElementById('gitUsername').value = config.gitUsername || '';
-    document.getElementById('gitPassword').value = config.gitPassword || '';
+    document.getElementById('gitToken').value = config.gitToken || '';
     document.getElementById('gitBranch').value = config.gitBranch || 'main';
 
     // Exa 搜索配置（未配置时默认关闭）
@@ -623,8 +622,7 @@ async function saveConfig() {
     mailPassword: document.getElementById('mailPassword').value,
     // Git
     gitRemoteUrl: document.getElementById('gitRemoteUrl').value,
-    gitUsername: document.getElementById('gitUsername').value,
-    gitPassword: document.getElementById('gitPassword').value,
+    gitToken: document.getElementById('gitToken').value,
     gitBranch: document.getElementById('gitBranch').value || 'main',
     // Exa 搜索
     exaApiKey: document.getElementById('exaApiKey').value,
@@ -1544,8 +1542,7 @@ async function testMail() {
 
 async function testGit() {
   const remoteUrl = document.getElementById('gitRemoteUrl').value;
-  const username = document.getElementById('gitUsername').value;
-  const password = document.getElementById('gitPassword').value;
+  const token = document.getElementById('gitToken').value;
 
   if (!remoteUrl) {
     showToast('请先填写远程仓库 URL');
@@ -1559,7 +1556,7 @@ async function testGit() {
     const response = await fetch('http://127.0.0.1:8081/api/git/test-connection', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ remoteUrl, username, password })
+      body: JSON.stringify({ remoteUrl, token })
     });
     const result = await response.json();
     if (response.ok && result.success) {
@@ -1747,6 +1744,154 @@ function openDataFolder() {
     const path = el && el.value ? el.value : '';
     if (path) showToast('请在文件管理器中打开：' + path);
     else showToast('请在桌面客户端中打开存储目录');
+  }
+}
+
+// ==================== 知识库目录规范：只读体检 + 手动迁移建议 ====================
+
+// 只读目录规范体检：调用主进程 storage-inspect:run，渲染问题清单与建议动作（不写盘）
+async function runStorageInspect() {
+  const btn = document.getElementById('runStorageInspectBtn');
+  const container = document.getElementById('storageInspectResult');
+  const api = getElectronAPI();
+  if (!api || typeof api.inspectStorage !== 'function') {
+    if (container) container.innerHTML = '<span class="inspect-empty">仅在桌面客户端中可用</span>';
+    else showToast('仅在桌面客户端中可用');
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = '体检中...'; }
+  try {
+    const res = await api.inspectStorage();
+    if (res && res.success && res.report) {
+      renderStorageInspectReport(res.report, container);
+    } else {
+      if (container) container.innerHTML = '<span class="inspect-empty">体检失败：' + ((res && res.message) || '未知错误') + '</span>';
+    }
+  } catch (e) {
+    console.error('存储体检失败:', e);
+    if (container) container.innerHTML = '<span class="inspect-empty">体检失败：' + (e && e.message ? e.message : String(e)) + '</span>';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '开始体检'; }
+  }
+}
+
+// 渲染只读体检报告：统计 + 只读横幅 + 按 severity 分组的问题清单
+function renderStorageInspectReport(report, container) {
+  if (!container) return;
+  const issues = report.issues || [];
+  const stats = report.stats || {};
+  const sevLabel = { warn: '建议', info: '提示' };
+
+  // 统计胶囊
+  let html = '<div class="inspect-summary">';
+  html += '<span class="inspect-stat">一级目录 ' + stats.rootCount + ' 个</span>';
+  html += '<span class="inspect-stat">md 文件 ' + stats.mdFileCount + ' 个</span>';
+  html += '<span class="inspect-stat">重复组 ' + stats.duplicateGroupCount + ' / 重复文件 ' + stats.duplicateFileCount + '</span>';
+  html += '<span class="inspect-stat">问题 ' + issues.length + ' 条</span>';
+  html += '</div>';
+  html += '<div class="inspect-readonly-banner">✅ 本次为只读体检，未修改任何文件。移动/重命名/去重等执行能力将在后续版本提供。</div>';
+
+  if (!issues.length) {
+    html += '<div class="inspect-empty">未发现问题，目录结构符合规范。</div>';
+  } else {
+    const ordered = issues.slice().sort(function (a, b) {
+      const rank = { warn: 0, info: 1 };
+      return (rank[a.severity] === undefined ? 2 : rank[a.severity]) - (rank[b.severity] === undefined ? 2 : rank[b.severity]);
+    });
+    for (const issue of ordered) {
+      const sev = issue.severity === 'warn' ? 'warn' : 'info';
+      html += '<div class="inspect-item ' + sev + '">';
+      html += '<span class="inspect-item-title">' + escapeHtml(issue.title) + '</span>';
+      html += '<span class="inspect-item-sev">' + (sevLabel[sev] || sev) + '</span>';
+      html += '<div class="inspect-item-detail">' + escapeHtml(issue.detail || '') + '</div>';
+      const sug = issue.suggestion;
+      if (sug) {
+        let actText = '';
+        if (sug.action === 'move') actText = '建议移动到';
+        else if (sug.action === 'merge') actText = '建议合并到';
+        else if (sug.action === 'rename') actText = '建议重命名为';
+        else if (sug.action === 'trash') actText = '建议移入';
+        if (actText) html += '<div class="inspect-item-detail">' + actText + '：<span class="inspect-paths">' + escapeHtml(sug.to || '') + '</span></div>';
+      }
+      if (issue.paths && issue.paths.length) {
+        html += '<div class="inspect-paths">' + escapeHtml(issue.paths.join(' · ')) + '</div>';
+      }
+      html += '</div>';
+    }
+  }
+  container.innerHTML = html;
+}
+
+// 搜索覆盖区：拉取 storagePath 下一级目录分类（可搜索 / 排除），实时展示搜索边界
+async function loadSearchZone() {
+  const container = document.getElementById('searchZoneResult');
+  const api = getElectronAPI();
+  if (!api || typeof api.inspectZone !== 'function') {
+    if (container) container.innerHTML = '<span class="inspect-empty">仅在桌面客户端中可用</span>';
+    return;
+  }
+  try {
+    const res = await api.inspectZone();
+    if (res && res.success && res.zone) {
+      renderSearchZone(res.zone, container);
+    } else if (container) {
+      container.innerHTML = '<span class="inspect-empty">获取失败：' + ((res && res.message) || '未知错误') + '</span>';
+    }
+  } catch (e) {
+    console.error('获取搜索覆盖区失败:', e);
+    if (container) container.innerHTML = '<span class="inspect-empty">获取失败：' + (e && e.message ? e.message : String(e)) + '</span>';
+  }
+}
+
+// 渲染搜索覆盖区：可搜索（绿）+ 排除（灰）两组目录
+function renderSearchZone(zone, container) {
+  if (!container) return;
+  const searchable = zone.searchable || [];
+  const excluded = zone.excluded || [];
+  let html = '<div class="zone-list">';
+  if (searchable.length) {
+    for (const item of searchable) {
+      const tag = item.hidden ? '（隐藏目录）' : '';
+      html += '<div class="zone-item searchable"><span class="zone-item-name">' + escapeHtml(item.name) + '</span>' + tag + '</div>';
+    }
+  } else {
+    html += '<div class="zone-item searchable"><span class="zone-item-name">（无内容目录，复制知识库目录进来即可自动纳入）</span></div>';
+  }
+  if (excluded.length) {
+    for (const item of excluded) {
+      html += '<div class="zone-item excluded"><span class="zone-item-name">' + escapeHtml(item.name) + '</span> <span class="zone-item-reason">' + escapeHtml(item.reason || '') + '</span></div>';
+    }
+  }
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// 重新索引知识库：全量重建（含 md 库）+ 刷新监听，外部迁移目录后立即可搜
+async function reindexKnowledgeBase() {
+  const api = getElectronAPI();
+  const resultEl = document.getElementById('reindexResult');
+  const btn = document.getElementById('reindexKbBtn');
+  if (!api || !api.localIndex || typeof api.localIndex.reindex !== 'function') {
+    if (resultEl) resultEl.textContent = '仅在桌面客户端中可用';
+    else showToast('仅在桌面客户端中可用');
+    return;
+  }
+  if (btn) { btn.disabled = true; }
+  if (resultEl) resultEl.textContent = '索引重建中...';
+  const t0 = Date.now();
+  try {
+    const res = await api.localIndex.reindex();
+    if (res && res.success) {
+      const cost = ((Date.now() - t0) / 1000).toFixed(1);
+      if (resultEl) resultEl.textContent = '已重建：共 ' + res.count + ' 条（' + cost + 's）';
+    } else {
+      if (resultEl) resultEl.textContent = '重建失败：' + ((res && res.message) || '未知错误');
+    }
+  } catch (e) {
+    console.error('重新索引失败:', e);
+    if (resultEl) resultEl.textContent = '重建失败：' + (e && e.message ? e.message : String(e));
+  } finally {
+    if (btn) { btn.disabled = false; }
   }
 }
 

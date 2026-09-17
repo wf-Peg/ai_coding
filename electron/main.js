@@ -27,9 +27,14 @@ const localDb = require('./sqlite/db');
 const localCanvas = require('./sqlite/canvas-layout');
 const localCanvasNode = require('./sqlite/canvas-node');
 const localCanvasGroup = require('./sqlite/canvas-group');
+const localCanvasDoc = require('./sqlite/canvas-doc');
 const { initCanvasSync } = require('./canvas-sync');
+// 只读目录规范体检（storage-inspect.js，仅扫描不写盘）
+const inspectStorage = require('./storage-inspect');
 // clip-storage 实时监听句柄（will-quit 时释放）
 let localIndexWatcher = null;
+// md 库（vault 内容目录）实时监听句柄：换根目录后需重启监听（will-quit 时释放）
+let localIndexMdWatcher = null;
 // 无限画布·后端同步器（索引就绪后初始化）
 let canvasSync = null;
 
@@ -3081,7 +3086,8 @@ function setupIPC() {
   // 保存配置
   ipcMain.handle('save-config', async (event, newConfig) => {
     try {
-      const nextConfig = { ...loadConfig(), ...newConfig };
+      const prevConfig = loadConfig();
+      const nextConfig = { ...prevConfig, ...newConfig };
       saveConfig(nextConfig);
       applyAutoStartSetting(nextConfig.autoStart);
       // 剪贴板即时助手开关：随配置热更新（默认开）
@@ -3095,6 +3101,10 @@ function setupIPC() {
         const ymlPath = path.join(path.dirname(jarPath), 'application.yml');
         fs.writeFileSync(ymlPath, generateApplicationYml(nextConfig), 'utf-8');
         log.info('application.yml updated via save-config');
+      }
+      // 存储根目录变更 → 按新根重启本地索引监听（借鉴 Obsidian 重开即重建，运行期即时生效）
+      if (prevConfig.storagePath && nextConfig.storagePath && prevConfig.storagePath !== nextConfig.storagePath) {
+        restartIndexWatchers();
       }
       return { success: true, message: 'Config saved.' };
     } catch (e) {
@@ -3396,6 +3406,39 @@ function setupIPC() {
     catch (e) { log.error('[local-index] error:', e); return { success: false, message: e.message }; }
   };
 
+  /**
+   * 重启本地索引监听（clip + md watcher）：存储根目录变更后，按新根重建索引并重新挂载监听。
+   * 借鉴 Obsidian「重开 vault 即重建索引」——运行期改路径后无需重启应用即可生效。
+   */
+  function restartIndexWatchers() {
+    if (localIndexWatcher && typeof localIndexWatcher.stop === 'function') {
+      try { localIndexWatcher.stop(); } catch (e) {}
+      localIndexWatcher = null;
+    }
+    if (localIndexMdWatcher && typeof localIndexMdWatcher.stop === 'function') {
+      try { localIndexMdWatcher.stop(); } catch (e) {}
+      localIndexMdWatcher = null;
+    }
+    try {
+      const cfg = loadConfig();
+      // reindexAll 处理 bound-path 漂移（目标根与当前连接不一致时先 closeFast）并强制全量重建
+      const idxRes = localIndexService.reindexAll(cfg.storagePath);
+      localIndexWatcher = localIndexService.startWatcher(cfg.storagePath, (d) => {
+        log.info(
+          `[local-index watcher] rescan done: added=${d.added}, updated=${d.updated}, removed=${d.removed}, count=${d.count}`
+        );
+      });
+      localIndexMdWatcher = localIndexService.startMarkdownWatcher(cfg.storagePath, (d) => {
+        log.info(`[local-index md watcher] rescan done: added=${d.added}, count=${d.count}`);
+      });
+      log.info(
+        `[local-index] restarted for storagePath=${cfg.storagePath}: count=${idxRes.count}, generation=${idxRes.generation}`
+      );
+    } catch (e) {
+      log.warn('[local-index] restart skipped:', e.message);
+    }
+  }
+
   /** 本地索引状态（就绪/世代号/条目数） */
   ipcMain.handle('local-index:status', () => {
     return { ...localIndexService.status(), success: true };
@@ -3406,6 +3449,30 @@ function setupIPC() {
     const config = loadConfig();
     const res = localIndexService.rebuild(config.storagePath);
     return { ...res, success: true };
+  }));
+
+  /** 手动「重新索引知识库」：全量重建（含 md 库），随后刷新 md 监听挂载（新顶层目录立即被监听） */
+  ipcMain.handle('local-index:reindex', localIndexGuard(async () => {
+    const config = loadConfig();
+    const res = localIndexService.reindexAll(config.storagePath);
+    if (localIndexMdWatcher && typeof localIndexMdWatcher.refresh === 'function') {
+      try { localIndexMdWatcher.refresh(); } catch (e) {}
+    }
+    return { ...res, success: true };
+  }));
+
+  /** 只读目录规范体检：扫描 storagePath 树，返回问题清单与建议动作（仅扫描，不写盘） */
+  ipcMain.handle('storage-inspect:run', localIndexGuard(async () => {
+    const config = loadConfig();
+    const report = inspectStorage(config.storagePath);
+    return { success: true, report };
+  }));
+
+  /** 只读「搜索覆盖区」：列出 storagePath 下一级目录分类（可搜索 / 排除），轻量不深扫 */
+  ipcMain.handle('storage-inspect:zone', localIndexGuard(async () => {
+    const config = loadConfig();
+    const zone = inspectStorage.inspectSearchZone(config.storagePath);
+    return { success: true, zone };
   }));
 
   /** 全文搜索（对齐 /api/clip/search） */
@@ -3457,13 +3524,82 @@ function setupIPC() {
     return { success: true, saved };
   }));
 
+  /** 读取画布文档列表（多画布，含每文档节点数） */
+  ipcMain.handle('local-index:canvas:list-docs', localIndexGuard(async () => {
+    const dbConn = localDb.getDatabase();
+    if (!dbConn) return { success: false, message: 'local index not ready' };
+    localCanvasDoc.ensureDefaultDoc(dbConn);
+    return { success: true, docs: localCanvasDoc.listDocs(dbConn) };
+  }));
+
+  /** 新建画布文档：opts = { title } */
+  ipcMain.handle('local-index:canvas:create-doc', localIndexGuard(async (_ev, args) => {
+    const dbConn = localDb.getDatabase();
+    if (!dbConn) return { success: false, message: 'local index not ready' };
+    const doc = localCanvasDoc.createDoc(dbConn, { title: args && args.title });
+    if (canvasSync) canvasSync.schedulePush();
+    return { success: true, doc };
+  }));
+
+  /** 重命名画布文档：opts = { id, title } */
+  ipcMain.handle('local-index:canvas:rename-doc', localIndexGuard(async (_ev, args) => {
+    const { id, title } = args || {};
+    if (!id) return { success: false, message: 'id is required' };
+    const dbConn = localDb.getDatabase();
+    if (!dbConn) return { success: false, message: 'local index not ready' };
+    const renamed = localCanvasDoc.renameDoc(dbConn, id, title);
+    if (canvasSync && renamed) canvasSync.schedulePush();
+    return { success: renamed, message: renamed ? undefined : 'doc not found' };
+  }));
+
+  /** 删除画布文档（级联清理其节点/坐标/连线/分组；至少保留一个文档） */
+  ipcMain.handle('local-index:canvas:delete-doc', localIndexGuard(async (_ev, args) => {
+    const { id } = args || {};
+    if (!id) return { success: false, message: 'id is required' };
+    const dbConn = localDb.getDatabase();
+    if (!dbConn) return { success: false, message: 'local index not ready' };
+    const res = localCanvasDoc.deleteDoc(dbConn, id);
+    if (canvasSync && res.success) canvasSync.schedulePush();
+    return res;
+  }));
+
+  /** 读取某画布文档的完整状态（节点/连线/坐标/分组），供画布与大纲共用 */
+  ipcMain.handle('local-index:canvas:state', localIndexGuard(async (_ev, args) => {
+    const dbConn = localDb.getDatabase();
+    if (!dbConn) return { success: false, message: 'local index not ready' };
+    const requested = args && args.docId;
+    const docs = localCanvasDoc.listDocs(dbConn);
+    const doc = (requested && docs.find((d) => d.id === requested)) || docs[0];
+    if (!doc) return { success: false, message: 'no canvas doc' };
+    const nodes = localCanvasNode.listNodes(dbConn, doc.id);
+    const edges = localCanvasNode.listEdges(dbConn, doc.id);
+    const groups = localCanvasGroup.listGroups(dbConn, doc.id);
+    const layout = {};
+    const nodeIds = new Set(nodes.map((n) => n.id));
+    for (const [id, p] of localCanvas.positions(dbConn)) {
+      if (nodeIds.has(id)) layout[id] = { x: p.x, y: p.y };
+    }
+    return { success: true, doc, docs, nodes, edges, groups, layout };
+  }));
+
+  /** 批量保存层级结构（大纲缩进/排序）：opts = { docId, entries: [{id,parentId,orderIndex}] } */
+  ipcMain.handle('local-index:canvas:update-structure', localIndexGuard(async (_ev, args) => {
+    const { docId, entries } = args || {};
+    if (!Array.isArray(entries)) return { success: false, message: 'entries must be an array' };
+    const dbConn = localDb.getDatabase();
+    if (!dbConn) return { success: false, message: 'local index not ready' };
+    const res = localCanvasNode.saveStructure(dbConn, docId, entries);
+    if (canvasSync && res.success && res.saved > 0) canvasSync.schedulePush();
+    return res;
+  }));
+
   /** 新建画布可写节点（便签/链接/图片/引用） */
   ipcMain.handle('local-index:canvas:create-node', localIndexGuard(async (_ev, args) => {
-    const { kind, text, title, x, y } = args || {};
+    const { kind, text, title, x, y, docId, parentId, orderIndex } = args || {};
     if (!kind) return { success: false, message: 'kind is required' };
     const dbConn = localDb.getDatabase();
     if (!dbConn) return { success: false, message: 'local index not ready' };
-    const node = localCanvasNode.createNode(dbConn, { kind, text, title, x, y });
+    const node = localCanvasNode.createNode(dbConn, { kind, text, title, x, y, docId, parentId, orderIndex });
     if (canvasSync) canvasSync.schedulePush();
     return { success: true, node };
   }));
@@ -3512,19 +3648,19 @@ function setupIPC() {
     return { success: deleted, message: deleted ? undefined : 'edge not found' };
   }));
 
-  /** 读取全部画布分组（含成员） */
-  ipcMain.handle('local-index:canvas:list-groups', localIndexGuard(async () => {
+  /** 读取画布分组（含成员）：opts = { docId }（不传则返回全部文档） */
+  ipcMain.handle('local-index:canvas:list-groups', localIndexGuard(async (_ev, args) => {
     const dbConn = localDb.getDatabase();
     if (!dbConn) return { success: false, message: 'local index not ready' };
-    return { success: true, groups: localCanvasGroup.listGroups(dbConn) };
+    return { success: true, groups: localCanvasGroup.listGroups(dbConn, args && args.docId) };
   }));
 
-  /** 新建画布分组 */
+  /** 新建画布分组：opts = { name, memberIds, docId } */
   ipcMain.handle('local-index:canvas:create-group', localIndexGuard(async (_ev, args) => {
-    const { name, memberIds } = args || {};
+    const { name, memberIds, docId } = args || {};
     const dbConn = localDb.getDatabase();
     if (!dbConn) return { success: false, message: 'local index not ready' };
-    const group = localCanvasGroup.createGroup(dbConn, { name, memberIds });
+    const group = localCanvasGroup.createGroup(dbConn, { name, memberIds, docId });
     if (canvasSync && group) canvasSync.schedulePush();
     return group ? { success: true, group } : { success: false, message: 'empty member list' };
   }));
@@ -4203,12 +4339,13 @@ function setupIPC() {
   // 可链接类型：md + 编辑器可打开的文本类型（txt/sql/json/xml/csv/log/yaml 等）。
   const LINKABLE_EXT_RE = /\.(md|mdown|markdown|txt|sql|json|xml|csv|log|yaml|yml|ini|conf)$/i;
   // 排除模块：原始存档目录 + 运行时/构建/依赖等重目录，避免补全被海量非内容文件污染、拖慢唤醒扫描。
+  // 注意：tmp（编辑器默认保存目录，用户真实存出的 md）需被收录，故从排除集移除，仅靠扩展名收敛。
   const EXCLUDED_MODULE_DIRS = [
     'clip-storage',
     '.dsh', 'node_modules', 'jre', 'jre-slim',
     'dist-electron', 'dist-dsh-offline', 'dist', 'build', 'out',
     'backend', 'frontend', 'electron', 'scripts', 'test', 'docs',
-    'tmp', 'integrations', 'browser-extension', 'TODO', 'jlink-target'
+    'integrations', 'browser-extension', 'TODO', 'jlink-target'
   ];
   const LINK_INDEX_TTL = 3000;            // 模块 watch 不可用时的 TTL 兜底（毫秒）
   const LINK_INDEX_SCAN_MAX_BYTES = 10 * 1024 * 1024; // 反链扫描大小守卫（>10MB 只作目标）
@@ -6793,17 +6930,19 @@ app.whenReady().then(async () => {
       } else if (localIndexWatcher) {
         log.warn('[local-index watcher] not started:', localIndexWatcher.reason);
       }
-      // 监听 md 库（clip-organized / vault / editor 等一级内容目录）：保存即增量刷新 vault 索引，
-      // 让全局搜索能搜到最新笔记。句柄存函数作用域，进程退出自然释放。
+      // 监听 md 库（clip-organized / vault / editor / tmp 等一级内容目录）：保存即增量刷新 vault 索引，
+      // 让全局搜索能搜到最新笔记。句柄存模块作用域，换根目录或退出时清理。
       try {
-        const mdWatcher =
-          localIndexService.startMarkdownWatcher(_config.storagePath, (d) => {
-            log.info(`[local-index md watcher] rescan done: added=${d.added}, count=${d.count}`);
-          });
-        if (mdWatcher && mdWatcher.started) {
+        if (!localIndexMdWatcher) {
+          localIndexMdWatcher =
+            localIndexService.startMarkdownWatcher(_config.storagePath, (d) => {
+              log.info(`[local-index md watcher] rescan done: added=${d.added}, count=${d.count}`);
+            });
+        }
+        if (localIndexMdWatcher && localIndexMdWatcher.started) {
           log.info('[local-index md watcher] started watching markdown roots');
-        } else if (mdWatcher) {
-          log.warn('[local-index md watcher] not started:', String(mdWatcher.reason || mdWatcher.roots || ''));
+        } else if (localIndexMdWatcher) {
+          log.warn('[local-index md watcher] not started:', String(localIndexMdWatcher.reason || localIndexMdWatcher.roots || ''));
         }
       } catch (e) {
         log.warn('[local-index md watcher] init skipped:', e.message);
@@ -7173,6 +7312,10 @@ app.on('will-quit', () => {
   if (localIndexWatcher && typeof localIndexWatcher.stop === 'function') {
     try { localIndexWatcher.stop(); } catch (e) {}
     localIndexWatcher = null;
+  }
+  if (localIndexMdWatcher && typeof localIndexMdWatcher.stop === 'function') {
+    try { localIndexMdWatcher.stop(); } catch (e) {}
+    localIndexMdWatcher = null;
   }
   // 优雅关闭索引库：退出时仅 close（无 optimize / 无 wal_checkpoint），不阻塞进程退出
   try { localIndexService.close(); } catch (e) {}

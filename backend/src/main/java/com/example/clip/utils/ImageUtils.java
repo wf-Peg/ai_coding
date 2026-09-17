@@ -323,7 +323,7 @@ public class ImageUtils {
      * 将 category value 映射为目录路径（旧数据迁移定位用）。
      * <p>
      * 映射规则：一级分类（如 "work"）直接返回；二级分类（如 "work-company"）
-     * 返回 "work/公司事务"；未匹配的分类原样返回（含穿越防护）。
+     * 返回 "work/work-company"；未匹配的分类原样返回（含穿越防护）。
      * </p>
      *
      * @param category 分类值
@@ -344,7 +344,7 @@ public class ImageUtils {
             if (children != null) {
                 for (Map<String, Object> child : children) {
                     if (child.get("value").toString().equals(cat)) {
-                        return topValue + "/" + child.get("label").toString();
+                        return topValue + "/" + child.get("value").toString();
                     }
                 }
             }

@@ -247,8 +247,7 @@ public class AppConfigService {
         try {
             GitConfig gc = new GitConfig(
                     config.getGitRemoteUrl(),
-                    config.getGitUsername(),
-                    config.getGitPassword(),
+                    config.getGitToken(),
                     config.getGitBranch()
             );
             gitConfigStorageService.saveConfig(gc);
@@ -295,8 +294,7 @@ public class AppConfigService {
                 GitConfig gc = gitConfigStorageService.loadConfig();
                 if (gc != null) {
                     config.setGitRemoteUrl(gc.getRemoteUrl() != null ? gc.getRemoteUrl() : "");
-                    config.setGitUsername(gc.getUsername() != null ? gc.getUsername() : "");
-                    config.setGitPassword(gc.getPassword() != null ? gc.getPassword() : "");
+                    config.setGitToken(gc.getToken() != null ? gc.getToken() : "");
                     config.setGitBranch(gc.getBranch() != null ? gc.getBranch() : "main");
                 }
             } catch (Exception e) {

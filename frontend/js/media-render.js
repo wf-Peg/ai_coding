@@ -298,11 +298,53 @@
       .replace(/'/g, '&#39;');
   }
 
+  // ── 剪藏图文组装 helper ──
+
+  /** content 中已引用的 media 图片相对路径（去重、保序） */
+  function collectMediaRefs(content) {
+    var refs = [];
+    if (!content) return refs;
+    var re = /!\[[^\]]*\]\((media\/\d{4}\/[\w.-]+\.\w{1,10})\)/g;
+    var m;
+    while ((m = re.exec(String(content)))) {
+      if (refs.indexOf(m[1]) === -1) refs.push(m[1]);
+    }
+    return refs;
+  }
+
+  /** 是否为占位正文（空，或剪贴板图片的默认占位文案）。占位时图片引用应前置。 */
+  function isPlaceholderContent(content) {
+    var t = String(content || '').trim();
+    return !t || t === '剪贴板图片';
+  }
+
+  /**
+   * 把尚未被正文引用的 imagePaths 补成 Markdown 图片引用。
+   * - 占位正文（空 / 仅「剪贴板图片」）：图片前置，预览图位于文字之前；
+   * - 已有实质正文：图片引用追加到末尾，避免打乱阅读顺序。
+   */
+  function appendImageRefs(content, imagePaths) {
+    var paths = Array.isArray(imagePaths) ? imagePaths.filter(Boolean) : [];
+    if (!paths.length) return content || '';
+    var existing = collectMediaRefs(content);
+    var missing = paths.filter(function (p) { return existing.indexOf(p) === -1; });
+    if (!missing.length) return content || '';
+    var block = missing.map(function (p) { return '![图片](' + p + ')'; }).join('\n');
+    var body = content || '';
+    if (isPlaceholderContent(body)) {
+      return body ? block + '\n\n' + body : block;
+    }
+    return body + '\n\n' + block;
+  }
+
   global.MediaKit = global.MediaKit || {};
   global.MediaKit.render = {
     getApiRoot: getApiRoot,
     mediaUrl: mediaUrl,
     isMediaRelative: isMediaRelative,
+    collectMediaRefs: collectMediaRefs,
+    isPlaceholderContent: isPlaceholderContent,
+    appendImageRefs: appendImageRefs,
     rewriteImageSrc: rewriteImageSrc,
     sanitizeHtml: sanitizeHtml,
     renderMarkdown: renderMarkdown,

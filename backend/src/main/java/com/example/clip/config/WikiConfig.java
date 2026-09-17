@@ -44,6 +44,7 @@ import java.util.List;
  *   page-types: [entity, concept, synthesis, source]
  *   sync-enabled: true
  *   sync-interval-seconds: 60
+ *   ingest-concurrency: 4
  * </pre>
  */
 @Component
@@ -88,6 +89,16 @@ public class WikiConfig {
 
     /** Web Clipper 源文件同步扫描间隔（秒） */
     private int syncIntervalSeconds = 60;
+
+    /**
+     * 入库时页面生成的并发度（线程池大小）。
+     * <p>
+     * 入库每个实体/概念/源页面都需要独立调用一次 LLM，这些页面之间互不依赖，
+     * 因此可用线程池并行生成以压缩墙钟时间。取值 1 表示退回完全串行。
+     * 实际生效值会被夹在 [1, 16] 区间内，避免配置误填导致打爆 LLM 限流。
+     * </p>
+     */
+    private int ingestConcurrency = 4;
 
     // ===== 新增：本地拆词检索（R2） =====
 
@@ -225,6 +236,14 @@ public class WikiConfig {
 
     public void setSyncIntervalSeconds(int syncIntervalSeconds) {
         this.syncIntervalSeconds = syncIntervalSeconds;
+    }
+
+    public int getIngestConcurrency() {
+        return ingestConcurrency;
+    }
+
+    public void setIngestConcurrency(int ingestConcurrency) {
+        this.ingestConcurrency = ingestConcurrency;
     }
 
     // ===== 本地拆词检索 getters / setters =====

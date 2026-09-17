@@ -13,17 +13,21 @@
  */
 
 const { randomUUID } = require('node:crypto');
+const canvasDoc = require('./canvas-doc');
 
 const now = () => new Date().toISOString();
 
 /**
- * 读取全部分组（含成员节点 id 列表，按创建时间升序）。
- * @returns {Array<{id:string,name:string,members:string[],createdAt:string,updatedAt:string}>}
+ * 读取分组（含成员节点 id 列表，按创建时间升序）。
+ * @param {import('node:sqlite').DatabaseSync} dbConn
+ * @param {string} [docId] 指定画布文档；不传则返回全部文档的分组
+ * @returns {Array<{id:string,name:string,docId:string,members:string[],createdAt:string,updatedAt:string}>}
  */
-function listGroups(dbConn) {
-  const groups = dbConn
-    .prepare('SELECT id, name, created_at AS createdAt, updated_at AS updatedAt FROM canvas_group ORDER BY created_at')
-    .all();
+function listGroups(dbConn, docId) {
+  const base = 'SELECT id, name, doc_id AS docId, created_at AS createdAt, updated_at AS updatedAt FROM canvas_group';
+  const groups = docId
+    ? dbConn.prepare(base + ' WHERE doc_id = ? ORDER BY created_at').all(docId)
+    : dbConn.prepare(base + ' ORDER BY created_at').all();
   const memberRows = dbConn
     .prepare('SELECT group_id AS gid, node_id AS nodeId FROM canvas_group_member ORDER BY node_id')
     .all();
@@ -39,24 +43,26 @@ function listGroups(dbConn) {
 /**
  * 创建分组并登记成员。空成员 / 重复成员被忽略；无有效成员则不建组。
  * @param {import('node:sqlite').DatabaseSync} dbConn
- * @param {{name?:string,memberIds?:string[]}} opts
- * @returns {object|null} 新建分组 {id,name,members}
+ * @param {{name?:string,memberIds?:string[],docId?:string}} opts
+ * @returns {object|null} 新建分组 {id,name,docId,members}
  */
 function createGroup(dbConn, opts = {}) {
   const memberIds = Array.from(new Set((opts.memberIds || []).filter((x) => x && typeof x === 'string')));
   if (!memberIds.length) return null;
 
+  const docId = (opts.docId && String(opts.docId)) || canvasDoc.DEFAULT_DOC_ID;
   const id = 'group:' + randomUUID();
   const name = (opts.name != null && String(opts.name).trim()) || '未命名分组';
   const t = now();
   dbConn
-    .prepare('INSERT INTO canvas_group (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
-    .run(id, name, t, t);
+    .prepare('INSERT INTO canvas_group (id, name, doc_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+    .run(id, name, docId, t, t);
 
   const stmt = dbConn.prepare('INSERT OR IGNORE INTO canvas_group_member (group_id, node_id) VALUES (?, ?)');
   for (const nid of memberIds) stmt.run(id, nid);
 
-  return { id, name, members: memberIds };
+  canvasDoc.touch(dbConn, docId);
+  return { id, name, docId, members: memberIds };
 }
 
 /**

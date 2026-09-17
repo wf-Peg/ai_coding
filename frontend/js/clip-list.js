@@ -485,8 +485,11 @@ function formatClipDateTime(date) {
     /** 详情补图：imagePaths 里的图（剪贴板截图类正文只有文字）以可点击大图追加到原文下方 */
     function buildExtraImagesHtml(clip) {
         if (!clip || !Array.isArray(clip.imagePaths) || clip.imagePaths.length === 0) return '';
+        // 正文已引用的图片不再重复追加（图文一体：编辑器/正文里可能已含 ![图片](media/...)）
+        const body = clip.bodyContent || clip.content || '';
+        const already = window.MediaKit.render.collectMediaRefs(body);
         const imgs = clip.imagePaths
-            .filter(function (rel) { return rel; })
+            .filter(function (rel) { return rel && already.indexOf(rel) === -1; })
             .map(function (rel) {
                 const url = window.MediaKit.render.mediaUrl(rel);
                 return '<div class="clip-extra-img detail-viewer-img-wrap"><img class="detail-viewer-img" src="' + url + '" alt="剪藏图片" loading="lazy"></div>';
@@ -959,7 +962,8 @@ function formatClipDateTime(date) {
     function performMoreAction(action, clipId) {
         switch (action) {
             case 'edit-in-editor':
-                window.parent.postMessage({ type: 'openClipInEditor', clipId }, '*');
+                // 新标签页打开（不覆盖当前编辑内容，与 Ctrl+T 一致）
+                window.parent.postMessage({ type: 'openClipInNewTab', clipId }, '*');
                 break;
             case 'organize-auto':
                 quickOrganizeClip(clipId);

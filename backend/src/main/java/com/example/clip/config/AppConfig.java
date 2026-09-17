@@ -40,8 +40,7 @@ public class AppConfig {
 
     // ===== Git 配置 =====
     private String gitRemoteUrl = "";
-    private String gitUsername = "";
-    private String gitPassword = "";
+    private String gitToken = "";
     private String gitBranch = "main";
 
     // ===== Exa 搜索配置 =====
@@ -193,20 +192,12 @@ public class AppConfig {
         this.gitRemoteUrl = gitRemoteUrl;
     }
 
-    public String getGitUsername() {
-        return gitUsername;
+    public String getGitToken() {
+        return gitToken;
     }
 
-    public void setGitUsername(String gitUsername) {
-        this.gitUsername = gitUsername;
-    }
-
-    public String getGitPassword() {
-        return gitPassword;
-    }
-
-    public void setGitPassword(String gitPassword) {
-        this.gitPassword = gitPassword;
+    public void setGitToken(String gitToken) {
+        this.gitToken = gitToken;
     }
 
     public String getGitBranch() {

@@ -6,6 +6,7 @@ import com.example.clip.dto.ClipEditRequest;
 import com.example.clip.dto.ClipRequest;
 import com.example.clip.dto.OrganizeClipRequest;
 import com.example.clip.dto.OrganizeInboxRequest;
+import com.example.clip.dto.UpdateClipContentRequest;
 import com.example.clip.model.Annotation;
 import com.example.clip.model.ClipContent;
 import com.example.clip.utils.ImageUtils;
@@ -671,6 +672,32 @@ public class ClipService {
                 clip.getContent() == null ? 0 : clip.getContent().length(),
                 clip.getCategory(),
                 clip.getImagePaths() == null ? 0 : clip.getImagePaths().size());
+        return storageService.replaceClip(clip);
+    }
+
+    /**
+     * 写回剪藏正文（轻量），保留分类/标签/思考/工作流状态。
+     * <p>
+     * 与 {@link #updateClipFromEditor} 不同，本方法只改 content，不覆盖 category、tags、
+     * myThoughts 等字段，也不改变 workflowStatus。用于 OCR 把识别结果写入原文、但不触发整理。
+     * </p>
+     *
+     * @param id      剪藏 ID
+     * @param request 仅含 content 的写回请求
+     * @return 更新后的剪藏；若不存在则返回 null
+     */
+    public ClipContent updateClipContent(Long id, UpdateClipContentRequest request) {
+        ClipContent clip = getClipById(id);
+        if (clip == null) {
+            return null;
+        }
+        if (request.getContent() != null) {
+            clip.setContent(request.getContent());
+            // 图文一体：重扫 content 中 media 图片引用，reconcile imagePaths（权威清单）
+            clip.setImagePaths(extractImagePathsFromContent(clip.getContent()));
+        }
+        logger.info("[Clip] Update content id={}, chars={}(null means no change)",
+                id, request.getContent() == null ? -1 : request.getContent().length());
         return storageService.replaceClip(clip);
     }
 

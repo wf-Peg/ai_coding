@@ -210,7 +210,13 @@
     /** OCR 进行中标记：防止重复点击导致并发识别与结果重复追加 */
     var imageOcrRunning = false;
 
-    /** 插图 OCR：对已上传的图片离线识别文字，结果填入内容（复用通用离线 OCR，独立于截图工具） */
+    /** 设置图片区 OCR 结果面板的状态行文案 */
+    function setOcrPanelStatus(msg) {
+        const el = document.getElementById('image-ocr-status');
+        if (el) el.textContent = msg || '';
+    }
+
+    /** 插图 OCR：对已上传的图片离线识别文字，结果显示在图片区结果面板（不再自动走 AI 总结） */
     async function runImageOcr() {
         if (imageOcrRunning) { showToast('OCR 正在进行中，请稍候'); return; }
         // 多图时取「最后一张已上传完成」的图片，符合"刚传完就想识别"的使用预期
@@ -221,8 +227,10 @@
         if (!doneImg) { showToast('请等待图片上传完成后重试'); return; }
         const img = doneImg;
         const ocrBtn = document.getElementById('image-ocr-btn');
+        const panel = document.getElementById('image-ocr-panel');
         imageOcrRunning = true;
-        if (ocrBtn) ocrBtn.disabled = true;
+        if (ocrBtn) { ocrBtn.disabled = true; ocrBtn.textContent = '识别中…'; }
+        setOcrPanelStatus('本地识别中…');
         try {
             // 优先用已落库的相对路径走媒体接口取图（稳定、可被主进程解析）；
             // 媒体接口异常时回退到本条记录内的本地图片数据（blob），保证 OCR 不被接口波动卡死
@@ -238,21 +246,73 @@
             console.log('[OCR] 源类型=' + (img.path ? 'path' : 'blob') + ' 长度=' + dataUrl.length);
             const text = await recognizeImage(dataUrl);
             if (!text) return;
-            // OCR 识别文字后再请求 AI 总结，形成「识别原文 + AI 总结」的完整记录（对标 NoteGen 截图→文字→总结）
-            const summary = await requestTextSummary(text);
-            const content = document.getElementById('content');
-            let composed = text;
-            if (summary) composed += '\n\n**AI 总结**：' + summary;
-            content.value = (content.value ? content.value + '\n' : '') + composed;
-            content.dispatchEvent(new Event('input'));
-            showToast('已识别 ' + text.length + ' 字' + (summary ? '，并生成 AI 总结' : ''));
+            const resultEl = document.getElementById('image-ocr-result');
+            const countEl = document.getElementById('image-ocr-count');
+            if (resultEl) resultEl.value = text;
+            if (countEl) countEl.textContent = text.length + ' 字';
+            setOcrPanelStatus('');
+            if (panel) {
+                panel.style.display = 'block';
+                setTimeout(function () { if (panel.scrollIntoView) panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, 0);
+            }
+            showToast('已识别 ' + text.length + ' 字，可在结果面板确认后插入');
         } catch (e) {
             console.error('[OCR] 插图识别失败：', e);
+            setOcrPanelStatus('');
             showToast('OCR 失败：' + (e && e.message ? e.message : '请稍后重试'));
         } finally {
             imageOcrRunning = false;
-            if (ocrBtn) ocrBtn.disabled = false;
+            setOcrPanelStatus('');
+            if (ocrBtn) { ocrBtn.disabled = false; ocrBtn.textContent = '✨ OCR 提取文字'; }
         }
+    }
+
+    /** 对结果面板里的 OCR 原文独立触发 AI 总结（可选、较慢，失败不阻塞） */
+    async function summarizeOcrResult() {
+        const resultEl = document.getElementById('image-ocr-result');
+        const text = resultEl ? resultEl.value.trim() : '';
+        if (!text) { showToast('暂无识别结果，无法总结'); return; }
+        const btn = document.getElementById('image-ocr-summarize-btn');
+        if (btn) { btn.disabled = true; btn.textContent = '总结中…'; }
+        setOcrPanelStatus('正在生成 AI 总结…');
+        try {
+            const summary = await requestTextSummary(text);
+            if (summary && resultEl) {
+                resultEl.value = (resultEl.value ? resultEl.value + '\n\n' : '') + '**AI 总结**：' + summary;
+                setOcrPanelStatus('');
+            } else {
+                setOcrPanelStatus('AI 总结失败，已保留识别原文');
+                showToast('AI 总结失败，请稍后重试');
+            }
+        } catch (e) {
+            setOcrPanelStatus('AI 总结失败，已保留识别原文');
+            showToast('AI 总结失败：' + (e && e.message ? e.message : '请稍后重试'));
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = '✨ AI 总结'; }
+        }
+    }
+
+    /** 把结果面板里的文字插入到正文（追加，保留上传时已插入的图片引用） */
+    function applyOcrResultToContent() {
+        const resultEl = document.getElementById('image-ocr-result');
+        const text = resultEl ? resultEl.value.trim() : '';
+        if (!text) { showToast('暂无识别结果可插入'); return; }
+        const content = document.getElementById('content');
+        content.value = (content.value ? content.value + '\n' : '') + text;
+        content.dispatchEvent(new Event('input'));
+        closeOcrResultPanel();
+        showToast('已插入识别结果');
+    }
+
+    /** 关闭结果面板并清空内容（不改动正文），供「关闭」按钮与 clearForm 复用 */
+    function closeOcrResultPanel() {
+        const panel = document.getElementById('image-ocr-panel');
+        if (panel) panel.style.display = 'none';
+        const resultEl = document.getElementById('image-ocr-result');
+        if (resultEl) resultEl.value = '';
+        const countEl = document.getElementById('image-ocr-count');
+        if (countEl) countEl.textContent = '';
+        setOcrPanelStatus('');
     }
 
     if (dropzone) {
@@ -491,6 +551,7 @@
             if (typeof renderImagePreviews === 'function') renderImagePreviews();
         }
         document.getElementById('type').dispatchEvent(new Event('change'));
+        closeOcrResultPanel();
     }
 
     async function smartIngestClip(event) {

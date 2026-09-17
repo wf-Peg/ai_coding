@@ -505,8 +505,8 @@ public class ContentOrganizeService {
     /**
      * 将 category value 映射为文件系统目录路径
      * <p>
-     * 例如: "work-company" → "work/公司事务", "work" → "work", null/空 → "default"。
-     * 遍历 CATEGORY_TREE 匹配一级和二级分类。
+     * 例如: "work-company" → "work/work-company", "work" → "work", null/空 → "default"。
+     * 遍历 CATEGORY_TREE 匹配一级和二级分类（统一使用英文 value 作目录名）。
      * </p>
      *
      * @param category 分类值
@@ -523,13 +523,13 @@ public class ContentOrganizeService {
                 return topValue;
             }
 
-            // 二级分类：一级目录/二级 label
+            // 二级分类：一级目录/二级英文 value
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> children = (List<Map<String, Object>>) topCat.get("children");
             if (children != null) {
                 for (Map<String, Object> child : children) {
                     if (child.get("value").toString().equals(cat)) {
-                        return topValue + "/" + child.get("label").toString();
+                        return topValue + "/" + child.get("value").toString();
                     }
                 }
             }

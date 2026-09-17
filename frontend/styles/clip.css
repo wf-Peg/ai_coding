@@ -585,6 +585,39 @@
         .sync-scope-note { margin-top: 8px; color: var(--app-text-secondary); font-size: 0.78rem; }
         .sync-panel-empty { color: var(--app-text-secondary); font-size: 0.85rem; padding: 8px 0; }
 
+        /* Clipper 说明面板：复用 sync-status-panel 令牌体系，仅补充专属样式 */
+        .clipper-sync-panel .sync-panel-card-title { margin-bottom: 6px; }
+        .clipper-intro {
+            color: var(--app-text-secondary);
+            font-size: 0.85rem;
+            line-height: 1.6;
+        }
+        .clipper-err {
+            color: var(--app-error, #ef4444);
+            background: var(--app-error, rgba(239,68,68,0.1));
+            border: 1px solid rgba(239,68,68,0.2);
+            border-radius: var(--app-radius);
+            padding: 8px 10px;
+            font-size: 0.82rem;
+            margin-top: 6px;
+        }
+        .clipper-fail-list { margin-top: 6px; }
+        .clipper-fail-item {
+            color: var(--app-warning);
+            font-size: 0.8rem;
+            padding: 3px 0;
+            word-break: break-all;
+            font-family: ui-monospace, SFMono-Regular, Consolas, 'Courier New', monospace;
+        }
+        .clipper-auto-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--app-text);
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
         .action-split-group {
             display: inline-flex;
             border-radius: 12px;
@@ -2888,6 +2921,73 @@
             background: var(--primary-light);
             color: var(--primary);
             border-color: var(--primary-light);
+        }
+
+        /* OCR 结果面板（表单图片区） */
+        .image-ocr-panel {
+            margin-top: 10px;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--surface);
+        }
+        .image-ocr-head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .image-ocr-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+        .image-ocr-count {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+        }
+        .image-ocr-close {
+            margin-left: auto;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 1rem;
+            cursor: pointer;
+            line-height: 1;
+            padding: 2px;
+        }
+        .image-ocr-result {
+            width: 100%;
+            box-sizing: border-box;
+            min-height: 96px;
+            padding: 8px 10px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface-hover);
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            resize: vertical;
+        }
+        .image-ocr-status {
+            min-height: 18px;
+            margin-top: 6px;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+        }
+        .image-ocr-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 6px;
+            flex-wrap: wrap;
+        }
+        /* 弹窗内 OCR 结果状态行 */
+        .ocr-result-status {
+            min-height: 18px;
+            margin-top: 6px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
         }
 
         /* 折叠态：剪藏填写区默认收起，只保留记录条入口（compose + 快速记录） */

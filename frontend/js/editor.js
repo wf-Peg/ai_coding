@@ -92,7 +92,7 @@
     'smartClipConfirmModal', 'smartClipMethodHint', 'smartClipPreview', 'smartClipAsyncHint', 'smartClipSaveBtn',
     'smartClipFallbackModal', 'smartClipFallbackSaveBtn', 'smartClipCopyPromptBtn',
     'statusLang', 'statusTabSize', 'docStats', 'zoomStatus', 'settingsModal', 'fontSizeSlider', 'fontSizeLabel', 'tabSizeSelect',
-    'fullscreenBtn', 'fileTreePane', 'fileTreeTitle', 'fileTreeBody', 'closeFileTreeBtn', 'selectDirBtn',
+    'fullscreenBtn', 'fileTreePane', 'fileTreeTitle', 'fileTreeBody', 'closeFileTreeBtn', 'selectDirBtn', 'fileTreeHomeBtn', 'fileTreeRefreshBtn',
     'autosaveStatus', 'historyCount', 'historyList', 'closeHistoryBtn',
     'undoHistoryBtn', 'redoHistoryBtn', 'clearHistoryBtn', 'mainPane', 'historyPane', 'recentPane',
     'recentList', 'closeRecentBtn', 'clearRecentBtn', 'favPane', 'favList', 'closeFavBtn', 'clearFavBtn',
@@ -646,6 +646,7 @@
       toggleMarkdownPreview(false);
     }
 
+    refreshFileTreeActive(); // 同步树中当前文件高亮
     mainEditor.focus();
   }
 
@@ -1124,14 +1125,15 @@
     if (!featureOn('breadcrumbBar')) return;
     const api = getElectronAPI();
     if (!api || typeof api.listDirectory !== 'function') return;
-    // 先登记目标目录与一次性来源，再打开面板：loadFileTree 命中缓存直接加载该目录，
-    // 避免与 getFileDirectory 异步解析链形成竞态互相覆盖
-    fileTreeDir = dirPath;
-    fileTreeDirSource = 'breadcrumb';
-    if (typeof toggleFileTree === 'function' && !fileTreeOpen) {
-      toggleFileTree();
+    // 面包屑定位 = 将文件树根切到目标目录并展开显示
+    treeRootPath = dirPath;
+    if (!fileTreeOpen) {
+      if (anyLeftPaneVisible()) closeOtherLeftPanes('show-filetree');
+      explorerCollapsed = false;
+      saveExplorerState();
+      setFileTreeVisible(true);
     } else {
-      loadDirectory(dirPath);
+      renderTreeRoot(dirPath);
     }
   }
 
@@ -1511,6 +1513,7 @@
           expectedMtimeMs: result.mtimeMs
         });
         renderTabBar();
+        refreshFileTreeActive();
         showToast(`已打开 ${result.fileName}`);
         FrontendLogger.info('[Editor] Opened file', result.fileName, result.size);
         recordRecentFile(result.displayPath || result.filePath, result.fileName);
@@ -1553,6 +1556,7 @@
       browserBytes: bytes
     });
     renderTabBar();
+    refreshFileTreeActive();
   }
 
   function decodeBrowserBytes(bytes, encoding) {
@@ -1896,6 +1900,7 @@
       mainEditor.session.on('change', scheduleMarkdownRender);
     } else {
       mainEditor.session.off('change', scheduleMarkdownRender);
+      restoreFileTreeTab(); // 退出预览后恢复文件树标签（侧栏常驻）
     }
 
     setTimeout(() => mainEditor.resize(), 0);
@@ -2247,6 +2252,7 @@
       sharedState.diffLocations = [];
       sharedState.activeDiffIndex = -1;
       elements.diffCounter.textContent = '无差异';
+      restoreFileTreeTab(); // 退出对比后恢复文件树标签（侧栏常驻）
     }
     setTimeout(() => {
       mainEditor.resize();
@@ -4914,7 +4920,10 @@
       if (!editorContent.trim() && clip.selectedText && clip.selectedText.trim()) editorContent = clip.selectedText;
       if (!editorContent.trim() && clip.summary && clip.summary.trim()) editorContent = clip.summary;
       if (!editorContent.trim()) editorContent = `（该剪藏无正文内容，ID: ${clip.id}）`;
-      const format = clip.contentFormat || EditorCore.detectLanguage(clip.sourceFileName || clip.title, editorContent);
+      const clipHasImages = !!(clip.imagePaths && clip.imagePaths.length) || /media\/\d{4}\/[\w.-]+\.\w{1,10}/.test(editorContent);
+      // 图文一体：图片剪藏补上 Markdown 图片引用（占位正文前置、否则后置），确保预览能看到图
+      editorContent = MediaKit.render.appendImageRefs(editorContent, clip.imagePaths);
+      const format = clip.contentFormat || (clipHasImages ? 'markdown' : EditorCore.detectLanguage(clip.sourceFileName || clip.title, editorContent));
       setEditorContent(editorContent, {
         fileName: clip.sourceFileName || `${clip.title || `clip-${clip.id}`}.${format === 'text' ? 'txt' : (format === 'markdown' ? 'md' : format)}`,
         displayPath: `剪藏 #${clip.id}`,
@@ -4927,6 +4936,7 @@
       state.clipType = clip.type || 'store-only';
       updateDocumentIdentity();
       renderTabBar();
+      if (clipHasImages) setTimeout(function () { toggleMarkdownPreview(true); }, 0);
       showToast(`已打开剪藏 #${clip.id}`);
       // 写入「来自收件箱」最近分组（写作侧一键回看）
       recordRecentFile(`剪藏 #${clip.id}`, clip.title || clip.sourceFileName || `剪藏 #${clip.id}`, { source: 'clip', clipId: clip.id });
@@ -4969,7 +4979,10 @@
       if (!editorContent.trim() && clip.selectedText && clip.selectedText.trim()) editorContent = clip.selectedText;
       if (!editorContent.trim() && clip.summary && clip.summary.trim()) editorContent = clip.summary;
       if (!editorContent.trim()) editorContent = `（该剪藏无正文内容，ID: ${clip.id}）`;
-      const format = clip.contentFormat || EditorCore.detectLanguage(clip.sourceFileName || clip.title, editorContent);
+      const clipHasImages = !!(clip.imagePaths && clip.imagePaths.length) || /media\/\d{4}\/[\w.-]+\.\w{1,10}/.test(editorContent);
+      // 图文一体：图片剪藏补上 Markdown 图片引用（占位正文前置、否则后置），确保预览能看到图
+      editorContent = MediaKit.render.appendImageRefs(editorContent, clip.imagePaths);
+      const format = clip.contentFormat || (clipHasImages ? 'markdown' : EditorCore.detectLanguage(clip.sourceFileName || clip.title, editorContent));
       setEditorContent(editorContent, {
         fileName: clip.sourceFileName || `${clip.title || `clip-${clip.id}`}.${format === 'text' ? 'txt' : (format === 'markdown' ? 'md' : format)}`,
         displayPath: `剪藏 #${clip.id}`,
@@ -4982,6 +4995,7 @@
       state.clipType = clip.type || 'store-only';
       updateDocumentIdentity();
       renderTabBar();
+      if (clipHasImages) setTimeout(function () { toggleMarkdownPreview(true); }, 0);
       // 首屏优先：AI 侧栏渲染移到下一帧，避免拖慢正文首屏
       requestAnimationFrame(function () { renderAiChat(); });
       mainEditor.focus();
@@ -6551,206 +6565,372 @@
   }, 30000);
 
   // ══════════════════════════════════════════════════════════
-  // 5. File Tree (文件树侧边栏)
+  // 5. File Tree (树状文件浏览器侧边栏，复刻 Obsidian 层级常驻)
   // ══════════════════════════════════════════════════════════
-  var fileTreeOpen = false;
-  var fileTreeDir = null;       // 当前浏览的目录路径
-  var fileTreeDirSource = null; // 目录来源：null=当前文件默认会话 | 'breadcrumb'=面包屑一次性定位 | 'manual'=手动选择目录
+  var fileTreeOpen = false;            // 文件树是否为当前侧栏标签
+  var explorerCollapsed = loadExplorerState(); // 侧栏整体折叠状态（默认 false=常驻展开）
+  var fileTreeSuspended = false;       // 树被其它面板临时顶替（非折叠）
+  var treeRootPath = null;             // 当前树根（默认=知识库根 config.storagePath）
+  var treeDirCache = {};               // 目录列表内存缓存：dirPath -> files[]
+  var expandedDirs = loadExpandedDirs(); // 展开目录集合（localStorage 持久化）
 
-  function toggleFileTree() {
-    fileTreeOpen = !fileTreeOpen;
-    elements.fileTreePane.setAttribute('aria-hidden', String(!fileTreeOpen));
-    elements.editorWorkspace.classList.toggle('show-filetree', fileTreeOpen);
-    if (fileTreeBtn) fileTreeBtn.classList.toggle('active', fileTreeOpen);
+  var EXPLORER_STATE_KEY = 'editor_explorer_state_v1';
+  var EXPLORER_TREE_KEY = 'editor_explorer_tree_v1';
+  var EXPLORER_EXPAND_MAX = 200;
 
-    if (fileTreeOpen) {
-      // 互斥：关闭其它左抽屉（历史/最近/收藏/反链/大纲/标签）
-      closeOtherLeftPanes('show-filetree');
+  function loadExplorerState() {
+    try {
+      var v = JSON.parse(localStorage.getItem(EXPLORER_STATE_KEY) || 'null');
+      return !!(v && v.collapsed);
+    } catch (e) { return false; }
+  }
+  function saveExplorerState() {
+    try { localStorage.setItem(EXPLORER_STATE_KEY, JSON.stringify({ collapsed: !!explorerCollapsed })); } catch (e) {}
+  }
+  function loadExpandedDirs() {
+    try {
+      var v = JSON.parse(localStorage.getItem(EXPLORER_TREE_KEY) || '[]');
+      return Array.isArray(v) ? v : [];
+    } catch (e) { return []; }
+  }
+  function saveExpandedDirs() {
+    try { localStorage.setItem(EXPLORER_TREE_KEY, JSON.stringify(expandedDirs.slice(0, EXPLORER_EXPAND_MAX))); } catch (e) {}
+  }
+
+  /** 是否仍有其它左面板可见（树处于被顶替状态） */
+  function anyLeftPaneVisible() {
+    var ids = ['historyPane', 'recentPane', 'favPane', 'backlinksPane', 'outlinePane', 'tagsPane'];
+    for (var i = 0; i < ids.length; i++) {
+      if (elements[ids[i]] && isPaneOpen(elements[ids[i]])) return true;
+    }
+    return false;
+  }
+
+  /** 统一控制文件树可见性（侧栏标签页语义） */
+  function setFileTreeVisible(open) {
+    if (open) {
+      fileTreeOpen = true;
+      fileTreeSuspended = false;
+      elements.fileTreePane.setAttribute('aria-hidden', 'false');
+      elements.editorWorkspace.classList.add('show-filetree');
+      if (fileTreeBtn) fileTreeBtn.classList.add('active');
       loadFileTree();
     } else {
-      // 面包屑定位是一次性会话：关闭后不缓存，下次手动唤起回到当前文件父目录
-      if (fileTreeDirSource === 'breadcrumb') {
-        fileTreeDir = null;
-        fileTreeDirSource = null;
-      }
+      fileTreeOpen = false;
+      elements.fileTreePane.setAttribute('aria-hidden', 'true');
+      elements.editorWorkspace.classList.remove('show-filetree');
+      if (fileTreeBtn) fileTreeBtn.classList.remove('active');
     }
-
     setTimeout(function() { mainEditor.resize(); }, 250);
   }
 
+  /** 其它面板关闭后：若侧栏未折叠则自动恢复文件树标签（Obsidian/VSCode 语义） */
+  function restoreFileTreeTab() {
+    if (explorerCollapsed) return;
+    if (!fileTreeSuspended) return;
+    if (anyLeftPaneVisible()) return;
+    setFileTreeVisible(true);
+  }
+
+  function toggleFileTree() {
+    // 其它左面板正显示 → 切回文件树标签（不改变侧栏折叠状态）
+    if (anyLeftPaneVisible()) {
+      closeOtherLeftPanes('show-filetree');
+      setFileTreeVisible(true);
+      return;
+    }
+    // 侧栏整体折叠 / 展开（折叠状态持久化）
+    explorerCollapsed = !explorerCollapsed;
+    saveExplorerState();
+    if (explorerCollapsed) {
+      setFileTreeVisible(false);
+      showToast('文件浏览器已收起');
+    } else {
+      setFileTreeVisible(true);
+    }
+  }
+
+  /** 解析知识库根目录（config.storagePath） */
+  function resolveTreeRoot() {
+    var api = getElectronAPI();
+    return new Promise(function(resolve, reject) {
+      if (!api || typeof api.getConfig !== 'function') { reject(new Error('无桌面配置接口')); return; }
+      api.getConfig().then(function(cfg) {
+        var root = cfg && cfg.storagePath;
+        if (root) { resolve(root); return; }
+        reject(new Error('配置中缺少 storagePath'));
+      }).catch(function(err) { reject(err || new Error('读取配置失败')); });
+    });
+  }
+
+  /** 加载文件树：按树根解析（知识库根 → 当前文件目录 → 提示选择） */
   function loadFileTree() {
     var api = getElectronAPI();
-    if (!api || !api.listDirectory) {
+    if (!api || typeof api.listDirectory !== 'function') {
+      elements.fileTreeTitle.textContent = '文件浏览器';
+      elements.fileTreeTitle.title = '';
       elements.fileTreeBody.innerHTML = '<div class="filetree-item" style="cursor:default;color:var(--app-text-muted);">文件树仅桌面模式可用</div>';
       return;
     }
-
-    // 仅"手动选择目录"或"面包屑定位会话中"复用缓存；
-    // 默认会话（null）一律按当前文件父目录重新解析，避免与面包屑定位互相污染
-    if (fileTreeDir && (fileTreeDirSource === 'manual' || fileTreeDirSource === 'breadcrumb')) {
-      loadDirectory(fileTreeDir);
+    if (treeRootPath) {
+      renderTreeRoot(treeRootPath);
       return;
     }
-
-    // 有文件令牌，尝试从当前文件所在目录加载
-    if (state.fileToken) {
-      api.getFileDirectory(state.fileToken)
-        .then(function(result) {
-          if (!result || !result.exists || !result.dirPath) throw new Error('无法获取文件所在目录');
-          fileTreeDir = result.dirPath;
-          return api.listDirectory(result.dirPath);
-        })
-        .then(function(result) {
-          if (result && result.exists && Array.isArray(result.files)) {
-            renderFileTree(result.files);
-          } else {
-            elements.fileTreeBody.innerHTML = '<div class="filetree-item" style="cursor:default;color:var(--app-text-muted);">空目录</div>';
-          }
-        })
-        .catch(function(err) {
-          // 令牌失效或目录不存在，显示选择目录提示
-          fileTreeDir = null;
-          showFileTreePrompt();
-        });
-    } else {
-      // 无文件令牌且未选择目录，显示提示
-      showFileTreePrompt();
-    }
+    resolveTreeRoot().then(function(root) {
+      treeRootPath = root;
+      renderTreeRoot(root);
+    }).catch(function() {
+      // 回退：当前文件所在目录
+      if (state && state.fileToken && typeof api.getFileDirectory === 'function') {
+        api.getFileDirectory(state.fileToken)
+          .then(function(result) {
+            if (result && result.exists && result.dirPath) {
+              treeRootPath = result.dirPath;
+              renderTreeRoot(result.dirPath);
+              return;
+            }
+            showFileTreePrompt();
+          })
+          .catch(showFileTreePrompt);
+      } else {
+        showFileTreePrompt();
+      }
+    });
   }
 
   /** 显示"选择目录"提示 */
   function showFileTreePrompt() {
     elements.fileTreeTitle.textContent = '文件浏览器';
+    elements.fileTreeTitle.title = '';
     elements.fileTreeBody.innerHTML = ''
       + '<div class="filetree-item" style="cursor:default;color:var(--app-text-muted);padding:16px 10px;text-align:center;line-height:1.6;">'
-      + '请先打开或保存文件，<br>或点击上方"选择目录"按钮<br>浏览文件系统'
+      + '尚未定位到知识库，<br>请点击上方目录按钮<br>选择浏览目录'
       + '</div>';
   }
 
-  /** 加载指定目录的文件列表 */
-  function loadDirectory(dirPath) {
+  /** 整树重建（以 rootPath 为根） */
+  function renderTreeRoot(rootPath) {
     var api = getElectronAPI();
-    if (!api || !api.listDirectory) return;
-
-    // 更新标题显示当前目录名
-    var dirName = dirPath.split(/[\\/]/).filter(Boolean).pop() || dirPath;
+    if (!api || typeof api.listDirectory !== 'function') return;
+    var dirName = rootPath.split(/[\\/]+/).filter(Boolean).pop() || rootPath;
     elements.fileTreeTitle.textContent = dirName;
-
-    api.listDirectory(dirPath)
-      .then(function(result) {
-        if (result && result.exists && Array.isArray(result.files)) {
-          renderFileTree(result.files);
-        } else {
-          elements.fileTreeBody.innerHTML = '<div class="filetree-item" style="cursor:default;color:var(--app-text-muted);">空目录或无法访问</div>';
-        }
-      })
-      .catch(function(err) {
-        elements.fileTreeBody.innerHTML = '<div class="filetree-item" style="cursor:default;color:var(--app-text-muted);">加载目录失败: ' + (err.message || '未知错误') + '</div>';
-      });
+    elements.fileTreeTitle.title = rootPath;
+    elements.fileTreeBody.innerHTML = '';
+    delete treeDirCache[rootPath];
+    var rootBox = document.createElement('div');
+    rootBox.className = 'tree-children';
+    rootBox.setAttribute('data-root', '1');
+    elements.fileTreeBody.appendChild(rootBox);
+    renderDirectoryContents(rootPath, rootBox, 0);
   }
 
-  /** 通过系统对话框选择目录 */
+  /** 递归渲染目录内容（懒加载）；childBox 为目录行内的子容器或树根容器 */
+  function renderDirectoryContents(dirPath, childBox, depth) {
+    var api = getElectronAPI();
+    if (!api || typeof api.listDirectory !== 'function') return;
+    if (childBox.dataset.loading === '1') return;
+    childBox.dataset.loading = '1';
+    api.listDirectory(dirPath).then(function(result) {
+      childBox.dataset.loading = '';
+      childBox.dataset.loaded = '1';
+      if (!result || !result.exists || !Array.isArray(result.files) || !result.files.length) {
+        if (!childBox.querySelector('.tree-dir, .tree-file')) {
+          childBox.innerHTML = '<div class="filetree-item filetree-empty" style="cursor:default;color:var(--app-text-muted);">空目录</div>';
+        }
+        return;
+      }
+      treeDirCache[dirPath] = result.files;
+      var files = result.files.slice().sort(function(a, b) {
+        if (a.isDirectory && !b.isDirectory) return -1;
+        if (!a.isDirectory && b.isDirectory) return 1;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+      var frag = document.createDocumentFragment();
+      files.forEach(function(file) {
+        if (file.isDirectory) frag.appendChild(renderTreeDirRow(file, depth));
+        else frag.appendChild(renderTreeFileRow(file, depth));
+      });
+      childBox.appendChild(frag);
+      // 恢复展开态：自动展开已记录的目录（Obsidian 重开记忆）
+      files.forEach(function(file) {
+        if (file.isDirectory && expandedDirs.indexOf(file.path) !== -1) {
+          expandTreeDir(file.path);
+        }
+      });
+    }).catch(function(err) {
+      childBox.dataset.loading = '';
+      childBox.innerHTML = '<div class="filetree-item" style="cursor:default;color:var(--app-text-muted);">加载目录失败: ' + ((err && err.message) || '未知错误') + '</div>';
+    });
+  }
+
+  /** 目录节点：外层包裹（block）+ 行（flex）+ 子容器（sibling 于行，避免 flex 挤压） */
+  function renderTreeDirRow(file, depth) {
+    var item = document.createElement('div');
+    item.className = 'filetree-node folder tree-dir';
+    item.dataset.path = file.path;
+    item.dataset.depth = depth;
+
+    var row = document.createElement('div');
+    row.className = 'filetree-item tree-row';
+    row.title = file.name + ' (文件夹)';
+
+    var chevron = document.createElement('span');
+    chevron.className = 'ft-chevron';
+    chevron.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"></polyline></svg>';
+    var icon = document.createElement('span');
+    icon.className = 'ft-icon';
+    icon.textContent = '📁';
+    var name = document.createElement('span');
+    name.className = 'ft-name';
+    name.textContent = file.name;
+    row.appendChild(chevron); row.appendChild(icon); row.appendChild(name);
+
+    var childBox = document.createElement('div');
+    childBox.className = 'tree-children';
+    childBox.style.display = 'none';
+    childBox.dataset.parentPath = file.path;
+
+    item.appendChild(row);
+    item.appendChild(childBox);
+
+    row.addEventListener('click', function(e) {
+      if (e.target.closest('.tree-file')) return; // 叶子点击不冒泡
+      toggleTreeDirRow(file.path, item, childBox, depth);
+    });
+    return item;
+  }
+
+  /** 展开 / 收起目录（懒加载并持久化展开态）；loaded 标记以 childBox 为准，避免重复 append */
+  function toggleTreeDirRow(dirPath, itemEl, childBox, depth) {
+    var expanding = childBox.style.display === 'none';
+    if (expanding) {
+      childBox.style.display = '';
+      itemEl.classList.add('expanded');
+      if (expandedDirs.indexOf(dirPath) === -1) {
+        expandedDirs.push(dirPath);
+        saveExpandedDirs();
+      }
+      if (childBox.dataset.loaded !== '1') {
+        renderDirectoryContents(dirPath, childBox, depth + 1);
+      }
+    } else {
+      childBox.style.display = 'none';
+      itemEl.classList.remove('expanded');
+      var idx = expandedDirs.indexOf(dirPath);
+      if (idx !== -1) {
+        expandedDirs.splice(idx, 1);
+        saveExpandedDirs();
+      }
+    }
+  }
+
+  /** 应用记录的展开态（渲染后调用） */
+  function expandTreeDir(dirPath) {
+    var itemEl = elements.fileTreeBody.querySelector('.tree-dir[data-path="' + cssAttrEscape(dirPath) + '"]');
+    if (!itemEl) return;
+    var childBox = itemEl.querySelector('.tree-children');
+    if (!childBox || childBox.style.display !== 'none') return;
+    toggleTreeDirRow(dirPath, itemEl, childBox, Number(itemEl.dataset.depth || 0));
+  }
+
+  /** 属性值转义（目录路径可能含引号/反斜杠） */
+  function cssAttrEscape(val) {
+    return String(val).replace(/([\\"'])/g, '\\$1');
+  }
+
+  /** 文件行 */
+  function renderTreeFileRow(file, depth) {
+    var item = document.createElement('div');
+    item.className = 'filetree-item file tree-file';
+    item.title = file.name;
+    item.dataset.path = file.path;
+    item.dataset.depth = depth;
+    var spacer = document.createElement('span');
+    spacer.className = 'ft-chevron spacer';
+    spacer.setAttribute('aria-hidden', 'true');
+    var icon = document.createElement('span');
+    icon.className = 'ft-icon';
+    icon.textContent = '📄';
+    var name = document.createElement('span');
+    name.className = 'ft-name';
+    name.textContent = file.name;
+    item.appendChild(spacer); item.appendChild(icon); item.appendChild(name);
+    item.addEventListener('click', function() { openFileTreeFile(file); });
+    item.addEventListener('contextmenu', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      showFileTreeContextMenu(e, file);
+    });
+    if (state && state.displayPath && normalizePath(file.path) === normalizePath(state.displayPath)) {
+      item.classList.add('active');
+    }
+    return item;
+  }
+
+  /** 路径归一化（统一正斜杠 + 去尾斜杠 + 小写，用于比较） */
+  function normalizePath(p) {
+    return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  }
+
+  /** 刷新当前打开文件在树中的高亮 */
+  function refreshFileTreeActive() {
+    if (!fileTreeOpen || !elements.fileTreeBody) return;
+    var cur = state && state.displayPath ? normalizePath(state.displayPath) : null;
+    var activeRow = null;
+    elements.fileTreeBody.querySelectorAll('.tree-file').forEach(function(row) {
+      var hit = cur !== null && normalizePath(row.dataset.path || '') === cur;
+      row.classList.toggle('active', !!hit);
+      if (hit) activeRow = row;
+    });
+    if (activeRow && activeRow.scrollIntoView) {
+      try { activeRow.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+    }
+  }
+
+  /** 通过系统对话框选择目录（切换树根） */
   function selectFileTreeDirectory() {
     var api = getElectronAPI();
-    if (!api || !api.selectDirectory) {
+    if (!api || typeof api.selectDirectory !== 'function') {
       showToast('选择目录仅桌面模式可用', true);
       return;
     }
     api.selectDirectory()
       .then(function(dirPath) {
         if (!dirPath) return;
-        fileTreeDir = dirPath;
-        fileTreeDirSource = 'manual'; // 手动选择的目录为持久会话
-        loadDirectory(dirPath);
+        treeRootPath = dirPath;
+        if (!fileTreeOpen) {
+          explorerCollapsed = false;
+          saveExplorerState();
+          setFileTreeVisible(true);
+        } else {
+          renderTreeRoot(dirPath);
+        }
       })
       .catch(function(err) {
-        showToast('选择目录失败: ' + (err.message || '未知错误'), true);
+        showToast('选择目录失败: ' + ((err && err.message) || '未知错误'), true);
       });
   }
 
-  function renderFileTree(files) {
-    if (!files || files.length === 0) {
-      elements.fileTreeBody.innerHTML = '<div class="filetree-item" style="cursor:default;color:var(--app-text-muted);">空目录</div>';
-      return;
-    }
-    elements.fileTreeBody.innerHTML = '';
-
-    // 添加"返回上级"条目（如果不是根目录）
-    if (fileTreeDir && fileTreeDir !== '/' && !/^[a-zA-Z]:\\$/.test(fileTreeDir)) {
-      var parentItem = document.createElement('div');
-      parentItem.className = 'filetree-item folder';
-      parentItem.title = '返回上级目录';
-
-      var parentIcon = document.createElement('span');
-      parentIcon.className = 'ft-icon';
-      parentIcon.textContent = '📂';
-      parentItem.appendChild(parentIcon);
-
-      var parentName = document.createElement('span');
-      parentName.textContent = '..';
-      parentItem.appendChild(parentName);
-
-      parentItem.addEventListener('click', function() {
-        // 获取父目录路径（兼容 Windows 和 Unix 路径）
-        var normalized = fileTreeDir.replace(/[\\/]+/g, '/');
-        // 去掉末尾的 /
-        if (normalized.length > 1 && normalized.endsWith('/')) {
-          normalized = normalized.slice(0, -1);
-        }
-        var lastSlash = normalized.lastIndexOf('/');
-        var parentDir = lastSlash > 0 ? normalized.slice(0, lastSlash) : normalized + '/';
-        // Windows 盘符根目录（如 C:/）保持不变
-        if (/^[a-zA-Z]:\/?$/.test(parentDir) || parentDir === '/') {
-          parentDir = parentDir.replace(/\/$/, '') + '/';
-        }
-        if (parentDir === fileTreeDir) return;
-        fileTreeDir = parentDir;
-        loadDirectory(parentDir);
-      });
-
-      elements.fileTreeBody.appendChild(parentItem);
-    }
-
-    // 排序：文件夹在前，文件在后
-    files.sort(function(a, b) {
-      if (a.isDirectory && !b.isDirectory) return -1;
-      if (!a.isDirectory && b.isDirectory) return 1;
-      return (a.name || '').localeCompare(b.name || '');
+  /** 回到知识库根 */
+  function goTreeRoot() {
+    var api = getElectronAPI();
+    if (!api || typeof api.listDirectory !== 'function') return;
+    resolveTreeRoot().then(function(root) {
+      treeRootPath = root;
+      renderTreeRoot(root);
+      showToast('已回到知识库根');
+    }).catch(function() {
+      showToast('无法定位知识库根', true);
     });
+  }
 
-    files.forEach(function(file) {
-      var item = document.createElement('div');
-      item.className = 'filetree-item ' + (file.isDirectory ? 'folder' : 'file');
-      item.title = file.name + (file.isDirectory ? ' (文件夹)' : '');
-
-      var icon = document.createElement('span');
-      icon.className = 'ft-icon';
-      icon.textContent = file.isDirectory ? '📁' : '📄';
-      item.appendChild(icon);
-
-      var nameSpan = document.createElement('span');
-      nameSpan.textContent = file.name;
-      item.appendChild(nameSpan);
-
-      if (file.isDirectory) {
-        // 点击文件夹进入子目录
-        item.addEventListener('click', function() {
-          fileTreeDir = file.path;
-          loadDirectory(file.path);
-        });
-      } else {
-        item.addEventListener('click', function() {
-          openFileTreeFile(file);
-        });
-        item.addEventListener('contextmenu', function(e) {
-          e.preventDefault();
-          e.stopPropagation();
-          showFileTreeContextMenu(e, file);
-        });
-      }
-
-      elements.fileTreeBody.appendChild(item);
-    });
+  /** 刷新文件树（重建当前根，便于看到外部新增文件） */
+  function refreshFileTree() {
+    treeDirCache = {};
+    if (treeRootPath) {
+      renderTreeRoot(treeRootPath);
+      showToast('文件树已刷新');
+    }
   }
 
   function openFileTreeFile(file) {
@@ -6773,6 +6953,7 @@
               lineEnding: result.lineEnding
             });
             renderTabBar();
+            refreshFileTreeActive();
             showToast('已打开 ' + result.fileName);
             recordRecentFile(file.path, result.fileName);
           }
@@ -6791,9 +6972,21 @@
 
   elements.closeFileTreeBtn.addEventListener('click', toggleFileTree);
   elements.selectDirBtn.addEventListener('click', selectFileTreeDirectory);
+  elements.fileTreeHomeBtn.addEventListener('click', goTreeRoot);
+  elements.fileTreeRefreshBtn.addEventListener('click', refreshFileTree);
 
   // 文件树快捷键（默认 Ctrl/Cmd+Shift+E，可在系统设置中修改）；由 EditorShortcuts 捕获阶段统一分发
   EditorShortcuts.registerHandler('fileTree', function() { toggleFileTree(); });
+
+  // 桌面模式启动：默认常驻展开文件树（知识库根）；浏览器模式不自动展开
+  setTimeout(function() {
+    if (getElectronAPI() && typeof getElectronAPI().listDirectory === 'function') {
+      setFileTreeVisible(true);
+    } else {
+      explorerCollapsed = true;
+      saveExplorerState();
+    }
+  }, 0);
 
   // ══════════════════════════════════════════════════════════
   // 6. Project & Workspace (项目与工作区管理)
@@ -7098,6 +7291,7 @@
     elements.historyPane.setAttribute('aria-hidden', String(!open));
     elements.editorWorkspace.classList.toggle('show-history', open);
     if (historyBtn) historyBtn.classList.toggle('active', open);
+    if (!open) restoreFileTreeTab(); // 关闭后恢复文件树标签（侧栏常驻）
     setTimeout(function() { mainEditor.resize(); }, 250);
   }
 
@@ -7105,6 +7299,7 @@
     elements.historyPane.setAttribute('aria-hidden', 'true');
     elements.editorWorkspace.classList.remove('show-history');
     if (historyBtn) historyBtn.classList.remove('active');
+    restoreFileTreeTab();
     setTimeout(function() { mainEditor.resize(); }, 250);
   }
 
@@ -7324,6 +7519,7 @@
     elements.recentPane.setAttribute('aria-hidden', String(!open));
     elements.editorWorkspace.classList.toggle('show-recent', open);
     if (recentBtn) recentBtn.classList.toggle('active', open);
+    if (!open) restoreFileTreeTab(); // 关闭后恢复文件树标签（侧栏常驻）
     setTimeout(function() { mainEditor.resize(); }, 250);
   }
 
@@ -7331,6 +7527,7 @@
     elements.recentPane.setAttribute('aria-hidden', 'true');
     elements.editorWorkspace.classList.remove('show-recent');
     if (recentBtn) recentBtn.classList.remove('active');
+    restoreFileTreeTab();
     setTimeout(function() { mainEditor.resize(); }, 250);
   }
 
@@ -7506,6 +7703,7 @@
       elements.favPane.setAttribute('aria-hidden', 'true');
       elements.editorWorkspace.classList.remove('show-fav');
       if (favBtn) favBtn.classList.remove('active');
+      restoreFileTreeTab();
       setTimeout(function() { mainEditor.resize(); }, 250);
     } else {
       // 互斥关闭其他面板（文件树/历史/最近/反链/大纲/标签）
@@ -7522,6 +7720,7 @@
     elements.favPane.setAttribute('aria-hidden', 'true');
     elements.editorWorkspace.classList.remove('show-fav');
     if (favBtn) favBtn.classList.remove('active');
+    restoreFileTreeTab();
     setTimeout(function() { mainEditor.resize(); }, 250);
   }
 
@@ -8754,6 +8953,7 @@
         clearTimeout(backlinksRefreshTimer);
         backlinksRefreshTimer = null;
       }
+      restoreFileTreeTab(); // 关闭后恢复文件树标签（侧栏常驻）
     }
     setTimeout(function() { mainEditor.resize(); }, 250);
   }
@@ -8875,11 +9075,8 @@
     // 同步重置被关闭抽屉的状态标志，确保再次点击时能正确切换
     if (keepClass !== 'show-filetree') {
       fileTreeOpen = false;
-      // 文件树被其它抽屉互斥关闭时，同样清理面包屑一次性会话缓存
-      if (fileTreeDirSource === 'breadcrumb') {
-        fileTreeDir = null;
-        fileTreeDirSource = null;
-      }
+      // 树被其它面板临时顶替（非折叠）：留给 restoreFileTreeTab 在面板关闭后恢复
+      fileTreeSuspended = true;
     }
     if (keepClass !== 'show-backlinks') backlinksVisible = false;
     if (keepClass !== 'show-outline') outlineVisible = false;
@@ -8901,6 +9098,7 @@
     } else {
       // 关闭时清空搜索词，避免下次打开残留过滤
       clearOutlineSearch();
+      restoreFileTreeTab(); // 关闭后恢复文件树标签（侧栏常驻）
     }
     setTimeout(function() { mainEditor.resize(); }, 250);
   }
@@ -9104,6 +9302,8 @@
     if (tagsVisible) {
       closeOtherLeftPanes('show-tags');
       buildTags();
+    } else {
+      restoreFileTreeTab(); // 关闭后恢复文件树标签（侧栏常驻）
     }
     setTimeout(function() { mainEditor.resize(); }, 250);
   }

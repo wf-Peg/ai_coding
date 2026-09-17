@@ -20,9 +20,14 @@ import java.util.Map;
 /**
  * 无限画布·后端状态持久化服务。
  * <p>
- * 把用户「手动画布层」（canvas_node / canvas_edge / canvas_layout / canvas_group /
- * canvas_group_member）以全量快照 JSON 的形式存到 {@code clip.storage.path/graph/canvas-state.json}。
+ * 把用户「手动画布层」（canvas_doc / canvas_node / canvas_edge / canvas_layout /
+ * canvas_group / canvas_group_member）以全量快照 JSON 的形式存到
+ * {@code clip.storage.path/graph/canvas-state.json}。
  * 符合项目「文件为真、库为缓存」风格；不做字段级合并（合并/ last-write-wins 归 Electron 端）。
+ * </p>
+ * <p>
+ * 快照 v2 起新增 docs（多画布文档），节点/连线/分组携带 docId；服务端仅透传存储，
+ * 不解析内部结构，因此 v1 旧快照（无 docs）仍可读可写，由 Electron 端做向后兼容恢复。
  * </p>
  */
 @Service
@@ -30,7 +35,7 @@ public class CanvasStateService {
 
     private static final Logger log = LoggerFactory.getLogger(CanvasStateService.class);
     private static final String FILE_NAME = "canvas-state.json";
-    private static final String DEFAULT_SNAPSHOT_VERSION = "1";
+    private static final String DEFAULT_SNAPSHOT_VERSION = "2";
 
     private final ObjectMapper objectMapper;
     private final Path graphDir;
@@ -51,7 +56,7 @@ public class CanvasStateService {
     /**
      * 读取画布状态快照。文件不存在时返回空的默认快照。
      *
-     * @return { nodes:[], edges:[], layout:{}, groups:[], updatedAt:null, version:1 }
+     * @return { docs:[], nodes:[], edges:[], layout:{}, groups:[], updatedAt:null, version:2 }
      */
     public Map<String, Object> readState() {
         Path path = getPath();
@@ -65,6 +70,7 @@ public class CanvasStateService {
                 return defaultSnapshot();
             }
             // 保证关键字段存在，便于前端/Electron 消费
+            data.putIfAbsent("docs", java.util.Collections.emptyList());
             data.putIfAbsent("nodes", java.util.Collections.emptyList());
             data.putIfAbsent("edges", java.util.Collections.emptyList());
             data.putIfAbsent("layout", java.util.Collections.emptyMap());
@@ -105,6 +111,7 @@ public class CanvasStateService {
 
     private Map<String, Object> defaultSnapshot() {
         Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("docs", java.util.Collections.emptyList());
         snapshot.put("nodes", java.util.Collections.emptyList());
         snapshot.put("edges", java.util.Collections.emptyList());
         snapshot.put("layout", java.util.Collections.emptyMap());

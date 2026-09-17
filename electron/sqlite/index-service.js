@@ -221,19 +221,24 @@ function startWatcher(storagePath, onDelta) {
 
 /**
  * 启动 md 库实时监听：编辑器保存/新建/删除 .md 后，防抖触发一次轻量 rescanMarkdown，
- * 让全局搜索（vault 命中）跟上最新笔记。app 退出由进程结束释放文件句柄。
+ * 让全局搜索（vault 命中）跟上最新笔记。
+ *
+ * 借鉴 Obsidian「重开 vault 即重建索引」：运行期也会**增量挂载**新出现的顶层 md 目录
+ * （`fs.watch(storagePath)` 非递归 + 60s 轮询兜底），使外部手动复制/迁移进来的
+ * 知识库目录无需重启即可被监听并收录。app 退出由进程结束释放文件句柄。
+ *
  * @param {string} storagePath config.storagePath
  * @param {(delta:{added:number,count:number})=>void} [onDelta]
- * @returns {{started:boolean, roots:string[], stop?:Function, reason?:string}}
+ * @returns {{started:boolean, roots:string[], refresh?:Function, stop?:Function, reason?:string}}
  */
 function startMarkdownWatcher(storagePath, onDelta) {
-  const roots = scanner.discoverMarkdownRoots(storagePath).filter((r) => {
-    try { return fs.existsSync(r) && fs.statSync(r).isDirectory(); } catch (e) { return false; }
-  });
-  if (!roots.length) return { started: false, roots, reason: 'no markdown roots' };
-
-  const watchers = [];
+  // 增量挂载的 root -> watcher 映射；discoverMarkdownRoots 每次重新发现，
+  // 新增的顶层目录在此挂载、消失的目录在此摘除。
+  const attached = new Map();
+  let parentWatcher = null;
+  let pollTimer = null;
   let timer = null;
+
   const debounced = () => {
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
@@ -246,22 +251,95 @@ function startMarkdownWatcher(storagePath, onDelta) {
       }
     }, 800);
   };
-  for (const root of roots) {
-    try {
-      watchers.push({ w: fs.watch(root, { recursive: true }, debounced) });
-    } catch (e) {
-      try { watchers.push({ w: fs.watch(root, debounced) }); } catch (e2) { /* 跳过不可监听根 */ }
+
+  /** 重新发现顶层 md 根并增量挂载/摘除 watcher。 */
+  function refresh() {
+    const roots = scanner.discoverMarkdownRoots(storagePath).filter((r) => {
+      try { return fs.existsSync(r) && fs.statSync(r).isDirectory(); } catch (e) { return false; }
+    });
+    const seen = new Set();
+    for (const root of roots) {
+      seen.add(root);
+      if (attached.has(root)) continue;
+      let w = null;
+      try { w = fs.watch(root, { recursive: true }, debounced); }
+      catch (e) {
+        try { w = fs.watch(root, debounced); } catch (e2) { /* 跳过不可监听根 */ }
+      }
+      if (w) attached.set(root, w);
     }
+    for (const [root, w] of [...attached.entries()]) {
+      if (!seen.has(root)) {
+        try { w.close(); } catch (e) { /* ignore */ }
+        attached.delete(root);
+      }
+    }
+    return roots;
   }
+
+  // 首次挂载
+  refresh();
+
+  // 顶层监听：新目录出现/消失 → 立即 refresh 并防抖重扫（消灭「新增顶层目录」盲区）
+  try { parentWatcher = fs.watch(storagePath, () => { refresh(); debounced(); }); }
+  catch (e) { /* 平台不支持时仅靠轮询兜底 */ }
+
+  // 轮询兜底（对齐 Java VaultWatchService 的 60s 约定），覆盖网络盘/watch 失效场景；
+  // 即使当前没有 md 根也保持挂载，新顶层目录出现时由 refresh() 增量接住
+  pollTimer = setInterval(refresh, 60000);
+  if (pollTimer.unref) pollTimer.unref();
+
   return {
-    started: watchers.length > 0,
-    roots,
+    started: attached.size > 0,
+    get roots() { return [...attached.keys()]; },
+    refresh,
     stop() {
       if (timer) { clearTimeout(timer); timer = null; }
-      for (const x of watchers) { try { x.w.close(); } catch (e) { /* ignore */ } }
-      watchers.length = 0;
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      if (parentWatcher) { try { parentWatcher.close(); } catch (e) { /* ignore */ } parentWatcher = null; }
+      for (const w of attached.values()) { try { w.close(); } catch (e) { /* ignore */ } }
+      attached.clear();
     }
   };
+}
+
+/**
+ * 对 md 库（type='vault'）做一次「全量比对式重扫 + prune + FTS 重建」。
+ * 比 rebuild() 轻：不重扫 clip/实体/关系，仅同步 md 索引与磁盘现状。
+ * 供设置页「重新索引知识库」与手动修复使用。
+ * @param {string} storagePath
+ * @returns {{added:number, removed:number, count:number}}
+ */
+function reindexMarkdown(storagePath) {
+  const dbConn = db.openDatabase(storagePath);
+  const before = indexer.count(dbConn);
+  const tx = (fn) => {
+    dbConn.exec('BEGIN');
+    try { const r = fn(); dbConn.exec('COMMIT'); return r; }
+    catch (e) { dbConn.exec('ROLLBACK'); throw e; }
+  };
+  let added = 0, removed = 0;
+  tx(() => {
+    const { added: a } = indexMarkdown(dbConn, storagePath);
+    added = a;
+    removed = before - indexer.count(dbConn) + added;
+    if (removed < 0) removed = 0;
+  });
+  indexer.rebuildFts(dbConn);
+  return { added, removed, count: indexer.count(dbConn) };
+}
+
+/**
+ * 全量重建本地索引（含 md 库）。供「重新索引知识库」按钮与运行期换根后使用。
+ * 若当前单例连接绑定的 storagePath 与目标不一致，先 closeFast 换库。
+ * @param {string} storagePath
+ * @returns {Object} initLocalIndex 的返回（含 rebuilt/count）
+ */
+function reindexAll(storagePath) {
+  if (db.getBoundPath() && db.getBoundPath() !== storagePath) {
+    db.closeFast();
+  }
+  return initLocalIndex(storagePath, { force: true });
 }
 
 /**
@@ -333,4 +411,4 @@ function listByType(type = 'clip', limit = 200) {
   }).filter((x) => x != null);
 }
 
-module.exports = { initLocalIndex, rebuild, status, listByType, rescan, rescanMarkdown, startWatcher, startMarkdownWatcher, startMaintenance, stopMaintenance, close };
+module.exports = { initLocalIndex, rebuild, status, listByType, rescan, rescanMarkdown, reindexMarkdown, reindexAll, startWatcher, startMarkdownWatcher, startMaintenance, stopMaintenance, close };

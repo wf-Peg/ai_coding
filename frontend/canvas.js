@@ -53,6 +53,13 @@
   let minimapViewportDrag = null;
   let resizeBound = false;
 
+  // ---- 多画布文档 + 大纲视图状态（对标幕布） ----
+  const VIEW_MODE_KEY = 'canvas_view_mode_v1';
+  let currentDocId = null;     // 当前画布文档 id
+  let docList = [];            // 文档列表（含 nodeCount）
+  let viewMode = 'split';      // outline | split | canvas
+  let refNodesLoaded = false;  // 语义内容节点候选是否已懒加载
+
   const GRID = 12;            // 网格吸附间距（px）
   let groupCollapsed = {};    // 分组折叠状态（内存态，刷新后重置）
   let collapseTimer = null;   // 折叠点击防抖（区分“单击折叠 / 双击重命名”）
@@ -69,6 +76,11 @@
 
   // ---- 数据加载 ----
 
+  /**
+   * 加载当前画布文档的完整状态。
+   * 走 canvasState({docId}) 一次拿全（文档 / 节点 / 连线 / 分组 / 坐标），
+   * 不再借用「图谱接口 + filter(n => n.canvas)」——多文档后该路径无法按文档隔离。
+   */
   async function loadData() {
     const bridge = window.electronAPI && window.electronAPI.localIndex;
     // 进图即拉后端最新画布快照（后端更新则恢复，本地更新则反向推送，失败不阻塞）
@@ -76,8 +88,72 @@
       try { await bridge.canvasSync(); } catch (e) {}
     }
 
+    if (!bridge || typeof bridge.canvasState !== 'function') {
+      await loadFromGraphFallback();
+      return;
+    }
+
+    let res = null;
+    try { res = await bridge.canvasState({ docId: currentDocId }); } catch (e) {}
+
+    if (!res || !res.success) {
+      clearCanvas();
+      emptyEl.style.display = 'none';
+      showEmpty('加载失败', res && res.message ? res.message : '本地索引尚未就绪，请稍后重试或重建索引');
+      return;
+    }
+
+    currentDocId = res.doc.id;
+    docList = res.docs || [];
+    allGroups = res.groups || [];
+    refNodes = [];
+    refNodesLoaded = false;
+
+    allNodes = (res.nodes || []).map(function(n) {
+      var p = (res.layout || {})[n.id];
+      return {
+        id: n.id,
+        type: n.kind || 'note',
+        title: n.title || '',
+        text: n.text,
+        x: (p && typeof p.x === 'number' && isFinite(p.x)) ? p.x : 0,
+        y: (p && typeof p.y === 'number' && isFinite(p.y)) ? p.y : 0,
+        parentId: n.parentId || null,
+        orderIndex: (typeof n.orderIndex === 'number') ? n.orderIndex : null,
+        createdAt: n.createdAt || ''
+      };
+    });
+    nodeMap = {};
+    allNodes.forEach(function(n) { nodeMap[n.id] = n; });
+
+    allEdges = (res.edges || []).map(function(e) {
+      return { id: e.id, source: e.source, target: e.target, type: 'manual' };
+    });
+
+    loadingEl.style.display = 'none';
+    updateDocSwitcher();
+    updateScaleWarn();
+    syncOutline();
+
+    if (!allNodes.length) {
+      clearCanvas();
+      showEmpty('暂无画布节点', '在左侧大纲按 Enter 开始列第一条，或右键空白处新建便签 / 链接 / 图片');
+      return;
+    }
+    emptyEl.style.display = 'none';
+    // 仅大纲视图下画布容器尺寸为 0，不建 SVG；切到分栏/画布时再由 setViewMode 触发渲染
+    if (viewMode === 'outline') return;
+    renderCanvas();
+  }
+
+  /**
+   * 兜底取数（无 Electron bridge，如浏览器调试）：仍走图谱接口 + filter(canvas)。
+   * 该路径不参与多文档与大纲，仅保证画布可视化不空转。
+   */
+  async function loadFromGraphFallback() {
     let nodes = null;
     let links = [];
+    const bridge = window.electronAPI && window.electronAPI.localIndex;
     if (bridge && typeof bridge.graph === 'function') {
       try {
         const res = await bridge.graph({});
@@ -97,9 +173,9 @@
       }
     }
 
-    // 只取「画布卡片」与「手动连线」；语义节点仅作为「引用」候选
     const canvasNodes = (nodes || []).filter(function(n) { return n.canvas; });
     refNodes = (nodes || []).filter(function(n) { return !n.canvas; });
+    refNodesLoaded = true;
     allEdges = (links || []).filter(function(l) { return l.type === 'manual'; }).map(function(l) {
       return {
         id: l.manualId || l.id,
@@ -114,6 +190,7 @@
       allEdges = [];
       clearCanvas();
       showEmpty('暂无画布节点', '右键空白处新建便签 / 链接 / 图片，或引用已有内容节点');
+      syncOutline();
       return;
     }
 
@@ -124,7 +201,10 @@
         title: n.title || '',
         text: n.text,
         x: (typeof n.x === 'number' && isFinite(n.x)) ? n.x : 0,
-        y: (typeof n.y === 'number' && isFinite(n.y)) ? n.y : 0
+        y: (typeof n.y === 'number' && isFinite(n.y)) ? n.y : 0,
+        parentId: n.parentId || null,
+        orderIndex: (typeof n.orderIndex === 'number') ? n.orderIndex : null,
+        createdAt: n.createdAt || ''
       };
     });
     nodeMap = {};
@@ -133,16 +213,60 @@
     loadingEl.style.display = 'none';
     emptyEl.style.display = 'none';
     renderCanvas();
-    loadGroups();
+    syncOutline();
   }
 
-  function loadGroups() {
+  /** 引用选择器的语义节点候选：懒加载（第一次打开引用弹窗时才取，避免进图多一次 IPC）。 */
+  async function ensureRefNodes() {
+    if (refNodesLoaded) return;
     const bridge = window.electronAPI && window.electronAPI.localIndex;
-    if (!bridge || typeof bridge.listGroups !== 'function') return;
-    bridge.listGroups().then(function(res) {
-      if (res && res.success) allGroups = res.groups || [];
-      renderGroupFrames();
-    }).catch(function() { allGroups = []; });
+    if (bridge && typeof bridge.graph === 'function') {
+      try {
+        const res = await bridge.graph({});
+        if (res && res.success) {
+          refNodes = (res.nodes || []).filter(function(n) { return !n.canvas; });
+          refNodesLoaded = true;
+          return;
+        }
+      } catch (e) {}
+    }
+    try {
+      const response = await fetch(API_GRAPH);
+      const data = await response.json();
+      refNodes = (data.nodes || []).filter(function(n) { return !n.canvas; });
+      refNodesLoaded = true;
+    } catch (e) { refNodes = []; }
+  }
+
+  /** 当前文档标题（用于导出文件名）。 */
+  function docTitle() {
+    for (var i = 0; i < docList.length; i++) {
+      if (docList[i].id === currentDocId) return docList[i].title || '我的画布';
+    }
+    return '我的画布';
+  }
+
+  /** 把当前节点集同步给大纲面板（全量，仅在换文档/重载时调用）。 */
+  function syncOutline() {
+    if (!window.CanvasOutline) return;
+    window.CanvasOutline.setNodes(allNodes.map(function(n) {
+      return {
+        id: n.id, kind: n.type, text: n.text, title: n.title,
+        parentId: n.parentId, orderIndex: n.orderIndex, createdAt: n.createdAt
+      };
+    }));
+  }
+
+  function updateScaleWarn() {
+    var warn = document.getElementById('scaleWarn');
+    if (!warn) return;
+    if (allNodes.length > 300) {
+      warn.style.display = 'inline';
+      warn.textContent = '节点 ' + allNodes.length + ' 个，建议拆分为多个画布';
+    } else {
+      warn.style.display = 'none';
+      warn.textContent = '';
+    }
   }
 
   function clearCanvas() {
@@ -355,6 +479,30 @@
     if (n && n.__el) d3.select(n.__el).attr('transform', 'translate(' + n.x + ',' + n.y + ')');
   }
 
+  /**
+   * 局部刷新单张卡片的文本（大纲改文字时用，避免整画布重绘）。
+   * 链接/图片卡版面不同（标题 + 域名 / 缩略图），仍交由整体重绘处理。
+   */
+  function refreshCardText(id) {
+    var d = nodeMap[id];
+    if (!d || !nodeElements) return false;
+    if (d.type === 'link' || d.type === 'image') return false;
+    var target = null;
+    nodeElements.each(function(n) { if (String(n.id) === String(id)) target = this; });
+    if (!target) return false;
+    var textSel = d3.select(target).select('text.canvas-card-text');
+    if (textSel.empty()) return false;
+    var label = d.type === 'note' ? (d.text || d.title || '便签') : (d.title || '引用');
+    var lines = wrapLines(label, d.type === 'note' ? 12 : 13);
+    textSel.selectAll('tspan').remove();
+    var lineHeight = 14;
+    var startY = -((lines.length - 1) * lineHeight) / 2;
+    for (var i = 0; i < lines.length; i++) {
+      textSel.append('tspan').attr('x', 0).attr('y', startY + i * lineHeight).text(lines[i]);
+    }
+    return true;
+  }
+
   // 内联 SVG 线框类型图标（16px，与编辑器工具栏图标风格一致）
   function typeIconMarkup(type) {
     var path = '';
@@ -509,12 +657,15 @@
     selectedNodeIds.clear();
     selectedNodeIds.add(String(d.id));
     applySelectionHighlight();
+    // 双向联动：画布选中 → 大纲对应行高亮并滚动到位
+    if (window.CanvasOutline) window.CanvasOutline.highlight(String(d.id));
   }
 
   function resetSelection() {
     selectedNodeId = null;
     selectedNodeIds.clear();
     applySelectionHighlight();
+    if (window.CanvasOutline) window.CanvasOutline.setSelected(null);
   }
 
   function applySelectionHighlight() {
@@ -831,11 +982,22 @@
       });
   }
 
+  /** 重新拉取当前文档的分组（分组变更后刷新 frame）。 */
+  async function loadGroups() {
+    const bridge = window.electronAPI && window.electronAPI.localIndex;
+    if (!bridge || typeof bridge.listGroups !== 'function') return;
+    try {
+      const res = await bridge.listGroups({ docId: currentDocId || undefined });
+      if (res && res.success) allGroups = res.groups || [];
+    } catch (e) { allGroups = allGroups || []; }
+    renderGroupFrames();
+  }
+
   async function createGroupNamed(name) {
     const bridge = window.electronAPI && window.electronAPI.localIndex;
     if (!bridge || typeof bridge.createGroup !== 'function') return;
     try {
-      await bridge.createGroup({ name: name, memberIds: Array.from(selectedNodeIds) });
+      await bridge.createGroup({ name: name, memberIds: Array.from(selectedNodeIds), docId: currentDocId || undefined });
     } catch (e) {}
     await loadGroups();
   }
@@ -932,6 +1094,53 @@
     canvasModalCtx = null;
     pendingRefNodeId = null;
     pendingGroup = null;
+    if (canvasModalOk) canvasModalOk.style.display = '';
+    canvasModalCancel.textContent = '取消';
+  }
+
+  /** 纯提示弹窗（仅「取消」按钮充当关闭），用于“至少保留一个画布”等不可继续的操作反馈。 */
+  function openMessage(title, msg) {
+    closeMenus();
+    canvasModalCtx = { mode: 'message' };
+    canvasModalTitle.textContent = title;
+    canvasModalBody.innerHTML = '<div class="clear-all-tip">' + escapeHtml(msg) + '</div>';
+    if (canvasModalOk) canvasModalOk.style.display = 'none';
+    canvasModalCancel.textContent = '知道了';
+    canvasModalMask.style.display = 'flex';
+  }
+
+  /** 打开重命名画布弹窗（复用画布弹窗，避免 iframe 内 window.prompt 受限）。 */
+  function openRenameDocModal(id) {
+    closeMenus();
+    var cur = '';
+    for (var i = 0; i < docList.length; i++) if (docList[i].id === id) cur = docList[i].title || '';
+    canvasModalCtx = { mode: 'rename-doc', docId: id };
+    canvasModalTitle.textContent = '重命名画布';
+    canvasModalBody.innerHTML =
+      '<div class="field-label">画布名称</div>' +
+      '<input id="canvasFieldValue" type="text" value="' + escapeHtml(cur) + '">';
+    canvasModalCancel.textContent = '取消';
+    var el = canvasModalBody.querySelector('#canvasFieldValue');
+    if (el) { el.focus(); el.select(); }
+    canvasModalMask.style.display = 'flex';
+  }
+
+  /** 打开删除画布确认弹窗（至少保留一个）。 */
+  function openDeleteDocModal(id) {
+    closeMenus();
+    var title = '';
+    for (var i = 0; i < docList.length; i++) if (docList[i].id === id) title = docList[i].title || '未命名画布';
+    if (docList.length <= 1) {
+      openMessage('无法删除', '至少保留一个画布文档。可以先新建一个画布，再删除当前的。');
+      return;
+    }
+    canvasModalCtx = { mode: 'confirm-delete-doc', docId: id };
+    canvasModalTitle.textContent = '删除画布';
+    canvasModalBody.innerHTML =
+      '<div class="clear-all-tip">确定删除画布「<b>' + escapeHtml(title) + '</b>」吗？<br>' +
+      '该画布下的全部节点、连线与分组都会一并删除，且不可恢复。</div>';
+    canvasModalCancel.textContent = '取消';
+    canvasModalMask.style.display = 'flex';
   }
 
   // 清空全部内容：危险操作，弹确认框（复用画布弹窗）
@@ -977,6 +1186,8 @@
     selectedNodeId = null;
     // 墨迹一并清空
     strokes = [];
+    if (window.CanvasOutline) window.CanvasOutline.reset();
+    updateScaleWarn();
     renderCanvas(); // 空态（showEmpty）自动呈现
   }
 
@@ -992,7 +1203,8 @@
         '<div class="field-label">选择一个已有内容节点</div>' +
         '<input id="refPickerSearch" placeholder="搜索标题 / 分类 / 标签..." style="margin-bottom:8px;">' +
         '<div class="ref-picker-list" id="refPickerList"></div>';
-      renderRefPicker('');
+      renderRefPicker('');   // 先给即时反馈（可能是空列表）
+      ensureRefNodes().then(function() { renderRefPicker(input ? input.value : ''); });
       var input = canvasModalBody.querySelector('#refPickerSearch');
       input.addEventListener('input', function() { renderRefPicker(input.value); });
       var list = canvasModalBody.querySelector('#refPickerList');
@@ -1049,18 +1261,23 @@
 
   // ---- 画布节点增删改（复用本地索引桥；成功即本地插入/更新，不整页刷新） ----
 
-  async function createCanvasNode(kind, text, title, x, y) {
+  async function createCanvasNode(kind, text, title, x, y, extra) {
     const bridge = window.electronAPI && window.electronAPI.localIndex;
+    const payload = Object.assign({
+      kind: kind, text: text, title: title, x: x, y: y,
+      docId: currentDocId || undefined
+    }, extra || {});
     if (bridge && typeof bridge.createCanvasNode === 'function') {
       try {
-        var res = await bridge.createCanvasNode({ kind: kind, text: text, title: title, x: x, y: y });
+        var res = await bridge.createCanvasNode(payload);
         return (res && res.node) ? res.node : null;
       } catch (e) { return null; }
     }
     // 无 Electron bridge（如浏览器调试）时：生成本地临时节点兜底，仍能在画布画出并拖动
     return {
       id: 'temp:' + Date.now() + ':' + Math.floor(Math.random() * 1e6),
-      kind: kind, text: text, title: title, x: x, y: y
+      kind: kind, text: text, title: title, x: x, y: y,
+      parentId: (extra && extra.parentId) || null
     };
   }
 
@@ -1070,19 +1287,48 @@
     try { await bridge.updateCanvasNode({ id: id, text: text }); } catch (e) {}
   }
 
+  /** 收集某节点及其全部后代 id（与后端 deleteNode 的子树连坐语义一致）。 */
+  function collectSubtree(id) {
+    var kids = {};
+    allNodes.forEach(function(n) {
+      var p = n.parentId || null;
+      if (!p) return;
+      if (!kids[p]) kids[p] = [];
+      kids[p].push(n.id);
+    });
+    var out = [id];
+    var stack = [id];
+    while (stack.length) {
+      var cur = stack.pop();
+      var cs = kids[cur];
+      if (!cs) continue;
+      for (var i = 0; i < cs.length; i++) {
+        if (out.indexOf(cs[i]) >= 0) continue;
+        out.push(cs[i]);
+        stack.push(cs[i]);
+      }
+    }
+    return out;
+  }
+
   async function deleteCanvasNode(id) {
     const bridge = window.electronAPI && window.electronAPI.localIndex;
     if (bridge && typeof bridge.deleteCanvasNode === 'function') {
       try { await bridge.deleteCanvasNode({ id: id }); } catch (e) {}
     }
-    // 本地移除节点及其连线/分组关系，即时反馈
-    delete nodeMap[id];
-    allNodes = allNodes.filter(function(n) { return n.id !== id; });
-    allEdges = allEdges.filter(function(e) { return e.source !== id && e.target !== id; });
-    allGroups.forEach(function(gd) { gd.members = (gd.members || []).filter(function(m) { return m !== id; }); });
-    selectedNodeIds.delete(id);
-    if (selectedNodeId === id) selectedNodeId = null;
+    // 本地移除节点及其子树、相关连线与分组关系，即时反馈
+    var doomed = collectSubtree(String(id));
+    doomed.forEach(function(x) {
+      delete nodeMap[x];
+      selectedNodeIds.delete(x);
+      if (selectedNodeId === x) selectedNodeId = null;
+    });
+    allNodes = allNodes.filter(function(n) { return doomed.indexOf(n.id) < 0; });
+    allEdges = allEdges.filter(function(e) { return doomed.indexOf(e.source) < 0 && doomed.indexOf(e.target) < 0; });
+    allGroups.forEach(function(gd) { gd.members = (gd.members || []).filter(function(m) { return doomed.indexOf(m) < 0; }); });
     renderCanvas();
+    if (window.CanvasOutline) window.CanvasOutline.removeNode(String(id));
+    updateScaleWarn();
   }
 
   async function deleteCanvasEdge(id) {
@@ -1116,6 +1362,23 @@
       closeModal();
       return;
     }
+    if (ctx.mode === 'rename-doc') {
+      var docField = canvasModalBody.querySelector('#canvasFieldValue');
+      var docVal = docField ? docField.value.trim() : '';
+      closeModal();
+      await renameDocById(ctx.docId, docVal);
+      return;
+    }
+    if (ctx.mode === 'confirm-delete-doc') {
+      var doomedDoc = ctx.docId;
+      closeModal();
+      await removeDocById(doomedDoc);
+      return;
+    }
+    if (ctx.mode === 'message') {
+      closeModal();
+      return;
+    }
     var createdNode = null;
     if (ctx.mode === 'create') {
       if (ctx.kind === 'ref') {
@@ -1137,7 +1400,14 @@
       var editVal = editField ? editField.value : '';
       await updateCanvasNode(ctx.nodeId, editVal);
       var en = nodeMap[ctx.nodeId];
-      if (en) { en.text = editVal; en.title = editVal ? String(editVal).slice(0, 40) : en.title; }
+      if (en) {
+        en.text = editVal;
+        en.title = editVal ? String(editVal).slice(0, 40) : en.title;
+        // 双向一致：画布改文字 → 大纲对应行同步
+        if (window.CanvasOutline) {
+          window.CanvasOutline.upsertNode({ id: en.id, kind: en.type, text: en.text, title: en.title });
+        }
+      }
     }
     closeModal();
 
@@ -1149,13 +1419,23 @@
         title: createdNode.title || (createdNode.text ? String(createdNode.text).slice(0, 40) : '便签'),
         text: createdNode.text,
         x: (typeof createdNode.x === 'number' && isFinite(createdNode.x)) ? createdNode.x : ctx.x,
-        y: (typeof createdNode.y === 'number' && isFinite(createdNode.y)) ? createdNode.y : ctx.y
+        y: (typeof createdNode.y === 'number' && isFinite(createdNode.y)) ? createdNode.y : ctx.y,
+        parentId: createdNode.parentId || null,
+        orderIndex: (typeof createdNode.orderIndex === 'number') ? createdNode.orderIndex : null,
+        createdAt: createdNode.createdAt || ''
       };
       allNodes.push(node);
       nodeMap[node.id] = node;
       selectedNodeIds.clear();
       selectedNodeIds.add(node.id);
       selectedNodeId = node.id;
+      if (window.CanvasOutline) {
+        window.CanvasOutline.upsertNode({
+          id: node.id, kind: node.type, text: node.text, title: node.title,
+          parentId: node.parentId, orderIndex: node.orderIndex, createdAt: node.createdAt
+        });
+      }
+      updateScaleWarn();
     }
     renderCanvas();
   }
@@ -1533,7 +1813,8 @@
       var a = document.createElement('a');
       var d = new Date();
       var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
-      a.download = '画布-' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + Date.now() + '.png';
+      var safeTitle = docTitle().replace(/[\\/:*?"<>|]/g, '_').slice(0, 60) || '画布';
+      a.download = safeTitle + '-画布-' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + Date.now() + '.png';
       a.href = canvas.toDataURL('image/png');
       a.click();
     } finally {
@@ -1694,7 +1975,430 @@
     drawOverlayEl.addEventListener('pointerleave', handleDrawEnd);
   }
 
+  // ---- 大纲面板 / 多画布文档 / 视图三态（对标幕布） ----
+
+  function dispatchResize() {
+    try { window.dispatchEvent(new Event('resize')); } catch (e) {}
+  }
+
+  /** 初始化大纲面板：把画布数据交给 CanvasOutline，并接管它的回写回调。 */
+  function initOutline() {
+    if (!window.CanvasOutline) return;
+    window.CanvasOutline.init({
+      getExportName: function() { return docTitle() + '.md'; },
+
+      onEdit: function(id, text) {
+        var n = nodeMap[id];
+        if (n) { n.text = text; n.title = text ? String(text).slice(0, 40) : n.title; }
+        updateCanvasNode(id, text);
+        // 便签/引用卡可局部刷文本；链接/图片卡版面不同，退回整体重绘
+        if (!refreshCardText(id)) renderCanvas();
+      },
+
+      onStructure: function(entries) {
+        var changed = {};
+        entries.forEach(function(e) { changed[e.id] = e; });
+        allNodes.forEach(function(n) {
+          var e = changed[n.id];
+          if (e) { n.parentId = e.parentId; n.orderIndex = e.orderIndex; }
+        });
+        var bridge = window.electronAPI && window.electronAPI.localIndex;
+        if (bridge && typeof bridge.saveCanvasStructure === 'function') {
+          try { bridge.saveCanvasStructure({ docId: currentDocId, entries: entries }); } catch (e) {}
+        }
+      },
+
+      onCreate: function(payload) {
+        var anchor = payload.afterId ? nodeMap[payload.afterId] : null;
+        var x = anchor ? anchor.x : 0;
+        var y = anchor ? anchor.y + 84 : 0;
+        return createCanvasNode('note', '', '', x, y, {
+          docId: currentDocId || undefined,
+          parentId: payload.parentId || null
+        }).then(function(created) {
+          if (!created || !created.id) return null;
+          var node = {
+            id: created.id,
+            type: created.kind || 'note',
+            title: created.title || '',
+            text: created.text != null ? created.text : '',
+            x: (typeof created.x === 'number' && isFinite(created.x)) ? created.x : x,
+            y: (typeof created.y === 'number' && isFinite(created.y)) ? created.y : y,
+            parentId: created.parentId || payload.parentId || null,
+            orderIndex: (typeof created.orderIndex === 'number') ? created.orderIndex : null,
+            createdAt: created.createdAt || ''
+          };
+          allNodes.push(node);
+          nodeMap[node.id] = node;
+          renderCanvas();
+          updateScaleWarn();
+          return created;
+        });
+      },
+
+      onDelete: function(id) {
+        deleteCanvasNode(id);
+      },
+
+      onSelect: function(id) {
+        if (id) highlightCanvasNode(id);
+        else resetSelection();
+      },
+
+      onScaleWarn: function(count) {
+        var warn = document.getElementById('scaleWarn');
+        if (!warn) return;
+        warn.style.display = 'inline';
+        warn.textContent = '节点 ' + count + ' 个，已默认折叠；建议拆分为多个画布';
+      }
+    });
+  }
+
+  /** 大纲选中 → 画布高亮并居中（不改变缩放级别）。 */
+  function highlightCanvasNode(id) {
+    var n = nodeMap[id];
+    if (!n) return;
+    selectedNodeId = String(id);
+    selectedNodeIds.clear();
+    selectedNodeIds.add(String(id));
+    applySelectionHighlight();
+    if (container.clientWidth) centerWorldOn(n.x, n.y);
+  }
+
+  function setViewMode(mode) {
+    if (mode !== 'outline' && mode !== 'split' && mode !== 'canvas') mode = 'split';
+    viewMode = mode;
+    var body = document.getElementById('canvasBody');
+    if (body) body.dataset.viewMode = mode;
+    var sw = document.getElementById('viewSwitch');
+    if (sw) {
+      var btns = sw.querySelectorAll('button');
+      for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('is-active', btns[i].dataset.mode === mode);
+    }
+    try { localStorage.setItem(VIEW_MODE_KEY, mode); } catch (e) {}
+
+    // 切视图会改变画布容器尺寸：让 d3 重新量一次（保留当前缩放/平移）
+    setTimeout(function() {
+      if (mode === 'outline') return;
+      if (allNodes.length) renderCanvas(); else dispatchResize();
+    }, 0);
+  }
+
+  function initViewSwitch() {
+    var sw = document.getElementById('viewSwitch');
+    if (sw) {
+      sw.addEventListener('click', function(event) {
+        var btn = event.target.closest ? event.target.closest('button[data-mode]') : null;
+        if (!btn) return;
+        setViewMode(btn.dataset.mode);
+      });
+    }
+    var saved = 'split';
+    try { saved = localStorage.getItem(VIEW_MODE_KEY) || 'split'; } catch (e) {}
+    setViewMode(saved);
+  }
+
+  // ---- 文档切换器 ----
+
+  function docTitleById(id) {
+    for (var i = 0; i < docList.length; i++) if (docList[i].id === id) return docList[i].title || '未命名画布';
+    return '未命名画布';
+  }
+
+  function renderDocSwitcherList() {
+    var list = document.getElementById('docSwitcherList');
+    if (!list) return;
+    var html = '';
+    for (var i = 0; i < docList.length; i++) {
+      var d = docList[i];
+      html += '<button class="doc-switcher-item' + (d.id === currentDocId ? ' is-active' : '') +
+        '" data-doc-id="' + escapeHtml(d.id) + '">' +
+        '<span class="doc-switcher-item-name">' + escapeHtml(d.title || '未命名画布') + '</span>' +
+        '<span class="doc-switcher-item-count">' + (d.nodeCount || 0) + '</span>' +
+        '</button>';
+    }
+    list.innerHTML = html || '<div class="outline-empty">暂无画布</div>';
+  }
+
+  function updateDocSwitcher() {
+    var nameEl = document.getElementById('docSwitcherName');
+    if (nameEl) nameEl.textContent = docTitle();
+    renderDocSwitcherList();
+  }
+
+  function openDocSwitcherMenu() {
+    var menu = document.getElementById('docSwitcherMenu');
+    if (!menu) return;
+    renderDocSwitcherList();
+    menu.style.display = 'flex';
+  }
+
+  function closeDocSwitcherMenu() {
+    var menu = document.getElementById('docSwitcherMenu');
+    if (menu) menu.style.display = 'none';
+  }
+
+  function toggleDocSwitcherMenu() {
+    var menu = document.getElementById('docSwitcherMenu');
+    if (!menu) return;
+    if (!menu.style.display || menu.style.display === 'none') openDocSwitcherMenu();
+    else closeDocSwitcherMenu();
+  }
+
+  async function switchDoc(id) {
+    closeDocSwitcherMenu();
+    closeDocList();
+    if (!id || id === currentDocId) return;
+    currentDocId = id;
+
+    allNodes = [];
+    nodeMap = {};
+    allEdges = [];
+    allGroups = [];
+    selectedNodeId = null;
+    selectedNodeIds.clear();
+    strokes = [];
+    if (window.CanvasOutline) window.CanvasOutline.reset();
+    clearCanvas();
+    loadingEl.style.display = 'block';
+    emptyEl.style.display = 'none';
+
+    await loadData();
+  }
+
+  async function newDoc() {
+    const bridge = window.electronAPI && window.electronAPI.localIndex;
+    if (!bridge || typeof bridge.createCanvasDoc !== 'function') return;
+    var res = null;
+    try { res = await bridge.createCanvasDoc({ title: '未命名画布' }); } catch (e) {}
+    var doc = res && res.doc;
+    if (!doc) return;
+    docList.push(doc);
+
+    await switchDoc(doc.id);
+    setViewMode('split');
+
+    // 空文档首次进入：直接给一行，让用户「打开即可写」（对齐幕布）
+    if (!allNodes.length) {
+      var created = await createCanvasNode('note', '', '', 0, 0, { docId: doc.id, parentId: null });
+      if (created && created.id) {
+        var node = {
+          id: created.id, type: 'note', title: '', text: created.text != null ? created.text : '',
+          x: 0, y: 0, parentId: null,
+          orderIndex: (typeof created.orderIndex === 'number') ? created.orderIndex : 0,
+          createdAt: created.createdAt || ''
+        };
+        allNodes.push(node);
+        nodeMap[node.id] = node;
+        renderCanvas();
+        updateScaleWarn();
+        syncOutline();
+        if (window.CanvasOutline) window.CanvasOutline.focusFirst();
+      }
+    }
+  }
+
+  async function renameDocById(id, title) {
+    const bridge = window.electronAPI && window.electronAPI.localIndex;
+    var next = String(title == null ? '' : title).trim() || '未命名画布';
+    if (bridge && typeof bridge.renameCanvasDoc === 'function') {
+      try { await bridge.renameCanvasDoc({ id: id, title: next }); } catch (e) {}
+    }
+    for (var i = 0; i < docList.length; i++) if (docList[i].id === id) docList[i].title = next;
+    updateDocSwitcher();
+    renderDocList();
+  }
+
+  async function removeDocById(id) {
+    const bridge = window.electronAPI && window.electronAPI.localIndex;
+    if (!bridge || typeof bridge.deleteCanvasDoc !== 'function') return;
+    var res = null;
+    try { res = await bridge.deleteCanvasDoc({ id: id }); } catch (e) {}
+    if (!res || !res.success) {
+      openMessage('无法删除', (res && res.message) || '删除失败，请稍后重试');
+      return;
+    }
+    var wasCurrent = (id === currentDocId);
+    docList = docList.filter(function(d) { return d.id !== id; });
+    updateDocSwitcher();
+    renderDocList();
+    if (wasCurrent && docList.length) await switchDoc(docList[0].id);
+  }
+
+  // ---- 文档列表视图 ----
+
+  function renderDocList() {
+    var grid = document.getElementById('docListGrid');
+    if (!grid) return;
+    var sub = document.getElementById('docListSub');
+    if (sub) sub.textContent = '共 ' + docList.length + ' 个画布';
+    var html = '';
+    for (var i = 0; i < docList.length; i++) {
+      var d = docList[i];
+      var t = d.updatedAt ? String(d.updatedAt).replace('T', ' ').slice(0, 16) : '';
+      html += '<div class="doc-card' + (d.id === currentDocId ? ' is-active' : '') +
+        '" data-doc-id="' + escapeHtml(d.id) + '">' +
+        '<div class="doc-card-title">' + escapeHtml(d.title || '未命名画布') + '</div>' +
+        '<div class="doc-card-meta">' + (d.nodeCount || 0) + ' 个节点' + (t ? ' · ' + escapeHtml(t) : '') + '</div>' +
+        '<div class="doc-card-actions">' +
+        '<button class="modal-btn" data-doc-action="rename">重命名</button>' +
+        '<button class="modal-btn" data-doc-action="delete">删除</button>' +
+        '</div></div>';
+    }
+    grid.innerHTML = html || '<div class="outline-empty">还没有画布，点右上角「新建画布」开始</div>';
+  }
+
+  function openDocList() {
+    closeDocSwitcherMenu();
+    renderDocList();
+    var mask = document.getElementById('docListMask');
+    if (mask) mask.style.display = 'flex';
+  }
+
+  function closeDocList() {
+    var mask = document.getElementById('docListMask');
+    if (mask) mask.style.display = 'none';
+  }
+
+  function initDocSwitcher() {
+    var btn = document.getElementById('docSwitcherBtn');
+    if (btn) btn.addEventListener('click', function(e) { e.stopPropagation(); toggleDocSwitcherMenu(); });
+
+    var menu = document.getElementById('docSwitcherMenu');
+    if (menu) {
+      menu.addEventListener('click', function(e) {
+        var item = e.target.closest ? e.target.closest('[data-doc-id]') : null;
+        if (item) { switchDoc(item.dataset.docId); return; }
+        var action = e.target.closest ? e.target.closest('[data-action]') : null;
+        if (!action) return;
+        var a = action.dataset.action;
+        if (a === 'new-doc') newDoc();
+        else if (a === 'rename-doc') { closeDocSwitcherMenu(); openRenameDocModal(currentDocId); }
+        else if (a === 'open-doc-list') openDocList();
+      });
+    }
+
+    var closeSwitcher = function(e) {
+      var wrap = document.getElementById('docSwitcher');
+      if (wrap && wrap.contains(e.target)) return;
+      closeDocSwitcherMenu();
+    };
+    document.addEventListener('click', closeSwitcher);
+
+    var newBtn = document.getElementById('docListNewBtn');
+    if (newBtn) newBtn.addEventListener('click', function() { newDoc(); });
+    var closeBtn = document.getElementById('docListCloseBtn');
+    if (closeBtn) closeBtn.addEventListener('click', closeDocList);
+    var mask = document.getElementById('docListMask');
+    if (mask) {
+      mask.addEventListener('click', function(e) { if (e.target === mask) closeDocList(); });
+    }
+    var grid = document.getElementById('docListGrid');
+    if (grid) {
+      grid.addEventListener('click', function(e) {
+        var actionBtn = e.target.closest ? e.target.closest('[data-doc-action]') : null;
+        var card = e.target.closest ? e.target.closest('[data-doc-id]') : null;
+        if (!card) return;
+        var id = card.dataset.docId;
+        if (actionBtn && actionBtn.dataset.docAction === 'rename') { openRenameDocModal(id); return; }
+        if (actionBtn && actionBtn.dataset.docAction === 'delete') { openDeleteDocModal(id); return; }
+        switchDoc(id);
+      });
+    }
+  }
+
+  // ---- 一键「按大纲排版」：结构 → d3.tree 分层坐标 → 批量落库 ----
+
+  /** 结构 → 分层坐标（Reingold–Tilford 整洁树，左→右）。无层级时按 order_index 竖排兜底。 */
+  function computeOutlineLayout() {
+    var hasHierarchy = allNodes.some(function(n) { return !!n.parentId && !!nodeMap[n.parentId]; });
+    var positions = [];
+
+    if (!hasHierarchy) {
+      var flat = allNodes.slice().sort(function(a, b) {
+        var oa = a.orderIndex == null ? 1e9 : a.orderIndex;
+        var ob = b.orderIndex == null ? 1e9 : b.orderIndex;
+        if (oa !== ob) return oa - ob;
+        return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+      });
+      flat.forEach(function(n, i) { positions.push({ id: n.id, x: 0, y: i * 84 }); });
+      return positions;
+    }
+
+    var wrap = {};
+    allNodes.forEach(function(n) { wrap[n.id] = { id: n.id, children: [] }; });
+    var roots = [];
+    allNodes.forEach(function(n) {
+      var p = n.parentId;
+      if (p && wrap[p] && p !== n.id) wrap[p].children.push(wrap[n.id]);
+      else roots.push(wrap[n.id]);
+    });
+
+    var byOrder = function(a, b) {
+      var na = nodeMap[a.data.id] || {}, nb = nodeMap[b.data.id] || {};
+      var oa = na.orderIndex == null ? 1e9 : na.orderIndex;
+      var ob = nb.orderIndex == null ? 1e9 : nb.orderIndex;
+      if (oa !== ob) return oa - ob;
+      return String(na.createdAt || '').localeCompare(String(nb.createdAt || ''));
+    };
+    roots.sort(byOrder);
+
+    var V_GAP = 84;   // 兄弟间距（纵向）
+    var H_GAP = 170;  // 层级间距（横向）
+    var root = d3.hierarchy({ id: '__virtual_root__', children: roots }, function(d) { return d.children; });
+    root.sort(byOrder);
+    d3.tree().nodeSize([V_GAP, H_GAP])(root);
+
+    root.each(function(nd) {
+      if (nd.data.id === '__virtual_root__') return;
+      positions.push({ id: nd.data.id, x: nd.depth * H_GAP, y: nd.x });
+    });
+    return positions;
+  }
+
+  function fitToContent() {
+    var b = minimapBounds();
+    if (!b) return;
+    var w = container.clientWidth, h = container.clientHeight;
+    if (!w || !h) return;
+    var k = Math.max(0.1, Math.min(1.2, Math.min(w / b.w, h / b.h) * 0.9));
+    var cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    var t = d3.zoomIdentity.translate(w / 2 - cx * k, h / 2 - cy * k).scale(k);
+    currentTransform = t;
+    preservedTransform = t;
+    if (zoomBehavior && svg) {
+      try { svg.call(zoomBehavior.transform, t); } catch (e) {}
+      g.attr('transform', t);
+      updateMinimapViewport();
+    }
+  }
+
+  function layoutByOutline() {
+    if (!allNodes.length) return;
+    var positions = computeOutlineLayout();
+    positions.forEach(function(p) {
+      var n = nodeMap[p.id];
+      if (n) { n.x = p.x; n.y = p.y; }
+    });
+    var bridge = window.electronAPI && window.electronAPI.localIndex;
+    if (bridge && typeof bridge.saveLayout === 'function') {
+      try { bridge.saveLayout({ positions: positions }); } catch (e) {}
+    }
+    if (viewMode === 'outline') setViewMode('split');
+    renderCanvas();
+    setTimeout(fitToContent, 0);
+  }
+
+  function initLayoutByOutline() {
+    var btn = document.getElementById('layoutByOutlineBtn');
+    if (btn) btn.addEventListener('click', layoutByOutline);
+  }
+
   document.addEventListener('DOMContentLoaded', function() {
+    initOutline();
+    initDocSwitcher();
+    initViewSwitch();
+    initLayoutByOutline();
     loadData();
   });
 

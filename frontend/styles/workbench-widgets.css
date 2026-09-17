@@ -8,6 +8,22 @@
 .wb-edit-btn:hover { border-color: var(--ws-primary); color: var(--ws-primary); }
 .wb-edit-btn.on { background: var(--ws-primary); border-color: var(--ws-primary); color: #fff; }
 
+/* 组件板工作台上下文下拉（多工作台独立布局切换） */
+.wb-ws-ctx {
+  display: inline-flex; align-items: center; gap: 6px;
+  flex: none; padding: 8px 11px;
+  border: 1px solid var(--ws-border); border-radius: var(--app-radius);
+  background: var(--ws-surface); color: var(--ws-text);
+  font-size: 13px; white-space: nowrap; cursor: pointer;
+  transition: border-color var(--app-duration-fast) ease;
+}
+.wb-ws-ctx span { color: var(--ws-muted); }
+.wb-ws-ctx select {
+  border: 0; outline: 0; background: transparent; color: var(--ws-text);
+  font: inherit; cursor: pointer; max-width: 160px;
+}
+.wb-ws-ctx:hover { border-color: var(--ws-primary); }
+
 /* ── 组件网格板 ── */
 /* 与旧的 flex 布局解耦：自身为定位上下文，高度由 relayout 动态设置 */
 .wb-board { position: relative; width: 100%; min-height: 120px; margin-bottom: 20px; }
@@ -69,7 +85,27 @@
 
 body.wb-dragging { cursor: grabbing !important; }
 body.wb-dragging .wb-card { user-select: none; }
-body.wb-dragging .wb-card.dragging, body.wb-dragging .wb-card:active { z-index: 20; }
+
+/* 拖拽/缩放中的卡片：提升层级、影子加深、禁用过渡保证跟手；transform 走合成器不触发重排 */
+.wb-card.is-live {
+  z-index: 30;
+  cursor: grabbing;
+  transition: none !important;
+  will-change: transform;
+  border-color: var(--ws-primary);
+  box-shadow: var(--app-shadow-lg);
+}
+.wb-card.is-live.resize {
+  cursor: nwse-resize;
+  will-change: width, height;
+}
+
+/* 拖动中让位卡片：transform 短过渡，被占格时平滑滑开（替换感），拖拽卡片自身不受影响 */
+.wb-board.wb-reflowing .wb-card {
+  transition: transform calc(var(--app-duration-panel) * 0.56) var(--app-ease-smooth),
+              width calc(var(--app-duration-panel) * 0.56) var(--app-ease-smooth),
+              height calc(var(--app-duration-panel) * 0.56) var(--app-ease-smooth);
+}
 
 /* ── 空板占位 ── */
 .wb-empty { position: relative; border: 1px dashed var(--ws-border); border-radius: var(--app-radius-lg); padding: 60px 20px; text-align: center; color: var(--ws-muted); line-height: 2; }
@@ -120,6 +156,25 @@ body.wb-dragging .wb-card.dragging, body.wb-dragging .wb-card:active { z-index: 
 .wb-activity-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ws-text); font-size: 13px; }
 .wb-activity-time { flex: none; color: var(--ws-faint); font-size: 11px; white-space: nowrap; }
 
+/* ── 工作台漏斗组件卡 ── */
+.wb-funnel { display: flex; flex-direction: column; height: 100%; gap: 8px; }
+.wb-funnel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 600; color: var(--ws-text); }
+.wb-funnel-ws {
+  border: 1px solid var(--ws-border); border-radius: var(--app-radius-sm);
+  background: var(--ws-subtle); color: var(--ws-text); font: inherit; font-size: 12px;
+  padding: 2px 6px; max-width: 150px; cursor: pointer;
+}
+.wb-funnel-body { flex: 1; min-height: 0; overflow: auto; }
+.wb-funnel-bars { display: flex; flex-direction: column; gap: 7px; }
+.wb-funnel-row { display: flex; align-items: center; gap: 8px; }
+.wb-funnel-label { flex: none; width: 62px; font-size: 12px; color: var(--ws-text); text-align: right; }
+.wb-funnel-track { flex: 1; height: 10px; border-radius: 999px; background: var(--ws-subtle); overflow: hidden; }
+.wb-funnel-fill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--ws-primary), var(--ws-primary-soft)); min-width: 2px; }
+.wb-funnel-fill.last { background: linear-gradient(90deg, var(--app-success), var(--app-success-soft)); }
+.wb-funnel-val { flex: none; width: 34px; text-align: right; font-size: 13px; font-weight: 650; color: var(--ws-text); font-variant-numeric: tabular-nums; }
+.wb-funnel-foot { font-size: 12px; color: var(--ws-muted); }
+.wb-funnel-loading, .wb-funnel-empty { margin: auto; text-align: center; color: var(--ws-faint); font-size: 12px; line-height: 1.8; }
+
 /* ── 添加组件面板 ── */
 .wb-palette {
   position: fixed; inset: 0; z-index: 400;
@@ -151,4 +206,7 @@ body.wb-dragging .wb-card.dragging, body.wb-dragging .wb-card:active { z-index: 
 @media (max-width: 720px) {
   .ov-dash-row { grid-template-columns: repeat(2, 1fr); }
   .wb-palette-list { grid-template-columns: 1fr; }
+  .wb-ws-ctx span { display: none; }
+  .wb-ws-ctx { padding: 8px 9px; }
+  .wb-ws-ctx select { max-width: 110px; }
 }

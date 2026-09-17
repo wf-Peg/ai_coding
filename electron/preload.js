@@ -78,6 +78,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openDataFolder: () => ipcRenderer.invoke('open-data-folder'),
 
   /**
+   * 只读目录规范体检：扫描 storagePath 树，返回问题清单与建议动作（仅扫描，不写盘）
+   * @returns {Promise<{success: boolean, report?: Object, message?: string}>}
+   */
+  inspectStorage: () => ipcRenderer.invoke('storage-inspect:run'),
+
+  /**
+   * 只读「搜索覆盖区」：列出 storagePath 下一级目录分类（可搜索 / 排除），轻量不深扫
+   * @returns {Promise<{success: boolean, zone?: Object, message?: string}>}
+   */
+  inspectZone: () => ipcRenderer.invoke('storage-inspect:zone'),
+
+  /**
    * 通用离线 OCR：对图片 dataUrl 识别文字（独立于截图工具模块，供剪藏插图复用）
    * @param {string} dataUrl - 图片 data URL
    * @returns {Promise<{status: string, text?: string, lines?: Array, message?: string}>}
@@ -802,6 +814,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     status: () => ipcRenderer.invoke('local-index:status'),
     /** 初始化 + 全量重建 */
     rebuild: () => ipcRenderer.invoke('local-index:rebuild'),
+    /** 重新索引知识库（含 md 库，全量重建 + 刷新监听挂载） */
+    reindex: () => ipcRenderer.invoke('local-index:reindex'),
     /** 全文搜索 */
     search: (query, topK, category) => ipcRenderer.invoke('local-index:search', { query, topK, category }),
     /** 全库统一搜索（M4）：opts = { topK?, type? } */
@@ -814,7 +828,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     relations: (opts) => ipcRenderer.invoke('local-index:relations', { id: opts && opts.id }),
     /** 保存画布节点位置（无限画布布局层）：opts = { positions: [{id,x,y}] } */
     saveLayout: (opts) => ipcRenderer.invoke('local-index:layout:save', { positions: opts && opts.positions }),
-    /** 新建画布可写节点：opts = { kind, text, title, x, y } */
+    /** 画布文档列表（多画布，含节点数） */
+    listCanvasDocs: () => ipcRenderer.invoke('local-index:canvas:list-docs'),
+    /** 新建画布文档：opts = { title } */
+    createCanvasDoc: (opts) => ipcRenderer.invoke('local-index:canvas:create-doc', opts || {}),
+    /** 重命名画布文档：opts = { id, title } */
+    renameCanvasDoc: (opts) => ipcRenderer.invoke('local-index:canvas:rename-doc', opts || {}),
+    /** 删除画布文档（级联清理内容，至少保留一个）：opts = { id } */
+    deleteCanvasDoc: (opts) => ipcRenderer.invoke('local-index:canvas:delete-doc', opts || {}),
+    /** 某文档完整状态（doc/docs/nodes/edges/groups/layout）：opts = { docId } */
+    canvasState: (opts) => ipcRenderer.invoke('local-index:canvas:state', { docId: opts && opts.docId }),
+    /** 批量保存层级结构（大纲缩进/排序）：opts = { docId, entries: [{id,parentId,orderIndex}] } */
+    saveCanvasStructure: (opts) => ipcRenderer.invoke('local-index:canvas:update-structure', {
+      docId: opts && opts.docId,
+      entries: opts && opts.entries
+    }),
+    /** 新建画布可写节点：opts = { kind, text, title, x, y, docId, parentId, orderIndex } */
     createCanvasNode: (opts) => ipcRenderer.invoke('local-index:canvas:create-node', opts || {}),
     /** 更新画布可写节点内容：opts = { id, text, title } */
     updateCanvasNode: (opts) => ipcRenderer.invoke('local-index:canvas:update-node', opts || {}),
@@ -824,9 +853,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     createCanvasEdge: (opts) => ipcRenderer.invoke('local-index:canvas:create-edge', opts || {}),
     /** 删除手动连线：opts = { id } */
     deleteCanvasEdge: (opts) => ipcRenderer.invoke('local-index:canvas:delete-edge', opts || {}),
-    /** 读取全部分组（含成员） */
-    listGroups: () => ipcRenderer.invoke('local-index:canvas:list-groups'),
-    /** 新建分组：opts = { name, memberIds } */
+    /** 读取分组（含成员）：opts = { docId } */
+    listGroups: (opts) => ipcRenderer.invoke('local-index:canvas:list-groups', { docId: opts && opts.docId }),
+    /** 新建分组：opts = { name, memberIds, docId } */
     createGroup: (opts) => ipcRenderer.invoke('local-index:canvas:create-group', opts || {}),
     /** 重命名分组：opts = { id, name } */
     renameGroup: (opts) => ipcRenderer.invoke('local-index:canvas:rename-group', opts || {}),

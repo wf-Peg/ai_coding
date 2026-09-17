@@ -89,11 +89,11 @@ public class FileStorageService {
      *
      * @param storagePath 存储根目录路径（从配置读取，默认 ./clip-storage）
      * @param organizedStoragePath 日报总结存储目录路径（从配置读取，默认 ./clip-organized）
-     * @param weeklyReportPath     周报存储目录路径（从配置读取，默认 ./weeklyReport）
+     * @param weeklyReportPath     周报存储目录路径（从配置读取，默认 ./weekly-report）
      */
     public FileStorageService(@Value("${clip.storage.path:./clip-storage}") String storagePath,
                               @Value("${clip.organized-storage.path:./clip-organized}") String organizedStoragePath,
-                              @Value("${clip.clip-weekly-report.path:./weeklyReport}") String weeklyReportPath) {
+                              @Value("${clip.clip-weekly-report.path:./weekly-report}") String weeklyReportPath) {
         this.objectMapper = new ObjectMapper();
         // 注册 JavaTimeModule 以支持 LocalDateTime 等 Java 8 时间类型的序列化
         this.objectMapper.registerModule(new JavaTimeModule());
@@ -138,16 +138,53 @@ public class FileStorageService {
             Files.createDirectories(storagePath.resolve("default"));
             // 创建待办事项目录
             Files.createDirectories(storagePath.resolve("todoList"));
-            // 创建知识条目目录
-            Files.createDirectories(storagePath.resolve("knowledge"));
             // 创建话题目录
             Files.createDirectories(storagePath.resolve("topic"));
-            // 创建知识库目录
+            // 创建知识库目录（知识统一收敛到 knowledge-base，旧 knowledge/ 不再创建）
             Files.createDirectories(storagePath.resolve("knowledge-base"));
             // 创建学习计划目录
             Files.createDirectories(storagePath.resolve("learning-plan"));
+            // 二级分类目录统一为英文 value：迁移历史中文 label 目录（如 work/公司事务 → work/work-company）
+            migrateLegacyCategoryDirs();
         } catch (IOException e) {
             log.error("[FileStorageService] 操作异常", e);
+        }
+    }
+
+    /**
+     * 二级分类目录名统一为英文 value。
+     * <p>
+     * 历史版本以中文 label 作二级目录名（如 {@code work/公司事务}），现统一为英文 value
+     * （如 {@code work/work-company}）。启动时若发现旧中文目录且新英文目录不存在，则整目录重命名，
+     * 保证存量数据在新命名下仍可见、可搜索。
+     * </p>
+     */
+    private void migrateLegacyCategoryDirs() {
+        try {
+            for (Map<String, Object> topCat : AiService.CATEGORY_TREE) {
+                String topValue = topCat.get("value").toString();
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> children = (List<Map<String, Object>>) topCat.get("children");
+                if (children == null) {
+                    continue;
+                }
+                Path parent = storagePath.resolve(topValue);
+                for (Map<String, Object> child : children) {
+                    String childValue = child.get("value").toString();
+                    String childLabel = child.get("label").toString();
+                    if (childLabel.equals(childValue)) {
+                        continue;
+                    }
+                    Path labelDir = parent.resolve(childLabel);
+                    Path valueDir = parent.resolve(childValue);
+                    if (Files.isDirectory(labelDir) && !Files.exists(valueDir)) {
+                        Files.move(labelDir, valueDir);
+                        log.info("[FileStorageService] 分类目录迁移: {} → {}", labelDir, valueDir);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            log.warn("[FileStorageService] 分类目录迁移失败（可忽略，读路径有兜底）: {}", e.getMessage());
         }
     }
 
@@ -253,8 +290,8 @@ public class FileStorageService {
             if (children != null) {
                 for (Map<String, Object> child : children) {
                     if (child.get("value").toString().equals(cat)) {
-                        // 二级分类：一级目录/二级中文名
-                        return storagePath.resolve(topValue).resolve(child.get("label").toString());
+                        // 二级分类：一级目录/二级英文 value（历史中文 label 目录由 migrateLegacyCategoryDirs 迁移）
+                        return storagePath.resolve(topValue).resolve(child.get("value").toString());
                     }
                 }
             }
@@ -779,19 +816,6 @@ public class FileStorageService {
     }
 
     /**
-     * 获取知识条目的日期文件路径
-     * <p>
-     * 格式：clip-storage/knowledge/{yyMMdd}.json
-     * </p>
-     *
-     * @return 知识条目日期文件路径
-     */
-    private Path getKnowledgeDateFilePath() {
-        String dateStr = LocalDate.now().format(DATE_FORMATTER);
-        return storagePath.resolve("knowledge").resolve(dateStr + ".json");
-    }
-
-    /**
      * 从文件中读取待办事项列表
      * <p>
      * 如果文件不存在或内容为空，返回空列表。
@@ -854,24 +878,6 @@ public class FileStorageService {
                 Files.createDirectories(parent);
             }
             objectMapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), todos);
-        } catch (IOException e) {
-            log.error("[FileStorageService] 操作异常", e);
-        }
-    }
-
-    /**
-     * 将知识条目列表写入 JSON 文件
-     *
-     * @param path    目标文件路径
-     * @param entries 知识条目列表
-     */
-    private void writeKnowledgeArrayToFile(Path path, List<KnowledgeEntry> entries) {
-        try {
-            Path parent = path.getParent();
-            if (!Files.exists(parent)) {
-                Files.createDirectories(parent);
-            }
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), entries);
         } catch (IOException e) {
             log.error("[FileStorageService] 操作异常", e);
         }
@@ -1107,46 +1113,6 @@ public class FileStorageService {
     }
 
     /**
-     * 保存知识条目（新增或更新）
-     * <p>
-     * 如果 ID 为 null 则生成新 ID，如果 ID 已存在则更新对应记录。
-     * </p>
-     *
-     * @param entry 知识条目对象
-     * @return 保存后的知识条目；若失败返回 null
-     */
-    public KnowledgeEntry saveKnowledgeEntry(KnowledgeEntry entry) {
-        try {
-            if (entry.getId() == null) {
-                entry.setId(idGenerator.getAndIncrement());
-            }
-
-            Path filePath = getKnowledgeDateFilePath();
-            List<KnowledgeEntry> entries = readKnowledgeArrayFromFile(filePath);
-
-            // 检查是否已存在相同 ID（更新场景）
-            boolean updated = false;
-            for (int i = 0; i < entries.size(); i++) {
-                if (entries.get(i).getId() != null && entries.get(i).getId().equals(entry.getId())) {
-                    entries.set(i, entry);
-                    updated = true;
-                    break;
-                }
-            }
-            if (!updated) {
-                // 新增：追加到列表末尾
-                entries.add(entry);
-            }
-
-            writeKnowledgeArrayToFile(filePath, entries);
-            return entry;
-        } catch (Exception e) {
-            log.error("Failed to save knowledge entry", e);
-            return null;
-        }
-    }
-
-    /**
      * 获取所有知识条目
      * <p>
      * 遍历 knowledge 目录下所有 JSON 文件，合并所有记录。
@@ -1234,7 +1200,7 @@ public class FileStorageService {
      * 返回同步范围内关键子目录清单。
      * <p>
      * 供「同步状态」面板展示同步范围说明：剪藏数据（clip-storage）、日报总结（clip-organized）、
-     * 周报文件（weeklyReport）、临时文件（tmp，位于 storagePath 下）。
+     * 周报文件（weekly-report）、临时文件（tmp，位于 storagePath 下）。
      * 仅返回存在配置项（路径非空）的目录，逐项包含 {@code name / path / exists}。
      * </p>
      *
@@ -1244,7 +1210,7 @@ public class FileStorageService {
         List<Map<String, Object>> dirs = new ArrayList<>();
         addSyncDir(dirs, "clip-storage", storagePath);
         addSyncDir(dirs, "clip-organized", organizedStoragePath);
-        addSyncDir(dirs, "weeklyReport", weeklyReportPath);
+        addSyncDir(dirs, "weekly-report", weeklyReportPath);
         if (storagePath != null) {
             addSyncDir(dirs, "tmp", storagePath.resolve("tmp"));
         }

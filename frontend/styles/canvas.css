@@ -1,0 +1,370 @@
+/* canvas.css - 画布页新增 UI（大纲面板 / 文档切换器 / 文档列表 / 视图三态）
+ *
+ * 约束：只服务「画布对标幕布」新增的 DOM，不改动 canvas.html 内联 <style> 中的既有画布样式，
+ *       以降低对知识图谱渲染/右键菜单/手绘/小地图/分组等既有能力的回归风险。
+ * 主题：颜色一律走 --app-* 令牌（明暗主题自适应，满足 scripts/smoke-theme.js 的令牌口径），
+ *       不出现任何硬编码色值。
+ */
+
+/* ---------- 画布主体：左大纲 + 右画布 ---------- */
+
+.canvas-body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
+}
+
+/* 视图三态：outline=仅大纲 / split=分栏 / canvas=仅画布 */
+.canvas-body[data-view-mode="outline"] .graph-container { display: none; }
+.canvas-body[data-view-mode="canvas"] .outline-panel { display: none; }
+
+/* ---------- 顶部：文档切换器 ---------- */
+
+.doc-switcher {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.doc-switcher-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 220px;
+    padding: 5px 10px;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-sm);
+    background: var(--app-surface);
+    color: var(--app-text);
+    font-family: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition:
+        border-color var(--app-duration-fast) var(--app-ease-smooth),
+        background var(--app-duration-fast) var(--app-ease-smooth);
+}
+.doc-switcher-btn:hover { border-color: var(--app-primary); color: var(--app-primary); }
+.doc-switcher-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+}
+.doc-switcher-caret { width: 12px; height: 12px; flex-shrink: 0; opacity: 0.7; }
+
+.doc-switcher-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 320;
+    min-width: 240px;
+    max-width: 320px;
+    padding: 6px;
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    box-shadow: var(--app-shadow-lg);
+    display: flex;
+    flex-direction: column;
+}
+.doc-switcher-list { max-height: 260px; overflow-y: auto; }
+.doc-switcher-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 7px 10px;
+    border: none;
+    border-radius: var(--app-radius-sm);
+    background: transparent;
+    color: var(--app-text);
+    font-family: inherit;
+    font-size: 0.82rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--app-duration-fast) var(--app-ease-smooth);
+}
+.doc-switcher-item:hover { background: var(--app-surface-hover); }
+.doc-switcher-item.is-active { color: var(--app-primary); font-weight: 600; }
+.doc-switcher-item-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.doc-switcher-item-count { color: var(--app-text-muted); font-size: 0.72rem; flex-shrink: 0; }
+.doc-switcher-menu .divider { height: 1px; background: var(--app-border); margin: 4px 6px; }
+.doc-switcher-menu .menu-action {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 7px 10px;
+    border: none;
+    border-radius: var(--app-radius-sm);
+    background: transparent;
+    color: var(--app-text);
+    font-family: inherit;
+    font-size: 0.82rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--app-duration-fast) var(--app-ease-smooth);
+}
+.doc-switcher-menu .menu-action:hover { background: var(--app-primary-soft); color: var(--app-primary); }
+
+/* ---------- 顶部：视图三态切换 ---------- */
+
+.view-switch {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-sm);
+    background: var(--app-surface-subtle);
+    flex-shrink: 0;
+}
+.view-switch button {
+    border: none;
+    border-radius: calc(var(--app-radius-sm) - 2px);
+    padding: 4px 12px;
+    background: transparent;
+    color: var(--app-text-secondary);
+    font-family: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition:
+        background var(--app-duration-fast) var(--app-ease-smooth),
+        color var(--app-duration-fast) var(--app-ease-smooth);
+}
+.view-switch button:hover { color: var(--app-primary); }
+.view-switch button.is-active {
+    background: var(--app-surface);
+    color: var(--app-primary);
+    font-weight: 600;
+    box-shadow: var(--app-shadow-xs);
+}
+
+/* ---------- 顶部：普通动作按钮 ---------- */
+
+.nav-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-sm);
+    background: var(--app-surface);
+    color: var(--app-text-secondary);
+    font-family: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition:
+        border-color var(--app-duration-fast) var(--app-ease-smooth),
+        color var(--app-duration-fast) var(--app-ease-smooth);
+}
+.nav-action:hover { border-color: var(--app-primary); color: var(--app-primary); }
+.nav-warn {
+    font-size: 0.75rem;
+    color: var(--app-warning);
+    flex-shrink: 0;
+}
+
+/* ---------- 左侧大纲面板 ---------- */
+
+.outline-panel {
+    width: 380px;
+    min-width: 260px;
+    max-width: 52vw;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--app-border);
+    background: var(--app-surface);
+    overflow: hidden;
+}
+.canvas-body[data-view-mode="outline"] .outline-panel { width: 100%; max-width: none; border-right: none; }
+
+.outline-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--app-border);
+    flex-shrink: 0;
+}
+.outline-head-title { font-size: 0.8rem; font-weight: 600; color: var(--app-text-secondary); }
+.outline-head-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.outline-icon-btn {
+    border: none;
+    border-radius: var(--app-radius-sm);
+    padding: 3px 8px;
+    background: transparent;
+    color: var(--app-text-muted);
+    font-family: inherit;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition:
+        background var(--app-duration-fast) var(--app-ease-smooth),
+        color var(--app-duration-fast) var(--app-ease-smooth);
+}
+.outline-icon-btn:hover { background: var(--app-primary-soft); color: var(--app-primary); }
+
+.outline-tree {
+    flex: 1;
+    overflow: auto;
+    padding: 6px 6px 40px;
+}
+.canvas-body[data-view-mode="outline"] .outline-tree { padding-left: 12px; padding-right: 12px; }
+
+.outline-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 1px 0 1px calc(var(--depth, 0) * 20px);
+    border-radius: var(--app-radius-sm);
+    transition: background var(--app-duration-fast) var(--app-ease-smooth);
+}
+.outline-row:hover { background: var(--app-surface-hover); }
+.outline-row.is-selected { background: var(--app-primary-soft); }
+.outline-row.is-flash { background: var(--app-warning-soft); }
+.outline-row.is-hidden { display: none; }
+
+.outline-caret {
+    width: 18px;
+    height: 22px;
+    flex-shrink: 0;
+    border: none;
+    background: transparent;
+    color: var(--app-text-muted);
+    font-size: 0.68rem;
+    line-height: 22px;
+    text-align: center;
+    cursor: pointer;
+    padding: 0;
+    transition: transform var(--app-duration-fast) var(--app-ease-smooth);
+}
+.outline-caret.is-empty { visibility: hidden; }
+.outline-caret.is-collapsed { transform: rotate(-90deg); }
+.outline-caret:hover { color: var(--app-primary); }
+
+.outline-marker {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 8px;
+    background: var(--app-text-muted);
+}
+.outline-row[data-kind="note"] .outline-marker { background: var(--app-warning); }
+.outline-row[data-kind="link"] .outline-marker { background: var(--app-primary); }
+.outline-row[data-kind="image"] .outline-marker { background: var(--app-success); }
+.outline-row[data-kind="ref"] .outline-marker { background: var(--app-primary-hover); }
+
+.outline-text {
+    flex: 1;
+    min-height: 22px;
+    padding: 1px 6px;
+    font-size: 0.86rem;
+    line-height: 20px;
+    color: var(--app-text);
+    outline: none;
+    word-break: break-word;
+    white-space: pre-wrap;
+    caret-color: var(--app-primary);
+}
+.outline-text:empty::before {
+    content: attr(data-placeholder);
+    color: var(--app-text-muted);
+    pointer-events: none;
+}
+.outline-row[data-kind="link"] .outline-text,
+.outline-row[data-kind="image"] .outline-text { color: var(--app-primary); }
+
+.outline-empty {
+    padding: 24px 16px;
+    font-size: 0.82rem;
+    line-height: 1.8;
+    color: var(--app-text-muted);
+    text-align: center;
+}
+
+/* ---------- 文档列表（画布页内部视图） ---------- */
+
+.doc-list-mask {
+    position: fixed;
+    inset: 0;
+    z-index: 400;
+    background: var(--app-scrim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+.doc-list-panel {
+    width: 860px;
+    max-width: 100%;
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-lg);
+    box-shadow: var(--app-shadow-xl);
+    overflow: hidden;
+}
+.doc-list-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--app-border);
+    flex-shrink: 0;
+}
+.doc-list-title { font-size: 0.95rem; font-weight: 700; color: var(--app-text); }
+.doc-list-head-actions { margin-left: auto; display: flex; gap: 8px; }
+.doc-list-sub { font-size: 0.75rem; color: var(--app-text-muted); margin-left: 4px; }
+
+.doc-list-grid {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 18px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+    align-content: start;
+}
+.doc-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    background: var(--app-surface);
+    cursor: pointer;
+    transition:
+        border-color var(--app-duration-fast) var(--app-ease-smooth),
+        box-shadow var(--app-duration-fast) var(--app-ease-smooth);
+}
+.doc-card:hover { border-color: var(--app-primary); box-shadow: var(--app-shadow-md); }
+.doc-card.is-active { border-color: var(--app-primary); box-shadow: var(--app-shadow-sm); }
+.doc-card-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--app-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.doc-card-meta { font-size: 0.72rem; color: var(--app-text-muted); }
+.doc-card-actions { display: flex; gap: 6px; margin-top: auto; }
+.doc-card-actions .modal-btn { padding: 3px 10px; font-size: 0.75rem; }
+
+@media (max-width: 768px) {
+    .outline-panel { width: 60vw; min-width: 200px; }
+    .nav-action { display: none; }
+    .doc-switcher-btn { max-width: 140px; }
+    .doc-list-grid { grid-template-columns: 1fr; }
+}

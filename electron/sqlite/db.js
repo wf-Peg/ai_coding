@@ -14,6 +14,9 @@ const path = require('path');
 
 // 单例连接（同进程共享，避免多连接锁竞争；仅主进程写库）
 let dbInstance = null;
+// 单例连接绑定的 storagePath（config.storagePath）。运行期改根目录后用于识别连接漂移，
+// 配合 reindexAll 在换根时先 closeFast 再按新根重建。
+let boundPath = null;
 
 /**
  * 打开（或复用）本地索引库连接。
@@ -41,6 +44,7 @@ function openDatabase(storagePath) {
 
   require('./init').migrate(db);
   dbInstance = db;
+  boundPath = storagePath;
   return db;
 }
 
@@ -71,6 +75,7 @@ function closeDatabase() {
     } catch (e) { /* ignore */ }
     try { dbInstance.close(); } catch (e) { /* ignore */ }
     dbInstance = null;
+    boundPath = null;
   }
 }
 
@@ -86,6 +91,7 @@ function closeFast() {
   if (dbInstance) {
     try { dbInstance.close(); } catch (e) { /* ignore */ }
     dbInstance = null;
+    boundPath = null;
   }
 }
 
@@ -94,4 +100,9 @@ function getDatabase() {
   return dbInstance;
 }
 
-module.exports = { openDatabase, closeDatabase, closeFast, getDatabase, optimize, vacuum };
+/** 返回当前单例绑定的 storagePath（未打开时为 null）。 */
+function getBoundPath() {
+  return boundPath;
+}
+
+module.exports = { openDatabase, closeDatabase, closeFast, getDatabase, getBoundPath, optimize, vacuum };

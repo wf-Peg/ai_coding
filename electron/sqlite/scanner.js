@@ -269,7 +269,7 @@ const MD_EXT_RE = /\.(md|markdown|mdown)$/i;
  * 因此不能复用「只收 clip」的 EXCLUDED_DIR_NAMES（那里会排除这些 md 库）。
  */
 const MD_EXCLUDED_DIR_NAMES = new Set([
-  'clip-storage', 'tmp', '.tmp', '.trash', '.git', '.obsidian', '.dsh', '.index',
+  'clip-storage', '.tmp', '.trash', '.git', '.obsidian', '.dsh', '.index',
   'node_modules', 'jre', 'jre-slim', 'dist-electron', 'dist-dsh-offline', 'dist', 'build', 'out',
   'backend', 'frontend', 'electron', 'scripts', 'test', 'docs',
   'integrations', 'browser-extension', 'TODO', 'weekly-report', 'weeklyReport', 'jlink-target'

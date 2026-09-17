@@ -551,7 +551,9 @@
         });
     }
 
-    /** 已保存剪藏重新 OCR：识别首图文字，追加到 content 并经编辑接口落库 */
+    /** 已保存剪藏重新 OCR：识别首图文字，本地识别后弹窗展示，AI 总结独立触发，保存走内容写回接口（不动工作流状态） */
+    var currentOcrTarget = null;
+
     async function ocrClipImage(clipId) {
         const clip = clipCache.get(String(clipId));
         if (!clip) { showToast('未找到该剪藏'); return; }
@@ -564,23 +566,85 @@
             const dataUrl = await loadImageDataUrl(rel);
             const text = await recognizeImage(dataUrl);
             if (!text) return;
-            // OCR 识别后追加 AI 总结（与表单 OCR 链路一致，对标 NoteGen 截图→文字→总结）
-            const summary = await requestTextSummary(text);
-            const base = (clip.bodyContent || clip.content || '').trim();
-            let appended = text;
-            if (summary) appended += '\n\n**AI 总结**：' + summary;
-            const newContent = base ? base + '\n\n' + appended : appended;
-            showLoading('正在保存 OCR 结果…', '写入剪藏内容');
-            try {
-                await axios.post(`${API_BASE_URL}/organize/${clipId}`, { mode: 'manual', content: newContent });
-                showToast('已识别 ' + text.length + ' 字' + (summary ? '，并生成 AI 总结' : '') + '，保存成功');
-                await fetchClips();
-            } finally {
-                hideLoading();
-            }
+            openOcrResultModal(clip, text);
         } catch (e) {
             showToast('OCR 失败：' + (e && e.message ? e.message : '请稍后重试'));
         }
+    }
+
+    /** 打开 OCR 结果弹窗：baseContent 补上图片引用，避免保存时丢图 */
+    function openOcrResultModal(clip, text) {
+        const base = window.MediaKit.render.appendImageRefs((clip.bodyContent || clip.content || ''), clip.imagePaths);
+        currentOcrTarget = { clipId: clip.id, baseContent: base };
+        const textEl = document.getElementById('ocr-result-text');
+        if (textEl) textEl.value = text || '';
+        const statusEl = document.getElementById('ocr-result-status');
+        if (statusEl) statusEl.textContent = '';
+        const modal = document.getElementById('ocr-result-modal');
+        if (modal) modal.style.display = 'flex';
+    }
+
+    /** 对弹窗里的 OCR 原文独立触发 AI 总结（可选、较慢，失败不阻塞） */
+    async function summarizeOcrModal() {
+        const textEl = document.getElementById('ocr-result-text');
+        const text = textEl ? textEl.value.trim() : '';
+        if (!text) { showToast('暂无识别结果，无法总结'); return; }
+        const btn = document.getElementById('ocr-summarize-btn');
+        const statusEl = document.getElementById('ocr-result-status');
+        if (btn) { btn.disabled = true; btn.textContent = '总结中…'; }
+        if (statusEl) statusEl.textContent = '正在生成 AI 总结…';
+        try {
+            const summary = await requestTextSummary(text);
+            if (summary && textEl) {
+                textEl.value = (textEl.value ? textEl.value + '\n\n' : '') + '**AI 总结**：' + summary;
+                if (statusEl) statusEl.textContent = '';
+            } else {
+                if (statusEl) statusEl.textContent = 'AI 总结失败，已保留识别原文';
+                showToast('AI 总结失败，请稍后重试');
+            }
+        } catch (e) {
+            if (statusEl) statusEl.textContent = 'AI 总结失败，已保留识别原文';
+            showToast('AI 总结失败：' + (e && e.message ? e.message : '请稍后重试'));
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = '✨ AI 总结'; }
+        }
+    }
+
+    /** 把弹窗里的识别结果写入原文（内容写回接口，不改变工作流状态 → 仍留在收件箱） */
+    async function applyOcrModalToClip() {
+        if (!currentOcrTarget) { showToast('缺少保存目标'); return; }
+        const textEl = document.getElementById('ocr-result-text');
+        const text = textEl ? textEl.value.trim() : '';
+        if (!text) { showToast('暂无识别结果可保存'); return; }
+        const saveBtn = document.getElementById('ocr-save-btn');
+        const statusEl = document.getElementById('ocr-result-status');
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '写入中…'; }
+        if (statusEl) statusEl.textContent = '正在写入原文…';
+        try {
+            const base = currentOcrTarget.baseContent;
+            const newContent = base ? base + '\n\n' + text : text;
+            await axios.put(`${API_BASE_URL}/${currentOcrTarget.clipId}/content`, { content: newContent });
+            showToast('识别结果已写入原文（仍留在收件箱）');
+            closeOcrResultModal();
+            await fetchClips();
+        } catch (e) {
+            if (statusEl) statusEl.textContent = '';
+            showToast('保存失败：' + (e && e.message ? e.message : '请稍后重试'));
+        } finally {
+            if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '💾 保存到原文'; }
+        }
+    }
+
+    function closeOcrResultModal() {
+        const modal = document.getElementById('ocr-result-modal');
+        if (modal) modal.style.display = 'none';
+        currentOcrTarget = null;
+        const textEl = document.getElementById('ocr-result-text');
+        if (textEl) textEl.value = '';
+        const statusEl = document.getElementById('ocr-result-status');
+        if (statusEl) statusEl.textContent = '';
+        const btn = document.getElementById('ocr-summarize-btn');
+        if (btn) { btn.disabled = false; btn.textContent = '✨ AI 总结'; }
     }
 
     async function doOrganizeContent() {

@@ -294,6 +294,63 @@
         el.innerHTML = html;
       }
 
+      /* ── 工作台漏斗组件卡 ── */
+      // 读单个工作台的 resolution 来源统计，卡内下拉切换工作台；数据仅存内存，不上 localStorage。
+      function renderFunnelWidget(el, ctx) {
+        // 默认选默认工作台，否则取列表第一个 active
+        var target = workspaces.find(function (w) { return w.isDefault; }) || workspaces.find(function (w) { return w.status !== 'archived' && w.id !== 'pd-builtin'; });
+        renderFunnelInto(el, target ? target.id : '', target && target.name);
+      }
+      function renderFunnelInto(el, wsId, wsName) {
+        el.innerHTML =
+          '<div class="wb-funnel">' +
+            '<div class="wb-funnel-head"><span>工作台漏斗</span>' +
+              '<select class="wb-funnel-ws">' +
+                (workspaces.length ? '' : '<option value="">暂无工作台</option>') +
+                workspaces.filter(function (w) { return w.id !== 'pd-builtin' && w.status !== 'archived'; })
+                  .map(function (w) { return '<option value="' + escapeHtml(w.id) + '"' + (w.id === wsId ? ' selected' : '') + '>' + escapeHtml(w.name) + '</option>'; }).join('') +
+              '</select>' +
+            '</div>' +
+            '<div class="wb-funnel-body">' + (wsId ? '<div class="wb-funnel-loading">加载中…</div>' : '<div class="wb-funnel-empty">暂无可查看的工作台</div>') + '</div>' +
+          '</div>';
+        var sel = el.querySelector('.wb-funnel-ws');
+        if (sel) sel.addEventListener('change', function () { renderFunnelInto(el, sel.value || '', null); });
+        if (!wsId) return;
+        fetchFunnel(el, wsId);
+      }
+      function fetchFunnel(el, wsId) {
+        fetch('/api/workspace/' + encodeURIComponent(wsId) + '/resolution', { headers: { Accept: 'application/json' } })
+          .then(function (r) { if (!r.ok) throw new Error('status ' + r.status); return r.json(); })
+          .then(function (data) {
+            var body = el.querySelector('.wb-funnel-body');
+            if (!body) return;
+            var bars = [
+              { label: '规则命中', v: data.ruleMatchedCount || 0 },
+              { label: '手动加入', v: data.manualCount || 0 },
+              { label: '关系带入', v: data.relationCount || 0 },
+              { label: '用户排除', v: data.excludedCount || 0 },
+              { label: '最终可见', v: data.visibleCount || 0 },
+            ];
+            var max = Math.max.apply(null, bars.map(function (b) { return b.v; }).concat(1));
+            var last = bars[bars.length - 1].v;
+            body.innerHTML =
+              '<div class="wb-funnel-bars">' + bars.map(function (b, i) {
+                var pct = Math.round(b.v / max * 100);
+                var isLast = i === bars.length - 1;
+                return '<div class="wb-funnel-row">' +
+                  '<span class="wb-funnel-label">' + b.label + '</span>' +
+                  '<span class="wb-funnel-track"><span class="wb-funnel-fill' + (isLast ? ' last' : '') + '" style="width:' + pct + '%"></span></span>' +
+                  '<span class="wb-funnel-val">' + b.v + '</span>' +
+                '</div>';
+              }).join('') + '</div>' +
+              '<div class="wb-funnel-foot">最终可见 ' + last + '</div>';
+          })
+          .catch(function () {
+            var body = el.querySelector('.wb-funnel-body');
+            if (body) body.innerHTML = '<div class="wb-funnel-empty">加载失败，请稍后重试</div>';
+          });
+      }
+
       // 注册 overview 组件到组件面板
       function registerOverviewWidgets() {
         if (!window.WB) return;
@@ -302,7 +359,9 @@
         window.WB.register({ id: 'chart-type', title: '内容类型分布', defaultSize: { w: 2, h: 2 }, minSize: { w: 1, h: 1 }, render: renderTypeChartWidget, destroy: destroyChartWidget });
         window.WB.register({ id: 'chart-trend', title: '近期活跃趋势', defaultSize: { w: 2, h: 2 }, minSize: { w: 1, h: 1 }, render: renderTrendChartWidget, destroy: destroyChartWidget });
         window.WB.register({ id: 'recent-activity', title: '最近活动', defaultSize: { w: 2, h: 2 }, minSize: { w: 1, h: 1 }, render: renderActivityWidget });
+        window.WB.register({ id: 'workspace-funnel', title: '工作台漏斗', defaultSize: { w: 2, h: 2 }, minSize: { w: 1, h: 1 }, render: renderFunnelWidget });
         window.WB.mount($('overviewWidgets'), { cols: 4, rowH: 170 });
+        bindWidgetWsCtx();
       }
       function destroyChartWidget(el) {
         if (overviewChartInstances['chart-type']) { overviewChartInstances['chart-type'].destroy(); overviewChartInstances['chart-type'] = null; }
@@ -326,7 +385,8 @@
           'stat-cards': ['数据概览', '剪藏、知识、待办等统计卡'],
           'chart-type': ['内容类型分布', '各类型内容占比环形图'],
           'chart-trend': ['近期活跃趋势', '近 7 天内容活跃折线图'],
-          'recent-activity': ['最近活动', '最近更新的内容列表']
+          'recent-activity': ['最近活动', '最近更新的内容列表'],
+          'workspace-funnel': ['工作台漏斗', '某工作台 规则/手动/关系/排除→可见 漏斗']
         };
         window.WB.getRegistered().forEach(function (id) {
           var m = meta[id] || [id, ''];
@@ -477,7 +537,41 @@
             overviewWorkspaceId = null;
           }
           renderWsList();
+          fillWidgetWsCtx();
+          // 工作台列表就绪后刷新组件，确保「工作台漏斗」等依赖工作台列表的卡片正确渲染
+          if (window.WB && window.WB.refreshAll) { try { window.WB.refreshAll(); } catch (e) {} }
         } catch (_) { /* ignore sidebar errors */ }
+      }
+      // 填充组件板工作台上下文下拉：全部概览 + 各 active 工作台（每工作台可独立布局）
+      var widgetWsCtxBound = false;
+      function fillWidgetWsCtx() {
+        var sel = $('widgetWsCtx');
+        if (!sel) return;
+        var html = '<option value="">全部概览</option>' +
+          workspaces.filter(function (ws) { return ws.id !== 'pd-builtin' && ws.status !== 'archived'; })
+            .map(function (ws) {
+              return '<option value="' + escapeHtml(ws.id) + '">' + escapeHtml(ws.name) + '</option>';
+            }).join('');
+        var cur = sel.value;
+        sel.innerHTML = html;
+        // 恢复当前选中项（保留用户当前绑定的工作台上下文）
+        sel.value = cur || '';
+        onClickWidgetWsCtx();
+      }
+      function widgetWsLayoutKey(id) { return id ? ('workspace_widget_' + id + '_v1') : 'workspace_widget_layout_v1'; }
+      function onClickWidgetWsCtx() {
+        var sel = $('widgetWsCtx');
+        if (!sel || !window.WB) return;
+        var key = widgetWsLayoutKey(sel.value || '');
+        if (window.WB.setLayoutKey && key) {
+          try { window.WB.setLayoutKey(key); } catch (e) {}
+        }
+      }
+      function bindWidgetWsCtx() {
+        var sel = $('widgetWsCtx');
+        if (!sel || widgetWsCtxBound) return;
+        widgetWsCtxBound = true;
+        sel.addEventListener('change', onClickWidgetWsCtx);
       }
       function renderWsList() {
         if (!workspaces.length) {

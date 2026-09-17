@@ -73,9 +73,15 @@ public class GitService {
     /**
      * 执行完整的 Git 操作流程
      * <p>
-     * 流程：配置远程仓库 → fetch → pull → add → commit → push。
-     * 使用锁保证互斥执行。如果配置完整则执行完整的远程操作，
-     * 否则仅执行本地操作（add/commit）。
+     * 流程：检测本地仓库/远程 → 配置远程仓库（如需要）→ fetch → pull → add → commit → push。
+     * 使用锁保证互斥执行。
+     * <p>
+     * <b>检测优先、不强制配置</b>：应用内配置完整→采用应用内 {@code remoteUrl/branch}；
+     * 否则若本地仓库已检测到 {@code origin} 远程，则直接复用本地远程。如此本机已
+     * {@code git init + remote} 但未在应用内填配置的用户也能正常 pull/push。
+     * <p>
+     * 之前会强制执行 {@code git config user.name/user.email} 覆盖用户本机 git 身份，
+     * 现彻底移除；缺失身份时由 git 自然报错并在分步结果中透出（身份兜底归入后续一键初始化向导）。
      * <p>
      * 返回结构化结果，包含每一步的 {@code name/ok/files/message}（供前端分步展示）：
      * <ul>
@@ -104,30 +110,42 @@ public class GitService {
             }
 
             log.info("Executing git operations in directory: {}", directory);
-            boolean remoteComplete = gitConfig != null && gitConfig.isComplete();
 
-            // ① 配置远程仓库（仅当配置完整时；失败不致命，后续步骤会暴露真实错误）
-            if (remoteComplete) {
-                configureRemoteRepository(directory);
+            // ① 检测：配置的远程 / 本机 git 已配的远程与分支
+            String cfgRemote = (gitConfig != null) ? gitConfig.getRemoteUrl() : null;
+            String cfgBranch = (gitConfig != null) ? gitConfig.getBranch() : null;
+            String localRemote = getLocalRemoteUrl(directory);
+            String localBranch = getLocalBranch(directory);
+
+            // 有效远程/分支：应用内优先，否则回退本地检测值
+            String effectiveRemote = (cfgRemote != null && !cfgRemote.isEmpty()) ? cfgRemote : localRemote;
+            String effectiveBranch = (cfgBranch != null && !cfgBranch.isEmpty())
+                    ? cfgBranch
+                    : ((localBranch != null && !localBranch.isEmpty()) ? localBranch : "main");
+            boolean wantRemote = effectiveRemote != null && !effectiveRemote.isEmpty();
+
+            // ② 配置远程仓库（仅当存在有效远程时；失败不致命，后续步骤会暴露真实错误）
+            if (wantRemote) {
+                configureRemoteRepository(directory, effectiveRemote, effectiveBranch);
             } else {
-                log.warn("Git config not complete, skipping remote configuration");
+                log.warn("No remote URL configured or detected, skipping remote configuration");
             }
 
-            // ② fetch：获取远程最新状态（无远程时可能失败，作为非致命警告展示）
+            // ③ fetch：获取远程最新状态（无远程时可能失败，作为非致命警告展示）
             Map<String, Object> fetch = run(directory, "git", "fetch", "origin");
             int fetchCode = ((Number) fetch.getOrDefault("code", -1)).intValue();
             steps.add(stepResult("fetch", fetchCode == 0, 0, fetchCode == 0 ? "拉取远程最新状态" : NonFatalMsg(fetch)));
 
-            // ③ pull：合并远程分支（有配置时指定 remote/branch）
-            if (remoteComplete) {
-                Map<String, Object> pull = run(directory, "git", "pull", "origin", gitConfig.getBranch());
+            // ④ pull：合并远程分支（有意义远程时用 effectiveBranch）
+            if (wantRemote) {
+                Map<String, Object> pull = run(directory, "git", "pull", "origin", effectiveBranch);
                 int pullCode = ((Number) pull.getOrDefault("code", -1)).intValue();
                 boolean pullOk = pullCode == 0;
                 steps.add(stepResult("pull", pullOk, 0, lastLine(pull)));
                 if (!pullOk) ok = false;
             }
 
-            // ④ add：暂存所有变更
+            // ⑤ add：暂存所有变更
             Map<String, Object> add = run(directory, "git", "add", ".");
             int addCode = ((Number) add.getOrDefault("code", -1)).intValue();
             boolean addOk = addCode == 0;
@@ -138,7 +156,7 @@ public class GitService {
                 ok = false;
             }
 
-            // ⑤ commit：仅当存在暂存变更时提交
+            // ⑥ commit：仅当存在暂存变更时提交
             int staged = addOk ? stagedFileCount(directory) : 0;
             if (staged > 0) {
                 Map<String, Object> commit = run(directory, "git", "commit", "-m", "Auto commit: content organize or weekly report");
@@ -150,9 +168,9 @@ public class GitService {
                     steps.add(stepResult("commit", false, staged, lastLine(commit)));
                     ok = false;
                 }
-                // ⑥ push：仅 commit 成功后且配置完整时推送
-                if (commitOk && remoteComplete) {
-                    Map<String, Object> push = run(directory, "git", "push", "--set-upstream", "origin", gitConfig.getBranch());
+                // ⑦ push：仅 commit 成功后且存在有意义远程时推送
+                if (commitOk && wantRemote) {
+                    Map<String, Object> push = run(directory, "git", "push", "--set-upstream", "origin", effectiveBranch);
                     int pushCode = ((Number) push.getOrDefault("code", -1)).intValue();
                     boolean pushOk = pushCode == 0;
                     if (pushOk) {
@@ -309,34 +327,33 @@ public class GitService {
     /**
      * 配置远程仓库
      * <p>
-     * 设置 Git 用户信息、检查/添加/更新远程仓库 URL、设置分支跟踪。
-     * 如果用户名的格式是邮箱格式，则同时作为 user.email 使用。
+     * 检查/添加/更新远程仓库 URL、设置分支跟踪。不再写入任何 git 用户身份
+     * （user.name/user.email），避免覆盖用户本机已配置的 git 身份。
      * </p>
      *
      * @param directory 要配置的 Git 仓库目录
+     * @param remoteUrl 要使用的远程仓库 URL（可为空，为空则跳过远程配置）
+     * @param branch    分支名称
      */
-    private void configureRemoteRepository(Path directory) {
+    private void configureRemoteRepository(Path directory, String remoteUrl, String branch) {
+        if (remoteUrl == null || remoteUrl.isEmpty()) {
+            return;
+        }
         try {
-            // 设置 git 用户配置
-            if (gitConfig.getUsername() != null && !gitConfig.getUsername().isEmpty()) {
-                executeGitCommandSafe(directory, "git", "config", "user.name", gitConfig.getUsername());
-                // 如果用户名是邮箱格式，同时设置为 user.email
-                if (gitConfig.getUsername().contains("@")) {
-                    executeGitCommandSafe(directory, "git", "config", "user.email", gitConfig.getUsername());
-                }
-            }
+            // 可选 Token 兜底认证：仅对 https/http 地址生效，SSH 地址（git@）不注入
+            String targetUrl = withTokenIfHttps(remoteUrl);
 
             // 检查远程仓库是否已配置
             if (!checkRemoteConfig(directory)) {
                 // 添加远程仓库
-                executeGitCommand(directory, "git", "remote", "add", "origin", gitConfig.getRemoteUrl());
-                log.info("Added remote repository: {}", gitConfig.getRemoteUrl());
+                executeGitCommand(directory, "git", "remote", "add", "origin", targetUrl);
+                log.info("Added remote repository: {}", safeRemoteUrl(targetUrl));
             } else {
                 // 检查 URL 是否一致，不一致则更新
                 String currentUrl = getRemoteUrl(directory);
-                if (!gitConfig.getRemoteUrl().equals(currentUrl)) {
-                    log.info("Updating remote URL from {} to {}", currentUrl, gitConfig.getRemoteUrl());
-                    executeGitCommand(directory, "git", "remote", "set-url", "origin", gitConfig.getRemoteUrl());
+                if (!targetUrl.equals(currentUrl)) {
+                    log.info("Updating remote URL from {} to {}", safeRemoteUrl(currentUrl), safeRemoteUrl(targetUrl));
+                    executeGitCommand(directory, "git", "remote", "set-url", "origin", targetUrl);
                 }
             }
 
@@ -345,8 +362,8 @@ public class GitService {
 
             // 设置分支跟踪
             try {
-                executeGitCommand(directory, "git", "branch", "--set-upstream-to=origin/" + gitConfig.getBranch(), gitConfig.getBranch());
-                log.info("Set upstream branch to origin/{}", gitConfig.getBranch());
+                executeGitCommand(directory, "git", "branch", "--set-upstream-to=origin/" + branch, branch);
+                log.info("Set upstream branch to origin/{}", branch);
             } catch (Exception e) {
                 log.warn("Failed to set upstream branch: {}", e.getMessage());
                 log.info("Branch will be set upstream on first push");
@@ -357,32 +374,110 @@ public class GitService {
     }
 
     /**
+     * 若配置了访问令牌且远程地址为 https/http，则拼接带认证的地址 {@code scheme://<token>@<host>/<path>}。
+     * SSH 地址（{@code git@}）或非 http(s) 协议不注入令牌，原样返回。
+     *
+     * @param remoteUrl 原始远程地址
+     * @return 带令牌的远程地址或原地址
+     */
+    private String withTokenIfHttps(String remoteUrl) {
+        String token = (gitConfig != null) ? gitConfig.getToken() : null;
+        if (token == null || token.isEmpty()) {
+            return remoteUrl;
+        }
+        if (remoteUrl.startsWith("https://")) {
+            return "https://" + token + "@" + remoteUrl.substring("https://".length());
+        }
+        if (remoteUrl.startsWith("http://")) {
+            return "http://" + token + "@" + remoteUrl.substring("http://".length());
+        }
+        return remoteUrl;
+    }
+
+    /** 脱敏远程地址：隐藏 URL 中嵌入的 token 密码部分，避免日志泄漏凭据。 */
+    private String safeRemoteUrl(String url) {
+        if (url == null) return "";
+        int schemeIdx = url.indexOf("://");
+        if (schemeIdx > 0) {
+            int atIdx = url.indexOf('@', schemeIdx + 3);
+            if (atIdx > schemeIdx) {
+                return url.substring(0, schemeIdx + 3) + "***" + url.substring(atIdx);
+            }
+        }
+        return url;
+    }
+
+    /**
      * 获取当前 remote origin 的 URL
      *
      * @param directory Git 仓库目录
      * @return remote URL 字符串；若失败返回空字符串
      */
     private String getRemoteUrl(Path directory) {
+        return runSimple(directory, "git", "remote", "get-url", "origin");
+    }
+
+    /**
+     * 检测本地 git 仓库是否已配置 origin 远程（供同步状态面板展示）。
+     *
+     * @param directory Git 仓库目录
+     * @return 本地 origin URL；未配置或失败返回空字符串
+     */
+    public String getLocalRemoteUrl(Path directory) {
+        if (directory == null || !Files.exists(directory.resolve(".git"))) {
+            return "";
+        }
+        return runSimple(directory, "git", "remote", "get-url", "origin");
+    }
+
+    /**
+     * 检测当前检出的分支名（供同步状态面板展示）。
+     *
+     * @param directory Git 仓库目录
+     * @return 当前分支名（如 main/master）；未初始化、detached HEAD 或失败返回空字符串
+     */
+    public String getLocalBranch(Path directory) {
+        if (directory == null || !Files.exists(directory.resolve(".git"))) {
+            return "";
+        }
+        return runSimple(directory, "git", "symbolic-ref", "--short", "HEAD");
+    }
+
+    /**
+     * 检测提交身份是否已配置（user.name 与 user.email 均非空）。
+     * <p>
+     * 判断当前仓库能否直接 commit；若缺失，同步会因缺身份报错（本轮不做身份兜底）。
+     * </p>
+     *
+     * @param directory Git 仓库目录
+     * @return true 表示已有 commit 身份；false 表示缺失
+     */
+    public boolean hasLocalIdentity(Path directory) {
+        if (directory == null) {
+            return false;
+        }
+        String name = runSimple(directory, "git", "config", "user.name");
+        String email = runSimple(directory, "git", "config", "user.email");
+        return name != null && !name.isEmpty() && email != null && !email.isEmpty();
+    }
+
+    /** 执行 git 命令并返回去空白后的首行输出（用于读取配置/标识）；失败返回空字符串。 */
+    private String runSimple(Path directory, String... command) {
         try {
-            ProcessBuilder processBuilder = new ProcessBuilder("git", "remote", "get-url", "origin");
+            ProcessBuilder processBuilder = new ProcessBuilder(command);
             processBuilder.directory(directory.toFile());
             processBuilder.redirectErrorStream(true);
-
             Process process = processBuilder.start();
-            int exitCode = process.waitFor();
-
-            // 读取命令输出
+            if (process.waitFor() != 0) {
+                return "";
+            }
             try (InputStream inputStream = process.getInputStream();
                  BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
-                String line;
-                StringBuilder url = new StringBuilder();
-                while ((line = reader.readLine()) != null) {
-                    url.append(line.trim());
-                }
-                return url.toString();
+                String line = reader.readLine();
+                return (line == null) ? "" : line.trim();
             }
         } catch (Exception e) {
-            log.error("Error getting remote URL: {}", e.getMessage());
+            log.debug("Git command failed ({}): {}", String.join(" ", command), e.getMessage());
             return "";
         }
     }
@@ -448,7 +543,8 @@ public class GitService {
     /**
      * 测试 Git 连接
      * <p>
-     * 配置远程仓库后执行 fetch 测试连通性。
+     * 配置远程仓库后执行 fetch 测试连通性。若应用内配置不完整，但本地仓库已检测到
+     * {@code origin} 远程，也允许直接 fetch 测试（local-first 场景）。
      * 使用锁保证线程安全。
      * </p>
      *
@@ -456,14 +552,23 @@ public class GitService {
      * @return 测试结果字符串
      */
     public String testGitConnection(Path directory) {
-        if (gitConfig == null || !gitConfig.isComplete()) {
+        boolean configComplete = gitConfig != null && gitConfig.isComplete();
+        boolean localRemote = !getLocalRemoteUrl(directory).isEmpty();
+        if (!configComplete && !localRemote) {
             return "Git configuration is not complete";
         }
 
         gitLock.lock();
         try {
-            // 配置远程仓库
-            configureRemoteRepository(directory);
+            String remote = (configComplete) ? gitConfig.getRemoteUrl() : getLocalRemoteUrl(directory);
+            String branch = (configComplete && gitConfig.getBranch() != null && !gitConfig.getBranch().isEmpty())
+                    ? gitConfig.getBranch()
+                    : (getLocalBranch(directory).isEmpty() ? "main" : getLocalBranch(directory));
+            // 配置远程仓库（仅采用有效远程；未初始化 .git 时 fetch 会自动失败，交由异常透出）
+            configureRemoteRepository(directory, remote, branch);
+            if (directory == null || !Files.exists(directory.resolve(".git"))) {
+                return "Git 仓库尚未初始化（缺少 .git 目录）";
+            }
 
             // 测试 fetch 连通性
             executeGitCommand(directory, "git", "fetch", "origin");

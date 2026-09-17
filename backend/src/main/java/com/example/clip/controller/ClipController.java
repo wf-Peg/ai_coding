@@ -13,6 +13,7 @@ import com.example.clip.dto.ClipToTodoRequest;
 import com.example.clip.dto.OrganizeClipRequest;
 import com.example.clip.dto.OrganizeInboxRequest;
 import com.example.clip.dto.TagRequest;
+import com.example.clip.dto.UpdateClipContentRequest;
 import com.example.clip.model.ClipContent;
 import com.example.clip.model.Annotation;
 import com.example.clip.model.TodoContent;
@@ -470,6 +471,28 @@ public class ClipController {
             return ResponseEntity.notFound().build();
         }
         recordAction("content_edited", "clip:" + updated.getId(), Map.of("source", "editor"));
+        return ResponseEntity.ok(new ClipResponse(updated.getId(), "success"));
+    }
+
+    /**
+     * 写回剪藏正文（轻量）。
+     * <p>
+     * PUT /api/clip/{id}/content
+     * <p>
+     * 仅更新正文，保留分类、标签、我的思考、工作流状态，供 OCR 等「只写原文、不触发整理」的场景使用。
+     *
+     * @param id      剪藏 ID
+     * @param request 仅含 content 的写回请求
+     * @return 更新结果；剪藏不存在时 404
+     */
+    @PutMapping("/{id}/content")
+    public ResponseEntity<?> updateClipContent(@PathVariable(name = "id") Long id,
+                                               @RequestBody UpdateClipContentRequest request) {
+        ClipContent updated = clipService.updateClipContent(id, request);
+        if (updated == null) {
+            return ResponseEntity.notFound().build();
+        }
+        recordAction("content_updated", "clip:" + updated.getId(), Map.of("source", "ocr"));
         return ResponseEntity.ok(new ClipResponse(updated.getId(), "success"));
     }
 

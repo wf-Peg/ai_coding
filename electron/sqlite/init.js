@@ -13,10 +13,17 @@
  * v6：修复迁移。历史库在 v3/v4/v5 增量迁移时被旧实现的「提前写入最高版本号 + return」
  *     跳级，出现 schema_version=5 但画布表缺失的坏状态；v6 重跑画布各层建表 SQL
  *     （全部 CREATE TABLE IF NOT EXISTS，幂等，健康库无副作用）兜底补齐。
+ * v7：画布升级为「多文档 + 层级大纲」。新增 canvas_doc 表（画布文档），
+ *     canvas_node 加 doc_id / parent_id / order_index（层级大纲：结构真源），
+ *     canvas_edge / canvas_group 加 doc_id（按文档隔离）；历史数据统一回填到
+ *     默认文档 doc:default，parent_id 全空（平铺根节点，视觉与升级前一致）。
+ *     坐标仍存 canvas_layout（node_id 全局唯一，不加 doc_id，按文档取坐标用 JOIN）。
  * 后续扩展时新增版本迁移（schema_version+1），在 migrate() 里追加逻辑。
  */
 
-const SCHEMA_VERSION = 6;
+const canvasDoc = require('./canvas-doc');
+
+const SCHEMA_VERSION = 7;
 
 // 建表 SQL（仅在 meta.schema_version 为空时执行 v1 建库）
 const SQL_V1 = `
@@ -121,6 +128,79 @@ CREATE INDEX IF NOT EXISTS idx_cgm_member ON canvas_group_member(node_id);
 // 修复旧实现跳级导致的「schema_version=5 但画布表缺失」坏状态，健康库执行无副作用）
 const SQL_V6 = SQL_V3 + SQL_V4 + SQL_V5;
 
+// v7 增量①：画布文档表（列增量在 addColumnIfMissing 之后建索引，避免列未就绪报错）
+const SQL_V7 = `
+CREATE TABLE IF NOT EXISTS canvas_doc (
+  id         TEXT PRIMARY KEY,
+  title      TEXT,
+  sort_index INTEGER,
+  created_at TEXT,
+  updated_at TEXT
+);
+`;
+
+// v7 增量②：画布各表按文档/层级建索引（须在补列之后执行）
+const SQL_V7_INDEXES = `
+CREATE INDEX IF NOT EXISTS idx_canvas_node_doc  ON canvas_node(doc_id, parent_id, order_index);
+CREATE INDEX IF NOT EXISTS idx_canvas_edge_doc  ON canvas_edge(doc_id);
+CREATE INDEX IF NOT EXISTS idx_canvas_group_doc ON canvas_group(doc_id);
+`;
+
+/** 判断某表是否已存在某列。 */
+function hasColumn(db, table, column) {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all();
+  return rows.some((r) => r.name === column);
+}
+
+/**
+ * 增量补列（幂等）：列不存在才 ALTER TABLE ADD COLUMN。
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} table 表名（内部白名单校验，杜绝拼接注入）
+ * @param {string} column 列名
+ * @param {string} ddl 列定义（如 'TEXT' / 'INTEGER'）
+ */
+function addColumnIfMissing(db, table, column, ddl) {
+  const TABLES = ['canvas_node', 'canvas_edge', 'canvas_group', 'canvas_doc'];
+  const COLUMNS = ['doc_id', 'parent_id', 'order_index', 'sort_index'];
+  if (!TABLES.includes(table) || !COLUMNS.includes(column)) {
+    throw new Error('invalid canvas migration target: ' + table + '.' + column);
+  }
+  if (hasColumn(db, table, column)) return false;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+  return true;
+}
+
+/**
+ * v7 回填：历史画布数据统一挂到默认文档；层级字段补默认值。
+ * - canvas_doc 确保 doc:default 存在；
+ * - canvas_node / canvas_edge / canvas_group 的 doc_id 为空则回填默认文档；
+ * - canvas_node.order_index 为空则按 created_at 顺序在文档内递增编号；
+ * - parent_id 保持 NULL（平铺根节点，视觉与升级前一致）。
+ */
+function backfillCanvasV7(db) {
+  canvasDoc.ensureDefaultDoc(db);
+
+  for (const table of ['canvas_node', 'canvas_edge', 'canvas_group']) {
+    if (hasColumn(db, table, 'doc_id')) {
+      db.prepare(`UPDATE ${table} SET doc_id = ? WHERE doc_id IS NULL OR doc_id = ''`)
+        .run(canvasDoc.DEFAULT_DOC_ID);
+    }
+  }
+
+  if (!hasColumn(db, 'canvas_node', 'order_index')) return;
+  const rows = db
+    .prepare('SELECT id, doc_id AS docId FROM canvas_node WHERE order_index IS NULL ORDER BY created_at, id')
+    .all();
+  const counters = new Map();
+  const stmt = db.prepare('UPDATE canvas_node SET order_index = ? WHERE id = ?');
+  for (const r of rows) {
+    const docId = r.docId || canvasDoc.DEFAULT_DOC_ID;
+    const next = counters.get(docId) || 0;
+    stmt.run(next, r.id);
+    counters.set(docId, next + 1);
+  }
+}
+
 /**
  * 执行建库/迁移。基于 meta.schema_version 判断。
  * v1：建 meta/content/content_fts。
@@ -144,6 +224,19 @@ function migrate(db) {
   if (current < SCHEMA_VERSION) {
     // v6：兜底补齐缺失的画布表（修复旧实现跳级导致的坏状态）
     db.exec(SQL_V6);
+
+    // v7：画布多文档 + 层级大纲（补列 → 建索引 → 回填默认文档）
+    if (current < 7) {
+      db.exec(SQL_V7);
+      addColumnIfMissing(db, 'canvas_node', 'doc_id', 'TEXT');
+      addColumnIfMissing(db, 'canvas_node', 'parent_id', 'TEXT');
+      addColumnIfMissing(db, 'canvas_node', 'order_index', 'INTEGER');
+      addColumnIfMissing(db, 'canvas_edge', 'doc_id', 'TEXT');
+      addColumnIfMissing(db, 'canvas_group', 'doc_id', 'TEXT');
+      db.exec(SQL_V7_INDEXES);
+      backfillCanvasV7(db);
+    }
+
     // 仅在全部迁移完成后统一写入最终版本号
     upsertMeta(db, 'schema_version', String(SCHEMA_VERSION));
   }

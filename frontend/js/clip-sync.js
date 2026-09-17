@@ -152,67 +152,222 @@
         if (meta) meta.textContent = text || '';
     }
 
+    // Clipper 轮询 & 自动同步状态缓存 / 上次自动触发时间
+    var lastClipperStatus = null;
+    var lastAutoSyncAt = 0;
+    var CLIPPER_POLL_INTERVAL = 30000; // 状态轮询间隔（毫秒）
+
+    // 手动触发一次 Clipper 同步；完成后刷新 pill、面板与剪藏列表
     function triggerWebClipperSync() {
         const pill = document.getElementById('web-clipper-sync-status');
         if (!pill) return;
+        if (pill.classList.contains('wc-syncing')) return; // 防并发重复触发
         pill.classList.add('wc-syncing');
-        pill.title = 'Web Clipper 同步中…';
+        pill.title = 'Clipper 同步中…';
         setWcPillText('clipper同步');
         setWcPillMeta('同步中…');
 
         axios.post(`${SYNC_API_BASE_URL}/trigger`)
             .then(response => {
                 const data = response.data || {};
-                const syncedCount = data.syncedCount != null ? data.syncedCount : (data.added != null ? data.added : (data.newCount != null ? data.newCount : 0));
-                const skippedCount = data.skippedCount != null ? data.skippedCount : (data.skipped != null ? data.skipped : (data.skipCount != null ? data.skipCount : 0));
-                const message = data.message || `同步完成：新增 ${syncedCount} 条，跳过 ${skippedCount} 条`;
+                const syncedCount = data.syncedCount != null ? data.syncedCount : (data.added != null ? data.added : 0);
+                const skippedCount = data.skippedCount != null ? data.skippedCount : (data.skipped != null ? data.skipped : 0);
+                const failedCount = data.failedCount != null ? data.failedCount : (data.failedFiles && data.failedFiles.length ? data.failedFiles.length : 0);
+                let message = '同步完成';
+                if (data.lastError) {
+                    message = data.lastError;
+                } else {
+                    message = `新增 ${syncedCount} 条，跳过 ${skippedCount} 条`;
+                    if (failedCount > 0) message += `，失败 ${failedCount} 条`;
+                }
                 showToast(message);
-                // 同步成功后刷新同步状态和剪藏列表
-                loadSyncStatus();
-                fetchClips();
             })
             .catch(error => {
-                const msg = error.response?.data?.message || error.message || '未知错误';
-                showToast('Web Clipper 同步失败: ' + msg);
+                const msg = error.response?.data?.lastError || error.response?.data?.message || error.message || '未知错误';
+                showToast('Clipper 同步失败: ' + msg);
                 console.error('Web Clipper sync failed:', error);
-                pill.title = 'Web Clipper 同步：失败（点击重试）';
-                setWcPillText('clipper同步');
-                setWcPillMeta('失败');
             })
             .finally(() => {
                 pill.classList.remove('wc-syncing');
+                // 无论成败都刷新状态并重拉列表，保证界面与后端一致
+                loadClipperSync();
+                if (typeof fetchClips === 'function') fetchClips();
             });
     }
 
-    // 加载 Web Clipper 同步状态：状态点颜色 + 文字标签；详细文案见 tooltip
-    function loadSyncStatus() {
-        const pill = document.getElementById('web-clipper-sync-status');
-        if (!pill) return;
-        const statusDot = pill.querySelector('.sync-dot');
-
-        axios.get(`${SYNC_API_BASE_URL}/status`)
+    // 加载 Clipper 同步状态：更新 pill，若面板展开则渲染面板，并驱动自动同步
+    function loadClipperSync() {
+        return axios.get(`${SYNC_API_BASE_URL}/status`)
             .then(response => {
                 const data = response.data || {};
-                const synced = data.synced != null ? data.synced : (data.syncedCount != null ? data.syncedCount : 0);
-                const pending = data.pending != null ? data.pending : (data.pendingCount != null ? data.pendingCount : 0);
-                pill.title = `Web Clipper 同步：已同步 ${synced} 条，待同步 ${pending} 条（点击立即同步）`;
-                setWcPillText('clipper同步');
-                if (pending > 0) {
-                    setWcPillMeta(`待传${pending}`);
-                } else {
-                    setWcPillMeta('');
-                }
-                if (statusDot) {
-                    statusDot.classList.toggle('pending', pending > 0);
-                }
+                lastClipperStatus = data;
+                updateClipperPill(data);
+                const panel = document.getElementById('clipper-sync-panel');
+                if (panel && !panel.hidden) renderClipperPanel(data);
+                scheduleAutoSync(data);
+                return data;
             })
             .catch(error => {
-                pill.title = 'Web Clipper 同步：状态获取失败（点击重试）';
-                setWcPillText('clipper同步');
-                setWcPillMeta('失败');
-                if (statusDot) statusDot.classList.add('pending');
-                console.error('Load sync status failed:', error);
+                console.error('Load clipper sync status failed:', error);
+                const panel = document.getElementById('clipper-sync-panel');
+                if (panel && !panel.hidden) {
+                    const body = document.getElementById('clipper-panel-body');
+                    if (body) { body.innerHTML = ''; body.appendChild(emptyRow('获取同步状态失败，请稍后重试。')); }
+                }
+                return null;
             });
+    }
+
+    // 根据状态更新 pill（点状颜色 + 主文案 + 待传/失败小字 + 悬浮说明）
+    function updateClipperPill(data) {
+        const pill = document.getElementById('web-clipper-sync-status');
+        if (!pill) return;
+        const dot = pill.querySelector('.sync-dot');
+        const synced = data.syncedCount != null ? data.syncedCount : 0;
+        const pending = data.pendingCount != null ? data.pendingCount : 0;
+        const failed = data.failedCount != null ? data.failedCount : 0;
+
+        let title = `Clipper 同步：已同步 ${synced} 条，待同步 ${pending} 条，失败 ${failed} 条（点击查看说明与手动同步）`;
+        if (!data.enabled) title = `Clipper 同步：自动同步已关闭（需手动同步）（点击查看）`;
+        if (data.lastError) title += '｜上次失败：' + data.lastError;
+
+        pill.title = title;
+        setWcPillText('clipper同步');
+        let hasIssue = false;
+        if (failed > 0) { setWcPillMeta(`失败${failed}`); hasIssue = true; }
+        else if (pending > 0) { setWcPillMeta(`待传${pending}`); hasIssue = true; }
+        else { setWcPillMeta(''); }
+        if (dot) dot.classList.toggle('pending', hasIssue);
+    }
+
+    // 自动同步调度：仅在【自动开关开启 && 后端同步启用 && 有待同步 && 距上次触发≥间隔】时触发
+    function scheduleAutoSync(data) {
+        if (!data) return;
+        if (!data.enabled) return;
+        if (!(data.pendingCount > 0)) return;
+        if (localStorage.getItem('clipper_auto_sync') === '0') return; // 默认开启，'0' 表示关闭
+        const intervalMs = (data.intervalSeconds || 60) * 1000;
+        const now = Date.now();
+        if (now - lastAutoSyncAt < intervalMs) return;
+        lastAutoSyncAt = now;
+        triggerWebClipperSync();
+    }
+
+    // 打开/关闭 Clipper 说明面板；展开时刷新状态
+    function toggleClipperSyncPanel() {
+        const panel = document.getElementById('clipper-sync-panel');
+        if (!panel) return;
+        if (panel.hidden) { panel.hidden = false; loadClipperSync(); }
+        else { panel.hidden = true; }
+    }
+
+    // 渲染 Clipper 说明面板主体：功能介绍 + 当前状态 + 失败原因 + 监听位置 + 操作
+    function renderClipperPanel(status) {
+        const body = document.getElementById('clipper-panel-body');
+        if (!body) return;
+        body.innerHTML = '';
+
+        // 1) 功能介绍
+        const intro = document.createElement('div');
+        intro.className = 'sync-panel-card';
+        intro.appendChild(panelTitle('这是做什么的？'));
+        const introP = document.createElement('div');
+        introP.className = 'clipper-intro';
+        introP.textContent = 'Clipper 同步会把 Obsidian Web Clipper 存入「原样保存目录」的新 Markdown 文件自动同步为本应用的收件箱剪藏。原文仍保留在 Vault，剪藏以 wiki 链接引用，不会重复复制内容。';
+        intro.appendChild(introP);
+        body.appendChild(intro);
+
+        // 2) 当前状态
+        const st = document.createElement('div');
+        st.className = 'sync-panel-card';
+        st.appendChild(panelTitle('当前状态'));
+        const enabled = !!status.enabled;
+        const badge = document.createElement('span');
+        badge.className = 'sync-stat-badge ' + (enabled ? 'ok' : 'warn');
+        badge.textContent = enabled ? `自动同步已开启（每 ${status.intervalSeconds || 60} 秒扫描）` : '自动同步已关闭（需手动同步）';
+        st.appendChild(badge);
+        const synced = status.syncedCount != null ? status.syncedCount : 0;
+        const pending = status.pendingCount != null ? status.pendingCount : 0;
+        const failedCnt = status.failedCount != null ? status.failedCount : 0;
+        st.appendChild(fieldRow('已同步', synced + ' 条'));
+        st.appendChild(fieldRow('待同步', pending + ' 条' + (failedCnt > 0 ? `（其中 ${failedCnt} 条失败）` : '')));
+        const lastT = status.lastSyncTime ? new Date(status.lastSyncTime).toLocaleString('zh-CN') : '暂无同步记录';
+        st.appendChild(fieldRow('最近同步', lastT));
+        body.appendChild(st);
+
+        // 3) 失败原因 / 诊断
+        const diag = document.createElement('div');
+        diag.className = 'sync-panel-card';
+        diag.appendChild(panelTitle('失败原因'));
+        const errs = Array.isArray(status.failedFiles) ? status.failedFiles : [];
+        if (status.lastError || errs.length > 0) {
+            if (status.lastError) {
+                const e = document.createElement('div');
+                e.className = 'clipper-err';
+                e.textContent = '整体失败：' + status.lastError;
+                diag.appendChild(e);
+            }
+            if (errs.length) {
+                const list = document.createElement('div');
+                list.className = 'clipper-fail-list';
+                errs.forEach(f => {
+                    const row = document.createElement('div');
+                    row.className = 'clipper-fail-item';
+                    row.textContent = f;
+                    list.appendChild(row);
+                });
+                diag.appendChild(list);
+            }
+        } else {
+            diag.appendChild(emptyRow('当前无失败。'));
+        }
+        body.appendChild(diag);
+
+        // 4) 监听位置
+        const paths = document.createElement('div');
+        paths.className = 'sync-panel-card';
+        paths.appendChild(panelTitle('监听位置'));
+        if (status.vaultPath) paths.appendChild(fieldRow('Vault 目录', status.vaultPath));
+        if (status.sourcesDir) paths.appendChild(fieldRow('Clipper 保存目录', status.sourcesDir));
+        paths.appendChild(emptyRow('请在 Obsidian Web Clipper 中将「保存位置」设置为上面的 Clipper 保存目录。'));
+        body.appendChild(paths);
+
+        // 5) 操作（自动同步开关 + 立即同步）
+        const act = document.createElement('div');
+        act.className = 'sync-panel-card';
+        act.appendChild(panelTitle('操作'));
+        const autoRow = document.createElement('label');
+        autoRow.className = 'clipper-auto-row';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = localStorage.getItem('clipper_auto_sync') !== '0';
+        cb.addEventListener('change', () => {
+            localStorage.setItem('clipper_auto_sync', cb.checked ? '1' : '0');
+        });
+        autoRow.appendChild(cb);
+        autoRow.appendChild(document.createTextNode('自动同步（有待同步时自动触发）'));
+        act.appendChild(autoRow);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn-primary';
+        btn.textContent = '立即同步';
+        btn.style.cssText = 'margin-top:10px;padding:8px 16px;border:none;border-radius:var(--radius);background:var(--primary);color:#fff;cursor:pointer;';
+        btn.addEventListener('click', triggerWebClipperSync);
+        act.appendChild(btn);
+        body.appendChild(act);
+    }
+
+    // 生成卡片内小节标题
+    function panelTitle(text) {
+        const d = document.createElement('div');
+        d.className = 'sync-panel-card-title';
+        d.textContent = text;
+        return d;
+    }
+
+    // 兼容旧入口：clip-shared.js DOMContentLoaded 仍调用 loadSyncStatus()
+    function loadSyncStatus() {
+        return loadClipperSync();
     }
 
     function startRefreshCheck() {
@@ -308,14 +463,20 @@ function renderSyncPanel(status, providers) {
     conn.className = 'sync-panel-card';
     conn.innerHTML = '<div class="sync-panel-card-title">连接状态</div>';
     const statBadge = document.createElement('span');
+    const f = status.fields || {};
+    const authMode = f.authMode || 'none';
     let statText = '仅本地提交（未配置远程）';
     if (!status.ready) {
         statText = '仓库尚未初始化（缺少 .git）';
         statBadge.className = 'sync-stat-badge warn';
     } else if (status.configured) {
-        statText = '已配置远程仓库';
+        statText = authMode === 'token' ? '已配置远程仓库（Token 认证）' : '已配置远程仓库';
+        statBadge.className = 'sync-stat-badge ok';
+    } else if (f.detectedRemoteUrl) {
+        statText = '已检测到本地 Git 仓库（直接用本地配置）';
         statBadge.className = 'sync-stat-badge ok';
     } else {
+        statText = '本地仓库已初始化，但未配置远程';
         statBadge.className = 'sync-stat-badge info';
     }
     statBadge.textContent = statText;
@@ -326,14 +487,28 @@ function renderSyncPanel(status, providers) {
     body.appendChild(conn);
 
     // ---- 仓库信息（Git fields） ----
-    const f = status.fields || {};
-    if (f.workingDir || f.remoteUrl || f.branch) {
+    if (f.workingDir || f.remoteUrl || f.branch || f.detectedRemoteUrl || f.localBranch) {
         const repo = document.createElement('div');
         repo.className = 'sync-panel-card';
         repo.innerHTML = '<div class="sync-panel-card-title">仓库信息</div>';
         if (f.workingDir) repo.appendChild(fieldRow('工作目录', f.workingDir));
-        if (f.remoteUrl) repo.appendChild(fieldRow('远程仓库', f.remoteUrl));
-        if (f.branch) repo.appendChild(fieldRow('分支', f.branch));
+        if (f.remoteUrl) repo.appendChild(fieldRow('远程仓库（应用内）', f.remoteUrl));
+        if (f.detectedRemoteUrl) repo.appendChild(fieldRow('远程仓库（本机检测）', f.detectedRemoteUrl));
+        if (f.remoteUrl && f.detectedRemoteUrl && f.remoteUrl !== f.detectedRemoteUrl) {
+            // 应用内配置与本机不同：提示以应用内为准
+            const warn = document.createElement('div');
+            warn.className = 'sync-scope-note';
+            warn.textContent = '应用内配置的远程与本机检测不同，同步以应用内配置为准。';
+            repo.appendChild(warn);
+        }
+        if (f.branch || f.localBranch) {
+            const branchLabel = f.branch ? '分支（应用内）' : '分支（本机）';
+            repo.appendChild(fieldRow(branchLabel, f.branch || f.localBranch));
+        }
+        if (status.ready && typeof f.identityConfigured === 'boolean') {
+            repo.appendChild(fieldRow('提交身份', f.identityConfigured ? '已配置' : '未配置（commit 将失败）'));
+        }
+        // 去掉无值的内容（字段值 &nbsp; 占位不渲染）
         body.appendChild(repo);
     }
 
@@ -348,7 +523,7 @@ function renderSyncPanel(status, providers) {
         const dirDesc = {
             'clip-storage': '剪藏数据（JSON）',
             'clip-organized': '日报总结',
-            'weeklyReport': '周报文件',
+            'weekly-report': '周报文件',
             'tmp': '临时文件（异常日志/草稿，程序运行产物，通常无需手动编辑）'
         };
         dirs.forEach(d => {
@@ -399,6 +574,9 @@ function emptyRow(text) {
 document.addEventListener('DOMContentLoaded', () => {
     loadProviders();
     loadSyncStatusPanel();
+    loadClipperSync();
+    // Clipper 状态轮询 + 自动同步：确保 Obsidian Web Clipper 新写入的文件自动出现，无需手动刷新/点击
+    setInterval(() => { loadClipperSync(); }, CLIPPER_POLL_INTERVAL);
 });
 
     function loadGitConfig() {
@@ -408,8 +586,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const config = response.data;
                 if (config) {
                     document.getElementById('remoteUrl').value = config.remoteUrl || '';
-                    document.getElementById('username').value = config.username || '';
-                    document.getElementById('password').value = config.password || '';
+                    document.getElementById('token').value = config.token || '';
                     document.getElementById('branch').value = config.branch || 'main';
                 }
             })
@@ -422,8 +599,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 保存Git配置
         const config = {
             remoteUrl: document.getElementById('remoteUrl').value,
-            username: document.getElementById('username').value,
-            password: document.getElementById('password').value,
+            token: document.getElementById('token').value,
             branch: document.getElementById('branch').value
         };
 
@@ -431,6 +607,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(response => {
                 showNotification('Git配置保存成功');
                 closeGitConfigModal();
+                loadSyncStatusPanel();
             })
             .catch(error => {
                 showNotification('Git配置保存失败: ' + (error.response?.data || error.message));
@@ -446,8 +623,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 先保存配置
         const config = {
             remoteUrl: document.getElementById('remoteUrl').value,
-            username: document.getElementById('username').value,
-            password: document.getElementById('password').value,
+            token: document.getElementById('token').value,
             branch: document.getElementById('branch').value
         };
 

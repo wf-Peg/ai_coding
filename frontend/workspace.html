@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="styles/workbench-widgets.css">
   <script src="js/theme-core.js"></script>
   <script src="js/theme-bridge.js"></script>
+  <script src="js/menu-tab-shortcut.js"></script>
   <script>
     (function () { window.CutShelterThemeBridge.init({ root: document.documentElement }); })();
   </script>
@@ -66,6 +67,7 @@
               </div>
             </div>
             <button class="refresh" id="refreshButton" type="button" title="重新从存储扫描并构建内容索引，反映最新数据变化" data-func-tag="功能:刷新索引"><span aria-hidden="true">↻</span> 刷新索引<span class="refresh-info" id="refreshInfo"></span></button>
+            <label class="wb-ws-ctx" title="选择组件板绑定的工作台：每个工作台可各自拼装一套组件布局"><span>组件视图</span><select id="widgetWsCtx" aria-label="组件板工作台上下文"></select></label>
             <button class="wb-edit-btn" id="widgetEditBtn" type="button" data-func-tag="功能:自定义组件" title="进入编辑态：拖动换位、调整大小、增删组件"><span aria-hidden="true">✥</span><span id="widgetEditBtnText">自定义</span></button>
           </header>
 
@@ -527,10 +529,10 @@
   </div>
 
   <script src="js/scroll-restore.js"></script>
+  <script src="js/workbench-widgets.js"></script>
+  <script src="js/anniversary-shared.js"></script>
 <script src="js/workspace.js"></script>
   <script src="js/ui-common.js"></script>
   <script src="js/logger.js"></script>
-  <script src="js/anniversary-shared.js"></script>
-  <script src="js/workbench-widgets.js"></script>
 </body>
 </html>

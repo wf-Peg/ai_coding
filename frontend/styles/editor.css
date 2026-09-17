@@ -2004,6 +2004,59 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
 .filetree-item.indent-4 { padding-left: 66px; }
 .filetree-item.indent-5 { padding-left: 80px; }
 
+/* ── 树状文件浏览器节点样式（复刻 Obsidian 层级侧栏） ── */
+.tree-children { display: block; }
+.tree-children[data-root="1"] { padding-left: 0; }
+.tree-children:not([data-root="1"]) {
+  padding-left: 14px;
+  margin-left: 6px;
+  border-left: 1px solid var(--app-border);
+}
+
+.filetree-node { display: block; }
+
+.filetree-item.tree-row,
+.filetree-item.tree-file {
+  padding-left: 2px;
+}
+
+.filetree-item.tree-row { user-select: none; }
+
+.ft-chevron {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--app-text-muted);
+  transition: transform var(--app-duration-fast) ease, color var(--app-duration-fast) ease;
+}
+.ft-chevron.spacer { visibility: hidden; }
+
+.filetree-node.tree-dir.expanded > .tree-row .ft-chevron {
+  transform: rotate(90deg);
+  color: var(--app-text);
+}
+
+.filetree-item.tree-row:hover .ft-chevron { color: var(--app-text); }
+
+.filetree-node.folder .ft-icon { color: var(--app-warning); }
+
+.filetree-item .ft-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filetree-header-actions .inline-btn {
+  padding: 2px 5px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
 /* ── 编辑器工作区带文件树（三列恒定：左面板位 / 编辑区 / 右面板位） ── */
 .editor-workspace.show-filetree {
   grid-template-columns: 220px minmax(0, 1fr) 0fr;

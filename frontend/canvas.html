@@ -454,63 +454,125 @@
     </style>
     <link rel="stylesheet" href="styles/design-tokens.css">
     <link rel="stylesheet" href="styles/ui-common.css">
+    <link rel="stylesheet" href="styles/canvas.css">
     <script src="js/theme-core.js"></script>
     <script src="js/theme-bridge.js"></script>
+    <script src="js/menu-tab-shortcut.js"></script>
     <script>(function(){var b=window.CutShelterThemeBridge;b.init({root:document.documentElement});b.listen();})();</script>
 </head>
 <body>
     <nav class="nav">
         <span class="title">画布</span>
-        <span class="nav-hint">空白双击新建便签 · 右键新建节点 · 双击编辑 · 选中节点右键连线 · 拖动吸附网格 · 点击分组标题折叠 · 双击标题重命名 · 选中画笔随手标注（临时擦写） · 空格拖动平移 · 滚轮缩放</span>
+
+        <!-- 文档切换器（多画布，对标幕布文档列表） -->
+        <div class="doc-switcher" id="docSwitcher">
+            <button class="doc-switcher-btn" id="docSwitcherBtn" title="切换 / 管理画布文档">
+                <span class="doc-switcher-name" id="docSwitcherName">我的画布</span>
+                <svg class="doc-switcher-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="doc-switcher-menu" id="docSwitcherMenu" style="display:none;">
+                <div class="doc-switcher-list" id="docSwitcherList"></div>
+                <div class="divider"></div>
+                <button class="menu-action" data-action="new-doc">新建画布</button>
+                <button class="menu-action" data-action="rename-doc">重命名当前画布</button>
+                <button class="menu-action" data-action="open-doc-list">打开文档列表</button>
+            </div>
+        </div>
+
+        <!-- 视图三态：大纲 / 分栏 / 画布 -->
+        <div class="view-switch" id="viewSwitch" role="group" aria-label="视图切换">
+            <button data-mode="outline" title="仅大纲">大纲</button>
+            <button data-mode="split" class="is-active" title="左大纲 + 右画布">分栏</button>
+            <button data-mode="canvas" title="仅画布">画布</button>
+        </div>
+
+        <button class="nav-action" id="layoutByOutlineBtn" title="按大纲层级重新排布画布卡片（Reingold–Tilford 整洁树）">按大纲排版</button>
+        <span class="nav-warn" id="scaleWarn" style="display:none;"></span>
+
+        <span class="nav-hint">空白双击新建便签 · 右键新建节点 · 双击编辑 · 选中节点右键连线 · 拖动吸附网格 · 空格拖动平移 · 滚轮缩放 · 大纲内 Enter 同级 / Tab 缩进 / Shift+Tab 反缩进 / Alt+↑↓ 换序 / Ctrl+↑↓ 折叠</span>
     </nav>
 
-    <div class="graph-container" id="graphContainer">
-        <div class="loading" id="loadingEl">
-            <div class="spinner"></div>
-            <p>加载中...</p>
-        </div>
-        <div class="empty-state" id="emptyEl" style="display:none;">
-            <div class="icon">🪧</div>
-            <h3 id="emptyTitle">暂无画布节点</h3>
-            <p id="emptyDesc">双击空白处新建便签，或右键空白处新建便签 / 链接 / 图片 / 引用</p>
-        </div>
-        <div class="legend">
-            <div class="legend-item"><span class="dot" style="background:#fbbf24;"></span>便签</div>
-            <div class="legend-item"><span class="dot" style="background:#22d3ee;"></span>链接</div>
-            <div class="legend-item"><span class="dot" style="background:#a78bfa;"></span>图片</div>
-            <div class="legend-item"><span class="dot" style="background:#14b8a6;"></span>引用</div>
-            <div class="legend-item"><span class="lmark" style="border-top-color:#a78bfa;"></span>手动连线</div>
-        </div>
+    <div class="canvas-body" id="canvasBody" data-view-mode="split">
 
-        <!-- 手绘画笔工具条（临时擦写板） -->
-        <div class="draw-toolbar" id="drawToolbar" title="手绘为临时擦写，刷新即清空，不做存储/导出 · 再次点击已选工具或按 Esc 退出画板">
-            <button data-tool="pen">画笔</button>
-            <button data-tool="highlighter">荧光</button>
-            <button data-tool="eraser">橡皮</button>
-            <div class="divider"></div>
-            <button data-size="thin" class="is-active" title="细">细</button>
-            <button data-size="bold" title="粗">粗</button>
-            <div class="divider"></div>
-            <button class="swatch selected" data-color="#222" style="background-color:#222;"></button>
-            <button class="swatch" data-color="#6b7280" style="background-color:#6b7280;"></button>
-            <button class="swatch" data-color="#1a73e8" style="background-color:#1a73e8;"></button>
-            <button class="swatch" data-color="#e5484d" style="background-color:#e5484d;"></button>
-            <button class="swatch" data-color="#30a46c" style="background-color:#30a46c;"></button>
-            <button class="swatch" data-color="#f76b15" style="background-color:#f76b15;"></button>
-            <div class="divider"></div>
-            <button id="undoBtn">撤销</button>
-            <button id="clearBtn">清空</button>
-            <div class="divider"></div>
-            <button id="exportBtn" class="primary" title="将当前画布（含墨迹）导出为 PNG 图片">导出图片</button>
+        <!-- 左侧大纲面板（幕布式层级大纲） -->
+        <aside class="outline-panel" id="outlinePanel">
+            <div class="outline-head">
+                <span class="outline-head-title">大纲</span>
+                <div class="outline-head-actions">
+                    <button class="outline-icon-btn" id="outlineExpandBtn" title="展开全部">展开</button>
+                    <button class="outline-icon-btn" id="outlineCollapseBtn" title="折叠全部">折叠</button>
+                    <button class="outline-icon-btn" id="outlineExportBtn" title="导出为 Markdown 大纲">导出 MD</button>
+                </div>
+            </div>
+            <div class="outline-tree" id="outlineTree"></div>
+            <div class="outline-empty" id="outlineEmpty" style="display:none;">
+                还没有内容<br>点击这里或用右键菜单新建节点，即可开始列大纲
+            </div>
+        </aside>
+
+        <div class="graph-container" id="graphContainer">
+            <div class="loading" id="loadingEl">
+                <div class="spinner"></div>
+                <p>加载中...</p>
+            </div>
+            <div class="empty-state" id="emptyEl" style="display:none;">
+                <div class="icon">🪧</div>
+                <h3 id="emptyTitle">暂无画布节点</h3>
+                <p id="emptyDesc">双击空白处新建便签，或右键空白处新建便签 / 链接 / 图片 / 引用</p>
+            </div>
+            <div class="legend">
+                <div class="legend-item"><span class="dot" style="background:#fbbf24;"></span>便签</div>
+                <div class="legend-item"><span class="dot" style="background:#22d3ee;"></span>链接</div>
+                <div class="legend-item"><span class="dot" style="background:#a78bfa;"></span>图片</div>
+                <div class="legend-item"><span class="dot" style="background:#14b8a6;"></span>引用</div>
+                <div class="legend-item"><span class="lmark" style="border-top-color:#a78bfa;"></span>手动连线</div>
+            </div>
+
+            <!-- 手绘画笔工具条（临时擦写板） -->
+            <div class="draw-toolbar" id="drawToolbar" title="手绘为临时擦写，刷新即清空，不做存储/导出 · 再次点击已选工具或按 Esc 退出画板">
+                <button data-tool="pen">画笔</button>
+                <button data-tool="highlighter">荧光</button>
+                <button data-tool="eraser">橡皮</button>
+                <div class="divider"></div>
+                <button data-size="thin" class="is-active" title="细">细</button>
+                <button data-size="bold" title="粗">粗</button>
+                <div class="divider"></div>
+                <button class="swatch selected" data-color="#222" style="background-color:#222;"></button>
+                <button class="swatch" data-color="#6b7280" style="background-color:#6b7280;"></button>
+                <button class="swatch" data-color="#1a73e8" style="background-color:#1a73e8;"></button>
+                <button class="swatch" data-color="#e5484d" style="background-color:#e5484d;"></button>
+                <button class="swatch" data-color="#30a46c" style="background-color:#30a46c;"></button>
+                <button class="swatch" data-color="#f76b15" style="background-color:#f76b15;"></button>
+                <div class="divider"></div>
+                <button id="undoBtn">撤销</button>
+                <button id="clearBtn">清空</button>
+                <div class="divider"></div>
+                <button id="exportBtn" class="primary" title="将当前画布（含墨迹）导出为 PNG 图片">导出图片</button>
+            </div>
+
+            <!-- 手绘输入覆盖层 -->
+            <div class="draw-overlay" id="drawOverlay"></div>
+
+            <!-- 小地图：大画布快速定位 -->
+            <div class="minimap" id="minimap" style="display:none;">
+                <div class="minimap-head">定位</div>
+                <svg class="minimap-svg" id="minimapSvg"></svg>
+            </div>
         </div>
+    </div>
 
-        <!-- 手绘输入覆盖层 -->
-        <div class="draw-overlay" id="drawOverlay"></div>
-
-        <!-- 小地图：大画布快速定位 -->
-        <div class="minimap" id="minimap" style="display:none;">
-            <div class="minimap-head">定位</div>
-            <svg class="minimap-svg" id="minimapSvg"></svg>
+    <!-- 文档列表（画布页内部视图，对标幕布首页文档列表） -->
+    <div class="doc-list-mask" id="docListMask" style="display:none;">
+        <div class="doc-list-panel">
+            <div class="doc-list-head">
+                <span class="doc-list-title">我的画布</span>
+                <span class="doc-list-sub" id="docListSub"></span>
+                <div class="doc-list-head-actions">
+                    <button class="modal-btn ok" id="docListNewBtn">新建画布</button>
+                    <button class="modal-btn" id="docListCloseBtn">关闭</button>
+                </div>
+            </div>
+            <div class="doc-list-grid" id="docListGrid"></div>
         </div>
     </div>
 
@@ -555,6 +617,7 @@
         </div>
     </div>
 
+    <script src="js/canvas-outline.js"></script>
     <script src="canvas.js"></script>
     <script>
       (function() {

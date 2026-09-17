@@ -24,10 +24,28 @@ test('node:sqlite 可用（Electron 36 / Node 22 内置）', () => {
   assert.ok(row && row.v, `sqlite_version 应为非空，实际=${row && row.v}`);
 });
 
-test('建库后 meta.schema_version 应为 6', () => {
+test('建库后 meta.schema_version 应为 7', () => {
   const { db } = makeDb();
   const row = db.prepare("SELECT value FROM meta WHERE key='schema_version'").get();
-  assert.strictEqual(row.value, '6');
+  assert.strictEqual(row.value, '7');
+});
+
+test('canvas_doc 表与画布层级列已创建（画布多文档 + 大纲 v7）', () => {
+  const { db } = makeDb();
+  const tbl = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='canvas_doc'").get();
+  assert.ok(tbl, 'canvas_doc 表应存在');
+
+  const nodeCols = db.prepare('PRAGMA table_info(canvas_node)').all().map((r) => r.name);
+  for (const col of ['doc_id', 'parent_id', 'order_index']) {
+    assert.ok(nodeCols.includes(col), `canvas_node 应有列 ${col}`);
+  }
+  const edgeCols = db.prepare('PRAGMA table_info(canvas_edge)').all().map((r) => r.name);
+  assert.ok(edgeCols.includes('doc_id'), 'canvas_edge 应有列 doc_id');
+  const groupCols = db.prepare('PRAGMA table_info(canvas_group)').all().map((r) => r.name);
+  assert.ok(groupCols.includes('doc_id'), 'canvas_group 应有列 doc_id');
+
+  const def = db.prepare("SELECT id, title FROM canvas_doc WHERE id='doc:default'").get();
+  assert.ok(def, '默认文档 doc:default 应自动创建');
 });
 
 test('relation 表已创建（M3 v2）', () => {
@@ -110,7 +128,9 @@ test('回归：schema_version=5 但缺画布表（真实坏库）应被 v6 补�
   ).all().map((r) => r.name).sort();
   assert.deepEqual(names, ['canvas_edge', 'canvas_group', 'canvas_group_member', 'canvas_node']);
   const v = db.prepare("SELECT value FROM meta WHERE key='schema_version'").get();
-  assert.strictEqual(v.value, '6');
+  assert.strictEqual(v.value, '7');
+  const docTbl = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='canvas_doc'").get();
+  assert.ok(docTbl, '坏库修复时也应补出 canvas_doc（v7）');
 });
 
 test('回归：旧库 schema_version=2 增量迁移不应跳级', () => {
@@ -124,5 +144,35 @@ test('回归：旧库 schema_version=2 增量迁移不应跳级', () => {
   ).all().map((r) => r.name).sort();
   assert.deepEqual(names, ['canvas_edge', 'canvas_group', 'canvas_group_member', 'canvas_layout', 'canvas_node']);
   const v = db.prepare("SELECT value FROM meta WHERE key='schema_version'").get();
-  assert.strictEqual(v.value, '6');
+  assert.strictEqual(v.value, '7');
+});
+
+test('v7 回填：历史画布数据挂默认文档并补 order_index（幂等可重跑）', () => {
+  const { db } = makeDb();
+  // 模拟 v6 旧库：先写入无 doc_id / 无 order_index 的历史画布节点
+  db.prepare(
+    "INSERT INTO canvas_node (id, kind, text, title, created_at, updated_at) VALUES (?,?,?,?,?,?)"
+  ).run('note:legacy-1', 'note', '历史便签', '历史便签', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
+  db.prepare(
+    "INSERT INTO canvas_node (id, kind, text, title, created_at, updated_at) VALUES (?,?,?,?,?,?)"
+  ).run('note:legacy-2', 'note', '历史便签2', '历史便签2', '2026-01-02T00:00:00.000Z', '2026-01-02T00:00:00.000Z');
+  db.exec("DELETE FROM canvas_doc; UPDATE meta SET value='6' WHERE key='schema_version'");
+
+  require('./init').migrate(db);
+
+  const rows = db
+    .prepare('SELECT id, doc_id AS docId, parent_id AS parentId, order_index AS orderIndex FROM canvas_node ORDER BY order_index')
+    .all();
+  assert.equal(rows.length, 2);
+  for (const r of rows) {
+    assert.strictEqual(r.docId, 'doc:default', '历史节点应回填默认文档');
+    assert.strictEqual(r.parentId, null, '历史节点保持平铺（无父节点）');
+    assert.ok(Number.isFinite(r.orderIndex), '历史节点应补 order_index');
+  }
+  assert.deepEqual(rows.map((r) => r.orderIndex), [0, 1], 'order_index 按创建时间递增');
+
+  // 幂等：再次迁移不报错、不改动已有数据
+  require('./init').migrate(db);
+  const again = db.prepare('SELECT doc_id AS docId FROM canvas_node WHERE id = ?').get('note:legacy-1');
+  assert.strictEqual(again.docId, 'doc:default');
 });

@@ -16,7 +16,7 @@ import java.util.Map;
  * <p>
  * 提供手动画布数据的后端读写：
  * <ul>
- *   <li>GET  /api/canvas  读取全量快照（画布节点/连线/坐标/分组）</li>
+ *   <li>GET  /api/canvas  读取全量快照（画布文档/节点/连线/坐标/分组）</li>
  *   <li>POST /api/canvas  覆盖写入全量快照（由 Electron 端组装，服务端不做字段级合并）</li>
  * </ul>
  * 不含语义关系（relation），relation 由本地文件扫描重建。

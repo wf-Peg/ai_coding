@@ -1068,10 +1068,12 @@
     }
     .scroll-tool-btn:hover { opacity: 1; border-color: var(--primary); color: var(--primary); }
 
-        /* ====== 模块子工具返回按钮（置顶左上方，返回工具模块） ====== */
+        /* ====== 模块子工具返回按钮（显示区左上角，返回工具模块） ====== */
     .module-back-btn {
-        position: fixed;
-        top: calc(var(--titlebar-height, 40px) + 12px);
+        /* 绝对定位于 .main-content 显示区内，跟随侧边栏宽度/折叠变化，
+           避免溢出到左侧菜单区（原 position:fixed 相对视口会压住菜单） */
+        position: absolute;
+        top: 12px;
         left: 14px;
         z-index: 8000;
         display: none;
@@ -1093,7 +1095,7 @@
     .module-back-btn svg { width: 14px; height: 14px; }
     .module-back-btn:hover { color: var(--primary); border-color: var(--primary); opacity: 1; }
     /* 牛马 视图顶部有面板条（34px），返回按钮下移避开 */
-    .module-back-btn.agent { top: calc(var(--titlebar-height, 40px) + 40px); }
+    .module-back-btn.agent { top: 40px; }
 </style>
 </head>
 <body>
@@ -1290,6 +1292,12 @@
         <div class="view-panel view-panel-hidden" id="settingsView">
             <iframe id="settingsFrame" data-src="settings.html" style="width:100%;height:100%;border:none;"></iframe>
         </div>
+        <!-- 模块子工具返回按钮（知识/Wiki/密码/牛马/学习计划/数据观测），回到工具模块；
+             置于显示区 .main-content 内，随侧边栏宽度/折叠自适应，不越界到菜单区 -->
+        <button class="module-back-btn" id="moduleBackBtn" title="返回工具模块">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+            <span>工具</span>
+        </button>
     </div>
 </div>
 
@@ -1307,11 +1315,6 @@
         </svg>
     </button>
 </div>
-<!-- 模块子工具返回按钮（知识/Wiki/密码/牛马/学习计划/数据观测），回到工具模块 -->
-<button class="module-back-btn" id="moduleBackBtn" title="返回工具模块">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-    <span>工具</span>
-</button>
 <!-- 全局命令面板（⌘K）：搜「动作」而非内容，与 ⌘⇧F 全局搜索职责分离 -->
 <div class="global-cmd-palette" id="globalCmdPalette">
     <div class="cmd-palette-inner">
@@ -1742,6 +1745,54 @@
           ensureDshAgentRuntime();
         }
       }
+
+      // ====== Ctrl/Cmd+Tab 全局导航：写作区之外循环切换菜单栏 ======
+      // 菜单列表 = 侧边栏可见的 .nav-btn[data-view]，按 DOM 顺序（即视觉顺序）：
+      // 收件箱/写作/画布 → 沉淀（动态固定子模块）→ 工作台/工具/设置
+      function getMenuButtons() {
+        return Array.prototype.slice.call(
+          document.querySelectorAll('#titlebarNav .nav-btn[data-view]')
+        ).filter(function (btn) { return btn.getClientRects().length > 0; });
+      }
+      function isEditableTarget(el) {
+        if (!el) return false;
+        var tag = (el.tagName || '').toUpperCase();
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+        return el.isContentEditable === true;
+      }
+      // 顺序递增循环：满则回到下标 0
+      function cycleMenu(dir) {
+        var btns = getMenuButtons();
+        if (!btns.length) return;
+        var idx = -1;
+        for (var i = 0; i < btns.length; i++) {
+          if (btns[i].dataset.view === currentView) { idx = i; break; }
+        }
+        var step = dir === -1 ? -1 : 1;
+        var next = idx < 0 ? 0 : (idx + step + btns.length) % btns.length;
+        var view = btns[next].dataset.view;
+        renderView(view);
+        if (window.history.pushState) {
+          window.history.pushState({ view: view }, '', view === 'clip' ? '/' : '/' + view);
+        }
+      }
+      // 场景一：焦点在主框架（菜单栏/标题栏/空白区）
+      // 注：写作区内部不在此列——焦点在编辑区 iframe 内时父窗口收不到 keydown，
+      //     由 editor.js 自身监听复用原有编辑区标签切换，互不干扰。
+      document.addEventListener('keydown', function (e) {
+        if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+        if (e.key !== 'Tab') return;
+        if (isEditableTarget(e.target)) return;
+        e.preventDefault();
+        cycleMenu(e.shiftKey ? -1 : 1);
+      });
+      // 场景二：焦点在各模块 iframe 内（由 menu-tab-shortcut.js 转发上来）
+      window.addEventListener('message', function (e) {
+        var d = e.data || {};
+        if (!d || d.type !== 'menuTabSwitch') return;
+        if (isEditableTarget(document.activeElement)) return;
+        cycleMenu(d.dir === -1 ? -1 : 1);
+      });
 
       // ===== 牛马（Agent）面板逻辑：DSH sidecar 状态 + 主题适配 =====
       const AGENT_PORT = 3081;

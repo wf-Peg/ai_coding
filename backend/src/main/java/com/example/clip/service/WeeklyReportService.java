@@ -64,7 +64,7 @@ public class WeeklyReportService {
             EmailService emailService,
             GitService gitService,
             PromptConfigService promptConfigService,
-            @Value("${clip.clip-weekly-report.path:./weeklyReport}") String weeklyReportPath) {
+            @Value("${clip.clip-weekly-report.path:./weekly-report}") String weeklyReportPath) {
         this.storageService = storageService;
         this.aiService = aiService;
         this.emailService = emailService;

@@ -142,3 +142,28 @@ window.WB.addWidget(id) / WB.removeWidget(id)
    - 存量三区块（stat / type / trend）作为组件仍正常渲染，切到非编辑态只读良好。
 3. **浅色/深色主题下**组件卡片样式协调（沿用 `--ws-*`、`--app-*` token），滚动条沿用全局窄滚动条规范。
 4. **回归**：产品概览（product-dev）视图不受影响；待办提醒调度器不动。
+
+---
+
+## 八、MVP 落地状态（2026-09-17）
+
+MVP 已按本设计落地并通过验证，组件系统（`workbench-widgets.js` 引擎 + 5 个首发组件）已上线：
+
+- **已交付**：组件网格引擎（4 列 / localStorage 持久化 `workspace_widget_layout_v1`）、拖动换位、右下角尺寸把手、编辑态增删组件、「自定义/完成」按钮、「添加组件」面板、纪念日提醒组件。
+- **修复的缺陷**：初版「添加组件」面板显示为空——根因是 `workspace.html` 把 `workbench-widgets.js` 引入在 `workspace.js` 之后，`init()` 同步注册时 `window.WB` 未定义导致整体早退。已调整脚本加载顺序修复，详见 `TODO/bugs/bug-history.md`（2026-09-17）。
+- **交互性能优化**：拖拽/缩放由“每次 pointermove 全量 relayout”改为「rAF 按帧合并 + 拖动中卡片 transform 合成器位移（跟手不重排）+ 被覆盖卡片 **实时让位**（同一 planPush 算法预演，替换感）+ 松手后拖拽卡片 transform 丝滑滑入目标格（scale 回落微反馈）」；编辑态整条卡片头（头部）均可拖动，不再局限于 26px 把手。全局拖拽点审计结论：看板（原生 DnD + classList）与悬浮抽屉（transform 写 `--md-off`，合成器级）本就廉价，无需改动。
+- **验证口径**：前端（3001）与后端（8081）重启后 `workspace.html` 正常加载；组件默认布局渲染、「自定义/完成」切换、拖拽换位、调大小、删除/再添加、刷新后从 localStorage 恢复均复验通过；深浅主题用 `--ws-*`/`--app-*` token。
+
+## 九、下一阶段对齐（与《数据层重构与用户习惯聚合开发计划》衔接）
+
+组件系统 API（`WB.register/mount/setEditMode/addWidget/removeWidget/refreshAll`）与布局持久化键向后兼容，下一阶段新增组件与功能无需改引擎。对齐重点：
+
+1. **L2 工作台数据维度组件化**（后端已就绪，前端待开发）：
+   - 工作台解析统计「规则命中 / 手动加入 / 关系带入 / 排除 / 最终可见」数量（`/api/workspace/overview` + 解析接口）——可作为新的「工作台漏斗」组件卡进入「添加组件」面板，`render(el, ctx)` 读接口即可，数据不上 localStorage。
+2. **本设计「明确不做」清单的接力项**（按优先级排列，均以现有组件 API 承载）：
+   - 产品概览（product-dev）视图组件化；
+   - 多工作台各自独立布局（`storageKey` 按 workspaceId 域分化）；
+   - 图表重排算法优化（目前为同列推挤，可升级为紧凑排布）；
+   - 组件设置弹窗（尺寸/标题/数据开关）。
+3. **后端演进不阻塞**：当前布局在 localStorage；后续 Java 后端迁移 / 行为事件落库后，可将布局与组件偏好平滑迁移，`WB.mount` 接口保持不变。
+4. **回归约束**：new 引擎类脚本（含未来组件）一律在消费方 JS 之前引入（见 bug-history 经验教训），防止再次出现「注册早退」。

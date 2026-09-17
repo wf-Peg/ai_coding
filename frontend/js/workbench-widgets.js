@@ -26,6 +26,7 @@
   var colW = 0;
   var editing = false;
   var live = null;        // 拖拽/缩放中的临时状态
+  var lockPointer = true; // 捕获指针，支持拖出容器
 
   // ── 工具 ──
   function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
@@ -135,79 +136,170 @@
     board.classList.toggle('edit-on', editing);
   }
 
-  // ── 交互 ──
+  // ── 交互（跟手拖拽：rAF 按帧合并 + transform 合成位移 + 实时让位替换 + 松手丝滑归位）──
+  var GLIDE_MS = 220;          // 松手后拖拽卡片滑入目标格的时长（与 CSS 过渡配合）
+  var settleTimer = null;
+  var settleEl = null;         // 上一轮松手后仍在 glide 的卡片，供 flush 收尾
+
+  // 若上一轮松手后还有未收尾的 glide，立即写回网格位并落盘，避免打断残留 transform
+  function flushPendingSettle() {
+    if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
+    if (settleEl) { settleEl.style.transition = ''; settleEl.style.willChange = ''; settleEl = null; }
+    removeTransforms();
+    relayout();
+    persist();
+  }
+
   function onPointerDown(ev) {
     if (!editing) return;
+    flushPendingSettle(); // 收尾上一轮 drag 的 glide，再开始本轮
     var rm = ev.target.closest('.wb-remove');
     if (rm) {
       var c = ev.target.closest('.wb-card');
       if (c && c.dataset.id) { ev.preventDefault(); ev.stopPropagation(); api.removeWidget(c.dataset.id); }
       return;
     }
-    var drag = ev.target.closest('.wb-drag');
+    // 拖拽区：编辑态下整条卡片头均可拖（排除按钮），把手保留
     var resize = ev.target.closest('.wb-resize');
+    var drag = resize ? null : (ev.target.closest('.wb-drag') || ev.target.closest('.wb-head'));
     if (!drag && !resize) return;
+    if (drag && ev.target.closest('button')) return;
     ev.preventDefault();
     var card = ev.target.closest('.wb-card');
     var entry = state.widgets.find(function (e) { return e.id === card.dataset.id; });
     if (!entry) return;
+    measure(); // 拖动开始时缓存一次网格单元尺寸，拖动过程不再读布局
+    var bases = {};
+    state.widgets.forEach(function (e) { bases[e.id] = { col: e.col, row: e.row, w: e.w, h: e.h }; });
     live = {
       mode: resize ? 'resize' : 'drag',
       id: entry.id,
       startX: ev.clientX, startY: ev.clientY,
+      clientX: ev.clientX, clientY: ev.clientY,
       origCol: entry.col, origRow: entry.row,
-      origW: entry.w, origH: entry.h
+      origW: entry.w, origH: entry.h,
+      bases: bases, raf: 0
     };
-    if (lockPointer) card.setPointerCapture(ev.pointerId);
+    var el = cards[entry.id];
+    if (el) el.classList.add('is-live'); // 提升层级 + will-change，禁用过渡保证跟手
+    board.classList.add('wb-reflowing'); // 让位卡片短暂过渡，换位过程更顺滑
     document.body.classList.add('wb-dragging');
+    if (lockPointer) card.setPointerCapture(ev.pointerId);
   }
   function onPointerMove(ev) {
     if (!live) return;
-    var entry = state.widgets.find(function (e) { return e.id === live.id; });
-    if (!entry) return;
-    var dx = ev.clientX - live.startX;
-    var dy = ev.clientY - live.startY;
+    live.clientX = ev.clientX; live.clientY = ev.clientY;
+    // 每帧最多结算一次（rAF 合并高频 pointermove），避免布局抖动
+    if (!live.raf) live.raf = requestAnimationFrame(applyLive);
+  }
+  function applyLive() {
+    if (!live) return;
+    live.raf = 0;
+    if (!board || !colW) return;
+    var rowW = colW, rowH = opts.rowH || 1;
     if (live.mode === 'resize') {
-      var rowW = colW || 1, rowH = opts.rowH || 1;
-      var nw = clamp(live.origW + Math.round(dx / rowW), registry[entry.id].minSize.w, opts.cols - entry.col);
-      var nh = clamp(live.origH + Math.round(dy / rowH), registry[entry.id].minSize.h, 12);
-      entry.w = nw; entry.h = nh;
-      relayout();
-    } else {
-      if (!colW) return;
-      var tCol = clamp(live.origCol + Math.round(dx / colW), 0, opts.cols - entry.w);
-      var tRow = Math.max(0, live.origRow + Math.round(dy / opts.rowH));
-      entry.col = tCol; entry.row = tRow;
-      relayout();
+      // 仅更新当前卡片宽高，其余卡片与网格高度不动
+      var elR = cards[live.id];
+      if (!elR) return;
+      var minS = registry[live.id].minSize;
+      var nw = clamp(live.origW + Math.round((live.clientX - live.startX) / rowW), minS.w, opts.cols - live.origCol);
+      var nh = clamp(live.origH + Math.round((live.clientY - live.startY) / rowH), minS.h, 12);
+      elR.style.width = (nw * rowW) + 'px';
+      elR.style.height = (nh * rowH) + 'px';
+      return;
     }
+    var entry = state.widgets.find(function (e) { return e.id === live.id; });
+    var el = cards[live.id];
+    if (!entry || !el) return;
+    var g = ghostOf(entry, rowW, rowH);
+    // 其它卡片实时让位：被目标格占用的卡片按「下移」预演，transform 平滑滑开（替换感）
+    var others = state.widgets.filter(function (e) { return e.id !== live.id; });
+    var cells = planPush(others, [{ col: g.col, row: g.row, w: entry.w, h: entry.h }]);
+    others.forEach(function (o) {
+      var t = cards[o.id], b = live.bases[o.id], c2 = cells[o.id];
+      if (!t || !b || !c2) return;
+      var tx = (c2.col - b.col) * rowW, ty = (c2.row - b.row) * rowH;
+      t.style.transform = (tx || ty) ? 'translate(' + tx + 'px,' + ty + 'px)' : '';
+    });
+    // 拖拽卡片：transform 像素级跟手（合成器位移，不触发重排），略放大提升拖起手感
+    var dx = live.clientX - live.startX, dy = live.clientY - live.startY;
+    el.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(1.03)';
+  }
+  // 根据指针位移换算目标格（超网格边界被钳制）
+  function ghostOf(entry, rowW, rowH) {
+    var col = clamp(live.origCol + Math.round((live.clientX - live.startX) / rowW), 0, opts.cols - entry.w);
+    var row = Math.max(0, live.origRow + Math.round((live.clientY - live.startY) / rowH));
+    return { col: col, row: row, w: entry.w, h: entry.h };
   }
   function endPointer(ev) {
     if (!live) return;
-    if (ev) { ev.preventDefault(); }
-    if (live.mode === 'drag') {
-      reflowAll();
-      relayout();
+    if (ev) ev.preventDefault();
+    if (live.raf) { cancelAnimationFrame(live.raf); live.raf = 0; }
+    var entry = state.widgets.find(function (e) { return e.id === live.id; });
+    var el = cards[live.id];
+    var rowW = colW || 1, rowH = opts.rowH || 1;
+    board.classList.remove('wb-reflowing');
+    if (entry && el) {
+      if (live.mode === 'resize') {
+        // 尺寸拖动中已实时写 px，直接提交单元格便与视觉一致
+        var minS = registry[entry.id].minSize;
+        entry.w = clamp(live.origW + Math.round((live.clientX - live.startX) / rowW), minS.w, opts.cols - live.origCol);
+        entry.h = clamp(live.origH + Math.round((live.clientY - live.startY) / rowH), minS.h, 12);
+        // resize 放大到盖住其它卡片时，让被覆盖者整体下移避让（与拖拽同一 planPush 算法，不留重叠）
+        var others = state.widgets.filter(function (o) { return o.id !== live.id; });
+        var cells = planPush(others, [{ col: entry.col, row: entry.row, w: entry.w, h: entry.h }]);
+        others.forEach(function (o) { var c2 = cells[o.id]; if (c2) { o.col = c2.col; o.row = c2.row; } });
+        el.classList.remove('is-live');
+        removeTransforms();
+        relayout();
+        persist();
+      } else {
+        var g = ghostOf(entry, rowW, rowH);
+        entry.col = g.col; entry.row = g.row;
+        // 提交让位结果（与拖动中预演同一算法，位置与视觉完全一致，无回跳）
+        var others = state.widgets.filter(function (e) { return e.id !== live.id; });
+        var cells = planPush(others, [{ col: g.col, row: g.row, w: entry.w, h: entry.h }]);
+        others.forEach(function (o) { var c2 = cells[o.id]; if (c2) { o.col = c2.col; o.row = c2.row; } });
+        // 拖拽卡片：transform 从指针位置滑向目标格（scale 同步回落），随后写回网格位
+        el.classList.remove('is-live');
+        el.style.willChange = 'transform';
+        el.style.transition = 'transform ' + GLIDE_MS + 'ms cubic-bezier(0.22, 1, 0.36, 1)';
+        el.style.transform = 'translate(' + (g.col - live.origCol) * rowW + 'px,' + (g.row - live.origRow) * rowH + 'px) scale(1)';
+        settleEl = el;
+        settleTimer = setTimeout(function () {
+          settleTimer = null;
+          if (settleEl) { settleEl.style.transition = ''; settleEl.style.willChange = ''; settleEl = null; }
+          removeTransforms();
+          relayout(); // 把卡片 left/top 写回最终网格位
+          persist();
+        }, GLIDE_MS + 40);
+      }
     }
     document.body.classList.remove('wb-dragging');
     live = null;
-    persist();
   }
-
-  // 拖动松手后解决全部重叠：按「上→下、左→右」顺序，重叠者整体下移
-  function reflowAll() {
-    var sorted = state.widgets.slice().sort(function (a, b) { return a.row - b.row || a.col - b.col; });
-    var placed = [];
+  function removeTransforms() {
+    for (var id in cards) {
+      var t = cards[id];
+      if (t) { t.style.transform = ''; t.style.transition = ''; t.style.willChange = ''; }
+    }
+  }
+  // 让位预演：给定固定占用区 fixed，其余卡片按「上→下、左→右」顺序，重叠者整体下移避让
+  function planPush(list, fixed) {
+    var sorted = list.slice().sort(function (a, b) { return a.row - b.row || a.col - b.col; });
+    var placed = fixed.slice();
+    var out = {};
     sorted.forEach(function (o) {
       var r = { col: o.col, row: o.row, w: o.w, h: o.h };
       var guard = 0;
       while (placed.some(function (p) { return overlaps(r, p); }) && guard++ < 60) {
-        // 移到与其重叠的那个下方
         var collider = placed.find(function (p) { return overlaps(r, p); });
         r.row = collider.row + collider.h;
       }
-      o.col = r.col; o.row = r.row;
       placed.push(r);
+      out[o.id] = r;
     });
+    return out;
   }
 
   // ‾‾‾‾‾ 公开 API ‾‾‾‾‾
@@ -235,17 +327,34 @@
     },
     setEditMode: function (on) { editing = !!on; applyEditControls(); },
     isEditing: function () { return editing; },
+    // 切换整套布局的持久化命名空间（多工作台独立布局）。
+    // 先落盘当前键的布局，再换键重载新布局；无新键存档时回落默认布局。
+    setLayoutKey: function (key) {
+      if (!key || key === STORAGE_KEY) return;
+      if (state.widgets.length) persist();
+      editing = false;
+      applyEditControls();
+      STORAGE_KEY = key;
+      loadLayout(null);
+      buildCards();
+      relayout();
+    },
     addWidget: function (id) {
       if (!registry[id] || state.widgets.some(function (e) { return e.id === id; })) return;
       var def = registry[id]; if (!def) return;
       // 找一个空位：从 (0,0) 向后找首个不与已放置冲突的格子
-      var baseRow = 0, col = 0;
+      var col = 0, baseRow = 0, found = false;
       outer:
       for (var row = 0; row < 24; row++) {
         for (var c = 0; c <= opts.cols - def.defaultSize.w; c++) {
           var r = { col: c, row: row, w: def.defaultSize.w, h: def.defaultSize.h };
-          if (state.widgets.every(function (o) { return !overlaps(r, rectOf(o)); })) { col = c; baseRow = row; break outer; }
+          if (state.widgets.every(function (o) { return !overlaps(r, rectOf(o)); })) { col = c; baseRow = row; found = true; break outer; }
         }
+      }
+      // 前 24 行已无空位时，追加到底部最末项之下，避免与现有卡片重叠
+      if (!found) {
+        col = 0;
+        baseRow = state.widgets.reduce(function (mx, o) { return Math.max(mx, o.row + o.h); }, 0);
       }
       state.widgets.push({ id: id, col: col, row: baseRow, w: def.defaultSize.w, h: def.defaultSize.h });
       var el = cardDOM(id);
@@ -287,6 +396,5 @@
   document.addEventListener('pointerup', endPointer, true);
   document.addEventListener('pointercancel', endPointer, true);
 
-  var lockPointer = true;
   return api;
 });
