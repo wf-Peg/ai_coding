@@ -1738,6 +1738,13 @@
             pointer-events: none;
         }
 
+        /* 删除请求进行中：卡片半透明 + 禁点，给出"正在删除"的即时视觉反馈（后端删除较慢，不能无响应） */
+        .clip-item.clip-item-deleting {
+            opacity: 0.45;
+            pointer-events: none;
+            transition: opacity var(--app-duration-fast) var(--app-ease-smooth);
+        }
+
         .clip-header {
             display: flex;
             align-items: center;
@@ -2834,12 +2841,17 @@
             flex: 1;
         }
         .image-preview-toggle {
+            /* 覆盖全局 button 规则（flex:1 / min-width:140px）：否则"预览"按钮会被撑到 140px 破坏工具栏排布 */
+            min-width: 0;
+            flex: 0 0 auto;
+            box-sizing: border-box;
             padding: 5px 12px;
             border: 1px solid var(--border);
             border-radius: 8px;
             background: transparent;
             color: var(--text-secondary);
             font-size: 0.82rem;
+            font-family: inherit;
             cursor: pointer;
         }
         .image-preview-toggle.active {
@@ -2848,6 +2860,10 @@
             background: var(--primary-light);
         }
         .image-ocr-btn {
+            /* 覆盖全局 button 规则（flex:1 / min-width:140px）：与"预览"按钮保持同宽同高，避免工具栏错位 */
+            min-width: 0;
+            flex: 0 0 auto;
+            box-sizing: border-box;
             padding: 5px 12px;
             border: 1px solid var(--primary-light);
             border-radius: 8px;
@@ -2862,6 +2878,16 @@
             background: var(--primary-dark);
             color: #fff;
             border-color: var(--primary-dark);
+        }
+        /* 识别进行中：置灰 + 禁止重复点击（配合 runImageOcr 的并发保护） */
+        .image-ocr-btn:disabled {
+            opacity: 0.6;
+            cursor: progress;
+        }
+        .image-ocr-btn:disabled:hover {
+            background: var(--primary-light);
+            color: var(--primary);
+            border-color: var(--primary-light);
         }
 
         /* 折叠态：剪藏填写区默认收起，只保留记录条入口（compose + 快速记录） */
@@ -4682,6 +4708,12 @@
     right: -14px;
     width: 32px;
     height: 32px;
+    /* 覆盖全局 button 规则（flex:1 / min-width:140px / padding:12px 20px）：
+       否则 32px 圆钮会被 min-width 撑成扁椭圆、✕ 被 padding 挤出裁切 */
+    min-width: 0;
+    flex: 0 0 auto;
+    padding: 0;
+    box-sizing: border-box;
     border-radius: 50%;
     border: none;
     background: rgba(20, 20, 28, 0.75);
@@ -4702,12 +4734,17 @@
     gap: 8px;
 }
 .clip-image-viewer-btn {
+    /* 覆盖全局 button 规则：避免下载按钮被 flex:1 / min-width:140px 拉宽破坏构图 */
+    min-width: 0;
+    flex: 0 0 auto;
+    box-sizing: border-box;
     padding: 6px 14px;
     border-radius: 8px;
     border: none;
     background: var(--primary, #3b82f6);
     color: #fff;
     font-size: 0.82rem;
+    font-weight: 500;
     cursor: pointer;
     transition: opacity var(--app-duration-fast) var(--app-ease-smooth);
 }

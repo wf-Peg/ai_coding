@@ -268,6 +268,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onWindowMaximized: (callback) => ipcRenderer.on('window-maximized', (event, maximized) => callback(maximized)),
 
   /**
+   * 上报渲染层窗口/标题栏度量，供主进程统一打日志（排查"标题栏超出窗口可见区"用）
+   * 仅在主进程带 WINDOW_DIAG=1 启动、渲染层收到 window-diag-enabled 后才会调用；只读、不改变行为
+   * @param {Object} payload 渲染层量到的数据（视口尺寸、滚动量、标题栏矩形、DPR 等）
+   */
+  windowDiagReport: (payload) => ipcRenderer.send('window-diag-report', payload),
+
+  /**
+   * 监听主进程下发的诊断开关（WINDOW_DIAG=1 时在页面加载完成后发送）
+   * @param {Function} callback - 无参回调，收到即表示可开启度量上报
+   */
+  onWindowDiagEnabled: (callback) => ipcRenderer.on('window-diag-enabled', () => callback()),
+
+  /**
    * 监听主进程请求聚焦全局搜索框（⌘/Ctrl+Shift+F 菜单加速键触发）
    * @param {Function} callback - 无参回调
    */
@@ -686,6 +699,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   /** 监听主进程推送的剪贴板历史刷新信号（新内容入库 / 面板打开时自动拉取） */
   onClipboardHistoryRefresh: (callback) => ipcRenderer.on('clipboard-history:refresh', () => callback()),
+
+  /**
+   * 监听主进程推送的「剪藏数据已变更」信号。
+   * 剪贴板剪藏等由主进程直接写入后端的场景，渲染层据此即时刷新剪藏列表（免手动刷新）。
+   * @param {Function} callback - 接收 { id, source, type } 变更信息的回调
+   */
+  onClipsChanged: (callback) => ipcRenderer.on('clips:changed', (event, payload) => callback(payload || {})),
 
   getShortcutConfig: () => ipcRenderer.invoke('get-shortcut-config'),
   setShortcutConfig: (config) => ipcRenderer.invoke('set-shortcut-config', config),

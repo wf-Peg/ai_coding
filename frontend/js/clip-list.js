@@ -218,10 +218,13 @@ function formatClipDateTime(date) {
             if (seq !== fetchSeq) return; // 已有更新的请求，丢弃本次过期结果
 
             // 墓碑过滤：删除未完全落库（本地索引残留）前客户端先行隐藏，避免「删除后闪回」
-            clips = (clips || []).filter(c => !c || c.id == null || !softDeletedIds.has(String(c.id)));
-            // 墓碑释放：后端数据已不再包含该 id → 从墓碑集合移除（撤销窗口自动关闭）
+            const rawClips = clips || [];
+            const rawIds = new Set(rawClips.filter(c => c && c.id != null).map(c => String(c.id)));
+            clips = rawClips.filter(c => !c || c.id == null || !softDeletedIds.has(String(c.id)));
+            // 墓碑释放：必须基于「过滤前的原始列表」判断 —— 只有后端确实不再返回该 id 才释放。
+            // 若在过滤后的数组上判断，任何墓碑 id 都会恒被判为"不存在"而立即释放，删除后闪回随之复发。
             for (const id of Array.from(softDeletedIds)) {
-                if (!clips.some(c => String(c.id) === id)) softDeletedIds.delete(id);
+                if (!rawIds.has(id)) softDeletedIds.delete(id);
             }
 
             if (workflowStatus) {

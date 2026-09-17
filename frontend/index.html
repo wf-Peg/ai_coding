@@ -31,10 +31,18 @@
             --win-btn-close-active: #bf0f1d;
         }
 
+        /* 视口高度基准：让 body 与下方布局用 100% 而不是 100vh。
+           100vh 在窗口最大化 / 显示器 DPI 变化时可能与实际视口高度不一致，导致整页溢出；
+           overflow: hidden 同时禁止整页滚动，避免 focus()/scrollIntoView 把标题栏滚出视口。 */
+        html {
+            height: 100%;
+            overflow: hidden;
+        }
+
         body {
             margin: 0;
             padding: 0;
-            height: 100vh;
+            height: 100%;
             overflow: hidden;
             font-family: "IBM Plex Sans", "Noto Sans SC", Arial, sans-serif;
             background: var(--bg);
@@ -47,6 +55,9 @@
            - macOS（platform-darwin）：左侧让出系统红黄绿交通灯（hiddenInset 内嵌于左上）。
            - Windows（platform-win32）：无边框，右上角由前端自绘按钮接管（window-controls）。 */
         .titlebar {
+            /* border-box：height 已含 1px 下边框，标题栏占位恒为 --titlebar-height，
+               确保 .titlebar + .app-layout 恰好等于整页高度（不产生 1px 溢出，页面不可被程序化滚动）。 */
+            box-sizing: border-box;
             height: var(--titlebar-height);
             background: var(--titlebar-bg);
             border-bottom: 1px solid var(--titlebar-border);
@@ -694,7 +705,9 @@
         /* ====== 布局 ====== */
         .app-layout {
             display: flex;
-            height: calc(100vh - var(--titlebar-height));
+            /* 高度基于 html/body 的 100%（即真实视口），不再用 100vh：
+               与标题栏相加恰好等于整页高度，消除溢出与标题栏被顶出视口的隐患。 */
+            height: calc(100% - var(--titlebar-height));
         }
 
         .main-content {
@@ -1637,6 +1650,19 @@
       setSidebarCollapsed(localStorage.getItem('sidebar_collapsed') === '1');
       const todoFrame = document.getElementById('todoFrame');
       const clipFrame = document.getElementById('clipFrame');
+
+      // 主进程侧写入剪藏（剪贴板剪藏 / 剪贴板历史补录）后广播变更 → 转发给剪藏 iframe 自动刷新列表。
+      // 用 getElementById 现取节点，避免 clipFrame 常量声明时序影响监听注册。
+      if (window.electronAPI && typeof window.electronAPI.onClipsChanged === 'function') {
+        window.electronAPI.onClipsChanged(function (payload) {
+          const frame = document.getElementById('clipFrame');
+          try {
+            if (frame && frame.contentWindow) {
+              frame.contentWindow.postMessage({ action: 'clipsChanged', payload: payload || {} }, '*');
+            }
+          } catch (e) { /* iframe 未就绪时忽略：下次进入剪藏页会自然拉取最新数据 */ }
+        });
+      }
 
       applyTheme(null, false);
 
@@ -2584,6 +2610,30 @@
           document.body.classList.add('platform-' + window.electronAPI.platform);
         }
 
+        // ===== 标题栏溢出诊断埋点（仅主进程带 WINDOW_DIAG=1 启动时开启上报）=====
+        // 采集渲染层度量交给主进程统一打日志，用于区分「窗口边界问题（bounds 比工作区大一圈）」
+        // 与「页面自身溢出/滚动问题」。默认静默，只读取值、不改变任何行为。
+        let titlebarDiagEnabled = false;
+        function reportTitlebarDiag(tag) {
+          if (!titlebarDiagEnabled || !window.electronAPI || !window.electronAPI.windowDiagReport) return;
+          try {
+            const tb = document.getElementById('titlebar');
+            const rect = tb ? tb.getBoundingClientRect() : null;
+            const de = document.documentElement;
+            window.electronAPI.windowDiagReport({
+              tag: tag,
+              innerSize: window.innerWidth + 'x' + window.innerHeight,
+              outerSize: window.outerWidth + 'x' + window.outerHeight,
+              screenPos: window.screenX + ',' + window.screenY,
+              dpr: window.devicePixelRatio,
+              titlebarTop: rect ? Math.round(rect.top) : null,
+              titlebarHeight: rect ? Math.round(rect.height) : null,
+              scrollTop: de.scrollTop,
+              overflowY: de.scrollHeight - de.clientHeight
+            });
+          } catch (e) { /* 诊断失败不影响主流程 */ }
+        }
+
         // 自绘窗口控制按钮：仅 Windows 生效（mac 由系统红黄绿交通灯接管，按钮组已在 CSS 中隐藏并在此移除）。
         function initWindowControls() {
           const wc = document.getElementById('windowControls');
@@ -2605,10 +2655,24 @@
             iconMax.style.display = m ? 'none' : '';
             iconRestore.style.display = m ? '' : 'none';
           }
-          if (window.electronAPI.onWindowMaximized) window.electronAPI.onWindowMaximized(syncMaxIcon);
+          // 最大化/还原是标题栏溢出的高发时机，切换时顺带打一次诊断度量
+          function onMaxStateChanged(m) {
+            syncMaxIcon(m);
+            reportTitlebarDiag(m ? 'maximized' : 'unmaximized');
+          }
+          if (window.electronAPI.onWindowMaximized) window.electronAPI.onWindowMaximized(onMaxStateChanged);
           if (window.electronAPI.windowIsMaximized) window.electronAPI.windowIsMaximized().then(syncMaxIcon);
         }
         initWindowControls();
+
+        // 主进程带 WINDOW_DIAG=1 启动时下发开关（对齐既有 SHORTCUT_DEBUG=1 的调试开关约定），
+        // 收到后立即上报一次启动态度量，便于与最大化态对比。
+        if (window.electronAPI && window.electronAPI.onWindowDiagEnabled) {
+          window.electronAPI.onWindowDiagEnabled(function () {
+            titlebarDiagEnabled = true;
+            reportTitlebarDiag('startup');
+          });
+        }
 
         // ===== Ctrl/Cmd+Shift+R 强制刷新（忽略缓存） =====
         document.addEventListener('keydown', (e) => {

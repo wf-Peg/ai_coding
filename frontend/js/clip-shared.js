@@ -617,6 +617,13 @@ var selectedClipIds = new Set();
                 applyTheme(d.theme, false);
             } else if (d.type === 'themeChanged' || d.type === 'appearanceChanged') {
                 applyTheme(null, false);
+            } else if (d.action === 'clipsChanged') {
+                // 主进程侧写入剪藏（剪贴板剪藏 / 剪贴板历史补录）后的广播：
+                // 立即重拉列表，新内容无需用户手动刷新即可出现
+                if (typeof fetchClips === 'function') fetchClips();
+                if (d.payload && d.payload.source === 'clipboard') {
+                    showToast('剪贴板剪藏已入库，列表已自动刷新');
+                }
             }
         });
 

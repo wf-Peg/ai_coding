@@ -823,8 +823,9 @@ public class ClipService {
      * @param id 剪藏ID
      */
     public void deleteClip(Long id) {
-        ClipContent clip = getClipById(id);
-        storageService.deleteClip(id);
+        // 一次全库扫描内完成「查找 + 删除」并由存储层回传被删对象，
+        // 避免原先 getClipById + deleteClip 的两次全表扫描（删除接口的主要耗时来源）。
+        ClipContent clip = storageService.deleteClip(id);
         // 生命周期：删除该剪藏引用的图片（未被其他剪藏引用时）
         if (clip != null && clip.getImagePaths() != null && !clip.getImagePaths().isEmpty()) {
             deleteUnreferencedImages(clip.getImagePaths());

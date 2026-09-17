@@ -282,28 +282,44 @@
     async function deleteClip(id) {
         // 删除前缓存原数据，用于「撤销」恢复（误删可找回）
         const undoClip = clipCache.get(String(id)) || null;
+        // 即时反馈：确认后立刻给卡片加「删除中」态并提示，避免请求期间页面毫无响应（后端删除需全库扫描，耗时较久）
+        setClipDeletingState(id, true);
+        showToast('正在删除…');
         try {
             const response = await axios.delete(`${API_BASE_URL}/${id}`);
             if (response.data.status === 'success') {
                 // 写入墓碑：本地索引同步滞后期内客户端先行隐藏，避免删除后闪回
                 if (id != null) softDeletedIds.add(String(id));
-                // 先播放卡片移除动画，动画结束（240ms）后本地即时重渲染（无需等后端/切换筛选），
-                // 同时后台 fetchClips 兜底与后端对齐，避免列表滞后
+                setClipDeletingState(id, false);
+                // 先播放卡片移除动画，动画结束（240ms）后本地即时重渲染（无需等后端/切换筛选）；
+                // 全量刷新延后一拍执行，避免刚移除就整列表重建的闪烁感
                 animateRemoveClipItem(id, function () {
                     lastFilteredClips = lastFilteredClips.filter(function (c) { return c && String(c.id) !== String(id); });
                     renderClipList(lastFilteredClips);
-                    fetchClips();
+                    setTimeout(function () { fetchClips(); }, 300);
                 });
                 if (undoClip) {
                     showActionToast('已删除', '撤销', function () { undoDeleteClip(undoClip); });
                 } else {
                     showToast('已删除');
                 }
+                return;
             }
+            // 后端未回 success：按失败处理并恢复卡片状态，避免卡片一直停在"删除中"
+            setClipDeletingState(id, false);
+            showToast('删除失败，请稍后重试');
         } catch (error) {
             console.error('删除剪藏失败:', error);
+            setClipDeletingState(id, false);
             showToast('删除失败，请稍后重试');
         }
+    }
+
+    /** 切换卡片「删除中」态：半透明 + 禁用交互，给请求期间提供明确的即时视觉反馈 */
+    function setClipDeletingState(id, on) {
+        const anchor = document.getElementById('check-area-' + id);
+        const item = anchor ? anchor.closest('.clip-item') : null;
+        if (item) item.classList.toggle('clip-item-deleting', !!on);
     }
 
     /** 删除动画：卡片淡出右移后移除，动画结束回调（供 fetchClips 全量重建） */

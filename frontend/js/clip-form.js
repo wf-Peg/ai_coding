@@ -113,17 +113,38 @@
     /** 将图片源转换为 dataUrl（供 OCR 复用）。支持：真 data URL / blob: URL / media 相对路径 */
     async function loadImageDataUrl(relPath) {
         if (!relPath) return null;
-        // data URL 已可直接交给主进程解析，直通返回
-        if (relPath.indexOf('data:') === 0) return relPath;
+        // data URL 已可直接交给主进程解析，直通返回；但必须确属图片类型，否则会被 nativeImage 解析成空图
+        if (relPath.indexOf('data:') === 0) {
+            if (!/^data:image\//i.test(relPath)) {
+                throw new Error('图片数据格式异常（' + String(relPath).slice(0, 16) + '…），无法用于 OCR');
+            }
+            return relPath;
+        }
         // blob: URL 仅在渲染进程内可读，需转换为 data URL 后再给主进程（nativeImage 不认 blob: 协议）
         if (relPath.indexOf('blob:') === 0) {
-            return await blobToDataUrl(relPath);
+            const converted = await blobToDataUrl(relPath);
+            if (!converted || !/^data:image\//i.test(converted)) {
+                throw new Error('图片数据格式异常，无法用于 OCR');
+            }
+            return converted;
         }
         const url = window.MediaKit.render.mediaUrl(relPath);
         const resp = await fetch(url);
         if (!resp.ok) throw new Error('图片加载失败（HTTP ' + resp.status + '）');
         const blob = await resp.blob();
-        return await blobToDataUrl('', blob);
+        // 关键校验：媒体接口返回 200 但内容并非图片时（如异常兜底返回 HTML/JSON 错误体），
+        // FileReader 会生成 data:text/... 前缀，主进程 nativeImage 解析为空图并回报「无图片数据」。
+        // 这里提前拦截，给出可定位的真实原因，避免用户看到误导性的"无图片数据"。
+        const mime = String(blob.type || '').toLowerCase();
+        if (mime.indexOf('image/') !== 0) {
+            throw new Error('图片资源返回了非图片内容（' + (mime || '未知类型') + '），请检查媒体接口与文件是否正常');
+        }
+        const dataUrl = await blobToDataUrl('', blob);
+        if (!dataUrl || !/^data:image\//i.test(dataUrl)) {
+            throw new Error('图片数据编码失败，无法用于 OCR');
+        }
+        console.log('[OCR] 图片加载完成 MIME=' + mime + ' 字节=' + blob.size + ' dataUrl长度=' + dataUrl.length);
+        return dataUrl;
     }
 
     /** 将 Blob（或 blob: URL）读取为 data URL */
@@ -162,8 +183,9 @@
             return res.text.trim();
         }
         if (res.status === 'error' && (res.message || '').indexOf('无图片数据') >= 0) {
-            console.warn('[OCR] 输入图片数据为空', dataUrl ? dataUrl.slice(0, 24) : 'none');
-            showToast('OCR 失败：未获取到有效图片数据');
+            console.warn('[OCR] 识别引擎未能解析输入图片：' +
+                (dataUrl ? '前缀=' + String(dataUrl).slice(0, 24) + ' 长度=' + dataUrl.length : 'none'));
+            showToast('OCR 失败：图片未被识别引擎解析（图片数据格式异常）');
             return '';
         }
         console.warn('[OCR] 识别未产出文本或失败：', (res && res.message) || '空结果');
@@ -185,17 +207,33 @@
         }
     }
 
+    /** OCR 进行中标记：防止重复点击导致并发识别与结果重复追加 */
+    var imageOcrRunning = false;
+
     /** 插图 OCR：对已上传的图片离线识别文字，结果填入内容（复用通用离线 OCR，独立于截图工具） */
     async function runImageOcr() {
-        // 优先取已上传完成（有 path）的图片，上传中（compressing/uploading）不可 OCR
-        const doneImg = uploadedImages.find(i => i.status === 'done' && i.path);
-        const anyImg = uploadedImages.find(i => i.path || i.dataUrl);
+        if (imageOcrRunning) { showToast('OCR 正在进行中，请稍候'); return; }
+        // 多图时取「最后一张已上传完成」的图片，符合"刚传完就想识别"的使用预期
+        const doneList = uploadedImages.filter(i => i.status === 'done' && i.path);
+        const doneImg = doneList.length ? doneList[doneList.length - 1] : null;
+        const anyImg = uploadedImages.slice().reverse().find(i => i.path || i.dataUrl);
         if (!anyImg) { showToast('请先上传图片再执行 OCR'); return; }
         if (!doneImg) { showToast('请等待图片上传完成后重试'); return; }
         const img = doneImg;
+        const ocrBtn = document.getElementById('image-ocr-btn');
+        imageOcrRunning = true;
+        if (ocrBtn) ocrBtn.disabled = true;
         try {
-            // 用已落库的相对路径生成 dataURL（走媒体接口），稳定且可被主进程解析；dataUrl 仅作兜底
-            const dataUrl = await loadImageDataUrl(img.path);
+            // 优先用已落库的相对路径走媒体接口取图（稳定、可被主进程解析）；
+            // 媒体接口异常时回退到本条记录内的本地图片数据（blob），保证 OCR 不被接口波动卡死
+            let dataUrl = '';
+            try {
+                dataUrl = await loadImageDataUrl(img.path);
+            } catch (loadErr) {
+                console.warn('[OCR] 按路径取图失败，回退本地图片数据：', loadErr && loadErr.message);
+                if (!img.dataUrl) throw loadErr;
+                dataUrl = await loadImageDataUrl(img.dataUrl);
+            }
             if (!dataUrl) { showToast('OCR 失败：图片数据加载失败'); return; }
             console.log('[OCR] 源类型=' + (img.path ? 'path' : 'blob') + ' 长度=' + dataUrl.length);
             const text = await recognizeImage(dataUrl);
@@ -209,7 +247,11 @@
             content.dispatchEvent(new Event('input'));
             showToast('已识别 ' + text.length + ' 字' + (summary ? '，并生成 AI 总结' : ''));
         } catch (e) {
+            console.error('[OCR] 插图识别失败：', e);
             showToast('OCR 失败：' + (e && e.message ? e.message : '请稍后重试'));
+        } finally {
+            imageOcrRunning = false;
+            if (ocrBtn) ocrBtn.disabled = false;
         }
     }
 
@@ -436,7 +478,18 @@
         currentTags = [];
         renderTags();
         removeFile();
-        // 图片相关已移除A
+        // 清理已选图片状态与缩略图，避免提交成功后残留导致三类问题：
+        // 1) 缩略图不清，误以为下一条剪藏自带图片；2) getUploadedImagePaths 把旧图挂到下一条剪藏；
+        // 3) 再点 OCR 时识别到上一条的图片。同时释放 blob URL，避免内存泄漏。
+        if (Array.isArray(uploadedImages) && uploadedImages.length) {
+            uploadedImages.forEach(function (entry) {
+                if (entry && entry.dataUrl && String(entry.dataUrl).indexOf('blob:') === 0) {
+                    try { URL.revokeObjectURL(entry.dataUrl); } catch (e) { /* 释放失败不影响主流程 */ }
+                }
+            });
+            uploadedImages.length = 0;
+            if (typeof renderImagePreviews === 'function') renderImagePreviews();
+        }
         document.getElementById('type').dispatchEvent(new Event('change'));
     }
 

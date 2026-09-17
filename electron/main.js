@@ -2092,24 +2092,80 @@ function showMainWindow() {
 let windowClampRegistered = false;
 
 /**
- * 窗口可视区校准兜底
- * 应用不持久化窗口位置，偶发场景（显示器拔插/分辨率变更/原生全屏退出/OS 会话恢复等）
- * 会把窗口顶边抬到 workArea 之上（压到系统菜单栏区域）。这里把窗口拉回安全区：
+ * 读取窗口"可见内容区"相对所在显示器工作区的越界量。
+ *
+ * 为什么不用 getBounds()：Windows 最大化时会为可缩放的无边框窗口保留一圈不可见的调整边框
+ * （本机 150% 缩放下实测四边各外扩 8 DIP：bounds=-8,-8,1296x688，而工作区为 0,0,1280x672），
+ * 但用户真正看到的是 getContentBounds()，它此时正好等于工作区、内容并没有被裁。
+ * 所以判定"标题栏是否被顶出可见区"必须以 getContentBounds() 为准，否则会对最大化态做
+ * 无意义、且会被系统立即覆盖的 setBounds。
+ *
+ * @param {BrowserWindow} win 目标窗口
+ * @returns {{contentBounds: Object, workArea: Object, scaleFactor: number, overTop: number, overLeft: number, overBottom: number, overRight: number}|null}
+ *          overXxx > 0 表示该方向内容区越出工作区（即被屏幕裁掉）
+ */
+function measureContentOverflow(win) {
+  try {
+    const cb = win.getContentBounds();
+    const display = screen.getDisplayMatching(cb) || screen.getPrimaryDisplay();
+    const wa = display.workArea;
+    return {
+      contentBounds: cb,
+      workArea: wa,
+      scaleFactor: display.scaleFactor,
+      overTop: wa.y - cb.y,
+      overLeft: wa.x - cb.x,
+      overBottom: (cb.y + cb.height) - (wa.y + wa.height),
+      overRight: (cb.x + cb.width) - (wa.x + wa.width)
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * 打印窗口 / 内容区 / 工作区三方对照诊断日志。
+ * 仅在 WINDOW_DIAG=1 启动时输出（对齐 SHORTCUT_DEBUG=1 的调试开关约定），避免日常日志噪音。
+ * @param {BrowserWindow|null} win 主窗口
+ * @param {string} reason 触发来源，便于日志定位
+ */
+function logContentOverflowDiag(win, reason) {
+  if (process.env.WINDOW_DIAG !== '1') return;
+  if (!win || win.isDestroyed()) return;
+  const m = measureContentOverflow(win);
+  if (!m) return;
+  log.info(`[WindowDiag] ${reason} bounds=${JSON.stringify(win.getBounds())} contentBounds=${JSON.stringify(m.contentBounds)} workArea=${JSON.stringify(m.workArea)} scale=${m.scaleFactor} maximized=${win.isMaximized()} fullScreen=${win.isFullScreen()} overTop=${m.overTop} overLeft=${m.overLeft} overBottom=${m.overBottom} overRight=${m.overRight}`);
+}
+
+/**
+ * 窗口可视区校准兜底（标题栏被屏幕裁掉的防护）
+ *
+ * 应用不持久化窗口位置，以下偶发场景会把窗口"可见内容区"推到工作区之外——
+ * 顶部越界时的表现就是自定义标题栏被屏幕切掉一截（全局搜索等只露出下半部分）：
+ *  - 显示器拔插 / 分辨率变更 / DPI 变化 / OS 会话恢复
+ *  - 原生全屏（F11 / ⌃⌘F）退出后的边界残留
+ *  - 系统 Aero Snap 或外部程序改位后窗口落在负坐标
+ *
+ * 处理策略：
  *  - 顶/左侧越界 → 对齐到所在显示器工作区原点
  *  - 窗口整体落在工作区外（如所属显示器被移除）→ 归位到主屏居中
- * 全屏/最大化属于系统接管边界，跳过。
+ *  - 全屏 → 系统接管，跳过
+ *  - 最大化 → 实测 getContentBounds() 已正好等于工作区（多出的 8px 只是 Windows 隐形调整边框），
+ *    且最大化态 setBounds 会被系统立即覆盖、本就不需要校正，因此只记诊断日志、不做位置修改。
+ *
  * @param {BrowserWindow|null} win
  */
 function ensureWindowVisible(win) {
   if (!win || win.isDestroyed()) return;
-  if (win.isFullScreen() || win.isMaximized()) return;
+  if (win.isFullScreen()) return;                                  // 全屏由系统接管，不做位置钳制
+  if (win.isMaximized()) { logContentOverflowDiag(win, 'maximized'); return; }
   try {
     const bounds = win.getBounds();
     const display = screen.getDisplayMatching(bounds) || screen.getPrimaryDisplay();
     const wa = display.workArea;
     let nx = bounds.x;
     let ny = bounds.y;
-    if (ny < wa.y) ny = wa.y;              // 顶边压进系统菜单栏区域：对齐到工作区顶部
+    if (ny < wa.y) ny = wa.y;              // 顶边跑到屏幕/菜单栏之上：对齐到工作区顶部（标题栏被裁的根因）
     if (nx < wa.x) nx = wa.x;              // 左边越出可视区：对齐到工作区左缘
     const fullyOffscreen = nx >= wa.x + wa.width || ny >= wa.y + wa.height;
     if (fullyOffscreen) {
@@ -2118,8 +2174,10 @@ function ensureWindowVisible(win) {
       ny = pb.y + Math.round((pb.height - bounds.height) / 2);
     }
     if (nx !== bounds.x || ny !== bounds.y) {
-      log.info(`[Window] clamp 位置: (${bounds.x},${bounds.y}) → (${nx},${ny})`);
+      const m = measureContentOverflow(win);            // 记录校正前的可见内容区越界量，便于回溯
+      log.info(`[Window] clamp 位置: (${bounds.x},${bounds.y}) → (${nx},${ny})${m ? ` overTop=${m.overTop} overLeft=${m.overLeft}` : ''}`);
       win.setBounds({ x: nx, y: ny, width: bounds.width, height: bounds.height }, false);
+      logContentOverflowDiag(win, 'clamp-done');
     }
   } catch (e) {
     // 校准属兜底逻辑，偶发异常直接忽略不影响主流程
@@ -2582,6 +2640,11 @@ function createMainWindow(config) {
     if (process.env.SHORTCUT_DEBUG === '1') {
       mainWindow.webContents.send('shortcut-debug', true);
     }
+    // WINDOW_DIAG=1：一键开启渲染层标题栏/视口度量上报（排查"标题栏超出窗口可见区"，
+    // 渲染层收到后会把 innerHeight/scrollTop/标题栏矩形等交给主进程统一打日志）
+    if (process.env.WINDOW_DIAG === '1') {
+      mainWindow.webContents.send('window-diag-enabled', true);
+    }
     // performance 渲染档启动成功：清除 pending 降级标记，避免下次误判为崩溃
     clearGpuPerfPendingFlag();
   });
@@ -2657,6 +2720,17 @@ function createMainWindow(config) {
   mainWindow.on('show', clampAfterShowFocus);
   mainWindow.on('focus', clampAfterShowFocus);
 
+  // 窗口被移动（用户拖拽 / 系统 Aero Snap / 外部工具改位）后同样可能落在工作区之外，
+  // 顶部越界时就会切掉自定义标题栏。对 move 做静默去抖：拖动过程不干预，停手 400ms 后再检查并拉回安全区。
+  let moveClampTimer = null;
+  mainWindow.on('move', () => {
+    if (moveClampTimer) clearTimeout(moveClampTimer);
+    moveClampTimer = setTimeout(() => {
+      moveClampTimer = null;
+      ensureWindowVisible(mainWindow);
+    }, 400);
+  });
+
   // 应用主动退出时，忽略渲染进程 beforeunload 的阻止（如编辑器未保存标签的取消卸载）
   // 否则子 iframe 的 beforeunload 会阻断 app.quit()，导致 Cmd+Q / 扩展坞 / 右上角关闭均无效。
   // 仅退出时绕过；正常刷新/导航仍保留 beforeunload 的未保存提示。
@@ -2694,8 +2768,19 @@ function createMainWindow(config) {
   // 与 Chrome/微信等常规应用一致。关闭按钮仍走"关闭到托盘"逻辑（见 close 拦截）。
 
   // 最大化/还原状态变化时通知渲染进程（用于更新标题栏按钮图标）
-  mainWindow.on('maximize', () => mainWindow.webContents.send('window-maximized', true));
-  mainWindow.on('unmaximize', () => mainWindow.webContents.send('window-maximized', false));
+  mainWindow.on('maximize', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('window-maximized', true);
+    // 诊断（WINDOW_DIAG=1）：等系统最大化动画落定后记录一次"内容区 vs 工作区"对照。
+    // 实测结论：最大化态 bounds 会四边各外扩 8 DIP（Windows 隐形调整边框），但 getContentBounds()
+    // 正好等于工作区、标题栏不会被裁；且此状态下 setBounds 会被系统立即覆盖，故不做校正。
+    // 若将来该日志出现 overTop/overBottom > 1，说明需要改为应用侧自管最大化（unmaximize + setBounds）。
+    setTimeout(() => logContentOverflowDiag(mainWindow, 'maximize'), 200);
+  });
+  mainWindow.on('unmaximize', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('window-maximized', false);
+    // 还原后边界同样可能残留在屏幕外（如最大化前窗口已被顶到负坐标），等还原动画结束再校准一次
+    setTimeout(() => ensureWindowVisible(mainWindow), 300);
+  });
 
   // ===== 应用菜单栏 =====
   function buildMenu() {
@@ -4849,6 +4934,18 @@ function setupIPC() {
   // 查询当前窗口是否最大化（前端用于显示对应图标）
   ipcMain.handle('window-is-maximized', () => mainWindow?.isMaximized() ?? false);
 
+  // 渲染层度量上报（诊断"标题栏超出窗口可见区"用，由渲染层在 WINDOW_DIAG=1 时调用）。
+  // 主进程一并打印自身量到的窗口 bounds / 工作区 / DPI，便于一眼区分：
+  //   窗口边界问题（bounds 比 workArea 大一圈）vs 页面自身溢出/滚动问题（overflowY/scrollTop 非 0）。
+  ipcMain.on('window-diag-report', (event, payload) => {
+    try {
+      const alive = mainWindow && !mainWindow.isDestroyed();
+      const b = alive ? mainWindow.getBounds() : null;
+      const d = b ? (screen.getDisplayMatching(b) || screen.getPrimaryDisplay()) : screen.getPrimaryDisplay();
+      log.info(`[WindowDiag] ${JSON.stringify(payload)} | bounds=${JSON.stringify(b)} workArea=${JSON.stringify(d.workArea)} scale=${d.scaleFactor} maximized=${alive ? mainWindow.isMaximized() : 'n/a'}`);
+    } catch (e) { /* 遥测失败忽略，不影响主流程 */ }
+  });
+
   // 全屏模式切换（编辑器 F11 全屏）
   ipcMain.handle('set-fullscreen', (event, enabled) => {
     if (mainWindow) {
@@ -5634,6 +5731,8 @@ async function recordClipboardContent(c) {
   log.info('[ClipboardAssistant] recorded:', id != null ? '#' + id : 'ok');
   const clipIdText = id != null ? ' #' + id : '';
   notifyClipboardResult('已记录到剪藏', '已存入收件箱，待整理' + clipIdText);
+  // 入库成功后广播变更：剪藏页面收到后即时自动刷新列表，无需用户手动刷新
+  notifyClipsChanged({ id: id != null ? id : null, source: 'clipboard', type: c.type });
   return { success: true, data };
 }
 
@@ -5655,6 +5754,32 @@ ipcMain.handle('clipboard-toast:record', async () => {
 /** 将剪贴板记录结果以可读 toast 呈现（含"后端未启动"等明确失败原因）。 */
 function notifyClipboardResult(title, body) {
   try { showNotification(title, body); } catch (e) { log.warn('[ClipboardAssistant] notify error:', e.message); }
+}
+
+/**
+ * 广播「剪藏数据已变更」事件。
+ * <p>
+ * 剪贴板剪藏由主进程直接 POST 后端入库，渲染层完全无感知，因此需要主进程主动广播，
+ * 让剪藏页面/知识页/剪藏历史面板等订阅方即时自动刷新，避免用户手动刷新才看到新内容。
+ * 广播携带来源与剪藏 ID，订阅方可据此做定点刷新或提示。
+ * </p>
+ *
+ * @param {{id?: (number|null), source?: string, type?: string}} payload 变更信息
+ */
+function notifyClipsChanged(payload) {
+  const data = payload || {};
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('clips:changed', data);
+  } catch (e) {
+    log.warn('[ClipsChanged] 通知主窗口失败:', e.message);
+  }
+  try {
+    if (clipboardHistoryWin && !clipboardHistoryWin.isDestroyed()) {
+      clipboardHistoryWin.webContents.send('clips:changed', data);
+    }
+  } catch (e) {
+    log.warn('[ClipsChanged] 通知剪贴板历史窗口失败:', e.message);
+  }
 }
 
 /** 把底层异常转成对用户友好的提示（区分后端未启动/权限拒绝/其他）。 */

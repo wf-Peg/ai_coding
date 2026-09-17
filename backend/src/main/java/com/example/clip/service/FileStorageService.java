@@ -656,10 +656,13 @@ public class FileStorageService {
      * </p>
      *
      * @param id 要删除的剪藏 ID
+     * @return 被删除的剪藏对象；未找到时返回 {@code null}。
+     *         回传对象让调用方（如删除后清理孤儿图片）免去额外的全库扫描。
      */
     // 一致性说明：deleteClip 的方法级 synchronized 与 saveClip/replaceClip 互斥，避免并发写同一 JSON 文件。
     // 为优先保证一致性，保留该全局写锁，不贸然重构为细粒度锁。
-    public synchronized void deleteClip(Long id) {
+    public synchronized ClipContent deleteClip(Long id) {
+        ClipContent removed = null;
         try {
             List<Path> jsonFiles = getAllJsonFiles();
             for (Path path : jsonFiles) {
@@ -672,6 +675,7 @@ public class FileStorageService {
                     ClipContent clip = iterator.next();
                     if (clip.getId() != null && clip.getId().equals(id)) {
                         iterator.remove();
+                        removed = clip;
                         found = true;
                         break;
                     }
@@ -687,6 +691,7 @@ public class FileStorageService {
         } catch (IOException e) {
             log.error("[FileStorageService] deleteClip 失败: id={}", id, e);
         }
+        return removed;
     }
 
     /**
