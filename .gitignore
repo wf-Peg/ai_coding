@@ -11,6 +11,8 @@ win-unpacked/
 
 # 日志文件
 *.log
+# 后端运行时错误日志（本地生成，不提交）
+backend/backend-run.log.*
 
 # BlueJ文件
 *.ctxt

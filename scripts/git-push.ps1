@@ -93,13 +93,26 @@ try {
 
     # ============ 3. 后端编译验证 ============
     if (-not $SkipCompile) {
-        Write-Step "mvn compile -q"
+        # 动态定位 POM 所在目录（本仓库为 backend/，可扩展多模块）
+        $pomDir = $REPO_ROOT
+        if (Test-Path (Join-Path $REPO_ROOT 'backend\pom.xml')) { $pomDir = Join-Path $REPO_ROOT 'backend' }
+        elseif (-not (Test-Path (Join-Path $REPO_ROOT 'pom.xml'))) {
+            $found = Get-ChildItem -Path $REPO_ROOT -Filter pom.xml -Recurse -Depth 3 -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($found) { $pomDir = $found.DirectoryName }
+            else { Write-Host "警告：未找到 pom.xml，跳过编译验证" -ForegroundColor Yellow }
+        }
+        Write-Step "mvn compile -q（目录：$pomDir）"
         if (-not $WhatIf) {
             $env:JAVA_HOME = $JAVA_HOME
-            & $MAVEN compile -q
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host "错误：后端编译失败，已中止，未提交" -ForegroundColor Red
-                exit 1
+            Push-Location $pomDir
+            try {
+                & $MAVEN compile -q
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Host "错误：后端编译失败，已中止，未提交" -ForegroundColor Red
+                    exit 1
+                }
+            } finally {
+                Pop-Location
             }
         }
     }

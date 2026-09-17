@@ -70,6 +70,9 @@ public class WikiQueryService {
     private static final List<String> PAGE_TYPE_LOOKUP_ORDER =
             List.of("entity", "concept", "synthesis", "source");
 
+    /** 索引内容超此字符数时，LLM 选页兜底改用「大纲精简版」（万级索引防上下文爆炸，借鉴 tgrep 先缩小再验证） */
+    private static final int LLM_INDEX_TRIGGER_CHARS = 40000;
+
     private final AiService aiService;
     private final WikiPageService wikiPageService;
     private final WikiIndexService wikiIndexService;
@@ -78,6 +81,7 @@ public class WikiQueryService {
     private final SearchService searchService;
     private final KnowledgeService knowledgeService;
     private final WikiLocalRetriever wikiLocalRetriever;
+    private final WikiSearchIndex wikiSearchIndex;
     private final WikiQueryMetrics wikiQueryMetrics;
 
     /**
@@ -101,6 +105,7 @@ public class WikiQueryService {
                             SearchService searchService,
                             KnowledgeService knowledgeService,
                             WikiLocalRetriever wikiLocalRetriever,
+                            WikiSearchIndex wikiSearchIndex,
                             WikiQueryMetrics wikiQueryMetrics) {
         this.aiService = aiService;
         this.wikiPageService = wikiPageService;
@@ -110,6 +115,7 @@ public class WikiQueryService {
         this.searchService = searchService;
         this.knowledgeService = knowledgeService;
         this.wikiLocalRetriever = wikiLocalRetriever;
+        this.wikiSearchIndex = wikiSearchIndex;
         this.wikiQueryMetrics = wikiQueryMetrics;
     }
 
@@ -202,21 +208,22 @@ public class WikiQueryService {
                 indexContent = "# Wiki Index\n\n(empty)";
             }
 
-            // 2. 定位相关页面：本地拆词检索（index 摘要 + 正文 grep 兜底）优先，未命中降级 LLM
+            // 2. 定位相关页面：本地拆词检索（index 摘要 + 正文倒排兜底）优先，未命中降级 LLM
+            //    LLM 兜底输入按需缩减为「大纲精简版」，防万级索引把整本 index.md 塞进上下文
             notify(callback, "定位页面", "正在定位相关页面（本地检索优先）...");
             long stageStart = System.currentTimeMillis();
             List<String> relevantPageNames;
             boolean usedLocalRetrieval = false;
+            String llmIndexInput = buildLlmIndexInput(indexContent);
             if (wikiConfig != null && wikiConfig.isQueryLocalRetrievalEnabled()) {
                 int localTopK = wikiConfig.getQueryLocalRetrievalTopK();
                 int localMinHits = wikiConfig.getQueryLocalRetrievalMinHits();
                 List<String> localPages = new ArrayList<>(
                         wikiLocalRetriever.retrieve(question, indexContent, localTopK, localMinHits));
                 if (localPages.size() < localTopK) {
-                    // 正文 grep 兜底：覆盖「知识点只在正文深处、目录摘要未体现」的 body-depth 召回缺口
-                    List<String> bodyPages = wikiLocalRetriever.retrieveBodyMatches(
-                            question, readAllPageBodies(),
-                            localTopK - localPages.size(), localMinHits);
+                    // 正文倒排兜底（原全库 grep 升级）：只扫倒排命中的候选页，覆盖 body-depth 召回缺口
+                    List<String> bodyPages = wikiSearchIndex.softRecall(
+                            question, localTopK - localPages.size(), localMinHits);
                     for (String pageName : bodyPages) {
                         if (!localPages.contains(pageName)) {
                             localPages.add(pageName);
@@ -229,16 +236,16 @@ public class WikiQueryService {
                 if (!localPages.isEmpty()) {
                     relevantPageNames = localPages;
                     usedLocalRetrieval = true;
-                    log.info("[WikiQuery] Local retrieval (index+body) located {} pages in {} ms (skip LLM stage-1)",
+                    log.info("[WikiQuery] Local retrieval (index+body index) located {} pages in {} ms (skip LLM stage-1)",
                             localPages.size(), System.currentTimeMillis() - stageStart);
                 } else {
                     notify(callback, "定位页面", "本地检索未命中，正在调用大模型挑选相关页面...");
-                    relevantPageNames = aiService.locateRelevantPages(question, indexContent);
+                    relevantPageNames = aiService.locateRelevantPages(question, llmIndexInput);
                     log.info("[WikiQuery] LLM locate fallback used ({} ms)", System.currentTimeMillis() - stageStart);
                 }
             } else {
                 notify(callback, "定位页面", "正在调用大模型挑选相关页面...");
-                relevantPageNames = aiService.locateRelevantPages(question, indexContent);
+                relevantPageNames = aiService.locateRelevantPages(question, llmIndexInput);
             }
             log.info("[WikiQuery] Located {} relevant pages for question", relevantPageNames.size());
             locateMs = System.currentTimeMillis() - stageStart;
@@ -359,10 +366,10 @@ public class WikiQueryService {
                 log.info("[WikiQuery] Knowledge supplement skipped (includeSupplement=false)");
             }
 
-            // 5. 估算 Token 消耗（粗略：字符数 / 4）
-            int inputLen = question.length() + indexContent.length()
+            // 5. 估算 Token 消耗（粗略：字符数 / 4），索引按实际喂给 LLM 的输入（可能为大纲精简版）
+            int inputLen = question.length() + llmIndexInput.length()
                     + pageContents.values().stream().mapToInt(String::length).sum();
-            int tokenEstimate = estimateTokens(buildInputForEstimate(question, indexContent, pageContents), answer);
+            int tokenEstimate = estimateTokens(buildInputForEstimate(question, llmIndexInput, pageContents), answer);
 
             result.put("status", "success");
             result.put("answer", answer != null ? answer : "");
@@ -528,28 +535,50 @@ public class WikiQueryService {
     }
 
     /**
-     * 读取全部 Wiki 页面正文（页面名 → 内容），供正文 grep 兜底检索使用。
+     * 构造喂给 LLM 选页的索引输入。
      * <p>
-     * 页面量级为个人知识库规模（数十至数百页 × 数 KB），全量读取为毫秒级。
-     * 个别页面读取失败时跳过，不影响整体。
+     * 索引内容超过 {@link #LLM_INDEX_TRIGGER_CHARS} 时降级为「大纲精简版」
+     * （只留 section 标题与页面名，去掉摘要与统计），防止万级知识库把整本 index.md
+     * 塞进上下文导致曝光（对应 imdoge/vishun 对 index 臃肿的质疑）。
+     * 个人库小规模时保持原样（保有小库语义选页质量，不回归）。
      * </p>
      *
-     * @return 页面名（不含扩展名）→ 正文内容映射；读取失败返回空 Map
+     * @param indexContent index.md 原文
+     * @return 实际喂给 LLM 的索引文本
      */
-    private Map<String, String> readAllPageBodies() {
-        Map<String, String> nameToBody = new LinkedHashMap<>();
-        try {
-            for (Path pagePath : wikiPageService.listAllPages()) {
-                String name = pagePath.getFileName().toString().replaceFirst("\\.md$", "");
-                String content = wikiPageService.readPage(pagePath);
-                if (content != null) {
-                    nameToBody.put(name, content);
+    private String buildLlmIndexInput(String indexContent) {
+        if (indexContent != null && indexContent.length() > LLM_INDEX_TRIGGER_CHARS) {
+            String outline = buildOutlineIndex(indexContent);
+            log.info("[WikiQuery] index too large ({} chars), LLM locate uses outline ({} chars)",
+                    indexContent.length(), outline.length());
+            return outline;
+        }
+        return indexContent;
+    }
+
+    /**
+     * 生成 index.md 的大纲精简版：保留 section 标题（## ）与条目页面名（- [[name]]），
+     * 丢弃摘要、更新日期与顶部统计，供超大索引时的 LLM 选页输入。
+     */
+    private String buildOutlineIndex(String indexContent) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("# Wiki Index (outline)\n\n");
+        sb.append("[注：索引过大已精简为仅页面名大纲，请优先按问题词面挑选相关页面。]\n\n");
+        if (indexContent == null) {
+            return sb.toString();
+        }
+        for (String line : indexContent.split("\n", -1)) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("## ")) {
+                sb.append(line).append("\n");
+            } else if (trimmed.startsWith("- [[")) {
+                int close = trimmed.indexOf("]]");
+                if (close > 0) {
+                    sb.append("- ").append(trimmed.substring(0, close + 2)).append("\n");
                 }
             }
-        } catch (Exception e) {
-            log.warn("[WikiQuery] readAllPageBodies failed: {}", e.getMessage());
         }
-        return nameToBody;
+        return sb.toString();
     }
 
     /**

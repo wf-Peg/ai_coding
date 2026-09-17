@@ -32,6 +32,20 @@ electron/    → Electron 主进程
 - **CODE_INDEX.md**：`代码索引` 静态地图仅作为**人读辅助**，可容忍过期。改代码后可 `npm run codeindex:gen` 重新生成，但不参与 AI 决策主链路，不依赖其准确性。
 - **codegraph（按需、最后手段）**仅在确有 >3K 行大文件跨文件定位需求时用 CLI 按需查询（`codegraph query/callers/impact`，紧凑返回）。**不要启用其 MCP 服务器（`codegraph serve --mcp`）**——工具 schema 每轮注入 + explore 返回体大（实测 ~4K token/次）会显著拉高每轮 token。默认交给上面的 Grep/Explore 路线即可。
 
+## Harness 导航（开发闭环档案 · 只指路）
+
+本仓库的开发过程资产统一在 `HARNESS/`（进仓库、md 优先），系统当文档读、人当文章看。**细节一律落在 HARNESS 内部，本段只放指针**：
+
+- 人读入口 / 命名风格 / 写记录时机：`HARNESS/README.md`
+- AI 读入口 / 全产物定位表 / 读取顺序：`HARNESS/INDEX.md`
+- 开发日志（牛马大白话，按时间倒序）：`HARNESS/devlog/_index.md`
+- Bug 归档（按模块）：`HARNESS/bugs/_index.md`
+- 架构决策 ADR：`HARNESS/decisions/_index.md`
+- 长周期韧性 Done/Current/Future：`HARNESS/roadmap.md`
+- 写记录 skill：`.trae/skills/harness-archive/SKILL.md`
+
+> **写记录义务**：改了代码 / 修了 bug，收尾时必须写 devlog（bug）记录，否则视为未闭环。导航一律从 `HARNESS/README.md` / `INDEX.md` 进，不在本文件复制 HARNESS 内容。
+
 ## Token 节省（省积分模式）
 
 AI 助手在本仓库执行任务时**默认开启**以下省 token 约定，控制会话上下文膨胀：
@@ -184,7 +198,8 @@ TODO/
 
 ### Bug 历史管理
 
-- 路径：`TODO/bugs/bug-history.md`
+- 新入口：**`HARNESS/bugs/_index.md`**（按模块归档，现象/根因/修法/教训）——由 `harness-archive` 在 bug 修复归档时写入。
+- 路径：`TODO/bugs/bug-history.md`（**存量兼容，已不再新增**）
 - 记录内容：现象、原因、修复方式、经验教训
 - 记录时机：每次 bug 修复完成后立即追加
 - 用途：后续可依据 bug 历史更新 agent.md 约束，避免同类问题重复出现
@@ -222,7 +237,8 @@ Task 完成（编码/研发，验证通过）
 
 ### 相关技能
 
-- `.trae/skills/git-commit-workflow/` — **主线（提交推送自动归档）**：推送成功后自动写迭代记录（`source=trae-session`），引用 `trae-session-archive` 为唯一事实来源。
-- `.trae/skills/trae-session-archive/` — **共享规Ciform + 手动兜底**：完成任务但暂不提交时的手动归档入口（`source=trae-session`）。
+- `.trae/skills/git-commit-workflow/` — **主线（提交推送自动归档，双链）**：推送成功后自动写①产品概览迭代记录（`source=trae-session`）复用 `trae-session-archive`，②`HARNESS/` devlog/bug 复用 `harness-archive`。
+- `.trae/skills/trae-session-archive/` — **产品概览归档的共享规Ciform + 手动兜底**：完成任务但暂不提交时的手动归档入口（`source=trae-session`）。
+- `.trae/skills/harness-archive/` — **HARNESS（devlog/bug）归档的唯一事实来源**：写 `HARNESS/` 下 md，frontmatter/目录/命名契约以它为准。
 - `.trae/skills/product-dev-archive/` — 遗留：写 `TODO/**/feature-points.json`（旧概览树，非主线）
 - `.trae/skills/product-dev-history-migrate/` — 遗留：存量 TODO 目录迁移补 feature-points.json

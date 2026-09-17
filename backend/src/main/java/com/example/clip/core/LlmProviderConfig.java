@@ -53,10 +53,12 @@ public class LlmProviderConfig {
      */
     @Bean
     @Primary
-    public LlmProvider llmProvider(ModelConfigService modelConfigService,
-                                   DashScopeLlmProvider dashScopeProvider,
-                                   DeepSeekLlmProvider deepSeekProvider,
-                                   OpenAiCompatibleLlmProvider customProvider) {
+    public RoutingLlmProvider routingLlmProvider(ModelConfigService modelConfigService,
+                                                 DashScopeLlmProvider dashScopeProvider,
+                                                 DeepSeekLlmProvider deepSeekProvider,
+                                                 OpenAiCompatibleLlmProvider customProvider) {
+        // 返回具体类型 RoutingLlmProvider（@Primary 确保注入 LlmProvider 时优先选择它，
+        // 同时控制器可按具体类型注入熔断器接口）
         return new RoutingLlmProvider(modelConfigService, dashScopeProvider, deepSeekProvider, customProvider);
     }
 

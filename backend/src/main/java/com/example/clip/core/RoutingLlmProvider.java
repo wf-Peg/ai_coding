@@ -5,8 +5,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -51,6 +53,23 @@ public class RoutingLlmProvider implements LlmProvider {
 
     /** 自定义 OpenAI 兼容提供者（可选提供者） */
     private final OpenAiCompatibleLlmProvider customProvider;
+
+    // ===== LLM 连续失败熔断（对标 KaaS 借鉴项 5.2） =====
+
+    /** 熔断触发阈值：某档位连续失败达到该次数后进入冷却 */
+    private static final int BREAKER_THRESHOLD = 5;
+
+    /** 冷却时长（毫秒），默认 5 分钟 */
+    private static final long BREAKER_COOLDOWN_MS = 5 * 60 * 1000L;
+
+    /** 每档位（simple/strong）的连续失败计数器 */
+    private final Map<String, Integer> consecutiveFails = new HashMap<>();
+
+    /** 每档位的冷却截止时间戳（ms）；null 表示不在冷却中 */
+    private final Map<String, Long> cooldownUntil = new HashMap<>();
+
+    /** 熔断器锁，保证线程安全 */
+    private final Object breakerLock = new Object();
 
     /**
      * 构造器注入所有依赖（含 custom 提供者）。
@@ -113,9 +132,25 @@ public class RoutingLlmProvider implements LlmProvider {
     @Override
     public String chatForTier(String systemPrompt, String userMessage, String tier) {
         String modelName = getTierModelName(tier);
+        String tierKey = normalizeTier(tier);
+
+        // 熔断检查：若该档位处于冷却期，直接拒绝调用，避免继续烧钱
+        if (isBreakerOpen(tierKey)) {
+            long remainMs = getRemainingCooldownMs(tierKey);
+            throw new RuntimeException("模型档位 [" + tierKey + "] 连续失败已触发熔断，"
+                    + (remainMs / 1000) + " 秒后自动恢复。可手动复位（POST /api/breakers/llm/reset）或检查模型配置。");
+        }
+
         LlmProvider provider = getActiveProvider();
         logger.debug("[LLM] Routing tier={} model={} provider={}", tier, modelName, provider.getProviderName());
-        return chatWithFallback(provider, modelName, systemPrompt, userMessage);
+        try {
+            String result = chatWithFallback(provider, modelName, systemPrompt, userMessage);
+            recordSuccess(tierKey);
+            return result;
+        } catch (Exception e) {
+            recordFailure(tierKey);
+            throw e;
+        }
     }
 
     /**
@@ -244,6 +279,129 @@ public class RoutingLlmProvider implements LlmProvider {
             return null;
         }
         return null;
+    }
+
+    // ===== 熔断辅助方法 =====
+
+    /**
+     * 规范化档位名。
+     *
+     * @param tier 档位（simple/strong，大小写不敏感）
+     * @return 规范化档位名；未知值统一归为 simple
+     */
+    private String normalizeTier(String tier) {
+        return "strong".equalsIgnoreCase(tier) ? "strong" : "simple";
+    }
+
+    /**
+     * 判断某档位熔断器是否处于打开（冷却）状态。
+     *
+     * @param tierKey 规范化档位名
+     * @return true 表示处于冷却期，应拒绝调用
+     */
+    public boolean isBreakerOpen(String tierKey) {
+        synchronized (breakerLock) {
+            Long until = cooldownUntil.get(tierKey);
+            if (until == null) {
+                return false;
+            }
+            long now = System.currentTimeMillis();
+            if (now >= until) {
+                // 冷却已过，自动复位
+                cooldownUntil.remove(tierKey);
+                consecutiveFails.remove(tierKey);
+                return false;
+            }
+            return true;
+        }
+    }
+
+    /**
+     * 返回某档位剩余冷却毫秒数。
+     *
+     * @param tierKey 规范化档位名
+     * @return 剩余毫秒数；不在冷却时返回 0
+     */
+    public long getRemainingCooldownMs(String tierKey) {
+        synchronized (breakerLock) {
+            Long until = cooldownUntil.get(tierKey);
+            if (until == null) {
+                return 0L;
+            }
+            long remain = until - System.currentTimeMillis();
+            return Math.max(0L, remain);
+        }
+    }
+
+    /**
+     * 记录一次成功调用：重置该档位连续失败计数。
+     *
+     * @param tierKey 规范化档位名
+     */
+    public void recordSuccess(String tierKey) {
+        synchronized (breakerLock) {
+            consecutiveFails.remove(tierKey);
+        }
+    }
+
+    /**
+     * 记录一次失败调用：递增连续失败计数，达到阈值则进入冷却。
+     *
+     * @param tierKey 规范化档位名
+     */
+    public void recordFailure(String tierKey) {
+        synchronized (breakerLock) {
+            int fails = consecutiveFails.getOrDefault(tierKey, 0) + 1;
+            consecutiveFails.put(tierKey, fails);
+            if (fails >= BREAKER_THRESHOLD) {
+                cooldownUntil.put(tierKey, System.currentTimeMillis() + BREAKER_COOLDOWN_MS);
+                logger.error("[LLM][熔断] 档位 [{}] 连续失败 {} 次，熔断打开，冷却 {} 分钟",
+                        tierKey, fails, BREAKER_COOLDOWN_MS / 60000);
+            } else {
+                logger.warn("[LLM][熔断] 档位 [{}] 连续失败第 {}/{} 次", tierKey, fails, BREAKER_THRESHOLD);
+            }
+        }
+    }
+
+    /**
+     * 手动复位熔断器（用于切换配置后恢复）。
+     *
+     * @param tierKey 规范化档位名；为 null 或空时复位所有档位
+     */
+    public void resetBreaker(String tierKey) {
+        synchronized (breakerLock) {
+            if (tierKey == null || tierKey.isBlank()) {
+                consecutiveFails.clear();
+                cooldownUntil.clear();
+                logger.info("[LLM][熔断] 已手动复位所有档位熔断器");
+                return;
+            }
+            String key = normalizeTier(tierKey);
+            consecutiveFails.remove(key);
+            cooldownUntil.remove(key);
+            logger.info("[LLM][熔断] 已手动复位档位 [{}] 熔断器", key);
+        }
+    }
+
+    /**
+     * 返回各档位熔断器状态。供管理/诊断接口使用。
+     *
+     * @return {@code {tier: {open, consecutiveFails, remainingCooldownMs}}}
+     */
+    public Map<String, Object> breakerStatus() {
+        Map<String, Object> result = new HashMap<>();
+        for (String tier : List.of("simple", "strong")) {
+            Map<String, Object> st = new HashMap<>();
+            synchronized (breakerLock) {
+                st.put("open", isBreakerOpen(tier));
+                st.put("consecutiveFails", consecutiveFails.getOrDefault(tier, 0));
+                st.put("remainingCooldownMs", getRemainingCooldownMs(tier));
+                st.put("threshold", BREAKER_THRESHOLD);
+                st.put("cooldownMs", BREAKER_COOLDOWN_MS);
+            }
+            result.put(tier, st);
+        }
+        return result;
     }
 
     /**

@@ -823,7 +823,8 @@ public class AiService {
             return List.of();
         }
         try {
-            String systemPrompt = promptConfigService.getWikiBatchExtractPrompt();
+            String systemPrompt = promptConfigService.getWikiBatchExtractPrompt()
+                    + languageFollowHint(contents.isEmpty() ? "" : contents.get(0));
             // 构建用户消息：将每个源文档按索引拼接
             StringBuilder userMessage = new StringBuilder();
             for (int i = 0; i < contents.size(); i++) {
@@ -990,7 +991,7 @@ public class AiService {
     @SuppressWarnings("unchecked")
     public List<String> locateRelevantPages(String question, String indexContent) {
         try {
-            String systemPrompt = promptConfigService.getWikiQueryIndexPrompt();
+            String systemPrompt = promptConfigService.getWikiQueryIndexPrompt() + languageFollowHint(question);
             String userMessage = "Question: " + (question != null ? question : "") + "\n\nWiki Index:\n"
                     + (indexContent != null ? indexContent : "");
             String response = llmProvider.chatForTier(systemPrompt, userMessage, "simple");
@@ -1023,7 +1024,7 @@ public class AiService {
      */
     public String synthesizeAnswer(String question, Map<String, String> pageContents) {
         try {
-            String systemPrompt = promptConfigService.getWikiQuerySynthesisPrompt();
+            String systemPrompt = promptConfigService.getWikiQuerySynthesisPrompt() + languageFollowHint(question);
             StringBuilder userMessage = new StringBuilder();
             userMessage.append("Question: ").append(question != null ? question : "").append("\n\n");
             userMessage.append("Relevant pages:\n\n");
@@ -1040,6 +1041,35 @@ public class AiService {
             logger.error("[AI] synthesizeAnswer failed: {}", e.getMessage(), e);
             return "无法生成答案: " + e.getMessage();
         }
+    }
+
+    /**
+     * 生成「输出语言与用户输入保持一致」的约束（回应"中文内容编译出全英文"类反馈）。
+     * 按输入文本中 CJK（汉字）字符占比判断语言：占比 ≥ 20% 视为中文输入，要求中文输出；
+     * 否则要求输出跟随输入语言。仅在 wiki 问答/编译等对外文案的场景追加，避免影响内部 JSON 解析。
+     *
+     * @param input 用户输入（问题/源文档）
+     * @return 追加在 system prompt 末尾的语言约束文本；输入为空时返回空串
+     */
+    private String languageFollowHint(String input) {
+        if (input == null || input.isEmpty()) {
+            return "";
+        }
+        int cjk = 0;
+        int total = 0;
+        int limit = Math.min(input.length(), 500);
+        for (int i = 0; i < limit; i++) {
+            total++;
+            if (Character.UnicodeScript.of(input.charAt(i)) == Character.UnicodeScript.HAN) {
+                cjk++;
+            }
+        }
+        if (total == 0) {
+            return "";
+        }
+        return (cjk * 100 / total >= 20)
+                ? "\n\n[输出语言约束] 用户输入为中文：请始终使用中文输出（专有名词、代码、英文原文除外）。"
+                : "\n\n[Output language constraint] Always respond in the same language as the user's input.";
     }
 
     /**
