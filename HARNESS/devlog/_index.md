@@ -5,5 +5,6 @@
 
 | 日期 | ID | 标题 | 模块 | commit | 文件 |
 |---|---|---|---|---|---|
+| 2026-09-18 | DEV-2026-09-18-001 | 补齐 HARNESS 当前真相层与决策记忆 | tools | `-` | `2026/2026-09-18-harness-truth-layer.md` |
 | 2026-09-16 | DEV-2026-09-16-002 | wiki 批量入库检索增强与 LLM 路由熔断 | wiki | `fbb047e` | `2026/2026-09-16-wiki-llm-circuit-breaker.md` |
 | 2026-09-16 | DEV-2026-09-16-001 | 搭建 HARNESS 开发闭环档案层 | tools | `62baf77` | `2026/2026-09-16-harness-layer.md` |
