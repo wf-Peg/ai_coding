@@ -127,6 +127,7 @@
           navOverview.classList.add('active');
           renderWsList();
           overviewView.classList.remove('hidden');
+          switchWbBoard('overview');
           loadOverview();
           localStorage.setItem('active_workspace_id', '');
           try { window.parent.postMessage({ type: 'workspaceChanged', workspaceId: '' }, '*'); } catch(e) {}
@@ -136,6 +137,7 @@
           navProductDev.classList.add('active');
           renderWsList();
           productDevView.classList.add('visible');
+          switchWbBoard('productdev'); // 先挂载产品概览板，loadProductDev 数据就绪后 refreshAll 才有落点
           loadProductDev();
           localStorage.setItem('active_workspace_id', '');
           try { window.parent.postMessage({ type: 'workspaceChanged', workspaceId: '' }, '*'); } catch(e) {}
@@ -362,33 +364,142 @@
         window.WB.register({ id: 'workspace-funnel', title: '工作台漏斗', defaultSize: { w: 2, h: 2 }, minSize: { w: 1, h: 1 }, render: renderFunnelWidget });
         window.WB.mount($('overviewWidgets'), { cols: 4, rowH: 170 });
         bindWidgetWsCtx();
+        var compactBtn = $('widgetCompactBtn');
+        if (compactBtn && !compactBtn.dataset.bound) {
+          compactBtn.dataset.bound = '1';
+          compactBtn.addEventListener('click', function () { if (window.WB && window.WB.compact) { try { window.WB.compact(); } catch (e) {} } });
+        }
       }
+
+      // ── 产品概览组件板（scope:'productdev'，与全部概览共享 WB 引擎，独立布局命名空间） ──
+      var PD_DEFAULT_LAYOUT = [
+        { id: 'pd-stat-cards',    col: 0, row: 0, w: 4, h: 1 },
+        { id: 'pd-chart-phase',   col: 0, row: 1, w: 2, h: 2 },
+        { id: 'pd-chart-todo',    col: 2, row: 1, w: 2, h: 2 },
+        { id: 'pd-chart-knowledge', col: 0, row: 3, w: 2, h: 2 },
+        { id: 'pd-chart-layer',   col: 2, row: 3, w: 2, h: 2 },
+        { id: 'pd-activity',      col: 0, row: 5, w: 2, h: 2 },
+        { id: 'pd-chart-tags',    col: 2, row: 5, w: 2, h: 2 },
+        { id: 'pd-ai-archive',    col: 0, row: 7, w: 2, h: 2 },
+        { id: 'pd-task-list',     col: 2, row: 7, w: 2, h: 3 }
+      ];
+      function registerPdWidgets() {
+        if (!window.WB) return;
+        function reg(def) { window.WB.register(Object.assign({ scope: 'productdev' }, def)); }
+        reg({ id: 'pd-stat-cards', title: '产品数据概览', defaultSize: { w: 4, h: 1 }, minSize: { w: 2, h: 1 }, render: renderPdStatWidget });
+        reg({ id: 'pd-chart-phase', title: '各阶段需求分布', defaultSize: { w: 2, h: 2 }, minSize: { w: 1, h: 1 }, render: renderPdPhaseChartWidget, destroy: pdChartDestroyer('pd-chart-phase') });
+        reg({ id: 'pd-chart-todo', title: '任务完成率', defaultSize: { w: 2, h: 2 }, minSize: { w: 1, h: 1 }, render: renderPdTodoChartWidget, destroy: pdChartDestroyer('pd-chart-todo') });
+        reg({ id: 'pd-chart-knowledge', title: '知识积累趋势', defaultSize: { w: 2, h: 2 }, minSize: { w: 1, h: 1 }, render: renderPdKnowledgeChartWidget, destroy: pdChartDestroyer('pd-chart-knowledge') });
+        reg({ id: 'pd-chart-layer', title: '模块分布', defaultSize: { w: 2, h: 2 }, minSize: { w: 1, h: 1 }, render: renderPdLayerChartWidget, destroy: pdChartDestroyer('pd-chart-layer') });
+        reg({ id: 'pd-chart-tags', title: '热门标签', defaultSize: { w: 2, h: 2 }, minSize: { w: 1, h: 1 }, render: renderPdTagsChartWidget, destroy: pdChartDestroyer('pd-chart-tags') });
+        reg({ id: 'pd-activity', title: '最近活动', defaultSize: { w: 2, h: 2 }, minSize: { w: 1, h: 1 }, render: renderPdActivityWidget });
+        reg({ id: 'pd-ai-archive', title: '牛马记录', defaultSize: { w: 2, h: 2 }, minSize: { w: 1, h: 1 }, render: renderPdAiArchiveWidget });
+        reg({ id: 'pd-task-list', title: '任务状态', defaultSize: { w: 2, h: 3 }, minSize: { w: 2, h: 2 }, render: renderPdTaskWidget });
+        // 产品概览板控件绑定
+        var cBtn = $('pdWidgetCompactBtn');
+        if (cBtn && !cBtn.dataset.bound) {
+          cBtn.dataset.bound = '1';
+          cBtn.addEventListener('click', function () { if (window.WB && window.WB.compact) { try { window.WB.compact(); } catch (e) {} } });
+        }
+        var eBtn = $('pdWidgetEditBtn');
+        if (eBtn && !eBtn.dataset.bound) {
+          eBtn.dataset.bound = '1';
+          eBtn.addEventListener('click', openPdEditMode);
+        }
+        var pdPalette = $('pdWidgetPalette');
+        var pClose = $('pdWidgetPaletteClose');
+        if (pClose && !pClose.dataset.bound) {
+          pClose.dataset.bound = '1';
+          pClose.addEventListener('click', function () { closePalette('productdev'); });
+        }
+        if (pdPalette && !pdPalette.dataset.bound) {
+          pdPalette.dataset.bound = '1';
+          pdPalette.addEventListener('click', function (e) { if (e.target === pdPalette) closePalette('productdev'); });
+        }
+      }
+      // 切换 WB 板：同一引擎不同容器 + 布局命名空间（overview 多工作台 / productdev 独立）
+      function switchWbBoard(scope) {
+        if (!window.WB) return;
+        if (scope === 'productdev') {
+          window.WB.mount($('pdWidgets'), { cols: 4, rowH: 170, scope: 'productdev', layoutKey: 'productdev_widget_layout_v1', initialLayout: PD_DEFAULT_LAYOUT });
+        } else {
+          window.WB.mount($('overviewWidgets'), {
+            cols: 4, rowH: 170, scope: 'overview',
+            layoutKey: widgetWsLayoutKey($('widgetWsCtx') ? ($('widgetWsCtx').value || '') : ''),
+            initialLayout: undefined
+          });
+        }
+        activeBoardScope = scope;
+        resetWbEditButtons();
+        closePalettes();
+      }
+      function resetWbEditButtons() {
+        ['widgetEditBtn', 'pdWidgetEditBtn'].forEach(function (id) {
+          var b = document.getElementById(id);
+          if (b) b.classList.remove('on');
+          var t = document.getElementById(id + 'Text');
+          if (t) t.textContent = '自定义';
+        });
+      }
+      function closePalettes() {
+        ['widgetPalette', 'pdWidgetPalette'].forEach(function (id) {
+          var p = document.getElementById(id);
+          if (p) p.classList.remove('show');
+        });
+      }
+      function closePalette(scope) {
+        var el = scope ? (scope === 'productdev' ? $('pdWidgetPalette') : $('widgetPalette')) : null;
+        if (el) el.classList.remove('show');
+        else closePalettes();
+      }
+
       function destroyChartWidget(el) {
         if (overviewChartInstances['chart-type']) { overviewChartInstances['chart-type'].destroy(); overviewChartInstances['chart-type'] = null; }
         if (overviewChartInstances['chart-trend']) { overviewChartInstances['chart-trend'].destroy(); overviewChartInstances['chart-trend'] = null; }
       }
 
-      // ── 编辑态 / 添加组件面板 ──
+      // ── 编辑态 / 添加组件面板（scope: overview | productdev，两板各自 palette） ──
       function openEditMode() {
         var on = window.WB.isEditing();
         window.WB.setEditMode(!on);
         $('widgetEditBtn').classList.toggle('on', !on);
         $('widgetEditBtnText').textContent = on ? '自定义' : '完成';
-        if (!on) openPalette(); else closePalette();
+        if (!on) openPalette('overview'); else closePalette('overview');
       }
-      function openPalette() {
-        var list = $('widgetPaletteList');
+      function openPdEditMode() {
+        var on = window.WB.isEditing();
+        window.WB.setEditMode(!on);
+        $('pdWidgetEditBtn').classList.toggle('on', !on);
+        $('pdWidgetEditBtnText').textContent = on ? '自定义' : '完成';
+        if (!on) openPalette('productdev'); else closePalette('productdev');
+      }
+      function openPalette(scope) {
+        scope = scope || 'overview';
+        var list = scope === 'productdev' ? $('pdWidgetPaletteList') : $('widgetPaletteList');
+        var panel = scope === 'productdev' ? $('pdWidgetPalette') : $('widgetPalette');
+        if (!list || !panel) return;
         var placed = window.WB.getWidgets().map(function (e) { return e.id; });
         list.innerHTML = '';
         var meta = {
+          // 全部概览组件
           'anniversary': ['纪念日提醒', '今天/临期/已过的纪念日一览'],
           'stat-cards': ['数据概览', '剪藏、知识、待办等统计卡'],
           'chart-type': ['内容类型分布', '各类型内容占比环形图'],
           'chart-trend': ['近期活跃趋势', '近 7 天内容活跃折线图'],
           'recent-activity': ['最近活动', '最近更新的内容列表'],
-          'workspace-funnel': ['工作台漏斗', '某工作台 规则/手动/关系/排除→可见 漏斗']
+          'workspace-funnel': ['工作台漏斗', '某工作台 规则/手动/关系/排除→可见 漏斗'],
+          // 产品概览组件
+          'pd-stat-cards': ['产品数据概览', '需求项目/功能点/任务/知识等统计卡'],
+          'pd-chart-phase': ['各阶段需求分布', '各开发阶段项目占比环形图'],
+          'pd-chart-todo': ['任务完成率', '任务完成比例进度环'],
+          'pd-chart-knowledge': ['知识积累趋势', '按月累计知识/功能点折线图'],
+          'pd-chart-layer': ['模块分布', '前后端/全栈功能点横向柱状图'],
+          'pd-chart-tags': ['热门标签', '出现次数 Top10 标签横向柱状图'],
+          'pd-activity': ['最近活动', '最近更新/归档的动态列表'],
+          'pd-ai-archive': ['牛马记录', 'DSH/TraeCode 会话成果归档列表'],
+          'pd-task-list': ['任务状态', '按功能点分组的任务进度列表']
         };
-        window.WB.getRegistered().forEach(function (id) {
+        window.WB.getRegistered(scope).forEach(function (id) {
           var m = meta[id] || [id, ''];
           var used = placed.indexOf(id) >= 0;
           var btn = document.createElement('button');
@@ -396,15 +507,15 @@
           btn.className = 'wb-palette-item' + (used ? ' disabled' : '');
           btn.disabled = used;
           btn.innerHTML = '<span class="p-title">' + m[0] + '</span><span class="p-desc">' + m[1] + '</span>';
-          btn.addEventListener('click', function () { if (used) return; window.WB.addWidget(id); renderPalette(); });
+          btn.addEventListener('click', function () { if (used) return; window.WB.addWidget(id); renderPalette(scope); });
           list.appendChild(btn);
         });
-        $('widgetPalette').classList.add('show');
+        panel.classList.add('show');
       }
-      function renderPalette() {
-        if ($('widgetPalette').classList.contains('show')) openPalette();
+      function renderPalette(scope) {
+        var el = scope === 'productdev' ? $('pdWidgetPalette') : $('widgetPalette');
+        if (el && el.classList.contains('show')) openPalette(scope);
       }
-      function closePalette() { $('widgetPalette').classList.remove('show'); }
 
       async function loadOverview() {
         const requestId = ++overviewRequestId;
@@ -556,10 +667,12 @@
         sel.innerHTML = html;
         // 恢复当前选中项（保留用户当前绑定的工作台上下文）
         sel.value = cur || '';
-        onClickWidgetWsCtx();
+        if (activeBoardScope === 'overview') onClickWidgetWsCtx();
       }
       function widgetWsLayoutKey(id) { return id ? ('workspace_widget_' + id + '_v1') : 'workspace_widget_layout_v1'; }
       function onClickWidgetWsCtx() {
+        // 仅"全部概览"板激活时切换 overview 布局键；产品概览板激活时忽略，防止误切 pd 布局
+        if (activeBoardScope !== 'overview') return;
         var sel = $('widgetWsCtx');
         if (!sel || !window.WB) return;
         var key = widgetWsLayoutKey(sel.value || '');
@@ -2157,8 +2270,12 @@
         });
       });
 
-      var pdChartInstances = {};
+      var pdChartInstances = {};      // 产品概览图组件实例：widgetId -> Chart
       var activePdTag = '';
+      // 产品概览组件化：统计数据缓存 + 组件内部状态（数据仅存内存，布局存 localStorage）
+      var pdWidgetsData = null; // { stats, phaseDist, todoCompletion, knowledgeTrend, layerDist, tagCounts, allTasks, activities }
+      var pdTaskFilterState = 'all';
+      var activeBoardScope = 'overview'; // 当前 WB 板归属：overview | productdev
 
       function pdUrl(path) {
         return activePdTag ? path + '?tag=' + encodeURIComponent(activePdTag) : path;
@@ -2195,9 +2312,6 @@
       }
 
       async function loadProductDev() {
-        // Reset chart instances
-        Object.values(pdChartInstances).forEach(function(c) { if (c) c.destroy(); });
-        pdChartInstances = {};
         try {
           // 数据源：FeaturePointsService 读取 TODO/{需求名称}/feature-points.json
           // 迭代记录：FeaturePointIterationService 读取 feature-point-iterations.json
@@ -2369,34 +2483,34 @@
             knowledgeTrend.push({ month: m, count: cum });
           });
 
-          // 统计卡片
-          renderPdDashboard({
-            total: filteredProjects.length,
-            totalProj: filteredProjects.length,
-            totalFp: filteredFp,
-            totalKp: filteredKp,
-            taskDone: taskDone,
-            taskTotal: taskTotal,
-            taskRate: taskRate,
-            designSectionCount: designSectionCount,
-            iterCount: iterCount,
-            reqCompleted: filteredProjects.filter(function(p) {
-              return p.requirement && p.requirement.phase === 'completed';
-            }).length,
-            reqDesign: filteredProjects.filter(function(p) {
-              return p.requirement && (p.requirement.phase === 'design' || p.requirement.phase === 'analysis');
-            }).length
-          });
-
-          // 图表：阶段分布 / 任务完成率 / 知识趋势 / 模块分布 / 热门标签
-          renderPdCharts(phaseDistArray, { completed: taskDone, total: Math.max(taskTotal, 1) }, knowledgeTrend, layerDistArray, tagCountsArray);
-
-          // 渲染任务状态列表
-          renderPdTaskList(allTasks);
-
-          // 渲染 牛马记录（会话成果自动归档，source=dsh-session/dsh-agent/trae-session，不依赖 project/fpId）
+          // ── 统计数据写入组件缓存（产品概览组件板 render 时读取） ──
+          pdWidgetsData = {
+            stats: {
+              totalProj: filteredProjects.length,
+              totalFp: filteredFp,
+              totalKp: filteredKp,
+              taskDone: taskDone,
+              taskTotal: taskTotal,
+              taskRate: taskRate,
+              designSectionCount: designSectionCount,
+              iterCount: iterCount,
+              reqCompleted: filteredProjects.filter(function(p) {
+                return p.requirement && p.requirement.phase === 'completed';
+              }).length,
+              reqDesign: filteredProjects.filter(function(p) {
+                return p.requirement && (p.requirement.phase === 'design' || p.requirement.phase === 'analysis');
+              }).length
+            },
+            phaseDist: phaseDistArray,
+            todoCompletion: { completed: taskDone, total: Math.max(taskTotal, 1) },
+            knowledgeTrend: knowledgeTrend,
+            layerDist: layerDistArray,
+            tagCounts: tagCountsArray,
+            allTasks: allTasks,
+            activities: null
+          };
+          // 牛马记录展开状态复位（数据由组件内从 pdIterations 计算）
           pdAiArchiveExpanded = false;
-          renderPdAiArchive();
 
           // 最近活动：按真实时间（updatedAt / completedAt / createdAt / 迭代记录时间）倒序
           var allFps = [];
@@ -2429,7 +2543,9 @@
             });
           });
           allFps.sort(function(a, b) { return (b.time || '').localeCompare(a.time || ''); });
-          renderPdActivities(allFps.slice(0, 8));
+          pdWidgetsData.activities = allFps.slice(0, 8);
+          // 数据就绪，刷新产品概览组件板（板未挂载时 refreshAll 为 no-op）
+          refreshPdWidgets();
 
           // 看板：按项目/按阶段分组展示 feature points（含任务进度与迭代徽标）
           renderPdKanban(filteredProjects);
@@ -2454,14 +2570,21 @@
           }));
         } catch (e) {
           console.error('产品概览加载失败:', e);
-          $('pdDashboardCards').innerHTML = '<div class="state" style="grid-column:1/-1"><div class="state-inner"><div class="state-icon">!</div><h3>加载失败</h3><p>' + escapeHtml(e.message || '后端服务不可用') + '</p></div></div>';
+          pdWidgetsData = { stats: null, phaseDist: [], todoCompletion: null, knowledgeTrend: [], layerDist: [], tagCounts: [], allTasks: [], activities: [] };
+          refreshPdWidgets();
+        }
+      }
+      // 产品概览组件板数据就绪后刷新（板未挂载时 refreshAll 为 no-op）
+      function refreshPdWidgets() {
+        if (window.WB && activeBoardScope === 'productdev') {
+          try { window.WB.refreshAll(); } catch (err) {}
         }
       }
 
-      function renderPdDashboard(stats) {
-        var el = $('pdDashboardCards');
-        if (!stats || (!stats.totalProj && stats.totalProj !== 0)) {
-          el.innerHTML = '<div class="state" style="grid-column:1/-1;min-height:100px"><div class="state-inner"><h3>暂无数据</h3><p>暂无产品概览数据，Agent 归档后将自动生成。</p></div></div>';
+      function renderPdStatWidget(el, ctx) {
+        var stats = pdWidgetsData ? pdWidgetsData.stats : null;
+        if (!stats || !stats.totalProj && stats.totalProj !== 0) {
+          el.innerHTML = '<div class="state" style="grid-column:1/-1;min-height:100px"><div class="state-inner"><div class="state-icon">!</div><h3>' + (stats ? '暂无数据' : '加载中') + '</h3><p>' + (stats ? '暂无产品概览数据，Agent 归档后将自动生成。' : '正在获取产品概览数据…') + '</p></div></div>';
           return;
         }
         var taskRate = stats.taskRate;
@@ -2481,44 +2604,53 @@
         }).join('');
       }
 
-      function renderPdCharts(phaseDist, todoCompletion, knowledgeTrend, layerDist, tagCounts) {
-        var ctxPhase = document.getElementById('pdPhaseChart');
-        var ctxTodo = document.getElementById('pdTodoChart');
-        var ctxKnowledge = document.getElementById('pdKnowledgeChart');
-        var ctxLayer = document.getElementById('pdLayerChart');
-        var ctxTags = document.getElementById('pdTagsChart');
-        if (!ctxPhase || !ctxTodo || !ctxKnowledge) return;
+      // ▾ 产品概览图组件（Chart 实例登记 pdChartInstances[组件id]，re-render/换板时由组件 destroy 清理）
+      var PD_PHASE_LABELS = { analysis: '需求分析', design: '设计', implementation: '实现', testing: '测试', completed: '已完成' };
+      var PD_PHASE_COLORS = { analysis: '#2383e2', design: '#876de2', implementation: '#f59e0b', testing: '#e74c3c', completed: '#10b981' };
+      function pdDestroyChart(key) {
+        if (pdChartInstances[key]) { try { pdChartInstances[key].destroy(); } catch (e) {} pdChartInstances[key] = null; }
+      }
+      function pdChartSlot(el) {
+        if (typeof Chart === 'undefined') { el.innerHTML = '<div class="av-empty">图表库加载中…</div>'; return null; }
+        el.innerHTML = '';
+        return makeChartSlot(el);
+      }
+      function pdChartDestroyer(key) { return function() { pdDestroyChart(key); }; }
 
-        var phaseLabels = { analysis: '需求分析', design: '设计', implementation: '实现', testing: '测试', completed: '已完成' };
-        var phaseColors = { analysis: '#2383e2', design: '#876de2', implementation: '#f59e0b', testing: '#e74c3c', completed: '#10b981' };
-
-        if (typeof Chart === 'undefined') {
-          [ctxPhase, ctxTodo, ctxKnowledge, ctxLayer, ctxTags].forEach(function(c) {
-            if (!c) return;
-            var parent = c.parentElement;
-            parent.innerHTML = '<div class="empty-state" style="height:180px;display:flex;align-items:center;justify-content:center">图表库加载中...</div>';
-          });
-          return;
-        }
-
-        // 阶段分布 - 饼图
-        var phaseData = phaseDist && phaseDist.length ? phaseDist : [];
-        pdChartInstances.phaseChart = new Chart(ctxPhase, {
+      function renderPdPhaseChartWidget(el, ctx) {
+        var data = (pdWidgetsData && pdWidgetsData.phaseDist) || null;
+        var canvas = pdChartSlot(el); if (!canvas) return;
+        if (!data) { el.innerHTML = '<div class="av-empty">加载中…</div>'; return; }
+        if (!data.length) { el.innerHTML = '<div class="av-empty">暂无数据</div>'; return; }
+        pdChartInstances['pd-chart-phase'] = new Chart(canvas, {
           type: 'doughnut',
           data: {
-            labels: phaseData.map(function(p) { return phaseLabels[p.phase] || p.phase; }),
-            datasets: [{ data: phaseData.map(function(p) { return p.count; }), backgroundColor: phaseData.map(function(p) { return phaseColors[p.phase] || '#ccc'; }), borderWidth: 0 }]
+            labels: data.map(function(p) { return PD_PHASE_LABELS[p.phase] || p.phase; }),
+            datasets: [{ data: data.map(function(p) { return p.count; }), backgroundColor: data.map(function(p) { return PD_PHASE_COLORS[p.phase] || '#ccc'; }), borderWidth: 0 }]
           },
           options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12, font: { size: 11 } } } } }
         });
+      }
 
-        // 任务完成率 - 进度环图（中心显示百分比）
-        var done = todoCompletion && (todoCompletion.completed || todoCompletion.done) ? (todoCompletion.completed || todoCompletion.done) : 0;
-        var total = todoCompletion && todoCompletion.total ? todoCompletion.total : 1;
+      // 任务完成率 - 进度环图（中心显示百分比）
+      function renderPdTodoChartWidget(el, ctx) {
+        var tc = pdWidgetsData ? pdWidgetsData.todoCompletion : null;
+        if (typeof Chart === 'undefined') { el.innerHTML = '<div class="av-empty">图表库加载中…</div>'; return; }
+        pdDestroyChart('pd-chart-todo');
+        el.innerHTML = '';
+        var done = tc ? (tc.completed || tc.done || 0) : 0;
+        var total = tc && tc.total ? tc.total : 1;
         var percent = total > 0 ? Math.round(done / total * 100) : 0;
-        var centerEl = document.getElementById('pdTodoChartCenter');
-        if (centerEl) centerEl.textContent = percent + '%';
-        pdChartInstances.todoChart = new Chart(ctxTodo, {
+        var wrap = document.createElement('div');
+        wrap.className = 'pd-chart-container';
+        wrap.style.cssText = 'position:absolute;inset:8px 12px 12px';
+        var canvas = document.createElement('canvas');
+        var center = document.createElement('div');
+        center.className = 'pd-chart-center-label';
+        center.textContent = percent + '%';
+        wrap.appendChild(canvas); wrap.appendChild(center);
+        el.appendChild(wrap);
+        pdChartInstances['pd-chart-todo'] = new Chart(canvas, {
           type: 'doughnut',
           data: {
             labels: ['已完成', '未完成'],
@@ -2526,51 +2658,70 @@
           },
           options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12, font: { size: 11 } } } } }
         });
+      }
 
-        // 知识积累趋势 - 折线图（按月累计，真实数据）
-        var trendData = knowledgeTrend && knowledgeTrend.length ? knowledgeTrend : [];
-        pdChartInstances.knowledgeChart = new Chart(ctxKnowledge, {
+      // 知识积累趋势 - 折线图（按月累计，真实数据）
+      function renderPdKnowledgeChartWidget(el, ctx) {
+        var trend = (pdWidgetsData && pdWidgetsData.knowledgeTrend) || null;
+        var canvas = pdChartSlot(el); if (!canvas) return;
+        if (!trend) { el.innerHTML = '<div class="av-empty">加载中…</div>'; return; }
+        if (!trend.length) { el.innerHTML = '<div class="av-empty">暂无数据</div>'; return; }
+        pdChartInstances['pd-chart-knowledge'] = new Chart(canvas, {
           type: 'line',
           data: {
-            labels: trendData.map(function(t) { return t.month || ''; }),
-            datasets: [{ label: '知识/功能点累计', data: trendData.map(function(t) { return t.count; }), borderColor: '#2383e2', backgroundColor: 'rgba(35,131,226,0.08)', fill: true, tension: 0.3, pointRadius: 3, pointBackgroundColor: '#2383e2' }]
+            labels: trend.map(function(t) { return t.month || ''; }),
+            datasets: [{ label: '知识/功能点累计', data: trend.map(function(t) { return t.count; }), borderColor: '#2383e2', backgroundColor: 'rgba(35,131,226,0.08)', fill: true, tension: 0.3, pointRadius: 3, pointBackgroundColor: '#2383e2' }]
           },
           options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 10 }, stepSize: 1 } } } }
         });
-
-        // 模块分布 - 横向柱状图（backend/frontend/fullstack）
-        if (ctxLayer) {
-          var layerLabels = { backend: '后端', frontend: '前端', fullstack: '全栈', unknown: '未标注' };
-          var layerColors = { backend: '#4338ca', frontend: '#047857', fullstack: '#92400e', unknown: '#9ca3af' };
-          var layerData = layerDist && layerDist.length ? layerDist : [];
-          pdChartInstances.layerChart = new Chart(ctxLayer, {
-            type: 'bar',
-            data: {
-              labels: layerData.map(function(l) { return layerLabels[l.layer] || l.layer; }),
-              datasets: [{ label: '功能点数', data: layerData.map(function(l) { return l.count; }), backgroundColor: layerData.map(function(l) { return layerColors[l.layer] || '#2383e2'; }), borderRadius: 4, barThickness: 18 }]
-            },
-            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 10 }, stepSize: 1 } }, y: { grid: { display: false }, ticks: { font: { size: 11 } } } } }
-          });
-        }
-
-        // 热门标签 - 横向柱状图（Top 10）
-        if (ctxTags) {
-          var tagData = tagCounts && tagCounts.length ? tagCounts : [];
-          pdChartInstances.tagsChart = new Chart(ctxTags, {
-            type: 'bar',
-            data: {
-              labels: tagData.map(function(t) { return t.tag; }),
-              datasets: [{ label: '出现次数', data: tagData.map(function(t) { return t.count; }), backgroundColor: '#2383e2', borderRadius: 4, barThickness: 18 }]
-            },
-            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 10 }, stepSize: 1 } }, y: { grid: { display: false }, ticks: { font: { size: 10 } } } } }
-          });
-        }
       }
 
-      function renderPdTaskList(tasks) {
-        var el = $('pdTaskList');
+      // 模块分布 - 横向柱状图（backend/frontend/fullstack）
+      function renderPdLayerChartWidget(el, ctx) {
+        var layerData = (pdWidgetsData && pdWidgetsData.layerDist) || null;
+        var canvas = pdChartSlot(el); if (!canvas) return;
+        if (!layerData) { el.innerHTML = '<div class="av-empty">加载中…</div>'; return; }
+        if (!layerData.length) { el.innerHTML = '<div class="av-empty">暂无数据</div>'; return; }
+        var layerLabels = { backend: '后端', frontend: '前端', fullstack: '全栈', unknown: '未标注' };
+        var layerColors = { backend: '#4338ca', frontend: '#047857', fullstack: '#92400e', unknown: '#9ca3af' };
+        pdChartInstances['pd-chart-layer'] = new Chart(canvas, {
+          type: 'bar',
+          data: {
+            labels: layerData.map(function(l) { return layerLabels[l.layer] || l.layer; }),
+            datasets: [{ label: '功能点数', data: layerData.map(function(l) { return l.count; }), backgroundColor: layerData.map(function(l) { return layerColors[l.layer] || '#2383e2'; }), borderRadius: 4, barThickness: 18 }]
+          },
+          options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 10 }, stepSize: 1 } }, y: { grid: { display: false }, ticks: { font: { size: 11 } } } } }
+        });
+      }
+
+      // 热门标签 - 横向柱状图（Top 10）
+      function renderPdTagsChartWidget(el, ctx) {
+        var tagData = (pdWidgetsData && pdWidgetsData.tagCounts) || null;
+        var canvas = pdChartSlot(el); if (!canvas) return;
+        if (!tagData) { el.innerHTML = '<div class="av-empty">加载中…</div>'; return; }
+        if (!tagData.length) { el.innerHTML = '<div class="av-empty">暂无数据</div>'; return; }
+        pdChartInstances['pd-chart-tags'] = new Chart(canvas, {
+          type: 'bar',
+          data: {
+            labels: tagData.map(function(t) { return t.tag; }),
+            datasets: [{ label: '出现次数', data: tagData.map(function(t) { return t.count; }), backgroundColor: '#2383e2', borderRadius: 4, barThickness: 18 }]
+          },
+          options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 10 }, stepSize: 1 } }, y: { grid: { display: false }, ticks: { font: { size: 10 } } } } }
+        });
+      }
+
+      function renderPdTaskWidget(el, ctx) {
+        var tasks = pdWidgetsData ? pdWidgetsData.allTasks : null;
+        var filterValue = pdTaskFilterState;
+        var html = '<div class="pd-task-list-header"><span style="font-size:13px;font-weight:650;color:var(--ws-text)">任务状态</span>' +
+          '<div class="pd-task-list-filters">' +
+            '<button class="pd-task-list-filter' + (filterValue === 'all' ? ' active' : '') + '" data-task-filter="all" type="button">全部</button>' +
+            '<button class="pd-task-list-filter' + (filterValue === 'done' ? ' active' : '') + '" data-task-filter="done" type="button">已完成</button>' +
+            '<button class="pd-task-list-filter' + (filterValue === 'todo' ? ' active' : '') + '" data-task-filter="todo" type="button">待完成</button>' +
+          '</div></div>';
         if (!tasks || !tasks.length) {
-          el.innerHTML = '<div class="empty-state">暂无任务数据</div>';
+          el.innerHTML = html + '<div class="empty-state" style="padding:18px 0">暂无任务数据</div>';
+          bindTaskFilterClick(el);
           return;
         }
         // 按功能点分组
@@ -2580,11 +2731,9 @@
           if (!grouped[key]) grouped[key] = { fpName: t.fpName, projectName: t.projectName, fpId: t.fpId, items: [] };
           grouped[key].items.push(t);
         });
-        var activeFilter = document.querySelector('.pd-task-list-filter.active');
-        var filterValue = activeFilter ? activeFilter.dataset.taskFilter : 'all';
         var groupKeys = Object.keys(grouped);
         var totalDisplay = 0;
-        var html = groupKeys.map(function(key) {
+        var listHtml = groupKeys.map(function(key) {
           var g = grouped[key];
           var filtered = g.items.filter(function(t) {
             if (filterValue === 'all') return true;
@@ -2599,11 +2748,8 @@
           }).join('');
           return '<div style="margin-bottom:4px;font-size:11px;color:var(--ws-faint);padding:2px 14px">' + escapeHtml(g.projectName || '') + '</div>' + itemsHtml;
         }).join('');
-        if (!totalDisplay) {
-          el.innerHTML = '<div class="empty-state">暂无匹配的任务</div>';
-          return;
-        }
-        el.innerHTML = html;
+        if (!totalDisplay) listHtml = '<div class="empty-state" style="padding:18px 0">暂无匹配的任务</div>';
+        el.innerHTML = html + '<div class="pd-task-list">' + listHtml + '</div>';
         // 任务项点击查看详情
         el.querySelectorAll('.pd-task-item').forEach(function(item) {
           item.addEventListener('click', function() {
@@ -2611,10 +2757,23 @@
             if (reqId) showPdRequirementDetail(reqId);
           });
         });
+        bindTaskFilterClick(el);
+      }
+      // 任务列表筛选切换：更新状态后重渲染本组件
+      function bindTaskFilterClick(scopeEl) {
+        var wrap = scopeEl.querySelector('.pd-task-list-filters');
+        if (!wrap || wrap.dataset.bound) return;
+        wrap.dataset.bound = '1';
+        wrap.addEventListener('click', function(e) {
+          var btn = e.target.closest && e.target.closest('.pd-task-list-filter');
+          if (!btn) return;
+          pdTaskFilterState = btn.dataset.taskFilter;
+          renderPdTaskWidget(scopeEl, {});
+        });
       }
 
-      function renderPdActivities(activities) {
-        var el = $('pdActivityList');
+      function renderPdActivityWidget(el, ctx) {
+        var activities = (pdWidgetsData && pdWidgetsData.activities) || null;
         if (!activities || !activities.length) {
           el.innerHTML = '<div class="empty-state">暂无活动记录</div>';
           return;
@@ -2665,16 +2824,12 @@
           '</div></div>';
       }
 
-      function renderPdAiArchive() {
-        var el = $('pdAiArchiveList');
-        var countEl = $('pdAiArchiveCount');
-        if (!el) return;
+      function renderPdAiArchiveWidget(el, ctx) {
         var aiRecs = (pdIterations || []).filter(function(r) {
           return isAiSessionSource(r);
         }).sort(function(a, b) { return (b.createdAt || '').localeCompare(a.createdAt || ''); });
-        if (countEl) countEl.textContent = aiRecs.length ? ('（' + aiRecs.length + ' 条）') : '';
         if (!aiRecs.length) {
-          el.innerHTML = '<div class="empty-state">暂无牛马归档（DSH/TraeCode 回合结束且存在产出信号时自动记录）</div>';
+          el.innerHTML = '<div class="empty-state">暂无牛马归档<br><span style="font-size:11px;color:var(--ws-faint)">DSH/TraeCode 回合结束且存在产出信号时自动记录</span></div>';
           return;
         }
         var LIMIT = 5;
@@ -2684,11 +2839,11 @@
           html += '<button class="pd-ai-toggle" id="pdAiArchiveToggle" type="button">' +
             (pdAiArchiveExpanded ? '收起' : '展开全部（共 ' + aiRecs.length + ' 条）') + '</button>';
         }
-        el.innerHTML = html;
-        var toggle = document.getElementById('pdAiArchiveToggle');
+        el.innerHTML = '<div class="pd-ai-archive-list">' + html + '</div>';
+        var toggle = el.querySelector('#pdAiArchiveToggle');
         if (toggle) toggle.addEventListener('click', function() {
           pdAiArchiveExpanded = !pdAiArchiveExpanded;
-          renderPdAiArchive();
+          renderPdAiArchiveWidget(el, {});
         });
       }
 
@@ -2843,7 +2998,7 @@
               if (!r.ok) { alert('删除失败，请重试'); return; }
               var iterRes = await fetch('/api/workspace/feature-points/iterations').catch(function() { return { ok: false }; });
               pdIterations = iterRes && iterRes.ok ? (await iterRes.json().catch(function() { return []; })) : [];
-              renderPdAiArchive();
+              refreshPdWidgets();
             } catch (err) { alert('删除失败，请重试'); }
           };
           showModal(confirmModal);
@@ -3595,18 +3750,6 @@
         });
       }
 
-      // 任务列表筛选按钮
-      var pdTaskFilters = $('pdTaskFilters');
-      if (pdTaskFilters) {
-        pdTaskFilters.addEventListener('click', function(e) {
-          var btn = e.target.closest && e.target.closest('.pd-task-list-filter');
-          if (!btn) return;
-          pdTaskFilters.querySelectorAll('.pd-task-list-filter').forEach(function(b) { b.classList.remove('active'); });
-          btn.classList.add('active');
-          loadProductDev();
-        });
-      }
-
       // 甘特图缩放按钮（二期功能，tab 已隐藏，禁用旧接口调用）
       document.querySelectorAll('.pd-gantt-zoom-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
@@ -3648,6 +3791,7 @@
       /* ── Init ── */
       (async function init() {
         registerOverviewWidgets();
+        registerPdWidgets();
         var widgetEditBtn = $('widgetEditBtn');
         if (widgetEditBtn) widgetEditBtn.addEventListener('click', openEditMode);
         var palette = $('widgetPalette');

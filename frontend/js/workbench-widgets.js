@@ -18,8 +18,10 @@
   var STORAGE_KEY = 'workspace_widget_layout_v1';
   var LAYOUT_VER = 1;
 
-  var registry = {};      // id -> { id,title,defaultSize,minSize,render,destroy }
+  var registry = {};      // id -> { id,title,defaultSize,minSize,render,destroy,scope }
   var board = null;       // 容器元素
+  var boardScope = 'overview'; // 当前板的组件归属（palette 过滤用）
+  var ro = null;          // 当前板 ResizeObserver（换板时断开，避免旧板幽灵重排）
   var opts = { cols: 4, rowH: 170 };
   var state = { widgets: [] }; // [{ id,col,row,w,h }]
   var cards = {};         // id -> 对应 DOM .wb-card
@@ -57,7 +59,7 @@
       var def = registry[e.id];
       var w = clamp(e.w || def.defaultSize.w, def.minSize.w, opts.cols);
       var h = clamp(e.h || def.defaultSize.h, def.minSize.h, 10);
-      return { id: e.id, col: clamp(e.col || 0, 0, opts.cols - w), row: Math.max(0, e.row | 0), w: w, h: h };
+      return { id: e.id, title: typeof e.title === 'string' ? e.title : '', col: clamp(e.col || 0, 0, opts.cols - w), row: Math.max(0, e.row | 0), w: w, h: h };
     });
   }
   function persist() {
@@ -76,13 +78,17 @@
 
   function cardDOM(id) {
     var def = registry[id];
+    var entry = state.widgets.find(function (e) { return e.id === id; });
     var el = document.createElement('article');
     el.className = 'wb-card';
     el.dataset.id = id;
     el.innerHTML =
       '<div class="wb-head">' +
         '<span class="wb-drag" title="拖动换位"><svg viewBox="0 0 24 24"><path d="M9 5h2v2H9zM13 5h2v2h-2zM9 11h2v2H9zM13 11h2v2h-2zM9 17h2v2H9zM13 17h2v2h-2z"/></svg></span>' +
-        '<h3 class="wb-title">' + def.title + '</h3>' +
+        '<h3 class="wb-title">' + ((entry && entry.title) ? entry.title : def.title) + '</h3>' +
+        '<button type="button" class="wb-settings" title="组件设置" aria-label="组件设置">' +
+          '<svg viewBox="0 0 24 24"><path d="M12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8zm0 2.2a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4zM19.4 13c0-.3.1-.7.1-1s0-.7-.1-1l2-1.6-2-3.4-2.4 1a7.3 7.3 0 0 0-1.7-1l-.4-2.5h-4l-.4 2.5c-.6.3-1.2.6-1.7 1l-2.4-1-2 3.4 2 1.6c-.1.3-.1.7-.1 1s0 .7.1 1l-2 1.6 2 3.4 2.4-1c.5.4 1.1.7 1.7 1l.4 2.5h4l.4-2.5c.6-.3 1.2-.6 1.7-1l2.4 1 2-3.4-2-1.6z"/></svg>' +
+        '</button>' +
         '<button type="button" class="wb-remove" title="移除组件" aria-label="移除">&#10005;</button>' +
       '</div>' +
       '<div class="wb-body"></div>' +
@@ -157,6 +163,12 @@
     if (rm) {
       var c = ev.target.closest('.wb-card');
       if (c && c.dataset.id) { ev.preventDefault(); ev.stopPropagation(); api.removeWidget(c.dataset.id); }
+      return;
+    }
+    var st = ev.target.closest('.wb-settings');
+    if (st) {
+      var sc = ev.target.closest('.wb-card');
+      if (sc && sc.dataset.id) { ev.preventDefault(); ev.stopPropagation(); api.openSettings(sc.dataset.id); }
       return;
     }
     // 拖拽区：编辑态下整条卡片头均可拖（排除按钮），把手保留
@@ -301,6 +313,31 @@
     });
     return out;
   }
+  function closeSettingsModal() {
+    var m = document.querySelector('.wb-settings-modal');
+    if (m) m.remove();
+  }
+  // 紧凑排列：按 上→下、左→右 稳定顺序，把卡片依次塞到首个不与已放置卡片冲突的空位，消除拖拽遗留的空洞
+  function compactLayout() {
+    var sorted = state.widgets.slice().sort(function (a, b) { return a.row - b.row || a.col - b.col; });
+    var placed = [];
+    sorted.forEach(function (o) {
+      var found = false;
+      outer:
+      for (var row = 0; row < 60; row++) {
+        for (var c = 0; c <= opts.cols - o.w; c++) {
+          var r = { col: c, row: row, w: o.w, h: o.h };
+          if (placed.every(function (p) { return !overlaps(r, p); })) { o.col = c; o.row = row; placed.push(r); found = true; break outer; }
+        }
+      }
+      // 兜底：扫描不到空位时追加到底部最末项之下
+      if (!found) {
+        o.col = 0;
+        o.row = placed.reduce(function (mx, p) { return Math.max(mx, p.row + p.h); }, 0);
+        placed.push({ col: o.col, row: o.row, w: o.w, h: o.h });
+      }
+    });
+  }
 
   // ‾‾‾‾‾ 公开 API ‾‾‾‾‾
   var api = {
@@ -309,20 +346,44 @@
       registry[def.id] = {
         id: def.id,
         title: def.title || def.id,
+        scope: def.scope || 'overview',
         defaultSize: def.defaultSize || { w: 1, h: 1 },
         minSize: def.minSize || { w: 1, h: 1 },
         render: def.render,
         destroy: def.destroy || null
       };
     },
+    // 卸载当前板：旧布局落盘 → 各组件 destroy（销毁 chart 等资源）→ 清状态。
+    // 换板（mount 到另一容器）与 destroy() 前调用，避免 chart 实例 / ResizeObserver 泄漏。
+    detachBoard: function () {
+      if (!board) return;
+      persist();
+      state.widgets.forEach(function (e) {
+        var d = registry[e.id] && registry[e.id].destroy;
+        if (d) { try { d(cards[e.id]); } catch (err) {} }
+      });
+      if (ro) { try { ro.disconnect(); } catch (err) {} ro = null; }
+      if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
+      settleEl = null;
+      cards = {};
+      state.widgets = [];
+      editing = false;
+      live = null;
+    },
     mount: function (el, cfg) {
-      board = el; opts = Object.assign({ cols: 4, rowH: 170 }, cfg || {});
+      if (board && board !== el) api.detachBoard();
+      board = el;
+      opts = Object.assign({ cols: 4, rowH: 170 }, cfg || {});
       if (!opts.cols) opts.cols = 4;
+      boardScope = opts.scope || 'overview';
+      // 切换布局命名空间（先切 key 再拉取布局，避免先载入旧 key 布局）
+      if (cfg && cfg.layoutKey && cfg.layoutKey !== STORAGE_KEY) STORAGE_KEY = cfg.layoutKey;
+      editing = false;
       loadLayout(cfg && cfg.initialLayout);
       buildCards();
       relayout();
       if (window.ResizeObserver) {
-        try { new ResizeObserver(function () { relayout(); }).observe(board); } catch (e) {}
+        try { ro = new ResizeObserver(function () { relayout(); }); ro.observe(board); } catch (e) {}
       }
     },
     setEditMode: function (on) { editing = !!on; applyEditControls(); },
@@ -338,6 +399,59 @@
       loadLayout(null);
       buildCards();
       relayout();
+    },
+    // 一键紧凑排列：消除拖拽遗留的空洞
+    compact: function () {
+      if (!state.widgets.length) return;
+      compactLayout();
+      relayout();
+      persist();
+    },
+    // 组件设置弹窗：自定义标题与宽/高（clamp 到 minSize..上限），随布局存档
+    openSettings: function (id) {
+      var entry = state.widgets.find(function (e) { return e.id === id; });
+      var def = registry[id];
+      if (!entry || !def) return;
+      closeSettingsModal();
+      var modal = document.createElement('div');
+      modal.className = 'wb-settings-modal';
+      modal.innerHTML =
+        '<div class="wb-settings-panel">' +
+          '<h3>' + def.title + ' · 设置</h3>' +
+          '<label class="ws-field">标题<input type="text" class="ws-input" id="wsTitle" maxlength="40" placeholder="留空恢复默认标题"></label>' +
+          '<div class="ws-row">' +
+            '<label class="ws-field">宽度<input type="number" class="ws-input" id="wsW" min="' + def.minSize.w + '" max="' + opts.cols + '"></label>' +
+            '<label class="ws-field">高度<input type="number" class="ws-input" id="wsH" min="' + def.minSize.h + '" max="12"></label>' +
+          '</div>' +
+          '<div class="ws-actions">' +
+            '<button type="button" class="ws-cancel">取消</button>' +
+            '<button type="button" class="ws-save">保存</button>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(modal);
+      modal.querySelector('#wsTitle').value = entry.title || '';
+      modal.querySelector('#wsW').value = entry.w;
+      modal.querySelector('#wsH').value = entry.h;
+      modal.addEventListener('click', function (e) { if (e.target === modal) closeSettingsModal(); });
+      modal.querySelector('.ws-cancel').addEventListener('click', closeSettingsModal);
+      modal.querySelector('.ws-save').addEventListener('click', function () {
+        var w = parseInt(modal.querySelector('#wsW').value, 10);
+        var h = parseInt(modal.querySelector('#wsH').value, 10);
+        if (isNaN(w) || isNaN(h)) return;
+        entry.w = clamp(w, def.minSize.w, opts.cols);
+        entry.h = clamp(h, def.minSize.h, 12);
+        entry.title = (modal.querySelector('#wsTitle').value || '').trim();
+        var card = cards[id];
+        if (card) {
+          var t = card.querySelector('.wb-title');
+          if (t) t.textContent = entry.title || def.title;
+        }
+        relayout();
+        persist();
+        closeSettingsModal();
+      });
+      var ti = modal.querySelector('#wsTitle');
+      if (ti) ti.focus();
     },
     addWidget: function (id) {
       if (!registry[id] || state.widgets.some(function (e) { return e.id === id; })) return;
@@ -383,10 +497,13 @@
       });
     },
     getWidgets: function () { return state.widgets.slice(); },
-    getRegistered: function () { return Object.keys(registry); },
+    getRegistered: function (scope) {
+      if (!scope) return Object.keys(registry);
+      return Object.keys(registry).filter(function (id) { return (registry[id].scope || 'overview') === scope; });
+    },
     destroy: function () {
+      api.detachBoard();
       if (board) { board.onpointerdown = null; board.onpointermove = null; board.onpointerup = null; board = null; }
-      cards = {}; state.widgets = [];
     }
   };
 

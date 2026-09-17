@@ -958,6 +958,15 @@ select {
   font-family: var(--app-font-mono) !important;
 }
 
+/* 写作模块字体：编辑区 + Markdown 预览区统一使用字体模块下发的 --app-writing-font。
+   必须置于上方等宽强覆盖规则之后，并用更高优先级（.editor-app 前缀）确保生效 */
+.editor-app .ace_editor,
+.editor-app .ace_editor *,
+.editor-app .ace-host,
+.markdown-body {
+  font-family: var(--app-writing-font) !important;
+}
+
 /* 差异行级底色：跟随主题变量 --app-success/--app-danger（明暗主题各自取值），
    避免硬编码浅色主题 RGB 在深色下呈现暗沉浑浊的"背景颜色错乱"（Bug 修复）。 */
 .ace_marker-layer .diff-added-line {

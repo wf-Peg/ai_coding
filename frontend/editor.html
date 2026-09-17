@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="styles/design-tokens.css">
   <link rel="stylesheet" href="styles/ui-common.css">
   <link rel="stylesheet" href="styles/editor.css">
+  <link rel="stylesheet" href="fonts/fonts.css">
+  <link rel="stylesheet" href="fonts/misans/MiSans-Regular.min.css">
   <script src="js/theme-core.js"></script>
   <script src="js/theme-bridge.js"></script>
   <script>
@@ -593,6 +595,13 @@
       </div>
       <!-- 基本设置 -->
       <div class="settings-tab-content" id="settingsBasic">
+        <label class="field-label" for="fontFamilySelect">字体</label>
+        <select class="field-control" id="fontFamilySelect" title="写作编辑区与预览区的字体">
+          <option value="default">默认 / 跟随主题</option>
+          <option value="misans">MiSans · 现代黑体</option>
+          <option value="wenkai">霞鹜文楷 · 文艺手写</option>
+          <option value="sarasa">更纱黑体 SC · 等宽混排</option>
+        </select>
         <label class="field-label" for="fontSizeSlider">字体大小</label>
         <div class="settings-row">
           <input type="range" id="fontSizeSlider" min="8" max="40" value="13" step="1">

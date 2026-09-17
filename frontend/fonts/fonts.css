@@ -1,0 +1,18 @@
+/* 写作模块内置字体（子集化，SIL OFL-1.1 免费可商用）
+   覆盖范围：ASCII + Latin-1 + 常用标点 + CJK 常用汉字（U+4E00-9FA5），
+   其余生僻字自动回落 font-family 栈中的系统字体。*/
+@font-face {
+  font-family: "LXGW WenKai";
+  src: url("lxgw-wenkai.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Sarasa Mono SC";
+  src: url("sarasa-mono-sc.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}

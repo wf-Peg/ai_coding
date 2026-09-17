@@ -55,8 +55,8 @@
 .wb-head .wb-tag { flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 999px; background: var(--ws-primary-soft); color: var(--ws-primary); font-size: 11px; font-weight: 500; white-space: nowrap; }
 
 /* 编辑控件：默认隐藏，编辑态显示 */
-.wb-drag, .wb-remove, .wb-resize { display: none; }
-.wb-board.edit-on .wb-drag, .wb-board.edit-on .wb-remove, .wb-board.edit-on .wb-resize { display: flex; }
+.wb-drag, .wb-remove, .wb-resize, .wb-settings { display: none; }
+.wb-board.edit-on .wb-drag, .wb-board.edit-on .wb-remove, .wb-board.edit-on .wb-resize, .wb-board.edit-on .wb-settings { display: flex; }
 .wb-drag {
   flex: none; align-items: center; justify-content: center;
   width: 26px; height: 26px; border-radius: var(--app-radius-sm);
@@ -70,6 +70,13 @@
   background: transparent; color: var(--ws-faint); cursor: pointer; font-size: 15px; line-height: 1;
 }
 .wb-remove:hover { color: #fff; background: var(--ws-danger); }
+.wb-settings {
+  align-items: center; justify-content: center;
+  width: 24px; height: 24px; flex: none; border: 0; border-radius: var(--app-radius-sm);
+  background: transparent; color: var(--ws-faint); cursor: pointer;
+}
+.wb-settings svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.wb-settings:hover { color: var(--ws-primary); background: var(--ws-primary-soft); }
 .wb-resize {
   position: absolute; right: 0; bottom: 0;
   width: 18px; height: 18px; cursor: nwse-resize;
@@ -175,6 +182,38 @@ body.wb-dragging .wb-card { user-select: none; }
 .wb-funnel-foot { font-size: 12px; color: var(--ws-muted); }
 .wb-funnel-loading, .wb-funnel-empty { margin: auto; text-align: center; color: var(--ws-faint); font-size: 12px; line-height: 1.8; }
 
+/* ── 组件设置弹窗 ── */
+.wb-settings-modal {
+  position: fixed; inset: 0; z-index: 420;
+  background: rgba(0,0,0,.18);
+  display: flex; align-items: center; justify-content: center; padding: 18px;
+}
+.wb-settings-panel {
+  width: 100%; max-width: 360px; box-sizing: border-box;
+  background: var(--ws-surface); border: 1px solid var(--ws-border);
+  border-radius: var(--app-radius-lg); box-shadow: var(--app-shadow);
+  padding: 18px;
+}
+.wb-settings-panel h3 { margin: 0 0 14px; font-size: 15px; font-weight: 600; color: var(--ws-text); }
+.ws-field { display: flex; flex-direction: column; gap: 5px; flex: 1; color: var(--ws-muted); font-size: 12px; }
+.ws-row { display: flex; gap: 10px; margin-top: 10px; }
+.ws-input {
+  border: 1px solid var(--ws-border); border-radius: var(--app-radius);
+  background: var(--ws-subtle); color: var(--ws-text); font: inherit; font-size: 13px;
+  padding: 7px 10px; outline: none; width: 100%; box-sizing: border-box;
+  transition: border-color var(--app-duration-fast) ease;
+}
+.ws-input:focus { border-color: var(--ws-primary); }
+.ws-actions { margin-top: 16px; display: flex; justify-content: flex-end; gap: 8px; }
+.ws-cancel, .ws-save {
+  padding: 7px 14px; border-radius: var(--app-radius); border: 1px solid var(--ws-border);
+  background: var(--ws-surface); color: var(--ws-text); font: inherit; font-size: 13px; cursor: pointer;
+  transition: border-color var(--app-duration-fast) ease, background var(--app-duration-fast) ease;
+}
+.ws-cancel:hover { border-color: var(--ws-text); }
+.ws-save { border-color: var(--ws-primary); background: var(--ws-primary); color: #fff; }
+.ws-save:hover { filter: brightness(1.06); }
+
 /* ── 添加组件面板 ── */
 .wb-palette {
   position: fixed; inset: 0; z-index: 400;
@@ -210,3 +249,18 @@ body.wb-dragging .wb-card { user-select: none; }
   .wb-ws-ctx { padding: 8px 9px; }
   .wb-ws-ctx select { max-width: 110px; }
 }
+
+/* ── 产品概览组件板（pd-widgets 专用布局：组件卡内网格/滚动，复用 workspace.css 的 pd-* 类） ── */
+/* 统计卡：body 内网格排布（原 .pd-dashboard 布局），行高受限时滚动 */
+.wb-card[data-id="pd-stat-cards"] .wb-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; align-content: start; overflow: auto; }
+.wb-card[data-id="pd-stat-cards"] .pd-dash-card { padding: 12px 14px; }
+.wb-card[data-id="pd-stat-cards"] .pd-dash-card-value { font-size: 22px; }
+/* 牛马记录：列表占满卡内剩余高度并独立滚动（覆盖全局 .pd-ai-archive-list 的 440px 上限） */
+.wb-card[data-id="pd-ai-archive"] .wb-body { display: flex; flex-direction: column; }
+.wb-card[data-id="pd-ai-archive"] .pd-ai-archive-list { height: 0; flex: 1 1 auto; max-height: none; }
+/* 任务状态：标题固定、列表占满并滚动 */
+.wb-card[data-id="pd-task-list"] .wb-body { display: flex; flex-direction: column; }
+.wb-card[data-id="pd-task-list"] .pd-task-list-header { flex: none; padding: 8px 12px 6px; }
+.wb-card[data-id="pd-task-list"] .pd-task-list { height: 0; flex: 1 1 auto; overflow: auto; padding-bottom: 6px; }
+/* 最近活动：卡内纵向滚动 */
+.wb-card[data-id="pd-activity"] .wb-body { overflow: auto; }

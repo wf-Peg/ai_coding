@@ -71,8 +71,73 @@
   let drawTool = null;           // null | 'pen' | 'highlighter' | 'eraser'
   let inkSize = 'thin';          // 粗细档
   let inkColor = INK_COLORS[0];
-  let strokes = [];              // 墨迹数据 [{color,width,opacity,points:[[x,y]...]}]
+  let strokes = [];              // 墨迹数据 [{id,color,width,opacity,points:[[x,y]...]}]
   let drawing = null;            // 进行中的墨迹 {el, points, color, width, opacity}
+
+  // ---- 墨迹持久化（多文档隔离）：400ms 防抖落库，切换/卸载前立即 flush ----
+  const INK_SAVE_DEBOUNCE = 400; // 与 canvasSync.schedulePush 的 400ms 呼应，避免逐笔往返 IPC
+  let inkDirty = false;          // 有待落库的墨迹变更
+  let inkTimer = null;           // 防抖定时器
+
+  function newInkId() {
+    var b36 = '0123456789abcdefghijklmnopqrstuvwxyz';
+    var rnd = '';
+    for (var i = 0; i < 6; i++) rnd += b36[Math.floor(Math.random() * 36)];
+    return 'ink:' + Date.now().toString(36) + ':' + rnd;
+  }
+
+  function saveInkBridge() {
+    var bridge = window.electronAPI && window.electronAPI.localIndex;
+    return bridge && typeof bridge.saveCanvasInk === 'function' ? bridge : null;
+  }
+
+  // 标记墨迹已变更：起 400ms 防抖，到点由 doSaveInk 落库
+  function markInkDirty() {
+    inkDirty = true;
+    if (inkTimer) return;
+    inkTimer = setTimeout(function () {
+      inkTimer = null;
+      doSaveInk();
+    }, INK_SAVE_DEBOUNCE);
+  }
+
+  // 立即把当前文档墨迹写入本地索引（整文档全量替换）。失败保留 dirty，下次变更/切换再重试
+  async function doSaveInk() {
+    if (!inkDirty) return;
+    var bridge = saveInkBridge();
+    if (!bridge || !currentDocId) { inkDirty = false; return; }
+    try {
+      var res = await bridge.saveCanvasInk({ docId: currentDocId, strokes: strokes });
+      if (res && res.success) inkDirty = false;
+    } catch (e) { /* 静默：保留 dirty，不打断作画 */ }
+  }
+
+  // 强制落库（切换文档 / 清空 / 卸载前调用）；无变更时短路
+  async function flushInk() {
+    if (inkTimer) { clearTimeout(inkTimer); inkTimer = null; }
+    if (inkDirty) await doSaveInk();
+  }
+
+  // 载入库中墨迹 → strokes（数据先行；渲染由调用方按是否有节点决定走 renderCanvas 或 ensureInkLayer）
+  function loadInk(incoming) {
+    strokes = Array.isArray(incoming) ? incoming.map(function (s) {
+      return {
+        id: (s && typeof s.id === 'string') ? s.id : null,
+        color: s && s.color,
+        width: s && s.width,
+        opacity: s && s.opacity,
+        points: Array.isArray(s && s.points) ? s.points : []
+      };
+    }) : [];
+    inkDirty = false;
+    if (inkTimer) { clearTimeout(inkTimer); inkTimer = null; }
+    if (strokes.length) {
+      // 有笔迹：确保擦写板层存在并渲染（空文档路径也显示墨迹）
+      ensureInkLayer();
+      inboxEmptyStateHide();
+      renderInk();
+    }
+  }
 
   // ---- 数据加载 ----
 
@@ -2335,7 +2400,8 @@
     });
 
     var byOrder = function(a, b) {
-      var na = nodeMap[a.data.id] || {}, nb = nodeMap[b.data.id] || {};
+      var wa = a.data || a, wb = b.data || b;
+      var na = nodeMap[wa.id] || {}, nb = nodeMap[wb.id] || {};
       var oa = na.orderIndex == null ? 1e9 : na.orderIndex;
       var ob = nb.orderIndex == null ? 1e9 : nb.orderIndex;
       if (oa !== ob) return oa - ob;
@@ -2351,7 +2417,7 @@
 
     root.each(function(nd) {
       if (nd.data.id === '__virtual_root__') return;
-      positions.push({ id: nd.data.id, x: nd.depth * H_GAP, y: nd.x });
+      positions.push({ id: nd.data.id, x: (nd.depth - 1) * H_GAP, y: nd.x });
     });
     return positions;
   }

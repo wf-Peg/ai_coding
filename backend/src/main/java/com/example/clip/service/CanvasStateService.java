@@ -28,14 +28,15 @@ import java.util.Map;
  * <p>
  * 快照 v2 起新增 docs（多画布文档），节点/连线/分组携带 docId；服务端仅透传存储，
  * 不解析内部结构，因此 v1 旧快照（无 docs）仍可读可写，由 Electron 端做向后兼容恢复。
- * </p>
+ * 快照 v3 起新增 ink（手绘墨迹，每笔带 docId）；服务端仍不解析内部结构，
+ * 老版本无 ink 字段的快照照常透传，由 Electron 端兜底为空数组。
  */
 @Service
 public class CanvasStateService {
 
     private static final Logger log = LoggerFactory.getLogger(CanvasStateService.class);
     private static final String FILE_NAME = "canvas-state.json";
-    private static final String DEFAULT_SNAPSHOT_VERSION = "2";
+    private static final String DEFAULT_SNAPSHOT_VERSION = "3";
 
     private final ObjectMapper objectMapper;
     private final Path graphDir;
@@ -56,7 +57,7 @@ public class CanvasStateService {
     /**
      * 读取画布状态快照。文件不存在时返回空的默认快照。
      *
-     * @return { docs:[], nodes:[], edges:[], layout:{}, groups:[], updatedAt:null, version:2 }
+     * @return { docs:[], nodes:[], edges:[], layout:{}, groups:[], ink:[], updatedAt:null, version:3 }
      */
     public Map<String, Object> readState() {
         Path path = getPath();
@@ -75,6 +76,7 @@ public class CanvasStateService {
             data.putIfAbsent("edges", java.util.Collections.emptyList());
             data.putIfAbsent("layout", java.util.Collections.emptyMap());
             data.putIfAbsent("groups", java.util.Collections.emptyList());
+            data.putIfAbsent("ink", java.util.Collections.emptyList());
             data.putIfAbsent("updatedAt", null);
             data.putIfAbsent("version", DEFAULT_SNAPSHOT_VERSION);
             return data;
@@ -116,6 +118,7 @@ public class CanvasStateService {
         snapshot.put("edges", java.util.Collections.emptyList());
         snapshot.put("layout", java.util.Collections.emptyMap());
         snapshot.put("groups", java.util.Collections.emptyList());
+        snapshot.put("ink", java.util.Collections.emptyList());
         snapshot.put("updatedAt", null);
         snapshot.put("version", DEFAULT_SNAPSHOT_VERSION);
         return snapshot;

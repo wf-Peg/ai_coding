@@ -606,15 +606,21 @@
 
   function highlight(id) {
     if (!id) return;
-    var rec = rowEls.get(id);
-    if (!rec) {
-      // 行可能在折叠分支里：先展开祖先
-      var cur = byId.get(id);
-      var guard = 0;
-      while (cur && cur.parentId && guard < 100) { collapsed.delete(cur.parentId); cur = byId.get(cur.parentId); guard++; }
-      render();
-      rec = rowEls.get(id);
+    if (byId.size !== nodes.length) buildIndex();
+    var target = byId.get(id);
+    if (!target) return;
+    // 行可能在折叠分支里：先展开祖先
+    var changed = false;
+    var pid = target.parentId;
+    var guard = 0;
+    while (pid && guard < 100) {
+      if (collapsed.has(pid)) { collapsed.delete(pid); changed = true; }
+      var pnode = byId.get(pid);
+      pid = pnode ? pnode.parentId : null;
+      guard++;
     }
+    if (changed) render();
+    var rec = rowEls.get(id);
     if (!rec) return;
     setSelected(id);
     scrollRowIntoView(rec.row);

@@ -91,7 +91,7 @@
     'clipCaretBtn', 'clipMenu', 'smartClipMenuItem', 'detailClipMenuItem',
     'smartClipConfirmModal', 'smartClipMethodHint', 'smartClipPreview', 'smartClipAsyncHint', 'smartClipSaveBtn',
     'smartClipFallbackModal', 'smartClipFallbackSaveBtn', 'smartClipCopyPromptBtn',
-    'statusLang', 'statusTabSize', 'docStats', 'zoomStatus', 'settingsModal', 'fontSizeSlider', 'fontSizeLabel', 'tabSizeSelect',
+    'statusLang', 'statusTabSize', 'docStats', 'zoomStatus', 'settingsModal', 'fontFamilySelect', 'fontSizeSlider', 'fontSizeLabel', 'tabSizeSelect',
     'fullscreenBtn', 'fileTreePane', 'fileTreeTitle', 'fileTreeBody', 'closeFileTreeBtn', 'selectDirBtn', 'fileTreeHomeBtn', 'fileTreeRefreshBtn',
     'autosaveStatus', 'historyCount', 'historyList', 'closeHistoryBtn',
     'undoHistoryBtn', 'redoHistoryBtn', 'clearHistoryBtn', 'mainPane', 'historyPane', 'recentPane',
@@ -5871,6 +5871,7 @@
     elements.fontSizeSlider.value = String(currentSize);
     elements.fontSizeLabel.textContent = currentSize + 'px';
     elements.tabSizeSelect.value = String(mainEditor.session.getTabSize() || 2);
+    syncFontSelect();
     openModal(elements.settingsModal);
   });
 
@@ -6036,6 +6037,41 @@
     const size = parseInt(this.value, 10);
     mainEditor.setFontSize(size + 'px');
     elements.fontSizeLabel.textContent = size + 'px';
+  });
+
+  // ════════════════════════════════════════════
+  // 字体模块：写作编辑区 + Markdown 预览区字体选择
+  // ════════════════════════════════════════════
+  const FONT_FAMILY_KEY = 'editorWritingFont';
+  const WRITING_FONTS = {
+    default: '',                              // 未选字体：回退到 --app-font
+    misans: '"MiSans", var(--app-font)',
+    wenkai: '"LXGW WenKai", var(--app-font)',
+    sarasa: '"Sarasa Mono SC", var(--app-font)'
+  };
+  const FONT_LABELS = { default: '默认字体', misans: 'MiSans', wenkai: '霞鹜文楷', sarasa: '更纱黑体 SC' };
+  function getStoredFont() {
+    let v = 'default';
+    try { v = localStorage.getItem(FONT_FAMILY_KEY) || 'default'; } catch (e) { /* 忽略 */ }
+    return (v in WRITING_FONTS) ? v : 'default';
+  }
+  function applyWritingFont(family) {
+    const stack = WRITING_FONTS[family] || '';
+    if (stack) document.documentElement.style.setProperty('--app-writing-font', stack);
+    else document.documentElement.style.removeProperty('--app-writing-font');
+    try { localStorage.setItem(FONT_FAMILY_KEY, family); } catch (e) { /* 忽略 */ }
+  }
+  function syncFontSelect() {
+    if (elements.fontFamilySelect) elements.fontFamilySelect.value = getStoredFont();
+  }
+  // 初始化：载入保存的字体；CSS 变量方案下新标签/预览自动继承，无需额外联动
+  (function initWritingFont() {
+    applyWritingFont(getStoredFont());
+    syncFontSelect();
+  })();
+  elements.fontFamilySelect.addEventListener('change', function () {
+    applyWritingFont(this.value);
+    showToast('写作字体已切换：' + (FONT_LABELS[this.value] || this.value));
   });
 
   elements.tabSizeSelect.addEventListener('change', function () {
@@ -9473,6 +9509,7 @@
     elements.fontSizeSlider.value = String(currentSize);
     elements.fontSizeLabel.textContent = currentSize + 'px';
     elements.tabSizeSelect.value = String(mainEditor.session.getTabSize() || 2);
+    syncFontSelect();
     openModal(elements.settingsModal);
   }
 

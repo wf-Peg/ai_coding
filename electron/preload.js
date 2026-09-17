@@ -836,8 +836,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     renameCanvasDoc: (opts) => ipcRenderer.invoke('local-index:canvas:rename-doc', opts || {}),
     /** 删除画布文档（级联清理内容，至少保留一个）：opts = { id } */
     deleteCanvasDoc: (opts) => ipcRenderer.invoke('local-index:canvas:delete-doc', opts || {}),
-    /** 某文档完整状态（doc/docs/nodes/edges/groups/layout）：opts = { docId } */
+    /** 某文档完整状态（doc/docs/nodes/edges/groups/layout/ink）：opts = { docId } */
     canvasState: (opts) => ipcRenderer.invoke('local-index:canvas:state', { docId: opts && opts.docId }),
+    /** 保存某文档墨迹（整文档全量替换）：opts = { docId, strokes } */
+    saveCanvasInk: (opts) => ipcRenderer.invoke('local-index:canvas:save-ink', opts || {}),
     /** 批量保存层级结构（大纲缩进/排序）：opts = { docId, entries: [{id,parentId,orderIndex}] } */
     saveCanvasStructure: (opts) => ipcRenderer.invoke('local-index:canvas:update-structure', {
       docId: opts && opts.docId,

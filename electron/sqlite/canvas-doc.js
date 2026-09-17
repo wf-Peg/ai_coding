@@ -75,7 +75,7 @@ function renameDoc(dbConn, id, title) {
 }
 
 /**
- * 删除画布文档，并级联清理其节点、坐标、连线、分组与分组成员。
+ * 删除画布文档，并级联清理其节点、坐标、连线、分组、分组成员与墨迹。
  * 至少保留一个文档：最后一个文档不允许删除。
  * @returns {{success:boolean, message?:string, removed?:object}}
  */
@@ -85,11 +85,14 @@ function deleteDoc(dbConn, id) {
   const total = dbConn.prepare('SELECT COUNT(*) AS c FROM canvas_doc').get();
   if (total && total.c <= 1) return { success: false, message: '至少保留一个画布文档' };
 
-  const removed = { nodes: 0, edges: 0, groups: 0, layout: 0 };
+  const removed = { nodes: 0, edges: 0, groups: 0, layout: 0, ink: 0 };
   dbConn.exec('BEGIN');
   try {
     const nodeRows = dbConn.prepare('SELECT id FROM canvas_node WHERE doc_id = ?').all(id);
     const groupRows = dbConn.prepare('SELECT id FROM canvas_group WHERE doc_id = ?').all(id);
+
+    // 级联清墨迹：否则删文档后墨迹残留，下次同步会被当作有效数据带回（幽灵墨迹）
+    removed.ink = dbConn.prepare('DELETE FROM canvas_ink WHERE doc_id = ?').run(id).changes || 0;
 
     const delLayout = dbConn.prepare('DELETE FROM canvas_layout WHERE node_id = ?');
     for (const n of nodeRows) removed.layout += delLayout.run(n.id).changes || 0;

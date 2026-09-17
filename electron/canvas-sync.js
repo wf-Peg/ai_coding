@@ -5,10 +5,10 @@
  * canvas_group / canvas_group_member）以全量快照 JSON 的形式同步到后端
  * GraphController 提供的 /api/canvas（存于 clip.storage.path/graph/canvas-state.json）。
  *
- * v2 快照：新增 docs（多画布文档），nodes/edges/groups 携带 docId，
- *          nodes 另带 parentId/orderIndex（层级大纲结构真源）。
- * v1 快照（无 docs/docId）仍可恢复：全部归入默认文档 doc:default，
+ * v3 快照：新增 ink（手绘墨迹，每笔带 docId），updatedAt 纳入墨迹时间戳。
+ * v2 快照（无 docs/docId）仍可恢复：全部归入默认文档 doc:default，
  *          order_index 按原顺序补号，保证老用户跨端数据不丢、大纲可用。
+ * v3 快照（无 ink / 非法笔迹）仍可恢复：墨迹视为空数组，整笔跳过而非整批失败。
  *
  * 合并策略：last-write-wins，以快照 updatedAt 时间戳为基准（更大的覆盖旧的）。
  * 同步失败不阻塞本地：push 失败仅记日志，后续变更/进图会再补。
@@ -20,8 +20,9 @@ const canvasNode = require('./sqlite/canvas-node');
 const canvasLayout = require('./sqlite/canvas-layout');
 const canvasGroup = require('./sqlite/canvas-group');
 const canvasDoc = require('./sqlite/canvas-doc');
+const canvasInk = require('./sqlite/canvas-ink');
 
-const SNAPSHOT_VERSION = 2;
+const SNAPSHOT_VERSION = 3;
 
 /** 把本地画布各表组装为全量快照。 */
 function buildSnapshot(dbConn) {
@@ -35,28 +36,33 @@ function buildSnapshot(dbConn) {
   const nodes = canvasNode.listNodes(dbConn);
   const edges = canvasNode.listEdges(dbConn);
   const groups = canvasGroup.listGroups(dbConn);
+  const ink = canvasInk.listInk(dbConn); // 全量（每笔带 docId，供按文档恢复隔离）
 
   const layoutMap = canvasLayout.positions(dbConn); // Map<id, {x,y}>
   const layout = {};
   for (const [id, p] of layoutMap) layout[id] = { x: p.x, y: p.y };
 
-  // updatedAt 取各表最大 updated_at；全空则用当前时间，保证快照带可比较时间戳
+  // updatedAt 取各表最大 updated_at（含墨迹：只画笔迹时快照时间戳也必须前进）；
+  // 全空则用当前时间，保证快照带可比较时间戳
   let updatedAt = '';
   for (const d of docs) if (d.updatedAt && d.updatedAt > updatedAt) updatedAt = d.updatedAt;
   for (const n of nodes) if (n.updatedAt && n.updatedAt > updatedAt) updatedAt = n.updatedAt;
   for (const g of groups) if (g.updatedAt && g.updatedAt > updatedAt) updatedAt = g.updatedAt;
+  for (const k of ink) if (k.updatedAt && k.updatedAt > updatedAt) updatedAt = k.updatedAt;
   if (!updatedAt) updatedAt = new Date().toISOString();
 
-  return { docs, nodes, edges, layout, groups, updatedAt, version: SNAPSHOT_VERSION };
+  return { docs, nodes, edges, layout, groups, ink, updatedAt, version: SNAPSHOT_VERSION };
 }
 
 /**
- * 清空本地画布内容表（节点/连线/坐标/分组）。
+ * 清空本地画布内容表（节点/连线/坐标/分组/墨迹）。
  * 刻意保留 canvas_doc：文档列表由 restoreSnapshot 按快照对齐，避免中间态丢失默认文档。
+ * 墨迹必须与画布内容一起清空：否则 pull 覆盖本地时，快照里没有的旧墨迹会残留成"幽灵墨迹"。
  */
 function wipe(dbConn) {
   canvasNode.clearAll(dbConn);
   canvasGroup.clearAll(dbConn);
+  canvasInk.clearAll(dbConn);
 }
 
 /**
@@ -69,6 +75,7 @@ function restoreSnapshot(dbConn, snapshot) {
   const edges = Array.isArray(s.edges) ? s.edges : [];
   const layout = s.layout && typeof s.layout === 'object' ? s.layout : {};
   const groups = Array.isArray(s.groups) ? s.groups : [];
+  const ink = Array.isArray(s.ink) ? s.ink : []; // v2 快照无 ink → 空数组，可正常恢复
   const stamp = s.updatedAt || new Date().toISOString();
 
   // 文档清单：v1 快照无 docs → 兜底为仅默认文档
@@ -178,6 +185,26 @@ function restoreSnapshot(dbConn, snapshot) {
       }
     }
 
+    // 墨迹：docId 不在快照 docs 内 → 归默认文档；points 非法则跳过该笔（而非整批失败）
+    const insInk = dbConn.prepare(
+      'INSERT OR REPLACE INTO canvas_ink (id, doc_id, color, width, opacity, points, sort_index, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    let inkCount = 0;
+    for (const k of ink) {
+      if (!k || typeof k.id !== 'string' || !k.id) continue;
+      if (!canvasInk.validPoints(k.points)) continue;
+      const docId = (k.docId && docIds.has(k.docId)) ? k.docId : canvasDoc.DEFAULT_DOC_ID;
+      insInk.run(k.id, docId,
+        k.color != null ? String(k.color) : null,
+        k.width != null ? Number(k.width) : null,
+        k.opacity != null ? Number(k.opacity) : null,
+        JSON.stringify(k.points),
+        Number.isFinite(k.sortIndex) ? k.sortIndex : inkCount,
+        k.createdAt || k.created_at || stamp,
+        k.updatedAt || k.updated_at || stamp);
+      inkCount++;
+    }
+
     dbConn.exec('COMMIT');
   } catch (e) {
     try { dbConn.exec('ROLLBACK'); } catch (_e) { /* 忽略回滚失败 */ }
@@ -188,7 +215,8 @@ function restoreSnapshot(dbConn, snapshot) {
     nodes: nodes.length,
     edges: edges.length,
     layout: Object.keys(layout).length,
-    groups: groups.length
+    groups: groups.length,
+    ink: inkCount
   };
 }
 

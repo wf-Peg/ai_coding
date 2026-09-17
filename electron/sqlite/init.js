@@ -18,12 +18,14 @@
  *     canvas_edge / canvas_group 加 doc_id（按文档隔离）；历史数据统一回填到
  *     默认文档 doc:default，parent_id 全空（平铺根节点，视觉与升级前一致）。
  *     坐标仍存 canvas_layout（node_id 全局唯一，不加 doc_id，按文档取坐标用 JOIN）。
+ * v8：新增 canvas_ink 表（画布手绘墨迹层），手绘笔迹（画笔/荧光笔/橡皮结果）
+ *     按一笔一行 + points JSON 文本存储，doc_id 隔离；同属画布层，纳入快照 v3。
  * 后续扩展时新增版本迁移（schema_version+1），在 migrate() 里追加逻辑。
  */
 
 const canvasDoc = require('./canvas-doc');
 
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 // 建表 SQL（仅在 meta.schema_version 为空时执行 v1 建库）
 const SQL_V1 = `
@@ -146,6 +148,24 @@ CREATE INDEX IF NOT EXISTS idx_canvas_edge_doc  ON canvas_edge(doc_id);
 CREATE INDEX IF NOT EXISTS idx_canvas_group_doc ON canvas_group(doc_id);
 `;
 
+// v8 增量：画布手绘墨迹层（一笔一行，points 存 JSON 文本，按文档隔离）
+const SQL_V8 = `
+CREATE TABLE IF NOT EXISTS canvas_ink (
+  id         TEXT PRIMARY KEY,
+  doc_id     TEXT NOT NULL,
+  color      TEXT,
+  width      REAL,
+  opacity    REAL,
+  points     TEXT NOT NULL,          -- JSON：[[x,y],...]（世界坐标）
+  sort_index INTEGER,
+  created_at TEXT,
+  updated_at TEXT
+);
+`;
+const SQL_V8_INDEXES = `
+CREATE INDEX IF NOT EXISTS idx_canvas_ink_doc ON canvas_ink(doc_id, sort_index);
+`;
+
 /** 判断某表是否已存在某列。 */
 function hasColumn(db, table, column) {
   const rows = db.prepare(`PRAGMA table_info(${table})`).all();
@@ -235,6 +255,12 @@ function migrate(db) {
       addColumnIfMissing(db, 'canvas_group', 'doc_id', 'TEXT');
       db.exec(SQL_V7_INDEXES);
       backfillCanvasV7(db);
+    }
+
+    // v8：画布手绘墨迹层（建表 → 建索引，纯增量、幂等）
+    if (current < 8) {
+      db.exec(SQL_V8);
+      db.exec(SQL_V8_INDEXES);
     }
 
     // 仅在全部迁移完成后统一写入最终版本号

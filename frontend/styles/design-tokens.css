@@ -50,6 +50,8 @@
 
   --app-font: "IBM Plex Sans", "Noto Sans SC", sans-serif;
   --app-font-mono: "IBM Plex Mono", "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  /* 写作模块字体栈（编辑区 + 预览区），由字体模块通过 JS 下发覆盖 */
+  --app-writing-font: var(--app-font);
 }
 
 /* notion：纸感明亮（与 :root 同源，显式声明便于主题枚举与覆盖） */

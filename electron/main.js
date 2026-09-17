@@ -28,6 +28,7 @@ const localCanvas = require('./sqlite/canvas-layout');
 const localCanvasNode = require('./sqlite/canvas-node');
 const localCanvasGroup = require('./sqlite/canvas-group');
 const localCanvasDoc = require('./sqlite/canvas-doc');
+const localCanvasInk = require('./sqlite/canvas-ink');
 const { initCanvasSync } = require('./canvas-sync');
 // 只读目录规范体检（storage-inspect.js，仅扫描不写盘）
 const inspectStorage = require('./storage-inspect');
@@ -3563,7 +3564,7 @@ function setupIPC() {
     return res;
   }));
 
-  /** 读取某画布文档的完整状态（节点/连线/坐标/分组），供画布与大纲共用 */
+  /** 读取某画布文档的完整状态（节点/连线/坐标/分组/墨迹），供画布与大纲共用 */
   ipcMain.handle('local-index:canvas:state', localIndexGuard(async (_ev, args) => {
     const dbConn = localDb.getDatabase();
     if (!dbConn) return { success: false, message: 'local index not ready' };
@@ -3574,12 +3575,26 @@ function setupIPC() {
     const nodes = localCanvasNode.listNodes(dbConn, doc.id);
     const edges = localCanvasNode.listEdges(dbConn, doc.id);
     const groups = localCanvasGroup.listGroups(dbConn, doc.id);
+    const ink = localCanvasInk.listInk(dbConn, doc.id); // 墨迹按文档隔离
     const layout = {};
     const nodeIds = new Set(nodes.map((n) => n.id));
     for (const [id, p] of localCanvas.positions(dbConn)) {
       if (nodeIds.has(id)) layout[id] = { x: p.x, y: p.y };
     }
-    return { success: true, doc, docs, nodes, edges, groups, layout };
+    return { success: true, doc, docs, nodes, edges, groups, layout, ink };
+  }));
+
+  /** 保存某画布文档的墨迹（整文档全量替换）：args = { docId, strokes } */
+  ipcMain.handle('local-index:canvas:save-ink', localIndexGuard(async (_ev, args) => {
+    const { docId, strokes } = args || {};
+    if (!docId) return { success: false, message: 'docId is required' };
+    if (!Array.isArray(strokes)) return { success: false, message: 'strokes must be an array' };
+    const dbConn = localDb.getDatabase();
+    if (!dbConn) return { success: false, message: 'local index not ready' };
+    const res = localCanvasInk.saveInk(dbConn, docId, strokes);
+    // 写成功即触达后端同步（清空笔迹也要推，否则后端快照残留旧墨迹）
+    if (canvasSync && res.success) canvasSync.schedulePush();
+    return res;
   }));
 
   /** 批量保存层级结构（大纲缩进/排序）：opts = { docId, entries: [{id,parentId,orderIndex}] } */

@@ -67,6 +67,7 @@
               </div>
             </div>
             <button class="refresh" id="refreshButton" type="button" title="重新从存储扫描并构建内容索引，反映最新数据变化" data-func-tag="功能:刷新索引"><span aria-hidden="true">↻</span> 刷新索引<span class="refresh-info" id="refreshInfo"></span></button>
+            <button class="wb-edit-btn" id="widgetCompactBtn" type="button" title="一键紧凑排列：消除拖拽遗留的空洞" data-func-tag="功能:紧凑排列"><span aria-hidden="true">⇲</span> 紧凑</button>
             <label class="wb-ws-ctx" title="选择组件板绑定的工作台：每个工作台可各自拼装一套组件布局"><span>组件视图</span><select id="widgetWsCtx" aria-label="组件板工作台上下文"></select></label>
             <button class="wb-edit-btn" id="widgetEditBtn" type="button" data-func-tag="功能:自定义组件" title="进入编辑态：拖动换位、调整大小、增删组件"><span aria-hidden="true">✥</span><span id="widgetEditBtnText">自定义</span></button>
           </header>
@@ -249,6 +250,8 @@
             </div>
             <div class="pd-header-actions">
               <span class="pd-header-info" style="font-size:12px;color:var(--ws-muted);">数据来源：TODO/ {需求名称}/feature-points.json</span>
+              <button class="wb-edit-btn" id="pdWidgetCompactBtn" type="button" title="一键紧凑排列：消除拖拽遗留的空洞" data-func-tag="功能:紧凑排列"><span aria-hidden="true">⇲</span> 紧凑</button>
+              <button class="wb-edit-btn" id="pdWidgetEditBtn" type="button" data-func-tag="功能:自定义组件" title="进入编辑态：拖动换位、调整大小、增删组件"><span aria-hidden="true">✥</span><span id="pdWidgetEditBtnText">自定义</span></button>
             </div>
           </div>
 
@@ -262,54 +265,9 @@
 
           <div class="pd-tag-filter" id="pdTagFilter" aria-label="标签筛选"></div>
 
-          <!-- ── 总览 Dashboard ── -->
+          <!-- ── 总览 Dashboard（组件化：可自定义拼装，与全部概览同款引擎） ── -->
           <div class="pd-tab-content visible" data-pd-content="dashboard">
-            <div class="pd-dashboard" id="pdDashboardCards"></div>
-            <div class="pd-chart-row">
-              <div class="pd-chart-card">
-                <div class="pd-chart-card-header">各阶段需求分布</div>
-                <div class="pd-chart-container"><canvas id="pdPhaseChart"></canvas></div>
-              </div>
-              <div class="pd-chart-card">
-                <div class="pd-chart-card-header">任务完成率</div>
-                <div class="pd-chart-container"><canvas id="pdTodoChart"></canvas><div class="pd-chart-center-label" id="pdTodoChartCenter"></div></div>
-              </div>
-              <div class="pd-chart-card">
-                <div class="pd-chart-card-header">知识积累趋势</div>
-                <div class="pd-chart-container"><canvas id="pdKnowledgeChart"></canvas></div>
-              </div>
-              <div class="pd-chart-card">
-                <div class="pd-chart-card-header">模块分布</div>
-                <div class="pd-chart-container"><canvas id="pdLayerChart"></canvas></div>
-              </div>
-              <div class="pd-chart-card">
-                <div class="pd-chart-card-header">热门标签</div>
-                <div class="pd-chart-container"><canvas id="pdTagsChart"></canvas></div>
-              </div>
-            </div>
-            <div class="pd-section">
-              <div class="pd-section-header">最近活动</div>
-              <div class="pd-activity-list" id="pdActivityList"><div class="empty-state">暂无活动记录</div></div>
-            </div>
-
-            <!-- ── 牛马记录（DSH 会话成果自动归档，source=dsh-session/dsh-agent） ── -->
-            <div class="pd-section">
-              <div class="pd-section-header">牛马记录<span class="pd-ai-count" id="pdAiArchiveCount"></span></div>
-              <div class="pd-ai-archive-list" id="pdAiArchiveList"><div class="empty-state">暂无牛马归档</div></div>
-            </div>
-
-            <!-- ── 任务状态列表 ── -->
-            <div class="pd-task-list-section">
-              <div class="pd-task-list-header">
-                <span style="font-size:14px;font-weight:650;color:var(--ws-text)">任务状态</span>
-                <div class="pd-task-list-filters" id="pdTaskFilters">
-                  <button class="pd-task-list-filter active" data-task-filter="all" type="button">全部</button>
-                  <button class="pd-task-list-filter" data-task-filter="done" type="button">已完成</button>
-                  <button class="pd-task-list-filter" data-task-filter="todo" type="button">待完成</button>
-                </div>
-              </div>
-              <div class="pd-task-list" id="pdTaskList"><div class="empty-state">暂无任务数据</div></div>
-            </div>
+            <div class="wb-board" id="pdWidgets"></div>
           </div>
 
           <!-- ── 需求看板 Kanban ── -->
@@ -364,6 +322,17 @@
               <span class="pd-section-title">历史归档记录</span>
             </div>
             <div class="pd-archive-list" id="pdArchiveList"><div class="empty-state">暂无归档记录</div></div>
+          </div>
+
+          <!-- 添加组件面板（产品概览编辑态打开） -->
+          <div class="wb-palette" id="pdWidgetPalette">
+            <div class="wb-palette-card">
+              <h3>添加组件</h3>
+              <div class="wb-palette-list" id="pdWidgetPaletteList"></div>
+              <div class="wb-palette-footer">
+                <button type="button" class="refresh" id="pdWidgetPaletteClose">完成</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
