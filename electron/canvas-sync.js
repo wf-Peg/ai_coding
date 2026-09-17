@@ -77,6 +77,7 @@ function restoreSnapshot(dbConn, snapshot) {
   const groups = Array.isArray(s.groups) ? s.groups : [];
   const ink = Array.isArray(s.ink) ? s.ink : []; // v2 快照无 ink → 空数组，可正常恢复
   const stamp = s.updatedAt || new Date().toISOString();
+  let inkCount = 0; // 本次恢复写回的有效墨迹笔数
 
   // 文档清单：v1 快照无 docs → 兜底为仅默认文档
   const docs = (Array.isArray(s.docs) ? s.docs : [])
@@ -189,12 +190,11 @@ function restoreSnapshot(dbConn, snapshot) {
     const insInk = dbConn.prepare(
       'INSERT OR REPLACE INTO canvas_ink (id, doc_id, color, width, opacity, points, sort_index, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
-    let inkCount = 0;
     for (const k of ink) {
       if (!k || typeof k.id !== 'string' || !k.id) continue;
       if (!canvasInk.validPoints(k.points)) continue;
-      const docId = (k.docId && docIds.has(k.docId)) ? k.docId : canvasDoc.DEFAULT_DOC_ID;
-      insInk.run(k.id, docId,
+      const inkDocId = (k.docId && docIds.has(k.docId)) ? k.docId : canvasDoc.DEFAULT_DOC_ID;
+      insInk.run(k.id, inkDocId,
         k.color != null ? String(k.color) : null,
         k.width != null ? Number(k.width) : null,
         k.opacity != null ? Number(k.opacity) : null,

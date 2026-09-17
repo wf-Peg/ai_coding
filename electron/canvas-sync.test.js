@@ -21,6 +21,7 @@ const cn = require('./sqlite/canvas-node');
 const cg = require('./sqlite/canvas-group');
 const cl = require('./sqlite/canvas-layout');
 const cd = require('./sqlite/canvas-doc');
+const ci = require('./sqlite/canvas-ink');
 const { buildSnapshot, restoreSnapshot } = require('./canvas-sync');
 
 let root;
@@ -77,7 +78,7 @@ test('buildSnapshot：组装文档/节点/连线/坐标/分组全量快照（v2�
   assert.ok(group, '分组应建立');
 
   const snap = buildSnapshot(dbA);
-  assert.equal(snap.version, 2);
+  assert.equal(snap.version, 3);
   assert.equal(snap.docs.length, 1, '含默认文档');
   assert.equal(snap.docs[0].id, cd.DEFAULT_DOC_ID);
   assert.equal(snap.nodes.length, 3, '含 3 个节点');
@@ -109,7 +110,8 @@ test('restoreSnapshot：恢复到全新空库后数据一致', () => {
     nodes: snap.nodes.length,
     edges: snap.edges.length,
     layout: Object.keys(snap.layout).length,
-    groups: snap.groups.length
+    groups: snap.groups.length,
+    ink: (snap.ink || []).length
   });
 
   const nodesB = cn.listNodes(dbB);
@@ -203,4 +205,86 @@ test('restoreSnapshot：异常快照容错不抛异常', () => {
   const weird = { nodes: null, edges: undefined, layout: null, groups: 'x', docs: 'y', updatedAt: '2026-01-01T00:00:00Z' };
   assert.doesNotThrow(() => restoreSnapshot(dbB, weird));
   assert.equal(cd.listDocs(dbB).length, 1, '异常快照仍保证有默认文档');
+});
+
+// ─────────── 快照 v3：墨迹（canvas_ink）───────────
+
+/** 构造一笔墨迹。 */
+function inkStroke(id, points, overrides) {
+  return Object.assign({ id, color: '#1a73e8', width: 6, opacity: 1, points }, overrides || {});
+}
+
+test('buildSnapshot v3：ink 进入快照且 updatedAt 纳入墨迹时间戳', () => {
+  resetSrc();
+  ci.clearAll(dbA);
+  const doc = cd.createDoc(dbA, { title: '墨迹文档' });
+  // saveInk 会 touch 文档；先记录文档当前 updatedAt，再画一笔（时间戳应前进）
+  ci.saveInk(dbA, doc.id, [inkStroke('ink:one', [[0, 0], [5, 5]])]);
+
+  const snap = buildSnapshot(dbA);
+  assert.ok(Array.isArray(snap.ink), '快照应含 ink 数组');
+  assert.equal(snap.ink.length, 1, '快照含 1 笔墨迹');
+  assert.equal(snap.ink[0].id, 'ink:one');
+  assert.equal(snap.ink[0].docId, doc.id, '墨迹携带 docId');
+  assert.deepEqual(snap.ink[0].points, [[0, 0], [5, 5]], 'points 反序列化为数组');
+  assert.equal(snap.version, 3, '快照版本为 3');
+});
+
+test('restoreSnapshot v3：往返一致（多文档 + 非法笔迹跳过 + 未知 docId 归默认文档）', () => {
+  resetSrc();
+  ci.clearAll(dbA);
+  dbB = openDst();
+
+  const doc1 = cd.createDoc(dbA, { title: '文档一' });
+  const doc2 = cd.createDoc(dbA, { title: '文档二' });
+  ci.saveInk(dbA, doc1.id, [inkStroke('ink:a1', [[1, 1], [2, 2]]), inkStroke('ink:a2', [[3, 3]])]);
+  ci.saveInk(dbA, doc2.id, [inkStroke('ink:b1', [[9, 9]])]);
+
+  const snap = buildSnapshot(dbA);
+  const counts = restoreSnapshot(dbB, snap);
+  assert.equal(counts.ink, 3, '恢复 3 笔墨迹');
+
+  assert.equal(ci.countInk(dbB, doc1.id), 2);
+  assert.equal(ci.countInk(dbB, doc2.id), 1);
+  const listB = ci.listInk(dbB, doc1.id);
+  assert.deepEqual(listB.map((s) => s.id), ['ink:a1', 'ink:a2'], '文档一内墨迹按 sort_index 升序');
+  assert.deepEqual(listB[0].points, [[1, 1], [2, 2]]);
+
+  // 未知 docId 归默认文档；非法 points 跳过
+  const withJunk = Object.assign({}, snap, {
+    ink: [
+      ...snap.ink,
+      { id: 'ink:ghost', docId: 'doc:not-exist', color: '#000', width: 1, opacity: 1, points: [[0, 0]] },
+      { id: 'ink:bad', docId: doc1.id, color: '#000', width: 1, opacity: 1, points: 'oops' }
+    ]
+  });
+  const counts2 = restoreSnapshot(dbB, withJunk);
+  assert.equal(counts2.ink, 4, '非法 points 被跳过（3 旧 + 1 未知 docId 归默认，bad 跳过）');
+  assert.equal(ci.countInk(dbB, cd.DEFAULT_DOC_ID), 1, '未知 docId 归默认文档');
+  assert.equal(ci.countInk(dbB, doc1.id), 2, '非法笔迹不写入');
+});
+
+test('restoreSnapshot v2 兼容：无 ink 快照恢复后墨迹为空且不报错', () => {
+  resetSrc();
+  ci.clearAll(dbA);
+  dbB = openDst();
+  ci.saveInk(dbB, cd.DEFAULT_DOC_ID, [inkStroke('ink:old', [[0, 0]])]);
+
+  const v2 = { docs: [], nodes: [], edges: [], layout: {}, groups: [], updatedAt: new Date().toISOString(), version: 2 };
+  assert.doesNotThrow(() => restoreSnapshot(dbB, v2));
+  assert.equal(ci.countInk(dbB, cd.DEFAULT_DOC_ID), 0, 'v2 快照（无 ink）恢复后墨迹为空');
+});
+
+test('wipe：pull 覆盖前清空墨迹，不残留幽灵墨迹', () => {
+  resetSrc();
+  ci.clearAll(dbA);
+  dbB = openDst();
+
+  const doc = cd.createDoc(dbB, { title: '本地点' });
+  ci.saveInk(dbB, doc.id, [inkStroke('ink:local', [[0, 0], [7, 7]])]);
+  assert.equal(ci.countInk(dbB, doc.id), 1);
+
+  const remoteSnap = { docs: [], nodes: [], edges: [], layout: {}, groups: [], ink: [], updatedAt: new Date().toISOString(), version: 3 };
+  restoreSnapshot(dbB, remoteSnap);
+  assert.equal(ci.countInk(dbB, doc.id), 0, '远端无墨迹时本地残留被清空（wipe 生效）');
 });

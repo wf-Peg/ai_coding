@@ -38,6 +38,8 @@ let localIndexWatcher = null;
 let localIndexMdWatcher = null;
 // 无限画布·后端同步器（索引就绪后初始化）
 let canvasSync = null;
+// 墨迹快照推送节流：手绘高频写库，专用 2.5s 节流（不复用节点编辑的 400ms schedulePush）
+let inkPushTimer = null;
 
 // 更新管理器（自动更新 + 手动检查）
 const updateManager = require('./update-manager');
@@ -3592,10 +3594,22 @@ function setupIPC() {
     const dbConn = localDb.getDatabase();
     if (!dbConn) return { success: false, message: 'local index not ready' };
     const res = localCanvasInk.saveInk(dbConn, docId, strokes);
-    // 写成功即触达后端同步（清空笔迹也要推，否则后端快照残留旧墨迹）
-    if (canvasSync && res.success) canvasSync.schedulePush();
+    // 写成功即触达后端同步（清空笔迹也要推，否则后端快照残留旧墨迹）；
+    // 手绘高频写库，走专用 2.5s 节流，不复用节点编辑的 400ms schedulePush
+    if (res.success) scheduleInkPush();
     return res;
   }));
+
+  // 墨迹专用快照推送：2.5s 节流合并高频手绘写库
+  function scheduleInkPush() {
+    if (inkPushTimer) clearTimeout(inkPushTimer);
+    inkPushTimer = setTimeout(() => {
+      inkPushTimer = null;
+      if (canvasSync && typeof canvasSync.pushSnapshot === 'function') {
+        canvasSync.pushSnapshot().catch(() => {});
+      }
+    }, 2500);
+  }
 
   /** 批量保存层级结构（大纲缩进/排序）：opts = { docId, entries: [{id,parentId,orderIndex}] } */
   ipcMain.handle('local-index:canvas:update-structure', localIndexGuard(async (_ev, args) => {

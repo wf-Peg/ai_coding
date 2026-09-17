@@ -118,7 +118,8 @@
     if (inkDirty) await doSaveInk();
   }
 
-  // 载入库中墨迹 → strokes（数据先行；渲染由调用方按是否有节点决定走 renderCanvas 或 ensureInkLayer）
+  // 载入库中墨迹 → strokes（仅数据层；渲染由调用方按是否有节点统一处理：
+  // 非空文档走 renderCanvas（内部建 inkLayer），空文档走 ensureInkLayer + renderInk）
   function loadInk(incoming) {
     strokes = Array.isArray(incoming) ? incoming.map(function (s) {
       return {
@@ -131,12 +132,6 @@
     }) : [];
     inkDirty = false;
     if (inkTimer) { clearTimeout(inkTimer); inkTimer = null; }
-    if (strokes.length) {
-      // 有笔迹：确保擦写板层存在并渲染（空文档路径也显示墨迹）
-      ensureInkLayer();
-      inboxEmptyStateHide();
-      renderInk();
-    }
   }
 
   // ---- 数据加载 ----
@@ -194,6 +189,8 @@
     allEdges = (res.edges || []).map(function(e) {
       return { id: e.id, source: e.source, target: e.target, type: 'manual' };
     });
+    // 载入墨迹数据（多文档隔离：canvas:state 返回该文档的 ink）
+    loadInk(res.ink);
 
     loadingEl.style.display = 'none';
     updateDocSwitcher();
@@ -203,6 +200,11 @@
     if (!allNodes.length) {
       clearCanvas();
       showEmpty('暂无画布节点', '在左侧大纲按 Enter 开始列第一条，或右键空白处新建便签 / 链接 / 图片');
+      // 空文档 + 有墨迹：把画布当擦写板显示笔迹（隐藏空态、显式构建墨迹层）
+      if (strokes.length) {
+        inboxEmptyStateHide();
+        if (viewMode !== 'outline') { ensureInkLayer(); renderInk(); }
+      }
       return;
     }
     emptyEl.style.display = 'none';
@@ -341,6 +343,7 @@
     selectionLayer = null;
     tempLink = null;
     linkSourceId = null;
+    inkLayer = null; // SVG 已被移除，墨迹层引用同步失效，后续重建（防 ensureInkLayer 命中旧引用）
   }
 
   function showEmpty(title, desc) {
@@ -1249,8 +1252,10 @@
     allNodes = [];
     selectedNodeIds.clear();
     selectedNodeId = null;
-    // 墨迹一并清空
+    // 墨迹一并清空并立即落库（清空该文档墨迹，避免库中残留）
     strokes = [];
+    markInkDirty();
+    await flushInk();
     if (window.CanvasOutline) window.CanvasOutline.reset();
     updateScaleWarn();
     renderCanvas(); // 空态（showEmpty）自动呈现
@@ -1841,11 +1846,13 @@
     if (drawing.erasing) { drawing = null; return; }
     if (drawing.points.length > 0) {
       strokes.push({
+        id: newInkId(), // 稳定 id：库内主键与跨设备对账的前置条件
         color: drawing.color,
         width: drawing.width,
         opacity: drawing.opacity,
         points: drawing.points
       });
+      markInkDirty();
     }
     drawing = null;
   }
@@ -1858,6 +1865,7 @@
     if (hit >= 0) {
       strokes.splice(hit, 1);
       renderInk();
+      markInkDirty();
     }
   }
 
@@ -2015,13 +2023,15 @@
     });
     document.getElementById('undoBtn').addEventListener('click', function(e) {
       e.stopPropagation();
-      if (strokes.length) { strokes.pop(); renderInk(); }
+      if (strokes.length) { strokes.pop(); renderInk(); markInkDirty(); }
     });
     document.getElementById('clearBtn').addEventListener('click', function(e) {
       e.stopPropagation();
       if (!strokes.length) return;
       strokes = [];
       renderInk();
+      markInkDirty();
+      flushInk(); // 清空是状态变更：立即落库清空该文档墨迹
     });
     var exportBtn = document.getElementById('exportBtn');
     if (exportBtn) {
@@ -2039,6 +2049,12 @@
     window.addEventListener('pointerup', handleDrawEnd);
     drawOverlayEl.addEventListener('pointerleave', handleDrawEnd);
   }
+
+  // 关闭/隐藏窗口前强制落库，避免丢失防抖窗口内的最后一笔
+  window.addEventListener('beforeunload', function () { flushInk(); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') flushInk();
+  });
 
   // ---- 大纲面板 / 多画布文档 / 视图三态（对标幕布） ----
 
@@ -2211,6 +2227,8 @@
   }
 
   async function switchDoc(id) {
+    // 先落盘当前文档墨迹（防抖窗口内的最后一笔不能丢），再切换
+    await flushInk();
     closeDocSwitcherMenu();
     closeDocList();
     if (!id || id === currentDocId) return;

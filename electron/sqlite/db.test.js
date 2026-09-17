@@ -24,10 +24,10 @@ test('node:sqlite 可用（Electron 36 / Node 22 内置）', () => {
   assert.ok(row && row.v, `sqlite_version 应为非空，实际=${row && row.v}`);
 });
 
-test('建库后 meta.schema_version 应为 7', () => {
+test('建库后 meta.schema_version 应为 8', () => {
   const { db } = makeDb();
   const row = db.prepare("SELECT value FROM meta WHERE key='schema_version'").get();
-  assert.strictEqual(row.value, '7');
+  assert.strictEqual(row.value, '8');
 });
 
 test('canvas_doc 表与画布层级列已创建（画布多文档 + 大纲 v7）', () => {
@@ -128,7 +128,7 @@ test('回归：schema_version=5 但缺画布表（真实坏库）应被 v6 补�
   ).all().map((r) => r.name).sort();
   assert.deepEqual(names, ['canvas_edge', 'canvas_group', 'canvas_group_member', 'canvas_node']);
   const v = db.prepare("SELECT value FROM meta WHERE key='schema_version'").get();
-  assert.strictEqual(v.value, '7');
+  assert.strictEqual(v.value, '8');
   const docTbl = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='canvas_doc'").get();
   assert.ok(docTbl, '坏库修复时也应补出 canvas_doc（v7）');
 });
@@ -144,7 +144,7 @@ test('回归：旧库 schema_version=2 增量迁移不应跳级', () => {
   ).all().map((r) => r.name).sort();
   assert.deepEqual(names, ['canvas_edge', 'canvas_group', 'canvas_group_member', 'canvas_layout', 'canvas_node']);
   const v = db.prepare("SELECT value FROM meta WHERE key='schema_version'").get();
-  assert.strictEqual(v.value, '7');
+  assert.strictEqual(v.value, '8');
 });
 
 test('v7 回填：历史画布数据挂默认文档并补 order_index（幂等可重跑）', () => {
@@ -175,4 +175,39 @@ test('v7 回填：历史画布数据挂默认文档并补 order_index（幂等�
   require('./init').migrate(db);
   const again = db.prepare('SELECT doc_id AS docId FROM canvas_node WHERE id = ?').get('note:legacy-1');
   assert.strictEqual(again.docId, 'doc:default');
+});
+
+test('canvas_ink 表已创建（手绘墨迹 v8：列齐全 + 文档索引）', () => {
+  const { db } = makeDb();
+  const tbl = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='canvas_ink'").get();
+  assert.ok(tbl, 'canvas_ink 表应存在');
+
+  const cols = db.prepare('PRAGMA table_info(canvas_ink)').all().map((r) => r.name);
+  for (const c of ['id', 'doc_id', 'color', 'width', 'opacity', 'points', 'sort_index', 'created_at', 'updated_at']) {
+    assert.ok(cols.includes(c), `canvas_ink 应有列 ${c}`);
+  }
+  const idx = db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_canvas_ink_doc'").get();
+  assert.ok(idx, 'canvas_ink 应有 doc_id+sort_index 索引');
+});
+
+test('v8 迁移：schema_version=7 旧库增量建表且连续 migrate() 两次幂等', () => {
+  const { db } = makeDb();
+  db.prepare("UPDATE meta SET value='7' WHERE key='schema_version'").run();
+  db.exec('DROP TABLE IF EXISTS canvas_ink');
+
+  require('./init').migrate(db);
+
+  const v = db.prepare("SELECT value FROM meta WHERE key='schema_version'").get();
+  assert.strictEqual(v.value, '8', '迁移后 schema_version 应为 8');
+  const tbl = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='canvas_ink'").get();
+  assert.ok(tbl, '迁移后 canvas_ink 表应创建');
+
+  // 迁移幂等：同一库连续 migrate() 两次，表与索引不重复创建、不报错
+  require('./init').migrate(db);
+  const v2 = db.prepare("SELECT value FROM meta WHERE key='schema_version'").get();
+  const tables = db.prepare("SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name='canvas_ink'").get().c;
+  const indexes = db.prepare("SELECT COUNT(*) AS c FROM sqlite_master WHERE type='index' AND name='idx_canvas_ink_doc'").get().c;
+  assert.strictEqual(v2.value, '8');
+  assert.strictEqual(tables, 1, 'canvas_ink 表不得重复创建');
+  assert.strictEqual(indexes, 1, 'canvas_ink 索引不得重复创建');
 });
