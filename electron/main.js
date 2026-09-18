@@ -1860,7 +1860,16 @@ function startFrontendServer(config) {
 
     // 创建静态文件服务中间件
     // fallthrough: false 表示文件不存在时触发 onerror 回调（而非交给 next）
-    const serve = serveStatic(frontendDir, { index: ['index.html'], fallthrough: false });
+    // setHeaders：HTML 一律 no-cache（保留 ETag 强校验），避免改版后 iframe/整页仍命中旧缓存
+    const serve = serveStatic(frontendDir, {
+      index: ['index.html'],
+      fallthrough: false,
+      setHeaders(res, filePath) {
+        if (path.extname(filePath).toLowerCase() === '.html') {
+          res.setHeader('Cache-Control', 'no-cache');
+        }
+      },
+    });
 
     const server = http.createServer((req, res) => {
       // 「发送到手机」探测本机局域网地址，返回手机可达的 LAN 服务器（frontendPort + 1）
@@ -2025,7 +2034,15 @@ function startPhoneServer(config) {
     const frontendDir = getFrontendDir();
     if (!frontendDir) { reject(new Error('Cannot find frontend files for phone server')); return; }
     if (!serveStatic) serveStatic = require('serve-static');
-    const serve = serveStatic(frontendDir, { index: ['index.html'], fallthrough: false });
+    const serve = serveStatic(frontendDir, {
+      index: ['index.html'],
+      fallthrough: false,
+      setHeaders(res, filePath) {
+        if (path.extname(filePath).toLowerCase() === '.html') {
+          res.setHeader('Cache-Control', 'no-cache');
+        }
+      },
+    });
     const port = (config.frontendPort || 3001) + PHONE_PORT_OFFSET;
 
     const server = http.createServer((req, res) => {
@@ -3820,10 +3837,12 @@ function setupIPC() {
   ipcMain.handle('reader:read-file', async (event, filePath) => {
     try {
       if (!filePath || !fs.existsSync(filePath)) return { error: '文件不存在' };
-      const stat = fs.statSync(filePath);
+      const stat = await fs.promises.stat(filePath);
       if (!stat.isFile()) return { error: '所选路径不是文件' };
       if (stat.size > READER_MAX_SIZE) return { tooLarge: true, size: stat.size };
-      const bytes = fs.readFileSync(filePath);
+      // 必须用异步读（libuv 线程池），同步 readFileSync 会阻塞主进程事件循环，
+      // 大文件时导致整个应用假死 + 前端一直卡在解析中（IPC promise 永不返回）。
+      const bytes = await fs.promises.readFile(filePath);
       return {
         fileName: path.basename(filePath),
         displayPath: filePath,
@@ -6091,6 +6110,48 @@ ipcMain.handle('clipboard-history:record', async (_ev, id) => {
   }
 });
 
+/** 把历史条目内容复制回系统剪贴板：文本写文本，图片写回原图。 */
+ipcMain.handle('clipboard-history:copy', (_ev, id) => {
+  const item = loadClipboardHistory().find(x => x.id === id);
+  if (!item) return { success: false, message: '未找到该记录' };
+  try {
+    if (item.type === 'text') {
+      clipboard.writeText(String(item.text || ''));
+    } else {
+      const img = nativeImage.createFromDataURL(item.imageDataUrl || '');
+      if (img.isEmpty()) return { success: false, message: '图片数据无效，无法复制' };
+      clipboard.writeImage(img);
+    }
+    return { success: true };
+  } catch (e) {
+    log.warn('[ClipboardHistory] copy failed:', e.message);
+    return { success: false, message: '复制失败：' + e.message };
+  }
+});
+
+/** 把历史文本条目送入写作区（编辑器新标签页）；图片暂不支持（与气泡写入行为一致）。 */
+ipcMain.handle('clipboard-history:open-editor', (_ev, id) => {
+  const item = loadClipboardHistory().find(x => x.id === id);
+  if (!item) return { success: false, message: '未找到该记录' };
+  if (item.type !== 'text' || !item.text || !item.text.trim()) {
+    return { success: false, message: '图片历史暂不支持写入写作区' };
+  }
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { success: false, message: '主窗口未就绪，无法打开写作区' };
+  }
+  try {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    if (!mainWindow.isVisible()) mainWindow.show();
+    // 复用气泡「写入写作区」同一条通道：主窗口监听后切换写作视图并新开标签
+    mainWindow.webContents.send('toast-write-to-editor', { text: item.text, title: '剪贴板内容' });
+    mainWindow.focus();
+    return { success: true };
+  } catch (e) {
+    log.warn('[ClipboardHistory] open editor failed:', e.message);
+    return { success: false, message: '打开写作区失败：' + e.message };
+  }
+});
+
 ipcMain.handle('clipboard-history:open', () => {
   showClipboardHistoryWindow();
   return { success: true };
@@ -6266,16 +6327,46 @@ function buildClipboardHistoryHtml(isDark) {
         items.forEach(function (item) {
           var row = document.createElement('div');
           row.className = 'item';
+          var isText = item.type !== 'image';
           var body = item.type === 'image'
             ? '<img class="item-img" src="' + (item.imageDataUrl || '') + '" alt="图片">'
             : '<div class="item-text">' + String(item.text || '').replace(/[<>&]/g, function (c) { return { '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]; }) + '</div>';
           row.innerHTML = '<div class="item-time">' + fmtTime(item.createdAt) + '</div>'
             + '<div class="item-body">' + body
             + '<div class="item-actions">'
+            + '<button class="mini-btn" data-act="copy" data-id="' + item.id + '">复制</button>'
+            + (isText ? '<button class="mini-btn" data-act="open" data-id="' + item.id + '">编辑器打开</button>' : '')
             + '<button class="mini-btn primary" data-act="record" data-id="' + item.id + '">记录到剪藏</button>'
             + '<button class="mini-btn danger" data-act="delete" data-id="' + item.id + '">删除</button>'
             + '</div></div>';
           listEl.appendChild(row);
+          row.querySelector('[data-act="copy"]').addEventListener('click', function () {
+            var btn = this;
+            api.copy(item.id).then(function (r) {
+              if (r && r.success) {
+                var old = btn.textContent;
+                btn.textContent = '已复制';
+                setTimeout(function () { btn.textContent = old; }, 1200);
+              } else {
+                listEl.innerHTML = '<div class="busy-tip">' + ((r && r.message) ? r.message : '复制失败') + '</div>';
+              }
+            });
+          });
+          if (isText) {
+            row.querySelector('[data-act="open"]').addEventListener('click', function () {
+              var btn = this;
+              btn.disabled = true;
+              btn.textContent = '打开中…';
+              api.openEditor(item.id).then(function (r) {
+                if (r && r.success) { closeWin(); }
+                else {
+                  btn.disabled = false;
+                  btn.textContent = '编辑器打开';
+                  listEl.innerHTML = '<div class="busy-tip">' + ((r && r.message) ? r.message : '打开失败') + '</div>';
+                }
+              });
+            });
+          }
           var recordBtn = row.querySelector('[data-act="record"]');
           recordBtn.addEventListener('click', function () {
             var btn = this;

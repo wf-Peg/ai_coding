@@ -379,13 +379,13 @@
 
     var zoom = d3.zoom()
       .scaleExtent([0.1, 10])
-      // 空白左键拖动留给「框选」；滚轮缩放 / 空格或中键拖动平移 / 抓手模式左键拖动平移
+      // 空白左键拖动留给「框选」之外的场景，全部走平移：滚轮缩放 / 中键 / 空格 / 抓手模式 / 默认工具态空白拖动
       .filter(function(event) {
         var e = event.sourceEvent;
         if (!e) return true;
         if (e.type === 'wheel') return true;
-        if (e.type === 'mousemove' && (spacePressed || panMode)) return true;
-        if (e.type === 'mousedown' && (e.button === 1 || spacePressed || panMode)) return true;
+        if (e.type === 'mousemove' && shouldPan(e)) return true;
+        if (e.type === 'mousedown' && shouldPan(e)) return true;
         return false;
       })
       .on('zoom', function(event) {
@@ -512,10 +512,12 @@
     inkLayer = g.append('g').attr('class', 'ink-layer');
     renderInk();
 
-    // 空白左键拖动 = 框选
+    // 空白左键拖动 = 平移；Shift/Ctrl/Cmd + 拖动 = 框选（保留多选能力）
     svg.on('mousedown', function(event) {
       if (event.target !== svg.node()) return;
       if (spacePressed || event.button !== 0) return;
+      if (shouldPan(event)) return; // 默认/抓手/空格平移，不框选
+      if (!(event.shiftKey || event.ctrlKey || event.metaKey)) return;
       event.preventDefault();
       beginBoxSelect(event);
     });
@@ -1722,16 +1724,30 @@
     drawing = null;
     var overlay = document.getElementById('drawOverlay');
     if (overlay) overlay.classList.toggle('active', !!tool);
-    // 抓手模式：画布光标变小手（grab / 拖动 grabbing）
-    var gc = document.getElementById('graphContainer');
-    if (gc) gc.classList.toggle('is-panning', isPan);
-    // 工具条高亮（pan 独立高亮）
+    // 工具条高亮（pan 独立高亮；默认未选工具时由 updatePanCursor 点亮抓手按钮）
     if (drawToolbar) {
       drawToolbar.querySelectorAll('button[data-tool], button[data-pan]').forEach(function(b) {
         b.classList.toggle('is-active', isPan ? b.dataset.pan === 'pan' : b.dataset.tool === tool);
       });
     }
+    // 抓手光标/高亮：抓手模式 / 按住空格 / 默认（未选工具）均对齐小手
+    updatePanCursor();
     if (tool) { closeMenus(); cancelLink(); resetSelection(); ensureInkLayer(); }
+  }
+
+  // 画布抓手光标状态：抓手模式 / 按住空格 / 未选任何笔类工具（默认即抓手，空白左键直接拖动画布）。
+  // 默认态（未选工具）节点/连线仍可交互（hover 回 pointer）；显式抓手（panMode）或按住空格时整体平移。
+  function updatePanCursor() {
+    var gc = document.getElementById('graphContainer');
+    if (!gc) return;
+    var panning = !!(spacePressed || panMode || !drawTool);
+    gc.classList.toggle('is-panning', panning);
+    gc.classList.toggle('is-node-interactive', !spacePressed && !panMode && !drawTool);
+    // 抓手按钮与当前模式对齐：抓手模式 / 默认即抓手时点亮小手表态（选择画笔等工具时不点亮）
+    if (drawToolbar) {
+      var panBtn = drawToolbar.querySelector('button[data-pan="pan"]');
+      if (panBtn) panBtn.classList.toggle('is-active', !!(panMode || !drawTool));
+    }
   }
 
   // 空态（无画布节点）时保证可当临时擦写板使用：惰性创建最小 svg + 缩放组 + 墨迹层
@@ -1746,8 +1762,8 @@
         var e = event.sourceEvent;
         if (!e) return true;
         if (e.type === 'wheel') return true;
-        if (e.type === 'mousemove' && (spacePressed || panMode)) return true;
-        if (e.type === 'mousedown' && (e.button === 1 || spacePressed || panMode)) return true;
+        if (e.type === 'mousemove' && shouldPan(e)) return true;
+        if (e.type === 'mousedown' && shouldPan(e)) return true;
         return false;
       })
       .on('zoom', function(event) {
@@ -1925,6 +1941,19 @@
 
   // ---- 工具 ----
 
+  // 判断指针事件是否应进入「画布平移」：
+  // 中键 / 空格 / 抓手模式必然平移；默认（未选画笔等工具）时，起点不在节点/连线/分组等交互元素上也可平移（对齐 Figma/幕布）。
+  // Shift/Ctrl/Cmd + 拖动留给框选，不进入平移。
+  function shouldPan(e) {
+    if (!e) return false;
+    if (e.button === 1 || spacePressed || panMode) return true;
+    if (drawTool) return false;
+    if (e.shiftKey || e.ctrlKey || e.metaKey) return false; // 留给框选
+    var t = e.target;
+    if (!t || !t.closest) return true;
+    return !t.closest('.node, .group-frame, .link-manual, .link, .frames-layer, .selection-layer, .ink-layer rect');
+  }
+
   function escapeHtml(text) {
     if (!text) return '';
     var div = document.createElement('div');
@@ -1934,14 +1963,13 @@
 
   // ---- 事件绑定 ----
 
-  // 空格键：按住 + 拖动 = 平移画布（按住时画布光标也显示抓手）
+  // 空格键：按住 + 拖动 = 平移画布（按住时画布光标/抓手按钮也对齐小手）
   ['keydown', 'keyup'].forEach(function(type) {
     window.addEventListener(type, function(e) {
       var isDown = type === 'keydown';
       if (e.key === ' ' || e.code === 'Space') {
         spacePressed = isDown;
-        var gc = document.getElementById('graphContainer');
-        if (gc) gc.classList.toggle('is-panning', isDown || panMode);
+        updatePanCursor();
         if (isDown) e.preventDefault();
       }
     });
@@ -2723,6 +2751,7 @@
     initViewSwitch();
     initLayoutByOutline();
     initAIOutline();
+    updatePanCursor(); // 默认态未选工具即抓手：初始化即对齐小手
     loadData();
   });
 

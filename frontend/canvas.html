@@ -464,6 +464,10 @@
         .graph-container.is-panning * { cursor: grab; }
         .graph-container.is-panning:active { cursor: grabbing; }
         .graph-container.is-panning:active * { cursor: grabbing; }
+        /* 默认态（未选画笔等工具）即抓手：空白处平移，但节点/连线 hover 仍是指针可交互 */
+        .graph-container.is-node-interactive svg .node:hover,
+        .graph-container.is-node-interactive svg .node:hover .node-card-rect,
+        .graph-container.is-node-interactive svg .link-manual:hover { cursor: pointer; }
 
         @media (max-width: 768px) {
             .nav { padding: 10px 16px; gap: 6px 8px; flex-wrap: wrap; }

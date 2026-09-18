@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>阅读器</title>
+<link rel="stylesheet" href="styles/design-tokens.css">
+<link rel="stylesheet" href="styles/reader.css">
+</head>
+<body>
+  <!-- 顶栏：文件信息 + 动作 -->
+  <div class="rd-header">
+    <div class="rd-file">
+      <span class="rd-badge" id="rdBadge">—</span>
+      <div class="rd-file-meta">
+        <div class="rd-file-name" id="rdFileName">未选择文件</div>
+        <div class="rd-file-path" id="rdFilePath"></div>
+      </div>
+    </div>
+    <div class="rd-actions">
+      <div class="rd-zoom-group" id="rdZoomGroup" hidden>
+        <button id="rdZoomOut" class="rd-btn" title="缩小 (Ctrl+-)">−</button>
+        <span id="rdZoomLabel" class="rd-zoom-label">100%</span>
+        <button id="rdZoomIn" class="rd-btn" title="放大 (Ctrl+=)">+</button>
+        <button id="rdFit" class="rd-btn" title="适应宽度">⤢</button>
+      </div>
+      <button id="rdEditBtn" class="rd-btn" title="在编辑器中打开此文件" hidden>✏️ 编辑器打开</button>
+      <button id="rdExportBtn" class="rd-btn" title="导出为文本 / CSV" hidden>⬇️ 导出</button>
+      <button id="rdOpenBtn" class="rd-btn primary" title="选择本地文件预览">📂 打开文件</button>
+    </div>
+  </div>
+
+  <!-- PDF / PPT 翻页工具条 -->
+  <div class="rd-pager" id="rdPager" hidden>
+    <button id="rdPrev" class="rd-btn">‹ 上一页</button>
+    <span id="rdPageInfo" class="rd-page-info">0 / 0</span>
+    <button id="rdNext" class="rd-btn">下一页 ›</button>
+    <span class="rd-pager-hint" id="rdPagerHint"></span>
+  </div>
+
+  <!-- 主内容区 -->
+  <div class="rd-main" id="rdMain">
+    <div class="rd-empty" id="rdEmpty">
+      <div class="rd-empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6M9 15h6"/></svg>
+      </div>
+      <p class="rd-empty-title">把文件拖到这里，或点击「打开文件」</p>
+      <p class="rd-empty-sub">纯本地轻量预览：PDF · Word · PPT · Excel · Markdown · 代码 · 文本，无需安装额外软件</p>
+      <div class="rd-chip-row" id="rdChipRow"></div>
+    </div>
+    <div class="rd-loading" id="rdLoading" hidden>
+      <span class="rd-spinner"></span><span class="rd-loading-text">正在解析文档…</span>
+    </div>
+    <div class="rd-error" id="rdError" hidden>
+      <div class="rd-error-icon">⚠️</div>
+      <p class="rd-error-msg" id="rdErrorMsg"></p>
+      <p class="rd-error-sub" id="rdErrorSub"></p>
+    </div>
+    <div class="rd-scroll" id="rdScroll">
+      <div class="rd-container" id="rdContainer"></div>
+    </div>
+  </div>
+
+  <!-- XLSX 工作表切换条（动态挂载） -->
+  <div class="rd-sheetbar" id="rdSheetBar" hidden></div>
+
+  <script src="js/theme-core.js"></script>
+  <script src="js/theme-bridge.js"></script>
+  <script src="libs/marked.min.js"></script>
+  <script src="js/media-render.js"></script>
+  <script src="js/reader.js"></script>
+</body>
+</html>

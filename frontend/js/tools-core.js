@@ -198,6 +198,17 @@
       requiresDsh: true,
       description: 'DeepSeek Harness 智能干活（需先安装 DSH）',
       keywords: ['AI', '干活', 'dsh', 'harness', 'agent']
+    },
+    {
+      id: 'module-reader',
+      name: '阅读器',
+      icon: '📖',
+      module: true,
+      viewName: 'reader',
+      system: true,
+      category: '首页模块',
+      description: '万能阅读器：轻量预览 PDF / Word / PPT / Excel / Markdown / 代码 / 文本',
+      keywords: ['阅读器', '预览', 'pdf', 'word', 'ppt', 'excel', 'markdown', 'reader', '阅读', '查看文档']
     }
   ];
 

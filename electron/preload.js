@@ -714,12 +714,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** 主进程把剪贴板内容送入写作区（主窗口监听后转发给编辑器 iframe） */
   onToastWriteToEditor: (callback) => ipcRenderer.on('toast-write-to-editor', (_event, data) => callback(data)),
 
-  // 剪贴板历史面板：列表 / 删除 / 清空 / 补录为剪藏 / 打开与关闭窗口
+  // 剪贴板历史面板：列表 / 删除 / 清空 / 补录为剪藏 / 复制回剪贴板 / 打开写作区 / 开关窗口
   clipboardHistory: {
     list: () => ipcRenderer.invoke('clipboard-history:list'),
     remove: (id) => ipcRenderer.invoke('clipboard-history:delete', id),
     clear: () => ipcRenderer.invoke('clipboard-history:clear'),
     record: (id) => ipcRenderer.invoke('clipboard-history:record', id),
+    copy: (id) => ipcRenderer.invoke('clipboard-history:copy', id),
+    openEditor: (id) => ipcRenderer.invoke('clipboard-history:open-editor', id),
     open: () => ipcRenderer.invoke('clipboard-history:open'),
     close: () => ipcRenderer.invoke('clipboard-history:close'),
   },

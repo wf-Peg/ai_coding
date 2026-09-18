@@ -360,6 +360,8 @@
 
     aborter = new AbortController();
     var collected = '';
+    var streamFailed = false;   // 流式过程中收到 error 事件时置位，防止完成回调覆盖真实错误
+    var streamErrorMsg = '';
 
     fetch(API_AI_OUTLINE, {
       method: 'POST',
@@ -373,17 +375,21 @@
           if (taEl) taEl.value = collected;
           renderTreePreview();
         } else if (eventName === 'error' && data) {
-          var code = data.code;
-          var msg = data.message || 'AI 服务调用失败';
-          if (code === 'NOT_CONFIGURED') {
-            msg = '未配置可用的 AI 模型，请先在「设置」中配置并测试模型连接';
-          }
+          streamFailed = true;
+          streamErrorMsg = friendlyError(data.code, data.message);
+          // 错误通常由配额不足/未配置/额度超限引起，无 delta 正常；保留已生成的局部文本供用户另存
+          if (!collected) { if (taEl) taEl.value = ''; if (treeEl) treeEl.innerHTML = ''; }
           setGensState(false);
-          setStatus('error', msg);
+          setStatus('error', streamErrorMsg);
         }
       });
     }).then(function () {
       setGensState(false);
+      // 流式过程已报错：保留错误提示，不再用「没有生成到内容」覆盖真实原因
+      if (streamFailed) {
+        setStatus('error', streamErrorMsg);
+        return;
+      }
       if (!taEl || !taEl.value.trim()) {
         setStatus('warn', '没有生成到内容，换一个主题或重新生成试试');
       } else {
@@ -396,6 +402,28 @@
       setGensState(false);
       setStatus('error', '网络或服务异常：' + (e && e.message ? e.message : String(e)));
     });
+  }
+
+  /**
+   * 把后端 error 事件转成对用户友好的一句话。
+   * 提供商标识（NOT_CONFIGURED/配额等）直接给指引；其余取 message，
+   * 若 message 是内嵌 JSON（如 DashScope 403 配额），尝试剥离出人类可读字段。
+   */
+  function friendlyError(code, message) {
+    var msg = String(message || '').trim() || 'AI 服务调用失败';
+    if (code === 'NOT_CONFIGURED') {
+      return '未配置可用的 AI 模型，请先在「设置」中配置并测试模型连接';
+    }
+    // 常见配额/账号类提示：命中关键词就直接给出针对性指引
+    if (/quota|exhausted|额度|配额|balance|资金|FreeTier/i.test(msg)) {
+      return 'AI 模型额度已用尽：请到模型服务商控制台充值或关闭「仅使用免费额度」，或在设置中切换模型/厂商后重试';
+    }
+    // message 可能是内嵌 JSON（{"statusCode":403,"message":"Free quota exhausted..."}）——捞一段可读文本
+    try {
+      var parsed = JSON.parse(msg);
+      if (parsed && typeof parsed.message === 'string') msg = parsed.message;
+    } catch (e) { /* 非 JSON，原样展示 */ }
+    return msg.length > 120 ? msg.slice(0, 120) + '…' : msg;
   }
 
   // ---- 应用 ----

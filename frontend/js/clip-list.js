@@ -566,6 +566,11 @@ function formatClipDateTime(date) {
         if (hasImage && window.electronAPI && typeof window.electronAPI.ocrRecognize === 'function') {
             fanButtons.push(buildFanActionButton('ocr', clip.id, 'OCR提取文字', renderFanActionIcon('ocr')));
         }
+        // 源文件为阅读器支持的文档格式（pdf/docx/pptx/xlsx 等）时提供「阅读器预览」，
+        // 文本类（md/txt/json 等）仍走「在编辑器打开原文」
+        if (clip.sourceFilePath && isReaderPreviewExt(clip.sourceFilePath)) {
+            fanButtons.push(buildFanActionButton('reader-preview', clip.id, '阅读器预览', renderFanActionIcon('reader')));
+        }
         if (!isStoreOnly) {
             fanButtons.push(buildFanActionButton('divergent', clip.id, '发散性总结', renderFanActionIcon('divergent')));
         }
@@ -955,6 +960,8 @@ function formatClipDateTime(date) {
                 return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>';
             case 'ocr':
                 return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8h10M7 12h7M7 16h4"/></svg>';
+            case 'reader':
+                return '<svg class="fan-icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 14h6M9 18h6"/></svg>';
             default:
                 return '<svg class="fan-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>';
         }
@@ -964,7 +971,7 @@ function formatClipDateTime(date) {
         event.stopPropagation();
         closeAllMoreActions();
         const label = getMoreActionLabel(action);
-        if (action === 'organize-manual' || action === 'edit-in-editor' || action === 'dispatch' || action === 'export' || action === 'ocr') {
+        if (action === 'organize-manual' || action === 'edit-in-editor' || action === 'dispatch' || action === 'export' || action === 'ocr' || action === 'reader-preview') {
             performMoreAction(action, clipId)
         } else {
             showActionConfirm(`确定执行「${label}」吗？`, () => performMoreAction(action, clipId));
@@ -977,6 +984,16 @@ function formatClipDateTime(date) {
                 // 新标签页打开（不覆盖当前编辑内容，与 Ctrl+T 一致）
                 window.parent.postMessage({ type: 'openClipInNewTab', clipId }, '*');
                 break;
+            case 'reader-preview': {
+                // 阅读器预览：把源文件相对路径交给主框架，拼接绝对路径后以阅读器视图打开
+                const clip = getCachedClip(clipId);
+                if (clip && clip.sourceFilePath) {
+                    window.parent.postMessage({ type: 'openInReader', sourceFilePath: clip.sourceFilePath, fileName: clip.sourceFilePath.split('/').pop() }, '*');
+                } else {
+                    showToast('该剪藏无源文件可预览');
+                }
+                break;
+            }
             case 'organize-auto':
                 quickOrganizeClip(clipId);
                 break;
@@ -1010,6 +1027,8 @@ function formatClipDateTime(date) {
         switch (action) {
             case 'edit-in-editor':
                 return '在编辑器打开原文';
+            case 'reader-preview':
+                return '阅读器预览';
             case 'organize-auto':
                 return '快速整理';
             case 'organize-manual':
@@ -1161,6 +1180,15 @@ function formatClipDateTime(date) {
     /** 按 id 从 clipCache 取剪藏对象（列表/搜索渲染时均已填充） */
     function getCachedClip(clipId) {
         return clipCache.get(String(clipId));
+    }
+
+    /** 源文件是否适合用「万能阅读器」预览（仅二进制文档格式；文本类走编辑器） */
+    function isReaderPreviewExt(filePath) {
+        const READER_PREVIEW_EXTS = ['pdf', 'docx', 'docm', 'pptx', 'pptm', 'xlsx', 'xlsm'];
+        if (!filePath) return false;
+        const m = /\.([^.]+)$/.exec(String(filePath));
+        const ext = m ? m[1].toLowerCase() : '';
+        return READER_PREVIEW_EXTS.includes(ext);
     }
 
     /** 导出剪藏为 md / txt / html（纯前端 Blob 下载） */
