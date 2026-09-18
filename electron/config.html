@@ -1,22 +1,28 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="notion">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>碎碎记 - 设置</title>
+
+  <!-- 主题令牌：仅提供全局骨架（标题栏/容器/状态条）用色；引导卡片由 guide-core 自管 -->
+  <link rel="stylesheet" href="../frontend/styles/design-tokens.css">
+  <!-- 共享上手引导渲染器（自包含、注入样式、跟随 data-theme） -->
+  <script src="../frontend/js/guide-core.js"></script>
+
   <style>
-    /* ===== 全局重置与基础样式 ===== */
+    /* ===== 全局重置与骨架（全部引用 --app-* 令牌） ===== */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-      background: #f5f7fa; color: #333; overflow: hidden;
+      background: var(--app-bg, #f7f7f5); color: var(--app-text, #2f3437); overflow: hidden;
     }
 
     /* ===== 自定义标题栏（无边框窗口） ===== */
     .titlebar {
       display: flex; align-items: center; justify-content: space-between;
-      height: 40px; padding: 0 12px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      height: 44px; padding: 0 12px;
+      background: var(--app-primary, #2383e2); color: #fff;
       user-select: none;
     }
     .titlebar-drag {
@@ -25,137 +31,50 @@
       height: 100%;
     }
     .titlebar-icon { font-size: 16px; }
-    .titlebar-title { font-size: 13px; color: white; font-weight: 500; }
-    .titlebar-close {
+    .titlebar-title { font-size: 13px; font-weight: 500; }
+    .titlebar-controls {
       -webkit-app-region: no-drag;
-      width: 32px; height: 32px; border: none; background: transparent;
-      border-radius: 6px; color: rgba(255,255,255,0.8); font-size: 16px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .titlebar-btn {
+      width: 30px; height: 30px; border: none; background: transparent;
+      border-radius: 6px; color: rgba(255,255,255,0.9); font-size: 15px;
       cursor: pointer; display: flex; align-items: center; justify-content: center;
       transition: background 0.15s;
     }
-    .titlebar-close:hover { background: rgba(255,255,255,0.2); color: white; }
+    .titlebar-btn:hover { background: rgba(255,255,255,0.18); }
 
-    /* ===== 主内容区域（可滚动） ===== */
-    .container { padding: 24px 32px; max-height: calc(100vh - 40px); overflow-y: auto; }
+    /* ===== 主内容区域（引导卡由 guide-core 渲染） ===== */
+    .container { height: calc(100vh - 44px); overflow-y: auto; }
 
-    /* ===== 配置区块 ===== */
-    .section { margin-bottom: 24px; }
-    .section-title {
-      font-size: 14px; font-weight: 600; color: #555;
-      margin-bottom: 12px; padding-bottom: 8px;
-      border-bottom: 1px solid #e8ecf1;
-      display: flex; align-items: center; gap: 8px;
-    }
-
-    /* ===== 表单元素 ===== */
-    .form-group { margin-bottom: 16px; }
-    .form-group label {
-      display: block; font-size: 13px; color: #666;
-      margin-bottom: 6px; font-weight: 500;
-    }
-    .form-group label .hint { font-weight: 400; color: #999; font-size: 12px; }
-    .form-group input[type="text"],
-    .form-group input[type="number"],
-    .form-group input[type="password"] {
-      width: 100%; padding: 10px 14px;
-      border: 1px solid #d9dce1; border-radius: 8px;
-      font-size: 14px; outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s; background: white;
-    }
-    .form-group input:focus {
-      border-color: #667eea;
-      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
-    }
-
-    /* ===== 路径选择器（输入框 + 浏览按钮） ===== */
-    .path-group { display: flex; gap: 8px; }
-    .path-group input { flex: 1; }
-    .btn-browse {
-      padding: 10px 16px; background: #f0f2f5;
-      border: 1px solid #d9dce1; border-radius: 8px;
-      cursor: pointer; font-size: 13px; color: #555;
-      white-space: nowrap; transition: background 0.2s;
-    }
-    .btn-browse:hover { background: #e4e7ec; }
-    .path-desc { font-size: 12px; color: #999; margin-top: 4px; }
-
-    /* ===== 端口行（两个端口输入框并排） ===== */
-    .port-row { display: flex; gap: 16px; }
-    .port-row .form-group { flex: 1; }
-
-    /* ===== 底部操作按钮区域 ===== */
-    .actions {
-      display: flex; gap: 12px; justify-content: space-between;
-      padding-top: 16px; border-top: 1px solid #e8ecf1;
-    }
-    .actions-left { display: flex; gap: 12px; }
-    .actions-right { display: flex; gap: 12px; }
-    .btn {
-      padding: 10px 28px; border: none; border-radius: 8px;
-      font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s;
-    }
-    .btn-primary {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;
-    }
-    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
-    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-    .btn-danger {
-      background: #fff; color: #dc2626; border: 1px solid #fecaca;
-    }
-    .btn-danger:hover { background: #fef2f2; }
-    .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    /* ===== 状态栏（成功/错误/加载中） ===== */
+    /* ===== 顶部状态条（复用旧 status-bar 语义，令牌化） ===== */
     .status-bar {
-      margin-top: 12px; padding: 10px 14px; border-radius: 8px;
+      margin: 0 24px 8px; padding: 10px 14px; border-radius: 8px;
       font-size: 13px; display: none;
     }
-    .status-bar.success { display: block; background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
-    .status-bar.error { display: block; background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
-    .status-bar.loading { display: block; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+    .status-bar.success { display: block; background: var(--app-success-soft, rgba(35,139,99,.1)); color: var(--app-success, #238b63); border: 1px solid var(--app-success, #238b63); }
+    .status-bar.error { display: block; background: var(--app-danger-soft, rgba(209,67,67,.1)); color: var(--app-danger, #d14343); border: 1px solid var(--app-danger, #d14343); }
+    .status-bar.loading { display: block; background: var(--app-primary-soft, rgba(35,131,226,.1)); color: var(--app-primary, #2383e2); border: 1px solid var(--app-primary, #2383e2); }
 
-    /* ===== 首次运行提示横幅 ===== */
-    .first-run-notice {
-      background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
-      padding: 14px 16px; margin-bottom: 20px;
-      font-size: 13px; color: #92400e; line-height: 1.6;
-    }
-    .first-run-notice strong { display: block; margin-bottom: 4px; font-size: 14px; }
-
-    /* ===== 自定义滚动条 ===== */
-    .container::-webkit-scrollbar { width: 6px; }
-    .container::-webkit-scrollbar-track { background: transparent; }
-    .container::-webkit-scrollbar-thumb { background: var(--border-color, #d1d5db); border-radius: 999px; }
-
-    /* ===== 启动遮罩层（覆盖整个页面，显示加载动画和进度） ===== */
+    /* ===== 启动遮罩层 ===== */
     .startup-overlay {
-      display: none;
-      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(255,255,255,0.95);
-      z-index: 100;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 20px;
+      display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: color-mix(in srgb, var(--app-bg, #f7f7f5) 92%, transparent);
+      z-index: 100; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
     }
     .startup-overlay.active { display: flex; }
     .spinner {
       width: 48px; height: 48px;
-      border: 4px solid #e5e7eb;
-      border-top-color: #667eea;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
+      border: 4px solid var(--app-border-strong, #d2d2cd);
+      border-top-color: var(--app-primary, #2383e2);
+      border-radius: 50%; animation: spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .startup-text {
-      font-size: 15px; color: #555; font-weight: 500;
-      text-align: center;
-    }
-    .startup-step {
-      font-size: 13px; color: #888;
-      text-align: center;
-      max-width: 300px;
-    }
+    .startup-text { font-size: 15px; color: var(--app-text-secondary, #6b6f76); font-weight: 500; text-align: center; }
+    .startup-step { font-size: 13px; color: var(--app-text-muted, #92969d); text-align: center; max-width: 300px; }
+
+    /* ===== 相对 guide-core 的容器留白 ===== */
+    #onboardRoot { padding: 20px 0 8px; }
   </style>
 </head>
 <body>
@@ -163,60 +82,18 @@
   <!-- ==================== 自定义标题栏 ==================== -->
   <div class="titlebar">
     <div class="titlebar-drag">
-      <span class="titlebar-icon">⚙️</span>
-      <span class="titlebar-title" id="headerTitle">碎碎记 - 设置</span>
+      <span class="titlebar-icon">✨</span>
+      <span class="titlebar-title" id="headerTitle">碎碎记 - 初始设置</span>
     </div>
-    <button class="titlebar-close" id="titlebarClose" title="关闭">✕</button>
+    <div class="titlebar-controls">
+      <button class="titlebar-btn" id="themeToggle" title="切换浅色/深色">🌓</button>
+      <button class="titlebar-btn" id="titlebarClose" title="关闭">✕</button>
+    </div>
   </div>
 
-  <!-- ==================== 主内容区域 ==================== -->
+  <!-- ==================== 引导卡渲染区 / 状态条 ==================== -->
   <div class="container">
-
-    <!-- 首次运行提示横幅：仅在首次启动时显示 -->
-    <div id="firstRunNotice" class="first-run-notice" style="display:none;">
-      <strong>🎉 欢迎使用剪藏！</strong>
-      首次使用只需配置存储目录和端口即可开始。AI 等高级功能可在设置中按需配置。
-    </div>
-
-    <!-- ===== 端口配置区块 ===== -->
-    <div class="section">
-      <div class="section-title"><span class="icon">🔌</span> 端口配置</div>
-      <div class="port-row">
-        <div class="form-group">
-          <label>后端端口 <span class="hint">（必填）</span></label>
-          <input type="number" id="backendPort" value="8081" min="1024" max="65535" />
-        </div>
-        <div class="form-group">
-          <label>前端端口 <span class="hint">（必填）</span></label>
-          <input type="number" id="frontendPort" value="3001" min="1024" max="65535" />
-        </div>
-      </div>
-    </div>
-
-    <!-- ===== 存储目录区块 ===== -->
-    <div class="section">
-      <div class="section-title"><span class="icon">📁</span> 存储目录</div>
-      <div class="form-group">
-        <label>存储根目录 <span class="hint">（必填）</span></label>
-        <div class="path-group">
-          <input type="text" id="storagePath" placeholder="选择数据存储根目录" />
-          <button class="btn-browse" id="browseStorage" type="button">浏览...</button>
-        </div>
-        <div class="path-desc">所有剪藏、整理、周报数据均存储在此目录下</div>
-      </div>
-    </div>
-
-    <!-- ===== 底部操作按钮 ===== -->
-    <div class="actions">
-      <div class="actions-left">
-        <button class="btn btn-danger" id="btnQuit" type="button">退出应用</button>
-      </div>
-      <div class="actions-right">
-        <button class="btn btn-primary" id="btnSave" type="button">保存并启动</button>
-      </div>
-    </div>
-
-    <!-- 状态栏：用于显示保存/启动结果（成功/失败/加载中） -->
+    <div id="onboardRoot"></div>
     <div class="status-bar" id="statusBar"></div>
   </div>
 
@@ -231,169 +108,274 @@
   <script>
     /**
      * 等待 electronAPI 就绪后再执行业务逻辑
-     *
-     * 由于 preload.js 通过 contextBridge 暴露 API，在页面脚本执行时
-     * window.electronAPI 可能尚未挂载完成。此函数以轮询方式检测 API 是否就绪，
-     * 最多等待 5 秒（100 次 × 50ms），超时后显示错误。
-     *
-     * @param {Function} callback - API 就绪后的回调函数，接收 electronAPI 对象
+     * 与旧版一致：轮询 window.electronAPI，最多等 5 秒。
      */
     function waitForAPI(callback) {
-      if (window.electronAPI) {
-        callback(window.electronAPI);
-      } else {
-        var attempts = 0;
-        var timer = setInterval(function() {
-          attempts++;
-          if (window.electronAPI) {
-            clearInterval(timer);
-            callback(window.electronAPI);
-          } else if (attempts > 100) {
-            // 超过 5 秒仍未就绪，视为失败
-            clearInterval(timer);
-            showStatus('electronAPI not available', 'error');
-          }
-        }, 50);
-      }
+      if (window.electronAPI) { callback(window.electronAPI); return; }
+      var attempts = 0;
+      var timer = setInterval(function () {
+        attempts++;
+        if (window.electronAPI) { clearInterval(timer); callback(window.electronAPI); }
+        else if (attempts > 100) { clearInterval(timer); showStatus('electronAPI not available', 'error'); }
+      }, 50);
     }
 
-    /** 是否为首次运行（首次运行时行为不同：不显示退出按钮，走 configDone 流程） */
     var isFirstRun = false;
-
-    /** 保存主进程推送的已有配置，避免保存时覆盖非当前页面的配置项 */
     var loadedConfig = null;
+    var recommendedPath = '';
+    // 首装的推荐路径：由「一键填充推荐路径」显式写入，默认不自动回填（保证「唯一必填」成立）
+    var spec = null;
 
-    /**
-     * 在页面底部状态栏显示消息
-     * @param {string} message - 要显示的消息文本
-     * @param {string} type - 消息类型：'success' | 'error' | 'loading'，决定颜色样式
-     */
     function showStatus(message, type) {
       var bar = document.getElementById('statusBar');
       bar.textContent = message;
       bar.style.display = 'block';
       bar.className = 'status-bar ' + type;
     }
-
-    /**
-     * 显示启动遮罩层（覆盖整个页面，显示加载动画）
-     * @param {string} step - 当前步骤描述文本，如 "正在保存配置..."
-     */
     function showStartupOverlay(step) {
       document.getElementById('startupOverlay').classList.add('active');
       document.getElementById('startupStep').textContent = step || '准备中';
     }
-
-    /** 隐藏启动遮罩层 */
     function hideStartupOverlay() {
       document.getElementById('startupOverlay').classList.remove('active');
     }
 
-    // 等待 electronAPI 就绪后，开始绑定所有事件和初始化逻辑
-    waitForAPI(function(api) {
+    /** 浅/深主题切换（config 窗口独立，不走主窗口广播） */
+    function applyPersistedTheme() {
+      var saved = null;
+      try { saved = localStorage.getItem('config_theme'); } catch (e) {}
+      var theme = saved && (saved === 'dark' || saved === 'notion') ? saved : 'notion';
+      document.documentElement.setAttribute('data-theme', theme);
+    }
+    function toggleTheme() {
+      var cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'notion' : 'dark';
+      document.documentElement.setAttribute('data-theme', cur);
+      try { localStorage.setItem('config_theme', cur); } catch (e) {}
+      // 重绘引导卡（令牌作用域跟随 data-theme）
+      if (window.CutShelterGuide && spec) {
+        window.CutShelterGuide.render(document.getElementById('onboardRoot'), spec);
+        bindSpecEvents();
+      }
+    }
 
-      // ===== 监听主进程事件：加载已有配置 =====
-      api.onLoadConfig(function(config) {
-        loadedConfig = config;
-        document.getElementById('backendPort').value = config.backendPort || 8081;
-        document.getElementById('frontendPort').value = config.frontendPort || 3001;
-        document.getElementById('storagePath').value = config.storagePath || '';
-      });
+    function storeStatus() {
+      var val = (document.getElementById('gStoragePath') || {}).value || '';
+      spec.cards[0].status = { text: val.trim() ? '已就绪' : '未设置', tone: val.trim() ? 'ok' : 'danger' };
+    }
 
-      // ===== 监听主进程事件：首次运行 =====
-      api.onFirstRun(function() {
-        isFirstRun = true;
-        document.getElementById('firstRunNotice').style.display = 'block';
-        document.getElementById('headerTitle').textContent = '碎碎记 - 初始设置';
-        // 首次运行时没有已运行的服务，因此不需要退出按钮
-        document.getElementById('btnQuit').style.display = 'none';
-      });
+    /** 渲染完后绑定卡片内控件事件（冰洁：存储路径/填充/浏览/AI/端口） */
+    function bindSpecEvents() {
+      var api = window.electronAPI;
 
-      // ===== 监听主进程事件：启动进度 =====
-      api.onStartupProgress(function(msg) {
-        showStartupOverlay(msg);
-      });
+      var pathInput = document.getElementById('gStoragePath');
+      var browseBtn = document.getElementById('gBrowseBtn');
+      var fillBtn = document.getElementById('gFillBtn');
 
-      // ===== 监听主进程事件：启动失败 =====
-      api.onStartupError(function(msg) {
-        hideStartupOverlay();
-        showStatus('启动失败: ' + msg, 'error');
-        document.getElementById('btnSave').disabled = false;
-      });
+      function refreshSpec() {
+        storeStatus();
+        // 重刷卡片状态药丸
+        var cardDom = spec.cards[0]._dom;
+        if (cardDom) {
+          var st = cardDom.querySelector('.g-status');
+          if (st) {
+            st.className = (spec.cards[0].status.tone === 'ok' ? 'g-status ok' : 'g-status danger');
+            var span = st.querySelector('span:last-child');
+            if (span) span.textContent = spec.cards[0].status.text;
+          }
+        }
+        // 同步主按钮可用性
+        if (spec._primaryBtn) {
+          spec._primaryBtn.disabled = !window.CutShelterGuide.resolveCanProceed(spec);
+        }
+      }
 
-      // ===== 自定义标题栏关闭按钮 =====
-      document.getElementById('titlebarClose').addEventListener('click', function() {
-        window.close();
-      });
-
-      // ===== 浏览按钮：存储根目录 =====
-      document.getElementById('browseStorage').addEventListener('click', async function() {
+      if (pathInput) pathInput.addEventListener('input', refreshSpec);
+      if (browseBtn) browseBtn.addEventListener('click', async function () {
         try {
           var dir = await api.selectDirectory();
-          if (dir) {
-            document.getElementById('storagePath').value = dir;
-          }
-        } catch (e) {
-          showStatus('选择目录失败: ' + e.message, 'error');
-        }
+          if (dir) { pathInput.value = dir; refreshSpec(); }
+        } catch (e) { showStatus('选择目录失败: ' + e.message, 'error'); }
       });
-
-      // ===== 退出应用按钮 =====
-      document.getElementById('btnQuit').addEventListener('click', async function() {
-        await api.quitApp();
+      if (fillBtn) fillBtn.addEventListener('click', function () {
+        if (recommendedPath) { pathInput.value = recommendedPath; refreshSpec(); }
+        else showStatus('暂无可用的推荐路径，请手动浏览选择', 'error');
       });
+    }
 
-      // ===== 保存并启动按钮 =====
-      document.getElementById('btnSave').addEventListener('click', async function() {
-        // 收集表单数据
-        var backendPort = parseInt(document.getElementById('backendPort').value) || 8081;
-        var frontendPort = parseInt(document.getElementById('frontendPort').value) || 3001;
-        var storagePath = document.getElementById('storagePath').value.trim();
-
-        // 表单验证：仅校验必填项（端口 + 存储目录）
-        if (!storagePath) { showStatus('请选择数据存储根目录', 'error'); return; }
-        if (backendPort === frontendPort) { showStatus('前端和后端端口不能相同', 'error'); return; }
-
-        // 合并已有配置，保留未在当前页面展示的配置项（如 AI、邮件等）
-        var newConfig = Object.assign({}, loadedConfig || {}, {
-          backendPort: backendPort,
-          frontendPort: frontendPort,
-          storagePath: storagePath,
-          configured: true
-        });
-
-        var btn = document.getElementById('btnSave');
-        btn.disabled = true; // 禁用按钮防止重复提交
-
-        if (isFirstRun) {
-          // 首次运行：通过 configDone 单向发送配置给主进程
-          showStartupOverlay('正在保存配置...');
-          api.configDone(newConfig);
-        } else {
-          // 非首次运行：通过 restartBackend 双向通信
-          showStartupOverlay('正在保存配置并重启服务...');
-          try {
-            var result = await api.restartBackend(newConfig);
-            if (result.success) {
-              showStartupOverlay('启动成功！');
-              // 1 秒后自动关闭配置窗口
-              setTimeout(function() {
-                hideStartupOverlay();
-                window.close();
-              }, 1000);
-            } else {
-              hideStartupOverlay();
-              showStatus('重启失败: ' + result.message, 'error');
-              btn.disabled = false;
+    function buildSpec() {
+      spec = {
+        title: '欢迎使用碎碎记',
+        subtitle: '配好存储目录即可开始，AI 可稍后再添加。',
+        stepText: '第 1 步 · 共 2 步',
+        progress: [{ state: 'current' }, { state: 'pending' }],
+        footerNote: '内容 100% 存本机 · 随时可用任何工具打开迁移',
+        primaryAction: {
+          id: 'gPrimaryAction',
+          label: isFirstRun ? '开始使用' : '保存并重启',
+          onClick: onSaveClick
+        },
+        cards: [
+          {
+            id: 'store', icon: '📂', label: '工作区存储路径',
+            required: true, badge: '必填', badgeOpt: false,
+            desc: '所有剪藏、整理、周报数据存放的根目录。',
+            status: { text: '未设置', tone: 'danger' },
+            open: true,
+            fieldsHtml: function () {
+              return '' +
+                '<div class="g-field">' +
+                  '<label class="g-label">存储总目录</label>' +
+                  '<div class="g-path-row">' +
+                    '<input type="text" id="gStoragePath" placeholder="选择数据存放根目录">' +
+                    '<button type="button" id="gBrowseBtn" class="g-btn ghost" style="padding:8px 14px;">浏览</button>' +
+                  '</div>' +
+                  (recommendedPath
+                    ? '<button type="button" id="gFillBtn" class="g-btn ghost" style="margin-top:8px;width:100%;">一键填充推荐路径</button>'
+                    : '') +
+                  '<div class="g-hint">子目录 clip-storage / clip-organized / weekly-report 将自动派生</div>' +
+                '</div>';
+            },
+            actions: function () { return ''; }
+          },
+          {
+            id: 'ai', icon: '🧠', label: '主 AI 模型 · API Key',
+            required: false, badge: '稍后配置', badgeOpt: true,
+            desc: '为整理、问答、写作等提供 AI 能力，可稍后在设置中补配。',
+            status: { text: '稍后配置', tone: 'muted' },
+            open: false,
+            fieldsHtml: function () {
+              return '' +
+                '<div class="g-field">' +
+                  '<label class="g-label">服务商</label>' +
+                  '<select id="gProvider">' +
+                    '<option value="dashscope">阿里云 DashScope</option>' +
+                    '<option value="deepseek">DeepSeek</option>' +
+                    '<option value="custom">自定义 OpenAI 兼容</option>' +
+                  '</select>' +
+                '</div>' +
+                '<div class="g-field">' +
+                  '<label class="g-label">API Key</label>' +
+                  '<input type="password" id="gApiKey" placeholder="sk-…" autocomplete="off">' +
+                '</div>';
+            },
+            actions: function () {
+              return '<button type="button" class="g-btn danger" data-g-skip="ai">跳过，稍后配置</button>';
             }
-          } catch (e) {
+          },
+          {
+            id: 'adv', icon: '🔌', label: '服务端口（高级）',
+            required: false, badgeOpt: false,
+            desc: '默认 后端 8081 / 前端 3001；一般无需修改。',
+            status: { text: '使用默认', tone: 'muted' },
+            open: false,
+            fieldsHtml: function () {
+              return '' +
+                '<div class="g-field"><label class="g-label">后端端口</label>' +
+                  '<input type="number" id="backendPort" value="8081" min="1024" max="65535"></div>' +
+                '<div class="g-field"><label class="g-label">前端端口</label>' +
+                  '<input type="number" id="frontendPort" value="3001" min="1024" max="65535"></div>';
+            },
+            actions: function () { return ''; }
+          }
+        ]
+      };
+      return spec;
+    }
+
+    function onSaveClick() {
+      var api = window.electronAPI;
+      var backendPort = parseInt((document.getElementById('backendPort') || {}).value, 10) || 8081;
+      var frontendPort = parseInt((document.getElementById('frontendPort') || {}).value, 10) || 3001;
+      var storagePath = ((document.getElementById('gStoragePath') || {}).value || '').trim();
+
+      // 表单校验：唯一必填 = 存储路径；端口仅做相等兜底
+      if (!storagePath) { showStatus('请选择工作区存储路径', 'error'); return; }
+      if (backendPort === frontendPort) { showStatus('前端和后端端口不能相同', 'error'); return; }
+
+      // 合并已有配置，保留当前页面未展示的项
+      var newConfig = Object.assign({}, loadedConfig || {}, {
+        backendPort: backendPort,
+        frontendPort: frontendPort,
+        storagePath: storagePath,
+        configured: true
+      });
+
+      // AI Key 值才写对应 provider 字段，其余置空避免串值
+      var provider = (document.getElementById('gProvider') || {}).value || 'dashscope';
+      var apiKey = ((document.getElementById('gApiKey') || {}).value || '').trim();
+      newConfig.activeProvider = provider;
+      newConfig.dashscopeApiKey = '';
+      newConfig.deepseekApiKey = '';
+      newConfig.customApiKey = '';
+      newConfig.customBaseUrl = '';
+      if (apiKey) {
+        if (provider === 'dashscope') newConfig.dashscopeApiKey = apiKey;
+        else if (provider === 'deepseek') newConfig.deepseekApiKey = apiKey;
+        else newConfig.customApiKey = apiKey;
+      }
+
+      var btn = document.getElementById('gPrimaryAction');
+      btn.disabled = true;
+
+      if (isFirstRun) {
+        showStartupOverlay('正在保存配置...');
+        api.configDone(newConfig);
+      } else {
+        showStartupOverlay('正在保存配置并重启服务...');
+        api.restartBackend(newConfig).then(function (result) {
+          if (result && result.success) {
+            showStartupOverlay('启动成功！');
+            setTimeout(function () { hideStartupOverlay(); window.close(); }, 1000);
+          } else {
             hideStartupOverlay();
-            showStatus('操作失败: ' + e.message, 'error');
+            showStatus('重启失败: ' + ((result && result.message) || '未知错误'), 'error');
             btn.disabled = false;
           }
-        }
+        }).catch(function (e) {
+          hideStartupOverlay();
+          showStatus('操作失败: ' + (e.message || '未知错误'), 'error');
+          btn.disabled = false;
+        });
+      }
+    }
+
+    waitForAPI(function (api) {
+
+      api.onLoadConfig(function (config) {
+        loadedConfig = config;
+        recommendedPath = (config && config.storagePath) || '';
+        document.getElementById('backendPort').value = config.backendPort || 8081;
+        document.getElementById('frontendPort').value = config.frontendPort || 3001;
+        renderGuide();
       });
+
+      api.onFirstRun(function () {
+        isFirstRun = true;
+        document.getElementById('headerTitle').textContent = '碎碎记 - 初始设置';
+        document.getElementById('titlebarClose').style.display = 'none';
+        renderGuide();
+      });
+
+      api.onStartupProgress(function (msg) { showStartupOverlay(msg); });
+      api.onStartupError(function (msg) {
+        hideStartupOverlay();
+        showStatus('启动失败: ' + msg, 'error');
+        document.getElementById('gPrimaryAction').disabled = false;
+      });
+
+      document.getElementById('titlebarClose').addEventListener('click', function () { window.close(); });
+      document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+
+      applyPersistedTheme();
+      renderGuide();
     });
+
+    function renderGuide() {
+      if (!window.CutShelterGuide) { showStatus('引导组件加载失败，请重新打开设置', 'error'); return; }
+      var host = document.getElementById('onboardRoot');
+      window.CutShelterGuide.render(host, buildSpec());
+      bindSpecEvents();
+    }
   </script>
 </body>
 </html>
