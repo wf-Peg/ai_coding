@@ -617,6 +617,7 @@ function formatClipDateTime(date) {
                 ${tagsHtml}
                 <div class="clip-detail" data-clip-id="${clip.id}">
                     <div class="clip-detail-actions" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                        <button class="btn-secondary" type="button" onclick="openWorkspaceJoinForClip(${clip.id})" style="padding:6px 12px;font-size:0.8rem;">📌 加入工作台</button>
                         <button class="btn-secondary" type="button" onclick="openExportMdModal(${clip.id})" style="padding:6px 12px;font-size:0.8rem;">📄 导出 MD</button>
                     </div>
                     <div class="content-section">
@@ -833,6 +834,17 @@ function formatClipDateTime(date) {
             quickOrganizeClip(parseInt(btn.dataset.clipId));
         }
     });
+
+    // P0：剪藏卡片「加入工作台」入口（弹出工作台选择器，title 取自缓存）
+    window.openWorkspaceJoinForClip = function (clipId) {
+        if (!window.openWorkspaceJoinPicker) {
+            showToast('工作台组件未加载', true);
+            return;
+        }
+        const c = clipCache.get(String(clipId));
+        const title = (c && (c.title || c.summary)) || ('剪藏 #' + clipId);
+        window.openWorkspaceJoinPicker({ contentId: 'clip:' + clipId, title });
+    };
 
     function toggleDetail(btn) {
         closeAllMoreActions();

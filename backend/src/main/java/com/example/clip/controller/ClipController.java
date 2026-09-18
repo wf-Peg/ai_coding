@@ -416,7 +416,11 @@ public class ClipController {
     @GetMapping("/{id}")
     public ResponseEntity<ClipContent> getClipById(@PathVariable(name = "id") Long id) {
         ClipContent clip = clipService.getClipById(id);
-        return clip == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(clip);
+        if (clip == null) {
+            return ResponseEntity.notFound().build();
+        }
+        recordAction("content_opened", "clip:" + id, Map.of("source", "api"));
+        return ResponseEntity.ok(clip);
     }
 
     /**

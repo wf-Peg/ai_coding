@@ -131,9 +131,14 @@ public class DataObservabilityController {
             Path membershipPath = indexDir.resolve("workspace-memberships.json");
             List<WorkspaceMembership> allMembers = readMemberships(membershipPath);
             Map<String, Long> sourceDist = new LinkedHashMap<>();
+            long manualAdded = 0;
             for (WorkspaceMembership m : allMembers) {
                 sourceDist.merge(m.source(), 1L, Long::sum);
+                if ("manual".equals(m.source()) || "manual_input".equals(m.source())) {
+                    manualAdded++;
+                }
             }
+            result.put("manualMembershipCount", manualAdded);
             result.put("membershipSourceDistribution", sorted(sourceDist));
 
             // 统计所有工作台的规则/排除数量
@@ -141,6 +146,16 @@ public class DataObservabilityController {
             Path exclusionsPath = indexDir.resolve("workspace-exclusions.json");
             result.put("totalRules", countLines(rulesPath));
             result.put("totalExclusions", countLines(exclusionsPath));
+
+            // 行为侧指标（近 30 天）：看板移动次数、待办创建/完成 → 内容整理完成率
+            Path eventsPath = indexDir.resolve("action-events.jsonl");
+            result.put("boardMoves30d", countEventType30d(eventsPath, "board_column_changed"));
+            long todoCreated30d = countEventType30d(eventsPath, "todo_created");
+            long todoCompleted30d = countEventType30d(eventsPath, "todo_completed");
+            result.put("todoCreated30d", todoCreated30d);
+            result.put("todoCompleted30d", todoCompleted30d);
+            result.put("organizeRate", todoCreated30d == 0 ? 0.0
+                    : Math.round(todoCompleted30d * 1000.0 / todoCreated30d) / 10.0);
 
             result.put("observedAt", LocalDateTime.now());
         } catch (Exception e) {
@@ -383,6 +398,21 @@ public class DataObservabilityController {
             return values == null ? List.of() : values;
         } catch (IOException error) {
             return List.of();
+        }
+    }
+
+    /** 统计动作事件文件中近 30 天的指定类型事件数（读取失败/文件缺失返回 0）。 */
+    private long countEventType30d(Path eventsPath, String type) {
+        if (!Files.exists(eventsPath)) return 0;
+        try {
+            ActionEventService eventService = new ActionEventService(eventsPath);
+            LocalDate cutoff = LocalDate.now().minusDays(30);
+            return eventService.readAll().stream()
+                    .filter(e -> type.equals(e.type()))
+                    .filter(e -> e.createdAt() != null && !e.createdAt().toLocalDate().isBefore(cutoff))
+                    .count();
+        } catch (Exception error) {
+            return 0;
         }
     }
 

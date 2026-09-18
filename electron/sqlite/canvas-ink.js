@@ -15,7 +15,7 @@
 const canvasDoc = require('./canvas-doc');
 
 /** 单文档笔迹数上限（超限截断最旧并返回 truncated 标记，防止快照无界膨胀）。 */
-const INK_MAX_PER_DOC = 3000;
+const INK_MAX_PER_DOC = 800;
 
 const now = () => new Date().toISOString();
 const B36 = '0123456789abcdefghijklmnopqrstuvwxyz';

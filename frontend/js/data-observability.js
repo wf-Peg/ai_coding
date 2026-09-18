@@ -85,12 +85,16 @@
     if (!panel) return;
     panel.innerHTML = '';
     panel.innerHTML = '<h2>工作台数据流 <small>内容来源分布 + 建议漏斗</small></h2>' +
+      '<div style="padding:2px 0 10px;"><a href="workspace.html" style="font-size:12px;color:var(--obs-accent, #1a73e8);">前往工作台管理 →</a></div>' +
       '<div class="ws-summary">' +
       '<div class="ws-summary-item"><span class="ws-summary-label">工作台</span><span class="ws-summary-value">' + (wsStats.workspaceCount || 0) + '</span></div>' +
       '<div class="ws-summary-item"><span class="ws-summary-label">活跃</span><span class="ws-summary-value">' + (wsStats.activeCount || 0) + '</span></div>' +
       '<div class="ws-summary-item"><span class="ws-summary-label">已归档</span><span class="ws-summary-value">' + (wsStats.archivedCount || 0) + '</span></div>' +
       '<div class="ws-summary-item"><span class="ws-summary-label">规则数</span><span class="ws-summary-value">' + (wsStats.totalRules || 0) + '</span></div>' +
       '<div class="ws-summary-item"><span class="ws-summary-label">排除数</span><span class="ws-summary-value">' + (wsStats.totalExclusions || 0) + '</span></div>' +
+      '<div class="ws-summary-item"><span class="ws-summary-label">手动加入</span><span class="ws-summary-value">' + (wsStats.manualMembershipCount || 0) + '</span></div>' +
+      '<div class="ws-summary-item"><span class="ws-summary-label">看板移动(30d)</span><span class="ws-summary-value">' + (wsStats.boardMoves30d || 0) + '</span></div>' +
+      '<div class="ws-summary-item"><span class="ws-summary-label">整理完成率(30d)</span><span class="ws-summary-value">' + (wsStats.organizeRate || 0) + '%</span></div>' +
       '</div>' +
       '<div class="panel-section"><div class="section-title">成员来源</div><div id="membershipSourceDistribution"></div></div>' +
       '<div class="panel-section"><div class="section-title">建议漏斗</div><div id="suggestionFunnel"></div></div>';

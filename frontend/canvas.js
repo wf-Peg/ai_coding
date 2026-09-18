@@ -1206,7 +1206,7 @@
     canvasModalTitle.textContent = '删除画布';
     canvasModalBody.innerHTML =
       '<div class="clear-all-tip">确定删除画布「<b>' + escapeHtml(title) + '</b>」吗？<br>' +
-      '该画布下的全部节点、连线与分组都会一并删除，且不可恢复。</div>';
+      '该画布下的全部节点、连线、分组与手绘墨迹都会一并删除，且不可恢复。</div>';
     canvasModalCancel.textContent = '取消';
     canvasModalMask.style.display = 'flex';
   }

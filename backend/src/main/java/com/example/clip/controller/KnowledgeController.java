@@ -8,6 +8,7 @@ import com.example.clip.model.KnowledgeEntry;
 import com.example.clip.service.AppConfigService;
 import com.example.clip.service.FileStorageService;
 import com.example.clip.service.KnowledgeService;
+import com.example.clip.service.UserActionEventRecorder;
 import com.example.clip.util.WorkspaceFilterUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,6 +51,10 @@ public class KnowledgeController {
     private final FileStorageService storageService;
     /** 应用配置服务，用于获取配置目录路径 */
     private final AppConfigService appConfigService;
+
+    /** 本地行为事件采集（best-effort，未注入时不阻塞业务）。 */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private UserActionEventRecorder actionEventRecorder;
 
     private static final Logger logger = LoggerFactory.getLogger(KnowledgeController.class);
 
@@ -155,6 +160,7 @@ public class KnowledgeController {
             }
             return ResponseEntity.notFound().build();
         }
+        recordAction("content_opened", "knowledge:" + id, Map.of("source", "api"));
         return ResponseEntity.ok(toResponse(knowledge));
     }
 
@@ -178,12 +184,24 @@ public class KnowledgeController {
         knowledge.setSummary(request.getSummary());
         knowledge.setContent(request.getContent());
         knowledge.setCategory(request.getCategory());
-        knowledge.setTags(request.getTags());
         knowledge.setSourceClipIds(request.getSourceClipIds());
         knowledge.setMyThoughts(request.getMyThoughts());
         knowledge.setLinkedKnowledgeIds(request.getLinkedKnowledgeIds());
 
+        boolean tagsChanged = !java.util.Objects.equals(
+                knowledge.getTags() == null ? List.of() : knowledge.getTags(),
+                request.getTags() == null ? List.of() : request.getTags());
+        knowledge.setTags(request.getTags());
+
         Knowledge updated = knowledgeService.updateKnowledge(knowledge);
+        recordAction("content_edited", "knowledge:" + id,
+                Map.of("source", "api", "field", tagsChanged ? "content+tags" : "content"));
+        if (tagsChanged) {
+            recordAction("content_tagged", "knowledge:" + id,
+                    Map.of("source", "api",
+                            "tag", updated.getTags() == null || updated.getTags().isEmpty()
+                                    ? "" : updated.getTags().get(0)));
+        }
         return ResponseEntity.ok(toResponse(updated));
     }
 
@@ -415,6 +433,15 @@ public class KnowledgeController {
      */
     private List<Knowledge> filterByWorkspace(List<Knowledge> items, String workspaceId) {
         return WorkspaceFilterUtils.filterByWorkspace(items, workspaceId, appConfigService, Knowledge::getId);
+    }
+
+    /**
+     * 本地行为事件采集（best-effort，不阻塞业务）。
+     */
+    private void recordAction(String type, String contentId, Map<String, String> metadata) {
+        if (actionEventRecorder != null) {
+            actionEventRecorder.record(type, contentId, metadata);
+        }
     }
 
     /**

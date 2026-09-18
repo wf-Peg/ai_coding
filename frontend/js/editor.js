@@ -5,6 +5,27 @@
   window.API_BASE_URL = API_BASE_URL; // 暴露给 media-uploader.js（const 不挂 window）
   const AI_CHAT_API_URL = API_BASE_URL.replace(/\/api\/clip$/, '/api/ai/chat/stream');
   const MAX_TRANSFORM_LENGTH = 5 * 1024 * 1024;
+
+  /**
+   * 本地行为事件上报（best-effort）：
+   * POST /api/clip/event 通用通道，失败静默，不打断编辑流。
+   * 仅用于后端接口未覆盖的场景（编辑器文件保存/切换剪藏、剪藏标签变更）。
+   */
+  function reportUserEvent(type, contentId, metadata) {
+    try {
+      fetch(`${API_BASE_URL}/event`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, contentId: contentId || '', metadata: metadata || {} })
+      }).catch(() => {});
+    } catch (e) { /* 静默：埋点失败不影响编辑 */ }
+  }
+
+  /** 当前编辑上下文的事件 contentId：打开剪藏时用 clip:N，普通文件用 file:<文件名>。 */
+  function currentEventContentId() {
+    if (state && state.clipId) return 'clip:' + state.clipId;
+    return 'file:' + ((state && state.fileName) || 'unnamed');
+  }
   const LANGUAGE_EXTENSIONS = { json: 'json', xml: 'xml', sql: 'sql', text: 'txt', markdown: 'md',
     javascript: 'js', python: 'py', yaml: 'yml', css: 'css', html: 'html' };
   const THEME_STORAGE_KEY = 'app_theme_v1';
@@ -647,6 +668,7 @@
     }
 
     refreshFileTreeActive(); // 同步树中当前文件高亮
+    reportUserEvent('content_opened', currentEventContentId(), { source: 'editor' });
     mainEditor.focus();
   }
 
@@ -986,7 +1008,8 @@
     var filePath = file.path || '';
     var isFav = filePath ? isFavoriteFile(filePath) : false;
     menu.innerHTML = '<button type="button" class="tab-context-fav" role="menuitem">' + (isFav ? '★ 取消收藏' : '☆ 收藏到常用') + '</button>'
-      + (filePath ? '<button type="button" class="tab-context-open-folder" role="menuitem">📂 打开文件所在目录</button>' : '');
+      + (filePath ? '<button type="button" class="tab-context-open-folder" role="menuitem">📂 打开文件所在目录</button>' : '')
+      + '<button type="button" class="tab-context-join-ws" role="menuitem">📌 加入工作台</button>';
     menu.hidden = false;
     var left = Math.min(event.clientX, window.innerWidth - menu.offsetWidth - 8);
     var top = Math.min(event.clientY, window.innerHeight - menu.offsetHeight - 8);
@@ -1008,6 +1031,20 @@
       openFolderBtn.onclick = function() {
         menu.hidden = true;
         openFileInFolder(filePath);
+      };
+    }
+    var joinWsBtn = menu.querySelector('.tab-context-join-ws');
+    if (joinWsBtn) {
+      joinWsBtn.onclick = function() {
+        menu.hidden = true;
+        if (window.openWorkspaceJoinPicker) {
+          openWorkspaceJoinPicker({
+            contentId: 'file:' + (file.path || file.name || 'unnamed'),
+            title: file.name || filePath || '该文件'
+          });
+        } else {
+          showToast('工作台组件未加载', true);
+        }
       };
     }
   }
@@ -1605,6 +1642,7 @@
         setModified(false);
         renderTabBar();
         showToast('已保存为 ' + state.encoding, false, 'success');
+        reportUserEvent('content_edited', currentEventContentId(), { source: 'editor' });
         scheduleBacklinksRefresh();
         FrontendLogger.info('[Editor] Saved file', result.fileName, result.size, state.encoding);
       } catch (error) {
@@ -4868,6 +4906,7 @@
       sourceLineEnding: state.lineEnding
     };
     elements.submitClipBtn.disabled = true;
+    const prevTags = state.clipMetadata && Array.isArray(state.clipMetadata.tags) ? state.clipMetadata.tags : [];
     try {
       const endpoint = state.clipId ? `${API_BASE_URL}/${state.clipId}/editor-content` : `${API_BASE_URL}/add`;
       const response = await fetch(endpoint, {
@@ -4885,6 +4924,12 @@
         tags: payload.tags,
         myThoughts: payload.myThoughts
       };
+      // 编辑已有剪藏时标签变化 → content_tagged（新剪藏由后端 content_created 覆盖）
+      if (state.clipId && prevTags.join(',') !== effectiveTags.join(',')) {
+        reportUserEvent('content_tagged', 'clip:' + state.clipId, {
+          source: 'editor', tag: effectiveTags[0] || ''
+        });
+      }
       updateDocumentIdentity();
       closeModal(elements.clipModal);
       showToast(state.clipId ? `剪藏 #${state.clipId} 已保存` : '剪藏已保存');

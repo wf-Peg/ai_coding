@@ -125,8 +125,18 @@ function createTopicItem(topic) {
       <div class="meta-row">
         <span class="meta-stat">📎 ${sourceCount} 来源</span>
         <span class="meta-stat">🔗 ${linkedCount} 关联</span>
+        <span class="meta-stat"><button type="button" class="join-ws-btn" onclick="event.stopPropagation();openWorkspaceJoinForTopic(${topic.id}, '${escapeHtml(topic.title || '')}')" title="加入工作台">📌 加入工作台</button></span>
       </div>
     </div>`;
+}
+
+// P0：知识列表「加入工作台」入口（复用通用选择器 workspace-join.js）
+async function openWorkspaceJoinForTopic(id, title) {
+  if (!window.openWorkspaceJoinPicker) {
+    alert('工作台组件未加载，请刷新后重试');
+    return;
+  }
+  window.openWorkspaceJoinPicker({ contentId: 'knowledge:' + id, title: title || ('知识 #' + id) });
 }
 
 // HTML转义
