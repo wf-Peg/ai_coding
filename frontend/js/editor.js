@@ -103,7 +103,7 @@
     'documentName', 'documentPath', 'modifiedDot', 'clipSourceBadge', 'languageSelect',
     'encodingLabel', 'encodingConfidence', 'lineEndingSelect', 'cursorStatus',
     'selectionStatus', 'multiCursorStatus', 'matchStatus', 'runtimeStatus', 'compareToolbar', 'comparePane',
-    'editorWorkspace', 'compareFileName', 'diffCounter', 'markdownPane', 'markdownBody', 'mdFullscreenBtn', 'mdFollowBtn', 'closeMarkdownBtn', 'markdownBtn', 'compareBtn', 'transformPanel',
+    'editorWorkspace', 'compareFileName', 'diffCounter', 'markdownPane', 'markdownBody', 'mdFullscreenBtn', 'mdStageFullscreenBtn', 'mdFollowBtn', 'closeMarkdownBtn', 'markdownBtn', 'compareBtn', 'transformPanel',
     'breadcrumbBar',
     'transformOperation', 'transformPreview', 'encodingModal', 'encodingSelect',
     'encodingNote', 'clipModal', 'clipModalTitle', 'clipScopeDescription', 'discardModal',
@@ -1914,7 +1914,10 @@
     if (shouldOpen && isPaneOpen(elements.aiChatPane)) setAiChatPanelOpen(false);
 
     // 关闭预览时需先退出预览全屏态：pane 一旦 hidden，toggleMarkdownFullscreen 的守卫会提前返回，导致
-    // markdown-fullscreen 类残留、main-pane 持续 display:none，画布变空白
+    // markdown-fullscreen 类残留、main-pane 持续 display:none，画布变空白；stage（全屏幕展示）同理先整体退出
+    if (!shouldOpen && stageFullscreen) {
+      toggleStageFullscreen(false);
+    }
     if (!shouldOpen && markdownFullscreen) {
       toggleMarkdownFullscreen(false);
     }
@@ -2006,10 +2009,53 @@
     elements.editorWorkspace.classList.toggle('markdown-fullscreen', markdownFullscreen);
     if (markdownFullscreen) ensureFloatingDrawerDrag(); else resetFloatingDrawers();
     if (elements.mdFullscreenBtn) {
-      elements.mdFullscreenBtn.textContent = markdownFullscreen ? '退出全屏' : '⛶ 全屏';
-      elements.mdFullscreenBtn.title = markdownFullscreen ? '退出预览全屏 (Esc)' : '预览全屏';
+      elements.mdFullscreenBtn.textContent = markdownFullscreen ? '退出画布内全屏' : '⛶ 画布内全屏';
+      elements.mdFullscreenBtn.title = markdownFullscreen ? '退出画布内全屏 (Esc)' : '画布内全屏：预览内容占满画布工作区';
     }
     setTimeout(() => mainEditor.resize(), 0);
+  }
+
+  // 全屏幕展示：桌面真全屏（类似 F11）+ 只保留干净 md 内容主体，
+  // 隐含进入 '画布内全屏'（markdownFullscreen），并隐藏编辑器内 chrome 与父窗口顶栏/左导航。
+  // Electron 的 OS 级窗口全屏不触发 document.fullscreenchange，退出以按钮/Esc 为主通道。
+  let stageFullscreen = false;
+  let stageReturnMdFull = false; // 进入前 markdownFullscreen 原状态，退出时恢复
+  function enterDesktopFullscreen(on) {
+    const api = getElectronAPI();
+    if (api && api.setFullscreen) {
+      api.setFullscreen(on);
+      return;
+    }
+    // 浏览器模式：iframe 一般无 allow=fullscreen，静默失败不影响内容纯净模式
+    if (on) {
+      if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function() {});
+    } else if (document.fullscreenElement) {
+      document.exitFullscreen().catch(function() {});
+    }
+  }
+  function syncStageBtn() {
+    if (!elements.mdStageFullscreenBtn) return;
+    elements.mdStageFullscreenBtn.textContent = stageFullscreen ? '🖥 退出全屏展示' : '🖥 全屏幕展示';
+    elements.mdStageFullscreenBtn.classList.toggle('active', stageFullscreen);
+  }
+  function toggleStageFullscreen(forceOpen) {
+    const open = forceOpen !== undefined ? forceOpen : !stageFullscreen;
+    if (open === stageFullscreen) return;
+    stageFullscreen = open;
+    if (open) {
+      stageReturnMdFull = markdownFullscreen;
+      if (elements.markdownPane.hidden) toggleMarkdownPreview(true);
+      if (!markdownFullscreen) toggleMarkdownFullscreen(true);
+      document.querySelector('.editor-app').classList.add('stage-fullscreen');
+      enterDesktopFullscreen(true);
+    } else {
+      document.querySelector('.editor-app').classList.remove('stage-fullscreen');
+      enterDesktopFullscreen(false);
+      if (!stageReturnMdFull && markdownFullscreen) toggleMarkdownFullscreen(false);
+    }
+    syncStageBtn();
+    try { window.parent.postMessage({ type: 'stageFullscreen', full: stageFullscreen }, '*'); } catch (e) { /* 忽略 */ }
+    setTimeout(() => mainEditor.resize(), 60);
   }
 
   let lastMdChangeAt = 0;
@@ -5259,6 +5305,7 @@
   });
   elements.closeMarkdownBtn.addEventListener('click', () => toggleMarkdownPreview(false));
   elements.mdFullscreenBtn.addEventListener('click', () => toggleMarkdownFullscreen());
+  elements.mdStageFullscreenBtn.addEventListener('click', () => toggleStageFullscreen());
   document.getElementById('terminalBtn').addEventListener('click', openTerminalInDir);
 
   // 在系统终端中打开当前文件所在目录（无则回退知识库根目录）
@@ -6443,7 +6490,12 @@
       e.preventDefault();
       toggleFullscreen();
     }
-    // Esc：全屏悬浮抽屉开着时优先关抽屉，否则退出 Markdown 预览全屏
+    // Esc：全屏幕展示优先整体退出，其次全屏悬浮抽屉、最后退出 Markdown 画布内全屏
+    if (e.key === 'Escape' && stageFullscreen) {
+      e.preventDefault();
+      toggleStageFullscreen(false);
+      return;
+    }
     if (e.key === 'Escape' && markdownFullscreen) {
       e.preventDefault();
       const closeFn = { backlinksPane: toggleBacklinks, outlinePane: toggleOutline, tagsPane: toggleTags };
@@ -6456,12 +6508,19 @@
     }
   });
 
-  // 退出全屏时同步状态
+  // 退出全屏时同步状态（浏览器模式：document 全屏可能经系统手势/键盘退出，需复位 stage）
   document.addEventListener('fullscreenchange', function() {
     if (!document.fullscreenElement && isFullscreen) {
       isFullscreen = false;
       document.querySelector('.editor-app').classList.remove('fullscreen');
       elements.fullscreenBtn.classList.remove('active');
+    }
+    if (!document.fullscreenElement && stageFullscreen) {
+      stageFullscreen = false;
+      stageReturnMdFull = false;
+      document.querySelector('.editor-app').classList.remove('stage-fullscreen');
+      syncStageBtn();
+      try { window.parent.postMessage({ type: 'stageFullscreen', full: false }, '*'); } catch (e) { /* 忽略 */ }
     }
   });
 

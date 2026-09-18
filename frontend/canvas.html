@@ -48,10 +48,12 @@
             top: 0;
             z-index: 100;
             flex-shrink: 0;
+            backdrop-filter: saturate(120%);
         }
         .nav .title {
-            font-size: 1.2rem;
-            font-weight: 700;
+            font-size: 1.15rem;
+            font-weight: 650;
+            letter-spacing: -0.01em;
         }
         .nav .nav-hint {
             font-size: 0.8rem;
@@ -181,9 +183,9 @@
         /* 画布卡片节点 */
         .node { cursor: pointer; }
         .node-card-rect {
-            stroke: var(--border);
+            stroke: var(--border-strong, var(--border));
             stroke-width: 1px;
-            filter: drop-shadow(var(--app-shadow-sm));
+            filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.04));
             cursor: pointer;
             transform-box: fill-box;
             transform-origin: center;
@@ -196,7 +198,7 @@
         .node:hover .node-card-rect {
             stroke: var(--primary);
             stroke-width: 1.5px;
-            filter: drop-shadow(var(--app-shadow-md));
+            filter: drop-shadow(0 4px 10px rgba(15, 23, 42, 0.08));
             transform: scale(1.02);
         }
         .node-focus-ring {
@@ -226,25 +228,25 @@
             pointer-events: none;
             user-select: none;
         }
-        .node .canvas-ref-text { fill: #ffffff; }
+        .node .canvas-ref-text { fill: #0f766e; }
         .node .node-card-title { font-size: 12px; font-weight: 700; }
         .node .node-card-domain { font-size: 10px; fill: #6b7280; }
 
-        /* 手动连线 */
+        /* 手动连线：幕布式轻细发丝线，hover 才加厚重 */
         .link-manual {
-            stroke: var(--border);
-            stroke-opacity: 0.9;
-            stroke-width: 1.6px;
+            stroke: var(--border-strong, var(--border));
+            stroke-opacity: 0.85;
+            stroke-width: 1.25px;
             cursor: pointer;
             transition:
                 stroke var(--app-duration-fast) var(--app-ease-smooth),
                 stroke-width var(--app-duration-fast) var(--app-ease-smooth),
                 stroke-opacity var(--app-duration-fast) var(--app-ease-smooth);
         }
-        .link-manual:hover { stroke: var(--primary); stroke-width: 2px; stroke-opacity: 1; }
-        .link-manual.dimmed { stroke-opacity: 0.08; }
-        .canvas-arrow-path { fill: var(--primary); }
-        .temp-link { stroke: var(--primary); stroke-width: 1.6px; stroke-dasharray: 5 4; pointer-events: none; }
+        .link-manual:hover { stroke: var(--primary); stroke-width: 1.75px; stroke-opacity: 1; }
+        .link-manual.dimmed { stroke-opacity: 0.06; }
+        .canvas-arrow-path { fill: var(--app-text-muted); }
+        .temp-link { stroke: var(--primary); stroke-width: 1.4px; stroke-dasharray: 4 4; pointer-events: none; opacity: 0.9; }
 
         /* 分组 frame */
         .group-frame-rect {
@@ -394,17 +396,17 @@
             gap: 6px;
             flex-wrap: nowrap;
             padding: 6px 10px;
-            background: var(--surface);
+            background: var(--app-surface);
             border: 1px solid var(--border);
-            border-radius: 12px;
+            border-radius: 14px;
             box-shadow: var(--app-shadow-md);
             max-width: calc(100% - 24px);
             overflow-x: auto;
         }
         .draw-toolbar button {
             border: none;
-            border-radius: 6px;
-            padding: 4px 8px;
+            border-radius: 8px;
+            padding: 5px 9px;
             background: transparent;
             color: var(--text-secondary);
             font-size: 0.8rem;
@@ -446,6 +448,23 @@
             pointer-events: all;
         }
 
+        /* 手绘工具条内图标按钮（抓手的小手图标等） */
+        .draw-toolbar button.active-icon {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .draw-toolbar .tool-icon {
+            width: 15px;
+            height: 15px;
+            flex-shrink: 0;
+        }
+        /* 抓手模式激活：画布光标变小手（grab → 拖动 grabbing） */
+        .graph-container.is-panning { cursor: grab; }
+        .graph-container.is-panning * { cursor: grab; }
+        .graph-container.is-panning:active { cursor: grabbing; }
+        .graph-container.is-panning:active * { cursor: grabbing; }
+
         @media (max-width: 768px) {
             .nav { padding: 10px 16px; gap: 6px 8px; flex-wrap: wrap; }
             .nav .nav-hint { display: none; }
@@ -474,7 +493,6 @@
                 <div class="doc-switcher-list" id="docSwitcherList"></div>
                 <div class="divider"></div>
                 <button class="menu-action" data-action="new-doc">新建画布</button>
-                <button class="menu-action" data-action="rename-doc">重命名当前画布</button>
                 <button class="menu-action" data-action="open-doc-list">打开文档列表</button>
             </div>
         </div>
@@ -499,6 +517,7 @@
             <div class="outline-head">
                 <span class="outline-head-title">大纲</span>
                 <div class="outline-head-actions">
+                    <button class="outline-icon-btn ai-highlight" id="aiOutlineBtn" title="用 AI 智能生成大纲（对标幕布：输主题/选示例 → 生成 → 一键作为画布）">✨ 智能生成</button>
                     <button class="outline-icon-btn" id="outlineExpandBtn" title="展开全部">展开</button>
                     <button class="outline-icon-btn" id="outlineCollapseBtn" title="折叠全部">折叠</button>
                     <button class="outline-icon-btn" id="outlineExportBtn" title="导出为 Markdown 大纲">导出 MD</button>
@@ -507,8 +526,12 @@
             <div class="outline-tree" id="outlineTree"></div>
             <div class="outline-empty" id="outlineEmpty" style="display:none;">
                 还没有内容<br>点击这里或用右键菜单新建节点，即可开始列大纲
+                <button class="outline-empty-action" id="aiOutlineEmptyBtn">✨ 用 AI 生成大纲</button>
             </div>
         </aside>
+
+        <!-- 分栏分隔线：可拖拽调整左大纲面板宽度（双击复位），仅分栏视图显示 -->
+        <div class="split-resizer" id="splitResizer" title="拖拽调整大纲宽度 · 双击复位"></div>
 
         <div class="graph-container" id="graphContainer">
             <div class="loading" id="loadingEl">
@@ -519,6 +542,7 @@
                 <div class="icon">🪧</div>
                 <h3 id="emptyTitle">暂无画布节点</h3>
                 <p id="emptyDesc">双击空白处新建便签，或右键空白处新建便签 / 链接 / 图片 / 引用</p>
+                <button class="empty-state-action" id="aiOutlineCanvasEmptyBtn">✨ 用 AI 生成大纲</button>
             </div>
             <div class="legend">
                 <div class="legend-item"><span class="dot" style="background:#fbbf24;"></span>便签</div>
@@ -533,6 +557,10 @@
                 <button data-tool="pen">画笔</button>
                 <button data-tool="highlighter">荧光</button>
                 <button data-tool="eraser">橡皮</button>
+                <button class="active-icon" data-pan="pan" title="抓手：选中后左键直接拖动画布平移，按 Esc 或再次点击退出">
+                    <svg class="tool-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M9.5 2.5a1.5 1.5 0 0 1 3 0v5.6a.9.9 0 0 0 1.8 0V4.5a1.5 1.5 0 0 1 3 0v4.1a.9.9 0 0 0 1.8 0V7a1.5 1.5 0 0 1 3 0v6.1c0 4.6-3 8.4-7.6 8.4h-1.2a8.6 8.6 0 0 1-7.3-4l-1.7-3a1.5 1.5 0 0 1 2.5-1.6L9.5 13.9V5.5a.9.9 0 0 1 3-1.1V2.5Z M13 13.6a1 1 0 0 1 2 0v2.2a1 1 0 0 1-2 0v-2.2Zm4-1.4a1 1 0 0 1 2 0v3a1 1 0 0 1-2 0v-3Z"/></svg>
+                    <span>抓手</span>
+                </button>
                 <div class="divider"></div>
                 <button data-size="thin" class="is-active" title="细">细</button>
                 <button data-size="bold" title="粗">粗</button>
@@ -618,6 +646,7 @@
     </div>
 
     <script src="js/canvas-outline.js"></script>
+    <script src="js/canvas-ai-outline.js"></script>
     <script src="canvas.js"></script>
     <script>
       (function() {

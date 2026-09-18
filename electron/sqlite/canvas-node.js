@@ -23,6 +23,9 @@ const canvasDoc = require('./canvas-doc');
 
 const KINDS = ['note', 'link', 'image', 'ref'];
 
+/** 一次批量导入（AI 生成/导入建树）的最大节点数，超出部分截断。 */
+const MAX_TREE_NODES = 60;
+
 const now = () => new Date().toISOString();
 
 /**
@@ -104,6 +107,70 @@ function createNode(dbConn, opts = {}) {
     title: opts.title != null ? opts.title : null,
     docId, parentId, orderIndex, x, y
   };
+}
+
+/**
+ * 批量导入一棵大纲树（AI 智能创建 / Markdown 导入建树共用）：单事务原子落库。
+ * 自顶向下递归插入：父节点先插拿到 id，再以其为 parentId 插子节点；
+ * order_index 同父内从 0 递增，根节点接在文档现有根节点之后（追加语义）。
+ * 坐标为 (0,0) 占位，实际排版由前端 layoutByOutline 统一重算。
+ * @param {import('node:sqlite').DatabaseSync} dbConn
+ * @param {{docId?:string, tree?:Array<{text:string,children?:Array}> , kind?:string, limit?:number}} opts
+ * @returns {{created:Array<{id,kind,text,parentId,orderIndex,x,y}>, docId:string}}
+ */
+function importTree(dbConn, opts = {}) {
+  const docId = (opts.docId && String(opts.docId)) || canvasDoc.DEFAULT_DOC_ID;
+  const tree = Array.isArray(opts.tree) ? opts.tree : [];
+  const kind = opts.kind;
+  if (kind !== undefined && !KINDS.includes(kind)) {
+    throw new Error('invalid canvas node kind: ' + kind);
+  }
+  const nodeKind = kind || 'note';
+  const limit = Number.isFinite(opts.limit) ? opts.limit : MAX_TREE_NODES;
+  const created = [];
+
+  // 追加式：新根节点接在文档现有根节点（parent_id IS NULL）之后
+  const rootRow = dbConn
+    .prepare('SELECT COALESCE(MAX(order_index), -1) AS maxIndex FROM canvas_node WHERE doc_id = ? AND parent_id IS NULL')
+    .get(docId);
+  const rootStart = rootRow && Number.isFinite(rootRow.maxIndex) ? rootRow.maxIndex + 1 : 0;
+
+  dbConn.exec('BEGIN');
+  try {
+    const insertNode = dbConn.prepare(
+      'INSERT INTO canvas_node (id, kind, text, title, doc_id, parent_id, order_index, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    const layoutEntries = [];
+    let count = 0;
+
+    const walk = (nodes, parentId, startOrder) => {
+      let order = startOrder;
+      for (const raw of nodes) {
+        if (count >= limit) return;
+        const text = raw && typeof raw.text === 'string' ? raw.text.trim() : '';
+        if (!text) continue;
+        const id = nodeKind + ':' + randomUUID();
+        const t = now();
+        insertNode.run(id, nodeKind, text, null, docId, parentId, order, t, t);
+        layoutEntries.push({ id, x: 0, y: 0 });
+        created.push({ id, kind: nodeKind, text, parentId, orderIndex: order, x: 0, y: 0 });
+        count++;
+        const kids = Array.isArray(raw.children) ? raw.children : [];
+        if (kids.length) walk(kids, id, 0);
+        order++;
+      }
+    };
+
+    walk(tree, null, rootStart);
+    if (layoutEntries.length) canvasLayout.savePositions(dbConn, layoutEntries);
+    if (docId === canvasDoc.DEFAULT_DOC_ID) canvasDoc.ensureDefaultDoc(dbConn);
+    canvasDoc.touch(dbConn, docId);
+    dbConn.exec('COMMIT');
+  } catch (e) {
+    try { dbConn.exec('ROLLBACK'); } catch (_e) { /* 忽略回滚失败 */ }
+    throw e;
+  }
+  return { created, docId };
 }
 
 /**
@@ -288,9 +355,11 @@ function clearAll(dbConn) {
 
 module.exports = {
   KINDS,
+  MAX_TREE_NODES,
   listNodes,
   listEdges,
   createNode,
+  importTree,
   updateNode,
   deleteNode,
   descendantIds,

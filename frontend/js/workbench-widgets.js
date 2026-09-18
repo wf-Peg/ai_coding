@@ -23,15 +23,25 @@
   var boardScope = 'overview'; // 当前板的组件归属（palette 过滤用）
   var ro = null;          // 当前板 ResizeObserver（换板时断开，避免旧板幽灵重排）
   var opts = { cols: 4, rowH: 170 };
+  var GAP = 14;              // 卡片四周统一留白（px），让网格不贴死、更透气
   var state = { widgets: [] }; // [{ id,col,row,w,h }]
   var cards = {};         // id -> 对应 DOM .wb-card
-  var colW = 0;
+  var colW = 0;           // 不含间距的列单元宽（measure 后有效）
   var editing = false;
   var live = null;        // 拖拽/缩放中的临时状态
   var lockPointer = true; // 捕获指针，支持拖出容器
 
   // ── 工具 ──
   function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+  /** 单格占宽（列宽 + 右间距）；用于“指针位移 → 格数”换算，保证拖拽/缩放的格位与渲染一致。 */
+  function colUnitW() { return colW + GAP; }
+  /** 单行占高（行高 + 下间距）。 */
+  function rowUnitH() { return opts.rowH + GAP; }
+  /** n 格卡片实际像素宽（含格内间距）。 */
+  function cardWpx(n) { return n * colW + (n - 1) * GAP; }
+  /** n 格卡片实际像素高（含格内间距）。 */
+  function cardHpx(n) { return n * opts.rowH + (n - 1) * GAP; }
   function safeStore() {
     try { if (typeof localStorage === 'undefined' || !localStorage) return null; return localStorage; }
     catch (e) { return null; }
@@ -74,7 +84,7 @@
   }
 
   // ── DOM ──
-  function measure() { if (!board) return; colW = board.clientWidth / opts.cols; }
+  function measure() { if (!board) return; colW = Math.max(16, (board.clientWidth - GAP * (opts.cols + 1)) / opts.cols); }
 
   function cardDOM(id) {
     var def = registry[id];
@@ -116,14 +126,14 @@
     state.widgets.forEach(function (e) {
       var el = cards[e.id];
       if (!el) return;
-      el.style.left = (e.col * colW) + 'px';
-      el.style.top = (e.row * opts.rowH) + 'px';
-      el.style.width = (e.w * colW) + 'px';
-      el.style.height = (e.h * opts.rowH) + 'px';
+      el.style.left = (GAP + e.col * colUnitW()) + 'px';
+      el.style.top = (GAP + e.row * rowUnitH()) + 'px';
+      el.style.width = cardWpx(e.w) + 'px';
+      el.style.height = cardHpx(e.h) + 'px';
       var bottom = e.row + e.h;
       if (bottom > maxBottom) maxBottom = bottom;
     });
-    board.style.height = (maxBottom ? maxBottom * opts.rowH : opts.rowH) + 'px';
+    board.style.height = (maxBottom ? GAP + maxBottom * rowUnitH() : opts.rowH + GAP * 2) + 'px';
     board.classList.toggle('edit-on', editing);
     var empty = board.querySelector('.wb-empty');
     if (state.widgets.length === 0 && !empty) {
@@ -208,7 +218,7 @@
     if (!live) return;
     live.raf = 0;
     if (!board || !colW) return;
-    var rowW = colW, rowH = opts.rowH || 1;
+    var rowW = colUnitW(), rowH = rowUnitH();
     if (live.mode === 'resize') {
       // 仅更新当前卡片宽高，其余卡片与网格高度不动
       var elR = cards[live.id];
@@ -216,8 +226,8 @@
       var minS = registry[live.id].minSize;
       var nw = clamp(live.origW + Math.round((live.clientX - live.startX) / rowW), minS.w, opts.cols - live.origCol);
       var nh = clamp(live.origH + Math.round((live.clientY - live.startY) / rowH), minS.h, 12);
-      elR.style.width = (nw * rowW) + 'px';
-      elR.style.height = (nh * rowH) + 'px';
+      elR.style.width = cardWpx(nw) + 'px';
+      elR.style.height = cardHpx(nh) + 'px';
       return;
     }
     var entry = state.widgets.find(function (e) { return e.id === live.id; });
@@ -249,7 +259,7 @@
     if (live.raf) { cancelAnimationFrame(live.raf); live.raf = 0; }
     var entry = state.widgets.find(function (e) { return e.id === live.id; });
     var el = cards[live.id];
-    var rowW = colW || 1, rowH = opts.rowH || 1;
+    var rowW = colUnitW(), rowH = rowUnitH();
     board.classList.remove('wb-reflowing');
     if (entry && el) {
       if (live.mode === 'resize') {

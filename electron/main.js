@@ -3633,6 +3633,21 @@ function setupIPC() {
     return { success: true, node };
   }));
 
+  /** 批量导入整棵大纲树（AI 智能创建/导入建树，单事务原子落库） */
+  ipcMain.handle('local-index:canvas:import-tree', localIndexGuard(async (_ev, args) => {
+    const { docId, tree, kind } = args || {};
+    if (!Array.isArray(tree)) return { success: false, message: 'tree 必须是数组' };
+    const dbConn = localDb.getDatabase();
+    if (!dbConn) return { success: false, message: 'local index not ready' };
+    try {
+      const result = localCanvasNode.importTree(dbConn, { docId, tree, kind });
+      if (canvasSync && result.created && result.created.length) canvasSync.schedulePush();
+      return { success: true, ...result };
+    } catch (e) {
+      return { success: false, message: e.message || String(e) };
+    }
+  }));
+
   /** 更新画布可写节点内容 */
   ipcMain.handle('local-index:canvas:update-node', localIndexGuard(async (_ev, args) => {
     const { id, text, title } = args || {};
@@ -3778,6 +3793,47 @@ function setupIPC() {
     });
     if (result.canceled || result.filePaths.length === 0) return null;
     return result.filePaths[0];
+  });
+
+  // ===== 万能阅读器：选择要预览的文档 =====
+  ipcMain.handle('reader:select-file', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      title: '选择要预览的文件',
+      filters: [
+        { name: '文档', extensions: ['pdf', 'docx', 'pptx', 'xlsx', 'md', 'markdown', 'txt', 'json', 'xml', 'yaml', 'yml', 'csv', 'log', 'ini', 'conf', 'js', 'ts', 'py', 'java', 'c', 'cpp', 'h', 'go', 'rs', 'html', 'css', 'sh', 'bat', 'ps1'] },
+        { name: 'PDF', extensions: ['pdf'] },
+        { name: 'Word', extensions: ['docx'] },
+        { name: 'PowerPoint', extensions: ['pptx'] },
+        { name: 'Excel', extensions: ['xlsx'] },
+        { name: 'Markdown / 文本', extensions: ['md', 'markdown', 'txt', 'log'] },
+        { name: '代码 / 配置', extensions: ['json', 'xml', 'yaml', 'yml', 'csv', 'ini', 'conf', 'js', 'ts', 'py', 'html', 'css'] },
+        { name: '所有文件', extensions: ['*'] }
+      ]
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return { filePath: result.filePaths[0] };
+  });
+
+  // ===== 万能阅读器：二进制读取本地文件（base64 返回，供渲染进程交给各预览库解析）=====
+  const READER_MAX_SIZE = 100 * 1024 * 1024; // 100MB，避免大文件经 IPC 传输撑爆内存
+  ipcMain.handle('reader:read-file', async (event, filePath) => {
+    try {
+      if (!filePath || !fs.existsSync(filePath)) return { error: '文件不存在' };
+      const stat = fs.statSync(filePath);
+      if (!stat.isFile()) return { error: '所选路径不是文件' };
+      if (stat.size > READER_MAX_SIZE) return { tooLarge: true, size: stat.size };
+      const bytes = fs.readFileSync(filePath);
+      return {
+        fileName: path.basename(filePath),
+        displayPath: filePath,
+        size: stat.size,
+        base64: bytes.toString('base64')
+      };
+    } catch (err) {
+      log.error('[Reader] read file failed:', err.message);
+      return { error: err.message };
+    }
   });
 
   // ===== 工具模块：批量重命名 =====

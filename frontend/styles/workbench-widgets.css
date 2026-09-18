@@ -236,10 +236,19 @@ body.wb-dragging .wb-card { user-select: none; }
   transition: border-color var(--app-duration-fast) ease, background var(--app-duration-fast) ease;
 }
 .wb-palette-item:hover { border-color: var(--ws-primary); background: var(--ws-primary-soft); }
-.wb-palette-item.disabled { opacity: .45; cursor: default; }
-.wb-palette-item.disabled:hover { border-color: var(--ws-border); background: var(--ws-subtle); }
-.wb-palette-item .p-title { font-size: 13px; }
+.wb-palette-item.used { opacity: .55; cursor: default; }
+.wb-palette-item.used:hover { border-color: var(--ws-border); background: var(--ws-subtle); box-shadow: none; }
+.wb-palette-item .p-title { font-size: 13px; line-height: 1.4; }
+.wb-palette-item .p-badge {
+  display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 999px;
+  background: var(--ws-primary-soft); color: var(--ws-primary); font-size: 10px; font-weight: 600; vertical-align: 1px;
+}
 .wb-palette-item .p-desc { color: var(--ws-faint); font-size: 11px; }
+.wb-palette-tip {
+  grid-column: 1 / -1; margin-top: 2px; padding: 8px 10px;
+  border-radius: var(--app-radius); background: var(--ws-primary-soft);
+  color: var(--ws-primary); font-size: 12px; text-align: center;
+}
 .wb-palette-footer { margin-top: 14px; display: flex; justify-content: flex-end; }
 
 @media (max-width: 720px) {

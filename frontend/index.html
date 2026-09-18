@@ -1224,7 +1224,7 @@
     <div class="main-content" id="mainContent">
         <!-- 编辑器首页 -->
         <div class="view-panel" id="editorView">
-            <iframe id="editorFrame" data-src="editor.html" style="width:100%;height:100%;border:none;"></iframe>
+            <iframe id="editorFrame" data-src="editor.html" allow="fullscreen" style="width:100%;height:100%;border:none;"></iframe>
         </div>
         <!-- 画布（无限画布：自由摆放便签/图片/链接/引用节点） -->
         <div class="view-panel view-panel-hidden" id="graphView">
@@ -1404,6 +1404,13 @@
         // iframe 编辑器内部的 Ctrl+K 请求打开顶层全局命令面板（编辑器内快捷面板由 Ctrl+P 承担）
         if (event.data && event.data.type === 'openGlobalCmdPalette') {
           if (typeof window.openGlobalCmdPalette === 'function') window.openGlobalCmdPalette();
+        }
+        // 编辑器「全屏幕展示」：隐藏顶栏 + 折叠左侧导航，只留干净内容主体
+        if (event.data && event.data.type === 'stageFullscreen') {
+          var titlebarEl = document.getElementById('titlebar');
+          if (titlebarEl) titlebarEl.style.display = event.data.full ? 'none' : '';
+          var appLayoutEl = document.querySelector('.app-layout');
+          if (appLayoutEl) appLayoutEl.classList.toggle('sidebar-collapsed', event.data.full);
         }
         if (event.data && event.data.type === 'themeChanged') {
           applyTheme(event.data.theme, false);

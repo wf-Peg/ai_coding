@@ -2245,6 +2245,24 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
   cursor: grabbing;
 }
 
+/* 全屏幕展示（stage-fullscreen）：桌面真全屏时只保留干净 md 内容主体。
+   与 markdown-fullscreen 叠加：后者隐藏 main-pane/抽屉，本规则隐藏编辑器各 chrome。
+   单轨铺满避免固定 27px 状态栏轨道在全屏时残留（display:none 不塌缩固定轨道）。 */
+.editor-app.stage-fullscreen {
+  grid-template-rows: minmax(0, 1fr);
+}
+.editor-app.stage-fullscreen .editor-workspace {
+  grid-row: 1 / -1;
+}
+.editor-app.stage-fullscreen .editor-toolbar,
+.editor-app.stage-fullscreen .tab-bar,
+.editor-app.stage-fullscreen .breadcrumb-bar,
+.editor-app.stage-fullscreen .editor-statusbar,
+.editor-app.stage-fullscreen .compare-toolbar,
+.editor-app.stage-fullscreen .markdown-header {
+  display: none;
+}
+
 /* ── 抽屉面板隐藏机制：grid 0fr 收回 + 淡出（替代 hidden 属性，可过渡） ── */
 .filetree-pane[aria-hidden="true"],
 .history-pane[aria-hidden="true"],

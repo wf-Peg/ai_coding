@@ -198,3 +198,81 @@ test('deleteNode：连带删除整棵子树并清理连线与坐标', () => {
   assert.equal(canvasLayout.positions(db).has(b.id), false, '级联清理坐标');
   assert.equal(cn.deleteNode(db, a.id), false, '重复删除命中失败');
 });
+
+test('importTree：嵌套建树，parentId/orderIndex 连续正确', () => {
+  cn.clearAll(db);
+  db.exec('DELETE FROM canvas_doc');
+  cd.ensureDefaultDoc(db);
+
+  const res = cn.importTree(db, {
+    tree: [
+      { text: '根一', children: [
+        { text: '子A', children: [ { text: '孙1' } ] },
+        { text: '子B' }
+      ] },
+      { text: '根二' }
+    ]
+  });
+  assert.equal(res.created.length, 5);
+
+  const rows = cn.listNodes(db, cd.DEFAULT_DOC_ID);
+  const rootOne = rows.find((n) => n.text === '根一');
+  const rootTwo = rows.find((n) => n.text === '根二');
+  const childA = rows.find((n) => n.text === '子A');
+  const childB = rows.find((n) => n.text === '子B');
+  const grand = rows.find((n) => n.text === '孙1');
+
+  assert.equal(rootOne.parentId, null);
+  assert.equal(rootTwo.parentId, null);
+  assert.equal(childA.parentId, rootOne.id);
+  assert.equal(childB.parentId, rootOne.id);
+  assert.equal(grand.parentId, childA.id);
+  assert.equal(rootOne.orderIndex, 0);
+  assert.equal(rootTwo.orderIndex, 1);
+  assert.equal(childA.orderIndex, 0);
+  assert.equal(childB.orderIndex, 1);
+  assert.equal(grand.orderIndex, 0);
+  assert.equal(canvasLayout.positions(db).has(rootOne.id), true, '坐标占位写入');
+});
+
+test('importTree：追加到现有文档根节点之后', () => {
+  cn.clearAll(db);
+  const existing = cn.createNode(db, { kind: 'note', text: '已有' });
+  const res = cn.importTree(db, { tree: [ { text: '新根', children: [ { text: '子' } ] } ] });
+  assert.equal(res.created.length, 2);
+
+  const rows = cn.listNodes(db, cd.DEFAULT_DOC_ID);
+  const newRoot = rows.find((n) => n.text === '新根');
+  assert.equal(newRoot.orderIndex, existing.orderIndex + 1, '新根接在现有根节点之后');
+  assert.equal(rows.find((n) => n.text === '子').parentId, newRoot.id);
+});
+
+test('importTree：按 docId 隔离', () => {
+  cn.clearAll(db);
+  db.exec('DELETE FROM canvas_doc');
+  cd.ensureDefaultDoc(db);
+  const other = cd.createDoc(db, { title: '其他文档' });
+
+  const res = cn.importTree(db, { docId: other.id, tree: [ { text: 'A' } ] });
+  assert.equal(res.created.length, 1);
+  assert.equal(cn.listNodes(db, other.id).length, 1);
+  assert.equal(cn.listNodes(db, cd.DEFAULT_DOC_ID).length, 0, '默认文档不被污染');
+});
+
+test('importTree：空树 / 空文本 / 非法 kind 容错', () => {
+  cn.clearAll(db);
+  assert.equal(cn.importTree(db, { tree: [] }).created.length, 0, '空树安全');
+  const res = cn.importTree(db, { tree: [ { text: '' }, { text: '   ' }, { text: '有效' } ] });
+  assert.equal(res.created.length, 1, '空文本节点被跳过');
+  assert.throws(() => cn.importTree(db, { tree: [ { text: 'x' } ], kind: 'bad' }),
+    /invalid canvas node kind/);
+});
+
+test('importTree：limit 截断不越界', () => {
+  cn.clearAll(db);
+  const big = [];
+  for (let i = 0; i < 80; i++) big.push({ text: 'n' + i });
+  const res = cn.importTree(db, { tree: big, limit: 10 });
+  assert.equal(res.created.length, 10);
+  assert.equal(cn.listNodes(db, cd.DEFAULT_DOC_ID).length, 10);
+});

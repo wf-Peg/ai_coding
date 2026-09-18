@@ -802,6 +802,14 @@
     var dailyReviewStats = { keep: 0, archive: 0, skip: 0, keepTitles: [] };
     var DAILY_REVIEW_KEY = 'daily_review_dismissed_v1';
     var DAILY_REVIEW_STATS_KEY = 'daily_review_stats_v1';
+    // 「当天已完成回看」标记：按天生效，次日自动恢复提示栏（区别于 DAILY_REVIEW_KEY 的手动永久关闭）
+    var DAILY_REVIEW_DONE_PREFIX = 'daily_review_done_';
+    function isDailyReviewDoneToday() {
+        try { return localStorage.getItem(DAILY_REVIEW_DONE_PREFIX + todayKey()) === '1'; } catch (e) { return false; }
+    }
+    function markDailyReviewDoneToday() {
+        try { localStorage.setItem(DAILY_REVIEW_DONE_PREFIX + todayKey(), '1'); } catch (e) {}
+    }
 
     /** 已「仍有用」的条目（永久不再推荐）+ 今日已跳过的条目（明天再议） */
     var REVIEW_KEPT_PREFIX = 'daily_review_kept_';
@@ -875,7 +883,7 @@
     function showDailyReviewBanner() {
         const banner = document.getElementById('daily-review');
         if (!banner) return;
-        if (localStorage.getItem(DAILY_REVIEW_KEY) === '1') { banner.style.display = 'none'; return; }
+        if (localStorage.getItem(DAILY_REVIEW_KEY) === '1' || isDailyReviewDoneToday()) { banner.style.display = 'none'; return; }
         const items = collectDailyReviewItems();
         if (items.length === 0) { banner.style.display = 'none'; return; }
         document.getElementById('daily-review-count').textContent = items.length;
@@ -902,7 +910,7 @@
     function openDailyReview() {
         dailyReviewItems = collectDailyReviewItems();
         dailyReviewIdx = 0;
-        dailyReviewStats = { keep: 0, archive: 0, skip: 0 };
+        dailyReviewStats = { keep: 0, archive: 0, skip: 0, keepTitles: [] };
         if (dailyReviewItems.length === 0) {
             showToast('今天没有可回看的旧收藏');
             return;
@@ -987,11 +995,19 @@
                 skip: dailyReviewStats.skip,
                 count: dailyReviewItems.length
             });
+            // 当天收官：收掉提示栏（当天不再主动打扰，次日恢复），如需继续可点下方按钮翻下一批
+            markDailyReviewDoneToday();
+            const banner = document.getElementById('daily-review');
+            if (banner) banner.style.display = 'none';
+            const hasMore = collectDailyReviewItems().length > 0;
             const keepTitles = dailyReviewStats.keepTitles || [];
             const keepList = keepTitles.length
                 ? '<div class="daily-keep-list"><div class="daily-keep-label">本次标记为有用</div>' +
                   keepTitles.map(t => '<div class="daily-keep-item">' + escapeHtml(t) + '</div>').join('') +
                   '</div>'
+                : '';
+            const moreBtn = hasMore
+                ? '<div class="daily-done-actions"><button class="btn-secondary" type="button" onclick="openDailyReview()">继续回顾3篇</button></div>'
                 : '';
             document.getElementById('daily-card').innerHTML =
                 '<div class="daily-done">' +
@@ -999,7 +1015,8 @@
                 '<div class="daily-done-title">今日回看完成</div>' +
                 '<div class="daily-done-sub">保留了 <b>' + dailyReviewStats.keep + '</b> 条 · 跳过 <b>' + dailyReviewStats.skip + '</b> 条</div>' +
                 '</div>' +
-                keepList;
+                keepList +
+                moreBtn;
             document.getElementById('daily-progress-fill').style.width = '100%';
             document.getElementById('daily-progress-txt').textContent = dailyReviewItems.length + ' / ' + dailyReviewItems.length;
         } else {

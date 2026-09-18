@@ -50,6 +50,8 @@
       /* ─── Overview state ─── */
       let overviewWorkspaceId = null;
       let overviewRequestId = 0;
+      /** 组件板「组件视图」下拉绑定的工作台上下文（'' = 全部概览），驱动 overview 组件数据联动 */
+      let overviewWsContext = '';
 
       /* ─── Workspace state ─── */
       let workspaces = [];
@@ -367,7 +369,9 @@
         var compactBtn = $('widgetCompactBtn');
         if (compactBtn && !compactBtn.dataset.bound) {
           compactBtn.dataset.bound = '1';
-          compactBtn.addEventListener('click', function () { if (window.WB && window.WB.compact) { try { window.WB.compact(); } catch (e) {} } });
+          compactBtn.addEventListener('click', function () {
+            if (window.WB && window.WB.compact) { try { window.WB.compact(); showSuccessToast('已消除空位，紧凑排列'); } catch (e) {} }
+          });
         }
       }
 
@@ -399,7 +403,9 @@
         var cBtn = $('pdWidgetCompactBtn');
         if (cBtn && !cBtn.dataset.bound) {
           cBtn.dataset.bound = '1';
-          cBtn.addEventListener('click', function () { if (window.WB && window.WB.compact) { try { window.WB.compact(); } catch (e) {} } });
+          cBtn.addEventListener('click', function () {
+            if (window.WB && window.WB.compact) { try { window.WB.compact(); showSuccessToast('已消除空位，紧凑排列'); } catch (e) {} }
+          });
         }
         var eBtn = $('pdWidgetEditBtn');
         if (eBtn && !eBtn.dataset.bound) {
@@ -504,12 +510,23 @@
           var used = placed.indexOf(id) >= 0;
           var btn = document.createElement('button');
           btn.type = 'button';
-          btn.className = 'wb-palette-item' + (used ? ' disabled' : '');
-          btn.disabled = used;
-          btn.innerHTML = '<span class="p-title">' + m[0] + '</span><span class="p-desc">' + m[1] + '</span>';
-          btn.addEventListener('click', function () { if (used) return; window.WB.addWidget(id); renderPalette(scope); });
+          btn.className = 'wb-palette-item' + (used ? ' used' : '');
+          btn.title = used ? '该组件已在当前板上' : '点击添加到当前板';
+          btn.innerHTML = '<span class="p-title">' + m[0] + (used ? ' <span class="p-badge">已添加</span>' : '') + '</span><span class="p-desc">' + m[1] + '</span>';
+          btn.addEventListener('click', function () {
+            if (used) { showSuccessToast('「' + m[0] + '」已在当前板上'); return; }
+            window.WB.addWidget(id); renderPalette(scope);
+          });
           list.appendChild(btn);
         });
+        // 全部组件已放置时的引导（避免疑惑“为什么全是灰的”）
+        var regs = window.WB.getRegistered(scope);
+        if (regs.length && regs.every(function (id) { return placed.indexOf(id) >= 0; })) {
+          var tip = document.createElement('div');
+          tip.className = 'wb-palette-tip';
+          tip.textContent = '所有组件都已在板上，可拖动换位或拖角调整大小';
+          list.appendChild(tip);
+        }
         panel.classList.add('show');
       }
       function renderPalette(scope) {
@@ -521,7 +538,8 @@
         const requestId = ++overviewRequestId;
         $('refreshButton').disabled = true;
         try {
-          const r = await fetch('/api/workspace/overview', { headers: { Accept: 'application/json' } });
+          const params = overviewWsContext ? ('?workspaceId=' + encodeURIComponent(overviewWsContext)) : '';
+          const r = await fetch('/api/workspace/overview' + params, { headers: { Accept: 'application/json' } });
           if (!r.ok) throw new Error('请求失败（' + r.status + '）');
           if (requestId !== overviewRequestId) return;
           const data = await r.json();
@@ -675,10 +693,13 @@
         if (activeBoardScope !== 'overview') return;
         var sel = $('widgetWsCtx');
         if (!sel || !window.WB) return;
-        var key = widgetWsLayoutKey(sel.value || '');
+        overviewWsContext = sel.value || '';
+        var key = widgetWsLayoutKey(overviewWsContext);
         if (window.WB.setLayoutKey && key) {
           try { window.WB.setLayoutKey(key); } catch (e) {}
         }
+        // 切换布局后按所选工作台上下文重新拉取数据并刷新组件（数据随视图联动，而非只换布局）
+        loadOverview();
       }
       function bindWidgetWsCtx() {
         var sel = $('widgetWsCtx');

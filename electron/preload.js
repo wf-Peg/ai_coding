@@ -409,6 +409,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   openFileByPath: (filePath) => ipcRenderer.invoke('editor-open-file-by-path', filePath),
 
+  // ===================== 万能阅读器 =====================
+
+  /**
+   * 万能阅读器：系统对话框选择要预览的本地文件
+   * @returns {Promise<{filePath: string}|null>} 取消返回 null
+   */
+  selectReaderFile: () => ipcRenderer.invoke('reader:select-file'),
+
+  /**
+   * 万能阅读器：二进制读取本地文件（base64 返回原始字节，供预览库解析）
+   * @param {string} filePath - 文件绝对路径
+   * @returns {Promise<{fileName: string, displayPath: string, size: number, base64: string}|{error: string}|{tooLarge: boolean, size: number}>}
+   */
+  readReaderFile: (filePath) => ipcRenderer.invoke('reader:read-file', filePath),
+
   // ===================== 编辑器双链（wikilink）=====================
 
   /**
@@ -847,6 +862,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }),
     /** 新建画布可写节点：opts = { kind, text, title, x, y, docId, parentId, orderIndex } */
     createCanvasNode: (opts) => ipcRenderer.invoke('local-index:canvas:create-node', opts || {}),
+    /** 批量导入整棵大纲树（AI 智能创建/导入建树，单事务原子）：opts = { docId, tree, kind } */
+    importCanvasTree: (opts) => ipcRenderer.invoke('local-index:canvas:import-tree', opts || {}),
     /** 更新画布可写节点内容：opts = { id, text, title } */
     updateCanvasNode: (opts) => ipcRenderer.invoke('local-index:canvas:update-node', opts || {}),
     /** 删除画布可写节点（级联清理坐标与连线）：opts = { id } */

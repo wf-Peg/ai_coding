@@ -69,6 +69,7 @@
   const INK_WIDTH = { thin: 2, bold: 6 };          // 细/粗 笔触基底宽度
   const ERASE_RADIUS = 8;                          // 橡皮擦命中半径（世界坐标 px）
   let drawTool = null;           // null | 'pen' | 'highlighter' | 'eraser'
+  let panMode = false;           // 抓手模式：选中后退出所有画笔，左键直接拖动画布平移
   let inkSize = 'thin';          // 粗细档
   let inkColor = INK_COLORS[0];
   let strokes = [];              // 墨迹数据 [{id,color,width,opacity,points:[[x,y]...]}]
@@ -378,13 +379,13 @@
 
     var zoom = d3.zoom()
       .scaleExtent([0.1, 10])
-      // 空白左键拖动留给「框选」；仅滚轮缩放 / 空格或中键拖动平移
+      // 空白左键拖动留给「框选」；滚轮缩放 / 空格或中键拖动平移 / 抓手模式左键拖动平移
       .filter(function(event) {
         var e = event.sourceEvent;
         if (!e) return true;
         if (e.type === 'wheel') return true;
-        if (e.type === 'mousemove' && spacePressed) return true;
-        if (e.type === 'mousedown' && (e.button === 1 || spacePressed)) return true;
+        if (e.type === 'mousemove' && (spacePressed || panMode)) return true;
+        if (e.type === 'mousedown' && (e.button === 1 || spacePressed || panMode)) return true;
         return false;
       })
       .on('zoom', function(event) {
@@ -440,11 +441,16 @@
       var src = nodeMap[linkSourceId];
       if (!src) return;
       var m = d3.pointer(event, container);
+      // tempLink 位于 <g> 内部（g 已应用 currentTransform），坐标一律用世界坐标；
+      // 源点走与成品线一致的 edgeAnchorPoint 边缘收敛，直接赋世界坐标（不要二次 applyX，否则位移）
+      var wm = currentTransform.invert(m);
+      var ss = canvasCardSize(src);
+      var p1 = edgeAnchorPoint(src.x, src.y, ss.w / 2, ss.h / 2, wm[0] - src.x, wm[1] - src.y);
       tempLink
-        .attr('x1', currentTransform.applyX(src.x))
-        .attr('y1', currentTransform.applyY(src.y))
-        .attr('x2', m[0])
-        .attr('y2', m[1])
+        .attr('x1', p1[0])
+        .attr('y1', p1[1])
+        .attr('x2', wm[0])
+        .attr('y2', wm[1])
         .attr('display', null);
     });
 
@@ -683,10 +689,11 @@
   }
 
   function nodeColor(type) {
-    if (type === 'note') return '#fbbf24';
-    if (type === 'link') return '#22d3ee';
-    if (type === 'image') return '#a78bfa';
-    return '#14b8a6'; // ref
+    // 幕布纸感柔色板：低饱和底色 + 深字，替代高饱和纯色，给予书写空间的高级感
+    if (type === 'note') return '#fef3c7';
+    if (type === 'link') return '#dbeafe';
+    if (type === 'image') return '#ede9fe';
+    return '#ccfbf1'; // ref
   }
 
   // ---- 节点交互 ----
@@ -769,7 +776,7 @@
 
   function dragBehavior() {
     return d3.drag()
-      .filter(function() { return !spacePressed && !drawTool; })
+      .filter(function() { return !spacePressed && !panMode && !drawTool; })
       .on('start', function(event, d) {
         if (selectedNodeIds.size > 1 && selectedNodeIds.has(String(d.id))) {
           startBatchMove(event);
@@ -1021,7 +1028,7 @@
 
   function groupDragBehavior() {
     return d3.drag()
-      .filter(function() { return !spacePressed && !drawTool; })
+      .filter(function() { return !spacePressed && !panMode && !drawTool; })
       .on('start', function(event, gd) {
         groupMove = { startX: event.x, startY: event.y, members: [] };
         (gd.members || []).forEach(function(id) {
@@ -1439,6 +1446,13 @@
       await renameDocById(ctx.docId, docVal);
       return;
     }
+    if (ctx.mode === 'new-doc') {
+      var newName = canvasModalBody.querySelector('#canvasFieldValue');
+      var newVal = newName ? newName.value.trim() : '';
+      closeModal();
+      await createDocNow(newVal);
+      return;
+    }
     if (ctx.mode === 'confirm-delete-doc') {
       var doomedDoc = ctx.docId;
       closeModal();
@@ -1700,14 +1714,21 @@
   // ---- 手绘墨迹（临时擦写板） ----
 
   function setDrawTool(tool) {
+    // 抓手模式：退出所有画笔，置 panMode；纯平移不激活画笔覆盖层
+    var isPan = tool === 'pan';
+    panMode = isPan;
+    if (isPan) tool = null;
     drawTool = tool;
     drawing = null;
     var overlay = document.getElementById('drawOverlay');
     if (overlay) overlay.classList.toggle('active', !!tool);
-    // 工具条高亮
+    // 抓手模式：画布光标变小手（grab / 拖动 grabbing）
+    var gc = document.getElementById('graphContainer');
+    if (gc) gc.classList.toggle('is-panning', isPan);
+    // 工具条高亮（pan 独立高亮）
     if (drawToolbar) {
-      drawToolbar.querySelectorAll('button[data-tool]').forEach(function(b) {
-        b.classList.toggle('is-active', b.dataset.tool === tool);
+      drawToolbar.querySelectorAll('button[data-tool], button[data-pan]').forEach(function(b) {
+        b.classList.toggle('is-active', isPan ? b.dataset.pan === 'pan' : b.dataset.tool === tool);
       });
     }
     if (tool) { closeMenus(); cancelLink(); resetSelection(); ensureInkLayer(); }
@@ -1725,8 +1746,8 @@
         var e = event.sourceEvent;
         if (!e) return true;
         if (e.type === 'wheel') return true;
-        if (e.type === 'mousemove' && spacePressed) return true;
-        if (e.type === 'mousedown' && (e.button === 1 || spacePressed)) return true;
+        if (e.type === 'mousemove' && (spacePressed || panMode)) return true;
+        if (e.type === 'mousedown' && (e.button === 1 || spacePressed || panMode)) return true;
         return false;
       })
       .on('zoom', function(event) {
@@ -1913,12 +1934,14 @@
 
   // ---- 事件绑定 ----
 
-  // 空格键：按住 + 拖动 = 平移画布
+  // 空格键：按住 + 拖动 = 平移画布（按住时画布光标也显示抓手）
   ['keydown', 'keyup'].forEach(function(type) {
     window.addEventListener(type, function(e) {
       var isDown = type === 'keydown';
       if (e.key === ' ' || e.code === 'Space') {
         spacePressed = isDown;
+        var gc = document.getElementById('graphContainer');
+        if (gc) gc.classList.toggle('is-panning', isDown || panMode);
         if (isDown) e.preventDefault();
       }
     });
@@ -1996,6 +2019,7 @@
     if (canvasModalMask.style.display === 'flex') { closeModal(); return; }
     if (linkSourceId) { cancelLink(); return; }
     if (drawTool) { setDrawTool(null); return; }
+    if (panMode) { setDrawTool(null); return; } // Esc 退出抓手模式
     closeMenus();
   });
 
@@ -2008,6 +2032,7 @@
       if (!btn) return;
       event.stopPropagation();
       if (btn.dataset.tool) { setDrawTool(btn.dataset.tool === drawTool ? null : btn.dataset.tool); return; }
+      if (btn.dataset.pan) { setDrawTool(panMode ? null : 'pan'); return; }
       if (btn.dataset.size) {
         inkSize = btn.dataset.size;
         drawToolbar.querySelectorAll('button[data-size]').forEach(function(b) {
@@ -2165,6 +2190,90 @@
     }, 0);
   }
 
+  // ---- 分栏分隔线拖拽：调整大纲面板宽度（rAF 节流 + min/max 兜底 + 双击复位 + 持久化） ----
+  const OUTLINE_W_KEY = 'canvas_outline_w_v1';
+  const OUTLINE_W_MIN = 260;
+  const OUTLINE_W_DEFAULT = 380;
+  let splitResizerRaf = 0;
+  let splitDragging = false;
+
+  function initSplitResizer() {
+    var resizer = document.getElementById('splitResizer');
+    var body = document.getElementById('canvasBody');
+    var panel = document.getElementById('outlinePanel');
+    if (!resizer || !body || !panel) return;
+
+    // 恢复上次宽度（兜底到默认）
+    var saved = OUTLINE_W_DEFAULT;
+    try { var v = parseInt(localStorage.getItem(OUTLINE_W_KEY) || '', 10); if (v >= OUTLINE_W_MIN) saved = v; } catch (e) {}
+    applyOutlineWidth(saved);
+
+    resizer.addEventListener('pointerdown', function(e) {
+      e.preventDefault();
+      splitDragging = true;
+      try { resizer.setPointerCapture(e.pointerId); } catch (captureErr) { /* 非真实指针场景（如自动化）可忽略 */ }
+      resizer.classList.add('is-dragging');
+      body.classList.add('is-resizing');
+
+      function computeWidth(clientX) {
+        var maxW = body.clientWidth * 0.6; // 兜底上限 60%（原 52vw，视口内更稳）
+        var w = clientX - body.getBoundingClientRect().left;
+        if (w < OUTLINE_W_MIN) w = OUTLINE_W_MIN;
+        if (w > maxW) w = maxW;
+        return Math.round(w);
+      }
+
+      function move(ev) {
+        var w = computeWidth(ev.clientX);
+        if (splitResizerRaf) return;
+        splitResizerRaf = requestAnimationFrame(function() {
+          splitResizerRaf = 0;
+          applyOutlineWidth(w);
+        });
+      }
+
+      function up() {
+        splitDragging = false;
+        resizer.classList.remove('is-dragging');
+        body.classList.remove('is-resizing');
+        try { localStorage.setItem(OUTLINE_W_KEY, String(parseInt(panel.style.getPropertyValue('--outline-w').trim() || '', 10) || OUTLINE_W_DEFAULT)); } catch (e2) {}
+        // 拖完让画布重新适配新尺寸（防抖）
+        if (viewMode === 'split' && allNodes.length) {
+          setTimeout(function() { renderCanvas(); }, 60);
+        } else {
+          setTimeout(dispatchResize, 60);
+        }
+        resizer.removeEventListener('pointermove', move);
+        resizer.removeEventListener('pointerup', up);
+        resizer.removeEventListener('pointercancel', up);
+      }
+
+      resizer.addEventListener('pointermove', move);
+      resizer.addEventListener('pointerup', up);
+      resizer.addEventListener('pointercancel', up);
+    });
+
+    // 双击复位默认宽度
+    resizer.addEventListener('dblclick', function(e) {
+      e.preventDefault();
+      applyOutlineWidth(OUTLINE_W_DEFAULT);
+      try { localStorage.setItem(OUTLINE_W_KEY, String(OUTLINE_W_DEFAULT)); } catch (e2) {}
+      if (viewMode === 'split' && allNodes.length) setTimeout(renderCanvas, 60);
+      else setTimeout(dispatchResize, 60);
+    });
+  }
+
+  function applyOutlineWidth(w) {
+    var panel = document.getElementById('outlinePanel');
+    var body = document.getElementById('canvasBody');
+    if (!panel || !body) return;
+    // 兜底：超出可视区安全范围时收敛
+    var maxW = body.clientWidth * 0.6;
+    if (w > maxW) w = maxW;
+    if (w < OUTLINE_W_MIN) w = OUTLINE_W_MIN;
+    panel.style.setProperty('--outline-w', w + 'px');
+  }
+
   function initViewSwitch() {
     var sw = document.getElementById('viewSwitch');
     if (sw) {
@@ -2203,8 +2312,53 @@
 
   function updateDocSwitcher() {
     var nameEl = document.getElementById('docSwitcherName');
-    if (nameEl) nameEl.textContent = docTitle();
+    if (nameEl) {
+      nameEl.textContent = docTitle();
+      nameEl.title = '双击标题可重命名当前画布';
+    }
     renderDocSwitcherList();
+  }
+
+  // 顶部标题双击原地改名（Enter 提交 / 失焦提交 / Esc 取消）
+  function bindTitleRename() {
+    var nameEl = document.getElementById('docSwitcherName');
+    if (!nameEl || nameEl.dataset.renameBound) return;
+    nameEl.dataset.renameBound = '1';
+    nameEl.addEventListener('dblclick', function() {
+      var wrap = document.getElementById('docSwitcher');
+      if (wrap) wrap.classList.add('renaming');
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'doc-switcher-rename-input';
+      input.value = docTitle();
+      nameEl.style.display = 'none';
+      nameEl.parentNode.insertBefore(input, nameEl);
+      input.focus();
+      input.select();
+      var done = function(save) {
+        if (input.parentNode) {
+          var v = save ? input.value.trim() : '';
+          input.remove();
+          nameEl.style.display = '';
+          if (wrap) wrap.classList.remove('renaming');
+          if (save && v && v !== docTitle()) renameDocById(currentDocId, v);
+        }
+      };
+      input.addEventListener('keydown', function(e) {
+        e.stopPropagation();
+        if (e.key === 'Enter') done(true);
+        else if (e.key === 'Escape') done(false);
+      });
+      input.addEventListener('blur', function() { done(true); });
+      // 点击输入框外也提交
+      var outside = function(e) {
+        if (input && e.target !== input && !(e.target && e.target.parentNode === input.parentNode)) {
+          document.removeEventListener('mousedown', outside);
+          done(true);
+        }
+      };
+      document.addEventListener('mousedown', outside);
+    });
   }
 
   function openDocSwitcherMenu() {
@@ -2250,10 +2404,24 @@
   }
 
   async function newDoc() {
+    // 新建画布先弹出命名框（可跳过用默认名）
+    closeMenus();
+    canvasModalCtx = { mode: 'new-doc' };
+    canvasModalTitle.textContent = '新建画布';
+    canvasModalBody.innerHTML =
+      '<div class="field-label">画布名称（可选，留空则用默认名）</div>' +
+      '<input id="canvasFieldValue" type="text" placeholder="未命名画布">';
+    canvasModalCancel.textContent = '取消';
+    var el = canvasModalBody.querySelector('#canvasFieldValue');
+    if (el) el.focus();
+    canvasModalMask.style.display = 'flex';
+  }
+
+  async function createDocNow(title) {
     const bridge = window.electronAPI && window.electronAPI.localIndex;
     if (!bridge || typeof bridge.createCanvasDoc !== 'function') return;
     var res = null;
-    try { res = await bridge.createCanvasDoc({ title: '未命名画布' }); } catch (e) {}
+    try { res = await bridge.createCanvasDoc({ title: title || '未命名画布' }); } catch (e) {}
     var doc = res && res.doc;
     if (!doc) return;
     docList.push(doc);
@@ -2356,7 +2524,6 @@
         if (!action) return;
         var a = action.dataset.action;
         if (a === 'new-doc') newDoc();
-        else if (a === 'rename-doc') { closeDocSwitcherMenu(); openRenameDocModal(currentDocId); }
         else if (a === 'open-doc-list') openDocList();
       });
     }
@@ -2478,11 +2645,84 @@
     if (btn) btn.addEventListener('click', layoutByOutline);
   }
 
+  // ---- AI 智能创建（画布「智能创建」MVP） ----
+
+  /**
+   * 把生成的大纲树作为「新画布」落库并排版。
+   * Promise 链保证时序：建文档 → 批量导入 → 切文档（loadData 完成）→ 分栏视图 → 按大纲排版。
+   * @param {Array<{text:string,children:Array}>} tree
+   * @param {string} [title] 新文档标题（取生成主题）
+   */
+  async function applyOutlineAsNewDoc(tree, title) {
+    const bridge = window.electronAPI && window.electronAPI.localIndex;
+    if (!bridge || typeof bridge.createCanvasDoc !== 'function') {
+      openMessage('无法创建', '本地服务未就绪，请稍后重试');
+      return;
+    }
+    var nextTitle = String(title == null ? '' : title).trim() || '未命名画布';
+    var res = null;
+    try { res = await bridge.createCanvasDoc({ title: nextTitle }); } catch (e) {}
+    var doc = res && res.doc;
+    if (!doc) {
+      openMessage('无法创建', '新建画布失败，请稍后重试');
+      return;
+    }
+    docList.push(doc);
+
+    await switchDoc(doc.id);
+
+    if (bridge && typeof bridge.importCanvasTree === 'function' && tree && tree.length) {
+      try { await bridge.importCanvasTree({ docId: doc.id, tree: tree }); } catch (e) {}
+    }
+
+    await loadData();
+    setViewMode('split');
+    layoutByOutline();
+    syncOutline();
+  }
+
+  /**
+   * 把生成的大纲树「插入当前文档」（追加到现有大纲末尾）并排版。
+   * @param {Array<{text:string,children:Array}>} tree
+   */
+  async function applyOutlineToCurrent(tree) {
+    const bridge = window.electronAPI && window.electronAPI.localIndex;
+    if (!bridge || typeof bridge.importCanvasTree !== 'function') return;
+    if (!currentDocId) return;
+    if (tree && tree.length) {
+      try { await bridge.importCanvasTree({ docId: currentDocId, tree: tree }); } catch (e) {}
+    }
+    await loadData();
+    layoutByOutline();
+    syncOutline();
+  }
+
+  function initAIOutline() {
+    var entries = [
+      document.getElementById('aiOutlineBtn'),
+      document.getElementById('aiOutlineEmptyBtn'),
+      document.getElementById('aiOutlineCanvasEmptyBtn')
+    ];
+    var openFn = function() {
+      if (!window.CanvasAIOutline || typeof window.CanvasAIOutline.open !== 'function') return;
+      window.CanvasAIOutline.open({
+        onApplyAsNewDoc: applyOutlineAsNewDoc,
+        onApplyToCurrent: applyOutlineToCurrent
+      });
+    };
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i]) entries[i].addEventListener('click', openFn);
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', function() {
     initOutline();
     initDocSwitcher();
+    bindTitleRename();
+    initSplitResizer();
     initViewSwitch();
     initLayoutByOutline();
+    initAIOutline();
     loadData();
   });
 

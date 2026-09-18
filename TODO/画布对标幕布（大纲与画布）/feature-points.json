@@ -685,6 +685,89 @@
           "status": "todo"
         }
       ]
+    },
+    {
+      "id": "fp-010",
+      "name": "智能创建（AI 大纲生成器，对标幕布）",
+      "description": "画布页新增「智能创建」：输入主题或点示例 chip，后端薄透传流式端点 /api/ai/outline/stream（绕过 AiChatService 固定 system，直接 LlmProvider.streamChat，SSE delta/done/error）以打字机方式生成缩进式 Markdown 大纲，前端 textarea 可编辑 + 旁侧只读树预览实时联动，一键「作为新画布」（Promise 链：createDoc→importTree→switchDoc→loadData→layoutByOutline→fitToContent）或「插入当前文档」；electron 侧新增 importTree 单事务建树与 local-index:canvas:import-tree IPC。prompt 约束常量留前端，后端零既有逻辑改动。",
+      "layer": "fullstack",
+      "tags": [
+        "product-dev",
+        "canvas",
+        "ai",
+        "outline",
+        "sse"
+      ],
+      "designSections": [
+        {
+          "title": "薄透传流式端点",
+          "summary": "现成 /api/ai/chat/stream 的 system 被 AiChatService 写死、角色受限，塞不进大纲约束；新增 AiOutlineController 绕过该校验，直接组装 system+user 两条 ChatMessage 调 LlmProvider.streamChat，SSE 生命周期照抄 AiChatController.StreamLifecycle，未配置模型发 NOT_CONFIGURED，LlmProvider 接口零改动。"
+        },
+        {
+          "title": "可编辑预览",
+          "summary": "生成结果不是直接落库，而是先进 textarea（Markdown 源码）编辑、旁侧按缩进实时解析成只读树预览；应用时回读 textarea 重新 parse，保证用户改动被采纳。避免嵌套 contenteditable 的选区/缩进/回读复杂度。"
+        },
+        {
+          "title": "单事务批量建树",
+          "summary": "importTree 在单事务内自顶向下递归插入整棵大纲，根节点接在文档现有根之后（追加语义），上限 60 节点，避免 N 次 IPC 往返并保证原子性；坐标为占位，视觉由前端 layoutByOutline 统一重算。"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "AiOutlineController（POST /api/ai/outline/stream，SSE delta/done/error/heartbeat）",
+          "status": "done"
+        },
+        {
+          "title": "canvas-node.js importTree 单事务建树 + MAX_TREE_NODES=60",
+          "status": "done"
+        },
+        {
+          "title": "main.js local-index:canvas:import-tree + preload importCanvasTree",
+          "status": "done"
+        },
+        {
+          "title": "canvas-ai-outline.js（流式消费/parseMarkdownOutline/示例 chips/textarea 编辑/树预览/取消）",
+          "status": "done"
+        },
+        {
+          "title": "canvas.js applyOutlineAsNewDoc（Promise 链）/ applyOutlineToCurrent + 三处入口绑定",
+          "status": "done"
+        },
+        {
+          "title": "canvas.html 入口按钮与脚本引入 + canvas.css .ai-composer-* 样式（--app-* 令牌）",
+          "status": "done"
+        },
+        {
+          "title": "canvas-node.test.js 新增 importTree 5 用例",
+          "status": "done"
+        },
+        {
+          "title": "mvn 打包 + 8082 隔离端口 SSE 冒烟（NOT_CONFIGURED/PROVIDER_ERROR/400）",
+          "status": "done"
+        }
+      ],
+      "verifications": [
+        {
+          "title": "node --test electron/sqlite 全绿（59 项）",
+          "status": "done"
+        },
+        {
+          "title": "node --check 五个改动 JS 文件通过",
+          "status": "done"
+        },
+        {
+          "title": "smoke-theme 126/126 + canvas.html 标签平衡",
+          "status": "done"
+        },
+        {
+          "title": "SSE 冒烟：合法 body 回流式事件、缺 userMessage 回 400",
+          "status": "done"
+        },
+        {
+          "title": "真机走查：三处入口/示例 chip/流式打字机/可编辑预览/作为新画布/插入当前文档/主题适配",
+          "status": "todo"
+        }
+      ]
     }
   ],
   "knowledgePoints": [
@@ -749,6 +832,26 @@
         "product-dev",
         "backend",
         "architecture"
+      ]
+    },
+    {
+      "title": "自定义 system prompt 的流式接口要绕过固定 system 的服务层",
+      "content": "AI 对话流式接口常经服务层校验并硬编码 system（如编辑器的『代码助手』），角色白名单只允许 user/assistant——要传自定义大纲约束 prompt 时，现成流式接口不可用。做法是新增薄透传 controller，自己组装 system+user 两条 ChatMessage 直接调 LlmProvider.streamChat，SSE 生命周期（heartbeat/delta/done/error/超时/降级）照抄既有实现，避免重复造轮子，也避免污染既有服务语义。",
+      "tags": [
+        "product-dev",
+        "ai",
+        "sse",
+        "architecture"
+      ]
+    },
+    {
+      "title": "AI 生成类功能先「可编辑预览再落库」，避免误生成难回收",
+      "content": "AI 生成结果直接建树会让用户难以纠错。对标幕布的优秀交互：生成 → 先进可编辑容器（本实现为 textarea 编辑 Markdown 源码）→ 旁侧按缩进实时解析成只读树预览 → 应用时回读容器重 parse，保证改动被采纳。配合流式打字机体验（delta 逐块填），把『干等 10~30s』变成『看着大纲冒出来』。",
+      "tags": [
+        "product-dev",
+        "canvas",
+        "ai",
+        "ux"
       ]
     }
   ]
