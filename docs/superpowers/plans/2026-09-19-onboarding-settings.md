@@ -113,7 +113,7 @@ git commit -m "feat: 新增共享上手引导渲染器 guide-core"
 
 **Files:**
 - Modify: `electron/config.html`（整文件重构）
-- Modify: `electron/main.js:320-360`（可选：首启窗口尺寸调整，参见 spec §10.4）
+- Modify: `electron/main.js:2943-2965`（正常启动窗口）、`:7222-7239` 与 `:7439-7458`（首次启动两处）；可选把 `width:560,height:700` 调至 ~540×680 或放开 `resizable`，参见 spec §10.4
 
 **关键约束：保持 `electronAPI` 全部 IPC 契约不变**。页面仍依赖 `api.onLoadConfig / onFirstRun / onStartupProgress / onStartupError / configDone / restartBackend / selectDirectory / quitApp / window.close`。只改视觉与结构，不改 preload / 主进程通道名。
 
@@ -183,7 +183,7 @@ cards 第二张（可选）：
   status:{ text:'稍后配置', tone:'muted' }, open:false,
   fieldsHtml: function(){ return ''+
     '<label class="g-label">服务商</label>'+
-    '<select id="gProvider"><option value="deepseek">DeepSeek</option><option value="dashscope">阿里云 DashScope</option><option value="custom">自定义 OpenAI 兼容</option></select>'+
+    '<select id="gProvider"><option value="dashscope">阿里云 DashScope</option><option value="deepseek">DeepSeek</option><option value="custom">自定义 OpenAI 兼容</option></select>'+
     '<label class="g-label">API Key</label>'+
     '<input type="password" id="gApiKey" placeholder="sk-…">'; },
   actions: function(){ return ''+
@@ -196,7 +196,21 @@ cards 第二张（可选）：
 
 - [ ] **Step 5: 保存逻辑改造（首装/非首装保持原通道）**
 
-在既有 `btnSave` 逻辑不变的前提下（`backendPort/frontendPort/storagePath` 校验 + `configDone`|`restartBackend`），新增：把 `#gProvider/#gApiKey` 合并进 `newConfig`（写 `activeProvider` + 对应 provider key，如 `provider==='deepseek'` → `deepseekApiKey`，`dashscope` → `dashscopeApiKey`，`custom` → `customApiKey`；与 settings.js 命名对齐，见 Task 4 步骤）。端口读自高级卡内 `backendPort/frontendPort`，保持 `===` 校验。
+在既有 `btnSave` 逻辑不变的前提下（`backendPort/frontendPort/storagePath` 校验 + `configDone`|`restartBackend`），新增：把 `#gProvider/#gApiKey` 合并进 `newConfig`，字段名与 settings.js / main.js 严格对齐（`activeProvider` 默认 `'dashscope'`）：
+
+```js
+// AI Key 可为空；有值才写入对应 provider 字段，其余 provider key 置空避免串值
+newConfig.activeProvider = document.getElementById('gProvider').value;
+newConfig.dashscopeApiKey = '';
+newConfig.deepseekApiKey = '';
+newConfig.customApiKey = '';
+newConfig.customBaseUrl = '';
+if (newConfig.activeProvider === 'dashscope') newConfig.dashscopeApiKey = apiKey;
+else if (newConfig.activeProvider === 'deepseek') newConfig.deepseekApiKey = apiKey;
+else if (newConfig.activeProvider === 'custom') newConfig.customApiKey = apiKey; // custom 需 baseUrl 时可补一项输入
+```
+
+端口读自高级卡内 `backendPort/frontendPort`，保持 `===` 校验。
 
 - [ ] **Step 6: 校验（运行 Electron 或静态检查）**
 
@@ -227,7 +241,6 @@ git commit -m "feat: 首装窗口升级为 V3 上手引导卡（必填存储+可
 在 `/styles/design-tokens.css` 与 `/js/theme-bridge.js` 之后追加：
 ```html
 <script src="js/guide-core.js"></script>
-<!-- index body 前端原生设置 so 无需额外 -->
 ```
 在导航列表顶部（原 825 行「个性化」项之前）插入：
 ```html
