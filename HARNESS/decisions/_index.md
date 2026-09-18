@@ -8,3 +8,4 @@
 | 0001 | Markdown（HARNESS）作为人工/AI 文档真相源 | 2026-09-18 | accepted | `-` | `0001-markdown-as-source-of-truth.md` |
 | 0002 | 双模型档位分工（简单/强任务） | 2026-09-18 | accepted | `-` | `0002-dual-tier-model-split.md` |
 | 0003 | DSH 手动升级（不自动联网安装/升级） | 2026-09-18 | accepted | `-` | `0003-dsh-manual-upgrade.md` |
+| 0004 | 借鉴 Jev 思想的置信度门控/结构化决策——评估后暂缓 | 2026-09-18 | accepted | `-` | `0004-decision-confidence-gating-evaluated-not-adopted.md` |
