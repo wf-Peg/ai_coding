@@ -9,6 +9,7 @@
     <script src="js/theme-core.js"></script>
     <script src="js/theme-bridge.js"></script>
     <script src="js/menu-tab-shortcut.js"></script>
+    <script src="js/guide-core.js"></script>
     <script>
         (function () { window.CutShelterThemeBridge.init({ root: document.documentElement }); })();
     </script>
@@ -816,16 +817,44 @@
             .privacy-grid { grid-template-columns: 1fr; }
             .privacy-hero { flex-direction: column; align-items: stretch; }
         }
+
+        /* ===== 工作区分组：必填角标 + 上手引导横幅 ===== */
+        .req-tag {
+            display: inline-block; margin-left: 6px; padding: 0 6px;
+            font-size: 10px; line-height: 16px; font-weight: 600;
+            color: var(--app-danger); background: var(--app-danger-soft, rgba(209,67,67,.1));
+            border: 1px solid var(--app-danger); border-radius: 6px;
+            vertical-align: 1px;
+        }
+        .help-banner {
+            display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+            padding: 14px 16px; margin-bottom: 16px;
+            border-radius: var(--app-radius-lg, 12px);
+            background: var(--app-surface, #fff); border: 1px solid var(--app-border, #e3e3df);
+            box-shadow: var(--app-shadow-sm, 0 1px 3px rgba(15,23,42,.06));
+            font-size: 13px; color: var(--app-text-secondary, #6b6f76);
+        }
+        .help-banner .help-icon { font-size: 22px; line-height: 1; }
+        .help-banner b { color: var(--app-text, #2f3437); }
+        .help-banner .btn { margin-left: auto; }
+        .slug.required-row .form-label,
+        .required-row .form-label {
+            font-weight: 600; color: var(--app-danger);
+        }
+        .slug.required-row .form-label::before,
+        .required-row .form-label::before { content: '* '; color: var(--app-danger); }
     </style>
 </head>
 <body>
     <div class="container">
         <aside class="settings-sidebar">
             <nav class="settings-nav">
-                <a class="settings-nav-item active" data-target="group-appearance"><span class="nav-icon">🎨</span>个性化</a>
+                <a class="settings-nav-item active" data-target="group-workspace"><span class="nav-icon">🗂️</span>工作区<span class="req-tag">必填</span></a>
+                <a class="settings-nav-item" data-target="group-ai-models"><span class="nav-icon">🤖</span>AI 与模型</a>
+                <a class="settings-nav-item" data-target="group-integrations"><span class="nav-icon">🔌</span>集成</a>
+                <a class="settings-nav-item" data-target="group-appearance"><span class="nav-icon">🎨</span>个性化</a>
                 <a class="settings-nav-item" data-target="group-general"><span class="nav-icon">⚙️</span>通用</a>
                 <a class="settings-nav-item" data-target="group-shortcuts"><span class="nav-icon">⌨️</span>快捷操作</a>
-                <a class="settings-nav-item" data-target="group-ai"><span class="nav-icon">🤖</span>AI 与集成</a>
                 <a class="settings-nav-item" data-target="group-data"><span class="nav-icon">🔒</span>数据与隐私</a>
                 <a class="settings-nav-item" data-target="group-system"><span class="nav-icon">🛠️</span>系统</a>
             </nav>
@@ -834,354 +863,157 @@
             <h1 class="page-title">功能设置</h1>
             <p class="page-subtitle">个性化碎碎记（CutShelter）的外观、快捷操作与 AI 集成。</p>
 
-            <section class="settings-group" id="group-appearance">
-                <div class="settings-group-title"><span class="group-icon">🎨</span>个性化</div>
-                <div class="section">
-                    <div class="section-title">
-                        🎨 外观设置
-                        <span class="section-badge immediate">即时生效</span>
-                    </div>
-            <div class="form-group">
-                <label class="form-label">界面主题</label>
-                <div class="theme-card-grid" id="themeCardGrid" role="radiogroup" aria-label="界面主题">
-                    <button type="button" class="theme-card theme-card--regular" data-theme="regular" role="radio" aria-checked="false" aria-label="默认（浅色）">
-                        <span class="theme-card__preview" aria-hidden="true"></span>
-                        <span class="theme-card__name">默认</span>
-                    </button>
-                    <button type="button" class="theme-card theme-card--notion" data-theme="notion" role="radio" aria-checked="false" aria-label="Notion 风格">
-                        <span class="theme-card__preview" aria-hidden="true"></span>
-                        <span class="theme-card__name">Notion</span>
-                    </button>
-                    <button type="button" class="theme-card theme-card--dark" data-theme="dark" role="radio" aria-checked="false" aria-label="深色">
-                        <span class="theme-card__preview" aria-hidden="true"></span>
-                        <span class="theme-card__name">深色</span>
-                    </button>
+            <section class="settings-group" id="group-workspace">
+                <div class="settings-group-title"><span class="group-icon">🗂️</span>工作区<span class="req-tag">必填</span></div>
+
+                <div class="help-banner" id="guideReplayBanner">
+                    <span class="help-icon">🎓</span>
+                    <span><b>上手引导</b> · 重播首次引导卡，逐步了解存储路径、AI Key 与进阶集成</span>
+                    <button class="btn btn-primary" id="guideReplayBtn" onclick="openGuideReplay()">播放引导</button>
                 </div>
-                <div class="setting-row" style="margin-top: 14px;">
-                    <div class="setting-label">
-                        <div class="setting-title">跟随系统浅色/深色</div>
-                        <div class="setting-desc">系统切换深色模式时自动跟随</div>
-                    </div>
-                    <div class="setting-control">
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="systemThemeToggle" onchange="onSystemThemeChange()">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
+
+        <!-- ↓ 以下为从原 group-ai 迁入的存储相关区，id 全部保持不动 -->
+
+            <!-- 存储路径 -->
+            <div class="config-subsection">
+                <div class="config-subsection-title collapsible" onclick="toggleSection(this)">
+                    <span class="toggle-icon collapsed">▼</span>
+                    📁 存储路径
                 </div>
-                <div class="setting-row" style="border-bottom: none;">
-                    <div class="setting-label">
-                        <div class="setting-title">减少动效</div>
-                        <div class="setting-desc">关闭位移、弹跳和呼吸动画，仅保留必要状态反馈</div>
+                <div class="subsection-body collapsed">
+                    <div class="form-group required-row">
+                        <label class="form-label">存储根目录</label>
+                        <div class="path-group">
+                            <input type="text" id="storagePath" placeholder="选择数据存储根目录" oninput="updateDerivedPaths(this.value)" />
+                            <button class="btn btn-outline" onclick="browseDirectory('storagePath')">浏览</button>
+                        </div>
+                        <div class="path-desc">所有剪藏、整理、周报数据均存储在此目录下</div>
                     </div>
-                    <div class="setting-control">
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="reduceMotionToggle" onchange="onReduceMotionChange()">
-                            <span class="toggle-slider"></span>
-                        </label>
+                    <div class="form-group">
+                        <label class="form-label">子目录结构（自动派生）</label>
+                        <div class="sub-paths">
+                            <div class="sub-path-item">
+                                <span class="sub-path-icon">📋</span>
+                                <span class="sub-path-label">剪藏数据</span>
+                                <span class="sub-path-value" id="derivedClipPath">—</span>
+                            </div>
+                            <div class="sub-path-item">
+                                <span class="sub-path-icon">📊</span>
+                                <span class="sub-path-label">整理数据</span>
+                                <span class="sub-path-value" id="derivedOrganizedPath">—</span>
+                            </div>
+                            <div class="sub-path-item">
+                                <span class="sub-path-icon">📰</span>
+                                <span class="sub-path-label">周报数据</span>
+                                <span class="sub-path-value" id="derivedWeeklyPath">—</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="path-hint" style="margin-top:8px;">
+                        ⚠️ 修改存储路径后需重启后端生效。保存时可将旧数据打包归档为 zip 文件。
+                    </div>
+                    <div class="path-hint" style="margin-top:8px; border-left-color:#4f8cff;">
+                        📌 外部迁移的 md 知识库放入存储根目录后无需重启：程序会自动发现并索引。
+                        也可点「重新索引知识库」立即重建。
+                        <button class="btn btn-outline btn-sm" id="reindexKbBtn" onclick="reindexKnowledgeBase()" style="margin-top:6px;">重新索引知识库</button>
+                        <span class="reindex-result" id="reindexResult"></span>
                     </div>
                 </div>
             </div>
-        </div>
+
+            <!-- 知识库目录规范（只读体检 + 迁移建议） -->
+            <div class="config-subsection">
+                <div class="config-subsection-title collapsible" onclick="toggleSection(this)">
+                    <span class="toggle-icon collapsed">▼</span>
+                    📐 知识库目录规范
+                    <span class="section-badge">只读</span>
+                </div>
+                <div class="subsection-body collapsed">
+                    <div class="form-group">
+                        <label class="form-label">目录规范速览</label>
+                        <div class="inspect-guide">
+                            <table class="inspect-table">
+                                <thead><tr><th>一级目录</th><th>语义</th><th>是否纳入索引</th></tr></thead>
+                                <tbody>
+                                    <tr><td><code>clip-storage/</code></td><td>剪藏/待办/学习计划/话题/媒体 + 知识（<code>knowledge-base/</code>）</td><td>是（JSON + 其中 md）</td></tr>
+                                    <tr><td><code>clip-organized/</code></td><td>整理结果、notes、templates、clips/{年}/{月}/{分类}</td><td>是（md）</td></tr>
+                                    <tr><td><code>weekly-report/</code></td><td>周报</td><td>否（排除集内）</td></tr>
+                                    <tr><td><code>obsidian-vault/</code></td><td>Wiki 结构化文档</td><td>是（md）</td></tr>
+                                    <tr><td><code>tmp/</code></td><td>编辑器「另存为/导出 md」默认落点</td><td>是（md，Ctrl+Shift+F/O 可搜）</td></tr>
+                                    <tr><td><code>.tmp/</code></td><td>编辑器标签页恢复缓存</td><td>否（缓存）</td></tr>
+                                    <tr><td>其它自建一级目录</td><td>用户自己的 md 知识库</td><td>是（md）</td></tr>
+                                </tbody>
+                            </table>
+                            <div class="inspect-tip">
+                                <strong>手动迁移 md 知识库建议：</strong>
+                                ① 一级目录用语义化英文 kebab-case（如 <code>my-notes</code>、<code>reading</code>），避免空格、全角字符、<code>#%&amp;{}</code>、首尾点；
+                                ② 目录名 ≤ 40 字符、层级 ≤ 3（根/主题/子主题）；
+                                ③ 别把 md 放进 <code>docs</code>/<code>test</code>/<code>build</code>/<code>dist</code>——这些名字在索引排除集内，其中的 md 不会被收录；
+                                ④ 同名文件只留一份（本软件按内容哈希提示重复项）；
+                                ⑤ 复制进根目录后无需重启，自动发现；也可点「重新索引知识库」。
+                                <br><strong>目录收敛说明：</strong>知识统一存 <code>knowledge-base/</code>（旧 <code>knowledge/</code> 启动时自动迁移，只读保留）；周报统一 <code>weekly-report/</code>；剪藏分类目录统一英文标识（如 <code>work/work-company</code>），历史中文目录启动时自动重命名。
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">搜索覆盖区（全局搜索 Ctrl+Shift+F/O 收录的一级目录）</label>
+                        <div class="subsection-actions">
+                            <button class="btn btn-outline btn-sm" onclick="loadSearchZone()">刷新</button>
+                            <span class="inspect-hint">绿色=可搜索（知识库放这里才能被搜到）；灰色=排除（其中的 md 不会被搜索）</span>
+                        </div>
+                        <div class="inspect-result" id="searchZoneResult">
+                            <span class="inspect-empty">点击「刷新」查看当前搜索覆盖区</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">只读体检</label>
+                        <div class="subsection-actions">
+                            <button class="btn btn-outline" id="runStorageInspectBtn" onclick="runStorageInspect()">开始体检</button>
+                            <span class="inspect-hint">仅扫描并输出问题清单与建议动作，不会修改任何文件</span>
+                        </div>
+                        <div class="inspect-result" id="storageInspectResult"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 本地配置文件 -->
+            <div class="config-subsection">
+                <div class="config-subsection-title collapsible" onclick="toggleSection(this)">
+                    <span class="toggle-icon collapsed">▼</span>
+                    📄 本地配置文件
+                </div>
+                <div class="subsection-body collapsed">
+                    <!-- Electron 桌面应用配置（config.json） -->
+                    <div class="form-group">
+                        <label class="form-label">Electron 应用配置</label>
+                        <div class="path-group">
+                            <input type="text" id="electronConfigPath" class="readonly-path" readonly value="正在获取..." style="flex:1;" />
+                            <button class="btn btn-outline" id="openElectronConfigBtn" onclick="openElectronConfigFolder()">打开目录</button>
+                        </div>
+                        <div class="path-desc">桌面应用配置文件（config.json），包含开机自启、快捷键、更新频率等桌面级配置</div>
+                    </div>
+
+                    <!-- 后端应用配置（app-config.json） -->
+                    <div class="form-group">
+                        <label class="form-label">后端应用配置</label>
+                        <div class="path-group">
+                            <input type="text" id="configFilePath" class="readonly-path" readonly value="正在获取..." style="flex:1;" />
+                            <button class="btn btn-outline" id="openConfigFolderBtn" onclick="openConfigFolder()">打开目录</button>
+                        </div>
+                        <div class="path-desc">后端配置文件（app-config.json），包含 AI 模型、邮件、Git、存储路径等应用配置，可手动查看、备份或编辑</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 统一保存按钮 -->
+            <div class="save-section-actions">
+                <div class="save-hint">修改后需点击保存方可生效，存储路径变更需重启后端</div>
+                <button class="btn btn-primary" id="saveBtn" onclick="saveConfig()">保存所有配置</button>
+            </div>
             </section>
 
-            <section class="settings-group" id="group-general">
-                <div class="settings-group-title"><span class="group-icon">⚙️</span>通用</div>
-
-        <div class="section">
-            <div class="section-title">
-                🚀 启动行为
-                <span class="section-badge immediate">即时生效</span>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    <div class="setting-title">开机自动启动</div>
-                    <div class="setting-desc">登录系统后自动启动碎碎记，并在后台保持运行</div>
-                </div>
-                <div class="setting-control">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="autoStartToggle" onchange="onAutoStartChange()">
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
-            </div>
-            <div class="setting-row" style="border-bottom: none;">
-                <div class="setting-label">
-                    <div class="setting-title">后端启动模式</div>
-                    <div class="setting-desc">控制应用启动时后端服务的启动方式，修改后需重启应用生效</div>
-                </div>
-                <div class="setting-control">
-                    <select id="startupModeSelect" onchange="onStartupModeChange()" style="width: 240px;">
-                        <option value="frontend-only">只启动前端（默认，手动启动后端）</option>
-                        <option value="frontend-async-backend">启动前端后异步启动后端</option>
-                        <option value="full">完全启动（前后端同时启动）</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-            </section>
-
-            <section class="settings-group" id="group-gpu">
-                <div class="settings-group-title"><span class="group-icon">🖥️</span>渲染性能</div>
-        <div class="section">
-            <div class="section-title">
-                🖥️ GPU 渲染
-                <span class="section-badge immediate">即时生效</span>
-            </div>
-            <div class="setting-row" style="border-bottom: none;">
-                <div class="setting-label">
-                    <div class="setting-title">渲染模式</div>
-                    <div class="setting-desc">受限内网/无独显/远程桌面环境请用「稳定模式」；若切换后启动异常会自动回退。修改后重启应用生效</div>
-                </div>
-                <div class="setting-control">
-                    <select id="gpuProfileSelect" onchange="onGpuProfileChange()" style="width: 240px;">
-                        <option value="stable">稳定模式（软件渲染，兼容性最高）</option>
-                        <option value="performance">性能模式（启用硬件加速，可能更快）</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-            </section>
-
-            <section class="settings-group" id="group-shortcuts">
-                <div class="settings-group-title"><span class="group-icon">⌨️</span>快捷操作</div>
-
-        <div class="section" id="shortcutSection">
-            <div class="section-title">
-                ⌨️ 快捷键设置
-                <span class="section-badge immediate">即时生效</span>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    <div class="setting-title">全局快捷键</div>
-                    <div class="setting-desc">唤起 / 隐藏应用窗口</div>
-                </div>
-                <div class="setting-control">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="shortcutEnabled" onchange="onShortcutChange()" checked>
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
-            </div>
-            <div class="setting-row" id="shortcutKeyRow">
-                <div class="setting-label">
-                    <div class="setting-title">全局唤起快捷键</div>
-                    <div class="setting-desc" title="点击右侧输入框，按下任意组合键即可录制；改键即时生效。macOS 建议使用不带 ⌘ 的组合（如 Ctrl+Alt/X，即 ⌃⌥X），避免与系统菜单快捷键冲突导致无法全局触发。">点击右侧输入框并按下组合键录制即可生效</div>
-                </div>
-                <div class="setting-control">
-                    <input type="text" id="shortcutKey" class="shortcut-input" 
-                           placeholder="点击录制…如 Ctrl+Alt+X"
-                           title="全局「唤起/隐藏窗口」快捷键。点击输入框后按下组合键即可录制；若该键已被系统或其它应用占用，会弹出提示。macOS 建议用不带 ⌘ 的组合（如 Ctrl+Alt/X = ⌃⌥X），它不会被应用菜单快捷键抢占、全局触发更稳定。"
-                           onclick="startShortcutRecording()"
-                           style="width:260px;text-align:center;" readonly>
-                </div>
-            </div>
-        </div>
-
-        <div class="section" id="editorShortcutSection">
-            <div class="section-title">
-                🎹 编辑器功能快捷键
-                <span class="section-badge immediate">即时生效</span>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    <div class="setting-title">功能快捷键</div>
-                    <div class="setting-desc">点击右侧输入框录制新的组合键；改动即刻生效并同步到编辑器。重复组合会以红色标注。</div>
-                </div>
-            </div>
-            <div id="editorShortcutList"></div>
-            <div class="setting-row">
-                <div class="setting-control" style="justify-content:flex-end;">
-                    <button type="button" id="editorShortcutResetBtn" class="ghost-btn">恢复默认快捷键</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="section" id="screenshotSection">
-            <div class="section-title">
-                📸 截图工具
-                <span class="section-badge immediate">即时生效</span>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    <div class="setting-title">截图快捷键</div>
-                    <div class="setting-desc">全屏选区截图（复制/保存/OCR/贴图）</div>
-                </div>
-                <div class="setting-control">
-                    <input type="text" id="shotKey" class="shortcut-input"
-                           placeholder="F1" onclick="startShotRecording('shot')"
-                           style="width:200px;text-align:center;" readonly>
-                </div>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    <div class="setting-title">贴图快捷键</div>
-                    <div class="setting-desc">将剪贴板图片/最近截图置顶钉住</div>
-                </div>
-                <div class="setting-control">
-                    <input type="text" id="pasteKey" class="shortcut-input"
-                           placeholder="F2" onclick="startShotRecording('paste')"
-                           style="width:200px;text-align:center;" readonly>
-                </div>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    <div class="setting-title">截图时收起主窗口</div>
-                    <div class="setting-desc">避免截图画面包含应用自身窗口</div>
-                </div>
-                <div class="setting-control">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="shotHideMain" checked>
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
-            </div>
-        </div>
-            </section>
-
-            <section class="settings-group" id="group-ai">
-                <div class="settings-group-title"><span class="group-icon">🤖</span>AI 与集成</div>
-
-        <div class="section" id="dshAgentSection">
-            <div class="section-title">
-                🤖 DSH Agent（牛马）
-                <span class="section-badge immediate">即时生效</span>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    <div class="setting-title">启用「牛马」面板</div>
-                    <div class="setting-desc">顶部导航显示入口，内嵌 DeepSeek Harness Agent</div>
-                </div>
-                <div class="setting-control">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="dshAgentEnabled" checked>
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    <div class="setting-title">DSH 端口</div>
-                    <div class="setting-desc">固定 3081 避开手动启动的 3080；已有实例自动复用</div>
-                </div>
-                <div class="setting-control">
-                    <input type="number" id="dshPort" min="1024" max="65535" value="3081"
-                           style="width:120px;">
-                </div>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    <div class="setting-title">dsh CLI 路径</div>
-                    <div class="setting-desc">留空自动探测（配置 → DSH_BIN → 内置 → npx 缓存 → 自动安装）</div>
-                </div>
-                <div class="setting-control">
-                    <input type="text" id="dshBinPath" placeholder="自动探测" style="width:320px;">
-                </div>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    <div class="setting-title">技能包</div>
-                    <div class="setting-desc" id="dshSkillStatusDesc">将 cut-shelter 技能安装到 ~/.dsh/skills</div>
-                    <div class="setting-desc" id="dshSkillDriftDesc" style="display:none;margin-top:6px;"></div>
-                    <div class="setting-desc" id="dshMarketStatusDesc" style="margin-top:6px;"></div>
-                </div>
-                <div class="setting-control" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                    <button class="btn btn-primary" id="btnInstallSkill">一键安装技能包</button>
-                    <button class="btn" id="btnCheckSkill">重新检测清单</button>
-                </div>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    <div class="setting-title">操作</div>
-                    <div class="setting-desc" id="dshAgentRunDesc">启动/停止本地 DSH 实例（3081）</div>
-                </div>
-                <div class="setting-control" style="display:flex;gap:8px;align-items:center;">
-                    <button class="btn btn-primary" id="btnSaveDshConfig">保存设置</button>
-                    <button class="btn" id="btnStartDshAgent">启动</button>
-                    <button class="btn" id="btnStopDshAgent">停止</button>
-                    <button class="btn" id="btnOpenDshAgent">打开面板</button>
-                </div>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    <div class="setting-title">DSH 升级助手</div>
-                    <div class="setting-desc" id="dshVersionDesc">当前版本：—</div>
-                    <div class="setting-desc" id="dshVersionMismatchDesc" style="display:none;margin-top:6px;color:var(--danger,#dc2626);font-weight:500;"></div>
-                    <div class="setting-desc" id="dshUpgradeResult" style="display:none;margin-top:6px;"></div>
-                </div>
-                <div class="setting-control" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                    <button class="btn" id="btnCopyDshUpgradeCmd">复制升级命令</button>
-                    <button class="btn" id="btnDetectDshLatest">检测升级</button>
-                    <button class="btn" id="btnRefreshDshVersion">刷新版本</button>
-                </div>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    <div class="setting-title">DSH 皮肤/主题</div>
-                    <div class="setting-desc" id="dshSkinDesc">检测中…</div>
-                    <div class="setting-desc"><pre id="dshSkinResult" style="display:none;margin-top:6px;font-family:ui-monospace,Consolas,monospace;font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-all;max-height:160px;overflow:auto;"></pre></div>
-                </div>
-                <div class="setting-control" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                    <button class="btn" id="btnDshSkinCheck">检测状态</button>
-                    <button class="btn btn-primary" id="btnDshSkinInstall">一键补齐</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="section" id="mcpConnectSection">
-            <div class="section-title">
-                🔌 外部 AI 助手接入（MCP）
-                <span class="section-badge immediate">即时生效</span>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    <div class="setting-title">是什么</div>
-                    <div class="setting-desc">把剪藏知识库通过 MCP 开放给外部 AI 助手（Claude Code / Codex 等），可调用 <code>wiki_ask</code> 直接问答你的 Wiki——先编译再检索、带 [[引用]]，无需向量库。内置 DSH（牛马）已通过技能包自动接入，无需手动配置。</div>
-                </div>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    <div class="setting-title">前提</div>
-                    <div class="setting-desc">① 剪藏后端正常运行（默认 <code>127.0.0.1:8081</code>）；② 将下方命令中的 <code>&lt;剪藏安装目录&gt;</code> 替换为剪藏实际安装路径。</div>
-                </div>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    <div class="setting-title">Claude Code</div>
-                    <div class="setting-desc">注册为 MCP server 后，让 Claude 直接 <code>wiki_ask</code> 你的知识库。</div>
-                </div>
-                <div class="setting-control" style="flex:1;display:flex;gap:8px;align-items:center;">
-                    <input readonly id="mcpClaudeCmd" value='claude mcp add cut-shelter -- node "<剪藏安装目录>/integrations/dsh/mcp-server/server.mjs"' style="flex:1;font-family:ui-monospace,Consolas,monospace;font-size:12px;min-width:0;" />
-                    <button class="btn" data-copy-source="mcpClaudeCmd">复制</button>
-                </div>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    <div class="setting-title">Codex CLI</div>
-                    <div class="setting-desc">同样注册为 MCP server，用法与 Claude 一致。</div>
-                </div>
-                <div class="setting-control" style="flex:1;display:flex;gap:8px;align-items:center;">
-                    <input readonly id="mcpCodexCmd" value='codex mcp add cut-shelter -- node "<剪藏安装目录>/integrations/dsh/mcp-server/server.mjs"' style="flex:1;font-family:ui-monospace,Consolas,monospace;font-size:12px;min-width:0;" />
-                    <button class="btn" data-copy-source="mcpCodexCmd">复制</button>
-                </div>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    <div class="setting-title">其它 / 自定义后端</div>
-                    <div class="setting-desc">
-                        任何支持 stdio MCP 的客户端都指向同一入口 <code>integrations/dsh/mcp-server/server.mjs</code>，工具名 <code>wiki_ask</code>。
-                        后端非默认地址时注入环境变量：
-                        <code>CUTSHELTER_BASE_URL=http://你的地址:8081</code>；耗时请求可调大 <code>CUTSHELTER_TIMEOUT_MS</code>（默认 60000，建议 <code>120000</code>）。
-                    </div>
-                </div>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    <div class="setting-title">自测（可选）</div>
-                    <div class="setting-desc">在剪藏目录终端执行 <code>node integrations/dsh/mcp-server/smoke-ask.mjs</code>，连接本 MCP 并真实调用一次 <code>wiki_ask</code>，打印答案。可加 <code>--question="你问的问题"</code> 或 <code>--include-clips</code>。</div>
-                </div>
-            </div>
-        </div>
+            <section class="settings-group" id="group-ai-models">
+                <div class="settings-group-title"><span class="group-icon">🤖</span>AI 与模型</div>
 
         <div class="section save-section needs-attention" id="unifiedConfigSection">
             <div class="section-title">
@@ -1447,9 +1279,153 @@
                     </div>
                 </div>
             </div>
+        </div>
+            </section>
 
-            <!-- 数据与本地 -->
-            <div class="config-partition">数据与本地</div>
+            <section class="settings-group" id="group-integrations">
+                <div class="settings-group-title"><span class="group-icon">🔌</span>集成</div>
+
+        <div class="section" id="dshAgentSection">
+            <div class="section-title">
+                🤖 DSH Agent（牛马）
+                <span class="section-badge immediate">即时生效</span>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">启用「牛马」面板</div>
+                    <div class="setting-desc">顶部导航显示入口，内嵌 DeepSeek Harness Agent</div>
+                </div>
+                <div class="setting-control">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="dshAgentEnabled" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">DSH 端口</div>
+                    <div class="setting-desc">固定 3081 避开手动启动的 3080；已有实例自动复用</div>
+                </div>
+                <div class="setting-control">
+                    <input type="number" id="dshPort" min="1024" max="65535" value="3081"
+                           style="width:120px;">
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">dsh CLI 路径</div>
+                    <div class="setting-desc">留空自动探测（配置 → DSH_BIN → 内置 → npx 缓存 → 自动安装）</div>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="dshBinPath" placeholder="自动探测" style="width:320px;">
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">技能包</div>
+                    <div class="setting-desc" id="dshSkillStatusDesc">将 cut-shelter 技能安装到 ~/.dsh/skills</div>
+                    <div class="setting-desc" id="dshSkillDriftDesc" style="display:none;margin-top:6px;"></div>
+                    <div class="setting-desc" id="dshMarketStatusDesc" style="margin-top:6px;"></div>
+                </div>
+                <div class="setting-control" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <button class="btn btn-primary" id="btnInstallSkill">一键安装技能包</button>
+                    <button class="btn" id="btnCheckSkill">重新检测清单</button>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">操作</div>
+                    <div class="setting-desc" id="dshAgentRunDesc">启动/停止本地 DSH 实例（3081）</div>
+                </div>
+                <div class="setting-control" style="display:flex;gap:8px;align-items:center;">
+                    <button class="btn btn-primary" id="btnSaveDshConfig">保存设置</button>
+                    <button class="btn" id="btnStartDshAgent">启动</button>
+                    <button class="btn" id="btnStopDshAgent">停止</button>
+                    <button class="btn" id="btnOpenDshAgent">打开面板</button>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">DSH 升级助手</div>
+                    <div class="setting-desc" id="dshVersionDesc">当前版本：—</div>
+                    <div class="setting-desc" id="dshVersionMismatchDesc" style="display:none;margin-top:6px;color:var(--danger,#dc2626);font-weight:500;"></div>
+                    <div class="setting-desc" id="dshUpgradeResult" style="display:none;margin-top:6px;"></div>
+                </div>
+                <div class="setting-control" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <button class="btn" id="btnCopyDshUpgradeCmd">复制升级命令</button>
+                    <button class="btn" id="btnDetectDshLatest">检测升级</button>
+                    <button class="btn" id="btnRefreshDshVersion">刷新版本</button>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">DSH 皮肤/主题</div>
+                    <div class="setting-desc" id="dshSkinDesc">检测中…</div>
+                    <div class="setting-desc"><pre id="dshSkinResult" style="display:none;margin-top:6px;font-family:ui-monospace,Consolas,monospace;font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-all;max-height:160px;overflow:auto;"></pre></div>
+                </div>
+                <div class="setting-control" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <button class="btn" id="btnDshSkinCheck">检测状态</button>
+                    <button class="btn btn-primary" id="btnDshSkinInstall">一键补齐</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="section" id="mcpConnectSection">
+            <div class="section-title">
+                🔌 外部 AI 助手接入（MCP）
+                <span class="section-badge immediate">即时生效</span>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">是什么</div>
+                    <div class="setting-desc">把剪藏知识库通过 MCP 开放给外部 AI 助手（Claude Code / Codex 等），可调用 <code>wiki_ask</code> 直接问答你的 Wiki——先编译再检索、带 [[引用]]，无需向量库。内置 DSH（牛马）已通过技能包自动接入，无需手动配置。</div>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">前提</div>
+                    <div class="setting-desc">① 剪藏后端正常运行（默认 <code>127.0.0.1:8081</code>）；② 将下方命令中的 <code>&lt;剪藏安装目录&gt;</code> 替换为剪藏实际安装路径。</div>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">Claude Code</div>
+                    <div class="setting-desc">注册为 MCP server 后，让 Claude 直接 <code>wiki_ask</code> 你的知识库。</div>
+                </div>
+                <div class="setting-control" style="flex:1;display:flex;gap:8px;align-items:center;">
+                    <input readonly id="mcpClaudeCmd" value='claude mcp add cut-shelter -- node "<剪藏安装目录>/integrations/dsh/mcp-server/server.mjs"' style="flex:1;font-family:ui-monospace,Consolas,monospace;font-size:12px;min-width:0;" />
+                    <button class="btn" data-copy-source="mcpClaudeCmd">复制</button>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">Codex CLI</div>
+                    <div class="setting-desc">同样注册为 MCP server，用法与 Claude 一致。</div>
+                </div>
+                <div class="setting-control" style="flex:1;display:flex;gap:8px;align-items:center;">
+                    <input readonly id="mcpCodexCmd" value='codex mcp add cut-shelter -- node "<剪藏安装目录>/integrations/dsh/mcp-server/server.mjs"' style="flex:1;font-family:ui-monospace,Consolas,monospace;font-size:12px;min-width:0;" />
+                    <button class="btn" data-copy-source="mcpCodexCmd">复制</button>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">其它 / 自定义后端</div>
+                    <div class="setting-desc">
+                        任何支持 stdio MCP 的客户端都指向同一入口 <code>integrations/dsh/mcp-server/server.mjs</code>，工具名 <code>wiki_ask</code>。
+                        后端非默认地址时注入环境变量：
+                        <code>CUTSHELTER_BASE_URL=http://你的地址:8081</code>；耗时请求可调大 <code>CUTSHELTER_TIMEOUT_MS</code>（默认 60000，建议 <code>120000</code>）。
+                    </div>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">自测（可选）</div>
+                    <div class="setting-desc">在剪藏目录终端执行 <code>node integrations/dsh/mcp-server/smoke-ask.mjs</code>，连接本 MCP 并真实调用一次 <code>wiki_ask</code>，打印答案。可加 <code>--question="你问的问题"</code> 或 <code>--include-clips</code>。</div>
+                </div>
+            </div>
+        </div>
+
             <!-- 邮件通知 -->
             <div class="config-subsection">
                 <div class="config-subsection-title collapsible" onclick="toggleSection(this)">
@@ -1522,142 +1498,209 @@
                     </div>
                 </div>
             </div>
+            </section>
 
-            <!-- 存储路径 -->
-            <div class="config-subsection">
-                <div class="config-subsection-title collapsible" onclick="toggleSection(this)">
-                    <span class="toggle-icon collapsed">▼</span>
-                    📁 存储路径
+            <section class="settings-group" id="group-appearance">
+                <div class="settings-group-title"><span class="group-icon">🎨</span>个性化</div>
+                <div class="section">
+                    <div class="section-title">
+                        🎨 外观设置
+                        <span class="section-badge immediate">即时生效</span>
+                    </div>
+            <div class="form-group">
+                <label class="form-label">界面主题</label>
+                <div class="theme-card-grid" id="themeCardGrid" role="radiogroup" aria-label="界面主题">
+                    <button type="button" class="theme-card theme-card--regular" data-theme="regular" role="radio" aria-checked="false" aria-label="默认（浅色）">
+                        <span class="theme-card__preview" aria-hidden="true"></span>
+                        <span class="theme-card__name">默认</span>
+                    </button>
+                    <button type="button" class="theme-card theme-card--notion" data-theme="notion" role="radio" aria-checked="false" aria-label="Notion 风格">
+                        <span class="theme-card__preview" aria-hidden="true"></span>
+                        <span class="theme-card__name">Notion</span>
+                    </button>
+                    <button type="button" class="theme-card theme-card--dark" data-theme="dark" role="radio" aria-checked="false" aria-label="深色">
+                        <span class="theme-card__preview" aria-hidden="true"></span>
+                        <span class="theme-card__name">深色</span>
+                    </button>
                 </div>
-                <div class="subsection-body collapsed">
-                    <div class="form-group">
-                        <label class="form-label">存储根目录</label>
-                        <div class="path-group">
-                            <input type="text" id="storagePath" placeholder="选择数据存储根目录" oninput="updateDerivedPaths(this.value)" />
-                            <button class="btn btn-outline" onclick="browseDirectory('storagePath')">浏览</button>
-                        </div>
-                        <div class="path-desc">所有剪藏、整理、周报数据均存储在此目录下</div>
+                <div class="setting-row" style="margin-top: 14px;">
+                    <div class="setting-label">
+                        <div class="setting-title">跟随系统浅色/深色</div>
+                        <div class="setting-desc">系统切换深色模式时自动跟随</div>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">子目录结构（自动派生）</label>
-                        <div class="sub-paths">
-                            <div class="sub-path-item">
-                                <span class="sub-path-icon">📋</span>
-                                <span class="sub-path-label">剪藏数据</span>
-                                <span class="sub-path-value" id="derivedClipPath">—</span>
-                            </div>
-                            <div class="sub-path-item">
-                                <span class="sub-path-icon">📊</span>
-                                <span class="sub-path-label">整理数据</span>
-                                <span class="sub-path-value" id="derivedOrganizedPath">—</span>
-                            </div>
-                            <div class="sub-path-item">
-                                <span class="sub-path-icon">📰</span>
-                                <span class="sub-path-label">周报数据</span>
-                                <span class="sub-path-value" id="derivedWeeklyPath">—</span>
-                            </div>
-                        </div>
+                    <div class="setting-control">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="systemThemeToggle" onchange="onSystemThemeChange()">
+                            <span class="toggle-slider"></span>
+                        </label>
                     </div>
-                    <div class="path-hint" style="margin-top:8px;">
-                        ⚠️ 修改存储路径后需重启后端生效。保存时可将旧数据打包归档为 zip 文件。
+                </div>
+                <div class="setting-row" style="border-bottom: none;">
+                    <div class="setting-label">
+                        <div class="setting-title">减少动效</div>
+                        <div class="setting-desc">关闭位移、弹跳和呼吸动画，仅保留必要状态反馈</div>
                     </div>
-                    <div class="path-hint" style="margin-top:8px; border-left-color:#4f8cff;">
-                        📌 外部迁移的 md 知识库放入存储根目录后无需重启：程序会自动发现并索引。
-                        也可点「重新索引知识库」立即重建。
-                        <button class="btn btn-outline btn-sm" id="reindexKbBtn" onclick="reindexKnowledgeBase()" style="margin-top:6px;">重新索引知识库</button>
-                        <span class="reindex-result" id="reindexResult"></span>
+                    <div class="setting-control">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="reduceMotionToggle" onchange="onReduceMotionChange()">
+                            <span class="toggle-slider"></span>
+                        </label>
                     </div>
                 </div>
             </div>
+        </div>
+            </section>
 
-            <!-- 知识库目录规范（只读体检 + 迁移建议） -->
-            <div class="config-subsection">
-                <div class="config-subsection-title collapsible" onclick="toggleSection(this)">
-                    <span class="toggle-icon collapsed">▼</span>
-                    📐 知识库目录规范
-                    <span class="section-badge">只读</span>
+            <section class="settings-group" id="group-general">
+                <div class="settings-group-title"><span class="group-icon">⚙️</span>通用</div>
+
+        <div class="section">
+            <div class="section-title">
+                🚀 启动行为
+                <span class="section-badge immediate">即时生效</span>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">开机自动启动</div>
+                    <div class="setting-desc">登录系统后自动启动碎碎记，并在后台保持运行</div>
                 </div>
-                <div class="subsection-body collapsed">
-                    <div class="form-group">
-                        <label class="form-label">目录规范速览</label>
-                        <div class="inspect-guide">
-                            <table class="inspect-table">
-                                <thead><tr><th>一级目录</th><th>语义</th><th>是否纳入索引</th></tr></thead>
-                                <tbody>
-                                    <tr><td><code>clip-storage/</code></td><td>剪藏/待办/学习计划/话题/媒体 + 知识（<code>knowledge-base/</code>）</td><td>是（JSON + 其中 md）</td></tr>
-                                    <tr><td><code>clip-organized/</code></td><td>整理结果、notes、templates、clips/{年}/{月}/{分类}</td><td>是（md）</td></tr>
-                                    <tr><td><code>weekly-report/</code></td><td>周报</td><td>否（排除集内）</td></tr>
-                                    <tr><td><code>obsidian-vault/</code></td><td>Wiki 结构化文档</td><td>是（md）</td></tr>
-                                    <tr><td><code>tmp/</code></td><td>编辑器「另存为/导出 md」默认落点</td><td>是（md，Ctrl+Shift+F/O 可搜）</td></tr>
-                                    <tr><td><code>.tmp/</code></td><td>编辑器标签页恢复缓存</td><td>否（缓存）</td></tr>
-                                    <tr><td>其它自建一级目录</td><td>用户自己的 md 知识库</td><td>是（md）</td></tr>
-                                </tbody>
-                            </table>
-                            <div class="inspect-tip">
-                                <strong>手动迁移 md 知识库建议：</strong>
-                                ① 一级目录用语义化英文 kebab-case（如 <code>my-notes</code>、<code>reading</code>），避免空格、全角字符、<code>#%&amp;{}</code>、首尾点；
-                                ② 目录名 ≤ 40 字符、层级 ≤ 3（根/主题/子主题）；
-                                ③ 别把 md 放进 <code>docs</code>/<code>test</code>/<code>build</code>/<code>dist</code>——这些名字在索引排除集内，其中的 md 不会被收录；
-                                ④ 同名文件只留一份（本软件按内容哈希提示重复项）；
-                                ⑤ 复制进根目录后无需重启，自动发现；也可点「重新索引知识库」。
-                                <br><strong>目录收敛说明：</strong>知识统一存 <code>knowledge-base/</code>（旧 <code>knowledge/</code> 启动时自动迁移，只读保留）；周报统一 <code>weekly-report/</code>；剪藏分类目录统一英文标识（如 <code>work/work-company</code>），历史中文目录启动时自动重命名。
-                            </div>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">搜索覆盖区（全局搜索 Ctrl+Shift+F/O 收录的一级目录）</label>
-                        <div class="subsection-actions">
-                            <button class="btn btn-outline btn-sm" onclick="loadSearchZone()">刷新</button>
-                            <span class="inspect-hint">绿色=可搜索（知识库放这里才能被搜到）；灰色=排除（其中的 md 不会被搜索）</span>
-                        </div>
-                        <div class="inspect-result" id="searchZoneResult">
-                            <span class="inspect-empty">点击「刷新」查看当前搜索覆盖区</span>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">只读体检</label>
-                        <div class="subsection-actions">
-                            <button class="btn btn-outline" id="runStorageInspectBtn" onclick="runStorageInspect()">开始体检</button>
-                            <span class="inspect-hint">仅扫描并输出问题清单与建议动作，不会修改任何文件</span>
-                        </div>
-                        <div class="inspect-result" id="storageInspectResult"></div>
-                    </div>
+                <div class="setting-control">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="autoStartToggle" onchange="onAutoStartChange()">
+                        <span class="toggle-slider"></span>
+                    </label>
                 </div>
             </div>
-
-            <!-- 本地配置文件 -->
-            <div class="config-subsection">
-                <div class="config-subsection-title collapsible" onclick="toggleSection(this)">
-                    <span class="toggle-icon collapsed">▼</span>
-                    📄 本地配置文件
+            <div class="setting-row" style="border-bottom: none;">
+                <div class="setting-label">
+                    <div class="setting-title">后端启动模式</div>
+                    <div class="setting-desc">控制应用启动时后端服务的启动方式，修改后需重启应用生效</div>
                 </div>
-                <div class="subsection-body collapsed">
-                    <!-- Electron 桌面应用配置（config.json） -->
-                    <div class="form-group">
-                        <label class="form-label">Electron 应用配置</label>
-                        <div class="path-group">
-                            <input type="text" id="electronConfigPath" class="readonly-path" readonly value="正在获取..." style="flex:1;" />
-                            <button class="btn btn-outline" id="openElectronConfigBtn" onclick="openElectronConfigFolder()">打开目录</button>
-                        </div>
-                        <div class="path-desc">桌面应用配置文件（config.json），包含开机自启、快捷键、更新频率等桌面级配置</div>
-                    </div>
-
-                    <!-- 后端应用配置（app-config.json） -->
-                    <div class="form-group">
-                        <label class="form-label">后端应用配置</label>
-                        <div class="path-group">
-                            <input type="text" id="configFilePath" class="readonly-path" readonly value="正在获取..." style="flex:1;" />
-                            <button class="btn btn-outline" id="openConfigFolderBtn" onclick="openConfigFolder()">打开目录</button>
-                        </div>
-                        <div class="path-desc">后端配置文件（app-config.json），包含 AI 模型、邮件、Git、存储路径等应用配置，可手动查看、备份或编辑</div>
-                    </div>
+                <div class="setting-control">
+                    <select id="startupModeSelect" onchange="onStartupModeChange()" style="width: 240px;">
+                        <option value="frontend-only">只启动前端（默认，手动启动后端）</option>
+                        <option value="frontend-async-backend">启动前端后异步启动后端</option>
+                        <option value="full">完全启动（前后端同时启动）</option>
+                    </select>
                 </div>
             </div>
+        </div>
+            </section>
 
-            <!-- 统一保存按钮 -->
-            <div class="save-section-actions">
-                <div class="save-hint">修改后需点击保存方可生效，存储路径变更需重启后端</div>
-                <button class="btn btn-primary" id="saveBtn" onclick="saveConfig()">保存所有配置</button>
+            <section class="settings-group" id="group-gpu">
+                <div class="settings-group-title"><span class="group-icon">🖥️</span>渲染性能</div>
+        <div class="section">
+            <div class="section-title">
+                🖥️ GPU 渲染
+                <span class="section-badge immediate">即时生效</span>
+            </div>
+            <div class="setting-row" style="border-bottom: none;">
+                <div class="setting-label">
+                    <div class="setting-title">渲染模式</div>
+                    <div class="setting-desc">受限内网/无独显/远程桌面环境请用「稳定模式」；若切换后启动异常会自动回退。修改后重启应用生效</div>
+                </div>
+                <div class="setting-control">
+                    <select id="gpuProfileSelect" onchange="onGpuProfileChange()" style="width: 240px;">
+                        <option value="stable">稳定模式（软件渲染，兼容性最高）</option>
+                        <option value="performance">性能模式（启用硬件加速，可能更快）</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+            </section>
+
+            <section class="settings-group" id="group-shortcuts">
+                <div class="settings-group-title"><span class="group-icon">⌨️</span>快捷操作</div>
+
+        <div class="section" id="shortcutSection">
+            <div class="section-title">
+                ⌨️ 快捷键设置
+                <span class="section-badge immediate">即时生效</span>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">全局快捷键</div>
+                    <div class="setting-desc">唤起 / 隐藏应用窗口</div>
+                </div>
+                <div class="setting-control">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="shortcutEnabled" onchange="onShortcutChange()" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+            <div class="setting-row" id="shortcutKeyRow">
+                <div class="setting-label">
+                    <div class="setting-title">全局唤起快捷键</div>
+                    <div class="setting-desc" title="点击右侧输入框，按下任意组合键即可录制；改键即时生效。macOS 建议使用不带 ⌘ 的组合（如 Ctrl+Alt/X，即 ⌃⌥X），避免与系统菜单快捷键冲突导致无法全局触发。">点击右侧输入框并按下组合键录制即可生效</div>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="shortcutKey" class="shortcut-input" 
+                           placeholder="点击录制…如 Ctrl+Alt+X"
+                           title="全局「唤起/隐藏窗口」快捷键。点击输入框后按下组合键即可录制；若该键已被系统或其它应用占用，会弹出提示。macOS 建议用不带 ⌘ 的组合（如 Ctrl+Alt/X = ⌃⌥X），它不会被应用菜单快捷键抢占、全局触发更稳定。"
+                           onclick="startShortcutRecording()"
+                           style="width:260px;text-align:center;" readonly>
+                </div>
+            </div>
+        </div>
+
+        <div class="section" id="editorShortcutSection">
+            <div class="section-title">
+                🎹 编辑器功能快捷键
+                <span class="section-badge immediate">即时生效</span>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">功能快捷键</div>
+                    <div class="setting-desc">点击右侧输入框录制新的组合键；改动即刻生效并同步到编辑器。重复组合会以红色标注。</div>
+                </div>
+            </div>
+            <div id="editorShortcutList"></div>
+            <div class="setting-row">
+                <div class="setting-control" style="justify-content:flex-end;">
+                    <button type="button" id="editorShortcutResetBtn" class="ghost-btn">恢复默认快捷键</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="section" id="screenshotSection">
+            <div class="section-title">
+                📸 截图工具
+                <span class="section-badge immediate">即时生效</span>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">截图快捷键</div>
+                    <div class="setting-desc">全屏选区截图（复制/保存/OCR/贴图）</div>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="shotKey" class="shortcut-input"
+                           placeholder="F1" onclick="startShotRecording('shot')"
+                           style="width:200px;text-align:center;" readonly>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">贴图快捷键</div>
+                    <div class="setting-desc">将剪贴板图片/最近截图置顶钉住</div>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="pasteKey" class="shortcut-input"
+                           placeholder="F2" onclick="startShotRecording('paste')"
+                           style="width:200px;text-align:center;" readonly>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <div class="setting-title">截图时收起主窗口</div>
+                    <div class="setting-desc">避免截图画面包含应用自身窗口</div>
+                </div>
+                <div class="setting-control">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="shotHideMain" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
             </div>
         </div>
             </section>

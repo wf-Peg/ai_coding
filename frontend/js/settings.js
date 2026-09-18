@@ -2302,6 +2302,88 @@ if (typeof getElectronAPI === 'function') {
   initSkinSection();
 }
 
+// ====== 上手引导重播（设置页「工作区」横幅按钮触发） ======
+/**
+ * 打开引导重播弹层，复用 guide-core 渲染。
+ * 状态从当前 DOM 回读（storagePath / 各 provider key），忠实反映"已配置/未配置"。
+ */
+function openGuideReplay() {
+  if (!window.CutShelterGuide) { showToast('引导组件未加载，请刷新后重试', true); return; }
+  // 移除历史弹层，避免重复叠加
+  const old = document.getElementById('guideReplayHost');
+  if (old) old.remove();
+
+  const host = document.createElement('div');
+  host.id = 'guideReplayHost';
+  host.style.cssText = [
+    'position:fixed; inset:0; z-index:9999;',
+    'display:flex; align-items:center; justify-content:center; padding:24px;',
+    'background:color-mix(in srgb, var(--app-bg,#1e1e1e) 55%, transparent);'
+  ].join('');
+  // 点击遮罩空白处关闭
+  host.addEventListener('click', (e) => { if (e.target === host) openGuideReplayClose(host); });
+  const cardWrap = document.createElement('div');
+  cardWrap.appendChild(createReplayCloseBtn(host));
+  host.appendChild(cardWrap);
+  document.body.appendChild(host);
+
+  const vi = (id) => ((document.getElementById(id) || {}).value || '').trim();
+  const storageSet = !!vi('storagePath');
+  const aiSet = !!(vi('dashscopeApiKey') || vi('deepseekApiKey') || vi('customApiKey'));
+
+  const spec = {
+    title: '上手引导',
+    subtitle: '重播首次引导，快速回顾关键配置',
+    stepText: '重播模式 · 随时可再次打开',
+    progress: [{ state: 'done' }, { state: aiSet ? 'done' : 'current' }],
+    footerNote: '内容 100% 存本机 · 随时可用任何工具打开迁移',
+    primaryAction: {
+      id: 'gReplayClose', label: '完成',
+      onClick: () => openGuideReplayClose(host)
+    },
+    cards: [
+      {
+        id: 'replay-store', icon: '📂', label: '工作区存储路径',
+        required: true, badge: '必填', badgeOpt: false,
+        desc: '所有剪藏、整理、周报数据存放的根目录。',
+        status: { text: storageSet ? '已就绪' : '未设置', tone: storageSet ? 'ok' : 'danger' },
+        open: !storageSet,
+        fieldsHtml: () => { return vi('storagePath'); },
+        actions: () => '<div class="g-hint">在左侧「工作区」分组可修改存储路径。</div>'
+      },
+      {
+        id: 'replay-ai', icon: '🧠', label: '主 AI 模型 · API Key',
+        required: false, badge: '稍后配置', badgeOpt: true,
+        desc: '为整理、问答、写作提供 AI 能力，未配置时保留已经开启的 AI 整理、问答、写作等能力。',
+        status: { text: aiSet ? '已配置' : '稍后配置', tone: aiSet ? 'ok' : 'muted' },
+        open: !aiSet,
+        fieldsHtml: () => '',
+        actions: () => !aiSet
+          ? '<button type="button" class="g-btn ghost" onclick="document.getElementById(\'activeProvider\').closest(\'[id]\').scrollIntoView();openGuideReplayClose(document.getElementById(\'guideReplayHost\'));">去配置 AI Key…</button>'
+          : ''
+      }
+    ]
+  };
+  window.CutShelterGuide.render(cardWrap, spec);
+}
+
+function createReplayCloseBtn(host) {
+  const b = document.createElement('button');
+  b.textContent = '✕';
+  b.style.cssText = [
+    'position:absolute; top:16px; right:16px; width:32px; height:32px;',
+    'border:none; border-radius:8px; cursor:pointer;',
+    'background:var(--app-surface,#fff); color:var(--app-text,#2f3437);',
+    'font-size:16px; box-shadow:var(--app-shadow-sm,0 1px 3px rgba(15,23,42,.06));'
+  ].join('');
+  b.addEventListener('click', () => openGuideReplayClose(host));
+  return b;
+}
+
+function openGuideReplayClose(host) {
+  if (host) host.remove();
+}
+
 // ====== 接收主框架消息：滚动到顶部 / 刷新 / 主题 ======
 window.addEventListener('message', (e) => {
   if (e.data.action === 'scrollToTop') {
