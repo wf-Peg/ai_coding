@@ -1134,22 +1134,43 @@ async function onShortcutChange() {
 
 let recordingShotField = null; // 'shot' | 'paste' | null
 
-/** 加载截图工具配置（快捷键 + 收起主窗口开关） */
+/** 加载截图工具配置（模式 + 快捷键 + 收起主窗口开关） */
 async function loadScreenshotConfig() {
   const api = getElectronAPI();
   if (!api || !api.screenshotGetShortcuts) return;
   try {
     const cfg = await api.screenshotGetShortcuts();
     if (document.getElementById('shotKey')) {
-      document.getElementById('shotKey').value = cfg.screenshot || 'F1';
-      document.getElementById('pasteKey').value = cfg.paste || 'F2';
+      const mode = cfg.mode === 'full' ? 'full' : 'ocr';
+      if (document.getElementById('shotMode')) document.getElementById('shotMode').value = mode;
+      document.getElementById('shotKey').value = cfg.screenshot || 'F5';
+      document.getElementById('pasteKey').value = cfg.paste || 'F6';
       document.getElementById('shotHideMain').checked = cfg.hideMain !== false;
+      onShotModeChange();
     }
   } catch (e) {}
 }
 
+/** 模式切换：OCR 模式下「贴图快捷键」置灰（贴图仅完整模式注册，值保留） */
+function onShotModeChange() {
+  const sel = document.getElementById('shotMode');
+  const row = document.getElementById('pasteKeyRow');
+  const pasteInput = document.getElementById('pasteKey');
+  if (!sel || !row || !pasteInput) return;
+  const ocrMode = sel.value !== 'full';
+  row.style.opacity = ocrMode ? '0.45' : '';
+  pasteInput.readOnly = true; // 保持只读（快捷键录制输入框），置灰由 opacity 表达
+  pasteInput.style.pointerEvents = ocrMode ? 'none' : '';
+}
+
 /** 开始录制截图/贴图快捷键 */
 function startShotRecording(field) {
+  const row = document.getElementById('pasteKeyRow');
+  const modeSel = document.getElementById('shotMode');
+  if (field === 'paste' && row && modeSel && modeSel.value !== 'full') {
+    showToast('贴图快捷键仅完整截图模式生效');
+    return;
+  }
   recordingShotField = field;
   const input = document.getElementById(field === 'paste' ? 'pasteKey' : 'shotKey');
   input.value = '按下快捷键...';
@@ -1157,17 +1178,19 @@ function startShotRecording(field) {
   input.style.background = 'var(--primary-light)';
 }
 
-/** 保存截图快捷键 + 配置（即时重注册） */
+/** 保存截图快捷键 + 模式 + 配置（即时重注册） */
 async function saveScreenshotConfig() {
   const api = getElectronAPI();
   if (!api || !api.screenshotSetShortcuts) return;
+  const mode = (document.getElementById('shotMode') && document.getElementById('shotMode').value) || 'ocr';
   const payload = {
-    screenshot: (document.getElementById('shotKey').value.trim() || 'F1'),
-    paste: (document.getElementById('pasteKey').value.trim() || 'F2'),
-    hideMain: document.getElementById('shotHideMain').checked
+    screenshot: (document.getElementById('shotKey').value.trim() || 'F5'),
+    paste: (document.getElementById('pasteKey').value.trim() || 'F6'),
+    hideMain: document.getElementById('shotHideMain').checked,
+    mode: mode
   };
   await api.screenshotSetShortcuts(payload);
-  showToast('截图工具配置已保存');
+  showToast('快捷 OCR / 截图工具配置已保存');
 }
 
 // 截图快捷键录制：keydown 处理（与全局快捷键录制分离，互不干扰）
@@ -2323,7 +2346,6 @@ function openGuideReplay() {
   // 点击遮罩空白处关闭
   host.addEventListener('click', (e) => { if (e.target === host) openGuideReplayClose(host); });
   const cardWrap = document.createElement('div');
-  cardWrap.appendChild(createReplayCloseBtn(host));
   host.appendChild(cardWrap);
   document.body.appendChild(host);
 
@@ -2365,6 +2387,7 @@ function openGuideReplay() {
     ]
   };
   window.CutShelterGuide.render(cardWrap, spec);
+  host.appendChild(createReplayCloseBtn(host));
 }
 
 function createReplayCloseBtn(host) {

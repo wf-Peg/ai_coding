@@ -59,6 +59,15 @@
   var lastTopic = '';        // 最近一次生成的主题（重新生成/作为新画布标题用）
   var cb = {};               // 外部回调
 
+  // 双模式容器（7.6）：生成（主题+示例）与导入（粘贴/文件）互不复用 display 猜谜
+  var genModeEl = null;
+  var importModeEl = null;
+  var importTextEl = null;
+  var importFileBtnEl = null;
+  var importFeedbackEl = null;
+  var importFileName = '';   // 最近一次导入的文件名（无扩展名，作新画布标题候选）
+  var currentMode = 'gen';   // 'gen' | 'import'
+
   function escapeHtml(v) {
     return String(v == null ? '' : v)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -90,7 +99,8 @@
     head.appendChild(closeBtn);
     panel.appendChild(head);
 
-    // 主题区
+    // 生成模式容器：主题输入 + 示例 chips
+    genModeEl = el('div', 'ai-composer-gen-mode');
     var topicRow = el('div', 'ai-composer-topic');
     topicInputEl = el('input', 'ai-composer-topic-input');
     topicInputEl.type = 'text';
@@ -100,7 +110,7 @@
     genBtnEl.type = 'button';
     genBtnEl.addEventListener('click', function () { runGenerate(topicInputEl.value); });
     topicRow.appendChild(genBtnEl);
-    panel.appendChild(topicRow);
+    genModeEl.appendChild(topicRow);
 
     // 示例 chips
     chipsEl = el('div', 'ai-example-chips');
@@ -116,7 +126,48 @@
         chipsEl.appendChild(chip);
       })(EXAMPLES[i]);
     }
-    panel.appendChild(chipsEl);
+    genModeEl.appendChild(chipsEl);
+    panel.appendChild(genModeEl);
+
+    // 导入模式容器：粘贴 Markdown / 选 .md / .opml / .txt（默认隐藏）
+    importModeEl = el('div', 'ai-composer-import-mode');
+    importModeEl.style.display = 'none';
+    var importTextWrap = el('div', 'ai-composer-import-textwrap');
+    importTextEl = el('textarea', 'ai-composer-import-text');
+    importTextEl.spellcheck = false;
+    importTextEl.placeholder = '粘贴 Markdown 大纲，或选择 .md / .opml / .txt 文件…\n\n支持行内 **加粗**、==高亮==、[文字](链接)。OPML 的 _note 会作为子节点导入。';
+    importTextEl.addEventListener('paste', function () {
+      setTimeout(reparseImport, 30); // 粘贴后自动解析（7.8 即时反馈）
+    });
+    importTextEl.addEventListener('keydown', function (e) {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        var s = importTextEl.selectionStart, t = importTextEl.selectionEnd;
+        importTextEl.value = importTextEl.value.slice(0, s) + '  ' + importTextEl.value.slice(t);
+        importTextEl.selectionStart = importTextEl.selectionEnd = s + 2;
+      }
+    });
+    importTextWrap.appendChild(importTextEl);
+    importModeEl.appendChild(importTextWrap);
+    var importRow = el('div', 'ai-composer-import-row');
+    importFileBtnEl = el('input', 'ai-composer-import-file');
+    importFileBtnEl.type = 'file';
+    importFileBtnEl.accept = '.md,.markdown,.opml,.txt';
+    importFileBtnEl.title = '选择 .md / .opml / .txt 文件';
+    importFileBtnEl.addEventListener('change', function () {
+      var f = importFileBtnEl.files && importFileBtnEl.files[0];
+      if (f) handleImportFile(f);
+    });
+    importRow.appendChild(importFileBtnEl);
+    var parseBtn = el('button', 'modal-btn', '解析导入');
+    parseBtn.type = 'button';
+    parseBtn.title = '按内容探测：以 <opml 开头走 OPML，否则按 Markdown（7.7）';
+    parseBtn.addEventListener('click', reparseImport);
+    importRow.appendChild(parseBtn);
+    importModeEl.appendChild(importRow);
+    importFeedbackEl = el('div', 'ai-composer-import-feedback'); // 文件/行数反馈行（7.8）
+    importModeEl.appendChild(importFeedbackEl);
+    panel.appendChild(importModeEl);
 
     // 状态行（加载/错误提示）
     statusEl = el('div', 'ai-composer-status');
@@ -164,7 +215,10 @@
 
     regenBtnEl = el('button', 'modal-btn', '重新生成');
     regenBtnEl.type = 'button';
-    regenBtnEl.addEventListener('click', function () { runGenerate(lastTopic || topicInputEl.value); });
+    regenBtnEl.addEventListener('click', function () {
+      if (currentMode === 'import') reparseImport();
+      else runGenerate(lastTopic || topicInputEl.value);
+    });
     footerEl.appendChild(regenBtnEl);
 
     cancelBtnEl = el('button', 'modal-btn', '取消');
@@ -452,11 +506,20 @@
 
   // ---- 打开 / 关闭 ----
 
-  function open(opts) {
+  /** 切换生成/导入模式容器（7.6）。 */
+  function setMode(mode) {
+    currentMode = mode === 'import' ? 'import' : 'gen';
+    if (genModeEl) genModeEl.style.display = currentMode === 'gen' ? '' : 'none';
+    if (importModeEl) importModeEl.style.display = currentMode === 'gen' ? 'none' : '';
+    if (regenBtnEl) regenBtnEl.textContent = currentMode === 'gen' ? '重新生成' : '重新解析';
+  }
+
+  function open(userOpts) {
     ensureDom();
-    cb = opts || {};
+    cb = userOpts || {};
     maskEl.style.display = 'flex';
     if (statusEl) setStatus('', '');
+    setMode('gen');
     if (topicInputEl) {
       topicInputEl.value = '';
       setTimeout(function () { topicInputEl.focus(); }, 30);
@@ -467,6 +530,157 @@
     setGensState(false);
   }
 
+  /** 导入模式入口（7.6）：只显示导入容器；解析结果复用同一双栏预览与 footer 应用链路。 */
+  function openImport(userOpts) {
+    ensureDom();
+    cb = userOpts || {};
+    maskEl.style.display = 'flex';
+    if (statusEl) setStatus('', '');
+    setMode('import');
+    lastTopic = '';
+    importFileName = '';
+    if (importTextEl) importTextEl.value = '';
+    if (importFileBtnEl) importFileBtnEl.value = '';
+    updateImportFeedback('');
+    if (taEl) taEl.value = '';
+    if (treeEl) treeEl.innerHTML = '';
+    if (previewWrapEl) previewWrapEl.style.display = 'none';
+    setGensState(false);
+    if (importTextEl) setTimeout(function () { importTextEl.focus(); }, 30);
+  }
+
+  // ---- 导入：粘贴 / 文件 → 内容探测 → 预览与应用 ----
+
+  function updateImportFeedback(text) {
+    if (!importFeedbackEl) return;
+    importFeedbackEl.textContent = text || '';
+    importFeedbackEl.style.display = text ? 'block' : 'none';
+  }
+
+  function lineCount(md) {
+    var n = 0;
+    String(md == null ? '' : md).split(/\r?\n/).forEach(function (l) { if (l.trim()) n++; });
+    return n;
+  }
+
+  function detectImportTitle(md) {
+    var lines = String(md == null ? '' : md).split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var l = lines[i].trim().replace(/^[-*+]\s+/, '').replace(/^\d+[.)]\s*/, '').replace(/^#+\s*/, '');
+      if (l) return String(l).slice(0, 40);
+    }
+    return '导入的大纲';
+  }
+
+  /** 按内容探测格式（7.7）：首个有效内容以 <opml / <?xml 开头走 OPML，否则按 Markdown。 */
+  function parseImportText(text, fileName) {
+    var t = String(text == null ? '' : text).replace(/^\uFEFF/, ''); // 去 UTF-8 BOM
+    if (!t.trim()) {
+      setStatus('warn', '暂无可导入内容，请粘贴文本或选择文件');
+      return;
+    }
+    var isOpml = /^<\?xml\b|^\s*<opml[\s>/]/i.test(t);
+    var md = '';
+    if (isOpml) {
+      md = opmlTextToMarkdown(t);
+      if (!md.trim()) {
+        setStatus('warn', 'OPML 解析结果为空（没有带 text 的 outline 节点）');
+        return;
+      }
+    } else {
+      md = t;
+    }
+    taEl.value = md;
+    showPreview();
+    renderTreePreview();
+    lastTopic = fileName || detectImportTitle(md);
+    importFileName = fileName || '';
+    updateImportFeedback(fileName
+      ? fileName + ' · ' + lineCount(md) + ' 行已解析'
+      : '已解析 ' + lineCount(md) + ' 行');
+    setStatus('ok', '已就绪：可修改后「作为新画布」或「插入当前文档」');
+  }
+
+  function reparseImport() {
+    var t = importTextEl ? importTextEl.value : '';
+    if (!t.trim()) { setStatus('warn', '暂无可导入内容，请粘贴文本或选择文件'); return; }
+    parseImportText(t, importFileName);
+  }
+
+  /** 读取本地文件（先 file 选择器；FileReader 读文本；>5MB 提前提示）。 */
+  function handleImportFile(file) {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setStatus('warn', '文件较大（约 ' + (file.size / 1048576).toFixed(1) + 'MB），建议精简后导入');
+    }
+    var reader = new FileReader();
+    reader.onload = function (ev) {
+      try {
+        var text = String((ev.target && ev.target.result) || '');
+        parseImportText(text, String(file.name || '').replace(/\.[^.]+$/, ''));
+      } catch (e) {
+        setStatus('error', '读取文件失败：' + (e && e.message ? e.message : String(e)));
+      }
+    };
+    reader.onerror = function () { setStatus('error', '读取文件失败，请重试'); };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  /**
+   * OPML 文本 → 缩进式 Markdown 列表。
+   * 先用浏览器原生 DOMParser 解析，交给下面的纯函数 opmlDocToMarkdown。
+   */
+  function opmlTextToMarkdown(xmlText) {
+    var doc = null;
+    try { doc = new DOMParser().parseFromString(String(xmlText || ''), 'application/xml'); } catch (e) { doc = null; }
+    if (!doc || (doc.querySelector && doc.querySelector('parsererror'))) return '';
+    return opmlDocToMarkdown(doc);
+  }
+
+  /**
+   * 纯函数：doc-like 对象（真实 DOMParser 结果或单测伪对象）→ 缩进式 md 列表。
+   * - 仅用 getElementsByTagName/getAttribute/childNodes/nodeType/nodeName —— node 环境可伪造；
+   * - `text` 为节点主文本，无 text 的 outline 行忽略；
+   * - `_note` 作为该节点的子节点追加（7.9，信息不丢、预览可见）。
+   */
+  function opmlDocToMarkdown(doc) {
+    if (!doc) return '';
+    var body = null;
+    try { body = doc.getElementsByTagName('body')[0] || null; } catch (e) { body = null; }
+    var source = body || doc;
+    var roots = [];
+    if (source && source.childNodes) {
+      for (var i = 0; i < source.childNodes.length; i++) {
+        var c = source.childNodes[i];
+        if (c && c.nodeType === 1 && String(c.nodeName).toLowerCase() === 'outline') roots.push(c);
+      }
+    }
+
+    function collectChildren(outlineEl, depth) {
+      var out = [];
+      if (outlineEl && outlineEl.childNodes) {
+        for (var j = 0; j < outlineEl.childNodes.length; j++) {
+          var ch = outlineEl.childNodes[j];
+          if (ch && ch.nodeType === 1 && String(ch.nodeName).toLowerCase() === 'outline') out.push(ch);
+        }
+      }
+      return out;
+    }
+
+    var lines = [];
+    function walk(outlineEl, depth) {
+      var text = outlineEl.getAttribute ? String(outlineEl.getAttribute('text') || '') : '';
+      var pad = new Array(depth + 1).join('  ');
+      if (text && text.trim()) lines.push(pad + '- ' + text.trim());
+      var note = outlineEl.getAttribute ? String(outlineEl.getAttribute('_note') || '') : '';
+      if (note && note.trim()) lines.push(pad + '  - ' + note.trim());
+      var kids = collectChildren(outlineEl, depth);
+      for (var k = 0; k < kids.length; k++) walk(kids[k], depth + 1);
+    }
+    for (var r = 0; r < roots.length; r++) walk(roots[r], 0);
+    return lines.join('\n');
+  }
+
   function close() {
     if (busy) abortGenerate();
     if (maskEl) maskEl.style.display = 'none';
@@ -475,10 +689,15 @@
 
   // ---- 对外接口 ----
 
-  window.CanvasAIOutline = {
+  var api = {
     open: open,
+    openImport: openImport,
     close: close,
     parseMarkdownOutline: parseMarkdownOutline,
+    opmlDocToMarkdown: opmlDocToMarkdown,
     OUTLINE_SYSTEM_PROMPT: OUTLINE_SYSTEM_PROMPT
   };
+  // 浏览器挂全局；node（单测）走 module.exports。IIFE 内其余 DOM 引用仅在函数调用时才发生，require 安全。
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  if (typeof window !== 'undefined') window.CanvasAIOutline = api;
 })();

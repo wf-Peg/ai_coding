@@ -377,7 +377,9 @@
         }
         .subsection-actions {
             display: flex;
-            justify-content: flex-end;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
             margin-top: 12px;
             padding-top: 10px;
             border-top: 1px solid var(--border);
@@ -536,7 +538,7 @@
             margin-top: 8px; font-size: 12px; color: var(--text-secondary); line-height: 1.7;
             padding: 8px 12px; background: #eff6ff; border-radius: 6px; border-left: 3px solid #3b82f6;
         }
-        .inspect-hint { font-size: 12px; color: var(--text-muted); margin-left: 8px; }
+        .inspect-hint { font-size: 12px; color: var(--text-muted); }
         .inspect-result { margin-top: 10px; }
         .inspect-summary {
             display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;
@@ -712,18 +714,20 @@
         .save-section {
             padding-bottom: 0 !important;
         }
+        /* 与内容列同宽、不铺满形成「白框」：仅保留轻量分割线 + 毛玻璃遮罩 */
         .save-section-actions {
             position: sticky;
             bottom: 0;
-            background: var(--surface);
             z-index: 10;
-            margin: 12px -20px 0;
-            padding: 12px 20px 20px;
+            margin: 12px 0 0;
+            padding: 12px 0 10px;
             border-top: 1px solid var(--border);
-            box-shadow: 0 -4px 12px rgba(0,0,0,0.04);
+            background: color-mix(in srgb, var(--surface) 78%, transparent);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
         html[data-theme="dark"] .save-section-actions {
-            box-shadow: 0 -4px 12px rgba(0,0,0,0.25);
+            background: color-mix(in srgb, var(--surface) 82%, transparent);
         }
 
         /* ====== 主题选择卡片 ====== */
@@ -1665,28 +1669,40 @@
 
         <div class="section" id="screenshotSection">
             <div class="section-title">
-                📸 截图工具
+                🔤 快捷 OCR / 截图工具
                 <span class="section-badge immediate">即时生效</span>
             </div>
             <div class="setting-row">
                 <div class="setting-label">
-                    <div class="setting-title">截图快捷键</div>
-                    <div class="setting-desc">全屏选区截图（复制/保存/OCR/贴图）</div>
+                    <div class="setting-title">默认模式</div>
+                    <div class="setting-desc">OCR 模式：框选识别并自动复制文字到剪贴板；完整模式恢复截图复制/保存/贴图/标注</div>
                 </div>
                 <div class="setting-control">
-                    <input type="text" id="shotKey" class="shortcut-input"
-                           placeholder="F1" onclick="startShotRecording('shot')"
-                           style="width:200px;text-align:center;" readonly>
+                    <select id="shotMode" style="min-width:180px" onchange="onShotModeChange()">
+                        <option value="ocr">🔤 OCR 模式（默认）</option>
+                        <option value="full">📸 完整截图模式</option>
+                    </select>
                 </div>
             </div>
             <div class="setting-row">
                 <div class="setting-label">
+                    <div class="setting-title">OCR/截图快捷键</div>
+                    <div class="setting-desc">框选文字区域 → 自动 OCR 并复制到剪贴板（完整模式为全屏选区截图）</div>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="shotKey" class="shortcut-input"
+                           placeholder="F5" onclick="startShotRecording('shot')"
+                           style="width:200px;text-align:center;" readonly>
+                </div>
+            </div>
+            <div class="setting-row" id="pasteKeyRow">
+                <div class="setting-label">
                     <div class="setting-title">贴图快捷键</div>
-                    <div class="setting-desc">将剪贴板图片/最近截图置顶钉住</div>
+                    <div class="setting-desc">将剪贴板图片/最近截图置顶钉住（仅完整截图模式生效）</div>
                 </div>
                 <div class="setting-control">
                     <input type="text" id="pasteKey" class="shortcut-input"
-                           placeholder="F2" onclick="startShotRecording('paste')"
+                           placeholder="F6" onclick="startShotRecording('paste')"
                            style="width:200px;text-align:center;" readonly>
                 </div>
             </div>

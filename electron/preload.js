@@ -409,6 +409,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   openFileByPath: (filePath) => ipcRenderer.invoke('editor-open-file-by-path', filePath),
 
+  /**
+   * 画布节点 → 编辑器打开（跳转型联动）：
+   * 主进程将节点文本落临时 md 文件并在编辑器新标签打开。
+   * @param {{nodeId:string, text:string, title?:string}} args
+   * @returns {Promise<Object>} 编辑器 openPath 结果或 {canceled:true,message}
+   */
+  openCanvasNodeInEditor: (args) => ipcRenderer.invoke('canvas:open-in-editor', args || {}),
+
   // ===================== 万能阅读器 =====================
 
   /**
@@ -866,6 +874,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     createCanvasNode: (opts) => ipcRenderer.invoke('local-index:canvas:create-node', opts || {}),
     /** 批量导入整棵大纲树（AI 智能创建/导入建树，单事务原子）：opts = { docId, tree, kind } */
     importCanvasTree: (opts) => ipcRenderer.invoke('local-index:canvas:import-tree', opts || {}),
+    /** 编辑器 → 画布快速发送（跳转型联动）：opts = { text, title }，落「我的画布」默认文档根层 */
+    quickAddCanvasNode: (opts) => ipcRenderer.invoke('canvas:quick-add', opts || {}),
     /** 更新画布可写节点内容：opts = { id, text, title } */
     updateCanvasNode: (opts) => ipcRenderer.invoke('local-index:canvas:update-node', opts || {}),
     /** 删除画布可写节点（级联清理坐标与连线）：opts = { id } */

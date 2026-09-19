@@ -1,10 +1,11 @@
 /**
- * ocr-service.js — 离线 OCR 服务（RapidOCR / PaddleOCR PP-OCRv4 onnx）
+ * ocr-service.js — 离线 OCR 服务（RapidOCR / PaddleOCR PP-OCRv5 onnx）
  *
- * 原理：PaddleOCR 官方 PP-OCRv4 模型导出为 onnx，用 onnxruntime-node 离线推理。
+ * 原理：PaddleOCR 官方 PP-OCRv5 模型导出为 onnx，用 onnxruntime-node 离线推理。
  *   管线：图像预处理 → det（文本检测）→ DB 后处理（文本框）→ cls（方向分类）→
  *         rec（文本识别，CTC 解码）→ 拼接文本。
- * 模型文件：electron/screenshot/ocr-models/（ch_PP-OCRv4_{det,rec,cls}_infer.onnx
+ * 模型文件：electron/screenshot/ocr-models/（ch_PP-OCRv5_{det,rec}_infer.onnx
+ *         + ch_ppocr_mobile_v2.0_cls_train.onnx（可选）
  *         + ppocr_keys_v1.txt），由 download-ocr-models.ps1 下载。
  *
  * 依赖：onnxruntime-node（用户环境 npm i + electron-builder install-app-deps）、sharp。
@@ -16,9 +17,9 @@ const path = require('path');
 let MODELS_DIR = path.join(__dirname, 'ocr-models'); // 默认源码模式；打包环境由 service 注入 userData
 /** 设置模型目录（打包环境 userData/ocr-models） */
 function setModelsDir(dir) { if (dir) MODELS_DIR = dir; }
-const DET_MODEL = 'ch_PP-OCRv4_det_infer.onnx';
-const REC_MODEL = 'ch_PP-OCRv4_rec_infer.onnx';
-const CLS_MODEL = 'ch_PP-OCRv4_cls_infer.onnx';
+const DET_MODEL = 'ch_PP-OCRv5_det_infer.onnx';
+const REC_MODEL = 'ch_PP-OCRv5_rec_infer.onnx';
+const CLS_MODEL = 'ch_ppocr_mobile_v2.0_cls_train.onnx';
 const DICT_FILE = 'ppocr_keys_v1.txt';
 // rec 置信度下限：低于它的列按 blank 处理，抑制噪声边框/污点被误解码成字形（真实文字 PP-OCR 置信度通常 >0.8）
 const REC_MIN_SCORE = 0.5;
@@ -62,7 +63,7 @@ function status() {
   try { require.resolve('onnxruntime-node'); } catch (e) { ortOk = false; }
   if (!ortOk) return { available: false, reason: 'onnxruntime-node 未安装（npm i onnxruntime-node + electron-builder install-app-deps）' };
   // 必需模型（det/rec/字典）；cls 可选
-  const required = ['ch_PP-OCRv4_det_infer.onnx', 'ch_PP-OCRv4_rec_infer.onnx', 'ppocr_keys_v1.txt'];
+  const required = [DET_MODEL, REC_MODEL, DICT_FILE];
   const missing = required.filter(f => !fs.existsSync(path.join(MODELS_DIR, f)));
   if (missing.length > 0) {
     return { available: false, reason: 'OCR 模型缺失：' + missing.join(', ') + '（模型目录 ' + MODELS_DIR + '，可用一键安装）' };
@@ -91,17 +92,16 @@ async function resizeImage(pngBuffer, width, height) {
   return { data, width: info.width, height: info.height };
 }
 
-/** RGB buffer → NCHW Float32Array（归一化 mean/std，PP-OCR 标准） */
-function rgbToNchw(rgb, width, height, mean, std) {
+/** RGB buffer → NCHW Float32Array。
+ *  PP-OCRv5 的 "infer" onnx 导出已把 mean/std 归一化烘焙进模型图内，
+ *  输入只需缩放到 [0,1]（传入 0-255 原值反而会空识别）。 */
+function rgbToNchw(rgb, width, height) {
   const n = width * height;
   const out = new Float32Array(3 * n);
-  const m = mean || [0.485, 0.456, 0.406];
-  const s = std || [0.229, 0.224, 0.225];
   for (let i = 0; i < n; i++) {
-    const r = rgb[i * 3], g = rgb[i * 3 + 1], b = rgb[i * 3 + 2];
-    out[i] = (r / 255 - m[0]) / s[0];
-    out[n + i] = (g / 255 - m[1]) / s[1];
-    out[2 * n + i] = (b / 255 - m[2]) / s[2];
+    out[i] = rgb[i * 3] / 255;
+    out[n + i] = rgb[i * 3 + 1] / 255;
+    out[2 * n + i] = rgb[i * 3 + 2] / 255;
   }
   return out;
 }

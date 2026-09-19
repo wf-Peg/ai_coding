@@ -72,6 +72,9 @@
     cursor: pointer; padding: 0; flex: none; box-shadow: 0 1px 4px rgba(0,0,0,0.4);
   }
   #toolbar .sep { width: 1px; height: 20px; background: rgba(255,255,255,0.22); }
+  /* OCR 模式：隐藏选区手柄与工具分隔线（纯框选→提取文字） */
+  body.ocr-mode #sel .handle, body.ocr-mode #sel.resize .handle { display: none !important; }
+  body.ocr-mode #toolbar .sep { display: none; }
   #gui { position: fixed; left: 0; top: 0; z-index: 4; pointer-events: none; }
   #hint {
     position: fixed; left: 50%; top: 16px; transform: translateX(-50%);
@@ -150,6 +153,7 @@
   let pendingMouse = null; // 待处理的最新鼠标坐标
   let canceling = false;   // 淡出取消进行中（防重复触发）
   let wheelAccum = 0;      // 滚轮选区缩放累积量（触控板细小 delta 归一化）
+  let ocrMode = false;     // OCR 模式（默认快捷 OCR：仅框选→提取文字→自动复制；完整模式为截图复制/标注）
   let annoTool = null;    // 标注工具：'rect'|'ellipse'|'arrow'|'pen'|'text'|'mosaic'|'eraser'|null
   let annoColor = '#ff3b30'; // 标注颜色（默认红，与 Snipaste 一致）
   let annoStart = null;   // 标注绘制起点（物理坐标，null=未绘制中）
@@ -208,6 +212,7 @@
     gui.style.height = '100%';
     mask.style.width = '100%';
     mask.style.height = '100%';
+    applyMode(); // 按当前模式应用覆盖层 UI（按钮/提示/手柄）
     // 预渲染全暗遮罩底图（一次）
     offDark = document.createElement('canvas');
     offDark.width = mask.width; offDark.height = mask.height;
@@ -221,9 +226,32 @@
     annoFloat.width = anno.width; annoFloat.height = anno.height;
     sfPhys = (anno.width && display.width) ? anno.width / display.width : sf;
     drawMask(null);
-    hint.textContent = '拖拽选择区域 · R/O/A/P/T/M/E 切换标注 · 数字切粗细 · C 取色 · Ctrl+Z 撤销 · Esc 取消 · Enter 复制';
+    hint.textContent = ocrMode
+      ? '拖拽框选要识别的文字区域 · Enter 提取文字 · Esc 取消'
+      : '拖拽选择区域 · R/O/A/P/T/M/E 切换标注 · 数字切粗细 · C 取色 · Ctrl+Z 撤销 · Esc 取消 · Enter 复制';
     // 性能回传：主进程记录"发送→渲染完成"耗时
     screenshotApi.send('screenshot:painted', { delta: Date.now() - (t0 || Date.now()) });
+  }
+
+  /** 按模式应用覆盖层 UI：OCR 模式只保留「提取文字/取消」，隐藏截图复制/保存/贴图与标注；
+   *  完整模式恢复全部。代码路径均保留，仅切换显示与行为。 */
+  function applyMode() {
+    const set = (id, show) => { const el = document.getElementById(id); if (el) el.style.display = show ? '' : 'none'; };
+    const TOOL_BTNS = ['annoRect', 'annoEllipse', 'annoArrow', 'annoPen', 'annoText', 'annoMosaic', 'annoEraser', 'annoColor', 'annoClear'];
+    document.body.classList.toggle('ocr-mode', ocrMode);
+    if (ocrMode) {
+      set('btnCopy', false); set('btnSave', false); set('btnPaste', false);
+      TOOL_BTNS.forEach(id => set(id, false));
+      set('annoText', false);
+      const ocrBtn = document.getElementById('btnOcr');
+      if (ocrBtn) { ocrBtn.classList.add('primary'); ocrBtn.textContent = '🔤 提取文字'; }
+    } else {
+      set('btnCopy', true); set('btnSave', true); set('btnPaste', true);
+      TOOL_BTNS.forEach(id => set(id, true));
+      set('annoText', true);
+      const ocrBtn = document.getElementById('btnOcr');
+      if (ocrBtn) { ocrBtn.classList.remove('primary'); ocrBtn.textContent = '🔤 OCR'; }
+    }
   }
 
   /** raw 模式：仅 Windows 走此路径，数据为 BGRA，就地交换 B/R 为 RGBA → putImageData；macOS 走 PNG，无需交换 */
@@ -276,6 +304,7 @@
   screenshotApi.on('screenshot:init', (payload) => {
     display = payload.display;
     sf = display.scaleFactor || 1;
+    ocrMode = !payload.mode || payload.mode !== 'full'; // 默认 OCR 模式；main 下发的 'full' 才为完整截图模式
     resetOverlay();
     if (payload.mode === 'raw') {
       showRaw(payload);
@@ -336,7 +365,9 @@
     // 选区首次有效时给出下一步操作引导（一次性提示，直至 resetOverlay 复位）
     if (!hintedSel) {
       hintedSel = true;
-      showHint('拖动内部移动 · 拖手柄调整 · 滚轮缩放 · 方向键微调 · R/O/A/P/T/M/E 标注 · Enter 复制', 2600);
+      showHint(ocrMode
+        ? '拖动内部移动 · 拖手柄调整 · 滚轮缩放 · 方向键微调 · Enter 提取文字'
+        : '拖动内部移动 · 拖手柄调整 · 滚轮缩放 · 方向键微调 · R/O/A/P/T/M/E 标注 · Enter 复制', 2600);
     }
     // 工具栏跟随：先显示再测量，避免 display:none 时 offsetWidth=0 退回 300px 导致定位偏移/按钮溢出重叠
     toolbar.style.display = 'flex';
@@ -528,11 +559,12 @@
     else if (e.key === 'ArrowRight') dx = step;
     else if (e.key === 'ArrowUp') dy = -step;
     else if (e.key === 'ArrowDown') dy = step;
-    else if (e.key === 'Enter') { e.preventDefault(); confirm('copy'); return; }
-    else if (e.key.toLowerCase() === 'c' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); confirm('copy'); return; }
-    else if (e.key.toLowerCase() === 's' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); confirm('save'); return; }
-    else if (e.key.toLowerCase() === 't' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); confirm('paste'); return; } // Snipaste：Ctrl+T 直接贴图
-    else if (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); undoAnno(); return; } // 撤销
+    else if (e.key === 'Enter') { e.preventDefault(); confirm(ocrMode ? 'ocr' : 'copy'); return; }
+    else if (e.key.toLowerCase() === 'c' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); confirm(ocrMode ? 'ocr' : 'copy'); return; }
+    else if (e.key.toLowerCase() === 's' && (e.ctrlKey || e.metaKey)) { if (!ocrMode) { e.preventDefault(); confirm('save'); } return; }
+    else if (e.key.toLowerCase() === 't' && (e.ctrlKey || e.metaKey)) { if (!ocrMode) { e.preventDefault(); confirm('paste'); } return; } // Snipaste：Ctrl+T 直接贴图
+    else if (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey)) { if (!ocrMode) { e.preventDefault(); undoAnno(); } return; } // 撤销
+    if (ocrMode) return; // OCR 模式：跳过标注/取色/粗细等工具快捷键
     if (e.ctrlKey || e.metaKey || e.altKey) { /* 组合键不冲突工具键 */ }
     else if (e.key.toLowerCase() === 'r') setTool('rect');       // R 方框
     else if (e.key.toLowerCase() === 'o') setTool('ellipse');    // O 椭圆
@@ -953,7 +985,7 @@
   // 双击选区确认
   window.addEventListener('dblclick', (e) => {
     if (selRect && e.clientX >= selRect.x && e.clientX <= selRect.x + selRect.w &&
-        e.clientY >= selRect.y && e.clientY <= selRect.y + selRect.h) confirm('copy');
+        e.clientY >= selRect.y && e.clientY <= selRect.y + selRect.h) confirm(ocrMode ? 'ocr' : 'copy');
   });
 </script>
 </body>

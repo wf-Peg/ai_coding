@@ -23,6 +23,20 @@
   var ROOT = '__root__';
   var TEXT_DEBOUNCE_MS = 300;
 
+  // CanvasInlineMd 未加载时的兜底转义（正常由 canvas-outline-md.js 提供 mdToHtml/htmlToMarkdown）
+  function escapeText(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function md2html(v) {
+    return window.CanvasInlineMd && typeof window.CanvasInlineMd.mdToHtml === 'function'
+      ? window.CanvasInlineMd.mdToHtml(v) : escapeText(v);
+  }
+  function html2md(el) {
+    return window.CanvasInlineMd && typeof window.CanvasInlineMd.htmlToMarkdown === 'function'
+      ? window.CanvasInlineMd.htmlToMarkdown(el) : (el.textContent || '');
+  }
+
   var treeEl = null;
   var emptyEl = null;
   var opts = {};
@@ -140,8 +154,10 @@
     rec.caret.classList.toggle('is-collapsed', collapsed.has(n.id));
 
     if (editingId !== n.id) {
+      // 富文本渲染层：markdown 行内标记 → HTML（editingId 守卫保证编辑中不被重写、光标稳定）
       var want = n.text != null ? String(n.text) : '';
-      if (rec.text.textContent !== want) rec.text.textContent = want;
+      var wantHtml = md2html(want);
+      if (rec.text.innerHTML !== wantHtml) rec.text.innerHTML = wantHtml;
     }
   }
 
@@ -405,7 +421,8 @@
     var rec = rowEls.get(id);
     var n = byId.get(id);
     if (!rec || !n) return;
-    var val = rec.text.textContent || '';
+    // 富文本序列化：HTML → markdown 纯文本（无样式行走快路径，一字不变）
+    var val = html2md(rec.text);
     if (val === (n.text != null ? String(n.text) : '')) return;
     n.text = val;
     if (typeof opts.onEdit === 'function') opts.onEdit(id, val);
@@ -484,11 +501,262 @@
     if (prevId) focusRow(prevId, 'end');
   }
 
+  // ---------- 富文本行内样式：包 / 解包 / 链接弹层 ----------
+
+  function markKindOf(kind, node) {
+    if (!node || node.nodeType !== 1) return false;
+    var tag = node.tagName;
+    if (kind === 'strong') return tag === 'STRONG' || tag === 'B';
+    if (kind === 'hl') return tag === 'SPAN' && node.classList && node.classList.contains('ol-hl');
+    if (kind === 'link') return tag === 'A';
+    return false;
+  }
+
+  function nearestMarkEl(startNode, kind) {
+    var n = startNode && startNode.nodeType === 3 ? startNode.parentNode : startNode;
+    var guard = 0;
+    while (n && n !== treeEl && guard < 30) {
+      if (markKindOf(kind, n)) return n;
+      n = n.parentNode;
+      guard++;
+    }
+    return null;
+  }
+
+  function rangeFullyInside(el, range) {
+    var s = range.startContainer, e = range.endContainer;
+    var inS = el === s || (el.contains ? el.contains(s) : false);
+    var inE = el === e || (el.contains ? el.contains(e) : false);
+    return inS && inE;
+  }
+
+  function createMarkEl(kind, href) {
+    if (kind === 'strong') return document.createElement('strong');
+    if (kind === 'hl') {
+      var h = document.createElement('span');
+      h.className = 'ol-hl';
+      return h;
+    }
+    var a = document.createElement('a');
+    a.className = 'ol-link';
+    if (href) a.setAttribute('href', href);
+    return a;
+  }
+
+  function safeHref(url) {
+    if (window.CanvasInlineMd && typeof window.CanvasInlineMd.isSafeHref === 'function') {
+      return window.CanvasInlineMd.isSafeHref(url);
+    }
+    var h = String(url == null ? '' : url).trim();
+    if (!h) return false;
+    return /^(https?:\/\/|#|\/|\.\.?\/)/.test(h) || !/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(h);
+  }
+
+  function placeCaretAfter(node, sel) {
+    try {
+      var r = document.createRange();
+      r.setStartAfter(node);
+      r.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    } catch (e) { /* 选区异常忽略 */ }
+  }
+
+  /**
+   * 包 / 解包单个行内标记（7.2 统一手动包解包，弃用 execCommand；7.3 toggle）。
+   * kind: 'strong' | 'hl' | 'link'；url 仅 link 用：非空=设置/更新，空串/null=解包。
+   * 跨节点选区先 deleteContents 归一为纯文本再包裹，规避 surroundContents 异常（7.4）。
+   */
+  function toggleMark(kind, url) {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return false;
+    var range = sel.getRangeAt(0);
+    if (!range || range.collapsed) return false;
+    var text = range.toString();
+    if (!text) return false;
+
+    var markEl = nearestMarkEl(range.startContainer, kind);
+    if (markEl && rangeFullyInside(markEl, range)) {
+      if (kind === 'link' && url) { markEl.setAttribute('href', String(url).trim()); return true; }
+      return unwrapMark(markEl, kind, range, sel);
+    }
+    if (kind === 'link' && !url) return false;      // 无标记又要求移除：无可操作
+    if (kind === 'link' && !safeHref(url)) return false; // 非法 href 由弹层先拦，此处兜底
+
+    range.deleteContents();
+    var wrapper = createMarkEl(kind, url);
+    wrapper.appendChild(document.createTextNode(text));
+    range.insertNode(wrapper);
+    placeCaretAfter(wrapper.lastChild || wrapper, sel);
+    return true;
+  }
+
+  /** 仅解包选区子串：前段/后段保留样式（精确 toggle，不误伤整行样式）。 */
+  function unwrapMark(markEl, kind, range, sel) {
+    var fullText = markEl.textContent || '';
+    var probe = document.createRange();
+    probe.selectNodeContents(markEl);
+    var pre = document.createRange();
+    pre.setStart(probe.startContainer, probe.startOffset);
+    pre.setEnd(range.startContainer, range.startOffset);
+    var prefixLen = pre.toString().length;
+    var selText = range.toString();
+    var before = fullText.slice(0, prefixLen);
+    var after = fullText.slice(prefixLen + selText.length);
+
+    var parent = markEl.parentNode;
+    var frag = document.createDocumentFragment();
+    var href = markEl.getAttribute ? (markEl.getAttribute('href') || '') : '';
+    if (before) { var b = createMarkEl(kind, href); b.textContent = before; frag.appendChild(b); }
+    var plain = document.createTextNode(selText);
+    frag.appendChild(plain);
+    if (after) { var a = createMarkEl(kind, href); a.textContent = after; frag.appendChild(a); }
+    if (parent) parent.replaceChild(frag, markEl);
+    placeCaretAfter(plain, sel);
+    return true;
+  }
+
+  function applyInlineMark(kind, url) {
+    var ok = toggleMark(kind, url);
+    if (ok && editingId) {
+      pendingTextId = editingId;
+      if (textTimer) clearTimeout(textTimer);
+      setTimeout(flushText, 0);
+    }
+    return ok;
+  }
+
+  // ---- 链接弹层（Ctrl+K） ----
+
+  var linkModalEl = null;
+  var linkInputEl = null;
+  var linkCancelBtnEl = null;
+  var linkOkBtnEl = null;
+  var linkRemoveBtnEl = null;
+  var linkModalCtx = null;
+
+  function ensureLinkModal() {
+    if (linkModalEl) return;
+    linkModalEl = document.createElement('div');
+    linkModalEl.className = 'ol-link-modal';
+    linkModalEl.style.display = 'none';
+
+    var box = document.createElement('div');
+    box.className = 'ol-link-modal-box';
+    var title = document.createElement('div');
+    title.className = 'ol-link-modal-title';
+    title.textContent = '设置链接';
+    box.appendChild(title);
+
+    linkInputEl = document.createElement('input');
+    linkInputEl.type = 'text';
+    linkInputEl.className = 'ol-link-modal-input';
+    linkInputEl.placeholder = '粘贴或输入链接（http(s):// 、#锚点、相对路径）';
+    linkInputEl.spellcheck = false;
+    box.appendChild(linkInputEl);
+
+    var actions = document.createElement('div');
+    actions.className = 'ol-link-modal-actions';
+
+    linkOkBtnEl = document.createElement('button');
+    linkOkBtnEl.type = 'button';
+    linkOkBtnEl.className = 'modal-btn ok';
+    linkOkBtnEl.textContent = '确认';
+    linkOkBtnEl.addEventListener('click', function () {
+      var v = linkInputEl.value.replace(/\s+/g, '').trim();
+      if (v && !safeHref(v)) {
+        linkInputEl.classList.add('is-error');
+        linkInputEl.setAttribute('title', '仅支持 http(s):// 、# 锚点或相对路径');
+        return;
+      }
+      linkInputEl.classList.remove('is-error');
+      if (v) applyInlineMark('link', v);
+      else applyInlineMark('link', null); // 空 URL = 移除链接（7.3）
+      closeLinkModal();
+    });
+    actions.appendChild(linkOkBtnEl);
+
+    linkRemoveBtnEl = document.createElement('button');
+    linkRemoveBtnEl.type = 'button';
+    linkRemoveBtnEl.className = 'modal-btn danger';
+    linkRemoveBtnEl.textContent = '移除链接';
+    linkRemoveBtnEl.style.display = 'none';
+    linkRemoveBtnEl.addEventListener('click', function () {
+      applyInlineMark('link', null);
+      closeLinkModal();
+    });
+    actions.appendChild(linkRemoveBtnEl);
+
+    linkCancelBtnEl = document.createElement('button');
+    linkCancelBtnEl.type = 'button';
+    linkCancelBtnEl.className = 'modal-btn';
+    linkCancelBtnEl.textContent = '取消';
+    linkCancelBtnEl.addEventListener('click', closeLinkModal);
+    actions.appendChild(linkCancelBtnEl);
+
+    box.appendChild(actions);
+    linkModalEl.appendChild(box);
+    linkModalEl.addEventListener('mousedown', function (e) { if (e.target === linkModalEl) closeLinkModal(); });
+    (document.body || document.documentElement).appendChild(linkModalEl);
+  }
+
+  function closeLinkModal() {
+    if (linkModalEl) { linkModalEl.style.display = 'none'; linkModalEl.style.left = ''; linkModalEl.style.top = ''; }
+    linkModalCtx = null;
+    if (document.removeEventListener) document.removeEventListener('keydown', onLinkModalKeydown);
+  }
+
+  function onLinkModalKeydown(e) {
+    if (e.key === 'Escape') { e.stopPropagation(); closeLinkModal(); }
+  }
+
+  /** Ctrl+K：无选区不动作；选中已有链接则预填 URL 并提供「移除链接」入口（7.3）。 */
+  function promptLinkMark() {
+    var sel = window.getSelection();
+    var hasSel = false;
+    var prefill = '';
+    if (sel && sel.rangeCount) {
+      var range = sel.getRangeAt(0);
+      if (range && !range.collapsed) {
+        hasSel = true;
+        var ma = nearestMarkEl(range.startContainer, 'link');
+        if (ma && rangeFullyInside(ma, range)) prefill = ma.getAttribute('href') || '';
+      }
+    }
+    if (!hasSel) return;
+    ensureLinkModal();
+    linkModalCtx = { editing: !!prefill };
+    linkInputEl.value = prefill;
+    linkInputEl.classList.remove('is-error');
+    linkRemoveBtnEl.style.display = prefill ? '' : 'none';
+    linkModalEl.style.display = 'flex';
+    document.addEventListener('keydown', onLinkModalKeydown);
+    setTimeout(function () { linkInputEl.focus(); linkInputEl.select(); }, 20);
+  }
+
   function onKeydown(e) {
     var el = e.target;
     if (!el || !el.classList || !el.classList.contains('outline-text')) return;
     var id = el.dataset.id;
     if (!id) return;
+
+    // 富文本行内样式：三条组合键在最前短路，绝不影响下方 Enter/Tab/Alt↑↓/Ctrl↑↓/Backspace/方向键分支
+    var ctrl = e.ctrlKey || e.metaKey;
+    if (ctrl && !e.altKey && !e.shiftKey && (e.key === 'b' || e.key === 'B')) {
+      e.preventDefault();
+      applyInlineMark('strong');
+      return;
+    }
+    if (ctrl && !e.altKey && e.shiftKey && (e.key === 'h' || e.key === 'H')) {
+      e.preventDefault();
+      applyInlineMark('hl');
+      return;
+    }
+    if (ctrl && !e.altKey && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault();
+      promptLinkMark();
+      return;
+    }
 
     if (e.key === 'Escape') {
       el.blur();
@@ -604,12 +872,12 @@
     focusRow(rows[0].node.id, 'end');
   }
 
-  function highlight(id) {
-    if (!id) return;
+  /** 展开折叠祖先 + 滚动入视口（highlight 与搜索定位共用）。返回是否可及（行存在且已渲染）。 */
+  function revealAndScroll(id) {
+    if (!id) return false;
     if (byId.size !== nodes.length) buildIndex();
     var target = byId.get(id);
-    if (!target) return;
-    // 行可能在折叠分支里：先展开祖先
+    if (!target) return false;
     var changed = false;
     var pid = target.parentId;
     var guard = 0;
@@ -621,11 +889,138 @@
     }
     if (changed) render();
     var rec = rowEls.get(id);
-    if (!rec) return;
-    setSelected(id);
+    if (!rec) return false;
     scrollRowIntoView(rec.row);
-    rec.row.classList.add('is-flash');
-    setTimeout(function () { rec.row.classList.remove('is-flash'); }, 700);
+    return true;
+  }
+
+  function highlight(id) {
+    if (!id) return;
+    if (revealAndScroll(id)) {
+      setSelected(id);
+      var rec = rowEls.get(id);
+      rec.row.classList.add('is-flash');
+      setTimeout(function () { rec.row.classList.remove('is-flash'); }, 700);
+    }
+  }
+
+  // ---------- 大纲搜索定位（Ctrl+F / 搜索按钮） ----------
+
+  var searchEl = null;
+  var searchInputEl = null;
+  var searchCountEl = null;
+  var searchHits = [];      // 命中 id（按行顺序）
+  var searchIndex = -1;     // 当前命中下标
+  var searchQuery = '';     // 当前生效查询（空串 = 未激活）
+  var searchDomBound = false; // 防重复绑定：init/openSearch 都会调用 initSearchDom
+
+  function searchRowText(rec) {
+    var el = rec.text;
+    return ((el.textContent || '') + ' ' + (el.getAttribute && el.getAttribute('title') || '')).toLowerCase();
+  }
+
+  function rebuildSearch() {
+    searchHits = [];
+    searchIndex = -1;
+    if (!searchQuery) { renderSearchMarks(); return; }
+    var q = searchQuery.toLowerCase();
+    visibleRows().forEach(function (item) {
+      if (item.hidden) return;
+      var rec = rowEls.get(item.node.id);
+      if (rec && searchRowText(rec).indexOf(q) !== -1) searchHits.push(String(item.node.id));
+    });
+    seekSearch(0, false);
+  }
+
+  function renderSearchMarks() {
+    var active = !!searchQuery;
+    var hitSet = {};
+    for (var i = 0; i < searchHits.length; i++) hitSet[searchHits[i]] = true;
+    rowEls.forEach(function (rec, id) {
+      rec.row.classList.toggle('is-dim', active && !hitSet[id]);
+      rec.row.classList.toggle('is-search-hit', active && searchIndex >= 0 && searchHits[searchIndex] === id);
+    });
+    var cur = active ? Math.min(searchIndex + 1, searchHits.length) : 0;
+    renderSearchCount(active ? cur + ' / ' + searchHits.length : '');
+    if (typeof opts.onSearchChange === 'function') {
+      opts.onSearchChange({
+        active: active,
+        hits: searchHits.slice(),
+        currentId: active && searchIndex >= 0 ? searchHits[searchIndex] : null
+      });
+    }
+  }
+
+  function renderSearchCount(text) {
+    if (searchCountEl) searchCountEl.textContent = text;
+  }
+
+  function seekSearch(dir, flash) {
+    if (!searchHits.length) { renderSearchMarks(); return; }
+    var n = searchHits.length;
+    searchIndex = dir === -1
+      ? (searchIndex <= 0 ? n - 1 : searchIndex - 1)
+      : (searchIndex >= n - 1 ? 0 : searchIndex + 1);
+    var id = searchHits[searchIndex];
+    if (revealAndScroll(id)) {
+      setSelected(id); // 7.5：反向推画布高亮该节点
+      var rec = rowEls.get(id);
+      if (flash) {
+        rec.row.classList.add('is-search-hit');
+        rec.row.classList.add('is-flash');
+        setTimeout(function () { rec.row.classList.remove('is-flash'); }, 700);
+      }
+    }
+    renderSearchMarks();
+  }
+
+  function initSearchDom() {
+    if (searchDomBound) return;
+    searchEl = document.getElementById('outlineSearch');
+    searchInputEl = searchEl ? searchEl.querySelector('.outline-search-input') : null;
+    searchCountEl = searchEl ? searchEl.querySelector('.outline-search-count') : null;
+    var closeBtn = searchEl ? searchEl.querySelector('.outline-search-close') : null;
+    if (closeBtn) closeBtn.addEventListener('click', closeSearch);
+    if (searchInputEl) {
+      searchInputEl.addEventListener('input', function () {
+        searchQuery = searchInputEl.value.trim();
+        rebuildSearch();
+      });
+      searchInputEl.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); seekSearch(e.shiftKey ? -1 : 1, true); }
+        else if (e.key === 'F3') { e.preventDefault(); seekSearch(e.shiftKey ? -1 : 1, true); }
+        else if (e.key === 'Escape') { e.stopPropagation(); closeSearch(); }
+      });
+    }
+    searchDomBound = true;
+  }
+
+  function openSearch() {
+    initSearchDom();
+    if (!searchEl) return;
+    searchEl.style.display = 'flex';
+    searchQuery = '';
+    searchHits = [];
+    searchIndex = -1;
+    if (searchInputEl) {
+      searchInputEl.value = '';
+      setTimeout(function () { searchInputEl.focus(); }, 20);
+    }
+    renderSearchCount('');
+  }
+
+  function closeSearch() {
+    if (searchEl) searchEl.style.display = 'none';
+    searchQuery = '';
+    searchHits = [];
+    searchIndex = -1;
+    renderSearchCount('');
+    rowEls.forEach(function (rec) {
+      rec.row.classList.remove('is-dim', 'is-search-hit');
+    });
+    if (typeof opts.onSearchChange === 'function') {
+      opts.onSearchChange({ active: false, hits: [], currentId: null });
+    }
   }
 
   function toMarkdown() {
@@ -666,6 +1061,87 @@
     return true;
   }
 
+  // ---------- 导出 OPML（幕布互通，纯函数可单测） ----------
+
+  function xmlEscape(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+  }
+
+  /**
+   * 节点列表 → OPML 2.0 文本（纯函数，node 单测可直接构造伪 nodes 验证）。
+   * - 同级按 orderIndex（缺省 createdAt）排序；
+   * - 空 text 的节点「跳过不输出」，其非空子树顶上它的位置（层级不变）；
+   * - text 属性做 XML 转义；富文本行内标记按原文写入（主流导入器按纯文本接受）。
+   * @param {Array<{id:string,text?:string,parentId?:string|null,orderIndex?:number,createdAt?:string}>} nodeList
+   * @param {string} [title]
+   */
+  function opmlSerialize(nodeList, title) {
+    var items = Array.isArray(nodeList) ? nodeList : [];
+    var childrenMap = new Map();
+    items.forEach(function (n) {
+      if (!n || n.id == null) return;
+      var key = n.parentId || ROOT;
+      if (!childrenMap.has(key)) childrenMap.set(key, []);
+      childrenMap.get(key).push(n);
+    });
+    childrenMap.forEach(function (arr) {
+      arr.sort(function (a, b) {
+        var oa = a.orderIndex == null ? 1e9 : a.orderIndex;
+        var ob = b.orderIndex == null ? 1e9 : b.orderIndex;
+        if (oa !== ob) return oa - ob;
+        return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+      });
+    });
+
+    var out = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<opml version="2.0">',
+      '  <head><title>' + xmlEscape(title || '大纲') + '</title></head>',
+      '  <body>'
+    ];
+    (function walk(key, indent) {
+      var arr = childrenMap.get(key) || [];
+      for (var i = 0; i < arr.length; i++) {
+        var n = arr[i];
+        var text = String(n.text == null ? '' : n.text).trim();
+        if (!text) { walk(n.id, indent); continue; } // 空节点跳过，子树顶上（不加深）
+        out.push(indent + '<outline text="' + xmlEscape(text) + '">');
+        walk(n.id, indent + '  ');
+        out.push(indent + '</outline>');
+      }
+    })(ROOT, '    ');
+    out.push('  </body>');
+    out.push('</opml>');
+    return out.join('\n');
+  }
+
+  function toOPML() {
+    normalizeOrders();
+    var title = '大纲';
+    if (typeof opts.getExportName === 'function') {
+      title = String(opts.getExportName()).replace(/\.md$/i, '') || title;
+    }
+    return opmlSerialize(nodes, title);
+  }
+
+  function downloadOPML(filename) {
+    flushText();
+    var text = toOPML();
+    if (!text) return false;
+    var blob = new Blob([text], { type: 'text/xml;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename || '大纲.opml';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    return true;
+  }
+
   function init(options) {
     opts = options || {};
     treeEl = document.getElementById('outlineTree');
@@ -690,11 +1166,22 @@
         else downloadMarkdown('大纲.md');
       });
     }
+    var opmlBtn = document.getElementById('outlineOPMLBtn');
+    if (opmlBtn) {
+      opmlBtn.addEventListener('click', function () {
+        if (typeof opts.getExportName === 'function') downloadOPML(opts.getExportName().replace(/\.md$/i, '') + '.opml');
+        else downloadOPML('大纲.opml');
+      });
+    }
+
+    var searchBtn = document.getElementById('outlineSearchBtn');
+    if (searchBtn) searchBtn.addEventListener('click', openSearch);
+    initSearchDom();
 
     wired = true;
   }
 
-  window.CanvasOutline = {
+  var api = {
     init: init,
     setNodes: setNodes,
     upsertNode: upsertNode,
@@ -707,8 +1194,21 @@
     collapseAll: collapseAll,
     toMarkdown: toMarkdown,
     downloadMarkdown: downloadMarkdown,
+    toOPML: toOPML,
+    downloadOPML: downloadOPML,
+    opmlSerialize: opmlSerialize,
     getSelectedId: function () { return selectedId; },
     getCount: function () { return nodes.length; },
-    flush: flushText
+    flush: flushText,
+    openSearch: openSearch,
+    closeSearch: closeSearch,
+    parseInline: function (text) {
+      return window.CanvasInlineMd && typeof window.CanvasInlineMd.parseInline === 'function'
+        ? window.CanvasInlineMd.parseInline(text)
+        : [{ text: text == null ? '' : String(text) }];
+    }
   };
+  // 浏览器挂全局；node（单测）走 module.exports。IIFE 内 DOM 引用仅在函数调用时才发生，require 安全。
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  if (typeof window !== 'undefined') window.CanvasOutline = api;
 })();

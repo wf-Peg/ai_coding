@@ -61,21 +61,24 @@ function getModelsDir() {
   return path.join(__dirname, 'ocr-models');
 }
 
-/** 读取截图配置（快捷键等） */
+/** 读取截图配置（快捷键/模式等） */
 function loadScreenshotConfig() {
   try {
     const cfg = deps.loadConfig();
     return {
       enabled: cfg.screenshotEnabled !== false,
-      screenshot: (cfg.screenshotShortcut || 'F1'),
-      paste: (cfg.pasteShortcut || 'F2'),
+      mode: cfg.screenshotMode === 'full' ? 'full' : 'ocr', // 默认 OCR 模式
+      screenshot: (cfg.screenshotShortcut || 'F5'),
+      paste: (cfg.pasteShortcut || 'F6'),
       hideMain: cfg.screenshotHideMain !== false,
       saveDir: cfg.screenshotSaveDir || ''
     };
-  } catch (e) { return { enabled: true, screenshot: 'F1', paste: 'F2', hideMain: true, saveDir: '' }; }
+  } catch (e) { return { enabled: true, mode: 'ocr', screenshot: 'F5', paste: 'F6', hideMain: true, saveDir: '' }; }
 }
 
-/** 注册全局快捷键（独立注册，不影响主进程全局唤起键的 unregisterAll 流程） */
+/** 注册全局快捷键（独立注册，不影响主进程全局唤起键的 unregisterAll 流程）。
+ *  截图键两种模式都注册（区别在于默认动作与覆盖层 UI）；
+ *  贴图键仅完整模式注册（OCR 模式贴图属"被隐藏的截图功能"，不注册 F6）。 */
 function registerShortcuts() {
   const { globalShortcut } = deps;
   const cfg = loadScreenshotConfig();
@@ -83,9 +86,15 @@ function registerShortcuts() {
     log('screenshot tool is disabled, skipping shortcut registration');
     return;
   }
-  const ok1 = registerOne('screenshot', cfg.screenshot, () => startScreenshot('copy'));
-  const ok2 = registerOne('paste', cfg.paste, () => pasteFromClipboard());
-  log('shortcuts registered:', cfg.screenshot, ok1, '|', cfg.paste, ok2);
+  const defaultAction = cfg.mode === 'full' ? 'copy' : 'ocr';
+  const ok1 = registerOne('screenshot', cfg.screenshot, () => startScreenshot(defaultAction));
+  let ok2 = false;
+  if (cfg.mode === 'full') {
+    ok2 = registerOne('paste', cfg.paste, () => pasteFromClipboard());
+  } else {
+    log('paste shortcut skipped (OCR mode):', cfg.paste);
+  }
+  log('shortcuts registered:', cfg.screenshot, ok1, '|', cfg.paste, ok2, '| mode', cfg.mode);
 }
 
 /** 注册单个快捷键并记录失败 */
@@ -328,7 +337,10 @@ async function startScreenshot(defaultAction) {
     win.show();
     try { win.focus(); } catch (e) {}
     // 3) 位图/PGN 直传（raw 快速路径仅 Windows），渲染层快速转换显示
-    win.webContents.send('screenshot:init', Object.assign({}, disp, { display: shot.display, t0 }));
+    //    同时下发覆盖层当前模式（ocr/full），由渲染层决定工具栏与默认动作
+    win.webContents.send('screenshot:init', Object.assign({}, disp, {
+      display: shot.display, t0, mode: loadScreenshotConfig().mode
+    }));
     logPerf('send', t0);
     // 4) 渲染超时兜底：若一段时间内未收到 painted 成功，主动关闭覆盖层，杜绝"卡住"
     clearTimeout(pendingPaintTimer);
@@ -460,8 +472,9 @@ async function handleConfirm(payload) {
       if (deps.showMainWindow) deps.showMainWindow();
       return saveImage(cropped);
     case 'ocr':
+      // OCR 快捷路径：识别 → 自动复制到剪贴板 → 复用剪贴板气泡反馈（不弹结果窗，对标 K:\OCR）
       if (deps.showMainWindow) deps.showMainWindow();
-      return runOcr(cropped);
+      return quickOcr(cropped);
     case 'paste':
       // 贴图：直接贴出，不恢复主窗口（与 Snipaste 一致，避免"弹出软件窗口"）；
       // 定位在选区左上角，得到"与截图区域同等大小、落在选区位置"的贴图
@@ -504,6 +517,11 @@ function screenshotOverlayActive() {
  *  不再把整屏原图 lastCapture 直接当贴图静默贴出：未确认选区时贴全屏会被用户误解为"贴图变全屏"，
  *  同时会让覆盖层停留在黑底状态造成"贴图后黑屏"错觉。 */
 function pasteFromClipboard() {
+  // 贴图属"被隐藏的截图功能"：仅完整截图模式可用（OCR 模式下 F6 未注册，此处为残留调用路径守卫）
+  if (loadScreenshotConfig().mode !== 'full') {
+    log('paste skipped (OCR mode)');
+    return { status: 'skipped', message: '贴图功能仅在完整截图模式可用' };
+  }
   // 覆盖层正打开：优先把"当前已拖出的选区"直接确认成贴图，
   // 得到"与截图区域同等大小"的贴图，而不是整屏原图。
   if (screenshotOverlayActive()) {
@@ -656,7 +674,7 @@ function showPasteWindow(image, text, startPos) {
 
 /**
  * 对截图执行离线 OCR。
- * 依赖 onnxruntime-node + PP-OCRv4 onnx 模型（见 download-ocr-models.ps1）。
+ * 依赖 onnxruntime-node + PP-OCRv5 onnx 模型（见 download-ocr-models.ps1）。
  * 未安装/模型缺失时返回 { status: 'unavailable', message } 供前端降级提示。
  */
 async function runOcr(image) {
@@ -668,13 +686,62 @@ async function runOcr(image) {
     const result = await ocrService.recognize(image.toPNG(), deps);
     if (!result) {
       const st = ocrService.status();
-      notifyMainWindow('🔤 OCR 未就绪：' + (st.reason || '组件未就绪') + '（可前往 工具→截图工具 一键安装）', 'warn', 6000);
+      notifyMainWindow('🔤 OCR 未就绪：' + (st.reason || '组件未就绪') + '（可前往 工具→快捷OCR 一键安装）', 'warn', 6000);
       return { status: 'unavailable', message: st.reason || 'OCR 组件未就绪' };
     }
     showOcrResult(result);
     return { status: 'ok', text: result.text, lines: result.lines };
   } catch (e) {
     log('OCR failed:', e.message);
+    notifyMainWindow('🔤 OCR 识别失败：' + e.message, 'error', 6000);
+    return { status: 'error', message: e.message };
+  }
+}
+
+/**
+ * 快捷 OCR（OCR 模式默认路径，对标 K:\OCR）：
+ * 识别 → 文本自动写入剪贴板 → 复用「剪贴板监听气泡」播报已复制；
+ * 未识别到文字时以警告式气泡提醒（不复制）。不弹 OCR 结果窗。
+ */
+async function quickOcr(image) {
+  const t0 = Date.now();
+  try {
+    if (!ocrService) {
+      ocrService = require('./ocr-service');
+      try { ocrService.setModelsDir(getModelsDir()); } catch (e) {}
+    }
+    const result = await ocrService.recognize(image.toPNG(), deps);
+    if (!result) {
+      const st = ocrService.status();
+      notifyMainWindow('🔤 OCR 未就绪：' + (st.reason || '组件未就绪') + '（可前往 工具→快捷OCR 一键安装）', 'warn', 6000);
+      return { status: 'unavailable', message: st.reason || 'OCR 组件未就绪' };
+    }
+    const text = (result && result.text) || '';
+    const trimmed = text.replace(/\s/g, '');
+    if (!trimmed) {
+      // 未识别到文字：警告式气泡 + 主窗口提示双保险
+      if (deps.showClipboardEntryToast) {
+        deps.showClipboardEntryToast({ type: 'text', text: '未识别到文字，请重新框选', title: '🔤 OCR 未识别到文字', warn: true });
+      }
+      notifyMainWindow('🔤 未识别到文字，请重新框选', 'warn', 3000);
+      return { status: 'ok', text: '', copied: false };
+    }
+    const chars = trimmed.length;
+    const costMs = Date.now() - t0;
+    // 先抑制剪贴板轮询器对同一内容重复弹窗，再写剪贴板，最后弹气泡（顺序消除竞态）
+    if (deps.markClipboardSuppress) deps.markClipboardSuppress(text);
+    deps.clipboard.writeText(text);
+    if (deps.showClipboardEntryToast) {
+      deps.showClipboardEntryToast({
+        type: 'text',
+        text: text,
+        title: '🔤 OCR · 已复制 ' + chars + ' 字 · 耗时 ' + costMs + 'ms'
+      });
+    }
+    log('quickOcr copied:', chars, 'chars,', costMs + 'ms');
+    return { status: 'ok', text: text, copied: true, chars, costMs };
+  } catch (e) {
+    log('quickOcr failed:', e.message);
     notifyMainWindow('🔤 OCR 识别失败：' + e.message, 'error', 6000);
     return { status: 'error', message: e.message };
   }
@@ -775,8 +842,9 @@ function downloadModelsInline(modelsDir) {
     "$dir = '" + modelsDir + "'",
     "New-Item -ItemType Directory -Force -Path $dir | Out-Null",
     "$jobs = @(",
-    "  @{ n = 'ch_PP-OCRv4_det_infer.onnx'; urls = @('https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv4_det_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv4_det_infer.onnx', 'https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/det.onnx') },",
-    "  @{ n = 'ch_PP-OCRv4_rec_infer.onnx'; urls = @('https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv4_rec_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv4_rec_infer.onnx', 'https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/rec.onnx') },",
+    "  @{ n = 'ch_PP-OCRv5_det_infer.onnx'; urls = @('https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv5_det_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv5_det_infer.onnx') },",
+    "  @{ n = 'ch_PP-OCRv5_rec_infer.onnx'; urls = @('https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv5_rec_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv5_rec_infer.onnx') },",
+    "  @{ n = 'ch_ppocr_mobile_v2.0_cls_train.onnx'; urls = @('https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_cls/ch_ppocr_mobile_v2.0_cls_train.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_cls/ch_ppocr_mobile_v2.0_cls_train.onnx') },",
     "  @{ n = 'ppocr_keys_v1.txt'; urls = @('https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/ppocr_keys_v1.txt', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/ppocr_keys_v1.txt') }",
     ")",
     "foreach ($job in $jobs) {",
@@ -799,10 +867,12 @@ function downloadModelsInline(modelsDir) {
 /** 模型清单（文件名 → 按顺序尝试的下载源）。Node 与 PowerShell 分支共用。 */
 function getModelJobs() {
   return [
-    // 注：RapidOCR HF space 的 models/ 仅含 text_det、text_rec；无 cls（可选，缺失时 OCR 正立文本不受影响），故不下载 cls。
-    // 源顺序：hf-mirror（国内可用）优先，其次 huggingface，最后 PaddleOCR raw（仅字典）。
-    { n: 'ch_PP-OCRv4_det_infer.onnx', urls: ['https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv4_det_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv4_det_infer.onnx', 'https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/det.onnx'] },
-    { n: 'ch_PP-OCRv4_rec_infer.onnx', urls: ['https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv4_rec_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv4_rec_infer.onnx', 'https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0/rec.onnx'] },
+    // 注：RapidOCR HF space 的 models/ 含 v5 det/rec/cls；cls（ch_ppocr_mobile_v2.0_cls_train.onnx）
+    //     为可选（缺失时 OCR 正立文本不受影响），但纳入下载以便对齐 K:\OCR。
+    // 源顺序：hf-mirror（国内可用）优先，其次 huggingface；字典最后 PaddleOCR raw 兜底。
+    { n: 'ch_PP-OCRv5_det_infer.onnx', urls: ['https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv5_det_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_det/ch_PP-OCRv5_det_infer.onnx'] },
+    { n: 'ch_PP-OCRv5_rec_infer.onnx', urls: ['https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv5_rec_infer.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_rec/ch_PP-OCRv5_rec_infer.onnx'] },
+    { n: 'ch_ppocr_mobile_v2.0_cls_train.onnx', urls: ['https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/text_cls/ch_ppocr_mobile_v2.0_cls_train.onnx', 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main/models/text_cls/ch_ppocr_mobile_v2.0_cls_train.onnx'] },
     { n: 'ppocr_keys_v1.txt', urls: ['https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/ppocr_keys_v1.txt', 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main/models/ppocr_keys_v1.txt'] }
   ];
 }
@@ -911,6 +981,7 @@ function registerIpc() {
     if (payload && payload.paste) cfg.pasteShortcut = payload.paste;
     if (payload && typeof payload.hideMain === 'boolean') cfg.screenshotHideMain = payload.hideMain;
     if (payload && typeof payload.saveDir === 'string') cfg.screenshotSaveDir = payload.saveDir;
+    if (payload && (payload.mode === 'ocr' || payload.mode === 'full')) cfg.screenshotMode = payload.mode;
     deps.saveConfig(cfg);
     refreshShortcuts();
     return { status: 'ok', config: loadScreenshotConfig() };
@@ -1063,10 +1134,10 @@ function registerIpc() {
     let ortInstalled = false;
     try { require.resolve('onnxruntime-node'); ortInstalled = true; } catch (e) {}
     // 2) 模型文件检测（userData/ocr-models，打包兼容）
-    //    注：必需仅 det/rec/字典；cls（方向分类）本就可选（缺失时正立文本不受影响），
-    //       且 RapidOCR 源不含 cls 模型，故不纳入必需，避免永远"下载未完成"。
+    //    注：必需仅 det/rec/字典；cls（方向分类）可选（缺失时正立文本不受影响），
+    //       故不纳入必需列表，避免"永远下载未完成"；cls 会随全量下载一并拉取。
     const modelsDir = getModelsDir();
-    const required = ['ch_PP-OCRv4_det_infer.onnx', 'ch_PP-OCRv4_rec_infer.onnx', 'ppocr_keys_v1.txt'];
+    const required = ['ch_PP-OCRv5_det_infer.onnx', 'ch_PP-OCRv5_rec_infer.onnx', 'ppocr_keys_v1.txt'];
     const missing = required.filter(f => !fs.existsSync(path.join(modelsDir, f)));
     // 3) 下载模型：按平台选择（Windows 用内联 PowerShell，macOS/Linux 用 Node 直接下载）
     if (missing.length) {

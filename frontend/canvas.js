@@ -15,6 +15,7 @@
 
   const canvasMenu = document.getElementById('canvasMenu');
   const nodeMenu = document.getElementById('nodeMenu');
+  const nodeOpenInEditorAction = document.getElementById('nodeOpenInEditorAction');
   const edgeMenu = document.getElementById('edgeMenu');
   const groupMenu = document.getElementById('groupMenu');
   const groupAction = document.getElementById('groupAction');
@@ -46,6 +47,7 @@
   let linkSourceId = null;
   let canvasModalCtx = null;
   let pendingRefNodeId = null;
+  let lastSearchCurrent = null; // 大纲搜索当前命中去重（避免反复 centerWorldOn 抖动）
   let pendingGroup = null;
   let batchMove = null;
   let groupMove = null;
@@ -569,13 +571,8 @@
     var textSel = d3.select(target).select('text.canvas-card-text');
     if (textSel.empty()) return false;
     var label = d.type === 'note' ? (d.text || d.title || '便签') : (d.title || '引用');
-    var lines = wrapLines(label, d.type === 'note' ? 12 : 13);
     textSel.selectAll('tspan').remove();
-    var lineHeight = 14;
-    var startY = -((lines.length - 1) * lineHeight) / 2;
-    for (var i = 0; i < lines.length; i++) {
-      textSel.append('tspan').attr('x', 0).attr('y', startY + i * lineHeight).text(lines[i]);
-    }
+    applyCardText(textSel, label, d.type === 'note' ? 12 : 13);
     return true;
   }
 
@@ -659,12 +656,7 @@
     if (d.type === 'note') label = d.text || d.title || '便签';
     else label = d.title || '引用';
 
-    var lines = wrapLines(label, d.type === 'note' ? 12 : 13);
-    var lineHeight = 14;
-    var startY = -((lines.length - 1) * lineHeight) / 2;
-    for (var i = 0; i < lines.length; i++) {
-      textSel.append('tspan').attr('x', 0).attr('y', startY + i * lineHeight).text(lines[i]);
-    }
+    applyCardText(textSel, label, d.type === 'note' ? 12 : 13);
     // 引用卡有角标，正文略向左上偏移避免重叠
     if (d.type === 'ref') textSel.attr('transform', 'translate(3,2)');
   }
@@ -688,6 +680,63 @@
     }
     if (cur) lines.push(cur);
     return lines.slice(0, 3);
+  }
+
+  // ---- 富文本卡片渲染：markdown 行内符文 → 按 maxChars 换行的 tspan 段（供便签/引用卡） ----
+
+  function segClsOf(p) {
+    if (p.bold) return 'c-tb-bold';
+    if (p.hl) return 'c-tb-hl';
+    if (p.link) return 'c-tb-link';
+    return '';
+  }
+
+  /** `**bold**` / `==hl==` / `[text](url)` → 二维段数组 lines[i][j]={text,cls}。 */
+  function inlineSegs(mdText, maxChars) {
+    var label = String(mdText == null ? '' : mdText).trim();
+    if (!label) return [];
+    var parses = (window.CanvasOutline && typeof window.CanvasOutline.parseInline === 'function')
+      ? window.CanvasOutline.parseInline(label)
+      : [{ text: label }];
+    var lines = [];
+    var cur = [];
+    var curLen = 0;
+    function flushLine() {
+      if (cur.length) { lines.push(cur); cur = []; curLen = 0; }
+    }
+    for (var i = 0; i < parses.length; i++) {
+      var p = parses[i];
+      var cls = segClsOf(p);
+      // Array.from 按 code point 切分，避免 emoji 等被切成半个代理对
+      var chars = Array.from(String(p.text || ''));
+      for (var j = 0; j < chars.length; j++) {
+        if (curLen >= maxChars && cur.length) flushLine();
+        var last = cur.length ? cur[cur.length - 1] : null;
+        if (last && last.cls === cls) last.text += chars[j]; // 同样式相邻合并，减少 tspan
+        else cur.push({ text: chars[j], cls: cls });
+        curLen++;
+      }
+    }
+    flushLine();
+    return lines.slice(0, 3); // 保持既有最大行数上限
+  }
+
+  /** 把符文段渲染进 textSel：同行首段带 x/y 定位，后续段省略 x/y 顺序衔接。 */
+  function applyCardText(textSel, label, maxChars) {
+    var lines = inlineSegs(label, maxChars);
+    if (!lines.length) return;
+    var lineHeight = 14;
+    var startY = -((lines.length - 1) * lineHeight) / 2;
+    for (var i = 0; i < lines.length; i++) {
+      for (var j = 0; j < lines[i].length; j++) {
+        var seg = lines[i][j];
+        var tsp = (j === 0)
+          ? textSel.append('tspan').attr('x', 0).attr('y', Math.round(startY + i * lineHeight))
+          : textSel.append('tspan');
+        if (seg.cls) tsp.attr('class', seg.cls);
+        tsp.text(seg.text);
+      }
+    }
   }
 
   function nodeColor(type) {
@@ -1149,6 +1198,8 @@
     if (groupAction) {
       groupAction.style.display = (selectedNodeIds.size > 1) ? 'flex' : 'none';
     }
+    // F2「在编辑器中打开」仅 note 卡显示（link/ref/image 无正文语义）
+    if (nodeOpenInEditorAction) nodeOpenInEditorAction.style.display = (d && d.type === 'note') ? '' : 'none';
     positionMenu(nodeMenu, x, y);
     nodeMenu._d = d;
   }
@@ -1312,13 +1363,49 @@
     pendingRefNodeId = null;
     var titles = { note: '编辑便签', link: '编辑链接', image: '编辑图片' };
     canvasModalTitle.textContent = titles[d.type] || '编辑节点';
-    var field = (d.type === 'note')
-      ? '<textarea id="canvasFieldValue"></textarea>'
-      : '<input id="canvasFieldValue" type="text">';
-    canvasModalBody.innerHTML = field;
-    var el = canvasModalBody.querySelector('#canvasFieldValue');
-    if (el) { el.value = d.text || ''; el.focus(); }
+    if (d.type === 'note') {
+      // 富文本所见即所得（7.1）：编辑 markdown 时实时渲染预览，避免「大纲所见、弹窗所见非所得」的割裂
+      canvasModalBody.innerHTML =
+        '<div class="canvas-edit-wrap">' +
+        '<textarea id="canvasFieldValue" placeholder="支持 **加粗**、==高亮==、[文字](链接)"></textarea>' +
+        '<div class="canvas-edit-preview"><div class="canvas-edit-preview-title">实时预览</div>' +
+        '<div class="canvas-edit-preview-body" id="canvasEditPreview"></div></div>' +
+        '</div>';
+      var ta = canvasModalBody.querySelector('#canvasFieldValue');
+      var previewEl = canvasModalBody.querySelector('#canvasEditPreview');
+      var renderPreview = function () {
+        var h = (window.CanvasInlineMd && typeof window.CanvasInlineMd.mdToHtml === 'function')
+          ? window.CanvasInlineMd.mdToHtml(ta.value)
+          : String(ta.value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        previewEl.innerHTML = h || '<span class="canvas-edit-preview-empty">输入内容后实时预览</span>';
+      };
+      ta.addEventListener('input', renderPreview);
+      if (ta) { ta.value = d.text || ''; renderPreview(); ta.focus(); }
+    } else {
+      var field = '<input id="canvasFieldValue" type="text">';
+      canvasModalBody.innerHTML = field;
+      var el = canvasModalBody.querySelector('#canvasFieldValue');
+      if (el) { el.value = d.text || ''; el.focus(); }
+    }
     canvasModalMask.style.display = 'flex';
+  }
+
+  // F2 跳转型联动：note 节点内容落临时 md 文件，交给编辑器新标签打开（主进程 canvas:open-in-editor）
+  function openNodeInEditor(d) {
+    if (!d) return;
+    const bridge = window.electronAPI;
+    if (!bridge || typeof bridge.openCanvasNodeInEditor !== 'function') {
+      openMessage('无法打开', '当前环境不支持「在编辑器中打开」');
+      return;
+    }
+    const text = d.type === 'note' ? (d.text || '') : (d.title || '');
+    bridge.openCanvasNodeInEditor({ nodeId: String(d.id), text: text, title: d.title || '' })
+      .then(function(res) {
+        if (res && res.canceled) openMessage('无法打开', res.message || '编辑器打开失败，请重试');
+        else if (res && res.fileToken) openMessage('已在编辑器打开', res.fileName || '');
+        // 无 fileToken（浏览器降级模式等）静默，不打扰
+      })
+      .catch(function() { openMessage('无法打开', '编辑器打开失败，请重试'); });
   }
 
   function renderRefPicker(query) {
@@ -2002,6 +2089,7 @@
       if (!d) return;
       if (action === 'link-from') startLink(String(d.id));
       else if (action === 'edit-node') openEditModal(d);
+      else if (action === 'open-in-editor') openNodeInEditor(d);
       else if (action === 'delete-node') deleteCanvasNode(String(d.id));
     });
   });
@@ -2184,6 +2272,25 @@
         if (!warn) return;
         warn.style.display = 'inline';
         warn.textContent = '节点 ' + count + ' 个，已默认折叠；建议拆分为多个画布';
+      },
+
+      // 7.5：大纲搜索激活时，非命中卡片降透明；当前命中卡片反向高亮并居中（去重防抖动）
+      onSearchChange: function(state) {
+        if (!nodeElements) return;
+        var active = !!(state && state.active);
+        var hitSet = {};
+        var hits = (state && state.hits) || [];
+        for (var i = 0; i < hits.length; i++) hitSet[String(hits[i])] = true;
+        nodeElements.classed('canvas-card-dim', function(n) {
+          return active && !hitSet[String(n.id)];
+        });
+        if (active && state.currentId) {
+          var cur = String(state.currentId);
+          if (lastSearchCurrent !== cur) {
+            lastSearchCurrent = cur;
+            highlightCanvasNode(cur);
+          }
+        }
       }
     });
   }
@@ -2741,6 +2848,31 @@
     for (var i = 0; i < entries.length; i++) {
       if (entries[i]) entries[i].addEventListener('click', openFn);
     }
+    // 导入入口：复用同一条 预览→应用 链路（功能1）
+    var importBtn = document.getElementById('importOutlineBtn');
+    if (importBtn) {
+      importBtn.addEventListener('click', function() {
+        if (!window.CanvasAIOutline || typeof window.CanvasAIOutline.openImport !== 'function') return;
+        window.CanvasAIOutline.openImport({
+          onApplyAsNewDoc: applyOutlineAsNewDoc,
+          onApplyToCurrent: applyOutlineToCurrent
+        });
+      });
+    }
+  }
+
+  // Ctrl+F 唤起大纲搜索（画布页无既冲突；聚焦普通输入控件时不拦截）
+  function initCanvasFindShortcut() {
+    document.addEventListener('keydown', function(e) {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === 'f' || e.key === 'F')) {
+        var tag = e.target && e.target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        e.preventDefault();
+        if (window.CanvasOutline && typeof window.CanvasOutline.openSearch === 'function') {
+          window.CanvasOutline.openSearch();
+        }
+      }
+    });
   }
 
   document.addEventListener('DOMContentLoaded', function() {
@@ -2751,7 +2883,16 @@
     initViewSwitch();
     initLayoutByOutline();
     initAIOutline();
+    initCanvasFindShortcut();
     updatePanCursor(); // 默认态未选工具即抓手：初始化即对齐小手
+    // F3 跳转型联动：编辑器发送内容到画布后，切回画布 tab 时静默重载数据（300ms 去抖防抖动）
+    var canvasFocusRefreshTimer = null;
+    window.addEventListener('focus', function() {
+      if (canvasFocusRefreshTimer) clearTimeout(canvasFocusRefreshTimer);
+      canvasFocusRefreshTimer = setTimeout(function() {
+        loadData();
+      }, 300);
+    });
     loadData();
   });
 

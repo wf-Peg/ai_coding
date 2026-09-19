@@ -31,7 +31,7 @@ const localCanvasDoc = require('./sqlite/canvas-doc');
 const localCanvasInk = require('./sqlite/canvas-ink');
 const { initCanvasSync } = require('./canvas-sync');
 // 只读目录规范体检（storage-inspect.js，仅扫描不写盘）
-const inspectStorage = require('./storage-inspect');
+const storageInspect = require('./storage-inspect');
 // clip-storage 实时监听句柄（will-quit 时释放）
 let localIndexWatcher = null;
 // md 库（vault 内容目录）实时监听句柄：换根目录后需重启监听（will-quit 时释放）
@@ -348,8 +348,9 @@ const DEFAULT_CONFIG = {
   customModel: '',               // 自定义 OpenAI 兼容模型名称
   // 截图小工具配置
   screenshotEnabled: true,        // 截图工具是否启用
-  screenshotShortcut: 'F1',      // 截图快捷键（默认 F1）
-  pasteShortcut: 'F2',           // 贴图快捷键（默认 F2）
+  screenshotMode: 'ocr',          // 截图工具模式：ocr（快捷 OCR，默认）| full（完整截图/贴图/标注）
+  screenshotShortcut: 'F5',      // 截图/OCR 快捷键（默认 F5）
+  pasteShortcut: 'F6',           // 贴图快捷键（默认 F6，仅完整模式注册）
   screenshotHideMain: true,      // 截图时是否收起主窗口
   screenshotSaveDir: ''          // 截图默认保存目录（空 = 弹保存对话框）
   ,
@@ -3484,14 +3485,14 @@ function setupIPC() {
   /** 只读目录规范体检：扫描 storagePath 树，返回问题清单与建议动作（仅扫描，不写盘） */
   ipcMain.handle('storage-inspect:run', localIndexGuard(async () => {
     const config = loadConfig();
-    const report = inspectStorage(config.storagePath);
+    const report = storageInspect.inspectStorage(config.storagePath);
     return { success: true, report };
   }));
 
   /** 只读「搜索覆盖区」：列出 storagePath 下一级目录分类（可搜索 / 排除），轻量不深扫 */
   ipcMain.handle('storage-inspect:zone', localIndexGuard(async () => {
     const config = loadConfig();
-    const zone = inspectStorage.inspectSearchZone(config.storagePath);
+    const zone = storageInspect.inspectSearchZone(config.storagePath);
     return { success: true, zone };
   }));
 
@@ -3646,6 +3647,22 @@ function setupIPC() {
     const dbConn = localDb.getDatabase();
     if (!dbConn) return { success: false, message: 'local index not ready' };
     const node = localCanvasNode.createNode(dbConn, { kind, text, title, x, y, docId, parentId, orderIndex });
+    if (canvasSync) canvasSync.schedulePush();
+    return { success: true, node };
+  }));
+
+  /** 编辑器 → 画布快速发送（跳转型联动 F3）：文本落「我的画布」默认文档根层追加 note 卡 */
+  ipcMain.handle('canvas:quick-add', localIndexGuard(async (_ev, args) => {
+    const { text, title } = args || {};
+    const content = text != null ? String(text) : '';
+    if (!content.trim()) return { success: false, message: '没有可发送的内容' };
+    const dbConn = localDb.getDatabase();
+    if (!dbConn) return { success: false, message: 'local index not ready' };
+    const node = localCanvasNode.createNode(dbConn, {
+      kind: 'note',
+      text: content,
+      title: title != null && String(title).trim() ? String(title).slice(0, 60) : (content.slice(0, 40) || '')
+    });
     if (canvasSync) canvasSync.schedulePush();
     return { success: true, node };
   }));
@@ -4413,6 +4430,27 @@ function setupIPC() {
       return opened;
     } catch (err) {
       log.error('[EditorFileTree] open by path failed:', err.message);
+      return { canceled: true, message: err.message };
+    }
+  });
+
+  // 画布节点 → 编辑器打开（跳转型联动 F2）：内容落临时 md 文件（temp/cutshelter-canvas/），再走编辑器打开链路。
+  // 方向性跳转：编辑器里的改动不回写画布节点，避免双写冲突。
+  ipcMain.handle('canvas:open-in-editor', async (event, args) => {
+    try {
+      const nodeId = args && args.nodeId && String(args.nodeId);
+      if (!nodeId) return { canceled: true, message: '缺少节点标识' };
+      const text = args && args.text != null ? String(args.text) : '';
+      const dir = path.join(app.getPath('temp'), 'cutshelter-canvas');
+      fs.mkdirSync(dir, { recursive: true });
+      const fileName = nodeId.replace(/[^a-zA-Z0-9_\-.:@]/g, '_') + '.md';
+      const filePath = path.join(dir, fileName);
+      fs.writeFileSync(filePath, text, 'utf8');
+      const opened = editorFileService.openPath(filePath);
+      log.info('[CanvasLink] opened in editor', opened.fileName, opened.size);
+      return opened;
+    } catch (err) {
+      log.error('[CanvasLink] open in editor failed:', err.message);
       return { canceled: true, message: err.message };
     }
   });
@@ -5478,10 +5516,12 @@ function collectShortcutAudit() {
   let cfg = {};
   try { cfg = loadConfig(); } catch (e) { /* 使用默认 */ }
   const screenshotEnabled = cfg.screenshotEnabled !== false;
+  const screenshotMode = cfg.screenshotMode === 'full' ? 'full' : 'ocr';
   const candidate = [
     { feature: '全局唤起窗口', accelerator: shortcutAccelerator, enabled: !!shortcutEnabled },
-    { feature: '截图', accelerator: (cfg.screenshotShortcut || 'F1'), enabled: screenshotEnabled },
-    { feature: '贴图', accelerator: (cfg.pasteShortcut || 'F2'), enabled: screenshotEnabled }
+    { feature: '快捷 OCR', accelerator: (cfg.screenshotShortcut || 'F5'), enabled: screenshotEnabled },
+    // 贴图仅在完整截图模式注册（OCR 模式下不注册，审计卡片如实显示 disabled）
+    { feature: '贴图', accelerator: (cfg.pasteShortcut || 'F6'), enabled: screenshotEnabled && screenshotMode === 'full' }
   ];
   const global = candidate.map((g) => {
     let registered = false;
@@ -5749,7 +5789,11 @@ async function resolveAppTheme() {
 }
 
 /** 展示剪贴板气泡窗（置顶、可交互、随 cleanupOnQuit 统一销毁）。 */
-async function showClipboardToast(content) {
+async function showClipboardToast(content, opts) {
+  const options = opts || {};
+  const toastTitle = options.title || null; // 可选标题覆盖（如 OCR 快捷入口）；缺省用默认
+  const warnMode = !!options.warn;          // 警告式：琥珀/红主色 + 隐藏动作按钮（如"未识别到文字"）
+  const isWarn = warnMode;
   try {
     closeClipboardToast();
     pendingClipboard = content;
@@ -5801,8 +5845,8 @@ async function showClipboardToast(content) {
 <meta charset="utf-8">
 <style>
   :root {
-    --primary: ${isDark ? '#61a6ff' : '#2383e2'};
-    --primary-hover: ${isDark ? '#7bb5ff' : '#1f76c9'};
+    --primary: ${isWarn ? (isDark ? '#f59e0b' : '#e5484d') : (isDark ? '#61a6ff' : '#2383e2')};
+    --primary-hover: ${isWarn ? (isDark ? '#fbbf24' : '#d13636') : (isDark ? '#7bb5ff' : '#1f76c9')};
     --card-bg: ${isDark ? 'linear-gradient(135deg, rgba(40,40,48,0.97), rgba(26,26,32,0.97))'
                         : 'linear-gradient(135deg, #ffffff, #fbfbfa)'};
     --card-border: ${isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)'};
@@ -5849,12 +5893,14 @@ async function showClipboardToast(content) {
   .btn.primary:hover { background: var(--primary-hover); }
   .btn.ghost { background: var(--btn-ghost-bg); color: var(--btn-ghost-color); }
   .btn.ghost:hover { background: var(--btn-ghost-hover); }
+  /* 警告式变体（如 OCR 未识别）：隐藏动作按钮，仅播报 */
+  .card.warn .actions { display: none; }
 </style>
 </head>
 <body>
-  <div class="card">
+  <div class="card${isWarn ? ' warn' : ''}">
     <div class="head">
-      <div class="head-title">剪贴板 · 已复制${content.type === 'image' ? '图片' : '内容'}</div>
+      <div class="head-title">${toastTitle || ('剪贴板 · 已复制' + (content.type === 'image' ? '图片' : '内容'))}</div>
       <div class="close-btn" id="closeBtn"><svg viewBox="0 0 24 24" fill="none"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></div>
     </div>
     <div class="preview">${preview}</div>
@@ -5907,6 +5953,38 @@ async function showClipboardToast(content) {
   } catch (e) {
     log.warn('[ClipboardAssistant] toast error:', e.message);
   }
+}
+
+/** 抑制剪贴板轮询器对指定文本再次弹气泡（OCR 快捷路径写入剪贴板前调用，
+ *  避免 1.5s 轮询器在同一内容上再弹一个"剪贴板 · 已复制"气泡）。历史落库不受影响。 */
+function markClipboardSuppress(text) {
+  try {
+    const sig = clipboardSignature({ type: 'text', text: String(text || '') });
+    if (sig) {
+      lastClipboardKey = sig;
+      lastClipboardPromptAt = Date.now();
+    }
+  } catch (e) {}
+}
+
+/**
+ * 复用「剪贴板监听气泡」播报一条内容（OCR 快捷入口专用）。
+ * 成功/警告两种形态：title 覆盖标题；warn=true 走琥珀/红警告式并隐藏动作按钮。
+ * 说明：轮询器的去重（lastClipboardKey）在历史落库之前，因此被抑制的内容不会自动进历史，
+ * 这里对非空文本显式补记一条剪贴板历史（与轮询器 addClipboardHistory 同一落库）。
+ */
+function showClipboardEntryToast(entry) {
+  const content = entry || {};
+  const text = String(content.text || '').trim();
+  // 先抑制轮询重复（与 quickOcr 内 writeText 前的调用幂等），再展示
+  markClipboardSuppress(text);
+  if (text && !content.warn) {
+    try { addClipboardHistory({ type: 'text', text }); } catch (e) {}
+  }
+  showClipboardToast(
+    { type: 'text', text: text },
+    { title: content.title || null, warn: !!content.warn }
+  );
 }
 
 /** JSON POST 到后端（本地回环）。 */
@@ -7147,7 +7225,10 @@ app.whenReady().then(async () => {
       app, BrowserWindow, globalShortcut, desktopCapturer, clipboard, nativeImage, ipcMain, screen, dialog, shell, log, systemPreferences,
       loadConfig, saveConfig,
       getMainWindow: () => mainWindow,
-      showMainWindow: () => showMainWindow()
+      showMainWindow: () => showMainWindow(),
+      // OCR 快捷路径：复用「剪贴板监听气泡」反馈 + 抑制轮询重复弹窗（见 D+ 节）
+      markClipboardSuppress,
+      showClipboardEntryToast
     });
   } catch (e) {
     log.error('[Screenshot] init failed:', e.message);

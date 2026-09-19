@@ -92,11 +92,11 @@
   // ── 系统工具（Electron 主进程能力，不走后端注册表）──
   const SYSTEM_SCREENSHOT = {
     id: 'screenshot-system',
-    name: '截图工具',
-    icon: '📸',
+    name: '快捷 OCR',
+    icon: '🔤',
     category: '系统工具',
-    description: '截图 / 贴图 / 离线 OCR，快捷键可在设置页修改',
-    keywords: ['截图', '贴图', 'ocr', 'screenshot', 'screen'],
+    description: '框选文字区域 → 自动离线 OCR 并复制到剪贴板（完整截图模式见设置）',
+    keywords: ['截图', '贴图', 'ocr', 'screenshot', 'screen', '识别', '文字提取'],
     builtin: true,
     system: true
   };
@@ -680,13 +680,14 @@
       $('overlay').classList.add('show');
       return;
     }
-    let shot = 'F1', paste = 'F2', hideMain = true, enabled = true, ocrText = '查询中...';
+    let shot = 'F5', paste = 'F6', hideMain = true, enabled = true, mode = 'ocr', ocrText = '查询中...';
     if (api && api.screenshotGetShortcuts) {
       try {
         const cfg = await api.screenshotGetShortcuts();
-        shot = cfg.screenshot || 'F1'; paste = cfg.paste || 'F2';
+        shot = cfg.screenshot || 'F5'; paste = cfg.paste || 'F6';
         hideMain = cfg.hideMain !== false;
         enabled = cfg.enabled !== false;
+        mode = cfg.mode === 'full' ? 'full' : 'ocr';
       } catch (e) {}
     }
     if (api && api.screenshotOcrStatus) {
@@ -698,7 +699,7 @@
     const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     $('promptContent').innerHTML =
       '<div style="font-size:13px;line-height:2">' +
-      '<p style="margin-bottom:6px"><b>📸 截图工具</b> 配置（Snipaste 风格，即时生效）</p>' +
+      '<p style="margin-bottom:6px"><b>🔤 快捷 OCR / 截图工具</b> 配置（即时生效）</p>' +
       '<div style="display:flex;align-items:center;gap:10px;margin:4px 0;padding:6px 10px;border-radius:6px;background:' + (enabled ? 'rgba(34,197,94,.08)' : 'rgba(239,68,68,.08)') + '">' +
         '<span style="width:96px">工具状态</span>' +
         '<span id="sysToolStatus" style="font-weight:600;color:' + (enabled ? '#22c55e' : '#ef4444') + '">' + (enabled ? '🟢 已启用' : '🔴 已禁用') + '</span>' +
@@ -706,16 +707,24 @@
         '<span style="color:var(--app-text-muted);font-size:11px">' + (enabled ? '快捷键已注册' : '快捷键已释放') + '</span>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:10px;margin:4px 0">' +
-        '<span style="width:96px">截图快捷键</span>' +
-        '<input id="sysShotKey" type="text" readonly value="' + esc(shot) + '" ' +
-          'style="width:140px;text-align:center;padding:5px 8px;border:1px solid var(--app-border);border-radius:6px;background:var(--app-surface);color:var(--app-text);cursor:pointer;' + (enabled ? '' : 'opacity:0.5;') + '">' +
-        '<span style="color:var(--app-text-muted);font-size:11px">全屏选区</span>' +
+        '<span style="width:96px">默认模式</span>' +
+        '<select id="sysShotMode" style="padding:5px 8px;border:1px solid var(--app-border);border-radius:6px;background:var(--app-surface);color:var(--app-text);font-size:12px;' + (enabled ? '' : 'opacity:0.5;') + '">' +
+          '<option value="ocr"' + (mode !== 'full' ? ' selected' : '') + '>🔤 OCR 模式（默认）</option>' +
+          '<option value="full"' + (mode === 'full' ? ' selected' : '') + '>📸 完整截图模式</option>' +
+        '</select>' +
+        '<span style="color:var(--app-text-muted);font-size:11px">OCR：框选→识别→复制；完整：截图/标注/贴图</span>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:10px;margin:4px 0">' +
+        '<span style="width:96px">OCR/截图快捷键</span>' +
+        '<input id="sysShotKey" type="text" readonly value="' + esc(shot) + '" ' +
+          'style="width:140px;text-align:center;padding:5px 8px;border:1px solid var(--app-border);border-radius:6px;background:var(--app-surface);color:var(--app-text);cursor:pointer;' + (enabled ? '' : 'opacity:0.5;') + '">' +
+        '<span style="color:var(--app-text-muted);font-size:11px">全屏选区（OCR 默认动作）</span>' +
+      '</div>' +
+      '<div id="sysPasteRow" style="display:flex;align-items:center;gap:10px;margin:4px 0">' +
         '<span style="width:96px">贴图快捷键</span>' +
         '<input id="sysPasteKey" type="text" readonly value="' + esc(paste) + '" ' +
-          'style="width:140px;text-align:center;padding:5px 8px;border:1px solid var(--app-border);border-radius:6px;background:var(--app-surface);color:var(--app-text);cursor:pointer;' + (enabled ? '' : 'opacity:0.5;') + '">' +
-        '<span style="color:var(--app-text-muted);font-size:11px">置顶贴图</span>' +
+          'style="width:140px;text-align:center;padding:5px 8px;border:1px solid var(--app-border);border-radius:6px;background:var(--app-surface);color:var(--app-text);cursor:pointer;">' +
+        '<span style="color:var(--app-text-muted);font-size:11px">置顶贴图（仅完整截图模式生效）</span>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:10px;margin:4px 0">' +
         '<span style="width:96px">收起主窗口</span>' +
@@ -738,7 +747,23 @@
 
     // 快捷键录制：点击输入框进入录制，window keydown 捕获
     document.getElementById('sysShotKey').addEventListener('click', function () { window.__recordSysKey('shot'); });
-    document.getElementById('sysPasteKey').addEventListener('click', function () { window.__recordSysKey('paste'); });
+    document.getElementById('sysPasteKey').addEventListener('click', function () {
+      if (mode !== 'full') { showToast('贴图快捷键仅完整截图模式生效'); return; }
+      window.__recordSysKey('paste');
+    });
+    // 模式联动：OCR 模式下「贴图快捷键」置灰（贴图仅完整模式注册）
+    const sysModeSel = document.getElementById('sysShotMode');
+    const sysPasteRow = document.getElementById('sysPasteRow');
+    const sysPasteKeyEl = document.getElementById('sysPasteKey');
+    if (sysModeSel && sysPasteRow && sysPasteKeyEl) {
+      const applySysMode = function () {
+        const ocrMode = sysModeSel.value !== 'full';
+        sysPasteRow.style.opacity = ocrMode ? '0.45' : '';
+        sysPasteKeyEl.style.pointerEvents = ocrMode ? 'none' : '';
+      };
+      applySysMode();
+      sysModeSel.addEventListener('change', applySysMode);
+    }
     window.__recordSysKey = function (which) {
       recordingSysKey = which;
       const input = document.getElementById(which === 'paste' ? 'sysPasteKey' : 'sysShotKey');
@@ -770,10 +795,12 @@
     window.addEventListener('keydown', keyHandler);
 
     document.getElementById('sysSave').addEventListener('click', async function () {
+      const modeEl = document.getElementById('sysShotMode');
       const payload = {
-        screenshot: (document.getElementById('sysShotKey').value.trim() || 'F1'),
-        paste: (document.getElementById('sysPasteKey').value.trim() || 'F2'),
-        hideMain: document.getElementById('sysHideMain').checked
+        screenshot: (document.getElementById('sysShotKey').value.trim() || 'F5'),
+        paste: (document.getElementById('sysPasteKey').value.trim() || 'F6'),
+        hideMain: document.getElementById('sysHideMain').checked,
+        mode: (modeEl && (modeEl.value === 'full' ? 'full' : 'ocr')) || 'ocr'
       };
       try {
         if (api && api.screenshotSetShortcuts) await api.screenshotSetShortcuts(payload);

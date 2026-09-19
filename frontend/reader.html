@@ -22,7 +22,7 @@
         <button id="rdZoomOut" class="rd-btn" title="缩小 (Ctrl+-)">−</button>
         <span id="rdZoomLabel" class="rd-zoom-label">100%</span>
         <button id="rdZoomIn" class="rd-btn" title="放大 (Ctrl+=)">+</button>
-        <button id="rdFit" class="rd-btn" title="适应宽度">⤢</button>
+        <button id="rdFit" class="rd-btn" title="按当前窗口宽度适配页面">适应宽度</button>
       </div>
       <button id="rdEditBtn" class="rd-btn" title="在编辑器中打开此文件" hidden>✏️ 编辑器打开</button>
       <button id="rdExportBtn" class="rd-btn" title="导出为文本 / CSV" hidden>⬇️ 导出</button>
@@ -33,7 +33,11 @@
   <!-- PDF / PPT 翻页工具条 -->
   <div class="rd-pager" id="rdPager" hidden>
     <button id="rdPrev" class="rd-btn">‹ 上一页</button>
-    <span id="rdPageInfo" class="rd-page-info">0 / 0</span>
+    <span class="rd-page-info">
+      <input id="rdPageInput" class="rd-page-input" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" title="输入页码后回车跳页">
+      <span class="rd-page-slash" id="rdPageSlash">/</span>
+      <span id="rdPageTotal">0</span>
+    </span>
     <button id="rdNext" class="rd-btn">下一页 ›</button>
     <span class="rd-pager-hint" id="rdPagerHint"></span>
   </div>
@@ -59,6 +63,13 @@
     <div class="rd-scroll" id="rdScroll">
       <div class="rd-container" id="rdContainer"></div>
     </div>
+    <!-- PDF 翻页方向键：左右悬浮半透明，点击翻页（也提示可左右拖拽） -->
+    <button class="rd-nav-arrow rd-nav-prev" id="rdNavPrev" title="上一页（左拖/右拖也可翻页）" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <button class="rd-nav-arrow rd-nav-next" id="rdNavNext" title="下一页（左拖/右拖也可翻页）" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+    </button>
   </div>
 
   <!-- XLSX 工作表切换条（动态挂载） -->

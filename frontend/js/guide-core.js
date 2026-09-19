@@ -28,8 +28,8 @@
     if (document.getElementById(STYLE_TAG_ID)) return;
 
     var css = [
-      '/* guide-core 注入样式（作用域于 .g-root，令牌自含） */',
-      '[data-guide-core] .g-root{',
+      '/* guide-core 注入样式（根节点自身带 data-guide-core，令牌自含） */',
+      '[data-guide-core].g-root{',
       '  --g-bg:#f7f7f5; --g-surface:#ffffff; --g-surface-subtle:#f1f1ef;',
       '  --g-border:#e3e3df; --g-border-strong:#d2d2cd;',
       '  --g-text:#2f3437; --g-text-secondary:#6b6f76; --g-text-muted:#92969d;',
@@ -38,7 +38,7 @@
       '  --g-danger:#d14343; --g-danger-soft:rgba(209,67,67,.10);',
       '  --g-warn-bg:#fff8f1; --g-warn-ink:#5b4636; --g-warn-accent:#e8871e; --g-warn-accent-soft:rgba(232,135,30,.14);',
       '}',
-      'html[data-theme="dark"] [data-guide-core] .g-root{',
+      'html[data-theme="dark"] [data-guide-core].g-root{',
       '  --g-bg:#1e1e1e; --g-surface:#282828; --g-surface-subtle:#323232;',
       '  --g-border:#414141; --g-border-strong:#525252;',
       '  --g-text:#dedede; --g-text-secondary:#aaa; --g-text-muted:#777;',
@@ -171,7 +171,7 @@
     if (!container) return;
 
     var root = el('div', { class: 'g-root' });
-    root.setAttribute('data-guide-core-root', '');
+    root.setAttribute('data-guide-core', '');
 
     renderHeader(spec, root);
 

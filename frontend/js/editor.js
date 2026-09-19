@@ -122,6 +122,7 @@
     'aiChatResizeHandle', 'aiPetBtn', 'editorContextMenu', 'aiSearchContextBtn', 'smartIngestContextBtn', 'aiImportPasswordContextBtn',
     'offlineTranslateContextBtn', 'onlineTranslateContextBtn', 'addCustomMappingContextBtn', 'addToDictLibContextBtn', 'aiContextAnalysisContextBtn',
     'manageDictionaryContextBtn', 'aiChatContextBtn', 'joinLineEndsContextBtn', 'formatContextBtn', 'toggleWordWrapContextBtn', 'insertWikilinkContextBtn',
+    'canvasQuickAddContextBtn',
     'dictModal', 'dictSourceInput', 'dictTargetInput', 'dictAddBtn', 'dictList', 'dictLibList', 'dictTabMapping', 'dictTabLibrary',
     'templateModal', 'templateNameInput', 'templateContentInput', 'templateSaveBtn', 'templateEditCancelBtn', 'templateList',
     'wikilinkPickerModal', 'wikilinkPickerHint', 'wikilinkPickerList',
@@ -3035,6 +3036,7 @@
     const selectedText = mainEditor.getSelectedText();
     const hasSelection = !!selectedText.trim();
     elements.aiSearchContextBtn.hidden = !hasSelection;
+    elements.canvasQuickAddContextBtn.hidden = !hasSelection;
     elements.smartIngestContextBtn.hidden = !hasSelection;
     elements.aiImportPasswordContextBtn.hidden = !hasSelection;
     elements.offlineTranslateContextBtn.hidden = !hasSelection;
@@ -3126,6 +3128,21 @@
   function executeEditorContextAction(action) {
     const selectedText = elements.editorContextMenu.dataset.selectedText || '';
     closeEditorContextMenu();
+    if (action === 'canvasQuickAdd') {
+      if (!selectedText.trim()) { showToast('请先选中文本', true); return; }
+      if (!window.electronAPI || typeof window.electronAPI.quickAddCanvasNode !== 'function') {
+        showToast('当前环境不支持发送到画布', true);
+        return;
+      }
+      var firstLine = selectedText.trim().split(/\r?\n/)[0] || '';
+      window.electronAPI.quickAddCanvasNode({ text: selectedText, title: firstLine.slice(0, 60) })
+        .then(function(res) {
+          if (res && res.success) showToast('已发送到画布「我的画布」');
+          else showToast('发送失败：' + ((res && res.message) || '未知错误'), true);
+        })
+        .catch(function() { showToast('发送到画布失败，请重试', true); });
+      return;
+    }
     if (action === 'aiSearch') {
       const prompt = window.EditorAiChatCore.buildSearchPrompt(selectedText);
       if (prompt) {

@@ -1,4 +1,4 @@
-﻿# download-ocr-models.ps1 - 下载 RapidOCR / PaddleOCR PP-OCRv4 ONNX 模型（多源回退）
+# download-ocr-models.ps1 - 下载 RapidOCR / PaddleOCR PP-OCRv5 ONNX 模型（多源回退）
 # 本文件必须为 UTF-8 带 BOM（Windows PowerShell 5.1 无 BOM 中文乱码解析崩溃）
 #
 # 用法：powershell -ExecutionPolicy Bypass -File electron/screenshot/download-ocr-models.ps1
@@ -9,17 +9,16 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $OutDir = Join-Path $ScriptDir 'ocr-models'
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
-# 多源镜像（按顺序回退）：GitHub Release → hf-mirror 国内镜像 → HuggingFace → PaddleOCR 官方 raw
-$GH = 'https://github.com/RapidAI/RapidOCR/releases/download/v4.0.0'
+# 多源镜像（按顺序回退）：hf-mirror 国内镜像 → HuggingFace（v5 det/rec/cls）
 $HF = 'https://hf-mirror.com/spaces/RapidAI/RapidOCR/resolve/main'
 $HFRAW = 'https://huggingface.co/spaces/RapidAI/RapidOCR/resolve/main'
 $PP = 'https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/ppocr_keys_v1.txt'
 
 $Jobs = @(
-  @{ n = 'ch_PP-OCRv4_det_infer.onnx'; urls = @("$GH/det.onnx", "$HF/models/text_det/ch_PP-OCRv4_det_infer.onnx", "$HFRAW/models/text_det/ch_PP-OCRv4_det_infer.onnx") },
-  @{ n = 'ch_PP-OCRv4_rec_infer.onnx'; urls = @("$GH/rec.onnx", "$HF/models/text_rec/ch_PP-OCRv4_rec_infer.onnx", "$HFRAW/models/text_rec/ch_PP-OCRv4_rec_infer.onnx") },
-  @{ n = 'ch_PP-OCRv4_cls_infer.onnx'; urls = @("$GH/cls.onnx", "$HF/models/text_cls/ch_PP-OCRv4_cls_infer.onnx", "$HFRAW/models/text_cls/ch_PP-OCRv4_cls_infer.onnx") },
-  @{ n = 'ppocr_keys_v1.txt';          urls = @("$GH/ppocr_keys_v1.txt", $PP, "$HF/models/ppocr_keys_v1.txt") }
+  @{ n = 'ch_PP-OCRv5_det_infer.onnx';           urls = @("$HF/models/text_det/ch_PP-OCRv5_det_infer.onnx", "$HFRAW/models/text_det/ch_PP-OCRv5_det_infer.onnx") },
+  @{ n = 'ch_PP-OCRv5_rec_infer.onnx';           urls = @("$HF/models/text_rec/ch_PP-OCRv5_rec_infer.onnx", "$HFRAW/models/text_rec/ch_PP-OCRv5_rec_infer.onnx") },
+  @{ n = 'ch_ppocr_mobile_v2.0_cls_train.onnx';  urls = @("$HF/models/text_cls/ch_ppocr_mobile_v2.0_cls_train.onnx", "$HFRAW/models/text_cls/ch_ppocr_mobile_v2.0_cls_train.onnx") },
+  @{ n = 'ppocr_keys_v1.txt';                    urls = @($PP, "$HF/models/ppocr_keys_v1.txt") }
 )
 
 $done = 0
@@ -47,5 +46,5 @@ if ($done -eq 4) { Write-Host "[OK] OCR 模型就绪，重启应用后生效" }
 else {
   Write-Host "[WARN] 部分模型缺失；可浏览器打开以下页面手动下载放入 $OutDir :" -ForegroundColor Yellow
   Write-Host "  https://huggingface.co/spaces/RapidAI/RapidOCR/tree/main/models" -ForegroundColor Yellow
-  Write-Host "  需要: text_det/ ch_PP-OCRv4_det_infer.onnx, text_rec/ ch_PP-OCRv4_rec_infer.onnx, text_cls/ ch_PP-OCRv4_cls_infer.onnx, ppocr_keys_v1.txt" -ForegroundColor Yellow
+  Write-Host "  需要: text_det/ ch_PP-OCRv5_det_infer.onnx, text_rec/ ch_PP-OCRv5_rec_infer.onnx, text_cls/ ch_ppocr_mobile_v2.0_cls_train.onnx, ppocr_keys_v1.txt" -ForegroundColor Yellow
 }
