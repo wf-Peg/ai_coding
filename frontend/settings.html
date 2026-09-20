@@ -834,13 +834,50 @@
             display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
             padding: 14px 16px; margin-bottom: 16px;
             border-radius: var(--app-radius-lg, 12px);
-            background: var(--app-surface, #fff); border: 1px solid var(--app-border, #e3e3df);
-            box-shadow: var(--app-shadow-sm, 0 1px 3px rgba(15,23,42,.06));
+            background: var(--app-primary-soft, rgba(35,131,226,.08));
+            border: 1px dashed var(--app-primary, #2383e2);
             font-size: 13px; color: var(--app-text-secondary, #6b6f76);
+            transition: border-color .2s ease, background .2s ease;
         }
-        .help-banner .help-icon { font-size: 22px; line-height: 1; }
-        .help-banner b { color: var(--app-text, #2f3437); }
-        .help-banner .btn { margin-left: auto; }
+        .help-banner.offline {
+            background: var(--app-warning-soft, rgba(183,121,31,.12));
+            border-color: var(--app-warning, #e8871e);
+        }
+        .help-banner .help-icon {
+            width: 40px; height: 40px; flex: 0 0 40px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px; line-height: 1;
+            border-radius: 10px;
+            background: var(--app-surface, #fff);
+            border: 1px solid var(--app-border, #e3e3df);
+        }
+        .help-banner-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+        .help-banner-text b { color: var(--app-text, #2f3437); font-size: 14px; }
+        .guide-banner-sub { font-size: 12px; color: var(--app-text-secondary, #6b6f76); }
+        .guide-status {
+            display: inline-flex; align-items: center; gap: 10px;
+            padding: 4px 12px; border-radius: 999px; white-space: nowrap;
+            font-size: 12px; font-weight: 600;
+            background: var(--app-surface, #fff);
+            border: 1px solid var(--app-border, #e3e3df);
+            color: var(--app-text-secondary, #6b6f76);
+        }
+        .guide-status > span { display: inline-flex; align-items: center; gap: 5px; }
+        .guide-status-sep { width: 1px; height: 10px; background: var(--app-border-strong, #d2d2cd); flex: 0 0 1px; }
+        .guide-status-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--app-border-strong, #d2d2cd); }
+        .guide-status-dot.ok { background: var(--app-success, #238b63); }
+        .guide-status-dot.warn { background: var(--app-warning, #e8871e); }
+        .guide-status.offline {
+            color: var(--app-warning, #b7791f);
+            border-color: var(--app-warning, #e8871e);
+            background: var(--app-warning-soft, rgba(232,135,30,.12));
+        }
+        .help-banner .btn { margin-left: 2px; }
+        .focus-flash { animation: focusFlash 1.2s ease; }
+        @keyframes focusFlash {
+            0% { box-shadow: 0 0 0 3px var(--app-primary-soft, rgba(35,131,226,.25)); }
+            100% { box-shadow: 0 0 0 rgba(35,131,226,0); }
+        }
         .slug.required-row .form-label,
         .required-row .form-label {
             font-weight: 600; color: var(--app-danger);
@@ -872,7 +909,11 @@
 
                 <div class="help-banner" id="guideReplayBanner">
                     <span class="help-icon">🎓</span>
-                    <span><b>上手引导</b> · 重播首次引导卡，逐步了解存储路径、AI Key 与进阶集成</span>
+                    <div class="help-banner-text">
+                        <b>上手引导</b>
+                        <span class="guide-banner-sub">重播首次引导，随时回顾关键配置</span>
+                    </div>
+                    <span class="guide-status" id="guideBannerStatus"><span class="guide-status-dot off"></span><span>检测中…</span></span>
                     <button class="btn btn-primary" id="guideReplayBtn" onclick="openGuideReplay()">播放引导</button>
                 </div>
 

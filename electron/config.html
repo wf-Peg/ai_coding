@@ -13,7 +13,12 @@
   <style>
     /* ===== 全局重置与骨架（全部引用 --app-* 令牌） ===== */
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    /* 视口高度基准：用 100% 而不是 100vh。
+       100vh 在窗口位置/DPI 等状态下可能与实际视口高度不一致，导致整页溢出、
+       自定义标题栏被顶出窗口区域（对齐主页面 index.html 的既有修复）。 */
+    html { height: 100%; overflow: hidden; }
     body {
+      height: 100%;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
       background: var(--app-bg, #f7f7f5); color: var(--app-text, #2f3437); overflow: hidden;
     }
@@ -45,7 +50,8 @@
     .titlebar-btn:hover { background: rgba(255,255,255,0.18); }
 
     /* ===== 主内容区域（引导卡由 guide-core 渲染） ===== */
-    .container { height: calc(100vh - 44px); overflow-y: auto; }
+    /* 高度基于 html/body 的 100%（真实视口），不再用 100vh（对齐 index.html 修复） */
+    .container { height: calc(100% - 44px); overflow-y: auto; }
 
     /* ===== 顶部状态条（复用旧 status-bar 语义，令牌化） ===== */
     .status-bar {

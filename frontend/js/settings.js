@@ -214,6 +214,7 @@ async function loadConfig() {
     }
 
     showToast('配置加载成功');
+    updateGuideBannerState();
     CutShelterScroll.restore('settings');
   } catch (error) {
     console.error('加载配置失败:', error);
@@ -986,6 +987,7 @@ function showToast(message, isError = false) {
 document.addEventListener('DOMContentLoaded', () => {
   renderThemeCards();
   loadConfig();
+  updateGuideBannerState();
   loadGpuProfile();
   document.getElementById('mascotAction')?.addEventListener('change', handleMascotActionChange);
   document.getElementById('mascotPresetList')?.addEventListener('click', handleMascotPreset);
@@ -2327,38 +2329,111 @@ if (typeof getElectronAPI === 'function') {
 
 // ====== 上手引导重播（设置页「工作区」横幅按钮触发） ======
 /**
- * 打开引导重播弹层，复用 guide-core 渲染。
- * 状态从当前 DOM 回读（storagePath / 各 provider key），忠实反映"已配置/未配置"。
+ * 打开引导重播弹层：定位为「状态速览 + 指引跳转」（非配置表单、非分步向导）。
+ * - 后端未启动（configLoaded=false）时呈警示态：弹层顶部提示条、卡片状态「未能读取」、跳转动作禁用。
+ * - 配置状态从当前 DOM 回读（storagePath / 各 provider key），忠实反映"已配置/未配置"。
  */
+const GUIDE_PROVIDER_LABELS = { dashscope: '阿里云 DashScope', deepseek: 'DeepSeek', custom: '自定义 OpenAI 兼容' };
+
+function gEscapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function gMaskKey(v) {
+  const s = (v || '').trim();
+  if (!s) return '';
+  return s.length <= 4 ? 'sk-…' + s : 'sk-…' + s.slice(-4);
+}
+
+/** 跳转到目标配置项：若在折叠区先展开，滚动居中后短暂高亮所在表单组 */
+function guideJumpTo(targetId) {
+  const host = document.getElementById('guideReplayHost');
+  if (host) host.remove();
+  const el = document.getElementById(targetId);
+  if (!el) { showToast('未找到目标配置项，请刷新设置页后重试', true); return; }
+  const sub = el.closest('.config-subsection');
+  if (sub) {
+    const titleEl = sub.querySelector('.config-subsection-title.collapsible');
+    const body = sub.querySelector('.subsection-body');
+    if (titleEl && body && body.classList.contains('collapsed')) toggleSection(titleEl);
+  }
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const group = el.closest('.form-group') || el.closest('.config-subsection') || el;
+  group.classList.add('focus-flash');
+  window.setTimeout(() => group.classList.remove('focus-flash'), 1200);
+}
+
+function guideBackendReady() {
+  return configLoaded === true;
+}
+
 function openGuideReplay() {
   if (!window.CutShelterGuide) { showToast('引导组件未加载，请刷新后重试', true); return; }
   // 移除历史弹层，避免重复叠加
   const old = document.getElementById('guideReplayHost');
   if (old) old.remove();
 
+  // 遮罩 + 对话框卡片外壳
   const host = document.createElement('div');
   host.id = 'guideReplayHost';
   host.style.cssText = [
-    'position:fixed; inset:0; z-index:9999;',
-    'display:flex; align-items:center; justify-content:center; padding:24px;',
-    'background:color-mix(in srgb, var(--app-bg,#1e1e1e) 55%, transparent);'
+    'position:fixed;inset:0;z-index:9999;',
+    'display:flex;align-items:center;justify-content:center;padding:24px;',
+    'background:color-mix(in srgb,var(--app-bg,#1e1e1e) 55%,transparent);'
   ].join('');
   // 点击遮罩空白处关闭
   host.addEventListener('click', (e) => { if (e.target === host) openGuideReplayClose(host); });
-  const cardWrap = document.createElement('div');
-  host.appendChild(cardWrap);
   document.body.appendChild(host);
 
+  const dialog = document.createElement('div');
+  dialog.style.cssText = [
+    'position:relative;width:100%;max-width:480px;',
+    'max-height:calc(100vh - 48px);overflow:auto;padding:22px;',
+    'background:var(--app-surface,#fff);border:1px solid var(--app-border,#e3e3df);border-radius:16px;',
+    'box-shadow:var(--app-shadow-xl,0 20px 25px rgba(15,23,42,.12),0 8px 10px rgba(15,23,42,.06));'
+  ].join('');
+  host.appendChild(dialog);
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.setAttribute('aria-label', '关闭');
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = [
+    'position:absolute;top:14px;right:14px;width:32px;height:32px;',
+    'border:none;border-radius:8px;cursor:pointer;',
+    'display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;',
+    'background:var(--app-surface-subtle,#f1f1ef);color:var(--app-text-secondary,#6b6f76);transition:background .15s ease;'
+  ].join('');
+  closeBtn.addEventListener('click', () => openGuideReplayClose(host));
+  dialog.appendChild(closeBtn);
+
+  const wrap = document.createElement('div');
+  dialog.appendChild(wrap);
+
   const vi = (id) => ((document.getElementById(id) || {}).value || '').trim();
+  const backendReady = guideBackendReady();
   const storageSet = !!vi('storagePath');
   const aiSet = !!(vi('dashscopeApiKey') || vi('deepseekApiKey') || vi('customApiKey'));
+  const provider = vi('activeProvider') || 'dashscope';
+  const providerLabel = GUIDE_PROVIDER_LABELS[provider] || '自定义 OpenAI 兼容';
+  const maskedKey = backendReady
+    ? (gMaskKey(vi('dashscopeApiKey')) || gMaskKey(vi('deepseekApiKey')) || gMaskKey(vi('customApiKey')))
+    : '';
+
+  // 状态行（替代误导性步骤圆点）：语义状态摘要
+  const stepDots = backendReady
+    ? '<span class="g-sdot ' + (storageSet ? 'ok' : 'warn') + '"></span>' + (storageSet ? '存储已就绪' : '存储未设置') +
+      '<span class="g-sdot ' + (aiSet ? 'ok' : 'warn') + '"></span>' + (aiSet ? 'AI Key 已配置' : 'AI Key 待配置')
+    : '<span class="g-sdot off"></span>2 项配置待确认 · 后端未连接';
 
   const spec = {
     title: '上手引导',
     subtitle: '重播首次引导，快速回顾关键配置',
-    stepText: '重播模式 · 随时可再次打开',
-    progress: [{ state: 'done' }, { state: aiSet ? 'done' : 'current' }],
-    footerNote: '内容 100% 存本机 · 随时可用任何工具打开迁移',
+    stepText: stepDots,
+    hideProgress: true,
+    plain: true,
+    footerNote: '内容 100% 存本机 · 随时可迁移',
     primaryAction: {
       id: 'gReplayClose', label: '完成',
       onClick: () => openGuideReplayClose(host)
@@ -2366,45 +2441,98 @@ function openGuideReplay() {
     cards: [
       {
         id: 'replay-store', icon: '📂', label: '工作区存储路径',
-        required: true, badge: '必填', badgeOpt: false,
+        required: true, badgeOpt: false, badge: '必填',
         desc: '所有剪藏、整理、周报数据存放的根目录。',
-        status: { text: storageSet ? '已就绪' : '未设置', tone: storageSet ? 'ok' : 'danger' },
-        open: !storageSet,
-        fieldsHtml: () => { return vi('storagePath'); },
-        actions: () => '<div class="g-hint">在左侧「工作区」分组可修改存储路径。</div>'
+        status: backendReady
+          ? (storageSet ? { text: '已就绪', tone: 'ok' } : { text: '未设置', tone: 'danger' })
+          : { text: '未能读取', tone: 'muted' },
+        open: true,
+        fieldsHtml: () => '<div class="g-field">' +
+          '<label class="g-label">当前存储目录</label>' +
+          '<div class="g-path-display">' + (backendReady && storageSet ? gEscapeHtml(vi('storagePath')) : '<span class="g-empty-txt">尚未设置</span>') + '</div>' +
+          '<div class="g-hint">子目录 clip-storage / clip-organized / weekly-report 将自动派生，可在左侧「工作区」分组修改。</div>' +
+          '</div>',
+        actions: () => (backendReady && !storageSet)
+          ? '<div class="g-cta-row"><button type="button" class="g-cta" onclick="guideJumpTo(\'storagePath\')">去设置存储路径 →</button></div>'
+          : (!backendReady
+              ? '<div class="g-cta-row"><button type="button" class="g-cta" disabled>去设置存储路径（启动后端后可用）</button></div>'
+              : '')
       },
       {
         id: 'replay-ai', icon: '🧠', label: '主 AI 模型 · API Key',
-        required: false, badge: '稍后配置', badgeOpt: true,
-        desc: '为整理、问答、写作提供 AI 能力，未配置时保留已经开启的 AI 整理、问答、写作等能力。',
-        status: { text: aiSet ? '已配置' : '稍后配置', tone: aiSet ? 'ok' : 'muted' },
-        open: !aiSet,
-        fieldsHtml: () => '',
-        actions: () => !aiSet
-          ? '<button type="button" class="g-btn ghost" onclick="document.getElementById(\'activeProvider\').closest(\'[id]\').scrollIntoView();openGuideReplayClose(document.getElementById(\'guideReplayHost\'));">去配置 AI Key…</button>'
-          : ''
+        required: false, badgeOpt: true, badge: '稍后可配',
+        desc: '为整理、问答、写作提供 AI 能力，未配置时保留已开启的 AI 整理、问答、写作等能力。',
+        status: backendReady
+          ? (aiSet ? { text: '已配置', tone: 'ok' } : { text: '稍后配置', tone: 'muted' })
+          : { text: '未能读取', tone: 'muted' },
+        open: true,
+        fieldsHtml: () => '<div class="g-field">' +
+          '<label class="g-label">服务商</label>' +
+          '<div class="g-value">' + (backendReady ? gEscapeHtml(providerLabel) : '<span class="g-empty-txt">未能读取</span>') + '</div>' +
+          '</div>' +
+          '<div class="g-field">' +
+          '<label class="g-label">API Key</label>' +
+          '<div class="g-value">' + (backendReady ? (maskedKey ? gEscapeHtml(maskedKey) : '<span class="g-empty-txt">未配置</span>') : '<span class="g-empty-txt">未能读取</span>') + '</div>' +
+          '<div class="g-hint">可在「AI 与模型」分组修改。</div>' +
+          '</div>',
+        actions: () => (backendReady && !aiSet)
+          ? '<div class="g-cta-row"><button type="button" class="g-cta" onclick="guideJumpTo(\'activeProvider\')">前往「AI 与模型」配置 →</button></div>'
+          : (!backendReady
+              ? '<div class="g-cta-row"><button type="button" class="g-cta" disabled>前往「AI 与模型」配置（启动后端后可用）</button></div>'
+              : '')
       }
     ]
   };
-  window.CutShelterGuide.render(cardWrap, spec);
-  host.appendChild(createReplayCloseBtn(host));
-}
 
-function createReplayCloseBtn(host) {
-  const b = document.createElement('button');
-  b.textContent = '✕';
-  b.style.cssText = [
-    'position:absolute; top:16px; right:16px; width:32px; height:32px;',
-    'border:none; border-radius:8px; cursor:pointer;',
-    'background:var(--app-surface,#fff); color:var(--app-text,#2f3437);',
-    'font-size:16px; box-shadow:var(--app-shadow-sm,0 1px 3px rgba(15,23,42,.06));'
-  ].join('');
-  b.addEventListener('click', () => openGuideReplayClose(host));
-  return b;
+  // 后端未启动：弹层顶部警示条（宁可说明状态不可用，不做误读展示）
+  if (!backendReady) {
+    const notice = document.createElement('div');
+    notice.style.cssText = [
+      'display:flex;align-items:flex-start;gap:8px;padding:10px 12px;margin-bottom:16px;',
+      'border-radius:10px;font-size:12.5px;line-height:1.6;',
+      'color:var(--app-warning,#b7791f);',
+      'background:var(--app-warning-soft,rgba(183,121,31,.12));border:1px solid var(--app-warning,#e8871e);'
+    ].join('');
+    notice.innerHTML = '<span>⚠️</span><span>后端服务未启动，当前配置状态不可用。请先启动后端（<b>http://127.0.0.1:8081</b>）后重新打开引导。</span>';
+    dialog.insertBefore(notice, wrap);
+  }
+
+  window.CutShelterGuide.render(wrap, spec);
+  // 重播为只读速览，「完成」恒可点（不受 required 卡状态门控）
+  if (spec._primaryBtn) spec._primaryBtn.disabled = false;
 }
 
 function openGuideReplayClose(host) {
   if (host) host.remove();
+}
+
+// ====== 工作区分组「上手引导」横幅状态联动 ======
+function updateGuideBannerState() {
+  const banner = document.getElementById('guideReplayBanner');
+  if (!banner) return;
+  const statusEl = document.getElementById('guideBannerStatus');
+  const subEl = banner.querySelector('.guide-banner-sub');
+  if (!guideBackendReady()) {
+    banner.classList.add('offline');
+    if (subEl) subEl.textContent = '后端服务未启动，连接后即可查看配置状态';
+    if (statusEl) {
+      statusEl.classList.add('offline');
+      statusEl.innerHTML = '<span class="guide-status-dot off"></span><span>后端未连接</span>';
+    }
+    return;
+  }
+  banner.classList.remove('offline');
+  const vi = (id) => ((document.getElementById(id) || {}).value || '').trim();
+  const storageSet = !!vi('storagePath');
+  const aiSet = !!(vi('dashscopeApiKey') || vi('deepseekApiKey') || vi('customApiKey'));
+  if (subEl) subEl.textContent = '重播首次引导，随时回顾关键配置';
+  if (statusEl) {
+    statusEl.classList.remove('offline');
+    statusEl.innerHTML =
+      '<span class="guide-status-dot ' + (storageSet ? 'ok' : 'warn') + '"></span><span>' + (storageSet ? '存储已就绪' : '存储未设置') + '</span>' +
+      '<i class="guide-status-sep"></i>' +
+      '<span class="guide-status-dot ' + (aiSet ? 'ok' : 'warn') + '"></span><span>' + (aiSet ? 'AI Key 已配置' : 'AI Key 待配置') + '</span>';
+  }
 }
 
 // ====== 接收主框架消息：滚动到顶部 / 刷新 / 主题 ======
@@ -2422,6 +2550,7 @@ window.addEventListener('message', (e) => {
   } else if (e.data.action === 'backendState' && e.data.state === 'ready' && !configLoaded) {
     // 后端就绪后再补载配置，避免冷启动时设置页与后端就绪竞态导致字段长时间空白
     loadConfig();
+    updateGuideBannerState();
   }
 });
 

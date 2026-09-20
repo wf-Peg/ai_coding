@@ -2212,6 +2212,77 @@ function ensureWindowVisible(win) {
   }
 }
 
+// 所有已注册"可视区校准"的窗口（显示器拓扑变化时统一拉回；窗口关闭自动移出）
+const clampedWindows = new Set();
+
+/**
+ * 为窗口挂载"可视区校准"兜底（标题栏被屏幕裁掉的通用防护）
+ *
+ * 任何自绘/原生标题栏窗口（主窗口、设置窗口、首装引导窗口及未来子窗口）创建后都应调用一次，
+ * 复用 ensureWindowVisible 的越界拉回。以下偶发场景会把窗口顶边推到系统菜单栏之上、
+ * 自定义标题栏被屏幕切掉一截：
+ *  - 显示器拔插 / 分辨率变更 / DPI 变化 / OS 会话恢复
+ *  - 原生全屏（F11 / ⌃⌘F）退出后的边界残留
+ *  - macOS Cmd+Tab 切屏切回后窗口 y 落到 workArea 之上（系统动画期间同步校准会被覆盖）
+ *  - 系统 Aero Snap / 外部程序改位后窗口落在负坐标
+ *
+ * 挂载的触发点（与既有主窗口校准逻辑完全对齐）：
+ *  - display-metrics-changed：显示器拓扑变化（全局只注册一次，遍历所有已注册存活窗口）
+ *  - leave-full-screen / unmaximize：等系统还原动画结束再校准（300ms 延迟）
+ *  - show / focus：Cmd+Tab 切回动画落定后再校准（250ms 去抖）
+ *  - move：拖拽/系统改位停手 400ms 后再检查并拉回安全区
+ *  - 注册时立即校准一次
+ *
+ * @param {BrowserWindow} win
+ */
+function registerWindowVisibleClamp(win) {
+  if (!win || win.isDestroyed() || clampedWindows.has(win)) return;
+  clampedWindows.add(win);
+  win.on('closed', () => clampedWindows.delete(win));
+
+  // 显示器拓扑变化：全局只注册一次，遍历所有已注册存活窗口
+  if (!windowClampRegistered) {
+    windowClampRegistered = true;
+    screen.on('display-metrics-changed', () => {
+      for (const w of clampedWindows) {
+        if (w && !w.isDestroyed()) ensureWindowVisible(w);
+      }
+    });
+  }
+
+  // 原生全屏退出 / 最大化还原后的边界残留：等系统动画结束再校准
+  const clampLater = (ms) => {
+    setTimeout(() => { if (win && !win.isDestroyed()) ensureWindowVisible(win); }, ms);
+  };
+  win.on('leave-full-screen', () => clampLater(300));
+  win.on('unmaximize', () => clampLater(300));
+
+  // macOS Cmd+Tab 切屏切回：系统切换动画落定后再校准，抓"最终位置"
+  let clampTimer = null;
+  const clampAfterShowFocus = () => {
+    if (clampTimer) clearTimeout(clampTimer);
+    clampTimer = setTimeout(() => {
+      clampTimer = null;
+      if (win && !win.isDestroyed()) ensureWindowVisible(win);
+    }, 250);
+  };
+  win.on('show', clampAfterShowFocus);
+  win.on('focus', clampAfterShowFocus);
+
+  // 拖拽/系统改位：move 去抖，停手 400ms 后再检查
+  let moveClampTimer = null;
+  win.on('move', () => {
+    if (moveClampTimer) clearTimeout(moveClampTimer);
+    moveClampTimer = setTimeout(() => {
+      moveClampTimer = null;
+      if (win && !win.isDestroyed()) ensureWindowVisible(win);
+    }, 400);
+  });
+
+  // 注册时立即校准一次
+  ensureWindowVisible(win);
+}
+
 /**
  * 创建系统托盘图标
  * 托盘右键菜单提供"显示主窗口"和"退出"选项
@@ -2721,43 +2792,10 @@ function createMainWindow(config) {
   // 窗口销毁时清理引用
   mainWindow.on('closed', () => { mainWindow = null; });
 
-  // 创建时就校准一次：多显示器拔插/分辨率变更/OS 会话恢复可能把窗口顶到系统菜单栏区域
-  ensureWindowVisible(mainWindow);
-  if (!windowClampRegistered) {
-    windowClampRegistered = true;
-    // 显示器拓扑变化（拔插/分辨率/排列改变）后窗口可能被系统移出可视区，统一拉回安全区
-    screen.on('display-metrics-changed', () => { ensureWindowVisible(mainWindow); });
-  }
-  // 原生全屏退出（编辑器 F11/⌃⌘F 走 setFullScreen）后恢复的边界有已知缺陷：
-  // 等系统还原动画结束后再校准一次，避免窗口顶边残留在菜单栏上方
-  mainWindow.on('leave-full-screen', () => {
-    setTimeout(() => ensureWindowVisible(mainWindow), 300);
-  });
-
-  // macOS Cmd+Tab 切屏切回时（OS 已知缺陷）窗口 y 会落到 workArea 之上、顶进菜单栏。
-  // activate/focus 触发的同步校准发生在系统切换动画完成前，最终位置随后会被系统覆盖，
-  // 因此对 show/focus 做延迟去抖校准，抓"动画落定后的最终位置"。
-  let clampTimer = null;
-  const clampAfterShowFocus = () => {
-    if (clampTimer) clearTimeout(clampTimer);
-    clampTimer = setTimeout(() => {
-      clampTimer = null;
-      ensureWindowVisible(mainWindow);
-    }, 250);
-  };
-  mainWindow.on('show', clampAfterShowFocus);
-  mainWindow.on('focus', clampAfterShowFocus);
-
-  // 窗口被移动（用户拖拽 / 系统 Aero Snap / 外部工具改位）后同样可能落在工作区之外，
-  // 顶部越界时就会切掉自定义标题栏。对 move 做静默去抖：拖动过程不干预，停手 400ms 后再检查并拉回安全区。
-  let moveClampTimer = null;
-  mainWindow.on('move', () => {
-    if (moveClampTimer) clearTimeout(moveClampTimer);
-    moveClampTimer = setTimeout(() => {
-      moveClampTimer = null;
-      ensureWindowVisible(mainWindow);
-    }, 400);
-  });
+  // 窗口可视区校准兜底（标题栏被屏幕裁掉的防护）：
+  // 覆盖显示器拔插/分辨率变更/OS 会话恢复/全屏退出/Cmd+Tab 切回/拖拽越界等场景，
+  // 通过 registerWindowVisibleClamp 统一注册（含 display-metrics-changed 全局监听与延迟去抖校准）
+  registerWindowVisibleClamp(mainWindow);
 
   // 应用主动退出时，忽略渲染进程 beforeunload 的阻止（如编辑器未保存标签的取消卸载）
   // 否则子 iframe 的 beforeunload 会阻断 app.quit()，导致 Cmd+Q / 扩展坞 / 右上角关闭均无效。
@@ -2956,6 +2994,9 @@ function showConfigWindow(config) {
       preload: path.join(__dirname, 'preload.js')
     }
   });
+
+  // 无边框自绘标题栏窗口：同样挂载可视区校准兜底（显示器变化/位置越界时标题栏被裁）
+  registerWindowVisibleClamp(configWindow);
 
   // 加载独立的配置页面（非 SPA 路由）
   configWindow.loadFile(path.join(__dirname, 'config.html'));
@@ -7312,6 +7353,9 @@ app.whenReady().then(async () => {
         preload: path.join(__dirname, 'preload.js')
       }
     });
+
+    // 无边框自绘标题栏窗口：同样挂载可视区校准兜底（标题栏被裁的通用防护）
+    registerWindowVisibleClamp(mainWindow);
 
     mainWindow.loadFile(path.join(__dirname, 'config.html'));
     mainWindow.webContents.on('did-finish-load', () => {
