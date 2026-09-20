@@ -2355,13 +2355,21 @@
           try {
             if (sessionStorage.getItem('ocr-setup-notified')) return;
             sessionStorage.setItem('ocr-setup-notified', '1');
-            showOcrSetupBar(data && data.reason);
+            showOcrSetupBar(data || {});
           } catch (e) {}
         });
       }
-      function showOcrSetupBar(reason) {
+      function showOcrSetupBar(data) {
         if (!notifBar || !notifMsg) return;
-        notifMsg.textContent = '🔤 ' + (reason || 'OCR 组件未就绪') + '（点击前往配置）';
+        const missing = (data && data.missing) || [];
+        if (data && data.engineOk === false) {
+          notifMsg.textContent = '🔤 OCR 组件未就绪：推理引擎未安装（点击前往配置）';
+        } else if (missing.length) {
+          const sug = (data && data.hasBuiltin) ? '🔄 从内置恢复' : '⚡ 一键安装';
+          notifMsg.textContent = '🔤 OCR 模型缺失（' + missing.join('、') + '），可' + sug + '补全（点击前往配置）';
+        } else {
+          notifMsg.textContent = '🔤 ' + ((data && data.reason) || 'OCR 组件未就绪') + '（点击前往配置）';
+        }
         notifBar.className = 'global-notification-bar info';
         notifBar.style.display = 'block';
         notifBar.style.cursor = 'pointer';

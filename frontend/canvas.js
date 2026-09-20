@@ -2371,7 +2371,7 @@
         splitDragging = false;
         resizer.classList.remove('is-dragging');
         body.classList.remove('is-resizing');
-        try { localStorage.setItem(OUTLINE_W_KEY, String(parseInt(panel.style.getPropertyValue('--outline-w').trim() || '', 10) || OUTLINE_W_DEFAULT)); } catch (e2) {}
+        try { localStorage.setItem(OUTLINE_W_KEY, String(parseInt(body.style.getPropertyValue('--outline-w').trim() || '', 10) || OUTLINE_W_DEFAULT)); } catch (e2) {}
         // 拖完让画布重新适配新尺寸（防抖）
         if (viewMode === 'split' && allNodes.length) {
           setTimeout(function() { renderCanvas(); }, 60);
@@ -2406,7 +2406,67 @@
     var maxW = body.clientWidth * 0.6;
     if (w > maxW) w = maxW;
     if (w < OUTLINE_W_MIN) w = OUTLINE_W_MIN;
-    panel.style.setProperty('--outline-w', w + 'px');
+    // 设在 canvas-body 上：outline-panel 与 split-resizer 均为其后代，可继承同一份宽度，
+    // 使分栏线与面板右边界始终对齐（此前设在 panel 上、分隔线读不到导致拖拽失效）
+    body.style.setProperty('--outline-w', w + 'px');
+  }
+
+  // ---- 大纲头部溢出折叠：宽度不足时从右往左收起次要操作进「⋯」菜单 ----
+  // 策略：仅保留主操作「智能生成」稳居可见区；导入/搜索/展开/折叠/导出随宽度渐进折叠。
+  // 「智能生成」在容器内是首个子元素（index 0），故折叠只从队尾收回，天然保底它。
+  function initOutlineOverflow() {
+    var container = document.getElementById('outlineHeadActions');
+    var panel = document.getElementById('outlinePanel');
+    var moreWrap = document.getElementById('outlineMoreWrap');
+    var moreBtn = document.getElementById('outlineMoreBtn');
+    var menu = document.getElementById('outlineMoreMenu');
+    if (!container || !panel || !moreWrap || !moreBtn || !menu) return;
+
+    // 可折叠元素（含按钮与分隔线，保持 DOM 序；队尾即最次要）
+    var foldEls = Array.prototype.slice.call(container.children)
+      .filter(function (el) { return el !== moreWrap; });
+
+    function syncMoreState() {
+      // 仅在真正折叠了内容时才显示「⋯」按钮
+      moreWrap.style.display = menu.childElementCount ? '' : 'none';
+    }
+
+    function relayout() {
+      // 先复位：把菜单里的收容项全部放回容器原位置（moreWrap 前），保证按最新宽度重算而非累计
+      while (menu.firstChild) container.insertBefore(menu.firstChild, moreWrap);
+
+      // 基准全量可见仍不溢出 → 无需折叠
+      if (container.scrollWidth <= container.clientWidth + 1) { syncMoreState(); return; }
+
+      // 从队尾（最次要：导出→折叠→…）逐项收回，直到放下；保住 index0「智能生成」
+      var idx = foldEls.length - 1;
+      while (idx > 0 && container.scrollWidth > container.clientWidth + 1) {
+        var el = foldEls[idx];
+        if (el && el.parentNode === container) menu.appendChild(el);
+        idx--;
+      }
+      syncMoreState();
+    }
+
+    // 监听面板宽度（拖拽分隔线 / 窗口缩放 / 视图切换时触发），避免自监听容器造成循环
+    var ro = new ResizeObserver(function () { relayout(); });
+    ro.observe(panel);
+    window.addEventListener('resize', relayout);
+    // 初始布局 + 兜底滚动条长度异常时也收敛
+    relayout();
+
+    // 菜单开关：点击按钮切换；点击外部或 Esc 关闭
+    function closeMenu() { menu.style.display = 'none'; }
+    function toggleMenu() { menu.style.display = menu.style.display === 'none' ? '' : 'none'; }
+    moreBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleMenu(); });
+    document.addEventListener('click', function (e) {
+      if (!moreWrap.contains(e.target)) closeMenu();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' || e.key === 'Esc') closeMenu();
+    });
+    // 点击菜单项后收起浮层
+    menu.addEventListener('click', closeMenu);
   }
 
   function initViewSwitch() {
@@ -2876,15 +2936,19 @@
   }
 
   document.addEventListener('DOMContentLoaded', function() {
-    initOutline();
-    initDocSwitcher();
-    bindTitleRename();
-    initSplitResizer();
-    initViewSwitch();
-    initLayoutByOutline();
-    initAIOutline();
-    initCanvasFindShortcut();
-    updatePanCursor(); // 默认态未选工具即抓手：初始化即对齐小手
+    var safeInit = function(name, fn) {
+      try { fn(); } catch (err) { console.error('[Canvas]', name, 'init failed:', err && err.message); }
+    };
+    safeInit('outline', initOutline);
+    safeInit('docSwitcher', initDocSwitcher);
+    safeInit('titleRename', bindTitleRename);
+    safeInit('splitResizer', initSplitResizer);
+    safeInit('outlineOverflow', initOutlineOverflow);
+    safeInit('viewSwitch', initViewSwitch);
+    safeInit('layoutByOutline', initLayoutByOutline);
+    safeInit('aiOutline', initAIOutline);
+    safeInit('canvasFindShortcut', initCanvasFindShortcut);
+    safeInit('panCursor', updatePanCursor); // 默认态未选工具即抓手：初始化即对齐小手
     // F3 跳转型联动：编辑器发送内容到画布后，切回画布 tab 时静默重载数据（300ms 去抖防抖动）
     var canvasFocusRefreshTimer = null;
     window.addEventListener('focus', function() {
@@ -2893,7 +2957,7 @@
         loadData();
       }, 300);
     });
-    loadData();
+    safeInit('loadData', loadData);
   });
 
   // ---- PostMessage listener for parent frame ----

@@ -520,14 +520,40 @@
         <aside class="outline-panel" id="outlinePanel">
             <div class="outline-head">
                 <span class="outline-head-title">大纲</span>
-                <div class="outline-head-actions">
-                    <button class="outline-icon-btn ai-highlight" id="aiOutlineBtn" title="用 AI 智能生成大纲（对标幕布：输主题/选示例 → 生成 → 一键作为画布）">✨ 智能生成</button>
-                    <button class="outline-icon-btn" id="importOutlineBtn" title="导入 Markdown / OPML 大纲（粘贴或选文件 → 预览 → 一键作为画布）">导入</button>
-                    <button class="outline-icon-btn" id="outlineSearchBtn" title="在大纲中搜索并定位（Ctrl+F / Enter 下一个 / Shift+Enter 上一个 / Esc 关闭）">搜索</button>
-                    <button class="outline-icon-btn" id="outlineExpandBtn" title="展开全部">展开</button>
-                    <button class="outline-icon-btn" id="outlineCollapseBtn" title="折叠全部">折叠</button>
-                    <button class="outline-icon-btn" id="outlineExportBtn" title="导出为 Markdown 大纲">导出 MD</button>
-                    <button class="outline-icon-btn" id="outlineOPMLBtn" title="导出为 OPML（幕布 / 大纲工具互通）">导出 OPML</button>
+                <div class="outline-head-actions" id="outlineHeadActions">
+                    <button class="outline-icon-btn ai-highlight" id="aiOutlineBtn" title="用 AI 智能生成大纲（对标幕布：输主题/选示例 → 生成 → 一键作为画布）">
+                        <svg class="obtn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>
+                        <span>智能生成</span>
+                    </button>
+                    <span class="outline-sep"></span>
+                    <button class="outline-icon-btn icon-only" id="importOutlineBtn" title="导入 Markdown / OPML 大纲（粘贴或选文件 → 预览 → 一键作为画布）">
+                        <svg class="obtn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+                    </button>
+                    <button class="outline-icon-btn icon-only" id="outlineSearchBtn" title="在大纲中搜索并定位（Ctrl+F / Enter 下一个 / Shift+Enter 上一个 / Esc 关闭）">
+                        <svg class="obtn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                    </button>
+                    <span class="outline-sep"></span>
+                    <button class="outline-icon-btn icon-only" id="outlineExpandBtn" title="展开全部">
+                        <svg class="obtn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                    </button>
+                    <button class="outline-icon-btn icon-only" id="outlineCollapseBtn" title="折叠全部">
+                        <svg class="obtn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+                    </button>
+                    <span class="outline-sep"></span>
+                    <button class="outline-icon-btn" id="outlineExportBtn" title="导出为 Markdown 大纲">
+                        <svg class="obtn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+                        <span>MD</span>
+                    </button>
+                    <button class="outline-icon-btn" id="outlineOPMLBtn" title="导出为 OPML（幕布 / 大纲工具互通）">
+                        <svg class="obtn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+                        <span>OPML</span>
+                    </button>
+                    <div class="outline-more" id="outlineMoreWrap">
+                        <button class="outline-icon-btn icon-only outline-more-btn" id="outlineMoreBtn" title="更多操作">
+                            <svg class="obtn-ico" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+                        </button>
+                        <div class="outline-more-menu" id="outlineMoreMenu" style="display:none;"></div>
+                    </div>
                 </div>
             </div>
             <!-- 大纲搜索浮层（7.5：输入 + 命中计数 + 关闭；Esc 关闭复位） -->

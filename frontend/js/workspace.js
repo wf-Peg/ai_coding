@@ -764,9 +764,9 @@
         var ws = workspaces.find(function(w) { return w.id === ctxTargetWsId; });
         var ctxItem = $('ctxSetDefault');
         if (ws && ws.isDefault) {
-          ctxItem.classList.add('disabled');
-          ctxItem.textContent = '★ 已是默认工作台';
-          ctxItem.disabled = true;
+          ctxItem.classList.remove('disabled');
+          ctxItem.textContent = '☆ 取消默认工作台';
+          ctxItem.disabled = false;
         } else {
           ctxItem.classList.remove('disabled');
           ctxItem.textContent = '★ 设为默认工作台';
@@ -787,19 +787,27 @@
         if (!ctxTargetWsId || this.disabled) return;
         ctxMenu.classList.remove('show');
         var btn = this;
+        var ws = workspaces.find(function(w) { return w.id === ctxTargetWsId; });
+        var cancel = !!(ws && ws.isDefault);
         btn.disabled = true;
-        btn.textContent = '⏳ 设置中...';
+        btn.textContent = '⏳ 处理中...';
         try {
-          var r = await fetch('/api/workspace/' + encodeURIComponent(ctxTargetWsId) + '/set-default', { method: 'PUT' });
-          if (!r.ok) throw new Error('设置失败');
+          var r;
+          if (cancel) {
+            r = await fetch('/api/workspace/clear-default', { method: 'PUT' });
+            if (!r.ok) throw new Error('取消失败');
+          } else {
+            r = await fetch('/api/workspace/' + encodeURIComponent(ctxTargetWsId) + '/set-default', { method: 'PUT' });
+            if (!r.ok) throw new Error('设置失败');
+          }
           await loadWorkspaces();
           // 如果当前 detail 页正好是同一个工作台，刷新 detail 页头部按钮状态
           if (activeWsId === ctxTargetWsId) loadDetail();
         } catch (e) {
-          showDetailError('设置默认工作台失败：' + (e.message || '后端服务不可用'));
+          showDetailError((cancel ? '取消默认工作台失败：' : '设置默认工作台失败：') + (e.message || '后端服务不可用'));
         } finally {
           btn.disabled = false;
-          btn.textContent = '★ 设为默认工作台';
+          btn.textContent = cancel ? '☆ 取消默认工作台' : '★ 设为默认工作台';
           ctxTargetWsId = null;
         }
       });
@@ -881,7 +889,7 @@
           const ws = workspaces.find(w => w.id === activeWsId);
           if (ws) {
             detailHeader.innerHTML =
-              `<div class="detail-header-left"><i class="detail-color" style="background:${escapeHtml(ws.color || '#2383e2')}"></i><div class="detail-info"><h2>${escapeHtml(ws.name)}</h2><span class="detail-type">${escapeHtml(TYPE_LABELS[ws.type || 'general'] || '通用')}</span>${ws.description ? `<p class="detail-desc">${escapeHtml(ws.description)}</p>` : ''}</div></div><div class="detail-stats" id="detailStats"></div><div class="detail-header-actions"><button class="edit-ws-btn" id="editWsBtn" type="button" title="编辑工作台名称、描述与颜色">&#9998; 编辑</button><button class="default-ws-btn${ws.isDefault ? ' is-default' : ''}" id="setDefaultWsBtn" type="button" title="${ws.isDefault ? '已是默认工作台' : '设为默认工作台，打开应用时自动进入此工作台'}">${ws.isDefault ? '&#9733; 默认工作台' : '&#9733; 设为默认'}</button><button class="archive-ws-btn" id="archiveWsBtn" type="button" title="${ws.status === 'archived' ? '恢复工作台到可用状态' : '归档工作台（保留数据，暂不出现在列表）'}">${ws.status === 'archived' ? '&#8634; 恢复' : '&#128190; 归档'}</button><button class="delete-ws-btn" id="deleteWsBtn" type="button" title="删除工作台">&#128465; 删除</button></div>`;
+              `<div class="detail-header-left"><i class="detail-color" style="background:${escapeHtml(ws.color || '#2383e2')}"></i><div class="detail-info"><h2>${escapeHtml(ws.name)}</h2><span class="detail-type">${escapeHtml(TYPE_LABELS[ws.type || 'general'] || '通用')}</span>${ws.description ? `<p class="detail-desc">${escapeHtml(ws.description)}</p>` : ''}</div></div><div class="detail-stats" id="detailStats"></div><div class="detail-header-actions"><button class="edit-ws-btn" id="editWsBtn" type="button" title="编辑工作台名称、描述与颜色">&#9998; 编辑</button><button class="default-ws-btn${ws.isDefault ? ' is-default' : ''}" id="setDefaultWsBtn" type="button" title="${ws.isDefault ? '取消默认工作台，应用打开时恢复「全部」' : '设为默认工作台，打开应用时自动进入此工作台'}">${ws.isDefault ? '&#9734; 取消默认' : '&#9733; 设为默认'}</button><button class="archive-ws-btn" id="archiveWsBtn" type="button" title="${ws.status === 'archived' ? '恢复工作台到可用状态' : '归档工作台（保留数据，暂不出现在列表）'}">${ws.status === 'archived' ? '&#8634; 恢复' : '&#128190; 归档'}</button><button class="delete-ws-btn" id="deleteWsBtn" type="button" title="删除工作台">&#128465; 删除</button></div>`;
             // Update breadcrumb
             var bc = $('breadcrumbCurrent');
             if (bc) bc.textContent = ws.name;
@@ -920,22 +928,29 @@
               showModal(confirmModal);
             });
           }
-          // Bind set default workspace handler
+          // Bind set default / cancel default workspace handler
           const setDefaultBtn = $('setDefaultWsBtn');
-          if (setDefaultBtn && !ws.isDefault) {
+          if (setDefaultBtn) {
+            const cancel = !!ws.isDefault;
             setDefaultBtn.addEventListener('click', async function() {
               setDefaultBtn.disabled = true;
-              setDefaultBtn.textContent = '⏳ 设置中...';
+              setDefaultBtn.textContent = '⏳ 处理中...';
               try {
-                const r = await fetch('/api/workspace/' + encodeURIComponent(activeWsId) + '/set-default', { method: 'PUT' });
-                if (!r.ok) throw new Error('设置失败');
+                let r;
+                if (cancel) {
+                  r = await fetch('/api/workspace/clear-default', { method: 'PUT' });
+                  if (!r.ok) throw new Error('取消失败');
+                } else {
+                  r = await fetch('/api/workspace/' + encodeURIComponent(activeWsId) + '/set-default', { method: 'PUT' });
+                  if (!r.ok) throw new Error('设置失败');
+                }
                 await loadWorkspaces();
-                showDetailError('✓ 已设为默认工作台');
+                showDetailError(cancel ? '✓ 已取消默认工作台' : '✓ 已设为默认工作台');
                 loadDetail();
               } catch (e) {
-                showDetailError('设置默认工作台失败：' + (e.message || '后端服务不可用'));
+                showDetailError((cancel ? '取消默认工作台失败：' : '设置默认工作台失败：') + (e.message || '后端服务不可用'));
                 setDefaultBtn.disabled = false;
-                setDefaultBtn.innerHTML = '&#9733; 设为默认';
+                setDefaultBtn.innerHTML = cancel ? '&#9734; 取消默认' : '&#9733; 设为默认';
               }
             });
           }

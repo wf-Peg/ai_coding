@@ -90,6 +90,7 @@
     diffMarkers: { main: [], compare: [] },
     diffWordMarkers: { main: [], compare: [] },
     syncMarkers: { main: [], compare: [] },
+    __lastDblclickAt: 0,
     diffLocations: [],
     activeDiffIndex: -1,
     transformTarget: null,
@@ -1470,6 +1471,15 @@
     elements.languageSelect.value = normalized;
     mainEditor.session.setMode(`ace/mode/${normalized}`);
     compareEditor.session.setMode(`ace/mode/${normalized}`);
+    // md 模式：ACE 内置 highlightSelectedWord 用 \w 判定词边界，中文不属 \w 会整句误判，
+    // 导致双击只高亮自身、背景错位。统一改用自定义 CJK 安全高亮（sync-word-marker）。
+    const mdMode = normalized === 'markdown';
+    mainEditor.setOption('highlightSelectedWord', !mdMode);
+    compareEditor.setOption('highlightSelectedWord', !mdMode);
+    if (mdMode) {
+      clearMarkers(mainEditor, sharedState.syncMarkers.main);
+      clearMarkers(compareEditor, sharedState.syncMarkers.compare);
+    }
     // 标记当前语言模式，供 CSS 精确作用域（如仅 Markdown 围栏灰化，不波及 JSON/SQL 等代码模式的 token 原色）
     mainEditor.container.setAttribute('data-mode', normalized);
     compareEditor.container.setAttribute('data-mode', normalized);
@@ -4062,8 +4072,126 @@
   }
 
   function clearMarkers(editor, markerIds) {
-    markerIds.forEach(id => editor.session.removeMarker(id));
+    markerIds.forEach(id => {
+      // 数字 id → ACE 原生 marker；带标记的对象 → 像素级同词覆盖层
+      if (typeof id === 'number') {
+        try { editor.session.removeMarker(id); } catch (e) { /* 忽略 */ }
+      }
+    });
+    if (markerIds.some(id => id && id.__syncOverlay)) {
+      _clearSyncOverlay(editor);
+    }
     markerIds.length = 0;
+  }
+
+  // ── 像素级同词高亮（非等宽写作字体下贴合实际字形宽度）──
+  let _syncMeasureCanvas = null;
+  function _syncCtx() {
+    if (!_syncMeasureCanvas) {
+      _syncMeasureCanvas = document.createElement('canvas');
+      _syncMeasureCanvas.style.cssText = 'position:absolute;visibility:hidden;width:1px;height:1px;';
+      document.body.appendChild(_syncMeasureCanvas);
+    }
+    return _syncMeasureCanvas.getContext('2d');
+  }
+  function _syncFontInfo(editor) {
+    const tl = editor.renderer && editor.renderer.textLayer;
+    const el = (tl && tl.element) || editor.container;
+    const cs = getComputedStyle(el);
+    const fs = cs.fontSize || '13px';
+    const lh = editor.renderer.lineHeight || parseInt(fs, 10) || 16;
+    const font = cs.font ||
+      `${cs.fontStyle || 'normal'} ${cs.fontWeight || 'normal'} ${fs}/${lh}px ${cs.fontFamily || 'monospace'}`;
+    return { font, letterSpacing: cs.letterSpacing || 'normal' };
+  }
+  function _measureTextWidth(text, fontInfo) {
+    const ctx = _syncCtx();
+    ctx.font = fontInfo.font;
+    try { if ('letterSpacing' in ctx) ctx.letterSpacing = fontInfo.letterSpacing; } catch (e) {}
+    if (ctx.setTransform) ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const w = ctx.measureText(text).width || 0;
+    try { if ('letterSpacing' in ctx) ctx.letterSpacing = 'normal'; } catch (e) {}
+    return w;
+  }
+  function _getSyncOverlay(editor) {
+    if (editor.__syncOverlay) return editor.__syncOverlay;
+    const content = editor.renderer && editor.renderer.content;
+    if (!content) return null;
+    const ov = document.createElement('div');
+    ov.className = 'ace-sync-overlay';
+    content.appendChild(ov);
+    // 置于光标层之前，保证高亮在文字之上、光标之下
+    const cur = content.querySelector('.ace_cursor-layer');
+    if (cur) content.insertBefore(ov, cur);
+    editor.__syncOverlay = ov;
+    return ov;
+  }
+  function _clearSyncOverlay(editor) {
+    editor.__syncWordMatches = null;
+    if (editor.__syncOverlay) editor.__syncOverlay.textContent = '';
+  }
+  function _paintSyncOverlay(editor, matches) {
+    editor.__syncWordMatches = matches;
+    const overlay = _getSyncOverlay(editor);
+    if (!overlay) return;
+    // 先清空再重建，避免滚动/缩放后残留旧位置帧
+    overlay.textContent = '';
+    if (!matches || !matches.length) return;
+    const renderer = editor.renderer;
+    const session = editor.session;
+    const fontInfo = _syncFontInfo(editor);
+    const lineHeight = renderer.lineHeight || 16;
+    const padding = renderer.$padding || 0;
+    const lines = session.getDocument().getAllLines();
+    for (let i = 0; i < matches.length; i++) {
+      const m = matches[i];
+      const row = m.row;
+      if (row < 0 || row >= lines.length) continue;
+      const prefix = lines[row].slice(0, m.start);
+      const wordText = lines[row].slice(m.start, m.end);
+      const left = padding + _measureTextWidth(prefix, fontInfo);
+      const width = _measureTextWidth(wordText, fontInfo);
+      if (width <= 0) continue;
+      const screenRow = session.documentToScreenPosition(row, 0).row;
+      const top = screenRow * lineHeight;
+      const cell = document.createElement('div');
+      cell.className = 'sync-word-marker';
+      cell.style.left = left + 'px';
+      cell.style.top = top + 'px';
+      cell.style.width = width + 'px';
+      cell.style.height = lineHeight + 'px';
+      overlay.appendChild(cell);
+    }
+  }
+  function repaintSyncHighlights() {
+    [mainEditor, compareEditor].forEach(ed => {
+      if (ed && ed.__syncWordMatches) _paintSyncOverlay(ed, ed.__syncWordMatches);
+    });
+  }
+
+  function markWordInEditor(editor, word, markerIds) {
+    clearMarkers(editor, markerIds);
+    if (!word || /\s/.test(word) || word.length > 120) return;
+    const lines = editor.session.getDocument().getAllLines();
+    const matches = [];
+    lines.forEach((line, row) => {
+      let offset = 0;
+      while (offset <= line.length - word.length) {
+        const index = line.indexOf(word, offset);
+        if (index < 0) break;
+        const before = index === 0 ? '' : line[index - 1];
+        const after = index + word.length >= line.length ? '' : line[index + word.length];
+        const boundary = !/[\p{L}\p{N}_]/u.test(before) && !/[\p{L}\p{N}_]/u.test(after);
+        if (boundary) {
+          matches.push({ row, start: index, end: index + word.length });
+        }
+        offset = index + Math.max(1, word.length);
+      }
+    });
+    if (matches.length) {
+      markerIds.push({ __syncOverlay: true });
+      _paintSyncOverlay(editor, matches);
+    }
   }
 
   function countRows(value) {
@@ -4235,11 +4363,20 @@
   }
 
   function syncSelectedWord() {
+    // Alt+J 多光标残留会污染双击取词：先收起为单光标，再取当前光标处的词
+    try {
+      const sel = mainEditor.selection;
+      if (sel.getAllRanges && sel.getAllRanges().length > 1) {
+        sel.toSingleRange();
+      }
+    } catch (e) { /* 忽略 */ }
     const word = mainEditor.getSelectedText();
     const count = countWholeWordMatches(mainEditor.getValue(), word);
     elements.matchStatus.textContent = count ? `${count} 个整词匹配` : '未选择词语';
+    // 主编辑器始终用 CJK 安全的自定义高亮（md 模式内置高亮已关闭，靠此补齐同词高亮）；
+    // 对比面板打开时再同步到 compareEditor。
+    markWordInEditor(mainEditor, word, sharedState.syncMarkers.main);
     if (!elements.comparePane.hidden) {
-      markWordInEditor(mainEditor, word, sharedState.syncMarkers.main);
       markWordInEditor(compareEditor, word, sharedState.syncMarkers.compare);
     }
   }
@@ -4291,6 +4428,7 @@
     mainEditor.setFontSize = function (size) {
       origSetFontSize(size);
       updateZoomStatus();
+      repaintSyncHighlights();
     };
     updateZoomStatus();
   }
@@ -5193,6 +5331,15 @@
     if (featureOn('docStatsZoom')) scheduleDocStatsUpdate();
     // B3：粘贴长文本场景，内容变化后防抖复查超长行
     if (featureOn('longLineWrap') && state && state.lastContentBytes <= 2 * 1024 * 1024) applyLongLineMode();
+    // Alt+J 多光标后做单点编辑：ACE 会把非主选区折叠成空 ghost 光标残留在原位置，
+    // 导致高亮不消失并干扰后续双击取词。同步多光标输入时所有选区都非空，不会误收起。
+    try {
+      const sel = mainEditor.selection;
+      const ranges = sel.getAllRanges && sel.getAllRanges();
+      if (ranges && ranges.length > 1 && ranges.some(r => r.isEmpty())) {
+        sel.toSingleRange();
+      }
+    } catch (e) { /* 忽略 */ }
   });
 
   // A1：中文输入法友好——composition 期间暂停「跟随」任务（预览/反链/自动保存/字数），结束再补一次
@@ -5223,8 +5370,21 @@
   });
   mainEditor.selection.on('changeSelection', function () {
     if (featureOn('statusRaf')) scheduleCursorStatus(); else updateCursorStatus();
+    // 单击别处（非双击）：选词高亮应跟随收起，避免残留旧同词高亮
+    try {
+      const sel = mainEditor.selection;
+      const ranges = sel.getAllRanges ? sel.getAllRanges() : [];
+      if (sharedState.syncMarkers.main.length && ranges.length === 1 && ranges[0].isEmpty()) {
+        if (sharedState.__lastDblclickAt < Date.now() - 300) {
+          clearMarkers(mainEditor, sharedState.syncMarkers.main);
+        }
+      }
+    } catch (e) { /* 忽略 */ }
   });
-  mainEditor.container.addEventListener('dblclick', () => setTimeout(syncSelectedWord, 0));
+  mainEditor.container.addEventListener('dblclick', () => {
+    sharedState.__lastDblclickAt = Date.now();
+    setTimeout(syncSelectedWord, 0);
+  });
   compareEditor.container.addEventListener('dblclick', () => {
     const word = compareEditor.getSelectedText();
     markWordInEditor(mainEditor, word, sharedState.syncMarkers.main);
@@ -5924,6 +6084,17 @@
       // ② 富文本粘贴 → Markdown（仅当 HTML 确为"真富文本"时才接管，避免纯文本被过度转义）
       if (typeof TurndownService !== 'undefined') {
         const html = cd.getData('text/html');
+        // Excel/WPS 表格：单元格内容以 `<img src="file:///..."` 形式写入 HTML，
+        // Turndown 会转成图片路径地址而非正文。按 Notepad 行为改为直接粘贴纯文本（制表符/换行分隔）。
+        if (html && /urn:schemas-microsoft-com:office:excel|mso-data-placement|ExcelWorksheet|<table[^>]*xmlns:[a-z]+="[^"]*office:excel/i.test(html)) {
+          const plain = (cd.getData('text/plain') || '').trim();
+          if (plain) {
+            e.preventDefault();
+            e.stopPropagation();
+            mainEditor.session.insert(mainEditor.getCursorPosition(), plain);
+          }
+          return;
+        }
         if (html && isRichClipboardHtml(html)) {
           try {
             const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
@@ -6180,6 +6351,7 @@
   })();
   elements.fontFamilySelect.addEventListener('change', function () {
     applyWritingFont(this.value);
+    repaintSyncHighlights();
     showToast('写作字体已切换：' + (FONT_LABELS[this.value] || this.value));
   });
 

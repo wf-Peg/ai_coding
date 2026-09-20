@@ -92,15 +92,24 @@
 
       const structuralChildren = children.filter(child => child.nodeType !== Node.TEXT_NODE || child.nodeValue.trim());
       const hasElementChild = structuralChildren.some(child => child.nodeType === Node.ELEMENT_NODE);
-      const hasTextContent = structuralChildren.some(child => child.nodeType === Node.TEXT_NODE && child.nodeValue.trim());
 
-      // Mixed content and text-only elements are kept on one line to avoid changing text semantics.
-      if (!hasElementChild || hasTextContent) {
+      // 仅无元素子节点的"叶子"（纯文本 或 混合内容但无嵌套元素）保持单行以保留文本语义；
+      // 只要存在元素子节点，即使夹带文本片段(如 SOAP/带说明的配置)也强制逐子元素缩进换行，
+      // 避免整段被 XMLSerializer 合并为一行。
+      if (!hasElementChild) {
         return `${indent}${serializer.serializeToString(node)}`;
       }
 
+      const textLead = structuralChildren
+        .filter(child => child.nodeType !== Node.ELEMENT_NODE)
+        .map(child => serializer.serializeToString(child).trim())
+        .filter(Boolean);
+
       const opening = `${indent}<${node.tagName}${serializeAttributes(node)}>`;
-      const inner = structuralChildren.map(child => formatNode(child, depth + 1)).join('\n');
+      const elementLines = structuralChildren
+        .filter(child => child.nodeType === Node.ELEMENT_NODE)
+        .map(child => formatNode(child, depth + 1));
+      const inner = [...textLead.map(t => `${indent}  ${t}`), ...elementLines].join('\n');
       return `${opening}\n${inner}\n${indent}</${node.tagName}>`;
     };
 

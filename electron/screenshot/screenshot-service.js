@@ -42,23 +42,57 @@ function getMainWindow() {
   return deps ? deps.mainWindow : null;
 }
 
-/** OCR 模型目录（优先级：打包内置 resources/ocr-models → userData 下载 → 源码 __dirname/ocr-models）
- *  开箱即用：模型随应用分发（electron-builder extraResources），用户零安装。
- */
-function getModelsDir() {
-  try {
-    if (typeof process.resourcesPath === 'string') {
-      const builtin = path.join(process.resourcesPath, 'ocr-models');
-      if (fs.existsSync(builtin)) return builtin;
-    }
-  } catch (e) {}
+/** OCR 必需模型文件名（与 ocr-service.js 的 required 保持一致）；cls 为可选（正立文本不受影响）。 */
+const REQUIRED_MODELS = ['ch_PP-OCRv5_det_infer.onnx', 'ch_PP-OCRv5_rec_infer.onnx', 'ppocr_keys_v1.txt'];
+const OCR_CLS_MODEL = 'ch_ppocr_mobile_v2.0_cls_train.onnx';
+const ALL_MODEL_FILES = REQUIRED_MODELS.concat([OCR_CLS_MODEL]);
+
+/** OCR 候选目录（保序去重）：打包内置 resources/ocr-models → 源码 __dirname/ocr-models → userData/ocr-models。
+ *  userData 恒为最后一项：它是可写安装/下载/恢复落点（打包 ASAR 内 __dirname 只读，不可当写入目标）。 */
+function modelCandidates() {
+  const c = [];
+  try { if (typeof process.resourcesPath === 'string') c.push(path.join(process.resourcesPath, 'ocr-models')); } catch (e) {}
+  c.push(path.join(__dirname, 'ocr-models'));
   try {
     if (deps && deps.app && typeof deps.app.getPath === 'function') {
       const ud = deps.app.getPath('userData');
-      if (ud) return path.join(ud, 'ocr-models');
+      if (ud) c.push(path.join(ud, 'ocr-models'));
     }
   } catch (e) {}
-  return path.join(__dirname, 'ocr-models');
+  return c;
+}
+
+/** 首个已含全部必需模型的候选目录（运行时读取优先：打包内置 → 源码内置 → userData）；无则 undefined。 */
+function findAllModelsDir() {
+  return modelCandidates().find(d => REQUIRED_MODELS.every(f => fs.existsSync(path.join(d, f))));
+}
+
+/** 可写安装目录（下载/复制/恢复落点）：恒为最后一个候选（userData，或 __dirname 兜底）。 */
+function getModelsInstallDir() {
+  const c = modelCandidates();
+  return c[c.length - 1] || path.join(__dirname, 'ocr-models');
+}
+
+/** 运行时/状态用模型目录（向后兼容原 getModelsDir）：已含模型的目录优先，否则回退安装目录。 */
+function getModelsDir() {
+  return findAllModelsDir() || getModelsInstallDir();
+}
+
+/** 免网络恢复：把本机任一候选目录中已有的模型复制到目标（可写安装）目录。
+ *  仅复制「目标缺失且候选目录存在」的文件（必需+cls+字典）；返回复制清单与来源目录。 */
+function copyBundledModels(target) {
+  fs.mkdirSync(target, { recursive: true });
+  const copied = [];
+  let from = null;
+  for (const src of modelCandidates()) {
+    if (path.resolve(src) === path.resolve(target)) continue;
+    for (const f of ALL_MODEL_FILES) {
+      const s = path.join(src, f), t = path.join(target, f);
+      if (fs.existsSync(t)) continue; // 目标已有，跳过
+      try { if (fs.existsSync(s)) { fs.copyFileSync(s, t); copied.push(f); if (!from) from = src; } } catch (e) {}
+    }
+  }
+  return { copied, from };
 }
 
 /** 读取截图配置（快捷键/模式等） */
@@ -280,7 +314,9 @@ function encodeForDisplay(image) {
     try {
       const size = image.getSize();
       const raw = image.toBitmap();
-      const MAX_RAW = 24 * 1024 * 1024; // ≈600 万像素（4K@100% 8.3MP 会走 PNG）
+      // 提高阈值：让全高清→4K 及多数高 DPI 屏都走 raw（渲染层 putImageData，零图片解码，
+      // 规避大 PNG 在覆盖层 <img> 解码失败导致的「图像解码失败」）；仅极巨大帧缓冲才回退 PNG。
+      const MAX_RAW = 256 * 1024 * 1024; // ≈6400 万像素（多显示器拼接/超大画幅才超限）
       if (raw && raw.length > 0 && raw.length <= MAX_RAW) {
         return { mode: 'raw', bitmap: raw, width: size.width, height: size.height, mime: 'image/png', bgra: true };
       }
@@ -788,11 +824,19 @@ function showOcrResult(result) {
 
 /** 供渲染层查询 OCR 可用状态 */
 function getOcrStatus() {
+  let engineOk = false;
+  try { require.resolve('onnxruntime-node'); engineOk = true; } catch (e) {}
+  const modelsDir = getModelsDir();
+  const missing = REQUIRED_MODELS.filter(f => !fs.existsSync(path.join(modelsDir, f)));
+  const hasBuiltin = !!findAllModelsDir();
   try {
     if (!ocrService) { ocrService = require('./ocr-service'); }
-    try { ocrService.setModelsDir(getModelsDir()); } catch (e) {}
-    return ocrService.status(deps);
-  } catch (e) { return { available: false, reason: 'onnxruntime-node 未安装' }; }
+    try { ocrService.setModelsDir(modelsDir); } catch (e2) {}
+    const st = ocrService.status(deps);
+    return Object.assign({}, st, { engineOk, modelsDir, installDir: getModelsInstallDir(), missing, hasBuiltin });
+  } catch (e) {
+    return { available: false, reason: 'onnxruntime-node 未安装', engineOk, modelsDir, installDir: getModelsInstallDir(), missing, hasBuiltin };
+  }
 }
 
 // ==================== 窗口辅助 ====================
@@ -851,9 +895,11 @@ function downloadModelsInline(modelsDir) {
     "  $t = Join-Path $dir $job.n",
     "  if (Test-Path $t) { Write-Output ('[OK] 已存在 ' + $job.n); continue }",
     "  $ok = $false",
+    "  $i = 0",
     "  foreach ($u in $job.urls) {",
-    "    try { Invoke-WebRequest -Uri $u -OutFile $t -UseBasicParsing -TimeoutSec 60; $ok = $true; Write-Output ('[OK] ' + $job.n); break }",
-    "    catch { Write-Output ('  [skip] ' + $job.n + ' <- ' + $_.Exception.Message) }",
+    "    $i++",
+    "    try { Invoke-WebRequest -Uri $u -OutFile $t -UseBasicParsing -TimeoutSec 60; $ok = $true; Write-Output ('[OK] 已下载 ' + $job.n); break }",
+    "    catch { Write-Output ('  源' + $i + ' 失败: ' + $_.Exception.Message) }",
     "  }",
     "  if (-not $ok) { Write-Output ('[FAIL] ' + $job.n + ' 所有下载源均失败') }",
     "}",
@@ -925,9 +971,11 @@ async function downloadModelsNode(modelsDir) {
     const t = path.join(modelsDir, job.n);
     if (fs.existsSync(t)) { results.push('[OK] 已存在 ' + job.n); continue; }
     let ok = false;
+    let srcIndex = 0;
     for (const u of job.urls) {
-      try { await downloadFile(u, t); ok = true; results.push('[OK] ' + job.n); break; }
-      catch (e) { results.push('  [skip] ' + job.n + ' <- ' + e.message); }
+      srcIndex++;
+      try { await downloadFile(u, t); ok = true; results.push('[OK] 已下载 ' + job.n); break; }
+      catch (e) { results.push('  源' + srcIndex + ' 失败: ' + e.message); }
     }
     if (!ok) results.push('[FAIL] ' + job.n + ' 所有下载源均失败');
   }
@@ -1130,46 +1178,65 @@ function registerIpc() {
     return { status: 'ok' };
   });
   ipcMain.handle('screenshot:install-ocr', async () => {
-    // 1) onnxruntime-node 检测
-    let ortInstalled = false;
-    try { require.resolve('onnxruntime-node'); ortInstalled = true; } catch (e) {}
-    // 2) 模型文件检测（userData/ocr-models，打包兼容）
-    //    注：必需仅 det/rec/字典；cls（方向分类）可选（缺失时正立文本不受影响），
-    //       故不纳入必需列表，避免"永远下载未完成"；cls 会随全量下载一并拉取。
-    const modelsDir = getModelsDir();
-    const required = ['ch_PP-OCRv5_det_infer.onnx', 'ch_PP-OCRv5_rec_infer.onnx', 'ppocr_keys_v1.txt'];
-    const missing = required.filter(f => !fs.existsSync(path.join(modelsDir, f)));
-    // 3) 下载模型：按平台选择（Windows 用内联 PowerShell，macOS/Linux 用 Node 直接下载）
-    if (missing.length) {
-      let detail = '';
+    // 目标恒为可写安装目录（下载/复制落点），避免写入打包 ASAR 只读目录
+    const installDir = getModelsInstallDir();
+    let engineOk = false;
+    try { require.resolve('onnxruntime-node'); engineOk = true; } catch (e) {}
+    // ① 先免网络恢复：本机已有整套模型（打包/源码内置）→ 直接复制，不无端联网
+    const copyRes = copyBundledModels(installDir);
+    // ② 仍缺的才联网下载
+    const stillMissing = REQUIRED_MODELS.filter(f => !fs.existsSync(path.join(installDir, f)));
+    if (stillMissing.length) {
       try {
-        detail = await downloadModels(modelsDir);
+        await downloadModels(installDir);
       } catch (e) {
-        return { status: 'error', message: '模型下载失败: ' + e.message };
+        return { status: 'error', engineOk, installDir, copied: copyRes.copied, stillMissing,
+                 message: '模型下载失败：' + e.message };
       }
-      // 下载后仍缺则明确列出是哪些文件（含源错误），而非笼统"请检查网络"
-      const stillMissing = required.filter(f => !fs.existsSync(path.join(modelsDir, f)));
-      if (stillMissing.length) {
-        return {
-          status: 'error',
-          message: '模型下载未完成：缺少 ' + stillMissing.join(', ') + '。建议检查网络后重试。\n下载详情:\n' + (detail || '')
-        };
+      const left = REQUIRED_MODELS.filter(f => !fs.existsSync(path.join(installDir, f)));
+      if (left.length) {
+        // 仍缺 → 友好方案，不把原始 [skip]/<- 异常串堆给用户
+        const lines = [
+          '模型下载未完成，仍缺少：' + left.join('、'),
+          '下载目录：' + installDir,
+          '需联网访问 hf-mirror.com / huggingface.co（约 16MB）',
+          '可重试，或「打开模型目录」手动放置模型后重试。'
+        ];
+        if (copyRes.copied.length) {
+          lines.push('已从本机内置免网复制：' + copyRes.copied.join('、'));
+          if (findAllModelsDir()) lines.push('提示：请再点一次「🔄 从内置恢复」补齐后重试。');
+        }
+        return { status: 'error', engineOk, installDir, copied: copyRes.copied, stillMissing: left, message: lines.join('\n') };
       }
     }
-    const modelOk = required.every(f => fs.existsSync(path.join(modelsDir, f)));
-    if (!ortInstalled) {
-      return {
-        status: 'need-npm',
-        message: 'OCR 模型已就绪，但需要安装推理引擎：在项目目录执行 npm i onnxruntime-node && npx electron-builder install-app-deps，然后重启应用'
-      };
+    const modelOk = REQUIRED_MODELS.every(f => fs.existsSync(path.join(installDir, f)));
+    if (!engineOk) {
+      return { status: 'need-npm', engineOk, installDir, copied: copyRes.copied, stillMissing: [],
+               message: '模型已就绪，但需要安装推理引擎：在项目目录执行 npm i onnxruntime-node && npx electron-builder install-app-deps，然后重启应用' };
     }
-    return { status: 'done', message: modelOk ? '✅ OCR 组件已就绪，重启应用生效' : '模型下载未完成，请检查网络后重试' };
+    return { status: 'done', engineOk, installDir, copied: copyRes.copied, stillMissing: [],
+             message: modelOk ? '✅ OCR 组件已就绪（模型已就位' + (copyRes.copied.length ? '，含本机免网复制 ' + copyRes.copied.length + ' 个' : '') + '），重启应用生效' : '模型下载未完成，请检查网络后重试' };
+  });
+
+  // ── 从本机内置恢复模型（纯复制、免网络） ──
+  ipcMain.handle('screenshot:restore-ocr-models', () => {
+    const installDir = getModelsInstallDir();
+    if (!findAllModelsDir()) {
+      return { status: 'empty', copied: [], missing: REQUIRED_MODELS, installDir,
+               message: '本机未检测到内置模型源（打包资源/源码内置均不可用），需联网一键安装' };
+    }
+    const res = copyBundledModels(installDir);
+    const missing = REQUIRED_MODELS.filter(f => !fs.existsSync(path.join(installDir, f)));
+    return { status: missing.length ? 'partial' : 'ok', copied: res.copied, missing, installDir,
+             message: res.copied.length
+               ? ('✅ 已从内置恢复 ' + res.copied.length + ' 个模型：' + res.copied.join('、'))
+               : '模型均已就位' };
   });
 
   // ── OCR 模型目录（工具卡片配置面板用） ──
   ipcMain.handle('screenshot:open-ocr-models-dir', async () => {
     try {
-      const dir = getModelsDir();
+      const dir = getModelsInstallDir(); // 打开可写安装目录（下载/恢复落点）
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       const err = await deps.shell.openPath(dir); // 返回空字符串=成功，否则为错误信息
       if (err) return { status: 'error', message: err };
@@ -1200,6 +1267,17 @@ function initScreenshotService(d) {
   log('initialized');
 }
 
+/** 生成 OCR 引导条的友好归因文案：优先指明下一步操作，避免把原始 reason 直接堆给用户 */
+function buildOcrSetupReason(st) {
+  if (!st) return 'OCR 组件未就绪';
+  if (st.engineOk === false) return 'OCR 推理引擎未安装，可在工具模块一键安装';
+  if (st.missing && st.missing.length) {
+    return 'OCR 模型缺失（' + st.missing.join('、') + '），可「' +
+      (st.hasBuiltin ? '🔄 从内置恢复' : '⚡ 一键安装') + '」补全';
+  }
+  return st.reason || 'OCR 组件未就绪';
+}
+
 /** 检测 OCR 组件状态，模型/引擎缺失时向主窗口发送引导通知（每次启动一次） */
 function checkOcrSetupNotice() {
   try {
@@ -1208,8 +1286,12 @@ function checkOcrSetupNotice() {
     const mw = getMainWindow();
     if (!mw || mw.isDestroyed()) return;
     mw.webContents.send('screenshot:ocr-needs-setup', {
-      reason: st.reason || 'OCR 组件未就绪',
-      modelsDir: getModelsDir()
+      reason: st.available ? '' : buildOcrSetupReason(st),
+      modelsDir: getModelsDir(),
+      installDir: st.installDir,
+      missing: st.missing || [],
+      hasBuiltin: !!st.hasBuiltin,
+      engineOk: !!st.engineOk
     });
   } catch (e) { log('ocr setup check failed:', e.message); }
 }

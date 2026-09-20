@@ -830,6 +830,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** OCR 一键安装：检测依赖 + 下载模型（主进程执行） */
   screenshotInstallOcr: () => ipcRenderer.invoke('screenshot:install-ocr'),
 
+  /** OCR 模型从本机内置恢复（免网络，纯复制） */
+  screenshotRestoreOcrModels: () => ipcRenderer.invoke('screenshot:restore-ocr-models'),
+
   /** 复制文本到剪贴板（主进程，规避 iframe 剪贴板权限） */
   screenshotCopyText: (text) => ipcRenderer.invoke('screenshot:copy-text', { text }),
 

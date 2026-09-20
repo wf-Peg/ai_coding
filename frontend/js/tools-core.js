@@ -690,13 +690,29 @@
         mode = cfg.mode === 'full' ? 'full' : 'ocr';
       } catch (e) {}
     }
+    let ocrState = null;
     if (api && api.screenshotOcrStatus) {
       try {
-        const s = await api.screenshotOcrStatus();
-        ocrText = s.available ? '✅ 离线 OCR 可用' : ('⚠️ ' + (s.reason || 'OCR 未就绪'));
+        ocrState = await api.screenshotOcrStatus();
+        if (ocrState.available) { ocrText = '✅ 离线 OCR 可用'; }
+        else if (ocrState.engineOk === false) { ocrText = '⚠️ 推理引擎未安装（onnxruntime-node）'; }
+        else if (ocrState.missing && ocrState.missing.length) {
+          ocrText = '⚠️ 模型缺失：' + (ocrState.hasBuiltin ? '可「🔄 从内置恢复」免网补全，或「🌐 联网一键安装」' : '，可「⚡ 一键安装」联网下载');
+        }
+        else { ocrText = '⚠️ ' + (ocrState.reason || 'OCR 未就绪'); }
       } catch (e) { ocrText = '⚠️ 查询 OCR 状态失败'; }
     }
     const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    // 状态机驱动按钮主推：模型缺失且本机有内置源 → 首选「从内置恢复」；否则主推「一键安装」
+    const ocrMissing = !!(ocrState && ocrState.missing && ocrState.missing.length);
+    const ocrHasBuiltin = !!(ocrState && ocrState.hasBuiltin);
+    const primaryBtn = (ocrMissing && ocrHasBuiltin)
+      ? '<button id="sysInstall" data-act="restore" style="background:#22c55e;color:#fff;border:none;border-radius:6px;padding:7px 14px;cursor:pointer;font-size:12.5px">🔄 从内置恢复</button>'
+      : '<button id="sysInstall" data-act="install" style="background:#22c55e;color:#fff;border:none;border-radius:6px;padding:7px 14px;cursor:pointer;font-size:12.5px">⚡ 一键安装 OCR</button>';
+    const altBtn = (ocrMissing && ocrHasBuiltin)
+      ? '<button id="sysNetInstall" style="background:transparent;color:var(--app-text);border:1px solid var(--app-border);border-radius:6px;padding:7px 12px;cursor:pointer;font-size:12.5px">🌐 联网一键安装</button>'
+      : '';
     $('promptContent').innerHTML =
       '<div style="font-size:13px;line-height:2">' +
       '<p style="margin-bottom:6px"><b>🔤 快捷 OCR / 截图工具</b> 配置（即时生效）</p>' +
@@ -737,7 +753,7 @@
       '</div>' +
       '<div style="display:flex;gap:8px;margin:8px 0 4px;flex-wrap:wrap">' +
         '<button id="sysSave" style="background:#3f8cff;color:#fff;border:none;border-radius:6px;padding:7px 18px;cursor:pointer;font-size:12.5px">保存配置</button>' +
-        '<button id="sysInstall" style="background:#22c55e;color:#fff;border:none;border-radius:6px;padding:7px 14px;cursor:pointer;font-size:12.5px">⚡ 一键安装 OCR</button>' +
+        primaryBtn + altBtn +
         '<button id="sysOcrDir" style="background:transparent;color:var(--app-text);border:1px solid var(--app-border);border-radius:6px;padding:7px 12px;cursor:pointer;font-size:12.5px">打开模型目录</button>' +
         '<button id="sysCopyCmd" style="background:transparent;color:var(--app-text);border:1px solid var(--app-border);border-radius:6px;padding:7px 12px;cursor:pointer;font-size:12.5px">复制安装命令</button>' +
       '</div>' +
@@ -829,24 +845,55 @@
     document.getElementById('sysInstall').addEventListener('click', async function () {
       const btn = this;
       const msgEl = document.getElementById('sysOcrMsg');
+      const act = (btn && btn.dataset && btn.dataset.act) || 'install'; // restore(从内置恢复) | install(联网一键安装)
+      if (act === 'restore') {
+        if (!api || !api.screenshotRestoreOcrModels) { if (msgEl) msgEl.textContent = '当前环境不支持从内置恢复（需重启应用更新主进程）'; return; }
+        btn.disabled = true; btn.textContent = '恢复中...';
+        if (msgEl) msgEl.textContent = '正在从本机内置复制模型（免联网）...';
+        try {
+          const res = await api.screenshotRestoreOcrModels();
+          const msg = res && res.message || '';
+          if (msgEl) { msgEl.style.color = res.status === 'ok' ? '#22c55e' : '#ef4444'; msgEl.textContent = msg; }
+          showToast(msg, 4000);
+        } catch (e) {
+          if (msgEl) { msgEl.style.color = '#ef4444'; msgEl.textContent = '恢复失败: ' + e.message; }
+        } finally {
+          btn.disabled = false; btn.textContent = '🔄 从内置恢复';
+        }
+        refreshOcrStatusDisplay();
+        return;
+      }
       if (!api || !api.screenshotInstallOcr) { if (msgEl) msgEl.textContent = '当前环境不支持一键安装（需桌面应用）'; return; }
       btn.disabled = true; btn.textContent = '安装中...';
       if (msgEl) msgEl.textContent = '正在检测 OCR 组件并下载模型（约 16MB）...';
       try {
         const res = await api.screenshotInstallOcr();
         if (msgEl) { msgEl.style.color = res.status === 'error' ? '#ef4444' : '#22c55e'; msgEl.textContent = res.message || ''; }
-        // 刷新 OCR 状态
-        if (api.screenshotOcrStatus) {
-          const s = await api.screenshotOcrStatus();
-          const st = document.getElementById('sysOcrStatus');
-          if (st) st.textContent = s.available ? '✅ 离线 OCR 可用' : ('⚠️ ' + (s.reason || '未就绪'));
-        }
       } catch (e) {
         if (msgEl) { msgEl.style.color = '#ef4444'; msgEl.textContent = '安装失败: ' + e.message; }
       } finally {
         btn.disabled = false; btn.textContent = '⚡ 一键安装 OCR';
       }
+      refreshOcrStatusDisplay();
     });
+    // 次级「联网一键安装」：本机有内置源但用户仍想走网络下载时使用
+    const netInstallEl = document.getElementById('sysNetInstall');
+    if (netInstallEl) netInstallEl.addEventListener('click', function () {
+      const installBtn = document.getElementById('sysInstall');
+      if (installBtn) { installBtn.dataset.act = 'install'; installBtn.textContent = '⚡ 一键安装 OCR'; installBtn.click(); }
+    });
+    // 刷新 OCR 状态展示（状态机主推按钮随之更新）
+    async function refreshOcrStatusDisplay() {
+      const stEl = document.getElementById('sysOcrStatus');
+      if (api && api.screenshotOcrStatus && stEl) {
+        try {
+          const s = await api.screenshotOcrStatus();
+          stEl.textContent = s.available ? '✅ 离线 OCR 可用'
+            : (s.engineOk === false ? '⚠️ 推理引擎未安装（onnxruntime-node）'
+              : (s.missing && s.missing.length ? '⚠️ 模型缺失：' + (s.hasBuiltin ? '可「🔄 从内置恢复」免网补全' : '，可「⚡ 一键安装」联网下载') : ('⚠️ ' + (s.reason || '未就绪'))));
+        } catch (e) {}
+      }
+    }
     document.getElementById('sysCopyCmd').addEventListener('click', function () {
       const cmd = 'npm i onnxruntime-node && npx electron-builder install-app-deps && powershell -ExecutionPolicy Bypass -File electron/screenshot/download-ocr-models.ps1';
       // 主进程写剪贴板（iframe 中 navigator.clipboard 常被拒）

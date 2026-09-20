@@ -849,6 +849,33 @@ public class WorkspaceController {
         }
     }
 
+    /**
+     * 取消默认工作台：清除所有工作台的默认标记，恢复「全部」为入口状态。
+     */
+    @PutMapping("/clear-default")
+    public ResponseEntity<?> clearDefault() {
+        try {
+            WorkspaceIndexService indexService = workspaceIndexService();
+            LocalDateTime now = LocalDateTime.now();
+            List<Workspace> all = new ArrayList<>(indexService.readAll());
+            boolean changed = false;
+            for (int i = 0; i < all.size(); i++) {
+                Workspace w = all.get(i);
+                if (w.isDefault()) {
+                    all.set(i, new Workspace(w.id(), w.name(), w.description(), w.color(), w.type(), w.status(),
+                            w.matchAll(), false, w.sortOrder(), w.createdAt(), now));
+                    changed = true;
+                }
+            }
+            if (changed) {
+                for (Workspace w : all) indexService.saveWorkspace(w);
+            }
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (RuntimeException error) {
+            return errorResponse(error);
+        }
+    }
+
     @PutMapping("/reorder")
     public ResponseEntity<?> reorder(@RequestBody ReorderRequest request) {
         try {

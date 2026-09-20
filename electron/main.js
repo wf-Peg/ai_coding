@@ -1861,12 +1861,14 @@ function startFrontendServer(config) {
 
     // 创建静态文件服务中间件
     // fallthrough: false 表示文件不存在时触发 onerror 回调（而非交给 next）
-    // setHeaders：HTML 一律 no-cache（保留 ETag 强校验），避免改版后 iframe/整页仍命中旧缓存
+    // setHeaders：一律 no-cache（保留 ETag 强校验）——既避免开发期 iframe/整页命中旧缓存，
+    // 又避免改了 .js/.css 后磁盘缓存仍返回旧资源导致「改了没生效」。
     const serve = serveStatic(frontendDir, {
       index: ['index.html'],
       fallthrough: false,
       setHeaders(res, filePath) {
-        if (path.extname(filePath).toLowerCase() === '.html') {
+        const ext = path.extname(filePath).toLowerCase();
+        if (ext === '.html' || ext === '.js' || ext === '.css') {
           res.setHeader('Cache-Control', 'no-cache');
         }
       },

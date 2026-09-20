@@ -1001,6 +1001,27 @@ html[data-theme="dark"] .ace_marker-layer .ace_selected-word {
 
 .ace_marker-layer .sync-word-marker {
   position: absolute;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--app-primary) 70%, transparent);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--app-primary) 22%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-primary) 10%, transparent);
+}
+
+/* 像素级同词高亮覆盖层：注入到 .ace_content 内的自绘层，随 ACE 内容原生平移而滚动，
+   子元素用像素 left/top/width 精确定位，贴合非等宽写作字体的实际字形宽度 */
+.ace-sync-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ace-sync-overlay .sync-word-marker {
+  position: absolute;
+  box-sizing: border-box;
   border: 1px solid color-mix(in srgb, var(--app-primary) 70%, transparent);
   border-radius: 2px;
   background: color-mix(in srgb, var(--app-primary) 22%, transparent);

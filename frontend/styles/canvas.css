@@ -210,9 +210,10 @@
     position: absolute;
     top: 0;
     bottom: 0;
-    left: auto;
-    right: -3px;              /* 叠在两栏交界，保证不占 flex 空间 */
-    width: 10px;
+    left: var(--outline-w, 380px);   /* 贴大纲面板右边界（panel 宽度由 --outline-w 驱动） */
+    right: auto;
+    width: 12px;
+    margin-left: -6px;               /* 热区中心对齐面板边界，左右各半 */
     cursor: col-resize;
     z-index: 120;
 }
@@ -221,7 +222,7 @@
     position: absolute;
     top: 0;
     bottom: 0;
-    left: 4px;
+    left: 5px;
     width: 2px;
     border-radius: 2px;
     background: var(--app-border-strong);
@@ -244,27 +245,82 @@
 .outline-head {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
+    gap: 10px;
+    padding: 10px 12px;
     border-bottom: 1px solid var(--app-border);
     flex-shrink: 0;
 }
-.outline-head-title { font-size: 0.8rem; font-weight: 600; color: var(--app-text-secondary); }
-.outline-head-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.outline-head-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--app-text-primary);
+    letter-spacing: 0.02em;
+    padding-left: 2px;
+}
+.outline-head-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; min-width: 0; flex-wrap: nowrap; }
 .outline-icon-btn {
-    border: none;
-    border-radius: var(--app-radius-sm);
-    padding: 3px 8px;
-    background: transparent;
-    color: var(--app-text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 30px;
+    padding: 0 10px;
+    flex-shrink: 0;           /* 禁止 flex 压缩：让真实溢出暴露给 scrollWidth，供溢出折叠精确测量 */
+    border: 1px solid var(--app-border);
+    border-radius: 8px;
+    background: var(--app-surface);
+    color: var(--app-text-secondary);
     font-family: inherit;
-    font-size: 0.75rem;
+    font-size: 0.76rem;
+    font-weight: 500;
     cursor: pointer;
+    white-space: nowrap;
     transition:
         background var(--app-duration-fast) var(--app-ease-smooth),
-        color var(--app-duration-fast) var(--app-ease-smooth);
+        border-color var(--app-duration-fast) var(--app-ease-smooth),
+        color var(--app-duration-fast) var(--app-ease-smooth),
+        transform var(--app-duration-fast) var(--app-ease-smooth);
 }
-.outline-icon-btn:hover { background: var(--app-primary-soft); color: var(--app-primary); }
+.outline-icon-btn:hover { background: var(--app-surface-hover); color: var(--app-primary); border-color: var(--app-primary-soft); }
+.outline-icon-btn:active { transform: scale(0.97); }
+.obtn-ico { width: 15px; height: 15px; flex-shrink: 0; }
+
+/* 纯图标按钮：统一为方形、居中，hover 时主色柔和底 */
+.outline-icon-btn.icon-only { width: 30px; padding: 0; justify-content: center; }
+
+/* 分组分隔线 */
+.outline-sep { width: 1px; height: 18px; background: var(--app-border); margin: 0 3px; flex-shrink: 0; }
+
+/* 「⋯ 更多」溢出菜单：容纳宽度不足时收起的次要操作 */
+.outline-more { position: relative; flex-shrink: 0; }
+.outline-more-btn { border-color: var(--app-border); }
+.outline-more-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 168px;
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+    background: var(--app-surface, #fff);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    box-shadow: var(--app-shadow-md);
+}
+/* 弹层内嵌入的按钮统一样式（复用同款图标按钮，改横排为竖排占满） */
+.outline-more-menu .outline-icon-btn {
+    width: 100%;
+    height: 32px;
+    border-color: transparent;
+    background: transparent;
+    justify-content: flex-start;
+    border-radius: var(--app-radius-sm);
+    font-size: 0.8rem;
+}
+.outline-more-menu .outline-icon-btn:hover { background: var(--app-surface-hover); color: var(--app-primary); border-color: transparent; }
+/* 弹层内嵌入的分隔线不可见 */
+.outline-more-menu .outline-sep { display: none; }
 
 .outline-tree {
     flex: 1;
@@ -433,15 +489,21 @@
 
 /* ============ AI 智能创建（大纲生成器）弹层 ============ */
 
-/* 大纲头部「✨ 智能生成」强调样式 */
+/* 大纲头部「智能生成」主操作：实心主色胶囊，与次要图标按钮形成主次对比 */
 .outline-icon-btn.ai-highlight {
+    padding: 0 14px;
     border-color: var(--app-primary);
-    color: var(--app-primary);
+    background: var(--app-primary);
+    color: #fff;
     font-weight: 600;
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--app-primary) 30%, transparent);
 }
 .outline-icon-btn.ai-highlight:hover {
-    background: var(--app-primary-soft);
+    background: var(--app-primary-hover);
+    border-color: var(--app-primary-hover);
+    color: #fff;
 }
+.outline-icon-btn.ai-highlight:active { transform: scale(0.97); }
 
 /* 空态里的「用 AI 生成大纲」按钮 */
 .outline-empty-action,

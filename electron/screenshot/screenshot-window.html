@@ -227,7 +227,7 @@
     sfPhys = (anno.width && display.width) ? anno.width / display.width : sf;
     drawMask(null);
     hint.textContent = ocrMode
-      ? '拖拽框选要识别的文字区域 · Enter 提取文字 · Esc 取消'
+      ? '拖拽框选要识别的文字区域 · 松开自动识别 · Esc 取消'
       : '拖拽选择区域 · R/O/A/P/T/M/E 切换标注 · 数字切粗细 · C 取色 · Ctrl+Z 撤销 · Esc 取消 · Enter 复制';
     // 性能回传：主进程记录"发送→渲染完成"耗时
     screenshotApi.send('screenshot:painted', { delta: Date.now() - (t0 || Date.now()) });
@@ -240,6 +240,8 @@
     const TOOL_BTNS = ['annoRect', 'annoEllipse', 'annoArrow', 'annoPen', 'annoText', 'annoMosaic', 'annoEraser', 'annoColor', 'annoClear'];
     document.body.classList.toggle('ocr-mode', ocrMode);
     if (ocrMode) {
+      // 快捷 OCR：无需确认框——整条工具栏隐藏，框选松开即自动识别复制
+      set('toolbar', false);
       set('btnCopy', false); set('btnSave', false); set('btnPaste', false);
       TOOL_BTNS.forEach(id => set(id, false));
       set('annoText', false);
@@ -310,22 +312,44 @@
       showRaw(payload);
       return;
     }
-    // PNG 模式（超大分辨率降级路径）
+    // PNG 模式（超大分辨率降级路径）：优先 <img> 解码；失败再换 createImageBitmap 兜底
+    // （对大型位图更稳），两者都失败才发 init-error，避免「图像解码失败」瞬间关闭覆盖层。
     if (currentUrl) { URL.revokeObjectURL(currentUrl); currentUrl = null; }
     const blob = new Blob([payload.bg], { type: payload.mime || 'image/png' });
-    currentUrl = URL.createObjectURL(blob);
-    bg.style.display = '';
-    bgCanvas.style.display = 'none';
-    bg.src = currentUrl;
-    bg.onload = () => {
-      // 空图（解码成功但尺寸为 0，常见于 macOS 空/黑帧）也视为失败，回传主进程主动收尾
-      if (bg.naturalWidth <= 0 || bg.naturalHeight <= 0) {
-        screenshotApi.send('screenshot:init-error', { message: '图像尺寸为空' });
+    const decodeViaBitmap = () => {
+      if (typeof createImageBitmap !== 'function') {
+        screenshotApi.send('screenshot:init-error', { message: '图像解码失败' });
         return;
       }
-      onBackgroundReady(payload.t0);
+      createImageBitmap(blob).then((bitmap) => {
+        bgCanvas.width = bitmap.width;
+        bgCanvas.height = bitmap.height;
+        bgCanvas.style.width = '100%';
+        bgCanvas.style.height = '100%';
+        bgCanvas.getContext('2d').drawImage(bitmap, 0, 0);
+        bg.removeAttribute('src');
+        bg.style.display = 'none';
+        bgCanvas.style.display = 'block';
+        if (currentUrl) { URL.revokeObjectURL(currentUrl); currentUrl = null; }
+        onBackgroundReady(payload.t0);
+      }).catch(() => screenshotApi.send('screenshot:init-error', { message: '图像解码失败' }));
     };
-    bg.onerror = () => screenshotApi.send('screenshot:init-error', { message: '图像解码失败' });
+    const decodeViaImg = () => {
+      currentUrl = URL.createObjectURL(blob);
+      bg.style.display = '';
+      bgCanvas.style.display = 'none';
+      bg.onload = () => {
+        // 空图（解码成功但尺寸为 0，常见于 macOS 空/黑帧）也视为失败，回传主进程主动收尾
+        if (bg.naturalWidth <= 0 || bg.naturalHeight <= 0) {
+          screenshotApi.send('screenshot:init-error', { message: '图像尺寸为空' });
+          return;
+        }
+        onBackgroundReady(payload.t0);
+      };
+      bg.onerror = () => decodeViaBitmap(); // <img> 解码失败 → 换 createImageBitmap 兜底
+      bg.src = currentUrl;
+    };
+    decodeViaImg();
   });
 
   // ── 遮罩：离屏底图 + 选区亮区（性能优化，避免全屏重绘） ──
@@ -503,9 +527,11 @@
       selRect = null;
       drawMask(null);
       updateSel(null);
-    } else {
-      updateSel(selRect);
+      return;
     }
+    // 快捷 OCR：框选完成（松开鼠标）即自动识别并复制到剪贴板，无二级确认框
+    if (ocrMode) { confirm('ocr'); return; }
+    updateSel(selRect);
   });
 
   // 手柄方向调整（snipaste 风格：8 方向独立拖拽）
